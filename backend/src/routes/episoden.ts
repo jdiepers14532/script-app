@@ -2,25 +2,15 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
-const router = Router()
+// Two separate routers for different mount points
+export const episodenRouter = Router()
+export const bloeckeRouter = Router()
 
-router.use(authMiddleware)
-
-// GET /api/bloecke/:id/episoden
-router.get('/bloecke/:blockId/episoden', async (req, res) => {
-  try {
-    const rows = await query(
-      'SELECT * FROM episoden WHERE block_id = $1 ORDER BY episode_nummer',
-      [req.params.blockId]
-    )
-    res.json(rows)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
+episodenRouter.use(authMiddleware)
+bloeckeRouter.use(authMiddleware)
 
 // GET /api/episoden/:id
-router.get('/:id', async (req, res) => {
+episodenRouter.get('/:id', async (req, res) => {
   try {
     const row = await queryOne('SELECT * FROM episoden WHERE id = $1', [req.params.id])
     if (!row) return res.status(404).json({ error: 'Episode nicht gefunden' })
@@ -30,23 +20,9 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// POST /api/bloecke/:blockId/episoden (create episode)
-router.post('/bloecke/:blockId/episoden', async (req, res) => {
-  try {
-    const { episode_nummer, staffel_nummer, arbeitstitel, air_date, synopsis } = req.body
-    const row = await queryOne(
-      `INSERT INTO episoden (block_id, episode_nummer, staffel_nummer, arbeitstitel, air_date, synopsis)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [req.params.blockId, episode_nummer, staffel_nummer || 1, arbeitstitel, air_date || null, synopsis || null]
-    )
-    res.status(201).json(row)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
-
+// POST /api/episoden (not used — use bloecke route)
 // PUT /api/episoden/:id
-router.put('/:id', async (req, res) => {
+episodenRouter.put('/:id', async (req, res) => {
   try {
     const { arbeitstitel, air_date, synopsis, meta_json } = req.body
     const row = await queryOne(
@@ -66,4 +42,33 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-export default router
+// GET /api/bloecke/:blockId/episoden
+bloeckeRouter.get('/:blockId/episoden', async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT * FROM episoden WHERE block_id = $1 ORDER BY episode_nummer',
+      [req.params.blockId]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/bloecke/:blockId/episoden
+bloeckeRouter.post('/:blockId/episoden', async (req, res) => {
+  try {
+    const { episode_nummer, staffel_nummer, arbeitstitel, air_date, synopsis } = req.body
+    const row = await queryOne(
+      `INSERT INTO episoden (block_id, episode_nummer, staffel_nummer, arbeitstitel, air_date, synopsis)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.params.blockId, episode_nummer, staffel_nummer || 1, arbeitstitel, air_date || null, synopsis || null]
+    )
+    res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// Default export for backward compat
+export default episodenRouter

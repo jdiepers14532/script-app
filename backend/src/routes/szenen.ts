@@ -2,50 +2,14 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
-const router = Router()
+export const szenenRouter = Router()
+export const stagesSzenenRouter = Router()
 
-router.use(authMiddleware)
-
-// GET /api/stages/:stageId/szenen
-router.get('/stages/:stageId/szenen', async (req, res) => {
-  try {
-    const rows = await query(
-      'SELECT * FROM szenen WHERE stage_id = $1 ORDER BY sort_order, scene_nummer',
-      [req.params.stageId]
-    )
-    res.json(rows)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
-
-// POST /api/stages/:stageId/szenen
-router.post('/stages/:stageId/szenen', async (req, res) => {
-  try {
-    const { scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, dauer_min, sort_order } = req.body
-    const row = await queryOne(
-      `INSERT INTO szenen (stage_id, scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, dauer_min, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [
-        req.params.stageId,
-        scene_nummer,
-        int_ext || 'INT',
-        tageszeit || 'TAG',
-        ort_name || null,
-        zusammenfassung || null,
-        JSON.stringify(content || []),
-        dauer_min || null,
-        sort_order || 0,
-      ]
-    )
-    res.status(201).json(row)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
+szenenRouter.use(authMiddleware)
+stagesSzenenRouter.use(authMiddleware)
 
 // GET /api/szenen/:id
-router.get('/:id', async (req, res) => {
+szenenRouter.get('/:id', async (req, res) => {
   try {
     const row = await queryOne('SELECT * FROM szenen WHERE id = $1', [req.params.id])
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
@@ -56,7 +20,7 @@ router.get('/:id', async (req, res) => {
 })
 
 // PUT /api/szenen/:id
-router.put('/:id', async (req, res) => {
+szenenRouter.put('/:id', async (req, res) => {
   try {
     const { int_ext, tageszeit, ort_name, zusammenfassung, content, dauer_min, sort_order } = req.body
     const row = await queryOne(
@@ -89,7 +53,7 @@ router.put('/:id', async (req, res) => {
 })
 
 // DELETE /api/szenen/:id
-router.delete('/:id', async (req, res) => {
+szenenRouter.delete('/:id', async (req, res) => {
   try {
     const result = await queryOne('DELETE FROM szenen WHERE id = $1 RETURNING id', [req.params.id])
     if (!result) return res.status(404).json({ error: 'Szene nicht gefunden' })
@@ -99,4 +63,42 @@ router.delete('/:id', async (req, res) => {
   }
 })
 
-export default router
+// GET /api/stages/:stageId/szenen
+stagesSzenenRouter.get('/:stageId/szenen', async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT * FROM szenen WHERE stage_id = $1 ORDER BY sort_order, scene_nummer',
+      [req.params.stageId]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/stages/:stageId/szenen
+stagesSzenenRouter.post('/:stageId/szenen', async (req, res) => {
+  try {
+    const { scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, dauer_min, sort_order } = req.body
+    const row = await queryOne(
+      `INSERT INTO szenen (stage_id, scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, dauer_min, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        req.params.stageId,
+        scene_nummer,
+        int_ext || 'INT',
+        tageszeit || 'TAG',
+        ort_name || null,
+        zusammenfassung || null,
+        JSON.stringify(content || []),
+        dauer_min || null,
+        sort_order || 0,
+      ]
+    )
+    res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+export default szenenRouter
