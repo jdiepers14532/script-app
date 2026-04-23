@@ -15,6 +15,7 @@ import { locksRouter, contractLocksRouter } from './routes/locks'
 import versionenRouter from './routes/versionen'
 import exportsRouter from './routes/exports'
 import entitiesRouter from './routes/entities'
+import kiRouter, { kiAdminRouter } from './routes/ki'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -46,6 +47,8 @@ app.use('/api/szenen', versionenRouter)
 app.use('/api/stages', exportsRouter)
 app.use('/api/entities', entitiesRouter)
 app.use('/api', entitiesRouter) // for /api/stages/:id/entities
+app.use('/api/ki', kiRouter)
+app.use('/api/admin/ki-settings', kiAdminRouter)
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
