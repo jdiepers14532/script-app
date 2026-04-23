@@ -11,6 +11,7 @@ import staffelnRouter from './routes/staffeln'
 import { episodenRouter, bloeckeRouter } from './routes/episoden'
 import { stagesRouter, episodenStagesRouter } from './routes/stages'
 import { szenenRouter, stagesSzenenRouter } from './routes/szenen'
+import { locksRouter, contractLocksRouter } from './routes/locks'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -36,21 +37,36 @@ app.use('/api/stages', stagesRouter)
 app.use('/api/episoden', episodenStagesRouter)
 app.use('/api/szenen', szenenRouter)
 app.use('/api/stages', stagesSzenenRouter)
+app.use('/api/episoden', locksRouter)
+app.use('/api/locks', contractLocksRouter)
+
+// Cron: Clean up expired locks every 5 minutes
+setInterval(async () => {
+  try {
+    await pool.query("DELETE FROM episode_locks WHERE lock_type = 'exclusive' AND expires_at < NOW()")
+  } catch (err) {
+    console.error('Lock cleanup error:', err)
+  }
+}, 5 * 60 * 1000)
 
 // Run migration on startup
 async function runMigrations() {
   // Find migration file
-  const paths = [
-    path.join(__dirname, 'migrations', 'v1_init.sql'),
-    path.join(__dirname, '..', 'src', 'migrations', 'v1_init.sql'),
-  ]
-  let sql: string | null = null
-  for (const p of paths) {
-    if (fs.existsSync(p)) { sql = fs.readFileSync(p, 'utf-8'); break }
+  const migrationFiles = ['v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql', 'v5_ki.sql', 'v6_kommentare.sql']
+  for (const file of migrationFiles) {
+    const paths = [
+      path.join(__dirname, 'migrations', file),
+      path.join(__dirname, '..', 'src', 'migrations', file),
+    ]
+    let sql: string | null = null
+    for (const p of paths) {
+      if (fs.existsSync(p)) { sql = fs.readFileSync(p, 'utf-8'); break }
+    }
+    if (sql) {
+      await pool.query(sql)
+      console.log(`Migration ${file} applied`)
+    }
   }
-  if (!sql) throw new Error('Migration file not found')
-  await pool.query(sql)
-  console.log('Migration v1 applied')
 }
 
 app.listen(PORT, async () => {
