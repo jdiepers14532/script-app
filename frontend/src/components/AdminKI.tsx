@@ -22,7 +22,7 @@ const PROVIDERS: Provider[] = [
     initials: 'O',
     color: '#111111',
     dsgvo: 'DSGVO-sicher · lokal',
-    dsgvoColor: 'var(--c-success)',
+    dsgvoColor: 'var(--sw-green)',
     meta: 'Lokal · Llama 3.1 8B',
   },
   {
@@ -31,7 +31,7 @@ const PROVIDERS: Provider[] = [
     initials: 'M',
     color: '#FA520F',
     dsgvo: 'DSGVO-konform · EU',
-    dsgvoColor: 'var(--c-info)',
+    dsgvoColor: 'var(--sw-info)',
     meta: 'mistral-medium-latest',
   },
   {
@@ -40,7 +40,7 @@ const PROVIDERS: Provider[] = [
     initials: 'G',
     color: '#10A37F',
     dsgvo: 'Opt-In nötig · USA',
-    dsgvoColor: 'var(--c-warn)',
+    dsgvoColor: 'var(--sw-warning-alt)',
     warn: true,
     meta: 'gpt-4o',
   },
@@ -50,7 +50,7 @@ const PROVIDERS: Provider[] = [
     initials: 'C',
     color: '#CC785C',
     dsgvo: 'Opt-In nötig · USA',
-    dsgvoColor: 'var(--c-warn)',
+    dsgvoColor: 'var(--sw-warning-alt)',
     warn: true,
     meta: 'claude-3-5-sonnet',
   },
@@ -93,23 +93,27 @@ export default function AdminKI() {
     setPills(p => p.map(pill => pill.id === id ? { ...pill, checked: !pill.checked } : pill))
   }
 
+  // suppress unused warning
+  const _f: FunctionCard | null = null
+  void _f
+
   return (
     <div style={{ flex: 1, overflow: 'auto' }}>
       <div style={{ padding: '24px 32px', maxWidth: 760, margin: '0 auto' }}>
 
-        {/* DSGVO Info Box — left border only, no background */}
+        {/* DSGVO Info Box */}
         <div style={{
-          borderLeft: '3px solid var(--c-info)',
+          borderLeft: '3px solid var(--sw-info)',
           padding: '12px 16px',
           marginBottom: 28,
         }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <Shield size={16} style={{ color: 'var(--c-info)', flexShrink: 0, marginTop: 1 }} />
+            <Shield size={16} style={{ color: 'var(--sw-info)', flexShrink: 0, marginTop: 1 }} />
             <div>
-              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--c-text)', marginBottom: 4 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 4 }}>
                 Datenschutz-Hinweis zu KI-Funktionen
               </div>
-              <p style={{ fontSize: 12, color: 'var(--c-text-3)', lineHeight: 1.6, margin: 0 }}>
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
                 Drehbuch-Inhalte sind produktionskritische, sensible Daten. Lokale Modelle (Ollama) verarbeiten
                 alles auf dem Server ohne externe Datenübertragung. Cloud-Anbieter (Mistral EU) arbeiten
                 DSGVO-konform mit Datenverarbeitungsvertrag. Für OpenAI und Claude ist eine explizite
@@ -131,17 +135,19 @@ export default function AdminKI() {
             <>
               {/* Provider Selection */}
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--c-text-2)', marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
                   KI-Anbieter
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {PROVIDERS.map(p => (
                     <label
                       key={p.id}
-                      className={`admin-provider-radio${synopsisProvider === p.id ? ' selected' : ''}`}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 10,
-                        cursor: 'pointer',
+                        padding: '8px 12px', cursor: 'pointer',
+                        border: 'none',
+                        borderLeft: `2px solid ${synopsisProvider === p.id ? 'var(--text-primary)' : 'transparent'}`,
+                        background: synopsisProvider === p.id ? 'var(--bg-subtle)' : 'transparent',
                       }}
                     >
                       <input
@@ -165,15 +171,15 @@ export default function AdminKI() {
                           <span style={{ fontSize: 13, fontWeight: 500 }}>{p.label}</span>
                           <span style={{
                             fontSize: 10, padding: '1px 6px',
-                            borderRadius: 'var(--r-full)',
+                            borderRadius: 999,
                             background: 'transparent',
                             color: p.dsgvoColor,
-                            border: `1px solid ${p.dsgvoColor === 'var(--c-success)' ? 'var(--c-success)' : p.dsgvoColor === 'var(--c-info)' ? 'var(--c-info)' : 'var(--c-warn)'}`,
+                            border: `1px solid ${p.dsgvoColor}`,
                           }}>
                             {p.dsgvo}
                           </span>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--c-text-3)', marginTop: 1 }}>{p.meta}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{p.meta}</div>
                       </div>
                     </label>
                   ))}
@@ -182,28 +188,30 @@ export default function AdminKI() {
 
               {/* API Key */}
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--c-text-2)', marginBottom: 6 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
                   API-Key
                 </label>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <input
-                      className="input"
                       type={showApiKey ? 'text' : 'password'}
                       defaultValue="sk-mistral-••••••••••••••••••••••••"
-                      style={{ paddingRight: 72 }}
+                      style={{
+                        width: '100%', padding: '7px 70px 7px 10px',
+                        border: '1px solid var(--border)', borderRadius: 6,
+                        font: 'inherit', fontSize: 13, background: 'var(--input-bg)', color: 'var(--text-primary)',
+                        outline: 'none',
+                      }}
                     />
                     <div style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 2 }}>
                       <button
-                        className="btn-icon"
-                        style={{ width: 26, height: 26 }}
+                        style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'grid', placeItems: 'center' }}
                         onClick={() => setShowApiKey(v => !v)}
                       >
                         {showApiKey ? <EyeOff size={13} /> : <Eye size={13} />}
                       </button>
                       <button
-                        className="btn-icon"
-                        style={{ width: 26, height: 26 }}
+                        style={{ width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', display: 'grid', placeItems: 'center' }}
                         title="Neu generieren"
                       >
                         <RefreshCw size={13} />
@@ -212,10 +220,8 @@ export default function AdminKI() {
                   </div>
                   <div style={{
                     display: 'flex', alignItems: 'center', gap: 5,
-                    padding: '0 10px',
-                    fontSize: 12, fontWeight: 500,
-                    color: 'var(--c-success)',
-                    whiteSpace: 'nowrap',
+                    padding: '0 10px', fontSize: 12, fontWeight: 500,
+                    color: 'var(--sw-green)', whiteSpace: 'nowrap',
                   }}>
                     <CheckCircle size={12} />
                     Verbunden
@@ -225,19 +231,19 @@ export default function AdminKI() {
 
               {/* Automatisierung */}
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--c-text-2)', marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
                   Automatisierung
                 </label>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                     <input type="checkbox" checked={auto1} onChange={e => setAuto1(e.target.checked)} style={{ margin: 0 }} />
-                    <span style={{ fontSize: 13, color: 'var(--c-text-2)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                       Synopse automatisch bei Speichern aktualisieren
                     </span>
                   </label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                     <input type="checkbox" checked={auto2} onChange={e => setAuto2(e.target.checked)} style={{ margin: 0 }} />
-                    <span style={{ fontSize: 13, color: 'var(--c-text-2)' }}>
+                    <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
                       Batch-Verarbeitung aller Szenen bei Versions-Milestone
                     </span>
                   </label>
@@ -258,10 +264,15 @@ export default function AdminKI() {
           {breakdownEnabled && (
             <>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--c-text-2)', marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
                   KI-Anbieter
                 </label>
-                <div className="admin-provider-radio selected" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '8px 12px',
+                  borderLeft: '2px solid var(--text-primary)',
+                  background: 'var(--bg-subtle)',
+                }}>
                   <div style={{
                     width: 22, height: 22, borderRadius: 4,
                     background: '#111', color: '#fff',
@@ -270,13 +281,13 @@ export default function AdminKI() {
                   }}>O</div>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 500 }}>Ollama</div>
-                    <div style={{ fontSize: 11, color: 'var(--c-text-3)' }}>Lokal · Llama 3.1 8B</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Lokal · Llama 3.1 8B</div>
                   </div>
                   <span style={{
                     marginLeft: 'auto', fontSize: 10, padding: '1px 6px',
-                    borderRadius: 'var(--r-full)',
-                    border: '1px solid var(--c-success)',
-                    color: 'var(--c-success)', fontWeight: 500,
+                    borderRadius: 999,
+                    border: '1px solid var(--sw-green)',
+                    color: 'var(--sw-green)', fontWeight: 500,
                   }}>
                     DSGVO-sicher · lokal
                   </span>
@@ -284,7 +295,7 @@ export default function AdminKI() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--c-text-2)', marginBottom: 8 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 8 }}>
                   Erkenne
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -294,13 +305,13 @@ export default function AdminKI() {
                       onClick={() => togglePill(pill.id)}
                       style={{
                         padding: '4px 12px',
-                        borderRadius: 'var(--r-full)',
-                        border: `1px solid ${pill.checked ? 'var(--c-ink)' : 'var(--c-line)'}`,
-                        background: pill.checked ? 'var(--c-ink)' : 'transparent',
-                        color: pill.checked ? 'var(--c-paper)' : 'var(--c-text-3)',
+                        borderRadius: 999,
+                        border: `1px solid ${pill.checked ? 'var(--text-primary)' : 'var(--border)'}`,
+                        background: pill.checked ? 'var(--btn-primary-bg)' : 'transparent',
+                        color: pill.checked ? 'var(--btn-primary-color)' : 'var(--text-secondary)',
                         fontSize: 12, fontWeight: 500,
                         cursor: 'pointer',
-                        transition: 'all var(--t-fast)',
+                        transition: 'all 0.15s',
                         fontFamily: 'var(--font-sans)',
                       }}
                     >
@@ -324,15 +335,15 @@ export default function AdminKI() {
           {null}
         </FunctionCardComponent>
 
-        {/* Opt-In Box — left border only */}
+        {/* Opt-In Box */}
         <div style={{
-          borderLeft: '3px solid var(--c-warn)',
+          borderLeft: '3px solid var(--sw-warning-alt)',
           padding: '12px 16px',
           marginTop: 28,
           marginBottom: 28,
         }}>
           <div style={{ display: 'flex', gap: 10 }}>
-            <AlertTriangle size={16} style={{ color: 'var(--c-warn)', flexShrink: 0, marginTop: 1 }} />
+            <AlertTriangle size={16} style={{ color: 'var(--sw-warning-alt)', flexShrink: 0, marginTop: 1 }} />
             <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', flex: 1 }}>
               <input
                 type="checkbox"
@@ -340,7 +351,7 @@ export default function AdminKI() {
                 onChange={e => setOptInChecked(e.target.checked)}
                 style={{ margin: '2px 0 0 0', flexShrink: 0 }}
               />
-              <span style={{ fontSize: 13, color: 'var(--c-text-2)', lineHeight: 1.6 }}>
+              <span style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 Ich bestätige, dass alle relevanten Mitglieder der Produktion über den Einsatz von
                 Cloud-KI-Diensten außerhalb der EU (OpenAI, Claude) informiert wurden und ihr Einverständnis
                 gegeben haben.
@@ -351,36 +362,41 @@ export default function AdminKI() {
 
         {/* Cost Overview */}
         <div style={{ marginBottom: 28 }}>
-          <h3 style={{ fontSize: 12, fontWeight: 500, marginBottom: 12, color: 'var(--c-text-3)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          <h3 style={{ fontSize: 12, fontWeight: 500, marginBottom: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
             Kostenübersicht (geschätzt / Monat)
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: 'var(--c-line)' }}>
-            <CostCard label="Ollama" value="0,00 €" note="Lokal" color="var(--c-success)" />
-            <CostCard label="Mistral AI" value="~18,40 €" note="API-Nutzung" color="var(--c-info)" />
-            <CostCard label="Gesamt" value="500,00 €" note="Alle Aktiven" color="var(--c-text)" bold />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 1, background: 'var(--border)' }}>
+            <CostCard label="Ollama" value="0,00 €" note="Lokal" color="var(--sw-green)" />
+            <CostCard label="Mistral AI" value="~18,40 €" note="API-Nutzung" color="var(--sw-info)" />
+            <CostCard label="Gesamt" value="500,00 €" note="Alle Aktiven" color="var(--text-primary)" bold />
           </div>
         </div>
       </div>
 
       {/* Sticky Save Bar */}
       <div style={{
-        position: 'sticky',
-        bottom: 0,
-        borderTop: '1px solid var(--c-line)',
-        background: 'var(--c-paper)',
+        position: 'sticky', bottom: 0,
+        borderTop: '1px solid var(--border)',
+        background: 'var(--bg-page)',
         padding: '10px 32px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
+        display: 'flex', alignItems: 'center', gap: 12,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--c-warn)', display: 'inline-block' }} />
-          <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--sw-warning-alt)', display: 'inline-block' }} />
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
             {unsavedCount} ungesicherte Änderungen
           </span>
         </div>
-        <button className="btn-text">Zurücksetzen</button>
-        <button className="btn-primary">Speichern</button>
+        <button
+          style={{ padding: '6px 12px', fontSize: 12, fontWeight: 500, border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+        >
+          Zurücksetzen
+        </button>
+        <button
+          style={{ padding: '7px 16px', fontSize: 13, fontWeight: 500, border: 'none', borderRadius: 6, background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+        >
+          Speichern
+        </button>
       </div>
     </div>
   )
@@ -403,36 +419,43 @@ function FunctionCardComponent({
 }) {
   return (
     <div style={{
-      borderBottom: '1px solid var(--c-line)',
+      borderBottom: '1px solid var(--border)',
       background: 'transparent',
       overflow: 'hidden',
       marginBottom: 0,
     }}>
-      {/* Card Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '14px 0',
-      }}>
-        <div style={{ color: enabled ? 'var(--c-text)' : 'var(--c-muted)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0' }}>
+        <div style={{ color: enabled ? 'var(--text-primary)' : 'var(--text-muted)', flexShrink: 0 }}>
           <Icon size={16} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2, color: enabled ? 'var(--c-text)' : 'var(--c-text-3)' }}>
+          <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 2, color: enabled ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
             {title}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--c-text-3)', lineHeight: 1.4 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
             {description}
           </div>
         </div>
-        <label className="toggle" style={{ flexShrink: 0 }}>
-          <input type="checkbox" checked={enabled} onChange={onToggle} />
-          <span className="toggle-slider" />
+        {/* Toggle */}
+        <label style={{ position: 'relative', display: 'inline-block', width: 36, height: 20, flexShrink: 0 }}>
+          <input type="checkbox" checked={enabled} onChange={onToggle} style={{ opacity: 0, width: 0, height: 0 }} />
+          <span
+            style={{
+              position: 'absolute', cursor: 'pointer',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: enabled ? 'var(--text-primary)' : 'var(--border)',
+              borderRadius: 999, transition: '0.15s',
+            }}
+          >
+            <span style={{
+              position: 'absolute', height: 14, width: 14,
+              left: enabled ? 19 : 3, bottom: 3,
+              background: 'white', borderRadius: '50%', transition: '0.15s',
+            }} />
+          </span>
         </label>
       </div>
 
-      {/* Card Body */}
       {enabled && children && (
         <div style={{ paddingBottom: 16 }}>
           {children}
@@ -444,13 +467,10 @@ function FunctionCardComponent({
 
 function CostCard({ label, value, note, color, bold }: { label: string; value: string; note: string; color: string; bold?: boolean }) {
   return (
-    <div style={{
-      padding: '12px 14px',
-      background: 'var(--c-paper)',
-    }}>
-      <div style={{ fontSize: 11, color: 'var(--c-text-3)', marginBottom: 4 }}>{label}</div>
+    <div style={{ padding: '12px 14px', background: 'var(--bg-page)' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: 16, fontWeight: bold ? 600 : 500, color, marginBottom: 2 }}>{value}</div>
-      <div style={{ fontSize: 11, color: 'var(--c-text-3)' }}>{note}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{note}</div>
     </div>
   )
 }

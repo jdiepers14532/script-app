@@ -25,17 +25,17 @@ export default function AdminPage() {
         {/* Admin Header */}
         <div style={{
           padding: '14px 32px 0',
-          borderBottom: '1px solid var(--c-line)',
-          background: 'var(--c-paper)',
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--bg-page)',
           flexShrink: 0,
         }}>
           <h2 style={{
             fontSize: 16, fontWeight: 600,
-            marginBottom: 12, color: 'var(--c-text)',
+            marginBottom: 12, color: 'var(--text-primary)',
           }}>
             Einstellungen
           </h2>
-          {/* Tabs — text-link style */}
+          {/* Tabs */}
           <div style={{ display: 'flex', gap: 0 }}>
             {ADMIN_TABS.map(tab => (
               <button
@@ -45,17 +45,15 @@ export default function AdminPage() {
                   padding: '7px 14px',
                   fontSize: 13,
                   fontWeight: activeTab === tab.id ? 500 : 400,
-                  color: activeTab === tab.id ? 'var(--c-text)' : 'var(--c-text-3)',
+                  color: activeTab === tab.id ? 'var(--text-primary)' : 'var(--text-secondary)',
                   background: 'transparent',
                   border: 'none',
-                  borderBottom: `2px solid ${activeTab === tab.id ? 'var(--c-ink)' : 'transparent'}`,
+                  borderBottom: `2px solid ${activeTab === tab.id ? 'var(--text-primary)' : 'transparent'}`,
                   cursor: 'pointer',
-                  transition: 'color var(--t-fast)',
+                  transition: 'color 0.15s',
                   fontFamily: 'var(--font-sans)',
                   marginBottom: -1,
                 }}
-                onMouseEnter={e => { if (activeTab !== tab.id) e.currentTarget.style.color = 'var(--c-text-2)' }}
-                onMouseLeave={e => { if (activeTab !== tab.id) e.currentTarget.style.color = 'var(--c-text-3)' }}
               >
                 {tab.label}
               </button>

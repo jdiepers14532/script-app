@@ -1,67 +1,103 @@
 import { ReactNode, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { LayoutDashboard, FileText, Settings, Minimize2, Maximize2 } from 'lucide-react'
+import {
+  LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
+  Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
+  X
+} from 'lucide-react'
 import { useFocus } from '../App'
 
 interface AppShellProps {
   children: ReactNode
 }
 
+type ColorMode = 'full' | 'subtle' | 'off'
+type PanelMode = 'both' | 'treatment' | 'script'
+type Density = 'compact' | 'normal'
+
+export interface TweakState {
+  theme: 'light' | 'dark'
+  colorMode: ColorMode
+  panelMode: PanelMode
+  density: Density
+  breakdown: boolean
+  conn: 'online' | 'offline'
+}
+
 export default function AppShell({ children }: AppShellProps) {
   const location = useLocation()
-  const [sidebarExpanded, setSidebarExpanded] = useState(false)
   const { focus, toggle } = useFocus()
+  const [tweaksOpen, setTweaksOpen] = useState(false)
+  const [tweaks, setTweaks] = useState<TweakState>({
+    theme: 'light',
+    colorMode: 'subtle',
+    panelMode: 'both',
+    density: 'normal',
+    breakdown: true,
+    conn: 'online',
+  })
+
+  const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
+    setTweaks(t => ({ ...t, [k]: v }))
 
   return (
-    <div className={`app-shell${sidebarExpanded ? ' sidebar-expanded' : ''}`}>
+    <div
+      className="app"
+      data-theme={tweaks.theme}
+    >
       {/* Topbar */}
-      <header className="app-topbar">
-        <Link to="/" className="topbar-brand">
-          <div className="topbar-brand-square">S</div>
-          <span className="topbar-brand-name">script</span>
-        </Link>
+      <header className="topbar">
+        <div className="brand">
+          <div className="mark">S</div>
+          <span>script</span>
+        </div>
 
-        {/* Normal mode: divider + breadcrumb with stage chip */}
-        {!focus && (
-          <>
-            <span className="topbar-sep topbar-extra">·</span>
-            <span className="topbar-breadcrumb">Rote Rosen · Block 028 · Folge 4512</span>
-            <span className="stage-chip stage-drehbuch topbar-extra">Drehbuch</span>
-          </>
-        )}
+        <div className="divider" />
 
-        {/* Focus mode: dot separator + breadcrumb */}
-        {focus && (
-          <>
-            <span className="topbar-sep">·</span>
-            <span className="topbar-breadcrumb">Rote Rosen · Block 028 · Folge 4512</span>
-          </>
-        )}
+        <div className="crumbs">
+          <span>Rote Rosen</span>
+          <span>·</span>
+          <span>Block 028</span>
+          <span>·</span>
+          <b>Folge 4512</b>
+          <span className="chip topbar-extra">Drehbuch</span>
+        </div>
 
-        <div className="topbar-spacer" />
+        <div className="spacer" />
 
-        {/* Normal mode extras */}
-        {!focus && (
-          <>
-            <div className="online-pill topbar-extra">
-              <span className="online-dot" />
-              <span className="online-text">Online · Sync vor 12s</span>
-            </div>
-            <button className="btn-icon topbar-extra" title="Benachrichtigungen">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-              </svg>
-            </button>
-          </>
-        )}
+        {/* Online pill */}
+        <div className="status-pill topbar-extra">
+          <span className="dot" />
+          <span>{tweaks.conn === 'online' ? 'Online · Sync vor 12s' : 'Offline'}</span>
+        </div>
 
-        {/* Focus mode: only green dot */}
-        {focus && (
-          <span className="online-dot" title="Online" />
-        )}
+        {/* Theme toggle */}
+        <button
+          className="iconbtn topbar-extra"
+          onClick={() => set('theme', tweaks.theme === 'light' ? 'dark' : 'light')}
+          title="Theme wechseln"
+        >
+          {tweaks.theme === 'light'
+            ? <Moon size={14} />
+            : <Sun size={14} />
+          }
+        </button>
 
-        {/* Focus toggle button — always visible */}
+        {/* Tweaks */}
+        <button
+          className="iconbtn topbar-extra"
+          onClick={() => setTweaksOpen(v => !v)}
+          title="Ansichtsoptionen"
+        >
+          <SlidersHorizontal size={14} />
+        </button>
+
+        {/* Bell */}
+        <button className="iconbtn topbar-extra" title="Benachrichtigungen">
+          <Bell size={14} />
+        </button>
+
+        {/* Focus toggle */}
         <button
           className="focus-toggle"
           onClick={toggle}
@@ -71,58 +107,121 @@ export default function AppShell({ children }: AppShellProps) {
           {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
         </button>
 
+        {/* Avatar */}
         <div className="avatar" title="Jan Diepers">JD</div>
       </header>
 
-      {/* Sidebar — collapsed 40px (focus), hover to 200px (normal) */}
-      <aside
-        className={`app-sidebar${sidebarExpanded ? ' expanded' : ''}`}
-        onMouseEnter={() => !focus && setSidebarExpanded(true)}
-        onMouseLeave={() => setSidebarExpanded(false)}
-      >
-        <SidebarNavItem
-          to="/"
-          icon={<LayoutDashboard size={15} />}
-          label="Folgen"
-          active={location.pathname === '/'}
-        />
-        <SidebarNavItem
-          to="/editor"
-          icon={<FileText size={15} />}
-          label="Editor"
-          active={location.pathname === '/editor'}
-        />
-        <SidebarNavItem
-          to="/admin"
-          icon={<Settings size={15} />}
-          label="Einstellungen"
-          active={location.pathname === '/admin'}
-        />
-      </aside>
+      {/* Left Nav */}
+      <nav className="nav">
+        <div className="section">Projekt</div>
+        <NavItem to="/" icon={<LayoutDashboard size={15} />} label="Folgen" count="12" active={location.pathname === '/'} />
+        <NavItem to="/editor" icon={<FileText size={15} />} label="Editor" active={location.pathname === '/editor'} />
+        <NavItem to="/" icon={<Film size={15} />} label="Drehplan" active={false} />
 
-      {/* Main Content */}
-      <main className="app-main">
+        <div className="section">Autor</div>
+        <NavItem to="/" icon={<BookOpen size={15} />} label="Treatments" count="4" active={false} />
+
+        <div className="section">Blöcke</div>
+        <NavItem to="/" icon={<BarChart2 size={15} />} label="Breakdown" active={false} />
+        <NavItem to="/" icon={<Lock size={15} />} label="Lock-Status" active={false} />
+
+        <div className="section">Verwaltung</div>
+        <NavItem to="/admin" icon={<Settings size={15} />} label="Einstellungen" active={location.pathname === '/admin'} />
+        <NavItem to="/" icon={<Users size={15} />} label="Benutzer" active={false} />
+      </nav>
+
+      {/* Main content — passes tweaks via data attrs */}
+      <main
+        className="app-main"
+        data-colormode={tweaks.colorMode}
+        data-panelmode={tweaks.panelMode}
+        data-density={tweaks.density}
+        data-breakdown={tweaks.breakdown ? 'on' : 'off'}
+        style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+      >
         {children}
       </main>
+
+      {/* Tweaks panel */}
+      <div className={`tweaks${tweaksOpen ? ' open' : ''}`}>
+        <div className="th">
+          <span className="title">Ansicht</span>
+          <span className="spacer" />
+          <button className="close" onClick={() => setTweaksOpen(false)}><X size={12} /></button>
+        </div>
+        <div className="body">
+          <TweakGroup label="Theme">
+            <div className="seg">
+              <button className={tweaks.theme === 'light' ? 'on' : ''} onClick={() => set('theme', 'light')}>Hell</button>
+              <button className={tweaks.theme === 'dark' ? 'on' : ''} onClick={() => set('theme', 'dark')}>Dunkel</button>
+            </div>
+          </TweakGroup>
+          <TweakGroup label="Farbcodierung">
+            <div className="seg">
+              <button className={tweaks.colorMode === 'full' ? 'on' : ''} onClick={() => set('colorMode', 'full')}>Vollfarbe</button>
+              <button className={tweaks.colorMode === 'subtle' ? 'on' : ''} onClick={() => set('colorMode', 'subtle')}>Subtil</button>
+              <button className={tweaks.colorMode === 'off' ? 'on' : ''} onClick={() => set('colorMode', 'off')}>Aus</button>
+            </div>
+          </TweakGroup>
+          <TweakGroup label="Panelmodus">
+            <div className="seg">
+              <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}>Beide</button>
+              <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}>Treatment</button>
+              <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}>Drehbuch</button>
+            </div>
+          </TweakGroup>
+          <TweakGroup label="Dichte">
+            <div className="seg">
+              <button className={tweaks.density === 'compact' ? 'on' : ''} onClick={() => set('density', 'compact')}>Kompakt</button>
+              <button className={tweaks.density === 'normal' ? 'on' : ''} onClick={() => set('density', 'normal')}>Normal</button>
+            </div>
+          </TweakGroup>
+          <TweakGroup label="Breakdown">
+            <div className="seg">
+              <button className={tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', true)}>An</button>
+              <button className={!tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', false)}>Aus</button>
+            </div>
+          </TweakGroup>
+          <TweakGroup label="Verbindung">
+            <div className="seg">
+              <button className={tweaks.conn === 'online' ? 'on' : ''} onClick={() => set('conn', 'online')}>Online</button>
+              <button className={tweaks.conn === 'offline' ? 'on' : ''} onClick={() => set('conn', 'offline')}>Offline</button>
+            </div>
+          </TweakGroup>
+        </div>
+      </div>
     </div>
   )
 }
 
-function SidebarNavItem({
+function NavItem({
   to,
   icon,
   label,
+  count,
   active,
 }: {
   to: string
   icon: ReactNode
   label: string
+  count?: string
   active: boolean
 }) {
   return (
-    <Link to={to} className={`sidebar-nav-item sb-item${active ? ' active' : ''}`}>
-      <span className="sidebar-icon">{icon}</span>
-      <span className="sidebar-label sb-label">{label}</span>
+    <Link to={to} className={`item${active ? ' active' : ''}`}>
+      <span className="i">{icon}</span>
+      <span className="nav-label">{label}</span>
+      {count && <span className="count">{count}</span>}
     </Link>
   )
 }
+
+function TweakGroup({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="group">
+      <div className="lbl">{label}</div>
+      {children}
+    </div>
+  )
+}
+

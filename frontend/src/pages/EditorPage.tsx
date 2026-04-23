@@ -1,31 +1,25 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  ArrowLeft, GripVertical, Search, Plus, X,
-  Hash, Clock, MessageSquare, MoreHorizontal,
-  Minimize2, Maximize2
+  ArrowLeft, Hash, Clock, MessageSquare, X, Search,
+  Minimize2, Maximize2, ChevronLeft, ChevronRight,
+  MoreHorizontal, FileDown, Lock, Bold, Italic,
+  AlignLeft, List, Mic2
 } from 'lucide-react'
 import { SCRIPTS, VERSIONS, COMMENTS, AUTHORS } from '../data/editorData'
 import { BlockType } from '../data/editorData'
 import { useFocus } from '../App'
 
-type TweakTheme = 'light' | 'dark'
-type TweakConn = 'online' | 'offline'
-
 export default function EditorPage() {
   const [activeTab, setActiveTab] = useState<'history' | 'comments'>('history')
   const [showNav, setShowNav] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [theme, setTheme] = useState<TweakTheme>('light')
-  const [conn] = useState<TweakConn>('online')
   const [showMenu, setShowMenu] = useState(false)
-  const [unsaved] = useState(false)
   const { focus, toggle: toggleFocus } = useFocus()
 
   const script = SCRIPTS[7]
   const versions = VERSIONS[7]
   const comments = COMMENTS[7]
-  const activeScene = { id: 7, title: 'Die lange Nacht', meta: 'NACHT-INT.', stageNr: 'ST 3', seiten: '0 6/8' }
 
   const SCENE_LIST = [
     { id: 1, nummer: '1', motiv: 'CAFÉ ROSA – THEKE', env: 'd_i' },
@@ -43,104 +37,74 @@ export default function EditorPage() {
     evening_i: '#10B981', n_i: '#F97316', n_e: '#3B82F6', n_ie: '#F59E0B',
   }
 
-  const getBlockStyle = (type: BlockType): React.CSSProperties => {
-    const base: React.CSSProperties = {
-      fontFamily: 'var(--font-script)',
-      fontSize: 13,
-      lineHeight: 1.7,
-      outline: 'none',
-      margin: 0,
-      padding: '1px 0',
-      color: 'var(--c-text)',
-    }
+  const getBlockClass = (type: BlockType): string => {
     switch (type) {
-      case 'heading':       return { ...base, fontWeight: 700, textTransform: 'uppercase', marginTop: '2em', marginBottom: '0.3em' }
-      case 'action':        return { ...base, marginTop: '0.4em', marginBottom: '0.4em' }
-      case 'character':     return { ...base, textAlign: 'center', textTransform: 'uppercase', fontWeight: 600, marginTop: '1.2em' }
-      case 'parenthetical': return { ...base, textAlign: 'center', fontStyle: 'italic', color: 'var(--c-text-3)' }
-      case 'dialogue':      return { ...base, marginLeft: '15%', marginRight: '15%', marginTop: '0.2em', lineHeight: 1.6 }
-      case 'transition':    return { ...base, textAlign: 'right', textTransform: 'uppercase', fontSize: 11, color: 'var(--c-text-3)', marginTop: '1em' }
-      case 'shot':          return { ...base, textDecoration: 'underline', color: 'var(--c-text-2)' }
-      default:              return base
+      case 'heading':       return 'heading'
+      case 'action':        return 'action'
+      case 'character':     return 'character'
+      case 'parenthetical': return 'parenthetical'
+      case 'dialogue':      return 'dialogue'
+      case 'transition':    return 'transition'
+      case 'shot':          return 'shot'
+      default:              return 'action'
     }
-  }
-
-  const closeAllPanels = () => {
-    setShowNav(false)
-    setShowHistory(false)
-    setShowMenu(false)
   }
 
   return (
     <div
-      data-theme={theme}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100vh',
-        background: 'var(--c-paper)',
-        color: 'var(--c-text)',
-        overflow: 'hidden',
-        fontFamily: 'var(--font-sans)',
-      }}
+      className="editor-app"
     >
       {/* Topbar */}
-      <div style={{
-        height: 'var(--topbar-height)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '0 16px',
-        borderBottom: '1px solid var(--c-line)',
-        background: 'var(--c-paper)',
-        flexShrink: 0,
-        zIndex: 50,
-      }}>
-        <Link to="/" style={{
-          fontSize: 12, color: 'var(--c-text-3)',
-          textDecoration: 'none', display: 'flex',
-          alignItems: 'center', gap: 4,
-        }}>
+      <div className="ed-topbar">
+        <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--text-secondary)' }}>
           <ArrowLeft size={12} />
           Zurück
         </Link>
 
-        <span style={{ fontSize: 13, color: 'var(--c-ghost)', flexShrink: 0 }}>·</span>
+        <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
 
-        <span style={{ fontSize: 12, color: 'var(--c-text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          Rote Rosen · Block 028 · Folge 4512 · Szene 7
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)' }}>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Rote Rosen</span>
+          <span>·</span>
+          <span>Block 028</span>
+          <span>·</span>
+          <span>Folge 4512</span>
+          <span>·</span>
+          <span>SZ 7</span>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 8 }}>
+          <button
+            style={{
+              padding: '3px 8px', fontSize: 11, fontWeight: 700,
+              background: 'var(--bg-subtle)', color: 'var(--text-secondary)',
+              border: '1px solid var(--border)', borderRadius: 4,
+            }}
+          >
+            v4
+          </button>
+          <span style={{ fontSize: 11, color: 'var(--sw-warning-alt)', fontWeight: 600 }}>In Arbeit</span>
+        </div>
 
         <div style={{ flex: 1 }} />
 
-        {/* Save indicator — only visible when unsaved */}
-        {unsaved && (
-          <button className="btn-primary" style={{ fontSize: 12, padding: '4px 12px' }}>
-            Speichern
-          </button>
-        )}
-
-        {/* Focus toggle */}
-        <button
-          className="focus-toggle"
-          onClick={toggleFocus}
-          title="Fokus-Modus (F10)"
-          aria-label={focus ? 'Fokus-Modus beenden' : 'Fokus-Modus aktivieren'}
-        >
+        <button className="focus-toggle" onClick={toggleFocus} title="Fokus-Modus (F10)">
           {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
         </button>
 
-        {/* More menu */}
         <button
-          className="btn-icon"
+          style={{
+            width: 30, height: 30, borderRadius: 6, border: '1px solid transparent',
+            background: 'transparent', color: 'var(--text-secondary)',
+            display: 'grid', placeItems: 'center', cursor: 'pointer',
+            position: 'relative',
+          }}
           onClick={() => setShowMenu(v => !v)}
           title="Mehr"
-          style={{ position: 'relative' }}
         >
-          <MoreHorizontal size={16} />
+          <MoreHorizontal size={15} />
         </button>
 
-        {/* ⋯ dropdown */}
         {showMenu && (
           <>
             <div
@@ -148,398 +112,296 @@ export default function EditorPage() {
               onClick={() => setShowMenu(false)}
             />
             <div style={{
-              position: 'absolute',
-              top: 40,
+              position: 'fixed',
+              top: 52,
               right: 16,
               zIndex: 200,
-              background: 'var(--c-paper)',
-              border: '1px solid var(--c-line)',
-              borderRadius: 'var(--r-lg)',
-              boxShadow: 'var(--sh-paper)',
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border)',
+              borderRadius: 10,
+              boxShadow: 'var(--shadow-xl)',
               minWidth: 180,
               padding: '4px 0',
             }}>
-              <MenuButton
-                icon={<Hash size={13} />}
-                label="Navigator"
-                active={showNav}
-                onClick={() => { setShowNav(v => !v); setShowMenu(false) }}
-              />
-              <MenuButton
-                icon={<Clock size={13} />}
-                label="Historie"
-                active={showHistory && activeTab === 'history'}
-                onClick={() => { setShowHistory(true); setActiveTab('history'); setShowMenu(false) }}
-              />
-              <MenuButton
-                icon={<MessageSquare size={13} />}
-                label="Kommentare"
-                active={showHistory && activeTab === 'comments'}
-                onClick={() => { setShowHistory(true); setActiveTab('comments'); setShowMenu(false) }}
-              />
-              <div style={{ height: 1, background: 'var(--c-line)', margin: '4px 0' }} />
-              <MenuButton
-                icon={null}
-                label={theme === 'light' ? 'Dunkel-Modus' : 'Hell-Modus'}
-                onClick={() => { setTheme(t => t === 'light' ? 'dark' : 'light'); setShowMenu(false) }}
-              />
+              <EdMenuBtn icon={<Hash size={13} />} label="Navigator" active={showNav} onClick={() => { setShowNav(v => !v); setShowMenu(false) }} />
+              <EdMenuBtn icon={<Clock size={13} />} label="Historie" active={showHistory && activeTab === 'history'} onClick={() => { setShowHistory(true); setActiveTab('history'); setShowMenu(false) }} />
+              <EdMenuBtn icon={<MessageSquare size={13} />} label="Kommentare" active={showHistory && activeTab === 'comments'} onClick={() => { setShowHistory(true); setActiveTab('comments'); setShowMenu(false) }} />
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+              <EdMenuBtn icon={<Lock size={13} />} label="Szene locken" onClick={() => setShowMenu(false)} />
+              <EdMenuBtn icon={<FileDown size={13} />} label="PDF exportieren" onClick={() => setShowMenu(false)} />
             </div>
           </>
         )}
+
+        <div style={{ width: 28, height: 28, borderRadius: 999, background: 'var(--sw-info)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>JD</div>
       </div>
 
-      {/* Body */}
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
+      {/* Rail (icon sidebar) */}
+      <div className="ed-rail">
+        <button title="Navigator" onClick={() => setShowNav(v => !v)} style={{ color: showNav ? 'var(--text-primary)' : undefined }}>
+          <Hash size={14} />
+        </button>
+        <button title="Historie" onClick={() => { setShowHistory(true); setActiveTab('history') }} style={{ color: showHistory && activeTab === 'history' ? 'var(--text-primary)' : undefined }}>
+          <Clock size={14} />
+        </button>
+        <button title="Kommentare" onClick={() => { setShowHistory(true); setActiveTab('comments') }} style={{ color: showHistory && activeTab === 'comments' ? 'var(--text-primary)' : undefined }}>
+          <MessageSquare size={14} />
+        </button>
+        <span className="sep" />
+        <button title="Vorherige Szene"><ChevronLeft size={14} /></button>
+        <button title="Nächste Szene"><ChevronRight size={14} /></button>
+      </div>
 
-        {/* Scene Navigator — slide-in from left */}
-        {showNav && (
-          <>
+      {/* Format Toolbar */}
+      <div className="ed-toolbar">
+        {[
+          { icon: <Bold size={13} />, label: 'Fett' },
+          { icon: <Italic size={13} />, label: 'Kursiv' },
+          { icon: <AlignLeft size={13} />, label: 'Absatz' },
+          { icon: <List size={13} />, label: 'Liste' },
+          { icon: <Mic2 size={13} />, label: 'Dialog' },
+        ].map((t, i) => (
+          <button
+            key={i}
+            title={t.label}
+            style={{
+              width: 28, height: 28, borderRadius: 5, border: 'none',
+              background: 'transparent', color: 'var(--text-secondary)',
+              display: 'grid', placeItems: 'center', cursor: 'pointer',
+            }}
+          >
+            {t.icon}
+          </button>
+        ))}
+        <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
+        {['Überschrift', 'Action', 'Charakter', 'Regieanweisung', 'Dialog', 'Transition'].map(t => (
+          <button
+            key={t}
+            style={{
+              padding: '3px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)',
+              background: 'transparent', color: 'var(--text-secondary)',
+              cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* Navigator panel */}
+      {showNav && (
+        <div className="ed-nav" style={{ position: 'fixed', top: 88, left: 40, bottom: 0, width: 240, zIndex: 201 }}>
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ flex: 1, fontSize: 12, fontWeight: 600 }}>Navigator</span>
+            <button onClick={() => setShowNav(false)} style={{ width: 22, height: 22, borderRadius: 5, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', display: 'grid', placeItems: 'center' }}>
+              <X size={12} />
+            </button>
+          </div>
+          <div style={{ padding: '6px 10px' }}>
+            <div style={{ position: 'relative' }}>
+              <Search size={11} style={{ position: 'absolute', left: 7, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <input style={{
+                width: '100%', padding: '5px 8px 5px 24px',
+                border: '1px solid var(--border)', borderRadius: 6,
+                font: 'inherit', fontSize: 11, background: 'var(--input-bg)', color: 'var(--text-primary)',
+                outline: 'none',
+              }} placeholder="Szene suchen…" />
+            </div>
+          </div>
+          <div style={{ overflow: 'auto', flex: 1 }}>
+            {SCENE_LIST.map(s => (
+              <div
+                key={s.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 12px', cursor: 'pointer',
+                  background: s.active ? 'var(--bg-active)' : 'transparent',
+                  borderLeft: s.active ? '2px solid var(--text-primary)' : '2px solid transparent',
+                  fontSize: 12, color: s.active ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  fontWeight: s.active ? 500 : 400,
+                }}
+              >
+                <div style={{ width: 3, height: 18, borderRadius: 2, background: ENV_STRIPES[s.env] || '#ccc', flexShrink: 0 }} />
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, minWidth: 16, color: 'var(--text-muted)' }}>{s.nummer}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.motiv}</span>
+              </div>
+            ))}
+          </div>
+          {showNav && (
             <div
-              className="panel-backdrop"
-              style={{ zIndex: 199 }}
+              style={{ position: 'fixed', inset: 0, zIndex: 199 }}
               onClick={() => setShowNav(false)}
             />
-            <div style={{
-              position: 'fixed',
-              top: 'var(--topbar-height)',
-              left: 0,
-              bottom: 0,
-              width: 280,
-              background: 'var(--c-paper)',
-              borderRight: '1px solid var(--c-line)',
-              zIndex: 201,
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
-              <div style={{
-                padding: '10px 12px 8px',
-                borderBottom: '1px solid var(--c-line)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}>
-                <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--c-text)' }}>
-                  Navigator
-                </span>
-                <button className="btn-icon" style={{ width: 26, height: 26 }} onClick={() => setShowNav(false)}>
-                  <X size={13} />
-                </button>
-              </div>
-              <div style={{ padding: '6px 10px' }}>
-                <div style={{ position: 'relative' }}>
-                  <Search size={11} style={{
-                    position: 'absolute', left: 7, top: '50%',
-                    transform: 'translateY(-50%)', color: 'var(--c-muted)',
-                    pointerEvents: 'none',
-                  }} />
-                  <input className="input input-sm" style={{ paddingLeft: 24, fontSize: 11 }} placeholder="Szene suchen…" />
-                </div>
-              </div>
-              <div style={{ overflow: 'auto', flex: 1 }}>
-                {SCENE_LIST.map(s => (
-                  <div
-                    key={s.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '7px 12px',
-                      cursor: 'pointer',
-                      background: s.active ? 'var(--c-ui)' : 'transparent',
-                      borderLeft: s.active ? '2px solid var(--c-ink)' : '2px solid transparent',
-                      fontSize: 12,
-                      color: s.active ? 'var(--c-text)' : 'var(--c-text-3)',
-                      fontWeight: s.active ? 500 : 400,
-                      transition: 'background var(--t-fast)',
-                    }}
-                    onMouseEnter={e => { if (!s.active) e.currentTarget.style.background = 'var(--c-ui)' }}
-                    onMouseLeave={e => { if (!s.active) e.currentTarget.style.background = 'transparent' }}
-                  >
-                    <GripVertical size={11} style={{ color: 'var(--c-ghost)', flexShrink: 0 }} />
-                    <div style={{
-                      width: 3, height: 18, borderRadius: 2,
-                      background: ENV_STRIPES[s.env] || '#ccc',
-                      flexShrink: 0,
-                    }} />
-                    <span style={{ fontFamily: 'var(--font-script)', fontSize: 10, minWidth: 16, color: 'var(--c-muted)' }}>{s.nummer}</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.motiv}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* Canvas */}
-        <div className="ed-doc" style={{
-          flex: 1,
-          overflow: 'auto',
-          background: 'var(--c-ui)',
-          display: 'flex',
-          justifyContent: 'center',
-          padding: '32px 24px',
-        }}>
-          <div className="script-canvas page">
-            {/* Scene Header */}
-            <div style={{ marginBottom: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-                <span style={{
-                  fontFamily: 'var(--font-script)',
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: 'var(--c-text)',
-                }}>
-                  SZ {activeScene.id}
-                </span>
-                <span
-                  contentEditable
-                  suppressContentEditableWarning
-                  style={{
-                    fontFamily: 'var(--font-script)',
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: 'var(--c-text)',
-                    flex: 1,
-                    outline: 'none',
-                  }}
-                >
-                  {activeScene.title}
-                </span>
-              </div>
-              <div style={{
-                fontFamily: 'var(--font-script)',
-                fontSize: 12,
-                color: 'var(--c-text-3)',
-                lineHeight: 1.5,
-              }}>
-                INT · KAMINSKI SCHLAFZIMMER · NACHT
-              </div>
+      {/* Canvas */}
+      <div className="ed-canvas">
+        <div className="page">
+          {/* Scene slug */}
+          <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13, marginBottom: 20, color: 'var(--text-primary)' }}>
+            SZ 7 · DIE LANGE NACHT
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>
+            INT. KAMINSKI SCHLAFZIMMER · NACHT
+          </div>
+
+          {/* Script blocks */}
+          {script?.blocks.map(block => (
+            <div
+              key={block.id}
+              className={getBlockClass(block.type)}
+              contentEditable
+              suppressContentEditableWarning
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.7, outline: 'none', padding: '1px 0', color: 'var(--text-primary)' }}
+            >
+              {block.text}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* History / Comments panel */}
+      {showHistory && (
+        <div className="ed-history" style={{ position: 'fixed', top: 88, right: 0, bottom: 0, width: 300, zIndex: 201 }}>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 199 }}
+            onClick={() => setShowHistory(false)}
+          />
+          <div style={{ position: 'relative', zIndex: 202, display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <button
+                onClick={() => setActiveTab('history')}
+                style={{
+                  flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 500,
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: activeTab === 'history' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  borderBottom: `2px solid ${activeTab === 'history' ? 'var(--text-primary)' : 'transparent'}`,
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                Historie
+              </button>
+              <button
+                onClick={() => setActiveTab('comments')}
+                style={{
+                  flex: 1, padding: '10px 0', fontSize: 12, fontWeight: 500,
+                  background: 'transparent', border: 'none', cursor: 'pointer',
+                  color: activeTab === 'comments' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                  borderBottom: `2px solid ${activeTab === 'comments' ? 'var(--text-primary)' : 'transparent'}`,
+                  fontFamily: 'var(--font-sans)',
+                }}
+              >
+                Kommentare
+              </button>
+              <button
+                onClick={() => setShowHistory(false)}
+                style={{ margin: '0 8px', width: 28, height: 28, alignSelf: 'center', borderRadius: 6, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', display: 'grid', placeItems: 'center' }}
+              >
+                <X size={13} />
+              </button>
             </div>
 
-            {/* Script Blocks */}
-            <div>
-              {script?.blocks.map((block) => (
-                <div
-                  key={block.id}
-                  style={getBlockStyle(block.type)}
-                  contentEditable
-                  suppressContentEditableWarning
-                >
-                  {block.text}
+            <div style={{ overflow: 'auto', flex: 1 }}>
+              {activeTab === 'history' ? (
+                <div style={{ padding: '8px 0' }}>
+                  {versions?.map(v => {
+                    const author = AUTHORS[v.authorId]
+                    return (
+                      <div
+                        key={v.id}
+                        style={{ padding: '10px 14px', borderBottom: '1px solid var(--border-subtle)', cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{v.label}</span>
+                          {v.tag && (
+                            <span style={{
+                              fontSize: 10, padding: '1px 6px', borderRadius: 999,
+                              background: v.milestone ? 'color-mix(in srgb,var(--sw-green) 15%,transparent)' : 'var(--bg-subtle)',
+                              color: v.milestone ? 'var(--sw-green)' : 'var(--text-secondary)',
+                              fontWeight: 600,
+                            }}>
+                              {v.tag}
+                            </span>
+                          )}
+                          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            {v.diffPlus !== undefined && v.diffPlus > 0 && (
+                              <span style={{ fontSize: 10, color: 'var(--sw-green)', fontWeight: 700 }}>+{v.diffPlus}</span>
+                            )}
+                            {v.diffMinus !== undefined && v.diffMinus > 0 && (
+                              <span style={{ fontSize: 10, color: 'var(--sw-danger)', fontWeight: 700 }}>-{v.diffMinus}</span>
+                            )}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{
+                            width: 16, height: 16, borderRadius: '50%',
+                            background: author?.color ?? '#ccc',
+                            color: '#fff', fontSize: 8, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            {v.authorId}
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{v.time}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
+              ) : (
+                <div style={{ padding: '8px 0' }}>
+                  {comments?.map(c => {
+                    const author = AUTHORS[c.authorId]
+                    return (
+                      <div key={c.id} style={{ padding: '12px 14px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <div style={{
+                            width: 20, height: 20, borderRadius: '50%',
+                            background: author?.color ?? '#ccc',
+                            color: '#fff', fontSize: 8, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          }}>
+                            {c.authorId}
+                          </div>
+                          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{author?.name ?? c.authorId}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>{c.time}</span>
+                        </div>
+                        {c.quote && (
+                          <div style={{
+                            fontSize: 11, fontStyle: 'italic', color: 'var(--text-secondary)',
+                            borderLeft: '2px solid var(--border)', paddingLeft: 8, marginBottom: 6, lineHeight: 1.5,
+                          }}>
+                            {c.quote}
+                          </div>
+                        )}
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{c.text}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>
-
-        {/* History / Comments Panel — slide-in from right */}
-        {showHistory && (
-          <>
-            <div
-              className="panel-backdrop"
-              style={{ zIndex: 199 }}
-              onClick={() => setShowHistory(false)}
-            />
-            <div style={{
-              position: 'fixed',
-              top: 'var(--topbar-height)',
-              right: 0,
-              bottom: 0,
-              width: 320,
-              background: 'var(--c-paper)',
-              borderLeft: '1px solid var(--c-line)',
-              zIndex: 201,
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
-              {/* Tabs */}
-              <div style={{
-                display: 'flex',
-                borderBottom: '1px solid var(--c-line)',
-                flexShrink: 0,
-              }}>
-                <button
-                  onClick={() => setActiveTab('history')}
-                  style={{
-                    flex: 1, padding: '10px 0',
-                    fontSize: 12, fontWeight: 500,
-                    background: 'transparent', border: 'none',
-                    cursor: 'pointer',
-                    color: activeTab === 'history' ? 'var(--c-text)' : 'var(--c-text-3)',
-                    borderBottom: `2px solid ${activeTab === 'history' ? 'var(--c-ink)' : 'transparent'}`,
-                    fontFamily: 'var(--font-sans)',
-                    transition: 'color var(--t-fast)',
-                  }}
-                >
-                  Historie
-                </button>
-                <button
-                  onClick={() => setActiveTab('comments')}
-                  style={{
-                    flex: 1, padding: '10px 0',
-                    fontSize: 12, fontWeight: 500,
-                    background: 'transparent', border: 'none',
-                    cursor: 'pointer',
-                    color: activeTab === 'comments' ? 'var(--c-text)' : 'var(--c-text-3)',
-                    borderBottom: `2px solid ${activeTab === 'comments' ? 'var(--c-ink)' : 'transparent'}`,
-                    fontFamily: 'var(--font-sans)',
-                    transition: 'color var(--t-fast)',
-                  }}
-                >
-                  Kommentare
-                </button>
-                <button
-                  className="btn-icon"
-                  style={{ margin: '0 8px' }}
-                  onClick={() => setShowHistory(false)}
-                >
-                  <X size={13} />
-                </button>
-              </div>
-
-              <div style={{ overflow: 'auto', flex: 1 }}>
-                {activeTab === 'history' ? (
-                  <div style={{ padding: '8px 0' }}>
-                    {versions?.map(v => {
-                      const author = AUTHORS[v.authorId]
-                      return (
-                        <div
-                          key={v.id}
-                          style={{
-                            padding: '10px 14px',
-                            borderBottom: '1px solid var(--c-line)',
-                            cursor: 'pointer',
-                            transition: 'background var(--t-fast)',
-                          }}
-                          onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-ui)')}
-                          onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                            <span style={{
-                              fontSize: 12, fontWeight: 600,
-                              fontFamily: 'var(--font-script)',
-                              color: 'var(--c-text)',
-                            }}>
-                              {v.label}
-                            </span>
-                            {v.tag && (
-                              <span style={{
-                                fontSize: 10, padding: '1px 6px',
-                                borderRadius: 'var(--r-full)',
-                                background: v.milestone ? '#E5F0EA' : 'var(--c-ui)',
-                                color: v.milestone ? 'var(--c-success)' : 'var(--c-text-3)',
-                                fontWeight: 500,
-                              }}>
-                                {v.tag}
-                              </span>
-                            )}
-                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {v.diffPlus !== undefined && v.diffPlus > 0 && (
-                                <span style={{ fontSize: 10, color: 'var(--c-success)', fontWeight: 600 }}>+{v.diffPlus}</span>
-                              )}
-                              {v.diffMinus !== undefined && v.diffMinus > 0 && (
-                                <span style={{ fontSize: 10, color: 'var(--c-danger)', fontWeight: 600 }}>-{v.diffMinus}</span>
-                              )}
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <div style={{
-                              width: 16, height: 16, borderRadius: '50%',
-                              background: author?.color ?? '#ccc',
-                              color: '#fff', fontSize: 8, fontWeight: 700,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              flexShrink: 0,
-                            }}>
-                              {v.authorId}
-                            </div>
-                            <span style={{ fontSize: 11, color: 'var(--c-text-3)' }}>{v.time}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div style={{ padding: '8px 0' }}>
-                    {comments?.map(c => {
-                      const author = AUTHORS[c.authorId]
-                      return (
-                        <div
-                          key={c.id}
-                          style={{
-                            padding: '12px 14px',
-                            borderBottom: '1px solid var(--c-line)',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                            <div style={{
-                              width: 20, height: 20, borderRadius: '50%',
-                              background: author?.color ?? '#ccc',
-                              color: '#fff', fontSize: 8, fontWeight: 700,
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              flexShrink: 0,
-                            }}>
-                              {c.authorId}
-                            </div>
-                            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--c-text)' }}>
-                              {author?.name ?? c.authorId}
-                            </span>
-                            <span style={{ fontSize: 11, color: 'var(--c-text-3)', marginLeft: 'auto' }}>
-                              {c.time}
-                            </span>
-                          </div>
-
-                          {c.quote && (
-                            <div style={{
-                              fontSize: 11, fontStyle: 'italic',
-                              color: 'var(--c-text-3)',
-                              borderLeft: '2px solid var(--c-line)',
-                              paddingLeft: 8, marginBottom: 6, lineHeight: 1.5,
-                            }}>
-                              {c.quote}
-                            </div>
-                          )}
-
-                          <p style={{ fontSize: 12, color: 'var(--c-text-2)', lineHeight: 1.6, margin: 0 }}>
-                            {c.text}
-                          </p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Offline Banner — very subtle, bottom of screen */}
-      {conn === 'offline' && (
-        <div style={{
-          position: 'fixed',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          borderTop: '1px solid var(--c-line)',
-          padding: '4px 16px',
-          background: 'var(--c-paper)',
-          fontSize: 11,
-          color: 'var(--c-text-3)',
-          zIndex: 100,
-          textAlign: 'center',
-        }}>
-          Offline — Änderungen gespeichert
-        </div>
       )}
+
+      {/* Status bar */}
+      <div className="ed-status">
+        <span>SZ 7 · Folge 4512</span>
+        <span>|</span>
+        <span>23 Blöcke</span>
+        <span>|</span>
+        <span>0 6/8 Seiten</span>
+        <span>|</span>
+        <span style={{ color: 'var(--sw-green)' }}>● Gespeichert</span>
+      </div>
     </div>
   )
 }
 
-function MenuButton({
-  icon,
-  label,
-  active,
-  onClick,
+function EdMenuBtn({
+  icon, label, active, onClick,
 }: {
   icon: React.ReactNode
   label: string
@@ -550,25 +412,15 @@ function MenuButton({
     <button
       onClick={onClick}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        width: '100%',
-        padding: '7px 12px',
-        fontSize: 13,
-        color: active ? 'var(--c-text)' : 'var(--c-text-2)',
+        display: 'flex', alignItems: 'center', gap: 8,
+        width: '100%', padding: '7px 12px',
+        fontSize: 13, color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
         fontWeight: active ? 500 : 400,
-        background: 'transparent',
-        border: 'none',
-        cursor: 'pointer',
-        textAlign: 'left',
-        fontFamily: 'var(--font-sans)',
-        transition: 'background var(--t-fast)',
+        background: 'transparent', border: 'none',
+        cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)',
       }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--c-ui)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
     >
-      {icon && <span style={{ color: active ? 'var(--c-text)' : 'var(--c-muted)' }}>{icon}</span>}
+      <span style={{ color: active ? 'var(--text-primary)' : 'var(--text-muted)' }}>{icon}</span>
       {label}
     </button>
   )

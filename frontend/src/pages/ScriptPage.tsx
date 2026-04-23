@@ -11,23 +11,16 @@ export default function ScriptPage() {
 
   return (
     <AppShell>
-      <div style={{
-        display: 'flex',
-        height: '100%',
-        overflow: 'hidden',
-      }}>
+      <div
+        className={`work${focus ? '' : ''}`}
+        style={{ flex: 1, overflow: 'hidden' }}
+      >
         <SceneList
           activeSceneId={activeSceneId}
           onSelectScene={setActiveSceneId}
         />
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <SceneEditor sceneId={activeSceneId} />
-        </div>
-        {!focus && (
-          <div className="breakdown-panel">
-            <BreakdownPanel />
-          </div>
-        )}
+        <SceneEditor sceneId={activeSceneId} />
+        {!focus && <BreakdownPanel />}
       </div>
     </AppShell>
   )

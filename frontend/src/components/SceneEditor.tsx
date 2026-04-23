@@ -1,196 +1,173 @@
-import { useState } from 'react'
-import { SCENES, ENV_COLORS } from '../data/scenes'
-import { Lock, Sun, Moon, Sunset } from 'lucide-react'
-import { useFocus } from '../App'
+import { SCENES, ENV_COLORS, BREAKDOWN_CATEGORIES } from '../data/scenes'
+import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles } from 'lucide-react'
 
 interface SceneEditorProps {
   sceneId: number
+  panelMode?: 'both' | 'treatment' | 'script'
 }
 
-const DAYTIME_ICONS: Record<string, typeof Sun> = {
-  TAG: Sun,
-  ABEND: Sunset,
-  NACHT: Moon,
-}
-
-export default function SceneEditor({ sceneId }: SceneEditorProps) {
-  const [activeTab, setActiveTab] = useState<'treatment' | 'drehbuch'>('drehbuch')
+export default function SceneEditor({ sceneId, panelMode = 'both' }: SceneEditorProps) {
   const scene = SCENES.find(s => s.id === sceneId)
-  const { focus } = useFocus()
+  const sceneIndex = SCENES.findIndex(s => s.id === sceneId)
 
   if (!scene) {
     return (
-      <div style={{ padding: 32, color: 'var(--c-text-3)', textAlign: 'center', fontSize: 13 }}>
+      <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center', fontSize: 13 }}>
         Keine Szene ausgewählt
       </div>
     )
   }
 
   const envColor = ENV_COLORS[scene.env]
+  const panelsClass = panelMode === 'script' ? 'panels mode-script'
+    : panelMode === 'treatment' ? 'panels mode-treatment'
+    : 'panels'
+
+  const stripeColor = envColor.stripe
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      overflow: 'hidden',
-    }}>
-      {/* Scene Header — einzeilig, minimal */}
-      <div style={{
-        padding: '0 20px',
-        borderBottom: '1px solid var(--c-line)',
-        background: 'var(--c-paper)',
-        flexShrink: 0,
-        height: 38,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-      }}>
-        <span style={{
-          fontSize: 12,
-          color: 'var(--c-text-3)',
-          fontFamily: 'var(--font-script)',
-          fontWeight: 600,
-        }}>
-          SZ {scene.nummer}
-        </span>
-        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
-        <span style={{ fontSize: 12, color: 'var(--c-text-2)', fontWeight: 500 }}>
-          {scene.motiv}
-        </span>
-        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
-        <span style={{ fontSize: 12, color: 'var(--c-text-3)', fontFamily: 'var(--font-script)' }}>
-          {scene.intExt}
-        </span>
-
-        {/* Meta items hidden in focus mode */}
-        {!focus && (
-          <>
-            <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
-            <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.stageNr}</span>
-            <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
-            <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.seiten} S.</span>
-          </>
-        )}
-
-        {scene.locked && (
-          <>
-            <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
-            <Lock size={11} style={{ color: 'var(--c-muted)' }} />
-          </>
-        )}
-
-        <div style={{ flex: 1 }} />
-
-        {/* Tabs */}
-        <button
-          onClick={() => setActiveTab('treatment')}
-          className="btn-text"
-          style={{
-            fontSize: 12,
-            color: activeTab === 'treatment' ? 'var(--c-text)' : 'var(--c-text-3)',
-            fontWeight: activeTab === 'treatment' ? 500 : 400,
-            borderBottom: activeTab === 'treatment' ? '1px solid var(--c-ink)' : '1px solid transparent',
-            padding: '4px 0',
-          }}
-        >
-          Treatment
-        </button>
-        <button
-          onClick={() => setActiveTab('drehbuch')}
-          className="btn-text"
-          style={{
-            fontSize: 12,
-            color: activeTab === 'drehbuch' ? 'var(--c-text)' : 'var(--c-text-3)',
-            fontWeight: activeTab === 'drehbuch' ? 500 : 400,
-            borderBottom: activeTab === 'drehbuch' ? '1px solid var(--c-ink)' : '1px solid transparent',
-            padding: '4px 0',
-          }}
-        >
-          Drehbuch
-        </button>
+    <div className="detail">
+      {/* Sticky head */}
+      <div className="detail-head">
+        {/* Scene title bar */}
+        <div className="scene-title-bar">
+          <button className="nav-arrow" title="Vorherige Szene" disabled={sceneIndex <= 0}>
+            <ChevronLeft size={13} />
+          </button>
+          <button className="nav-arrow" title="Nächste Szene" disabled={sceneIndex >= SCENES.length - 1}>
+            <ChevronRight size={13} />
+          </button>
+          <span className="scene-big">SZ {scene.nummer}</span>
+          <span className="scene-title">{scene.motiv}</span>
+          <span className="spacer" />
+          {scene.locked && (
+            <button className="btn lock held">
+              <Lock size={12} />
+              Gelockt
+            </button>
+          )}
+          <button className="btn ghost">
+            <FileDown size={12} />
+            PDF
+          </button>
+          <button className="btn primary">
+            <Edit3 size={12} />
+            Bearbeiten
+          </button>
+        </div>
       </div>
 
-      {/* Content Area */}
-      <div className="ed-doc" style={{ flex: 1, overflow: 'auto' }}>
-        {activeTab === 'treatment' ? (
-          <div style={{ padding: '20px 24px' }}>
-            {scene.synopsis ? (
-              <p style={{
-                fontSize: 13,
-                color: 'var(--c-text-2)',
-                lineHeight: 1.8,
-                fontStyle: 'italic',
-                margin: 0,
-                fontFamily: focus ? 'var(--font-script)' : 'var(--font-sans)',
-              }}>
-                {scene.synopsis}
-              </p>
-            ) : (
-              <p style={{ fontSize: 13, color: 'var(--c-text-3)', fontStyle: 'italic', margin: 0 }}>
-                Kein Treatment vorhanden.
-              </p>
-            )}
+      {/* Meta card */}
+      <div className="meta-card" style={{ '--stripe': stripeColor } as React.CSSProperties}>
+        <div className="metarow">
+          <div className="cell">
+            <span className="lbl">Int/Ext</span>
+            <span className="val">{scene.intExt}</span>
           </div>
-        ) : (
-          <div style={{
-            padding: focus ? '32px 24px' : '24px',
-            display: 'flex',
-            justifyContent: 'center',
-          }}>
-            <div
-              className="page"
-              style={{
-                width: '100%',
-                background: 'var(--c-canvas)',
-                border: '1px solid var(--c-line)',
-                minHeight: 400,
-                fontFamily: 'var(--editor-font)',
-              }}
-            >
-              {/* Scene slug */}
-              <div style={{
-                fontFamily: 'var(--font-script)',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                fontSize: 13,
-                marginBottom: 16,
-                color: 'var(--c-text)',
-              }}>
-                {scene.intExt}. {scene.motiv} – {scene.tageszeit}
+          <div className="cell">
+            <span className="lbl">Motiv</span>
+            <span className="val">{scene.motiv.split('–')[0].trim()}</span>
+          </div>
+          <div className="cell">
+            <span className="lbl">Tageszeit</span>
+            <span className="val">{scene.tageszeit}</span>
+          </div>
+          <div className="cell">
+            <span className="lbl">Stage</span>
+            <span className="val">{scene.stageNr}</span>
+          </div>
+          <div className="cell">
+            <span className="lbl">Seiten</span>
+            <span className="val">{scene.seiten}</span>
+          </div>
+          <div className="cell">
+            <span className="lbl">Dauer</span>
+            <span className="val">{scene.dauer}</span>
+          </div>
+          <div className="cell">
+            <span className="lbl">Einst.</span>
+            <span className="val">—</span>
+          </div>
+        </div>
+        {scene.synopsis && (
+          <div className="desc-row">
+            <div className="lbl">Treatment</div>
+            <div className="desc">{scene.synopsis}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Lock banner */}
+      {scene.locked && (
+        <div className="lock-banner mine">
+          <div className="lb-avatar">JD</div>
+          <div>
+            <div className="lb-title">Gelockt von JD</div>
+            <div className="lb-sub">Jan Diepers · seit 14:32 Uhr</div>
+          </div>
+          <span className="lb-spacer" />
+          <span className="chip-ok">Mein Lock</span>
+        </div>
+      )}
+
+      {/* Panels */}
+      <div className={panelsClass}>
+        {panelMode !== 'script' && (
+          <div className="panel">
+            <div className="phead">
+              <span className="title">Treatment</span>
+              <span className="vchip draft">Entwurf</span>
+              <span className="spacer" />
+              <button className="btn-sm">
+                <Edit3 size={11} />
+                Bearbeiten
+              </button>
+            </div>
+            <div className="pbody">
+              <div className="treatment-body">
+                {scene.synopsis ? (
+                  <p>{scene.synopsis}</p>
+                ) : (
+                  <>
+                    <p>Eva kann nicht schlafen. Die Nacht ist lang und die Gedanken lassen ihr keine Ruhe. Sie steht auf, schleicht sich in die Küche.</p>
+                    <p>Jonas folgt ihr nach einer Weile. Er findet sie am Fenster stehend, den Blick auf die dunkle Straße gerichtet. Ein Gespräch beginnt, das alles verändern wird.</p>
+                    <p>Die beiden reden zum ersten Mal seit Wochen wirklich miteinander. Alte Wunden öffnen sich, aber auch neue Möglichkeiten werden sichtbar.</p>
+                  </>
+                )}
               </div>
+            </div>
+          </div>
+        )}
 
-              {scene.synopsis && (
-                <p style={{
-                  fontFamily: 'var(--font-script)',
-                  fontSize: 13,
-                  color: 'var(--c-text-2)',
-                  lineHeight: 1.7,
-                  marginBottom: 16,
-                  margin: '0 0 16px 0',
-                }}>
-                  {scene.synopsis}
-                </p>
-              )}
-
-              {/* Script skeleton */}
-              {(['FIGUR A', 'Ich weiß es nicht.', 'FIGUR B', '(leise)', 'Du musst es herausfinden.'] as string[]).map((line, i) => (
-                <div key={i} style={{
-                  fontFamily: 'var(--font-script)',
-                  fontSize: 13,
-                  lineHeight: 1.7,
-                  marginBottom: 4,
-                  color: i === 3 ? 'var(--c-text-3)' : 'var(--c-text-2)',
-                  textAlign: i === 0 || i === 2 ? 'center' : i === 3 ? 'center' : 'left',
-                  fontStyle: i === 3 ? 'italic' : undefined,
-                  marginLeft: i === 4 ? '15%' : undefined,
-                  marginRight: i === 4 ? '15%' : undefined,
-                  fontWeight: i === 0 || i === 2 ? 700 : 400,
-                  textTransform: i === 0 || i === 2 ? 'uppercase' : undefined,
-                }}>
-                  {line}
-                </div>
-              ))}
+        {panelMode !== 'treatment' && (
+          <div className="panel">
+            <div className="phead">
+              <span className="title">Drehbuch</span>
+              <span className="vchip wip">In Arbeit</span>
+              <span className="spacer" />
+              <button className="btn-sm">
+                <Sparkles size={11} />
+                KI
+              </button>
+            </div>
+            <div className="pbody">
+              <div className="script-body">
+                <div className="heading">INT. SCHLAFZIMMER EVA – NACHT</div>
+                <div className="action">Eva liegt wach. Die Decke starrt sie an. Die digitale Uhr zeigt 3:17.</div>
+                <div className="character">EVA</div>
+                <div className="parenthetical">(flüsternd, für sich)</div>
+                <div className="dialogue">Das kann doch nicht alles sein.</div>
+                <div className="action">Sie steht auf. Schleicht aus dem Zimmer.</div>
+                <div className="heading">INT. KÜCHE – DURCHGEHEND</div>
+                <div className="action">Eva steht am Fenster, hält eine Tasse Tee. Die Straße ist leer.</div>
+                <div className="action">Jonas erscheint in der Tür. Er hat sie gehört.</div>
+                <div className="character">JONAS</div>
+                <div className="dialogue">Schon wieder nicht schlafen können?</div>
+                <div className="character">EVA</div>
+                <div className="parenthetical">(dreht sich um)</div>
+                <div className="dialogue">Ich muss dir etwas sagen.</div>
+                <div className="transition">SCHNITT AUF:</div>
+              </div>
             </div>
           </div>
         )}
@@ -198,3 +175,7 @@ export default function SceneEditor({ sceneId }: SceneEditorProps) {
     </div>
   )
 }
+
+// suppress unused import
+const _unused = BREAKDOWN_CATEGORIES
+void _unused
