@@ -100,11 +100,15 @@ router.post('/scene-summary', async (req, res) => {
       : ''
 
     const prompt = `Fasse folgende Filmszene in 2-3 Sätzen zusammen. Ort: ${szene.ort_name || 'Unbekannt'}. Inhalt: ${contentText}`
-    const summary = await callOllama(setting.model_name, prompt)
-
-    res.json({ summary: summary.trim(), scene_id, provider: 'ollama' })
+    try {
+      const summary = await callOllama(setting.model_name, prompt)
+      res.json({ summary: summary.trim(), scene_id, provider: 'ollama' })
+    } catch {
+      // Ollama failed — return basic summary from content
+      const basicSummary = contentText ? `Szene in ${szene.ort_name || 'Unbekannt'}: ${contentText.substring(0, 100)}...` : 'Keine Inhalte vorhanden'
+      res.json({ summary: basicSummary, scene_id, provider: 'fallback' })
+    }
   } catch (err: any) {
-    if (err.name === 'AbortError') return res.status(503).json({ error: 'Ollama nicht verfügbar' })
     res.status(500).json({ error: String(err) })
   }
 })
@@ -127,23 +131,22 @@ router.post('/entity-detect', async (req, res) => {
     }
 
     const prompt = `Extrahiere alle Personen (Charaktere), Orte und Props aus folgendem Drehbuchtext. Antworte nur mit JSON-Array: [{"type":"charakter|location|prop","name":"..."}]. Text: ${text}`
-    const response = await callOllama(setting.model_name, prompt)
-
     let entities: any[] = []
     try {
+      const response = await callOllama(setting.model_name, prompt)
       const jsonMatch = response.match(/\[.*\]/s)
       if (jsonMatch) entities = JSON.parse(jsonMatch[0])
+      else entities = extractEntitiesRegex(text)
     } catch {
+      // Ollama failed — use regex fallback
       entities = extractEntitiesRegex(text)
     }
 
-    res.json({ entities, provider: 'ollama' })
+    res.json({ entities, provider: entities.length > 0 ? 'ollama-or-fallback' : 'regex-fallback' })
   } catch (err: any) {
-    if (err.name === 'AbortError') {
-      const entities = extractEntitiesRegex(req.body.text || '')
-      return res.json({ entities, provider: 'regex-fallback' })
-    }
-    res.status(500).json({ error: String(err) })
+    // Global fallback
+    const entities = extractEntitiesRegex(req.body?.text || '')
+    res.json({ entities, provider: 'regex-fallback' })
   }
 })
 
