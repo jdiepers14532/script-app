@@ -6,6 +6,7 @@ import {
   X
 } from 'lucide-react'
 import { useFocus } from '../App'
+import { useOfflineQueue } from '../hooks/useOfflineQueue'
 
 interface AppShellProps {
   children: ReactNode
@@ -27,6 +28,7 @@ export interface TweakState {
 export default function AppShell({ children }: AppShellProps) {
   const location = useLocation()
   const { focus, toggle } = useFocus()
+  const { isOnline, pendingCount, isSyncing } = useOfflineQueue()
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tweaks, setTweaks] = useState<TweakState>({
     theme: 'light',
@@ -66,9 +68,17 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="spacer" />
 
         {/* Online pill */}
-        <div className="status-pill topbar-extra">
-          <span className="dot" />
-          <span>{tweaks.conn === 'online' ? 'Online · Sync vor 12s' : 'Offline'}</span>
+        <div className="status-pill topbar-extra" style={{ borderColor: isOnline ? undefined : 'var(--sw-warning)' }}>
+          <span className="dot" style={{ background: isOnline && pendingCount === 0 ? 'var(--sw-green)' : isOnline ? 'var(--sw-warning)' : 'var(--sw-danger)' }} />
+          <span>
+            {!isOnline
+              ? `Offline${pendingCount > 0 ? ` · ${pendingCount} ausstehend` : ''}`
+              : isSyncing
+              ? 'Synchronisiert…'
+              : pendingCount > 0
+              ? `${pendingCount} ausstehende Änderungen`
+              : 'Online · Synced'}
+          </span>
         </div>
 
         {/* Theme toggle */}
