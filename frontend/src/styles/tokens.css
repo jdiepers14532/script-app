@@ -1,0 +1,59 @@
+:root {
+  --c-ink: #000000;
+  --c-paper: #FFFFFF;
+  --c-success: #00C853;
+  --c-info: #007AFF;
+  --c-warn: #FF9500;
+  --c-danger: #FF3B30;
+  --c-surface: #F5F5F5;
+  --c-surface-2: #FAFAFA;
+  --c-border: #E0E0E0;
+  --c-border-l: #EEEEEE;
+  --c-text: #000000;
+  --c-text-2: #424242;
+  --c-text-3: #757575;
+  --c-text-4: #9E9E9E;
+  --stage-expose: #757575;
+  --stage-treatment: #007AFF;
+  --stage-drehbuch: #FF9500;
+  --stage-final: #00C853;
+  --ent-character-bg: #E3F2FD;
+  --ent-character-fg: #0D47A1;
+  --ent-prop-bg: #FFF3E0;
+  --ent-prop-fg: #E65100;
+  --ent-location-bg: #E8F5E9;
+  --ent-location-fg: #1B5E20;
+  --font-sans: 'Inter', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+  --r-xl: 16px;
+  --r-full: 999px;
+  --sh-1: 0 1px 2px rgba(0,0,0,0.04);
+  --sh-2: 0 2px 8px rgba(0,0,0,0.06);
+  --sh-3: 0 4px 16px rgba(0,0,0,0.08);
+  --t-fast: 0.15s ease;
+  --t-med: 0.3s ease;
+}
+
+[data-theme='dark'] {
+  --c-ink: #FFFFFF;
+  --c-paper: #0A0A0A;
+  --c-surface: #151515;
+  --c-surface-2: #1A1A1A;
+  --c-border: #2A2A2A;
+  --c-border-l: #1E1E1E;
+  --c-text: #FFFFFF;
+  --c-text-2: #D4D4D4;
+  --c-text-3: #A0A0A0;
+  --c-text-4: #6B6B6B;
+}
