@@ -1,0 +1,18 @@
+{
+  "name": "script-app",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "playwright test",
+    "test:phase1": "playwright test tests/phase1.spec.ts",
+    "test:phase2": "playwright test tests/phase2.spec.ts",
+    "test:phase3": "playwright test tests/phase3.spec.ts",
+    "test:phase4": "playwright test tests/phase4.spec.ts",
+    "test:phase5": "playwright test tests/phase5.spec.ts",
+    "test:phase6": "playwright test tests/phase6.spec.ts",
+    "test:phase7": "playwright test tests/phase7.spec.ts",
+    "test:phase8": "playwright test tests/phase8.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0"
+  }
+}
