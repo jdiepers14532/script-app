@@ -12,6 +12,8 @@ import { episodenRouter, bloeckeRouter } from './routes/episoden'
 import { stagesRouter, episodenStagesRouter } from './routes/stages'
 import { szenenRouter, stagesSzenenRouter } from './routes/szenen'
 import { locksRouter, contractLocksRouter } from './routes/locks'
+import versionenRouter from './routes/versionen'
+import exportsRouter from './routes/exports'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -39,6 +41,8 @@ app.use('/api/szenen', szenenRouter)
 app.use('/api/stages', stagesSzenenRouter)
 app.use('/api/episoden', locksRouter)
 app.use('/api/locks', contractLocksRouter)
+app.use('/api/szenen', versionenRouter)
+app.use('/api/stages', exportsRouter)
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
