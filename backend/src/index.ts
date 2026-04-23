@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import * as dotenv from 'dotenv'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -26,12 +28,43 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 3014
 
+// Security: Helmet headers
+app.use(helmet({
+  contentSecurityPolicy: false, // CSP handled by nginx
+  crossOriginEmbedderPolicy: false,
+}))
+
+// CORS
 app.use(cors({
   origin: true,
   credentials: true,
 }))
+
 app.use(cookieParser())
 app.use(express.json({ limit: '10mb' }))
+
+// Rate limiting: general — 100 req/min per IP
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Zu viele Anfragen, bitte später erneut versuchen' },
+  // Skip in test mode
+  skip: () => process.env.PLAYWRIGHT_TEST_MODE === 'true',
+})
+
+// Rate limiting: KI — 20 req/min per IP
+const kiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'KI-Rate-Limit erreicht (20/min)' },
+  skip: () => process.env.PLAYWRIGHT_TEST_MODE === 'true',
+})
+
+app.use(generalLimiter)
 
 // Routes
 app.use('/api', healthRouter)
@@ -48,7 +81,7 @@ app.use('/api/szenen', versionenRouter)
 app.use('/api/stages', exportsRouter)
 app.use('/api/entities', entitiesRouter)
 app.use('/api', entitiesRouter) // for /api/stages/:id/entities
-app.use('/api/ki', kiRouter)
+app.use('/api/ki', kiLimiter, kiRouter)
 app.use('/api/admin/ki-settings', kiAdminRouter)
 app.use('/api/szenen', szenenKommentareRouter)
 app.use('/api/kommentare', kommentareRouter)
@@ -64,7 +97,6 @@ setInterval(async () => {
 
 // Run migration on startup
 async function runMigrations() {
-  // Find migration file
   const migrationFiles = ['v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql', 'v5_ki.sql', 'v6_kommentare.sql']
   for (const file of migrationFiles) {
     const paths = [

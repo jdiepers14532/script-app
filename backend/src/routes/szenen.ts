@@ -1,12 +1,23 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { z } from 'zod'
 
 export const szenenRouter = Router()
 export const stagesSzenenRouter = Router()
 
 szenenRouter.use(authMiddleware)
 stagesSzenenRouter.use(authMiddleware)
+
+const BlockSchema = z.object({
+  id: z.string(),
+  type: z.enum(['action', 'dialogue', 'parenthetical', 'transition', 'shot', 'direction', 'character', 'heading']),
+  text: z.string(),
+  character: z.string().optional(),
+  entity_id: z.number().optional(),
+})
+
+const ContentSchema = z.array(BlockSchema)
 
 // GET /api/szenen/:id
 szenenRouter.get('/:id', async (req, res) => {
@@ -22,7 +33,17 @@ szenenRouter.get('/:id', async (req, res) => {
 // PUT /api/szenen/:id
 szenenRouter.put('/:id', async (req, res) => {
   try {
-    const { int_ext, tageszeit, ort_name, zusammenfassung, content, dauer_min, sort_order } = req.body
+    const { int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, sort_order } = req.body
+    let content = req.body.content
+
+    // Validate content schema if provided
+    if (content !== undefined && content !== null) {
+      const parsed = ContentSchema.safeParse(content)
+      if (!parsed.success) {
+        return res.status(422).json({ error: 'Ungültiges Content-Schema', details: parsed.error.issues })
+      }
+      content = parsed.data
+    }
     const row = await queryOne(
       `UPDATE szenen SET
         int_ext = COALESCE($1, int_ext),
