@@ -1,100 +1,111 @@
+/* ─── Shared ─── */
 :root {
-  /* Kern */
+  --font-sans:   'Inter', -apple-system, sans-serif;
+  --font-script: 'Courier Prime', 'Courier New', monospace;
+  /* Alias for legacy code that references --font-mono */
+  --font-mono:   'Courier Prime', 'Courier New', monospace;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:24px; --sp-6:32px; --sp-7:48px; --sp-8:64px;
+  --r-sm:6px; --r-md:8px; --r-lg:12px; --r-full:999px;
+  --t-fast:0.15s ease; --t-med:0.3s ease;
+}
+
+/* ─── Normal-Modus (Trade Republic) ─── */
+[data-mode="normal"] {
+  --c-ink:      #000000;
+  --c-paper:    #FFFFFF;
+  --c-canvas:   #FFFFFF;
+  --c-surface:  #F5F5F5;
+  --c-surface-2:#FAFAFA;
+  --c-border:   #E0E0E0;
+  --c-border-l: #EEEEEE;
+  --c-line:     #E0E0E0;
+  --c-text:     #000000;
+  --c-text-2:   #424242;
+  --c-text-3:   #757575;
+  --c-text-4:   #9E9E9E;
+  --c-muted:    #757575;
+  --c-ghost:    #BDBDBD;
+  --c-ui:       #F5F5F5;
+  --c-accent:   #000000;
+  --c-success:  #00C853;
+  --c-info:     #007AFF;
+  --c-warn:     #FF9500;
+  --c-danger:   #FF3B30;
+  --stage-expose:    #757575;
+  --stage-treatment: #007AFF;
+  --stage-drehbuch:  #FF9500;
+  --stage-final:     #00C853;
+  --ent-character-bg:#E3F2FD; --ent-character-fg:#0D47A1;
+  --ent-prop-bg:     #FFF3E0; --ent-prop-fg:     #E65100;
+  --ent-location-bg: #E8F5E9; --ent-location-fg: #1B5E20;
+  --sh-1: 0 1px 2px rgba(0,0,0,0.04);
+  --sh-2: 0 2px 8px rgba(0,0,0,0.06);
+  --sh-3: 0 2px 8px rgba(0,0,0,0.06);
+  --sh-paper: 0 2px 8px rgba(0,0,0,0.06);
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+  --editor-font: var(--font-sans);
+  --focus-icon-color: #757575;
+}
+
+/* ─── Fokus-Modus (Warm Minimal) ─── */
+[data-mode="focus"] {
   --c-ink:      #111111;
-  --c-paper:    #FAFAF8;        /* Warmweiß, kein reines Weiß */
-  --c-canvas:   #FFFFFF;        /* Drehbuch-Blatt selbst */
-
-  /* Graustufen — sehr sparsam */
-  --c-ui:       #F0EFED;        /* Hintergründe */
-  --c-line:     #E5E4E0;        /* Trennlinien */
-  --c-muted:    #9E9C97;        /* Sekundärtext */
-  --c-ghost:    #C8C6C0;        /* Placeholder, Icons inaktiv */
-
-  /* Text */
+  --c-paper:    #FAFAF8;
+  --c-canvas:   #FFFFFF;
+  --c-surface:  #F0EFED;
+  --c-surface-2:#F5F5F3;
+  --c-border:   #E5E4E0;
+  --c-border-l: #EDECE8;
+  --c-line:     #E5E4E0;
   --c-text:     #111111;
   --c-text-2:   #444441;
   --c-text-3:   #767470;
-
-  /* Semantik — zurückhaltend */
-  --c-accent:   #111111;        /* Primär-Akzent = Schwarz */
-  --c-success:  #2D6A4F;        /* Dunkelgrün, nicht neon */
-  --c-warn:     #92400E;        /* Dunkelorange */
-  --c-info:     #1E3A5F;        /* Dunkelblau */
-  --c-danger:   #991B1B;        /* Dunkelrot */
-
-  /* Stage-Farben — gedimmt */
+  --c-text-4:   #9E9C97;
+  --c-muted:    #9E9C97;
+  --c-ghost:    #C8C6C0;
+  --c-ui:       #F0EFED;
+  --c-accent:   #111111;
+  --c-success:  #2D6A4F;
+  --c-info:     #1E3A5F;
+  --c-warn:     #92400E;
+  --c-danger:   #991B1B;
   --stage-expose:    #767470;
   --stage-treatment: #1E3A5F;
   --stage-drehbuch:  #92400E;
   --stage-final:     #2D6A4F;
-
-  /* Entity-Chips */
-  --ent-character-bg: #EEF2F7;
-  --ent-character-fg: #1E3A5F;
-  --ent-prop-bg:      #FDF3E8;
-  --ent-prop-fg:      #7C3A00;
-  --ent-location-bg:  #EDF4EE;
-  --ent-location-fg:  #1A4731;
-
-  /* Typografie */
-  --font-sans:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-script: 'Courier Prime', 'Courier New', monospace;  /* Drehbuch-Font */
-  /* Alias for legacy code that references --font-mono */
-  --font-mono:   'Courier Prime', 'Courier New', monospace;
-
-  /* Spacing (8px-Grid) */
-  --sp-1: 4px;  --sp-2: 8px;   --sp-3: 12px;  --sp-4: 16px;
-  --sp-5: 24px; --sp-6: 32px;  --sp-7: 48px;  --sp-8: 64px;
-
-  /* Radien — fast keine */
-  --r-sm:   3px;
-  --r-md:   4px;
-  --r-lg:   6px;
-  --r-full: 999px;
-
-  /* Schatten — minimal */
+  --ent-character-bg:#EEF2F7; --ent-character-fg:#1E3A5F;
+  --ent-prop-bg:     #FDF3E8; --ent-prop-fg:     #7C3A00;
+  --ent-location-bg: #EDF4EE; --ent-location-fg: #1A4731;
+  --sh-1: 0 1px 2px rgba(0,0,0,0.03);
+  --sh-2: 0 2px 6px rgba(0,0,0,0.05);
+  --sh-3: 0 1px 4px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
   --sh-paper: 0 1px 4px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04);
-
-  /* Legacy shadow aliases */
-  --sh-1: 0 1px 2px rgba(0,0,0,0.04);
-  --sh-2: 0 2px 8px rgba(0,0,0,0.06);
-  --sh-3: var(--sh-paper);
-
-  /* Transitions */
-  --t-fast: 0.12s ease;
-  --t-med:  0.25s ease;
-
-  /* Legacy border aliases */
-  --c-border:   #E5E4E0;
-  --c-border-l: #EDECE8;
-  --c-surface:  #F0EFED;
-  --c-surface-2: #F5F4F2;
-  --c-text-4:   #9E9C97;
+  --sidebar-width: 40px;
+  --topbar-height: 44px;
+  --editor-font: var(--font-script);
+  --focus-icon-color: #2D6A4F;
 }
 
-[data-theme='dark'] {
-  --c-ink:    #F0EFED;
-  --c-paper:  #141412;
-  --c-canvas: #1C1B19;
-  --c-ui:     #1F1E1C;
-  --c-line:   #2A2927;
-  --c-muted:  #6B6965;
-  --c-ghost:  #4A4845;
-  --c-text:   #F0EFED;
-  --c-text-2: #B5B3AE;
-  --c-text-3: #7A7874;
-
-  /* Legacy aliases */
-  --c-border:   #2A2927;
-  --c-border-l: #222120;
-  --c-surface:  #1F1E1C;
-  --c-surface-2: #1A1918;
-  --c-text-4:   #6B6965;
+[data-theme='dark'][data-mode='normal'] {
+  --c-ink:#FFFFFF; --c-paper:#0A0A0A; --c-surface:#151515;
+  --c-surface-2:#1A1A1A; --c-border:#2A2A2A; --c-border-l:#1E1E1E;
+  --c-text:#FFFFFF; --c-text-2:#D4D4D4; --c-text-3:#A0A0A0; --c-text-4:#6B6B6B;
+  --c-line:#2A2A2A; --c-ui:#151515; --c-muted:#A0A0A0; --c-ghost:#555555;
+  --c-canvas:#111111;
+}
+[data-theme='dark'][data-mode='focus'] {
+  --c-ink:#F0EFED; --c-paper:#141412; --c-canvas:#1C1B19;
+  --c-surface:#1F1E1C; --c-surface-2:#242320; --c-border:#2A2927;
+  --c-line:#2A2927; --c-ui:#1F1E1C; --c-muted:#6B6965; --c-ghost:#4A4845;
+  --c-text:#F0EFED; --c-text-2:#B5B3AE; --c-text-3:#7A7874;
+  --c-text-4:#6B6965;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body {
-  margin: 0; padding: 0;
+  margin:0; padding:0;
   background: var(--c-paper);
   color: var(--c-text);
   font-family: var(--font-sans);
@@ -102,5 +113,5 @@ html, body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
-button { font-family: inherit; cursor: pointer; border: none; background: none; }
-a { color: inherit; text-decoration: none; }
+button { font-family:inherit; cursor:pointer; border:none; background:none; }
+a { color:inherit; text-decoration:none; }

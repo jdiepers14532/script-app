@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Lock, MessageSquare, Search, X } from 'lucide-react'
 import { SCENES, ENV_COLORS, Scene } from '../data/scenes'
+import { useFocus } from '../App'
 
 interface SceneListProps {
   activeSceneId: number
@@ -10,6 +11,7 @@ interface SceneListProps {
 export default function SceneList({ activeSceneId, onSelectScene }: SceneListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
+  const { focus } = useFocus()
   const folge = 4512
 
   const filtered = SCENES.filter(s =>
@@ -19,16 +21,24 @@ export default function SceneList({ activeSceneId, onSelectScene }: SceneListPro
       s.nummer.includes(searchQuery))
   )
 
+  // Width is 280px in normal mode, 240px in focus mode — driven by CSS via .scene-list class
+  // but we also set it inline as a fallback using the CSS variable
+  const listWidth = focus ? 240 : 280
+
   return (
-    <div style={{
-      width: 240,
-      flexShrink: 0,
-      borderRight: '1px solid var(--c-line)',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--c-paper)',
-      height: '100%',
-    }}>
+    <div
+      className="scene-list"
+      style={{
+        width: listWidth,
+        flexShrink: 0,
+        borderRight: '1px solid var(--c-line)',
+        display: 'flex',
+        flexDirection: 'column',
+        background: 'var(--c-paper)',
+        height: '100%',
+        transition: `width var(--t-med)`,
+      }}
+    >
       {/* Header */}
       <div style={{
         padding: '10px 12px 8px',
@@ -94,6 +104,7 @@ export default function SceneList({ activeSceneId, onSelectScene }: SceneListPro
             scene={scene}
             active={scene.id === activeSceneId}
             onClick={() => onSelectScene(scene.id)}
+            showMeta={!focus}
           />
         ))}
       </div>
@@ -101,7 +112,17 @@ export default function SceneList({ activeSceneId, onSelectScene }: SceneListPro
   )
 }
 
-function SceneRow({ scene, active, onClick }: { scene: Scene; active: boolean; onClick: () => void }) {
+function SceneRow({
+  scene,
+  active,
+  onClick,
+  showMeta,
+}: {
+  scene: Scene
+  active: boolean
+  onClick: () => void
+  showMeta: boolean
+}) {
   const envColor = ENV_COLORS[scene.env]
 
   return (
@@ -164,8 +185,8 @@ function SceneRow({ scene, active, onClick }: { scene: Scene; active: boolean; o
           {scene.motiv}
         </span>
 
-        {/* Indicators */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+        {/* Indicators — hidden in focus mode via scene-row-meta class */}
+        <div className="scene-row-meta" style={{ alignItems: 'center', gap: 3, flexShrink: 0 }}>
           {scene.locked && (
             <Lock size={11} style={{ color: 'var(--c-muted)' }} />
           )}
@@ -173,6 +194,13 @@ function SceneRow({ scene, active, onClick }: { scene: Scene; active: boolean; o
             <MessageSquare size={11} style={{ color: 'var(--c-muted)' }} />
           )}
         </div>
+
+        {/* In focus mode: show a single compact indicator if locked/has comments */}
+        {!showMeta && (scene.locked || (scene.comments && scene.comments.total > 0)) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+            {scene.locked && <Lock size={10} style={{ color: 'var(--c-muted)' }} />}
+          </div>
+        )}
       </div>
     </div>
   )

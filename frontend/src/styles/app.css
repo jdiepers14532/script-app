@@ -18,6 +18,30 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* ===================== APP GRID ===================== */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: var(--topbar-height) 1fr;
+  height: 100vh;
+  overflow: hidden;
+  transition: grid-template-columns var(--t-med), grid-template-rows var(--t-med);
+}
+
+.app-topbar {
+  grid-column: 1 / -1;
+}
+
+.app-sidebar {
+  grid-row: 2;
+  overflow-y: auto;
+}
+
+.app-main {
+  grid-row: 2;
+  overflow: auto;
+}
+
 /* ===================== BUTTONS ===================== */
 .btn {
   display: inline-flex;
@@ -51,7 +75,7 @@ body {
 }
 
 .btn-primary:hover {
-  background: #2a2a2a;
+  opacity: 0.85;
 }
 
 .btn-ghost {
@@ -164,13 +188,18 @@ body {
 /* ===================== SHELL LAYOUT ===================== */
 .app-shell {
   display: grid;
-  grid-template-rows: 44px 1fr;
-  grid-template-columns: 40px 1fr;
+  grid-template-rows: var(--topbar-height) 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
   height: 100%;
-  transition: grid-template-columns var(--t-med);
+  transition: grid-template-columns var(--t-med), grid-template-rows var(--t-med);
 }
 
-.app-shell.sidebar-expanded {
+/* Normal mode: allow hover-expand for sidebar */
+[data-mode="normal"] .app-shell {
+  grid-template-columns: 40px 1fr;
+}
+
+[data-mode="normal"] .app-shell.sidebar-expanded {
   grid-template-columns: 200px 1fr;
 }
 
@@ -184,7 +213,8 @@ body {
   border-bottom: 1px solid var(--c-line);
   background: var(--c-paper);
   z-index: 100;
-  height: 44px;
+  height: var(--topbar-height);
+  transition: height var(--t-med);
 }
 
 .app-sidebar {
@@ -207,6 +237,14 @@ body {
   overflow-y: auto;
 }
 
+/* Focus mode: sidebar locked to icon-only, no hover-expand */
+[data-mode="focus"] .app-sidebar,
+[data-mode="focus"] .app-sidebar:hover,
+[data-mode="focus"] .app-sidebar.expanded {
+  width: var(--sidebar-width);
+  overflow-y: auto;
+}
+
 .app-main {
   grid-column: 2;
   grid-row: 2;
@@ -214,6 +252,24 @@ body {
   display: flex;
   flex-direction: column;
 }
+
+/* ===================== TOPBAR ===================== */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 20px;
+  background: var(--c-paper);
+  border-bottom: 1px solid var(--c-border);
+  height: var(--topbar-height);
+  transition: height var(--t-med);
+}
+
+/* Focus mode hides extras */
+[data-mode="focus"] .topbar .topbar-extra { display: none; }
+[data-mode="focus"] .topbar .online-text  { display: none; }
+[data-mode="focus"] .topbar .stage-chip   { display: none; }
+[data-mode="focus"] .topbar .topbar-brand-name { font-size: 14px; }
 
 /* ===================== TOPBAR ELEMENTS ===================== */
 .topbar-brand {
@@ -226,8 +282,8 @@ body {
 }
 
 .topbar-brand-square {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background: var(--c-ink);
   border-radius: 3px;
   display: flex;
@@ -237,6 +293,12 @@ body {
   font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
+  transition: width var(--t-med), height var(--t-med);
+}
+
+[data-mode="focus"] .topbar-brand-square {
+  width: 20px;
+  height: 20px;
 }
 
 .topbar-brand-name {
@@ -270,22 +332,92 @@ body {
   flex-shrink: 0;
 }
 
+.online-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--c-text-3);
+}
+
 .avatar {
-  width: 26px;
-  height: 26px;
   border-radius: 50%;
   background: var(--c-ink);
   color: var(--c-paper);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
   font-weight: 600;
   flex-shrink: 0;
   cursor: pointer;
+  width: 32px;
+  height: 32px;
+  font-size: 11px;
+  transition: width var(--t-med), height var(--t-med), font-size var(--t-med);
+}
+
+[data-mode="focus"] .avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 10px;
+}
+
+/* ===================== FOCUS TOGGLE BUTTON ===================== */
+.focus-toggle {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  color: var(--focus-icon-color);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast);
+  flex-shrink: 0;
+}
+
+.focus-toggle:hover {
+  background: var(--c-surface);
 }
 
 /* ===================== SIDEBAR ===================== */
+.sidebar {
+  background: var(--c-paper);
+  border-right: 1px solid var(--c-border);
+  width: var(--sidebar-width);
+  transition: width var(--t-med);
+  overflow: hidden;
+}
+
+.sidebar .sb-label {
+  transition: opacity var(--t-med);
+}
+
+.sidebar .sb-count {
+  transition: opacity var(--t-med);
+}
+
+[data-mode="focus"] .sidebar .sb-label {
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  overflow: hidden;
+}
+
+[data-mode="focus"] .sidebar .sb-count {
+  display: none;
+}
+
+[data-mode="focus"] .sidebar .sb-section {
+  display: none;
+}
+
+[data-mode="focus"] .sidebar .sb-item {
+  justify-content: center;
+  padding: 10px 0;
+}
+
 .sidebar-icon-row {
   display: flex;
   flex-direction: column;
@@ -345,6 +477,14 @@ body {
   max-width: 160px;
 }
 
+/* Focus mode: sidebar labels always hidden */
+[data-mode="focus"] .app-sidebar .sidebar-label,
+[data-mode="focus"] .app-sidebar:hover .sidebar-label,
+[data-mode="focus"] .app-sidebar.expanded .sidebar-label {
+  opacity: 0;
+  max-width: 0;
+}
+
 /* ===================== STAGE CHIP ===================== */
 .stage-chip {
   display: inline-flex;
@@ -361,6 +501,68 @@ body {
 .stage-treatment { background: #E8EEF5; color: var(--stage-treatment); }
 .stage-drehbuch  { background: #F5EDE5; color: var(--stage-drehbuch); }
 .stage-final     { background: #E5F0EA; color: var(--stage-final); }
+
+/* ===================== BREAKDOWN PANEL ===================== */
+.breakdown-panel {
+  display: block;
+}
+
+[data-mode="focus"] .breakdown-panel {
+  display: none;
+}
+
+/* ===================== STATUS BAR ===================== */
+.status-bar {
+  display: flex;
+}
+
+[data-mode="focus"] .status-bar {
+  display: none;
+}
+
+/* ===================== FORMAT TOOLBAR ===================== */
+.format-toolbar {
+  display: flex;
+}
+
+[data-mode="focus"] .format-toolbar {
+  display: none;
+}
+
+/* ===================== EDITOR FONT ===================== */
+.ed-doc {
+  font-family: var(--editor-font);
+}
+
+/* ===================== PAGE / CANVAS ===================== */
+[data-mode="normal"] .page {
+  max-width: 750px;
+  padding: 32px 48px;
+  box-shadow: var(--sh-2);
+}
+
+[data-mode="focus"] .page {
+  max-width: 680px;
+  padding: 48px 72px;
+  box-shadow: var(--sh-paper);
+}
+
+/* ===================== SCENE LIST ===================== */
+[data-mode="normal"] .scene-list {
+  width: 280px;
+}
+
+[data-mode="focus"] .scene-list {
+  width: 240px;
+}
+
+[data-mode="normal"] .scene-row-meta {
+  display: flex;
+}
+
+[data-mode="focus"] .scene-row-meta {
+  display: none;
+}
 
 /* ===================== DIVIDER ===================== */
 .divider {
@@ -507,6 +709,13 @@ body {
   border: 1px solid var(--c-line);
   box-shadow: var(--sh-paper);
   min-height: calc(100vh - 88px);
+  font-family: var(--editor-font);
+}
+
+[data-mode="normal"] .script-canvas {
+  max-width: 750px;
+  padding: 32px 48px;
+  box-shadow: var(--sh-2);
 }
 
 .script-block-heading {
@@ -591,7 +800,7 @@ body {
 
 .panel-slide-left {
   position: fixed;
-  top: 44px;
+  top: var(--topbar-height);
   left: 40px;
   bottom: 0;
   width: 280px;
@@ -611,7 +820,7 @@ body {
 
 .panel-slide-right {
   position: fixed;
-  top: 44px;
+  top: var(--topbar-height);
   right: 0;
   bottom: 0;
   width: 320px;

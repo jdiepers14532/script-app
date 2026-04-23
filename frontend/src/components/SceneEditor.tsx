@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { SCENES, ENV_COLORS } from '../data/scenes'
 import { Lock, Sun, Moon, Sunset } from 'lucide-react'
+import { useFocus } from '../App'
 
 interface SceneEditorProps {
   sceneId: number
@@ -15,6 +16,7 @@ const DAYTIME_ICONS: Record<string, typeof Sun> = {
 export default function SceneEditor({ sceneId }: SceneEditorProps) {
   const [activeTab, setActiveTab] = useState<'treatment' | 'drehbuch'>('drehbuch')
   const scene = SCENES.find(s => s.id === sceneId)
+  const { focus } = useFocus()
 
   if (!scene) {
     return (
@@ -60,10 +62,16 @@ export default function SceneEditor({ sceneId }: SceneEditorProps) {
         <span style={{ fontSize: 12, color: 'var(--c-text-3)', fontFamily: 'var(--font-script)' }}>
           {scene.intExt}
         </span>
-        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
-        <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.stageNr}</span>
-        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
-        <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.seiten} S.</span>
+
+        {/* Meta items hidden in focus mode */}
+        {!focus && (
+          <>
+            <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
+            <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.stageNr}</span>
+            <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
+            <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.seiten} S.</span>
+          </>
+        )}
 
         {scene.locked && (
           <>
@@ -104,7 +112,7 @@ export default function SceneEditor({ sceneId }: SceneEditorProps) {
       </div>
 
       {/* Content Area */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div className="ed-doc" style={{ flex: 1, overflow: 'auto' }}>
         {activeTab === 'treatment' ? (
           <div style={{ padding: '20px 24px' }}>
             {scene.synopsis ? (
@@ -114,6 +122,7 @@ export default function SceneEditor({ sceneId }: SceneEditorProps) {
                 lineHeight: 1.8,
                 fontStyle: 'italic',
                 margin: 0,
+                fontFamily: focus ? 'var(--font-script)' : 'var(--font-sans)',
               }}>
                 {scene.synopsis}
               </p>
@@ -125,18 +134,20 @@ export default function SceneEditor({ sceneId }: SceneEditorProps) {
           </div>
         ) : (
           <div style={{
-            padding: '24px',
+            padding: focus ? '32px 24px' : '24px',
             display: 'flex',
             justifyContent: 'center',
           }}>
-            <div style={{
-              width: '100%',
-              maxWidth: 580,
-              background: 'var(--c-canvas)',
-              border: '1px solid var(--c-line)',
-              padding: '32px 48px',
-              minHeight: 400,
-            }}>
+            <div
+              className="page"
+              style={{
+                width: '100%',
+                background: 'var(--c-canvas)',
+                border: '1px solid var(--c-line)',
+                minHeight: 400,
+                fontFamily: 'var(--editor-font)',
+              }}
+            >
               {/* Scene slug */}
               <div style={{
                 fontFamily: 'var(--font-script)',

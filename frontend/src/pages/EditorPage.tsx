@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, GripVertical, Search, Plus, X,
-  Hash, Clock, MessageSquare, MoreHorizontal
+  Hash, Clock, MessageSquare, MoreHorizontal,
+  Minimize2, Maximize2
 } from 'lucide-react'
 import { SCRIPTS, VERSIONS, COMMENTS, AUTHORS } from '../data/editorData'
 import { BlockType } from '../data/editorData'
+import { useFocus } from '../App'
 
 type TweakTheme = 'light' | 'dark'
 type TweakConn = 'online' | 'offline'
@@ -18,6 +20,7 @@ export default function EditorPage() {
   const [conn] = useState<TweakConn>('online')
   const [showMenu, setShowMenu] = useState(false)
   const [unsaved] = useState(false)
+  const { focus, toggle: toggleFocus } = useFocus()
 
   const script = SCRIPTS[7]
   const versions = VERSIONS[7]
@@ -81,9 +84,9 @@ export default function EditorPage() {
         fontFamily: 'var(--font-sans)',
       }}
     >
-      {/* Topbar — 44px */}
+      {/* Topbar */}
       <div style={{
-        height: 44,
+        height: 'var(--topbar-height)',
         display: 'flex',
         alignItems: 'center',
         gap: 8,
@@ -116,6 +119,16 @@ export default function EditorPage() {
             Speichern
           </button>
         )}
+
+        {/* Focus toggle */}
+        <button
+          className="focus-toggle"
+          onClick={toggleFocus}
+          title="Fokus-Modus (F10)"
+          aria-label={focus ? 'Fokus-Modus beenden' : 'Fokus-Modus aktivieren'}
+        >
+          {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+        </button>
 
         {/* More menu */}
         <button
@@ -188,7 +201,7 @@ export default function EditorPage() {
             />
             <div style={{
               position: 'fixed',
-              top: 44,
+              top: 'var(--topbar-height)',
               left: 0,
               bottom: 0,
               width: 280,
@@ -258,7 +271,7 @@ export default function EditorPage() {
         )}
 
         {/* Canvas */}
-        <div style={{
+        <div className="ed-doc" style={{
           flex: 1,
           overflow: 'auto',
           background: 'var(--c-ui)',
@@ -266,7 +279,7 @@ export default function EditorPage() {
           justifyContent: 'center',
           padding: '32px 24px',
         }}>
-          <div className="script-canvas">
+          <div className="script-canvas page">
             {/* Scene Header */}
             <div style={{ marginBottom: 24 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
@@ -329,7 +342,7 @@ export default function EditorPage() {
             />
             <div style={{
               position: 'fixed',
-              top: 44,
+              top: 'var(--topbar-height)',
               right: 0,
               bottom: 0,
               width: 320,
