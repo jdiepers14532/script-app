@@ -70,5 +70,43 @@ bloeckeRouter.post('/:blockId/episoden', async (req, res) => {
   }
 })
 
+// GET /api/episoden/:id/besetzung — Characters for Vertragsdatenbank
+episodenRouter.get('/:id/besetzung', async (req, res) => {
+  try {
+    const { query: dbQuery } = await import('../db')
+    const szenen = await dbQuery(
+      `SELECT s.content FROM stages st
+       JOIN szenen s ON s.stage_id = st.id
+       WHERE st.episode_id = $1
+       ORDER BY s.sort_order`,
+      [req.params.id]
+    )
+    const charaktere: Set<string> = new Set()
+    for (const szene of szenen) {
+      const content = Array.isArray(szene.content) ? szene.content : []
+      for (const block of content) {
+        if (block.type === 'character' && block.text) {
+          charaktere.add(block.text)
+        }
+      }
+    }
+    res.json({ episode_id: req.params.id, charaktere: Array.from(charaktere) })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/episoden/:id/synopsis — Synopsis for Marketing-App
+episodenRouter.get('/:id/synopsis', async (req, res) => {
+  try {
+    const { queryOne: dbQueryOne } = await import('../db')
+    const ep = await dbQueryOne('SELECT * FROM episoden WHERE id = $1', [req.params.id])
+    if (!ep) return res.status(404).json({ error: 'Episode nicht gefunden' })
+    res.json({ episode_id: ep.id, arbeitstitel: ep.arbeitstitel, synopsis: ep.synopsis })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // Default export for backward compat
 export default episodenRouter
