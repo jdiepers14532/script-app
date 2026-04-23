@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Lock, MessageSquare, Plus, SlidersHorizontal, ArrowUpDown, Search, ChevronDown } from 'lucide-react'
+import { Lock, MessageSquare, Search, X } from 'lucide-react'
 import { SCENES, ENV_COLORS, Scene } from '../data/scenes'
 
 interface SceneListProps {
@@ -9,7 +9,8 @@ interface SceneListProps {
 
 export default function SceneList({ activeSceneId, onSelectScene }: SceneListProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [folge, setFolge] = useState(4512)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const folge = 4512
 
   const filtered = SCENES.filter(s =>
     s.folge === folge &&
@@ -20,9 +21,9 @@ export default function SceneList({ activeSceneId, onSelectScene }: SceneListPro
 
   return (
     <div style={{
-      width: 280,
+      width: 240,
       flexShrink: 0,
-      borderRight: '1px solid var(--c-border)',
+      borderRight: '1px solid var(--c-line)',
       display: 'flex',
       flexDirection: 'column',
       background: 'var(--c-paper)',
@@ -31,74 +32,58 @@ export default function SceneList({ activeSceneId, onSelectScene }: SceneListPro
       {/* Header */}
       <div style={{
         padding: '10px 12px 8px',
-        borderBottom: '1px solid var(--c-border)',
+        borderBottom: '1px solid var(--c-line)',
         display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 40,
       }}>
-        {/* Folge Picker Row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '5px 10px',
-              borderRadius: 'var(--r-md)',
-              border: '1px solid var(--c-border)',
-              background: 'var(--c-paper)',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontFamily: 'var(--font-sans)',
-              color: 'var(--c-text)',
-              flex: 1,
-            }}
-          >
-            Folge {folge}
-            <ChevronDown size={13} style={{ marginLeft: 'auto', color: 'var(--c-text-4)' }} />
-          </button>
-          <button className="btn-icon btn-sm" title="Sortieren"><ArrowUpDown size={13} /></button>
-          <button className="btn-icon btn-sm" title="Filtern"><SlidersHorizontal size={13} /></button>
-          <button className="btn-icon btn-sm" title="Neue Szene" style={{ background: 'var(--c-ink)', color: 'var(--c-paper)', border: 'none' }}>
-            <Plus size={13} />
-          </button>
-        </div>
-
-        {/* Search */}
-        <div style={{ position: 'relative' }}>
-          <Search size={13} style={{
-            position: 'absolute',
-            left: 8,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--c-text-4)',
-            pointerEvents: 'none',
-          }} />
-          <input
-            className="input input-sm"
-            style={{ paddingLeft: 26 }}
-            placeholder="Szene suchen…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Scene Count */}
-      <div style={{
-        padding: '6px 12px',
-        fontSize: 11,
-        color: 'var(--c-text-4)',
-        borderBottom: '1px solid var(--c-border-l)',
-        display: 'flex',
-        justifyContent: 'space-between',
-      }}>
-        <span>{filtered.length} Szenen</span>
-        <span>∑ {filtered.reduce((a, s) => {
-          const [whole, frac = '0'] = s.seiten.split(' ')
-          return a + parseInt(whole) + parseInt(frac) / 8
-        }, 0).toFixed(1)} S.</span>
+        {searchOpen ? (
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search size={11} style={{
+              position: 'absolute', left: 7, top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--c-muted)', pointerEvents: 'none',
+            }} />
+            <input
+              autoFocus
+              className="input input-sm"
+              style={{ paddingLeft: 24, fontSize: 12 }}
+              placeholder="Szene suchen…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+            />
+            <button
+              onClick={() => { setSearchOpen(false); setSearchQuery('') }}
+              style={{
+                position: 'absolute', right: 6, top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--c-muted)', display: 'flex', alignItems: 'center',
+                padding: 0,
+              }}
+            >
+              <X size={11} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <span style={{
+              flex: 1, fontSize: 12, fontWeight: 500,
+              color: 'var(--c-text-2)',
+            }}>
+              Folge {folge}
+            </span>
+            <button
+              className="btn-icon"
+              style={{ width: 26, height: 26 }}
+              onClick={() => setSearchOpen(true)}
+              title="Suchen"
+            >
+              <Search size={13} />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Scene List */}
@@ -118,11 +103,6 @@ export default function SceneList({ activeSceneId, onSelectScene }: SceneListPro
 
 function SceneRow({ scene, active, onClick }: { scene: Scene; active: boolean; onClick: () => void }) {
   const envColor = ENV_COLORS[scene.env]
-  const isDarkBg = envColor.textDark === true
-  const textColor = isDarkBg ? '#ffffff' : 'var(--c-text)'
-  const textSecondary = isDarkBg ? 'rgba(255,255,255,0.65)' : 'var(--c-text-3)'
-
-  const intExtLabel = scene.intExt
 
   return (
     <div
@@ -131,16 +111,21 @@ function SceneRow({ scene, active, onClick }: { scene: Scene; active: boolean; o
         display: 'flex',
         alignItems: 'stretch',
         cursor: 'pointer',
-        background: active ? (isDarkBg ? 'rgba(255,255,255,0.1)' : 'var(--c-surface)') : envColor.bg,
-        borderLeft: active ? '3px solid var(--c-ink)' : `3px solid transparent`,
-        borderBottom: '1px solid rgba(0,0,0,0.05)',
+        background: active ? 'var(--c-ui)' : 'transparent',
+        borderLeft: active ? '2px solid var(--c-ink)' : '2px solid transparent',
+        borderBottom: '1px solid var(--c-line)',
         transition: 'background var(--t-fast)',
-        position: 'relative',
+      }}
+      onMouseEnter={e => {
+        if (!active) e.currentTarget.style.background = 'var(--c-ui)'
+      }}
+      onMouseLeave={e => {
+        if (!active) e.currentTarget.style.background = 'transparent'
       }}
     >
       {/* Color Stripe */}
       <div style={{
-        width: 4,
+        width: 3,
         flexShrink: 0,
         background: envColor.stripe,
       }} />
@@ -148,88 +133,45 @@ function SceneRow({ scene, active, onClick }: { scene: Scene; active: boolean; o
       {/* Content */}
       <div style={{
         flex: 1,
-        padding: '8px 10px',
+        padding: '7px 10px',
         minWidth: 0,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
       }}>
-        {/* Row 1: Number + Int/Ext Badge + Motiv */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3 }}>
-          <span style={{
-            fontSize: 11,
-            fontWeight: 700,
-            color: textColor,
-            fontFamily: 'var(--font-mono)',
-            minWidth: 20,
-          }}>
-            {scene.nummer}
-          </span>
-          <span style={{
-            fontSize: 10,
-            fontWeight: 600,
-            padding: '1px 5px',
-            borderRadius: 'var(--r-sm)',
-            background: isDarkBg ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.07)',
-            color: textColor,
-          }}>
-            {intExtLabel}
-          </span>
-          <span style={{
-            fontSize: 12,
-            fontWeight: 500,
-            color: textColor,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-          }}>
-            {scene.motiv}
-          </span>
-        </div>
+        {/* Scene Number */}
+        <span style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: 'var(--c-muted)',
+          fontFamily: 'var(--font-script)',
+          minWidth: 16,
+          flexShrink: 0,
+        }}>
+          {scene.nummer}
+        </span>
 
-        {/* Row 2: Meta */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 11, color: textSecondary }}>{scene.tageszeit}</span>
-          <span style={{ fontSize: 10, color: textSecondary }}>·</span>
-          <span style={{ fontSize: 11, color: textSecondary }}>{scene.stageNr}</span>
-          <span style={{ fontSize: 10, color: textSecondary }}>·</span>
-          <span style={{ fontSize: 11, color: textSecondary }}>{scene.seiten} S.</span>
+        {/* Motiv */}
+        <span style={{
+          fontSize: 12,
+          color: active ? 'var(--c-text)' : 'var(--c-text-2)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          flex: 1,
+          fontWeight: active ? 500 : 400,
+        }}>
+          {scene.motiv}
+        </span>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 5 }}>
-            {/* Lock */}
-            {scene.locked && (
-              <Lock
-                size={11}
-                style={{ color: scene.contract ? 'var(--c-info)' : textSecondary }}
-                fill={scene.contract ? 'var(--c-info)' : 'currentColor'}
-              />
-            )}
-
-            {/* Comment Bubble */}
-            {scene.comments && scene.comments.total > 0 && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 2,
-                fontSize: 10,
-                color: textSecondary,
-              }}>
-                <MessageSquare size={11} />
-                <span>
-                  {scene.comments.total}
-                  {scene.comments.unread > 0 && (
-                    <>
-                      ·
-                      <span style={{ color: 'var(--c-info)', fontWeight: 600, marginLeft: 2 }}>
-                        {scene.comments.unread}
-                      </span>
-                    </>
-                  )}
-                </span>
-              </div>
-            )}
-
-            {/* Duration */}
-            <span style={{ fontSize: 10, color: textSecondary }}>{scene.dauer}</span>
-          </div>
+        {/* Indicators */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+          {scene.locked && (
+            <Lock size={11} style={{ color: 'var(--c-muted)' }} />
+          )}
+          {scene.comments && scene.comments.total > 0 && (
+            <MessageSquare size={11} style={{ color: 'var(--c-muted)' }} />
+          )}
         </div>
       </div>
     </div>

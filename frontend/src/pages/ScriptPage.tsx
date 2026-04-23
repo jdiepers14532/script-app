@@ -2,13 +2,12 @@ import { useState } from 'react'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
-import BreakdownPanel from '../components/BreakdownPanel'
 
 export default function ScriptPage() {
   const [activeSceneId, setActiveSceneId] = useState(7)
 
   return (
-    <AppShell stage="drehbuch">
+    <AppShell>
       <div style={{
         display: 'flex',
         height: '100%',
@@ -21,7 +20,6 @@ export default function ScriptPage() {
         <div style={{ flex: 1, overflow: 'hidden' }}>
           <SceneEditor sceneId={activeSceneId} />
         </div>
-        <BreakdownPanel />
       </div>
     </AppShell>
   )

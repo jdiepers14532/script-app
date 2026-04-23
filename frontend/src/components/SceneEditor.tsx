@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { SCENES, ENV_COLORS } from '../data/scenes'
-import { Lock, Clock, Users, Tag, MapPin, Sun, Moon, Sunset } from 'lucide-react'
+import { Lock, Sun, Moon, Sunset } from 'lucide-react'
 
 interface SceneEditorProps {
   sceneId: number
@@ -12,18 +13,18 @@ const DAYTIME_ICONS: Record<string, typeof Sun> = {
 }
 
 export default function SceneEditor({ sceneId }: SceneEditorProps) {
+  const [activeTab, setActiveTab] = useState<'treatment' | 'drehbuch'>('drehbuch')
   const scene = SCENES.find(s => s.id === sceneId)
 
   if (!scene) {
     return (
-      <div style={{ padding: 32, color: 'var(--c-text-4)', textAlign: 'center' }}>
+      <div style={{ padding: 32, color: 'var(--c-text-3)', textAlign: 'center', fontSize: 13 }}>
         Keine Szene ausgewählt
       </div>
     )
   }
 
   const envColor = ENV_COLORS[scene.env]
-  const DaytimeIcon = DAYTIME_ICONS[scene.tageszeit] || Sun
 
   return (
     <div style={{
@@ -32,209 +33,157 @@ export default function SceneEditor({ sceneId }: SceneEditorProps) {
       height: '100%',
       overflow: 'hidden',
     }}>
-      {/* Scene Meta Header */}
+      {/* Scene Header — einzeilig, minimal */}
       <div style={{
-        padding: '14px 20px 12px',
-        borderBottom: '1px solid var(--c-border)',
+        padding: '0 20px',
+        borderBottom: '1px solid var(--c-line)',
         background: 'var(--c-paper)',
         flexShrink: 0,
+        height: 38,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
       }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-          {/* Color Badge */}
-          <div style={{
-            width: 40,
-            height: 40,
-            borderRadius: 'var(--r-lg)',
-            background: envColor.bg,
-            border: `3px solid ${envColor.stripe}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <span style={{
-              fontSize: 13,
-              fontWeight: 700,
-              color: envColor.textDark ? '#fff' : 'var(--c-text)',
-              fontFamily: 'var(--font-mono)',
-            }}>
-              {scene.nummer}
-            </span>
-          </div>
+        <span style={{
+          fontSize: 12,
+          color: 'var(--c-text-3)',
+          fontFamily: 'var(--font-script)',
+          fontWeight: 600,
+        }}>
+          SZ {scene.nummer}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
+        <span style={{ fontSize: 12, color: 'var(--c-text-2)', fontWeight: 500 }}>
+          {scene.motiv}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
+        <span style={{ fontSize: 12, color: 'var(--c-text-3)', fontFamily: 'var(--font-script)' }}>
+          {scene.intExt}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
+        <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.stageNr}</span>
+        <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
+        <span style={{ fontSize: 12, color: 'var(--c-text-3)' }}>{scene.seiten} S.</span>
 
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-              <span style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: '2px 6px',
-                borderRadius: 'var(--r-sm)',
-                background: 'var(--c-surface)',
-                color: 'var(--c-text-3)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.04em',
-              }}>
-                {scene.intExt}
-              </span>
-              <h2 style={{ fontSize: 14, fontWeight: 600, margin: 0, color: 'var(--c-text)' }}>
-                {scene.motiv}
-              </h2>
-              {scene.locked && (
-                <Lock
-                  size={13}
-                  style={{ color: scene.contract ? 'var(--c-info)' : 'var(--c-text-4)' }}
-                />
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <MetaChip icon={<DaytimeIcon size={12} />} label={scene.tageszeit} />
-              <MetaChip icon={<MapPin size={12} />} label={scene.stageNr} />
-              <MetaChip icon={<Tag size={12} />} label={`${scene.seiten} S.`} />
-              <MetaChip icon={<Clock size={12} />} label={scene.dauer} />
-              <MetaChip icon={<Users size={12} />} label="3 Rollen" />
-            </div>
-          </div>
-        </div>
+        {scene.locked && (
+          <>
+            <span style={{ fontSize: 12, color: 'var(--c-line)' }}>·</span>
+            <Lock size={11} style={{ color: 'var(--c-muted)' }} />
+          </>
+        )}
+
+        <div style={{ flex: 1 }} />
+
+        {/* Tabs */}
+        <button
+          onClick={() => setActiveTab('treatment')}
+          className="btn-text"
+          style={{
+            fontSize: 12,
+            color: activeTab === 'treatment' ? 'var(--c-text)' : 'var(--c-text-3)',
+            fontWeight: activeTab === 'treatment' ? 500 : 400,
+            borderBottom: activeTab === 'treatment' ? '1px solid var(--c-ink)' : '1px solid transparent',
+            padding: '4px 0',
+          }}
+        >
+          Treatment
+        </button>
+        <button
+          onClick={() => setActiveTab('drehbuch')}
+          className="btn-text"
+          style={{
+            fontSize: 12,
+            color: activeTab === 'drehbuch' ? 'var(--c-text)' : 'var(--c-text-3)',
+            fontWeight: activeTab === 'drehbuch' ? 500 : 400,
+            borderBottom: activeTab === 'drehbuch' ? '1px solid var(--c-ink)' : '1px solid transparent',
+            padding: '4px 0',
+          }}
+        >
+          Drehbuch
+        </button>
       </div>
 
-      {/* Content Area: Treatment + Drehbuch side by side */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        flex: 1,
-        overflow: 'hidden',
-      }}>
-        {/* Treatment Panel */}
-        <div style={{
-          borderRight: '1px solid var(--c-border)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
-          <div style={{
-            padding: '8px 16px',
-            borderBottom: '1px solid var(--c-border-l)',
-            background: 'var(--c-surface-2)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Treatment
-            </span>
-            <span className="stage-chip stage-treatment" style={{ fontSize: 10 }}>Treatment</span>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+      {/* Content Area */}
+      <div style={{ flex: 1, overflow: 'auto' }}>
+        {activeTab === 'treatment' ? (
+          <div style={{ padding: '20px 24px' }}>
             {scene.synopsis ? (
               <p style={{
                 fontSize: 13,
                 color: 'var(--c-text-2)',
-                lineHeight: 1.7,
+                lineHeight: 1.8,
                 fontStyle: 'italic',
+                margin: 0,
               }}>
                 {scene.synopsis}
               </p>
             ) : (
-              <p style={{ fontSize: 13, color: 'var(--c-text-4)', fontStyle: 'italic' }}>
+              <p style={{ fontSize: 13, color: 'var(--c-text-3)', fontStyle: 'italic', margin: 0 }}>
                 Kein Treatment vorhanden.
               </p>
             )}
-
-            {/* Placeholder content to fill space */}
-            <div style={{ marginTop: 16 }}>
-              <div style={{
-                height: 12,
-                background: 'var(--c-border-l)',
-                borderRadius: 4,
-                marginBottom: 8,
-                width: '85%',
-              }} />
-              <div style={{
-                height: 12,
-                background: 'var(--c-border-l)',
-                borderRadius: 4,
-                marginBottom: 8,
-                width: '70%',
-              }} />
-              <div style={{
-                height: 12,
-                background: 'var(--c-border-l)',
-                borderRadius: 4,
-                marginBottom: 8,
-                width: '90%',
-              }} />
-            </div>
           </div>
-        </div>
-
-        {/* Drehbuch Panel */}
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}>
+        ) : (
           <div style={{
-            padding: '8px 16px',
-            borderBottom: '1px solid var(--c-border-l)',
-            background: 'var(--c-surface-2)',
+            padding: '24px',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+            justifyContent: 'center',
           }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--c-text-3)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Drehbuch
-            </span>
-            <span className="stage-chip stage-drehbuch" style={{ fontSize: 10 }}>Drehbuch</span>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}>
-              <div style={{ fontWeight: 700, textTransform: 'uppercase', fontSize: 12, marginBottom: 8, color: 'var(--c-text)' }}>
-                INT. {scene.motiv} – {scene.tageszeit}
+            <div style={{
+              width: '100%',
+              maxWidth: 580,
+              background: 'var(--c-canvas)',
+              border: '1px solid var(--c-line)',
+              padding: '32px 48px',
+              minHeight: 400,
+            }}>
+              {/* Scene slug */}
+              <div style={{
+                fontFamily: 'var(--font-script)',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                fontSize: 13,
+                marginBottom: 16,
+                color: 'var(--c-text)',
+              }}>
+                {scene.intExt}. {scene.motiv} – {scene.tageszeit}
               </div>
+
               {scene.synopsis && (
-                <p style={{ fontSize: 12, color: 'var(--c-text-2)', lineHeight: 1.6, marginBottom: 12 }}>
+                <p style={{
+                  fontFamily: 'var(--font-script)',
+                  fontSize: 13,
+                  color: 'var(--c-text-2)',
+                  lineHeight: 1.7,
+                  marginBottom: 16,
+                  margin: '0 0 16px 0',
+                }}>
                   {scene.synopsis}
                 </p>
               )}
+
               {/* Script skeleton */}
-              {['FIGUR A', 'Ich weiß es nicht.', 'FIGUR B', '(leise)', 'Du musst es herausfinden.'].map((line, i) => (
+              {(['FIGUR A', 'Ich weiß es nicht.', 'FIGUR B', '(leise)', 'Du musst es herausfinden.'] as string[]).map((line, i) => (
                 <div key={i} style={{
+                  fontFamily: 'var(--font-script)',
+                  fontSize: 13,
+                  lineHeight: 1.7,
                   marginBottom: 4,
-                  color: i === 3 ? 'var(--c-text-4)' : 'var(--c-text-2)',
+                  color: i === 3 ? 'var(--c-text-3)' : 'var(--c-text-2)',
                   textAlign: i === 0 || i === 2 ? 'center' : i === 3 ? 'center' : 'left',
                   fontStyle: i === 3 ? 'italic' : undefined,
-                  marginLeft: i === 4 ? 40 : undefined,
-                  marginRight: i === 4 ? 40 : undefined,
-                  fontWeight: i === 0 || i === 2 ? 600 : 400,
+                  marginLeft: i === 4 ? '15%' : undefined,
+                  marginRight: i === 4 ? '15%' : undefined,
+                  fontWeight: i === 0 || i === 2 ? 700 : 400,
                   textTransform: i === 0 || i === 2 ? 'uppercase' : undefined,
-                  fontSize: i === 3 ? 11 : 12,
                 }}>
                   {line}
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        )}
       </div>
-    </div>
-  )
-}
-
-function MetaChip({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <div style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 4,
-      padding: '3px 8px',
-      borderRadius: 'var(--r-full)',
-      background: 'var(--c-surface)',
-      border: '1px solid var(--c-border)',
-      fontSize: 11,
-      color: 'var(--c-text-3)',
-    }}>
-      {icon}
-      {label}
     </div>
   )
 }
