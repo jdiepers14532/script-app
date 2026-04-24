@@ -5,8 +5,9 @@ import {
   Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
   X, FileUp
 } from 'lucide-react'
-import { useFocus } from '../App'
+import { useFocus, useSelectedProduction } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
+import ProductionSelector from './ProductionSelector'
 
 interface AppShellProps {
   children: ReactNode
@@ -67,6 +68,7 @@ export default function AppShell({
   const location = useLocation()
   const { focus, toggle } = useFocus()
   const { isOnline, pendingCount, isSyncing } = useOfflineQueue()
+  const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tweaks, setTweaks] = useState<TweakState>({
     theme: 'light',
@@ -105,7 +107,13 @@ export default function AppShell({
         <div className="divider" />
 
         <div className="crumbs">
-          {staffeln.length > 0 && onSelectStaffel ? (
+          {productions.length > 0 ? (
+            <ProductionSelector
+              productions={productions}
+              selectedId={selectedProdId}
+              onSelect={selectProduction}
+            />
+          ) : staffeln.length > 0 && onSelectStaffel ? (
             <select
               style={selectStyle}
               value={selectedStaffelId}

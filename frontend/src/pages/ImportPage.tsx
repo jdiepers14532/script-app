@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X } from 'lucide-react'
+import { useSelectedProduction } from '../App'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 const FORMAT_LABELS: Record<string, string> = {
@@ -47,6 +48,7 @@ interface CommitResult {
 export default function ImportPage() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { selectedProduction } = useSelectedProduction()
   const [step, setStep] = useState<Step>(1)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -68,16 +70,21 @@ export default function ImportPage() {
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
 
-  // Load staffeln on mount
+  // Load staffeln on mount — prefer selectedProduction as default
   useEffect(() => {
     fetch('/api/staffeln', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         setStaffeln(data)
-        if (data.length > 0) setSelectedStaffelId(data[0].id)
+        // Use selectedProduction from header as default if available
+        if (selectedProduction && data.find((s: any) => s.id === selectedProduction.id)) {
+          setSelectedStaffelId(selectedProduction.id)
+        } else if (data.length > 0) {
+          setSelectedStaffelId(data[0].id)
+        }
       })
       .catch(() => {})
-  }, [])
+  }, [selectedProduction?.id])
 
   useEffect(() => {
     if (!selectedStaffelId) return

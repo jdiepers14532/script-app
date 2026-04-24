@@ -5,6 +5,7 @@ import EditorPage from './pages/EditorPage'
 import AdminPage from './pages/AdminPage'
 import ImportPage from './pages/ImportPage'
 import { useFocusMode } from './hooks/useFocusMode'
+import { useProduction, Production } from './hooks/useProduction'
 
 interface FocusContextValue {
   focus: boolean
@@ -20,20 +21,43 @@ export function useFocus() {
   return useContext(FocusContext)
 }
 
+interface ProductionContextType {
+  productions: Production[]
+  selectedId: string | null
+  selectedProduction: Production | null
+  selectProduction: (id: string) => void
+  loading: boolean
+}
+
+export const ProductionContext = createContext<ProductionContextType>({
+  productions: [],
+  selectedId: null,
+  selectedProduction: null,
+  selectProduction: () => {},
+  loading: true,
+})
+
+export function useSelectedProduction() {
+  return useContext(ProductionContext)
+}
+
 export default function App() {
   const { focus, toggle } = useFocusMode()
+  const productionCtx = useProduction()
 
   return (
-    <FocusContext.Provider value={{ focus, toggle }}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<ScriptPage />} />
-          <Route path="/editor" element={<EditorPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/import" element={<ImportPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </FocusContext.Provider>
+    <ProductionContext.Provider value={productionCtx}>
+      <FocusContext.Provider value={{ focus, toggle }}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<ScriptPage />} />
+            <Route path="/editor" element={<EditorPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/import" element={<ImportPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </FocusContext.Provider>
+    </ProductionContext.Provider>
   )
 }

@@ -1,0 +1,68 @@
+import { useState, useEffect, useCallback } from 'react'
+
+export interface Production {
+  id: string
+  title: string
+  staffelnummer: number | null
+  projektnummer: string | null
+  is_active: boolean
+  logo_filename: string | null
+}
+
+export function productionLabel(p: Production): string {
+  if (p.staffelnummer) return `${p.title} Staffel ${p.staffelnummer}`
+  return p.title
+}
+
+export function useProduction() {
+  const [productions, setProductions] = useState<Production[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/me/productions', { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/me/settings', { credentials: 'include' }).then(r => r.json()),
+    ])
+      .then(([prods, settings]) => {
+        if (!Array.isArray(prods)) {
+          setProductions([])
+          return
+        }
+        setProductions(prods)
+        const savedId = settings?.selected_production_id
+        const valid = savedId && prods.find((p: Production) => p.id === savedId)
+        if (valid) {
+          setSelectedId(savedId)
+        } else if (prods.length > 0) {
+          const firstActive = prods.find((p: Production) => p.is_active) || prods[0]
+          setSelectedId(firstActive.id)
+          persistSelection(firstActive.id)
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
+  const selectProduction = useCallback((id: string) => {
+    setSelectedId(id)
+    persistSelection(id)
+  }, [])
+
+  return {
+    productions,
+    selectedId,
+    selectedProduction: productions.find(p => p.id === selectedId) || null,
+    selectProduction,
+    loading,
+  }
+}
+
+function persistSelection(id: string) {
+  fetch('/api/me/settings', {
+    method: 'PUT',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ selected_production_id: id }),
+  }).catch(console.error)
+}

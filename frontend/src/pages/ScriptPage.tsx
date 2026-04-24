@@ -4,10 +4,11 @@ import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
-import { useFocus } from '../App'
+import { useFocus, useSelectedProduction } from '../App'
 
 export default function ScriptPage() {
   const { focus } = useFocus()
+  const { selectedProduction } = useSelectedProduction()
   const [staffeln, setStaffeln] = useState<any[]>([])
   const [bloecke, setBloecke] = useState<any[]>([])
   const [episoden, setEpisoden] = useState<any[]>([])
@@ -22,12 +23,36 @@ export default function ScriptPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Staffeln laden
+  // Wenn Produktion aus Produktionsdatenbank gewählt → sync + als Staffel nutzen
+  useEffect(() => {
+    if (!selectedProduction) return
+    fetch('/api/staffeln/sync', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        production_id: selectedProduction.id,
+        title: selectedProduction.title,
+        staffelnummer: selectedProduction.staffelnummer,
+        projektnummer: selectedProduction.projektnummer,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.staffel_id) {
+          setSelectedStaffelId(data.staffel_id)
+        }
+      })
+      .catch(console.error)
+  }, [selectedProduction?.id])
+
+  // Staffeln laden (Fallback wenn keine Produktionsdatenbank-Verbindung)
   useEffect(() => {
     api.getStaffeln()
       .then(data => {
         setStaffeln(data)
-        if (data.length > 0) setSelectedStaffelId(data[0].id)
+        // Nur als Default setzen wenn noch keine Produktion ausgewählt
+        if (data.length > 0 && !selectedProduction) setSelectedStaffelId(data[0].id)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))

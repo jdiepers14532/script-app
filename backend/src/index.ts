@@ -20,6 +20,7 @@ import entitiesRouter from './routes/entities'
 import kiRouter, { kiAdminRouter } from './routes/ki'
 import { szenenKommentareRouter, kommentareRouter } from './routes/kommentare'
 import { importRouter } from './routes/import'
+import meRouter from './routes/me'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -87,6 +88,7 @@ app.use('/api/admin/ki-settings', kiAdminRouter)
 app.use('/api/szenen', szenenKommentareRouter)
 app.use('/api/kommentare', kommentareRouter)
 app.use('/api/import', importRouter)
+app.use('/api/me', meRouter)
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
@@ -99,7 +101,7 @@ setInterval(async () => {
 
 // Run migration on startup
 async function runMigrations() {
-  const migrationFiles = ['v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql', 'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql']
+  const migrationFiles = ['v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql', 'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql', 'v8_user_settings.sql']
   for (const file of migrationFiles) {
     const paths = [
       path.join(__dirname, 'migrations', file),

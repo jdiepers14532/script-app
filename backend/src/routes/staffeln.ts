@@ -41,4 +41,31 @@ router.get('/:id/bloecke', async (req, res) => {
   }
 })
 
+// POST /api/staffeln/sync
+// Upsert eine Produktion aus der Produktionsdatenbank in die staffeln-Tabelle
+router.post('/sync', async (req, res) => {
+  const { production_id, title, staffelnummer, projektnummer } = req.body
+  if (!production_id || !title) {
+    return res.status(400).json({ error: 'production_id und title erforderlich' })
+  }
+  try {
+    const label = staffelnummer ? `${title} Staffel ${staffelnummer}` : title
+    await query(
+      `INSERT INTO staffeln (id, titel, show_type, produktion_db_id, meta_json)
+       VALUES ($1, $2, 'daily_soap', $3::uuid, $4)
+       ON CONFLICT (id) DO UPDATE SET titel = $2, produktion_db_id = $3::uuid, meta_json = $4, updated_at = NOW()`,
+      [
+        production_id,
+        label,
+        production_id,
+        JSON.stringify({ projektnummer: projektnummer ?? null, staffelnummer: staffelnummer ?? null })
+      ]
+    )
+    res.json({ ok: true, staffel_id: production_id })
+  } catch (err) {
+    console.error('staffeln/sync error:', err)
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 export default router
