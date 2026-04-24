@@ -28,7 +28,7 @@ export function parseFountain(content: string): ImportResult {
     // Skip notes, page breaks, blank lines
     if (!trimmed || NOTE_RE.test(trimmed) || PAGE_BREAK_RE.test(trimmed)) {
       // Blank line resets character context for dialogue
-      if (!trimmed && lastBlockType === 'dialogue') {
+      if (!trimmed && lastTextelementType === 'dialogue') {
         lastCharacter = ''
         lastTextelementType = null
       }
