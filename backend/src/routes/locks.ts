@@ -20,8 +20,7 @@ locksRouter.get('/:staffelId/:folgeNummer/lock', async (req, res) => {
       'SELECT * FROM episode_locks WHERE staffel_id = $1 AND folge_nummer = $2',
       [staffelId, fn]
     )
-    if (!lock) return res.status(404).json({ error: 'Kein Lock vorhanden' })
-    res.json(lock)
+    res.json(lock ?? null)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
