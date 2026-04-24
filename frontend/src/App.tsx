@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ScriptPage from './pages/ScriptPage'
 import EditorPage from './pages/EditorPage'
 import AdminPage from './pages/AdminPage'
+import ImportPage from './pages/ImportPage'
 import { useFocusMode } from './hooks/useFocusMode'
 
 interface FocusContextValue {
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="/" element={<ScriptPage />} />
           <Route path="/editor" element={<EditorPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/import" element={<ImportPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

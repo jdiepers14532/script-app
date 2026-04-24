@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
   Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
-  X
+  X, FileUp
 } from 'lucide-react'
 import { useFocus } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
@@ -229,6 +229,7 @@ export default function AppShell({
         <div className="section">Projekt</div>
         <NavItem to="/" icon={<LayoutDashboard size={15} />} label="Folgen" count="12" active={location.pathname === '/'} />
         <NavItem to="/editor" icon={<FileText size={15} />} label="Editor" active={location.pathname === '/editor'} />
+        <NavItem to="/import" icon={<FileUp size={15} />} label="Import" active={location.pathname === '/import'} />
         <NavItem to="/" icon={<Film size={15} />} label="Drehplan" active={false} />
 
         <div className="section">Autor</div>

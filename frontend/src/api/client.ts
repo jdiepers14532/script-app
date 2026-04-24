@@ -72,6 +72,23 @@ export const api = {
   resolveKommentar: (id: number) => request<any>('PATCH', `/kommentare/${id}/resolve`, {}),
   deleteKommentar: (id: number) => request<void>('DELETE', `/kommentare/${id}`),
 
+  // Import
+  importDetect: (file: File) => {
+    const fd = new FormData(); fd.append('file', file)
+    return fetch(`${BASE}/import/detect`, { method: 'POST', body: fd, credentials: 'include' }).then(r => r.json())
+  },
+  importPreview: (file: File) => {
+    const fd = new FormData(); fd.append('file', file)
+    return fetch(`${BASE}/import/preview`, { method: 'POST', body: fd, credentials: 'include' }).then(r => r.json())
+  },
+  importCommit: (file: File, episode_id: number, stage_type: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('episode_id', String(episode_id))
+    fd.append('stage_type', stage_type)
+    return fetch(`${BASE}/import/commit`, { method: 'POST', body: fd, credentials: 'include' }).then(r => r.json())
+  },
+
   // Export
   exportPdf: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/pdf`, { credentials: 'include' }),
   exportFountain: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fountain`, { credentials: 'include' }),
