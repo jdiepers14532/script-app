@@ -6,6 +6,8 @@ import { api } from '../api/client'
 interface SceneEditorProps {
   szeneId: number
   stageId: number | null
+  staffelId?: string | null
+  folgeNummer?: number | null
   panelMode?: 'both' | 'treatment' | 'script'
   onSzeneUpdated?: (updated: any) => void
 }
@@ -25,7 +27,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, stageId, panelMode = 'both', onSzeneUpdated }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode = 'both', onSzeneUpdated }: SceneEditorProps) {
   const [scene, setScene] = useState<any | null>(null)
   const [lock, setLock] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
@@ -52,13 +54,13 @@ export default function SceneEditor({ szeneId, stageId, panelMode = 'both', onSz
       .catch(() => setKommentareCount(0))
   }, [szeneId])
 
-  // Load lock when episode changes
+  // Load lock when folge changes
   useEffect(() => {
-    if (!episodeId) { setLock(null); return }
-    api.getLock(episodeId)
+    if (!staffelId || folgeNummer == null) { setLock(null); return }
+    api.getLock(staffelId, folgeNummer)
       .then(setLock)
       .catch(() => setLock(null))
-  }, [episodeId])
+  }, [staffelId, folgeNummer])
 
   const handleContentChange = useCallback((content: any[]) => {
     if (!scene) return
@@ -91,9 +93,9 @@ export default function SceneEditor({ szeneId, stageId, panelMode = 'both', onSz
   }, [scene, szeneId, onSzeneUpdated])
 
   const handleRequestLock = async () => {
-    if (!episodeId) return
+    if (!staffelId || folgeNummer == null) return
     try {
-      const newLock = await api.createLock(episodeId)
+      const newLock = await api.createLock(staffelId, folgeNummer)
       setLock(newLock)
     } catch (e: any) {
       alert('Lock konnte nicht angefordert werden: ' + e.message)

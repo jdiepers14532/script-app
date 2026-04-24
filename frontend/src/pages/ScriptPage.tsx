@@ -126,6 +126,8 @@ export default function ScriptPage() {
           <SceneEditor
             szeneId={selectedSzeneId!}
             stageId={selectedStageId}
+            staffelId={selectedStaffelId}
+            folgeNummer={selectedFolgeNummer}
             onSzeneUpdated={(updated) => {
               setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
             }}
