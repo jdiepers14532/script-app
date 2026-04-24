@@ -63,7 +63,7 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
           borderRadius: 6, padding: '4px 10px',
           color: 'var(--text-primary)', font: 'inherit',
           fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          maxWidth: '50vw', minWidth: 140,
+          maxWidth: '40vw', minWidth: 140,
           transition: 'background 0.15s, border-color 0.15s',
         }}
       >
@@ -79,7 +79,7 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0,
-          width: '50vw', maxWidth: 420, minWidth: 260,
+          width: '40vw', maxWidth: 420, minWidth: 220,
           background: 'var(--bg-surface)', border: '1px solid var(--border)',
           borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
           zIndex: 9999, overflow: 'hidden',
@@ -151,11 +151,6 @@ function ProdOption({ p, selected, onSelect }: { p: Production; selected: boolea
       onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
     >
       <span style={{ fontWeight: selected ? 600 : 400 }}>{productionLabel(p)}</span>
-      {p.projektnummer && (
-        <span style={{ fontSize: 10, color: 'var(--text-secondary)', marginLeft: 8, flexShrink: 0 }}>
-          {p.projektnummer}
-        </span>
-      )}
     </button>
   )
 }
