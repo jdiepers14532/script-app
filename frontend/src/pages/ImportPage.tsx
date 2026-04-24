@@ -212,7 +212,7 @@ export default function ImportPage() {
     c >= 0.9 ? 'var(--sw-green)' : c >= 0.7 ? 'var(--sw-warning)' : 'var(--sw-danger)'
 
   return (
-    <AppShell staffeln={staffeln} selectedStaffelId={selectedStaffelId}>
+    <AppShell hideProductionSelector>
       <div style={{ padding: '32px', ...(step !== 2 ? { maxWidth: 720, margin: '0 auto' } : {}) }}>
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
@@ -466,7 +466,7 @@ export default function ImportPage() {
                   style={{
                     background: '#000', color: '#fff', border: 'none', borderRadius: 8,
                     padding: '10px 24px', fontWeight: 600, fontSize: 14,
-                    cursor: 'pointer', opacity: !selectedEpisodeId || loading ? 0.4 : 1,
+                    cursor: 'pointer', opacity: selectedFolgeNummer == null || loading ? 0.4 : 1,
                   }}
                 >
                   {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen → Folge ${selectedFolgeNummer ?? '?'} importieren`}

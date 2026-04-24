@@ -22,6 +22,7 @@ interface AppShellProps {
   stages?: any[]
   selectedStageId?: number | null
   onSelectStage?: (id: number) => void
+  hideProductionSelector?: boolean
 }
 
 type ColorMode = 'full' | 'subtle' | 'off'
@@ -62,6 +63,7 @@ export default function AppShell({
   stages = [],
   selectedStageId = null,
   onSelectStage,
+  hideProductionSelector = false,
 }: AppShellProps) {
   const location = useLocation()
   const { focus, toggle } = useFocus()
@@ -118,13 +120,13 @@ export default function AppShell({
         <div className="divider" />
 
         <div className="crumbs">
-          {productions.length > 0 ? (
+          {!hideProductionSelector && productions.length > 0 ? (
             <ProductionSelector
               productions={productions}
               selectedId={selectedProdId}
               onSelect={selectProduction}
             />
-          ) : staffeln.length > 0 && onSelectStaffel ? (
+          ) : !hideProductionSelector && staffeln.length > 0 && onSelectStaffel ? (
             <select style={selectStyle} value={selectedStaffelId} onChange={e => onSelectStaffel(e.target.value)}>
               {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
             </select>
