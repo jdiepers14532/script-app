@@ -66,10 +66,20 @@ export default function ImportPage() {
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [stageType, setStageType] = useState('draft')
 
-  // Folgen derived client-side from selected block
-  const folgen = selectedBlock?.folge_von != null && selectedBlock?.folge_bis != null
-    ? Array.from({ length: selectedBlock.folge_bis - selectedBlock.folge_von + 1 }, (_, i) => selectedBlock.folge_von + i)
-    : []
+  // All folgen across all blocks
+  const allFolgen: { nr: number; block: any }[] = []
+  for (const b of bloecke) {
+    if (b.folge_von != null && b.folge_bis != null) {
+      for (let nr = b.folge_von; nr <= b.folge_bis; nr++) allFolgen.push({ nr, block: b })
+    }
+  }
+
+  const handleFolgeSelect = (nr: number) => {
+    const entry = allFolgen.find(f => f.nr === nr)
+    if (!entry) return
+    if (entry.block.proddb_id !== selectedBlock?.proddb_id) setSelectedBlock(entry.block)
+    setSelectedFolgeNummer(nr)
+  }
 
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
@@ -403,8 +413,12 @@ export default function ImportPage() {
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Folge</label>
-                <select value={selectedFolgeNummer ?? ''} onChange={e => setSelectedFolgeNummer(Number(e.target.value))} style={selectStyle}>
-                  {folgen.map(nr => <option key={nr} value={nr}>Folge {nr}</option>)}
+                <select value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))} style={selectStyle}>
+                  {allFolgen.map(({ nr, block }) => (
+                    <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
+                      Folge {nr}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div style={{ marginBottom: 24 }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
@@ -22,13 +22,6 @@ export default function ScriptPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Folgen derived client-side from selected block (no API call needed)
-  const folgen = useMemo<number[]>(() => {
-    if (!selectedBlock || selectedBlock.folge_von == null || selectedBlock.folge_bis == null) return []
-    const result: number[] = []
-    for (let i = selectedBlock.folge_von; i <= selectedBlock.folge_bis; i++) result.push(i)
-    return result
-  }, [selectedBlock])
 
   // Sync selected production as staffel
   useEffect(() => {
@@ -110,7 +103,6 @@ export default function ScriptPage() {
       bloecke={bloecke}
       selectedBlock={selectedBlock}
       onSelectBlock={setSelectedBlock}
-      folgen={folgen}
       selectedFolgeNummer={selectedFolgeNummer}
       onSelectFolge={setSelectedFolgeNummer}
       stages={stages}

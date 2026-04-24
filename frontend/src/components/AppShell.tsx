@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
@@ -17,7 +17,6 @@ interface AppShellProps {
   bloecke?: any[]
   selectedBlock?: any | null
   onSelectBlock?: (block: any) => void
-  folgen?: number[]
   selectedFolgeNummer?: number | null
   onSelectFolge?: (nr: number) => void
   stages?: any[]
@@ -58,7 +57,6 @@ export default function AppShell({
   bloecke = [],
   selectedBlock = null,
   onSelectBlock,
-  folgen = [],
   selectedFolgeNummer = null,
   onSelectFolge,
   stages = [],
@@ -81,6 +79,26 @@ export default function AppShell({
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
+
+  // All folgen across all blocks, flat
+  const allFolgen = useMemo(() => {
+    const result: { nr: number; block: any }[] = []
+    for (const b of bloecke) {
+      if (b.folge_von != null && b.folge_bis != null) {
+        for (let nr = b.folge_von; nr <= b.folge_bis; nr++) {
+          result.push({ nr, block: b })
+        }
+      }
+    }
+    return result
+  }, [bloecke])
+
+  const handleFolgeSelect = (nr: number) => {
+    const entry = allFolgen.find(f => f.nr === nr)
+    if (!entry) return
+    if (entry.block.proddb_id !== selectedBlock?.proddb_id) onSelectBlock?.(entry.block)
+    onSelectFolge?.(nr)
+  }
 
   const selectedStaffel = staffeln.find(s => s.id === selectedStaffelId)
   const selectedStage = stages.find(s => s.id === selectedStageId)
@@ -131,22 +149,24 @@ export default function AppShell({
             </>
           )}
 
-          {folgen.length > 0 && onSelectFolge && (
+          {allFolgen.length > 0 && onSelectFolge && (
             <>
               <span>·</span>
               <select
                 style={selectStyle}
                 value={selectedFolgeNummer ?? ''}
-                onChange={e => onSelectFolge(Number(e.target.value))}
+                onChange={e => handleFolgeSelect(Number(e.target.value))}
               >
-                {folgen.map(nr => <option key={nr} value={nr}>Folge {nr}</option>)}
+                {allFolgen.map(({ nr, block }) => (
+                  <option
+                    key={nr}
+                    value={nr}
+                    style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}
+                  >
+                    Folge {nr}
+                  </option>
+                ))}
               </select>
-            </>
-          )}
-          {folgen.length === 0 && selectedFolgeNummer != null && (
-            <>
-              <span>·</span>
-              <b>Folge {selectedFolgeNummer}</b>
             </>
           )}
 
