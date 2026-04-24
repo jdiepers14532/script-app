@@ -31,10 +31,10 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       format: result.meta.format,
       version: result.meta.version,
       total_scenes: result.meta.total_scenes,
-      total_blocks: result.meta.total_blocks,
+      total_textelemente: result.meta.total_textelemente,
       charaktere: result.meta.charaktere,
       warnings: result.meta.warnings,
-      preview_scenes: result.szenen.slice(0, 3),
+      szenen: result.szenen,
     })
   } catch (err) {
     res.status(422).json({ error: String(err) })
@@ -91,7 +91,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           szene.tageszeit,
           szene.ort_name || null,
           szene.zusammenfassung || null,
-          JSON.stringify(szene.blocks),
+          JSON.stringify(szene.textelemente),
           idx,
         ]
       )

@@ -1,8 +1,8 @@
-export type BlockType = 'action' | 'dialogue' | 'character' | 'parenthetical' | 'transition' | 'shot' | 'direction' | 'general'
+export type TextelementType = 'action' | 'dialogue' | 'character' | 'parenthetical' | 'transition' | 'shot' | 'direction' | 'general'
 
-export interface Block {
+export interface Textelement {
   id: string
-  type: BlockType
+  type: TextelementType
   text: string
   character?: string
 }
@@ -13,7 +13,7 @@ export interface ParsedScene {
   tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG'
   ort_name: string
   zusammenfassung?: string
-  blocks: Block[]
+  textelemente: Textelement[]
   charaktere: string[]
 }
 
@@ -23,15 +23,15 @@ export interface ImportResult {
     format: string
     version?: string
     total_scenes: number
-    total_blocks: number
+    total_textelemente: number
     charaktere: string[]
     warnings: string[]
   }
 }
 
-let _blockCounter = 0
+let _textelementCounter = 0
 export function nextId(): string {
-  return `b${Date.now()}_${++_blockCounter}`
+  return `te${Date.now()}_${++_textelementCounter}`
 }
 
 export function parseSceneHeading(text: string): { int_ext: 'INT' | 'EXT' | 'INT/EXT'; ort_name: string; tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG' } {

@@ -9,7 +9,7 @@ export const stagesSzenenRouter = Router()
 szenenRouter.use(authMiddleware)
 stagesSzenenRouter.use(authMiddleware)
 
-const BlockSchema = z.object({
+const TextelementSchema = z.object({
   id: z.string(),
   type: z.enum(['action', 'dialogue', 'parenthetical', 'transition', 'shot', 'direction', 'character', 'heading']),
   text: z.string(),
@@ -17,7 +17,7 @@ const BlockSchema = z.object({
   entity_id: z.number().optional(),
 })
 
-const ContentSchema = z.array(BlockSchema)
+const ContentSchema = z.array(TextelementSchema)
 
 // GET /api/szenen/:id
 szenenRouter.get('/:id', async (req, res) => {

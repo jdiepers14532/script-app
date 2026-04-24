@@ -1,10 +1,10 @@
 import mammoth from 'mammoth'
-import { Block, BlockType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+/i
 
-// Style name → block type mapping for Drehbuch-Word-styles
-const STYLE_MAP: Record<string, BlockType> = {
+// Style name → Textelement-Typ mapping für Drehbuch-Word-Stile
+const STYLE_MAP: Record<string, TextelementType> = {
   'szenenüberschrift': 'action',
   'scene heading': 'action',
   'szenenkopf': 'action',
@@ -52,7 +52,7 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
   const szenen: ParsedScene[] = []
   let currentScene: ParsedScene | null = null
   let lastCharacter = ''
-  let lastBlockType: BlockType | null = null
+  let lastTextelementType: TextelementType | null = null
   const allCharaktere = new Set<string>()
 
   // Parse HTML paragraph by paragraph
@@ -67,7 +67,7 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
     const classMatch = /class="([^"]+)"/.exec(attrs)
     const classes = classMatch ? classMatch[1].split(' ') : []
 
-    let detectedType: BlockType | null = null
+    let detectedType: TextelementType | null = null
     for (const cls of classes) {
       const key = cls.toLowerCase()
       if (STYLE_MAP[key]) { detectedType = STYLE_MAP[key]; break }
@@ -83,7 +83,7 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
         detectedType = 'parenthetical'
       } else if (/^(SCHNITT:|CUT TO:|ÜBERBLENDE:|FADE TO:)/i.test(rawText)) {
         detectedType = 'transition'
-      } else if (lastBlockType === 'character' || lastBlockType === 'parenthetical') {
+      } else if (lastTextelementType === 'character' || lastTextelementType === 'parenthetical') {
         detectedType = 'dialogue'
       } else {
         detectedType = 'action'
@@ -99,47 +99,47 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
         int_ext: heading.int_ext,
         tageszeit: heading.tageszeit,
         ort_name: heading.ort_name || rawText,
-        blocks: [],
+        textelemente: [],
         charaktere: [],
       }
       lastCharacter = ''
-      lastBlockType = null
+      lastTextelementType = null
       continue
     }
 
     if (!currentScene) {
-      currentScene = { nummer: 1, int_ext: 'INT', tageszeit: 'TAG', ort_name: 'Unbekannt', blocks: [], charaktere: [] }
+      currentScene = { nummer: 1, int_ext: 'INT', tageszeit: 'TAG', ort_name: 'Unbekannt', textelemente: [], charaktere: [] }
     }
 
-    const block: Block = { id: nextId(), type: detectedType, text: rawText }
+    const textelement: Textelement = { id: nextId(), type: detectedType, text: rawText }
 
     if (detectedType === 'character') {
       const charName = rawText.toUpperCase().trim().replace(/\s*\(.*?\)\s*$/, '')
       lastCharacter = charName
       allCharaktere.add(charName)
-      block.text = charName
+      textelement.text = charName
       currentScene.charaktere.push(charName)
     } else if (detectedType === 'dialogue' || detectedType === 'parenthetical') {
-      if (lastCharacter) block.character = lastCharacter
+      if (lastCharacter) textelement.character = lastCharacter
     } else {
       lastCharacter = ''
     }
 
-    currentScene.blocks.push(block)
-    lastBlockType = detectedType
+    currentScene.textelemente.push(textelement)
+    lastTextelementType = detectedType
   }
 
   if (currentScene && !szenen.includes(currentScene)) szenen.push(currentScene)
 
   for (const sz of szenen) sz.charaktere = [...new Set(sz.charaktere)]
-  const totalBlocks = szenen.reduce((sum, s) => sum + s.blocks.length, 0)
+  const totalTextelemente = szenen.reduce((sum, s) => sum + s.textelemente.length, 0)
 
   return {
     szenen,
     meta: {
       format: 'docx',
       total_scenes: szenen.length,
-      total_blocks: totalBlocks,
+      total_textelemente: totalTextelemente,
       charaktere: Array.from(allCharaktere),
       warnings,
     },

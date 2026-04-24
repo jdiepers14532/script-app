@@ -32,10 +32,10 @@ interface DetectResult {
 interface PreviewResult {
   format: string
   total_scenes: number
-  total_blocks: number
+  total_textelemente: number
   charaktere: string[]
   warnings: string[]
-  preview_scenes: any[]
+  szenen: any[]
 }
 
 interface CommitResult {
@@ -203,7 +203,7 @@ export default function ImportPage() {
 
   return (
     <AppShell staffeln={staffeln} selectedStaffelId={selectedStaffelId}>
-      <div style={{ padding: '32px', maxWidth: 720, margin: '0 auto' }}>
+      <div style={{ padding: '32px', ...(step !== 2 ? { maxWidth: 720, margin: '0 auto' } : {}) }}>
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
           {[1, 2, 3].map(s => (
@@ -329,139 +329,132 @@ export default function ImportPage() {
 
         {/* Step 2 */}
         {step === 2 && previewResult && (
-          <div>
-            <h2 style={{ marginBottom: 8, fontSize: 20, fontWeight: 600 }}>Vorschau & Einstellungen</h2>
-
-            {/* Meta stats */}
-            <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-              <StatCard label="Szenen" value={previewResult.total_scenes} />
-              <StatCard label="Blöcke" value={previewResult.total_blocks} />
-              <StatCard label="Charaktere" value={previewResult.charaktere.length} />
-            </div>
-
-            {/* Warnings */}
-            {previewResult.warnings.length > 0 && (
-              <div style={{
-                background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8,
-                padding: 12, marginBottom: 16,
-              }}>
-                {previewResult.warnings.map((w, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 6, fontSize: 13, color: '#795548', marginBottom: i < previewResult.warnings.length - 1 ? 4 : 0 }}>
-                    <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                    {w}
-                  </div>
-                ))}
+          <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
+            {/* Left: Szenenvorschau */}
+            <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#757575', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {previewResult.total_scenes} Szenen
               </div>
-            )}
-
-            {/* Preview scenes */}
-            {previewResult.preview_scenes.length > 0 && (
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: '#757575', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  Vorschau (erste {previewResult.preview_scenes.length} Szenen)
+              {previewResult.szenen.map((sz: any, i: number) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '5px 8px', borderBottom: '1px solid #f5f5f5', fontSize: 13,
+                }}>
+                  <span style={{ width: 40, flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 11, color: '#bbb', textAlign: 'right' }}>
+                    SZ {sz.nummer}
+                  </span>
+                  <span style={{ width: 52, flexShrink: 0, fontSize: 11, color: '#757575', fontWeight: 500 }}>
+                    {sz.int_ext}
+                  </span>
+                  <span style={{ flex: '0 1 320px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {sz.ort_name || '—'}
+                  </span>
+                  <span style={{ width: 56, flexShrink: 0, fontSize: 11, color: '#aaa' }}>
+                    {sz.tageszeit}
+                  </span>
+                  <span style={{ flex: 1, fontSize: 12, color: '#757575', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {sz.charaktere.join(', ')}
+                  </span>
                 </div>
-                {previewResult.preview_scenes.map((sz: any, i: number) => (
-                  <div key={i} style={{
-                    border: '1px solid #e0e0e0', borderRadius: 8, padding: 12,
-                    marginBottom: 8, fontSize: 13,
-                  }}>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                      Szene {sz.nummer} — {sz.int_ext}. {sz.ort_name} ({sz.tageszeit})
+              ))}
+            </div>
+
+            {/* Right: Einstellungen */}
+            <div style={{ width: 360, flexShrink: 0 }}>
+              <h2 style={{ marginBottom: 20, fontSize: 20, fontWeight: 600 }}>Einstellungen</h2>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+                <StatCard label="Szenen" value={previewResult.total_scenes} />
+                <StatCard label="Charaktere" value={previewResult.charaktere.length} />
+              </div>
+
+              {previewResult.warnings.length > 0 && (
+                <div style={{
+                  background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8,
+                  padding: 12, marginBottom: 16,
+                }}>
+                  {previewResult.warnings.map((w, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 6, fontSize: 13, color: '#795548', marginBottom: i < previewResult.warnings.length - 1 ? 4 : 0 }}>
+                      <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                      {w}
                     </div>
-                    <div style={{ color: '#757575' }}>
-                      {sz.blocks.length} Blöcke
-                      {sz.charaktere.length > 0 && ` · ${sz.charaktere.join(', ')}`}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {/* Episode selection */}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Staffel</label>
-              <select
-                value={selectedStaffelId}
-                onChange={e => setSelectedStaffelId(e.target.value)}
-                style={selectStyle}
-              >
-                {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
-              </select>
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Block</label>
-              <select
-                value={selectedBlockId ?? ''}
-                onChange={e => setSelectedBlockId(Number(e.target.value))}
-                style={selectStyle}
-              >
-                {bloecke.map(b => <option key={b.id} value={b.id}>Block {b.block_nummer}{b.name ? ` — ${b.name}` : ''}</option>)}
-              </select>
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Episode</label>
-              <select
-                value={selectedEpisodeId ?? ''}
-                onChange={e => setSelectedEpisodeId(Number(e.target.value))}
-                style={selectStyle}
-              >
-                {episoden.map(e => (
-                  <option key={e.id} value={e.id}>
-                    Folge {e.episode_nummer}{e.arbeitstitel ? ` — ${e.arbeitstitel}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginBottom: 24 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Stage-Typ</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {STAGE_TYPES.map(st => (
-                  <button
-                    key={st.value}
-                    onClick={() => setStageType(st.value)}
-                    style={{
-                      padding: '6px 14px', borderRadius: 6, fontSize: 13,
-                      border: '1px solid',
-                      borderColor: stageType === st.value ? '#000' : '#e0e0e0',
-                      background: stageType === st.value ? '#000' : '#fff',
-                      color: stageType === st.value ? '#fff' : '#000',
-                      cursor: 'pointer', fontWeight: stageType === st.value ? 600 : 400,
-                    }}
-                  >
-                    {st.label}
-                  </button>
-                ))}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Staffel</label>
+                <select value={selectedStaffelId} onChange={e => setSelectedStaffelId(e.target.value)} style={selectStyle}>
+                  {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
+                </select>
               </div>
-            </div>
-
-            {error && (
-              <div style={{ color: 'var(--sw-danger)', fontSize: 13, marginBottom: 16, display: 'flex', gap: 6 }}>
-                <AlertTriangle size={14} />
-                {error}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Block</label>
+                <select value={selectedBlockId ?? ''} onChange={e => setSelectedBlockId(Number(e.target.value))} style={selectStyle}>
+                  {bloecke.map(b => <option key={b.id} value={b.id}>Block {b.block_nummer}{b.name ? ` — ${b.name}` : ''}</option>)}
+                </select>
               </div>
-            )}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Episode</label>
+                <select value={selectedEpisodeId ?? ''} onChange={e => setSelectedEpisodeId(Number(e.target.value))} style={selectStyle}>
+                  {episoden.map(e => (
+                    <option key={e.id} value={e.id}>
+                      Folge {e.episode_nummer}{e.arbeitstitel ? ` — ${e.arbeitstitel}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ marginBottom: 24 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Stage-Typ</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {STAGE_TYPES.map(st => (
+                    <button
+                      key={st.value}
+                      onClick={() => setStageType(st.value)}
+                      style={{
+                        padding: '6px 14px', borderRadius: 6, fontSize: 13,
+                        border: '1px solid',
+                        borderColor: stageType === st.value ? '#000' : '#e0e0e0',
+                        background: stageType === st.value ? '#000' : '#fff',
+                        color: stageType === st.value ? '#fff' : '#000',
+                        cursor: 'pointer', fontWeight: stageType === st.value ? 600 : 400,
+                      }}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <div style={{ display: 'flex', gap: 12 }}>
-              <button
-                onClick={() => setStep(1)}
-                style={{
-                  background: '#f5f5f5', color: '#000', border: 'none', borderRadius: 8,
-                  padding: '10px 20px', fontWeight: 500, fontSize: 14, cursor: 'pointer',
-                }}
-              >
-                Zurück
-              </button>
-              <button
-                onClick={handleCommit}
-                disabled={!selectedEpisodeId || loading}
-                style={{
-                  background: '#000', color: '#fff', border: 'none', borderRadius: 8,
-                  padding: '10px 24px', fontWeight: 600, fontSize: 14,
-                  cursor: 'pointer', opacity: !selectedEpisodeId || loading ? 0.4 : 1,
-                }}
-              >
-                {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen importieren`}
-              </button>
+              {error && (
+                <div style={{ color: 'var(--sw-danger)', fontSize: 13, marginBottom: 16, display: 'flex', gap: 6 }}>
+                  <AlertTriangle size={14} />
+                  {error}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setStep(1)}
+                  style={{
+                    background: '#f5f5f5', color: '#000', border: 'none', borderRadius: 8,
+                    padding: '10px 20px', fontWeight: 500, fontSize: 14, cursor: 'pointer',
+                  }}
+                >
+                  Zurück
+                </button>
+                <button
+                  onClick={handleCommit}
+                  disabled={!selectedEpisodeId || loading}
+                  style={{
+                    background: '#000', color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '10px 24px', fontWeight: 600, fontSize: 14,
+                    cursor: 'pointer', opacity: !selectedEpisodeId || loading ? 0.4 : 1,
+                  }}
+                >
+                  {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen importieren`}
+                </button>
+              </div>
             </div>
           </div>
         )}

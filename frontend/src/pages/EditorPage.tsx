@@ -9,7 +9,7 @@ import {
 import { useFocus } from '../App'
 
 // Keep types inline — editorData.ts is no longer imported in production code
-type BlockType = 'heading' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'shot'
+type TextelementType = 'heading' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'shot'
 
 interface Author {
   id: string
@@ -45,7 +45,7 @@ const STATIC_COMMENTS = [
   { id: 'c3', authorId: 'JD', time: 'Heute, 14:30', text: 'Habe das Mondlicht weiter nach vorne gezogen.' },
 ]
 
-const STATIC_BLOCKS: { id: string; type: BlockType; text: string }[] = [
+const STATIC_TEXTELEMENTE: { id: string; type: TextelementType; text: string }[] = [
   { id: 'b1', type: 'heading', text: 'INT. SCHLAFZIMMER WOLFSBERG – NACHT' },
   { id: 'b2', type: 'action', text: 'Das Zimmer liegt im Dunkeln. EVA (38) liegt im Bett, starrt an die Decke.' },
   { id: 'b3', type: 'action', text: 'Eva dreht sich um. Einmal. Zweimal. Seufzt leise.' },
@@ -70,7 +70,7 @@ const SCENE_LIST = [
   { id: 8, nummer: '8', motiv: 'GARTENTEICH – NACHT', env: 'n_e' },
 ]
 
-const getBlockClass = (type: BlockType): string => {
+const getTextelementClass = (type: TextelementType): string => {
   switch (type) {
     case 'heading':       return 'heading'
     case 'action':        return 'action'
@@ -255,15 +255,15 @@ export default function EditorPage() {
             INT. KAMINSKI SCHLAFZIMMER · NACHT
           </div>
 
-          {STATIC_BLOCKS.map(block => (
+          {STATIC_TEXTELEMENTE.map(te => (
             <div
-              key={block.id}
-              className={getBlockClass(block.type)}
+              key={te.id}
+              className={getTextelementClass(te.type)}
               contentEditable
               suppressContentEditableWarning
               style={{ fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.7, outline: 'none', padding: '1px 0', color: 'var(--text-primary)' }}
             >
-              {block.text}
+              {te.text}
             </div>
           ))}
         </div>
@@ -366,7 +366,7 @@ export default function EditorPage() {
       <div className="ed-status">
         <span>SZ 7 · Folge 4512</span>
         <span>|</span>
-        <span>{STATIC_BLOCKS.length} Blöcke</span>
+        <span>{STATIC_TEXTELEMENTE.length} Textelemente</span>
         <span>|</span>
         <span style={{ color: 'var(--sw-green)' }}>● Gespeichert</span>
       </div>

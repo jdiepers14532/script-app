@@ -1,7 +1,7 @@
 import { XMLParser } from 'fast-xml-parser'
-import { Block, BlockType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
-const TYPE_MAP: Record<string, BlockType> = {
+const TYPE_MAP: Record<string, TextelementType> = {
   'Action': 'action',
   'Character': 'character',
   'Dialogue': 'dialogue',
@@ -11,7 +11,7 @@ const TYPE_MAP: Record<string, BlockType> = {
   'General': 'general',
   'Page #': 'general',
   'Cast List': 'general',
-  'Scene Heading': 'action', // scene headings themselves are not blocks — handled separately
+  'Scene Heading': 'action', // scene headings themselves are not Textelemente — handled separately
 }
 
 function extractText(paragraph: any): string {
@@ -109,7 +109,7 @@ export function parseFdx(xmlContent: string): ImportResult {
         int_ext: heading.int_ext,
         tageszeit: heading.tageszeit,
         ort_name: heading.ort_name || text,
-        blocks: [],
+        textelemente: [],
         charaktere: [...sceneChars],
       }
       lastCharacter = ''
@@ -118,22 +118,22 @@ export function parseFdx(xmlContent: string): ImportResult {
 
     if (!text) continue
 
-    const blockType = TYPE_MAP[ptype] ?? 'general'
+    const textelementType = TYPE_MAP[ptype] ?? 'general'
 
-    if (blockType === 'general' && ptype === 'Page #') continue
+    if (textelementType === 'general' && ptype === 'Page #') continue
 
-    const block: Block = { id: nextId(), type: blockType, text }
+    const textelement: Textelement = { id: nextId(), type: textelementType, text }
 
-    if (blockType === 'character') {
+    if (textelementType === 'character') {
       lastCharacter = text.toUpperCase().trim()
       allCharaktere.add(lastCharacter)
-      block.text = lastCharacter
-    } else if (blockType === 'dialogue' && lastCharacter) {
-      block.character = lastCharacter
-    } else if (blockType === 'parenthetical' && lastCharacter) {
-      block.character = lastCharacter
+      textelement.text = lastCharacter
+    } else if (textelementType === 'dialogue' && lastCharacter) {
+      textelement.character = lastCharacter
+    } else if (textelementType === 'parenthetical' && lastCharacter) {
+      textelement.character = lastCharacter
     } else {
-      if (blockType !== 'dialogue' && blockType !== 'parenthetical') {
+      if (textelementType !== 'dialogue' && textelementType !== 'parenthetical') {
         lastCharacter = ''
       }
     }
@@ -145,12 +145,12 @@ export function parseFdx(xmlContent: string): ImportResult {
         int_ext: 'INT',
         tageszeit: 'TAG',
         ort_name: 'Teaser',
-        blocks: [],
+        textelemente: [],
         charaktere: [],
       }
     }
 
-    currentScene.blocks.push(block)
+    currentScene.textelemente.push(textelement)
   }
 
   if (currentScene) {
@@ -160,9 +160,9 @@ export function parseFdx(xmlContent: string): ImportResult {
   // Merge tag characters
   tagCharacters.forEach(c => allCharaktere.add(c))
 
-  // Collect characters from each scene's character blocks
+  // Collect characters from each scene's character Textelemente
   for (const sz of szenen) {
-    for (const b of sz.blocks) {
+    for (const b of sz.textelemente) {
       if (b.type === 'character') {
         sz.charaktere.push(b.text)
         allCharaktere.add(b.text)
@@ -172,7 +172,7 @@ export function parseFdx(xmlContent: string): ImportResult {
     sz.charaktere = [...new Set(sz.charaktere)]
   }
 
-  const totalBlocks = szenen.reduce((sum, s) => sum + s.blocks.length, 0)
+  const totalTextelemente = szenen.reduce((sum, s) => sum + s.textelemente.length, 0)
 
   return {
     szenen,
@@ -180,7 +180,7 @@ export function parseFdx(xmlContent: string): ImportResult {
       format: 'fdx',
       version,
       total_scenes: szenen.length,
-      total_blocks: totalBlocks,
+      total_textelemente: totalTextelemente,
       charaktere: Array.from(allCharaktere),
       warnings,
     },

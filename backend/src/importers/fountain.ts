@@ -1,4 +1,4 @@
-import { Block, BlockType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+.+/i
 const FORCED_SCENE_HEADING_RE = /^\./
@@ -17,7 +17,7 @@ export function parseFountain(content: string): ImportResult {
   const szenen: ParsedScene[] = []
   let currentScene: ParsedScene | null = null
   let lastCharacter = ''
-  let lastBlockType: BlockType | null = null
+  let lastTextelementType: TextelementType | null = null
   const allCharaktere = new Set<string>()
 
   let i = 0
@@ -30,7 +30,7 @@ export function parseFountain(content: string): ImportResult {
       // Blank line resets character context for dialogue
       if (!trimmed && lastBlockType === 'dialogue') {
         lastCharacter = ''
-        lastBlockType = null
+        lastTextelementType = null
       }
       i++
       continue
@@ -50,11 +50,11 @@ export function parseFountain(content: string): ImportResult {
         int_ext: heading.int_ext,
         tageszeit: heading.tageszeit,
         ort_name: heading.ort_name || headingText,
-        blocks: [],
+        textelemente: [],
         charaktere: [],
       }
       lastCharacter = ''
-      lastBlockType = null
+      lastTextelementType = null
       i++
       continue
     }
@@ -62,14 +62,14 @@ export function parseFountain(content: string): ImportResult {
     // Transitions
     if (FORCED_TRANSITION_RE.test(trimmed) || TRANSITION_RE.test(trimmed)) {
       const text = trimmed.replace(/^>\s*/, '').replace(/\s*<$/, '')
-      const block: Block = { id: nextId(), type: 'transition', text }
+      const textelement: Textelement = { id: nextId(), type: 'transition', text }
       ensureScene(currentScene, szenen)
       if (!currentScene) {
         currentScene = makeFallbackScene(szenen.length + 1)
         szenen.push(currentScene)
       }
-      currentScene.blocks.push(block)
-      lastBlockType = 'transition'
+      currentScene.textelemente.push(textelement)
+      lastTextelementType = 'transition'
       lastCharacter = ''
       i++
       continue
@@ -77,21 +77,21 @@ export function parseFountain(content: string): ImportResult {
 
     // Shot
     if (SHOT_RE.test(trimmed)) {
-      const block: Block = { id: nextId(), type: 'shot', text: trimmed }
+      const textelement: Textelement = { id: nextId(), type: 'shot', text: trimmed }
       if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
-      currentScene.blocks.push(block)
-      lastBlockType = 'shot'
+      currentScene.textelemente.push(textelement)
+      lastTextelementType = 'shot'
       i++
       continue
     }
 
     // Parenthetical
     if (PARENTHETICAL_RE.test(trimmed)) {
-      const block: Block = { id: nextId(), type: 'parenthetical', text: trimmed }
-      if (lastCharacter) block.character = lastCharacter
+      const textelement: Textelement = { id: nextId(), type: 'parenthetical', text: trimmed }
+      if (lastCharacter) textelement.character = lastCharacter
       if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
-      currentScene.blocks.push(block)
-      lastBlockType = 'parenthetical'
+      currentScene.textelemente.push(textelement)
+      lastTextelementType = 'parenthetical'
       i++
       continue
     }
@@ -114,32 +114,32 @@ export function parseFountain(content: string): ImportResult {
         lastCharacter = cleanName
         allCharaktere.add(cleanName)
 
-        const block: Block = { id: nextId(), type: 'character', text: cleanName }
+        const textelement: Textelement = { id: nextId(), type: 'character', text: cleanName }
         if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
-        currentScene.blocks.push(block)
+        currentScene.textelemente.push(textelement)
         currentScene.charaktere.push(cleanName)
-        lastBlockType = 'character'
+        lastTextelementType = 'character'
         i++
         continue
       }
     }
 
     // Dialogue (after character)
-    if (lastBlockType === 'character' || lastBlockType === 'dialogue' || lastBlockType === 'parenthetical') {
-      const block: Block = { id: nextId(), type: 'dialogue', text: trimmed }
-      if (lastCharacter) block.character = lastCharacter
+    if (lastTextelementType === 'character' || lastTextelementType === 'dialogue' || lastTextelementType === 'parenthetical') {
+      const textelement: Textelement = { id: nextId(), type: 'dialogue', text: trimmed }
+      if (lastCharacter) textelement.character = lastCharacter
       if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
-      currentScene.blocks.push(block)
-      lastBlockType = 'dialogue'
+      currentScene.textelemente.push(textelement)
+      lastTextelementType = 'dialogue'
       i++
       continue
     }
 
     // Default: action
-    const block: Block = { id: nextId(), type: 'action', text: trimmed }
+    const textelement: Textelement = { id: nextId(), type: 'action', text: trimmed }
     if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
-    currentScene.blocks.push(block)
-    lastBlockType = 'action'
+    currentScene.textelemente.push(textelement)
+    lastTextelementType = 'action'
     lastCharacter = ''
     i++
   }
@@ -153,14 +153,14 @@ export function parseFountain(content: string): ImportResult {
     sz.charaktere = [...new Set(sz.charaktere)]
   }
 
-  const totalBlocks = szenen.reduce((sum, s) => sum + s.blocks.length, 0)
+  const totalTextelemente = szenen.reduce((sum, s) => sum + s.textelemente.length, 0)
 
   return {
     szenen,
     meta: {
       format: 'fountain',
       total_scenes: szenen.length,
-      total_blocks: totalBlocks,
+      total_textelemente: totalTextelemente,
       charaktere: Array.from(allCharaktere),
       warnings,
     },
@@ -177,7 +177,7 @@ function makeFallbackScene(nummer: number): ParsedScene {
     int_ext: 'INT',
     tageszeit: 'TAG',
     ort_name: 'Unbekannt',
-    blocks: [],
+    textelemente: [],
     charaktere: [],
   }
 }

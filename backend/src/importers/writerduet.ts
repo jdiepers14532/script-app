@@ -1,7 +1,7 @@
 import AdmZip from 'adm-zip'
-import { Block, BlockType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
-const TYPE_MAP: Record<string, BlockType> = {
+const TYPE_MAP: Record<string, TextelementType> = {
   'scene_heading': 'action',
   'sceneheading': 'action',
   'action': 'action',
@@ -68,10 +68,10 @@ export function parseWriterDuet(buffer: Buffer): ImportResult {
 
     if (!text.trim()) continue
 
-    const blockType: BlockType = TYPE_MAP[rawType] ?? 'action'
+    const textelementType: TextelementType = TYPE_MAP[rawType] ?? 'action'
 
     const isHeading = rawType === 'scene_heading' || rawType === 'sceneheading' ||
-      (blockType === 'action' && /^(INT\.?\/EXT\.?|INT\.?|EXT\.?)\s+/i.test(text))
+      (textelementType === 'action' && /^(INT\.?\/EXT\.?|INT\.?|EXT\.?)\s+/i.test(text))
 
     if (isHeading) {
       const heading = parseSceneHeading(text)
@@ -81,7 +81,7 @@ export function parseWriterDuet(buffer: Buffer): ImportResult {
         int_ext: heading.int_ext,
         tageszeit: heading.tageszeit,
         ort_name: heading.ort_name || text,
-        blocks: [],
+        textelemente: [],
         charaktere: [],
       }
       lastCharacter = ''
@@ -89,35 +89,35 @@ export function parseWriterDuet(buffer: Buffer): ImportResult {
     }
 
     if (!currentScene) {
-      currentScene = { nummer: 1, int_ext: 'INT', tageszeit: 'TAG', ort_name: 'Unbekannt', blocks: [], charaktere: [] }
+      currentScene = { nummer: 1, int_ext: 'INT', tageszeit: 'TAG', ort_name: 'Unbekannt', textelemente: [], charaktere: [] }
     }
 
-    const block: Block = { id: nextId(), type: blockType, text: text.trim() }
+    const textelement: Textelement = { id: nextId(), type: textelementType, text: text.trim() }
 
-    if (blockType === 'character') {
+    if (textelementType === 'character') {
       lastCharacter = text.toUpperCase().trim()
       allCharaktere.add(lastCharacter)
-      block.text = lastCharacter
+      textelement.text = lastCharacter
       currentScene.charaktere.push(lastCharacter)
-    } else if (blockType === 'dialogue' || blockType === 'parenthetical') {
-      if (lastCharacter) block.character = lastCharacter
+    } else if (textelementType === 'dialogue' || textelementType === 'parenthetical') {
+      if (lastCharacter) textelement.character = lastCharacter
     } else {
       lastCharacter = ''
     }
 
-    currentScene.blocks.push(block)
+    currentScene.textelemente.push(textelement)
   }
 
   if (currentScene && !szenen.includes(currentScene)) szenen.push(currentScene)
   for (const sz of szenen) sz.charaktere = [...new Set(sz.charaktere)]
-  const totalBlocks = szenen.reduce((sum, s) => sum + s.blocks.length, 0)
+  const totalTextelemente = szenen.reduce((sum, s) => sum + s.textelemente.length, 0)
 
   return {
     szenen,
     meta: {
       format: 'writerduet',
       total_scenes: szenen.length,
-      total_blocks: totalBlocks,
+      total_textelemente: totalTextelemente,
       charaktere: Array.from(allCharaktere),
       warnings,
     },

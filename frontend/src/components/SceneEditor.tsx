@@ -124,7 +124,7 @@ export default function SceneEditor({ szeneId, episodeId, stageId, panelMode = '
     : panelMode === 'treatment' ? 'panels mode-treatment'
     : 'panels'
 
-  const contentBlocks: any[] = Array.isArray(scene.content) ? scene.content : []
+  const contentTextelemente: any[] = Array.isArray(scene.content) ? scene.content : []
   const sceneIsLocked = !!lock
   const lockIsOwn = lock && (lock.user_id === 'test-user' || lock.user_name === 'Ich')
 
@@ -260,28 +260,28 @@ export default function SceneEditor({ szeneId, episodeId, stageId, panelMode = '
             </div>
             <div className="pbody">
               <div className="script-body">
-                {contentBlocks.length === 0 ? (
+                {contentTextelemente.length === 0 ? (
                   <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 12 }}>
                     Noch kein Inhalt vorhanden.
                   </div>
                 ) : (
-                  contentBlocks.map((block: any, i: number) => (
+                  contentTextelemente.map((te: any, i: number) => (
                     <div
-                      key={block.id ?? i}
-                      className={block.type ?? 'action'}
+                      key={te.id ?? i}
+                      className={te.type ?? 'action'}
                       contentEditable
                       suppressContentEditableWarning
                       onBlur={e => {
                         const newText = e.currentTarget.textContent ?? ''
-                        if (newText !== block.text) {
-                          const newBlocks = contentBlocks.map((b: any, bi: number) =>
-                            bi === i ? { ...b, text: newText } : b
+                        if (newText !== te.text) {
+                          const newTextelemente = contentTextelemente.map((t: any, bi: number) =>
+                            bi === i ? { ...t, text: newText } : t
                           )
-                          handleContentChange(newBlocks)
+                          handleContentChange(newTextelemente)
                         }
                       }}
                     >
-                      {block.text}
+                      {te.text}
                     </div>
                   ))
                 )}

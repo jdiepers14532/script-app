@@ -9,7 +9,7 @@ import { ImportResult } from './types'
 
 export { detectFormat } from './autodetect'
 export type { DetectResult } from './autodetect'
-export type { ImportResult, ParsedScene, Block, BlockType } from './types'
+export type { ImportResult, ParsedScene, Textelement, TextelementType } from './types'
 
 export async function parseScript(filename: string, buffer: Buffer): Promise<ImportResult> {
   const detected = detectFormat(filename, buffer)

@@ -1,8 +1,8 @@
 import AdmZip from 'adm-zip'
 import { XMLParser } from 'fast-xml-parser'
-import { Block, BlockType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
-const TYPE_MAP: Record<string, BlockType> = {
+const TYPE_MAP: Record<string, TextelementType> = {
   'sceneheading': 'action',
   'scene heading': 'action',
   'action': 'action',
@@ -54,7 +54,7 @@ export function parseCeltx(buffer: Buffer): ImportResult {
   const szenen: ParsedScene[] = []
   let currentScene: ParsedScene | null = null
   let lastCharacter = ''
-  let lastBlockType: BlockType | null = null
+  let lastTextelementType: TextelementType | null = null
   const allCharaktere = new Set<string>()
 
   // Strip HTML tags and try to extract by paragraph class attributes
@@ -70,7 +70,7 @@ export function parseCeltx(buffer: Buffer): ImportResult {
 
     if (!rawText) continue
 
-    const blockType = TYPE_MAP[cls] ?? 'action'
+    const textelementType = TYPE_MAP[cls] ?? 'action'
 
     if (cls === 'sceneheading' || cls === 'scene heading') {
       const heading = parseSceneHeading(rawText)
@@ -80,33 +80,33 @@ export function parseCeltx(buffer: Buffer): ImportResult {
         int_ext: heading.int_ext,
         tageszeit: heading.tageszeit,
         ort_name: heading.ort_name || rawText,
-        blocks: [],
+        textelemente: [],
         charaktere: [],
       }
       lastCharacter = ''
-      lastBlockType = null
+      lastTextelementType = null
       continue
     }
 
     if (!currentScene) {
-      currentScene = { nummer: 1, int_ext: 'INT', tageszeit: 'TAG', ort_name: 'Unbekannt', blocks: [], charaktere: [] }
+      currentScene = { nummer: 1, int_ext: 'INT', tageszeit: 'TAG', ort_name: 'Unbekannt', textelemente: [], charaktere: [] }
     }
 
-    const block: Block = { id: nextId(), type: blockType, text: rawText }
+    const textelement: Textelement = { id: nextId(), type: textelementType, text: rawText }
 
-    if (blockType === 'character') {
+    if (textelementType === 'character') {
       lastCharacter = rawText.toUpperCase().trim()
       allCharaktere.add(lastCharacter)
-      block.text = lastCharacter
+      textelement.text = lastCharacter
       currentScene.charaktere.push(lastCharacter)
-    } else if (blockType === 'dialogue' || blockType === 'parenthetical') {
-      if (lastCharacter) block.character = lastCharacter
+    } else if (textelementType === 'dialogue' || textelementType === 'parenthetical') {
+      if (lastCharacter) textelement.character = lastCharacter
     } else {
       lastCharacter = ''
     }
 
-    currentScene.blocks.push(block)
-    lastBlockType = blockType
+    currentScene.textelemente.push(textelement)
+    lastTextelementType = textelementType
   }
 
   if (!hasMatches) {
@@ -117,14 +117,14 @@ export function parseCeltx(buffer: Buffer): ImportResult {
 
   if (currentScene && !szenen.includes(currentScene)) szenen.push(currentScene)
   for (const sz of szenen) sz.charaktere = [...new Set(sz.charaktere)]
-  const totalBlocks = szenen.reduce((sum, s) => sum + s.blocks.length, 0)
+  const totalTextelemente = szenen.reduce((sum, s) => sum + s.textelemente.length, 0)
 
   return {
     szenen,
     meta: {
       format: 'celtx',
       total_scenes: szenen.length,
-      total_blocks: totalBlocks,
+      total_textelemente: totalTextelemente,
       charaktere: Array.from(allCharaktere),
       warnings,
     },
