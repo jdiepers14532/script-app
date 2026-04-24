@@ -83,13 +83,10 @@ async function syncBloeckeFromProdDB(staffelId: string, prodDbId: string): Promi
   if (!prod?.bloecke?.length) return
 
   const bloeckeJson: any[] = prod.bloecke
-  // Each consecutive pair (team_index 0 + 1) = one Block
-  const pairCount = Math.ceil(bloeckeJson.length / 2)
-
-  for (let pairIdx = 0; pairIdx < pairCount; pairIdx++) {
-    const entry0 = bloeckeJson[pairIdx * 2]
-    const entry1 = bloeckeJson[pairIdx * 2 + 1]
-    const blockNummer = prod.erster_block + pairIdx
+  // Each entry in bloecke[] is its own Block, numbered sequentially from erster_block
+  for (let i = 0; i < bloeckeJson.length; i++) {
+    const entry = bloeckeJson[i]
+    const blockNummer = prod.erster_block + i
 
     await query(
       `INSERT INTO bloecke (staffel_id, block_nummer, name, sort_order, meta_json)
@@ -100,16 +97,15 @@ async function syncBloeckeFromProdDB(staffelId: string, prodDbId: string): Promi
         staffelId,
         blockNummer,
         `Block ${blockNummer}`,
-        pairIdx,
+        i,
         JSON.stringify({
-          proddb_id_0: entry0?.id ?? null,
-          proddb_id_1: entry1?.id ?? null,
-          dreh_von: entry0?.dreh_von || null,
-          dreh_bis: entry1?.dreh_bis || entry0?.dreh_bis || null,
-          folge_von_a: entry0?.folge_von ?? null,
-          folge_bis_a: entry0?.folge_bis ?? null,
-          folge_von_b: entry1?.folge_von ?? null,
-          folge_bis_b: entry1?.folge_bis ?? null,
+          proddb_id: entry.id ?? null,
+          team_index: entry.team_index ?? null,
+          dreh_von: entry.dreh_von || null,
+          dreh_bis: entry.dreh_bis || null,
+          folge_von: entry.folge_von ?? null,
+          folge_bis: entry.folge_bis ?? null,
+          drehtage: entry.drehtage ?? null,
         }),
       ]
     )

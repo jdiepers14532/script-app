@@ -120,23 +120,11 @@ episodenRouter.get('/:id/synopsis', async (req, res) => {
 
 async function syncEpisodenFromProdDB(block: any): Promise<void> {
   const meta = block.meta_json || {}
+  const folgeVon = meta.folge_von
+  const folgeBis = meta.folge_bis
+  if (folgeVon == null || folgeBis == null) return
 
-  // Build list of episode numbers from team A and team B ranges
-  const episodes: number[] = []
-
-  if (meta.folge_von_a != null && meta.folge_bis_a != null) {
-    for (let ep = meta.folge_von_a; ep <= meta.folge_bis_a; ep++) episodes.push(ep)
-  } else if (meta.folge_von_a != null) {
-    episodes.push(meta.folge_von_a)
-  }
-
-  if (meta.folge_von_b != null && meta.folge_bis_b != null) {
-    for (let ep = meta.folge_von_b; ep <= meta.folge_bis_b; ep++) episodes.push(ep)
-  } else if (meta.folge_von_b != null) {
-    episodes.push(meta.folge_von_b)
-  }
-
-  for (const epNr of episodes) {
+  for (let epNr = folgeVon; epNr <= folgeBis; epNr++) {
     await query(
       `INSERT INTO episoden (block_id, episode_nummer, staffel_nummer)
        VALUES ($1, $2, $3)

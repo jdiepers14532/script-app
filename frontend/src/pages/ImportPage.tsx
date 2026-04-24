@@ -393,9 +393,7 @@ export default function ImportPage() {
                 <select value={selectedBlockId ?? ''} onChange={e => setSelectedBlockId(Number(e.target.value))} style={selectStyle}>
                   {bloecke.map(b => {
                     const m = b.meta_json || {}
-                    const folgeVon = m.folge_von_a ?? m.folge_von_b
-                    const folgeBis = m.folge_bis_b ?? m.folge_bis_a
-                    const folgenInfo = folgeVon != null ? ` (Folgen ${folgeVon}–${folgeBis ?? folgeVon})` : ''
+                    const folgenInfo = m.folge_von != null ? ` (Folgen ${m.folge_von}–${m.folge_bis ?? m.folge_von})` : ''
                     return <option key={b.id} value={b.id}>Block {b.block_nummer}{folgenInfo}</option>
                   })}
                 </select>
