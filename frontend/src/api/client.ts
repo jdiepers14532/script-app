@@ -19,17 +19,21 @@ export const api = {
   // Staffeln
   getStaffeln: () => request<any[]>('GET', '/staffeln'),
   getStaffel: (id: string) => request<any>('GET', `/staffeln/${id}`),
+
+  // Blöcke — live from ProdDB, returns { proddb_id, block_nummer, folge_von, folge_bis, ... }
   getBloecke: (staffelId: string) => request<any[]>('GET', `/staffeln/${staffelId}/bloecke`),
 
-  // Episoden
-  getEpisoden: (blockId: number) => request<any[]>('GET', `/bloecke/${blockId}/episoden`),
-  getEpisode: (id: number) => request<any>('GET', `/episoden/${id}`),
-  createEpisode: (blockId: number, data: any) => request<any>('POST', `/bloecke/${blockId}/episoden`, data),
-  updateEpisode: (id: number, data: any) => request<any>('PUT', `/episoden/${id}`, data),
+  // Folgen metadata (arbeitstitel, synopsis, air_date)
+  getFolge: (staffelId: string, folgeNummer: number) =>
+    request<any>('GET', `/folgen/${staffelId}/${folgeNummer}`),
+  updateFolge: (staffelId: string, folgeNummer: number, data: any) =>
+    request<any>('PUT', `/folgen/${staffelId}/${folgeNummer}`, data),
 
   // Stages
-  getStages: (episodeId: number) => request<any[]>('GET', `/episoden/${episodeId}/stages`),
-  createStage: (episodeId: number, data: any) => request<any>('POST', `/episoden/${episodeId}/stages`, data),
+  getStages: (staffelId: string, folgeNummer: number) =>
+    request<any[]>('GET', `/stages?staffel_id=${encodeURIComponent(staffelId)}&folge_nummer=${folgeNummer}`),
+  createStage: (staffelId: string, folgeNummer: number, proddbBlockId: string | null, data: any) =>
+    request<any>('POST', '/stages', { staffel_id: staffelId, folge_nummer: folgeNummer, proddb_block_id: proddbBlockId, ...data }),
   updateStage: (id: number, data: any) => request<any>('PUT', `/stages/${id}`, data),
 
   // Szenen
@@ -39,16 +43,21 @@ export const api = {
   updateSzene: (id: number, data: any) => request<any>('PUT', `/szenen/${id}`, data),
   deleteSzene: (id: number) => request<void>('DELETE', `/szenen/${id}`),
 
-  // Locks
-  getLock: (episodeId: number) => request<any>('GET', `/episoden/${episodeId}/lock`),
-  createLock: (episodeId: number, data?: any) => request<any>('POST', `/episoden/${episodeId}/lock`, data || {}),
-  deleteLock: (episodeId: number) => request<void>('DELETE', `/episoden/${episodeId}/lock`),
-  takeoverLock: (episodeId: number) => request<any>('POST', `/episoden/${episodeId}/lock/takeover`, {}),
+  // Locks (keyed by staffelId + folgeNummer)
+  getLock: (staffelId: string, folgeNummer: number) =>
+    request<any>('GET', `/folgen/${staffelId}/${folgeNummer}/lock`),
+  createLock: (staffelId: string, folgeNummer: number) =>
+    request<any>('POST', `/folgen/${staffelId}/${folgeNummer}/lock`, {}),
+  deleteLock: (staffelId: string, folgeNummer: number) =>
+    request<void>('DELETE', `/folgen/${staffelId}/${folgeNummer}/lock`),
+  takeoverLock: (staffelId: string, folgeNummer: number) =>
+    request<any>('POST', `/folgen/${staffelId}/${folgeNummer}/lock/takeover`, {}),
 
   // Szenen Versionen
   getVersionen: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/versionen`),
   createVersion: (szeneId: number, data: any) => request<any>('POST', `/szenen/${szeneId}/versionen`, data),
-  restoreVersion: (szeneId: number, versionId: number) => request<any>('POST', `/szenen/${szeneId}/versionen/${versionId}/restore`, {}),
+  restoreVersion: (szeneId: number, versionId: number) =>
+    request<any>('POST', `/szenen/${szeneId}/versionen/${versionId}/restore`, {}),
 
   // Entities
   getEntities: (params?: { staffel_id?: string; type?: string; q?: string }) => {
@@ -71,23 +80,6 @@ export const api = {
   createKommentar: (szeneId: number, data: any) => request<any>('POST', `/szenen/${szeneId}/kommentare`, data),
   resolveKommentar: (id: number) => request<any>('PATCH', `/kommentare/${id}/resolve`, {}),
   deleteKommentar: (id: number) => request<void>('DELETE', `/kommentare/${id}`),
-
-  // Import
-  importDetect: (file: File) => {
-    const fd = new FormData(); fd.append('file', file)
-    return fetch(`${BASE}/import/detect`, { method: 'POST', body: fd, credentials: 'include' }).then(r => r.json())
-  },
-  importPreview: (file: File) => {
-    const fd = new FormData(); fd.append('file', file)
-    return fetch(`${BASE}/import/preview`, { method: 'POST', body: fd, credentials: 'include' }).then(r => r.json())
-  },
-  importCommit: (file: File, episode_id: number, stage_type: string) => {
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('episode_id', String(episode_id))
-    fd.append('stage_type', stage_type)
-    return fetch(`${BASE}/import/commit`, { method: 'POST', body: fd, credentials: 'include' }).then(r => r.json())
-  },
 
   // Export
   exportPdf: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/pdf`, { credentials: 'include' }),

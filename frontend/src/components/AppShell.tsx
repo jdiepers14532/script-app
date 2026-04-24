@@ -15,11 +15,11 @@ interface AppShellProps {
   selectedStaffelId?: string
   onSelectStaffel?: (id: string) => void
   bloecke?: any[]
-  selectedBlockId?: number | null
-  onSelectBlock?: (id: number) => void
-  episoden?: any[]
-  selectedEpisodeId?: number | null
-  onSelectEpisode?: (id: number) => void
+  selectedBlock?: any | null
+  onSelectBlock?: (block: any) => void
+  folgen?: number[]
+  selectedFolgeNummer?: number | null
+  onSelectFolge?: (nr: number) => void
   stages?: any[]
   selectedStageId?: number | null
   onSelectStage?: (id: number) => void
@@ -56,11 +56,11 @@ export default function AppShell({
   selectedStaffelId = '',
   onSelectStaffel,
   bloecke = [],
-  selectedBlockId = null,
+  selectedBlock = null,
   onSelectBlock,
-  episoden = [],
-  selectedEpisodeId = null,
-  onSelectEpisode,
+  folgen = [],
+  selectedFolgeNummer = null,
+  onSelectFolge,
   stages = [],
   selectedStageId = null,
   onSelectStage,
@@ -83,20 +83,13 @@ export default function AppShell({
     setTweaks(t => ({ ...t, [k]: v }))
 
   const selectedStaffel = staffeln.find(s => s.id === selectedStaffelId)
-  const selectedBlock = bloecke.find(b => b.id === selectedBlockId)
-  const selectedEpisode = episoden.find(e => e.id === selectedEpisodeId)
   const selectedStage = stages.find(s => s.id === selectedStageId)
 
   const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
-  const crumbBlock = selectedBlock ? `Block ${selectedBlock.block_nummer}` : null
-  const crumbEpisode = selectedEpisode ? `Folge ${selectedEpisode.episode_nummer}` : null
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
   return (
-    <div
-      className="app"
-      data-theme={tweaks.theme}
-    >
+    <div className="app" data-theme={tweaks.theme}>
       {/* Topbar */}
       <header className="topbar">
         <div className="brand">
@@ -114,14 +107,8 @@ export default function AppShell({
               onSelect={selectProduction}
             />
           ) : staffeln.length > 0 && onSelectStaffel ? (
-            <select
-              style={selectStyle}
-              value={selectedStaffelId}
-              onChange={e => onSelectStaffel(e.target.value)}
-            >
-              {staffeln.map(s => (
-                <option key={s.id} value={s.id}>{s.titel}</option>
-              ))}
+            <select style={selectStyle} value={selectedStaffelId} onChange={e => onSelectStaffel(e.target.value)}>
+              {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
             </select>
           ) : (
             <span>{crumbStaffel}</span>
@@ -132,47 +119,39 @@ export default function AppShell({
               <span>·</span>
               <select
                 style={selectStyle}
-                value={selectedBlockId ?? ''}
-                onChange={e => onSelectBlock(Number(e.target.value))}
+                value={selectedBlock?.proddb_id ?? ''}
+                onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}
               >
                 {bloecke.map(b => (
-                  <option key={b.id} value={b.id}>Block {b.block_nummer}</option>
+                  <option key={b.proddb_id} value={b.proddb_id}>
+                    Block {b.block_nummer}{b.folge_von != null ? ` (${b.folge_von}–${b.folge_bis})` : ''}
+                  </option>
                 ))}
               </select>
             </>
           )}
-          {!bloecke.length && crumbBlock && (
-            <>
-              <span>·</span>
-              <span>{crumbBlock}</span>
-            </>
-          )}
 
-          {episoden.length > 0 && onSelectEpisode && (
+          {folgen.length > 0 && onSelectFolge && (
             <>
               <span>·</span>
               <select
                 style={selectStyle}
-                value={selectedEpisodeId ?? ''}
-                onChange={e => onSelectEpisode(Number(e.target.value))}
+                value={selectedFolgeNummer ?? ''}
+                onChange={e => onSelectFolge(Number(e.target.value))}
               >
-                {episoden.map(e => (
-                  <option key={e.id} value={e.id}>Folge {e.episode_nummer}</option>
-                ))}
+                {folgen.map(nr => <option key={nr} value={nr}>Folge {nr}</option>)}
               </select>
             </>
           )}
-          {!episoden.length && crumbEpisode && (
+          {folgen.length === 0 && selectedFolgeNummer != null && (
             <>
               <span>·</span>
-              <b>{crumbEpisode}</b>
+              <b>Folge {selectedFolgeNummer}</b>
             </>
           )}
 
           {stages.length > 0 && onSelectStage && crumbStage && (
-            <>
-              <span className="chip topbar-extra">{crumbStage}</span>
-            </>
+            <span className="chip topbar-extra">{crumbStage}</span>
           )}
         </div>
 
@@ -192,43 +171,22 @@ export default function AppShell({
           </span>
         </div>
 
-        {/* Theme toggle */}
-        <button
-          className="iconbtn topbar-extra"
-          onClick={() => set('theme', tweaks.theme === 'light' ? 'dark' : 'light')}
-          title="Theme wechseln"
-        >
-          {tweaks.theme === 'light'
-            ? <Moon size={14} />
-            : <Sun size={14} />
-          }
+        <button className="iconbtn topbar-extra" onClick={() => set('theme', tweaks.theme === 'light' ? 'dark' : 'light')} title="Theme wechseln">
+          {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
         </button>
 
-        {/* Tweaks */}
-        <button
-          className="iconbtn topbar-extra"
-          onClick={() => setTweaksOpen(v => !v)}
-          title="Ansichtsoptionen"
-        >
+        <button className="iconbtn topbar-extra" onClick={() => setTweaksOpen(v => !v)} title="Ansichtsoptionen">
           <SlidersHorizontal size={14} />
         </button>
 
-        {/* Bell */}
         <button className="iconbtn topbar-extra" title="Benachrichtigungen">
           <Bell size={14} />
         </button>
 
-        {/* Focus toggle */}
-        <button
-          className="focus-toggle"
-          onClick={toggle}
-          title="Fokus-Modus (F10)"
-          aria-label={focus ? 'Fokus-Modus beenden' : 'Fokus-Modus aktivieren'}
-        >
+        <button className="focus-toggle" onClick={toggle} title="Fokus-Modus (F10)" aria-label={focus ? 'Fokus-Modus beenden' : 'Fokus-Modus aktivieren'}>
           {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
         </button>
 
-        {/* Avatar */}
         <div className="avatar" title="Jan Diepers">JD</div>
       </header>
 
@@ -252,7 +210,7 @@ export default function AppShell({
         <NavItem to="/" icon={<Users size={15} />} label="Benutzer" active={false} />
       </nav>
 
-      {/* Main content — passes tweaks via data attrs */}
+      {/* Main content */}
       <main
         className="app-main"
         data-colormode={tweaks.colorMode}
@@ -316,19 +274,7 @@ export default function AppShell({
   )
 }
 
-function NavItem({
-  to,
-  icon,
-  label,
-  count,
-  active,
-}: {
-  to: string
-  icon: ReactNode
-  label: string
-  count?: string
-  active: boolean
-}) {
+function NavItem({ to, icon, label, count, active }: { to: string; icon: ReactNode; label: string; count?: string; active: boolean }) {
   return (
     <Link to={to} className={`item${active ? ' active' : ''}`}>
       <span className="i">{icon}</span>

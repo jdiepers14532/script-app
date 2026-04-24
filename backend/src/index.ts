@@ -10,8 +10,7 @@ import { pool } from './db'
 
 import healthRouter from './routes/health'
 import staffelnRouter from './routes/staffeln'
-import { episodenRouter, bloeckeRouter } from './routes/episoden'
-import { stagesRouter, episodenStagesRouter } from './routes/stages'
+import { stagesRouter } from './routes/stages'
 import { szenenRouter, stagesSzenenRouter } from './routes/szenen'
 import { locksRouter, contractLocksRouter } from './routes/locks'
 import versionenRouter from './routes/versionen'
@@ -21,6 +20,7 @@ import kiRouter, { kiAdminRouter } from './routes/ki'
 import { szenenKommentareRouter, kommentareRouter } from './routes/kommentare'
 import { importRouter } from './routes/import'
 import meRouter from './routes/me'
+import { folgenRouter } from './routes/folgen'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -32,7 +32,7 @@ const PORT = process.env.PORT || 3014
 
 // Security: Helmet headers
 app.use(helmet({
-  contentSecurityPolicy: false, // CSP handled by nginx
+  contentSecurityPolicy: false,
   crossOriginEmbedderPolicy: false,
 }))
 
@@ -52,7 +52,6 @@ const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen, bitte später erneut versuchen' },
-  // Skip in test mode
   skip: () => process.env.PLAYWRIGHT_TEST_MODE === 'true',
 })
 
@@ -71,24 +70,22 @@ app.use(generalLimiter)
 // Routes
 app.use('/api', healthRouter)
 app.use('/api/staffeln', staffelnRouter)
-app.use('/api/episoden', episodenRouter)
-app.use('/api/bloecke', bloeckeRouter)
 app.use('/api/stages', stagesRouter)
-app.use('/api/episoden', episodenStagesRouter)
 app.use('/api/szenen', szenenRouter)
 app.use('/api/stages', stagesSzenenRouter)
-app.use('/api/episoden', locksRouter)
-app.use('/api/locks', contractLocksRouter)
+app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:staffelId/:folgeNummer/lock
+app.use('/api/locks', contractLocksRouter) // POST /contract-update
 app.use('/api/szenen', versionenRouter)
 app.use('/api/stages', exportsRouter)
 app.use('/api/entities', entitiesRouter)
-app.use('/api', entitiesRouter) // for /api/stages/:id/entities
+app.use('/api', entitiesRouter)            // for /api/stages/:id/entities
 app.use('/api/ki', kiLimiter, kiRouter)
 app.use('/api/admin/ki-settings', kiAdminRouter)
 app.use('/api/szenen', szenenKommentareRouter)
 app.use('/api/kommentare', kommentareRouter)
 app.use('/api/import', importRouter)
 app.use('/api/me', meRouter)
+app.use('/api/folgen', folgenRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
@@ -101,7 +98,11 @@ setInterval(async () => {
 
 // Run migration on startup
 async function runMigrations() {
-  const migrationFiles = ['v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql', 'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql', 'v8_user_settings.sql', 'v9_proddb_sync.sql']
+  const migrationFiles = [
+    'v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql',
+    'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql',
+    'v8_user_settings.sql', 'v9_proddb_sync.sql', 'v10_proddb_direct.sql',
+  ]
   for (const file of migrationFiles) {
     const paths = [
       path.join(__dirname, 'migrations', file),

@@ -62,21 +62,24 @@ export default function ImportPage() {
   const [staffeln, setStaffeln] = useState<any[]>([])
   const [selectedStaffelId, setSelectedStaffelId] = useState('')
   const [bloecke, setBloecke] = useState<any[]>([])
-  const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null)
-  const [episoden, setEpisoden] = useState<any[]>([])
-  const [selectedEpisodeId, setSelectedEpisodeId] = useState<number | null>(null)
+  const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
+  const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [stageType, setStageType] = useState('draft')
+
+  // Folgen derived client-side from selected block
+  const folgen = selectedBlock?.folge_von != null && selectedBlock?.folge_bis != null
+    ? Array.from({ length: selectedBlock.folge_bis - selectedBlock.folge_von + 1 }, (_, i) => selectedBlock.folge_von + i)
+    : []
 
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
 
-  // Load staffeln on mount — prefer selectedProduction as default
+  // Load staffeln on mount
   useEffect(() => {
     fetch('/api/staffeln', { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         setStaffeln(data)
-        // Use selectedProduction from header as default if available
         if (selectedProduction && data.find((s: any) => s.id === selectedProduction.id)) {
           setSelectedStaffelId(selectedProduction.id)
         } else if (data.length > 0) {
@@ -86,29 +89,24 @@ export default function ImportPage() {
       .catch(() => {})
   }, [selectedProduction?.id])
 
+  // Load Blöcke from ProdDB (live, no sync)
   useEffect(() => {
     if (!selectedStaffelId) return
     fetch(`/api/staffeln/${selectedStaffelId}/bloecke`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         setBloecke(data)
-        if (data.length > 0) setSelectedBlockId(data[0].id)
-        else setSelectedBlockId(null)
+        const first = data.length > 0 ? data[0] : null
+        setSelectedBlock(first)
+        setSelectedFolgeNummer(first?.folge_von ?? null)
       })
       .catch(() => {})
   }, [selectedStaffelId])
 
+  // When block changes, reset folge to first of that block
   useEffect(() => {
-    if (!selectedBlockId) return
-    fetch(`/api/bloecke/${selectedBlockId}/episoden`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        setEpisoden(data)
-        if (data.length > 0) setSelectedEpisodeId(data[0].id)
-        else setSelectedEpisodeId(null)
-      })
-      .catch(() => {})
-  }, [selectedBlockId])
+    setSelectedFolgeNummer(selectedBlock?.folge_von ?? null)
+  }, [selectedBlock?.proddb_id])
 
   const handleFile = useCallback(async (f: File) => {
     setFile(f)
@@ -164,13 +162,15 @@ export default function ImportPage() {
   }
 
   const handleCommit = async () => {
-    if (!file || !selectedEpisodeId) return
+    if (!file || !selectedStaffelId || selectedFolgeNummer == null) return
     setLoading(true)
     setError(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('episode_id', String(selectedEpisodeId))
+      fd.append('staffel_id', selectedStaffelId)
+      fd.append('folge_nummer', String(selectedFolgeNummer))
+      if (selectedBlock?.proddb_id) fd.append('proddb_block_id', selectedBlock.proddb_id)
       fd.append('stage_type', stageType)
       const res = await fetch('/api/import/commit', { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
@@ -390,22 +390,21 @@ export default function ImportPage() {
               </div>
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Block</label>
-                <select value={selectedBlockId ?? ''} onChange={e => setSelectedBlockId(Number(e.target.value))} style={selectStyle}>
-                  {bloecke.map(b => {
-                    const m = b.meta_json || {}
-                    const folgenInfo = m.folge_von != null ? ` (Folgen ${m.folge_von}–${m.folge_bis ?? m.folge_von})` : ''
-                    return <option key={b.id} value={b.id}>Block {b.block_nummer}{folgenInfo}</option>
-                  })}
+                <select value={selectedBlock?.proddb_id ?? ''} onChange={e => {
+                  const b = bloecke.find(b => b.proddb_id === e.target.value)
+                  setSelectedBlock(b ?? null)
+                }} style={selectStyle}>
+                  {bloecke.map(b => (
+                    <option key={b.proddb_id} value={b.proddb_id}>
+                      Block {b.block_nummer}{b.folge_von != null ? ` (Folgen ${b.folge_von}–${b.folge_bis})` : ''}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Episode</label>
-                <select value={selectedEpisodeId ?? ''} onChange={e => setSelectedEpisodeId(Number(e.target.value))} style={selectStyle}>
-                  {episoden.map(e => (
-                    <option key={e.id} value={e.id}>
-                      Folge {e.episode_nummer}{e.arbeitstitel ? ` — ${e.arbeitstitel}` : ''}
-                    </option>
-                  ))}
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Folge</label>
+                <select value={selectedFolgeNummer ?? ''} onChange={e => setSelectedFolgeNummer(Number(e.target.value))} style={selectStyle}>
+                  {folgen.map(nr => <option key={nr} value={nr}>Folge {nr}</option>)}
                 </select>
               </div>
               <div style={{ marginBottom: 24 }}>
@@ -449,14 +448,14 @@ export default function ImportPage() {
                 </button>
                 <button
                   onClick={handleCommit}
-                  disabled={!selectedEpisodeId || loading}
+                  disabled={selectedFolgeNummer == null || loading}
                   style={{
                     background: '#000', color: '#fff', border: 'none', borderRadius: 8,
                     padding: '10px 24px', fontWeight: 600, fontSize: 14,
                     cursor: 'pointer', opacity: !selectedEpisodeId || loading ? 0.4 : 1,
                   }}
                 >
-                  {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen importieren`}
+                  {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen → Folge ${selectedFolgeNummer ?? '?'} importieren`}
                 </button>
               </div>
             </div>

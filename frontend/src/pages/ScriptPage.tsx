@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { api } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
@@ -11,19 +11,26 @@ export default function ScriptPage() {
   const { selectedProduction } = useSelectedProduction()
   const [staffeln, setStaffeln] = useState<any[]>([])
   const [bloecke, setBloecke] = useState<any[]>([])
-  const [episoden, setEpisoden] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
 
   const [selectedStaffelId, setSelectedStaffelId] = useState<string>('')
-  const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null)
-  const [selectedEpisodeId, setSelectedEpisodeId] = useState<number | null>(null)
+  const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
+  const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Wenn Produktion aus Produktionsdatenbank gewählt → sync + als Staffel nutzen
+  // Folgen derived client-side from selected block (no API call needed)
+  const folgen = useMemo<number[]>(() => {
+    if (!selectedBlock || selectedBlock.folge_von == null || selectedBlock.folge_bis == null) return []
+    const result: number[] = []
+    for (let i = selectedBlock.folge_von; i <= selectedBlock.folge_bis; i++) result.push(i)
+    return result
+  }, [selectedBlock])
+
+  // Sync selected production as staffel
   useEffect(() => {
     if (!selectedProduction) return
     fetch('/api/staffeln/sync', {
@@ -38,60 +45,50 @@ export default function ScriptPage() {
       }),
     })
       .then(r => r.json())
-      .then(data => {
-        if (data.staffel_id) {
-          setSelectedStaffelId(data.staffel_id)
-        }
-      })
+      .then(data => { if (data.staffel_id) setSelectedStaffelId(data.staffel_id) })
       .catch(console.error)
   }, [selectedProduction?.id])
 
-  // Staffeln laden (Fallback wenn keine Produktionsdatenbank-Verbindung)
+  // Load staffeln
   useEffect(() => {
     api.getStaffeln()
       .then(data => {
         setStaffeln(data)
-        // Nur als Default setzen wenn noch keine Produktion ausgewählt
         if (data.length > 0 && !selectedProduction) setSelectedStaffelId(data[0].id)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
 
-  // Blöcke laden wenn Staffel gewählt
+  // Load Blöcke from ProdDB when Staffel changes
   useEffect(() => {
     if (!selectedStaffelId) return
     setBloecke([])
-    setSelectedBlockId(null)
+    setSelectedBlock(null)
     api.getBloecke(selectedStaffelId).then(data => {
       setBloecke(data)
-      if (data.length > 0) setSelectedBlockId(data[0].id)
+      setSelectedBlock(data.length > 0 ? data[0] : null)
     }).catch(() => {})
   }, [selectedStaffelId])
 
-  // Episoden laden wenn Block gewählt
+  // Set default Folge when Block changes
   useEffect(() => {
-    if (!selectedBlockId) return
-    setEpisoden([])
-    setSelectedEpisodeId(null)
-    api.getEpisoden(selectedBlockId).then(data => {
-      setEpisoden(data)
-      setSelectedEpisodeId(data.length > 0 ? data[0].id : null)
-    }).catch(() => {})
-  }, [selectedBlockId])
+    if (!selectedBlock) { setSelectedFolgeNummer(null); return }
+    setSelectedFolgeNummer(selectedBlock.folge_von ?? null)
+  }, [selectedBlock?.proddb_id])
 
-  // Stages laden wenn Episode gewählt
+  // Load Stages when Folge changes
   useEffect(() => {
-    if (!selectedEpisodeId) return
+    if (!selectedStaffelId || selectedFolgeNummer == null) return
     setStages([])
     setSelectedStageId(null)
-    api.getStages(selectedEpisodeId).then(data => {
+    api.getStages(selectedStaffelId, selectedFolgeNummer).then(data => {
       setStages(data)
       setSelectedStageId(data.length > 0 ? data[0].id : null)
     }).catch(() => {})
-  }, [selectedEpisodeId])
+  }, [selectedStaffelId, selectedFolgeNummer])
 
-  // Szenen laden wenn Stage gewählt
+  // Load Szenen when Stage changes
   useEffect(() => {
     if (!selectedStageId) return
     setSzenen([])
@@ -111,11 +108,11 @@ export default function ScriptPage() {
       selectedStaffelId={selectedStaffelId}
       onSelectStaffel={setSelectedStaffelId}
       bloecke={bloecke}
-      selectedBlockId={selectedBlockId}
-      onSelectBlock={setSelectedBlockId}
-      episoden={episoden}
-      selectedEpisodeId={selectedEpisodeId}
-      onSelectEpisode={setSelectedEpisodeId}
+      selectedBlock={selectedBlock}
+      onSelectBlock={setSelectedBlock}
+      folgen={folgen}
+      selectedFolgeNummer={selectedFolgeNummer}
+      onSelectFolge={setSelectedFolgeNummer}
       stages={stages}
       selectedStageId={selectedStageId}
       onSelectStage={setSelectedStageId}
@@ -125,7 +122,8 @@ export default function ScriptPage() {
           szenen={szenen}
           selectedSzeneId={selectedSzeneId}
           onSelectSzene={setSelectedSzeneId}
-          episodeId={selectedEpisodeId}
+          staffelId={selectedStaffelId}
+          folgeNummer={selectedFolgeNummer}
           stageId={selectedStageId}
           onSzeneCreated={(newSzene) => {
             setSzenen(prev => [...prev, newSzene])
@@ -134,8 +132,7 @@ export default function ScriptPage() {
         />
         {selectedSzeneId && (
           <SceneEditor
-            szeneId={selectedSzeneId}
-            episodeId={selectedEpisodeId}
+            szeneId={selectedSzeneId!}
             stageId={selectedStageId}
             onSzeneUpdated={(updated) => {
               setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))

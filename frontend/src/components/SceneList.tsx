@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Lock, MessageSquare, Search, ChevronDown, Plus } from 'lucide-react'
+import { Lock, Search, ChevronDown, Plus } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
 
@@ -7,7 +7,8 @@ interface SceneListProps {
   szenen: any[]
   selectedSzeneId: number | null
   onSelectSzene: (id: number) => void
-  episodeId: number | null
+  staffelId: string | null
+  folgeNummer: number | null
   stageId: number | null
   colorMode?: 'full' | 'subtle' | 'off'
   onSzeneCreated?: (szene: any) => void
@@ -17,7 +18,8 @@ export default function SceneList({
   szenen,
   selectedSzeneId,
   onSelectSzene,
-  episodeId,
+  staffelId,
+  folgeNummer,
   stageId,
   colorMode = 'subtle',
   onSzeneCreated,
@@ -26,13 +28,12 @@ export default function SceneList({
   const [lock, setLock] = useState<any | null>(null)
   const [creating, setCreating] = useState(false)
 
-  // Load lock for this episode
   useEffect(() => {
-    if (!episodeId) { setLock(null); return }
-    api.getLock(episodeId)
+    if (!staffelId || folgeNummer == null) { setLock(null); return }
+    api.getLock(staffelId, folgeNummer)
       .then(setLock)
       .catch(() => setLock(null))
-  }, [episodeId])
+  }, [staffelId, folgeNummer])
 
   const filtered = szenen.filter(s =>
     searchQuery === '' ||
@@ -60,7 +61,6 @@ export default function SceneList({
     }
   }
 
-  // Map tageszeit → env key for color lookup
   const getEnvKey = (s: any): keyof typeof ENV_COLORS => {
     const ie = (s.int_ext ?? '').toLowerCase()
     const tz = (s.tageszeit ?? 'TAG').toUpperCase()
@@ -70,7 +70,6 @@ export default function SceneList({
       return 'n_ie'
     }
     if (tz === 'ABEND') return 'evening_i'
-    // TAG
     if (ie === 'int') return 'd_i'
     if (ie === 'ext') return 'd_e'
     return 'd_ie'
@@ -78,10 +77,10 @@ export default function SceneList({
 
   return (
     <div className="scenes" data-colormode={colorMode}>
-      {/* Episode bar */}
+      {/* Folge bar */}
       <div className="ep-bar">
         <button className="ep-picker">
-          <span>{episodeId ? `Episode #${episodeId}` : 'Keine Episode'}</span>
+          <span>{folgeNummer != null ? `Folge ${folgeNummer}` : 'Keine Folge'}</span>
           <ChevronDown size={12} />
         </button>
         <span className="spacer" />
@@ -120,14 +119,9 @@ export default function SceneList({
           const envKey = getEnvKey(scene)
           const envColor = ENV_COLORS[envKey]
           const isDark = !!envColor.textDark
-
           const rowStyle = {} as Record<string, string>
-          if (colorMode === 'full') {
-            rowStyle['--row-bg'] = envColor.bg
-          }
-          if (colorMode === 'subtle' || colorMode === 'full') {
-            rowStyle['--stripe'] = envColor.stripe
-          }
+          if (colorMode === 'full') rowStyle['--row-bg'] = envColor.bg
+          if (colorMode === 'subtle' || colorMode === 'full') rowStyle['--stripe'] = envColor.stripe
 
           return (
             <div
@@ -139,9 +133,7 @@ export default function SceneList({
               {scene.id !== selectedSzeneId && (colorMode === 'subtle' || colorMode === 'full') && (
                 <div className="env-stripe" style={{ background: envColor.stripe }} />
               )}
-
               <div className="num">{scene.scene_nummer}</div>
-
               <div className="body">
                 <div className="title-line">
                   <span className="ie">{scene.int_ext}</span>
@@ -160,13 +152,10 @@ export default function SceneList({
                   )}
                 </div>
               </div>
-
               <div className="rt">
                 {scene.dauer_min && <span>{scene.dauer_min} min</span>}
                 <div className="badges">
-                  {scene.is_locked && (
-                    <Lock size={11} className="lock-ico" />
-                  )}
+                  {scene.is_locked && <Lock size={11} className="lock-ico" />}
                 </div>
               </div>
             </div>

@@ -29,27 +29,35 @@ router.get('/:id', async (req, res) => {
   }
 })
 
-// GET /api/staffeln/:id/bloecke
+// GET /api/staffeln/:id/bloecke — live from ProdDB, no local copy
 router.get('/:id/bloecke', async (req, res) => {
   try {
     const staffel = await queryOne('SELECT * FROM staffeln WHERE id = $1', [req.params.id])
     if (!staffel) return res.status(404).json({ error: 'Staffel nicht gefunden' })
+    if (!staffel.produktion_db_id) return res.json([])
 
-    if (staffel.produktion_db_id) {
-      await syncBloeckeFromProdDB(req.params.id, staffel.produktion_db_id)
-    }
-
-    const rows = await query(
-      'SELECT * FROM bloecke WHERE staffel_id = $1 ORDER BY sort_order, block_nummer',
-      [req.params.id]
+    const prod = await prodQueryOne(
+      'SELECT erster_block, bloecke FROM productions WHERE id = $1',
+      [staffel.produktion_db_id]
     )
-    res.json(rows)
+    if (!prod?.bloecke?.length) return res.json([])
+
+    res.json(prod.bloecke.map((entry: any, i: number) => ({
+      proddb_id: entry.id,
+      block_nummer: prod.erster_block + i,
+      team_index: entry.team_index ?? null,
+      folge_von: entry.folge_von ?? null,
+      folge_bis: entry.folge_bis ?? null,
+      dreh_von: entry.dreh_von || null,
+      dreh_bis: entry.dreh_bis || null,
+      drehtage: entry.drehtage || null,
+    })))
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
 
-// POST /api/staffeln/sync
+// POST /api/staffeln/sync — called by Produktionsdatenbank on production sync
 router.post('/sync', async (req, res) => {
   const { production_id, title, staffelnummer, projektnummer } = req.body
   if (!production_id || !title) {
@@ -74,42 +82,5 @@ router.post('/sync', async (req, res) => {
     res.status(500).json({ error: String(err) })
   }
 })
-
-async function syncBloeckeFromProdDB(staffelId: string, prodDbId: string): Promise<void> {
-  const prod = await prodQueryOne(
-    'SELECT erster_block, bloecke FROM productions WHERE id = $1',
-    [prodDbId]
-  )
-  if (!prod?.bloecke?.length) return
-
-  const bloeckeJson: any[] = prod.bloecke
-  // Each entry in bloecke[] is its own Block, numbered sequentially from erster_block
-  for (let i = 0; i < bloeckeJson.length; i++) {
-    const entry = bloeckeJson[i]
-    const blockNummer = prod.erster_block + i
-
-    await query(
-      `INSERT INTO bloecke (staffel_id, block_nummer, name, sort_order, meta_json)
-       VALUES ($1, $2, $3, $4, $5::jsonb)
-       ON CONFLICT (staffel_id, block_nummer) DO UPDATE
-       SET name = EXCLUDED.name, sort_order = EXCLUDED.sort_order, meta_json = EXCLUDED.meta_json`,
-      [
-        staffelId,
-        blockNummer,
-        `Block ${blockNummer}`,
-        i,
-        JSON.stringify({
-          proddb_id: entry.id ?? null,
-          team_index: entry.team_index ?? null,
-          dreh_von: entry.dreh_von || null,
-          dreh_bis: entry.dreh_bis || null,
-          folge_von: entry.folge_von ?? null,
-          folge_bis: entry.folge_bis ?? null,
-          drehtage: entry.drehtage ?? null,
-        }),
-      ]
-    )
-  }
-}
 
 export default router

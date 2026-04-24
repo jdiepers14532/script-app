@@ -5,7 +5,6 @@ import { api } from '../api/client'
 
 interface SceneEditorProps {
   szeneId: number
-  episodeId: number | null
   stageId: number | null
   panelMode?: 'both' | 'treatment' | 'script'
   onSzeneUpdated?: (updated: any) => void
@@ -26,7 +25,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, episodeId, stageId, panelMode = 'both', onSzeneUpdated }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, panelMode = 'both', onSzeneUpdated }: SceneEditorProps) {
   const [scene, setScene] = useState<any | null>(null)
   const [lock, setLock] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
