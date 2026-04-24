@@ -1,34 +1,98 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Lock, MessageSquare, Search, ChevronDown, Plus } from 'lucide-react'
-import { SCENES, ENV_COLORS, Scene } from '../data/scenes'
+import { ENV_COLORS } from '../data/scenes'
+import { api } from '../api/client'
 
 interface SceneListProps {
-  activeSceneId: number
-  onSelectScene: (id: number) => void
+  szenen: any[]
+  selectedSzeneId: number | null
+  onSelectSzene: (id: number) => void
+  episodeId: number | null
+  stageId: number | null
   colorMode?: 'full' | 'subtle' | 'off'
+  onSzeneCreated?: (szene: any) => void
 }
 
-export default function SceneList({ activeSceneId, onSelectScene, colorMode = 'subtle' }: SceneListProps) {
+export default function SceneList({
+  szenen,
+  selectedSzeneId,
+  onSelectSzene,
+  episodeId,
+  stageId,
+  colorMode = 'subtle',
+  onSzeneCreated,
+}: SceneListProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const folge = 4512
+  const [lock, setLock] = useState<any | null>(null)
+  const [creating, setCreating] = useState(false)
 
-  const filtered = SCENES.filter(s =>
-    s.folge === folge &&
-    (searchQuery === '' ||
-      s.motiv.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.nummer.includes(searchQuery))
+  // Load lock for this episode
+  useEffect(() => {
+    if (!episodeId) { setLock(null); return }
+    api.getLock(episodeId)
+      .then(setLock)
+      .catch(() => setLock(null))
+  }, [episodeId])
+
+  const filtered = szenen.filter(s =>
+    searchQuery === '' ||
+    String(s.scene_nummer).includes(searchQuery) ||
+    (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  const handleNewSzene = async () => {
+    if (!stageId || creating) return
+    setCreating(true)
+    try {
+      const nextNum = szenen.length > 0 ? Math.max(...szenen.map(s => s.scene_nummer ?? 0)) + 1 : 1
+      const newSzene = await api.createSzene(stageId, {
+        scene_nummer: nextNum,
+        int_ext: 'INT',
+        tageszeit: 'TAG',
+        ort_name: 'NEUE SZENE',
+      })
+      onSzeneCreated?.(newSzene)
+    } catch (e) {
+      console.error('Fehler beim Erstellen der Szene', e)
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  // Map tageszeit → env key for color lookup
+  const getEnvKey = (s: any): keyof typeof ENV_COLORS => {
+    const ie = (s.int_ext ?? '').toLowerCase()
+    const tz = (s.tageszeit ?? 'TAG').toUpperCase()
+    if (tz === 'NACHT') {
+      if (ie === 'int') return 'n_i'
+      if (ie === 'ext') return 'n_e'
+      return 'n_ie'
+    }
+    if (tz === 'ABEND') return 'evening_i'
+    // TAG
+    if (ie === 'int') return 'd_i'
+    if (ie === 'ext') return 'd_e'
+    return 'd_ie'
+  }
 
   return (
     <div className="scenes" data-colormode={colorMode}>
       {/* Episode bar */}
       <div className="ep-bar">
         <button className="ep-picker">
-          <span>Folge {folge}</span>
+          <span>{episodeId ? `Episode #${episodeId}` : 'Keine Episode'}</span>
           <ChevronDown size={12} />
         </button>
         <span className="spacer" />
-        <button className="iconbtn" title="Neue Szene"><Plus size={13} /></button>
+        {lock && (
+          <span title={`Gelockt von ${lock.user_name || lock.user_id}`} style={{ marginRight: 4 }}>
+            <Lock size={11} style={{ color: 'var(--sw-warning)' }} />
+          </span>
+        )}
+        <button className="iconbtn" title="Neue Szene" onClick={handleNewSzene} disabled={creating || !stageId}>
+          <Plus size={13} />
+        </button>
       </div>
 
       {/* Search bar */}
@@ -47,109 +111,68 @@ export default function SceneList({ activeSceneId, onSelectScene, colorMode = 's
 
       {/* Scene rows */}
       <div className="list">
-        {filtered.map(scene => (
-          <SceneRow
-            key={scene.id}
-            scene={scene}
-            active={scene.id === activeSceneId}
-            onClick={() => onSelectScene(scene.id)}
-            colorMode={colorMode}
-          />
-        ))}
+        {filtered.length === 0 && (
+          <div style={{ padding: '16px 20px', color: 'var(--text-muted)', fontSize: 12 }}>
+            {szenen.length === 0 ? 'Keine Szenen vorhanden.' : 'Keine Treffer.'}
+          </div>
+        )}
+        {filtered.map(scene => {
+          const envKey = getEnvKey(scene)
+          const envColor = ENV_COLORS[envKey]
+          const isDark = !!envColor.textDark
+
+          const rowStyle = {} as Record<string, string>
+          if (colorMode === 'full') {
+            rowStyle['--row-bg'] = envColor.bg
+          }
+          if (colorMode === 'subtle' || colorMode === 'full') {
+            rowStyle['--stripe'] = envColor.stripe
+          }
+
+          return (
+            <div
+              key={scene.id}
+              className={`row${scene.id === selectedSzeneId ? ' active' : ''}${colorMode === 'full' && isDark ? ' on-dark' : ''}`}
+              style={rowStyle}
+              onClick={() => onSelectSzene(scene.id)}
+            >
+              {scene.id !== selectedSzeneId && (colorMode === 'subtle' || colorMode === 'full') && (
+                <div className="env-stripe" style={{ background: envColor.stripe }} />
+              )}
+
+              <div className="num">{scene.scene_nummer}</div>
+
+              <div className="body">
+                <div className="title-line">
+                  <span className="ie">{scene.int_ext}</span>
+                  <span className="set">{scene.ort_name}</span>
+                </div>
+                <div className="meta">
+                  <span className="env-dot" style={{ background: envColor.stripe }} />
+                  <span>{scene.tageszeit}</span>
+                  {scene.zusammenfassung && (
+                    <>
+                      <span>·</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                        {scene.zusammenfassung}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="rt">
+                {scene.dauer_min && <span>{scene.dauer_min} min</span>}
+                <div className="badges">
+                  {scene.is_locked && (
+                    <Lock size={11} className="lock-ico" />
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
 }
-
-const STAGE_LABELS: Record<string, string> = {
-  'ST 1': 'Freigelände',
-  'ST 2': 'Studio 2',
-  'ST 3': 'Studio 3',
-  'ST 4': 'Studio 4',
-  'ST 5': 'Ext. Motiv',
-  'ST 6': 'Studio 6',
-}
-
-function SceneRow({
-  scene,
-  active,
-  onClick,
-  colorMode,
-}: {
-  scene: Scene
-  active: boolean
-  onClick: () => void
-  colorMode: 'full' | 'subtle' | 'off'
-}) {
-  const envColor = ENV_COLORS[scene.env]
-  const isDark = !!envColor.textDark
-
-  const rowStyle = {} as Record<string, string>
-  if (colorMode === 'full') {
-    rowStyle['--row-bg'] = envColor.bg
-  }
-  if (colorMode === 'subtle' || colorMode === 'full') {
-    rowStyle['--stripe'] = envColor.stripe
-  }
-
-  return (
-    <div
-      className={`row${active ? ' active' : ''}${colorMode === 'full' && isDark ? ' on-dark' : ''}`}
-      style={rowStyle}
-      onClick={onClick}
-    >
-      {/* Env stripe (subtle/full modes) */}
-      {!active && (colorMode === 'subtle' || colorMode === 'full') && (
-        <div className="env-stripe" style={{ background: envColor.stripe }} />
-      )}
-
-      {/* Scene number */}
-      <div className="num">{scene.nummer}</div>
-
-      {/* Body */}
-      <div className="body">
-        <div className="title-line">
-          <span className="ie">{scene.intExt}</span>
-          <span className="set">{scene.motiv}</span>
-        </div>
-        <div className="meta">
-          <span
-            className="env-dot"
-            style={{ background: envColor.stripe }}
-          />
-          <span>{scene.tageszeit}</span>
-          <span>·</span>
-          <span>{scene.stageNr}</span>
-          <span>·</span>
-          <span>{scene.seiten} S.</span>
-        </div>
-      </div>
-
-      {/* Right column */}
-      <div className="rt">
-        <span>{scene.dauer}</span>
-        <div className="badges">
-          {scene.locked && (
-            <Lock
-              size={11}
-              className={`lock-ico${scene.contract ? ' contract' : ''}`}
-            />
-          )}
-          {scene.comments && scene.comments.total > 0 && (
-            <span className="comment-bubble">
-              <MessageSquare size={10} />
-              {scene.comments.unread > 0
-                ? `${scene.comments.unread}·${scene.comments.total}`
-                : scene.comments.total
-              }
-            </span>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// suppress unused import warning
-const _unused = STAGE_LABELS
-void _unused

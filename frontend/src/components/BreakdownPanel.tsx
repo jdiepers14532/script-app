@@ -1,12 +1,16 @@
 import { BREAKDOWN_CATEGORIES } from '../data/scenes'
 import { Sparkles } from 'lucide-react'
 
-export default function BreakdownPanel() {
+interface BreakdownPanelProps {
+  szenen?: any[]
+}
+
+export default function BreakdownPanel({ szenen: _szenen }: BreakdownPanelProps) {
   return (
     <div className="breakdown">
       {/* Header */}
       <div className="bd-head">
-        <span className="title">Breakdown · SZ 7</span>
+        <span className="title">Breakdown</span>
         <span className="spacer" />
         <span className="ai">
           <Sparkles size={10} />

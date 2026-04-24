@@ -10,6 +10,18 @@ import { useOfflineQueue } from '../hooks/useOfflineQueue'
 
 interface AppShellProps {
   children: ReactNode
+  staffeln?: any[]
+  selectedStaffelId?: string
+  onSelectStaffel?: (id: string) => void
+  bloecke?: any[]
+  selectedBlockId?: number | null
+  onSelectBlock?: (id: number) => void
+  episoden?: any[]
+  selectedEpisodeId?: number | null
+  onSelectEpisode?: (id: number) => void
+  stages?: any[]
+  selectedStageId?: number | null
+  onSelectStage?: (id: number) => void
 }
 
 type ColorMode = 'full' | 'subtle' | 'off'
@@ -25,7 +37,33 @@ export interface TweakState {
   conn: 'online' | 'offline'
 }
 
-export default function AppShell({ children }: AppShellProps) {
+const selectStyle: React.CSSProperties = {
+  fontSize: 12,
+  border: 'none',
+  background: 'transparent',
+  color: 'inherit',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  padding: '2px 4px',
+  borderRadius: 4,
+  outline: 'none',
+}
+
+export default function AppShell({
+  children,
+  staffeln = [],
+  selectedStaffelId = '',
+  onSelectStaffel,
+  bloecke = [],
+  selectedBlockId = null,
+  onSelectBlock,
+  episoden = [],
+  selectedEpisodeId = null,
+  onSelectEpisode,
+  stages = [],
+  selectedStageId = null,
+  onSelectStage,
+}: AppShellProps) {
   const location = useLocation()
   const { focus, toggle } = useFocus()
   const { isOnline, pendingCount, isSyncing } = useOfflineQueue()
@@ -42,6 +80,16 @@ export default function AppShell({ children }: AppShellProps) {
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
 
+  const selectedStaffel = staffeln.find(s => s.id === selectedStaffelId)
+  const selectedBlock = bloecke.find(b => b.id === selectedBlockId)
+  const selectedEpisode = episoden.find(e => e.id === selectedEpisodeId)
+  const selectedStage = stages.find(s => s.id === selectedStageId)
+
+  const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
+  const crumbBlock = selectedBlock ? `Block ${selectedBlock.block_nummer}` : null
+  const crumbEpisode = selectedEpisode ? `Folge ${selectedEpisode.episode_nummer}` : null
+  const crumbStage = selectedStage ? selectedStage.stage_type : null
+
   return (
     <div
       className="app"
@@ -57,12 +105,67 @@ export default function AppShell({ children }: AppShellProps) {
         <div className="divider" />
 
         <div className="crumbs">
-          <span>Rote Rosen</span>
-          <span>·</span>
-          <span>Block 028</span>
-          <span>·</span>
-          <b>Folge 4512</b>
-          <span className="chip topbar-extra">Drehbuch</span>
+          {staffeln.length > 0 && onSelectStaffel ? (
+            <select
+              style={selectStyle}
+              value={selectedStaffelId}
+              onChange={e => onSelectStaffel(e.target.value)}
+            >
+              {staffeln.map(s => (
+                <option key={s.id} value={s.id}>{s.titel}</option>
+              ))}
+            </select>
+          ) : (
+            <span>{crumbStaffel}</span>
+          )}
+
+          {bloecke.length > 0 && onSelectBlock && (
+            <>
+              <span>·</span>
+              <select
+                style={selectStyle}
+                value={selectedBlockId ?? ''}
+                onChange={e => onSelectBlock(Number(e.target.value))}
+              >
+                {bloecke.map(b => (
+                  <option key={b.id} value={b.id}>Block {b.block_nummer}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {!bloecke.length && crumbBlock && (
+            <>
+              <span>·</span>
+              <span>{crumbBlock}</span>
+            </>
+          )}
+
+          {episoden.length > 0 && onSelectEpisode && (
+            <>
+              <span>·</span>
+              <select
+                style={selectStyle}
+                value={selectedEpisodeId ?? ''}
+                onChange={e => onSelectEpisode(Number(e.target.value))}
+              >
+                {episoden.map(e => (
+                  <option key={e.id} value={e.id}>Folge {e.episode_nummer}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {!episoden.length && crumbEpisode && (
+            <>
+              <span>·</span>
+              <b>{crumbEpisode}</b>
+            </>
+          )}
+
+          {stages.length > 0 && onSelectStage && crumbStage && (
+            <>
+              <span className="chip topbar-extra">{crumbStage}</span>
+            </>
+          )}
         </div>
 
         <div className="spacer" />
@@ -234,4 +337,3 @@ function TweakGroup({ label, children }: { label: string; children: ReactNode })
     </div>
   )
 }
-

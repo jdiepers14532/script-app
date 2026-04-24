@@ -1,52 +1,170 @@
-import { SCENES, ENV_COLORS, BREAKDOWN_CATEGORIES } from '../data/scenes'
-import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles, MessageSquare } from 'lucide-react'
+import { ENV_COLORS } from '../data/scenes'
+import { api } from '../api/client'
 
 interface SceneEditorProps {
-  sceneId: number
+  szeneId: number
+  episodeId: number | null
+  stageId: number | null
   panelMode?: 'both' | 'treatment' | 'script'
+  onSzeneUpdated?: (updated: any) => void
 }
 
-export default function SceneEditor({ sceneId, panelMode = 'both' }: SceneEditorProps) {
-  const scene = SCENES.find(s => s.id === sceneId)
-  const sceneIndex = SCENES.findIndex(s => s.id === sceneId)
+// Map tageszeit/int_ext to env key for colors
+function getEnvKey(scene: any): keyof typeof ENV_COLORS {
+  const ie = (scene.int_ext ?? '').toLowerCase()
+  const tz = (scene.tageszeit ?? 'TAG').toUpperCase()
+  if (tz === 'NACHT') {
+    if (ie === 'int') return 'n_i'
+    if (ie === 'ext') return 'n_e'
+    return 'n_ie'
+  }
+  if (tz === 'ABEND') return 'evening_i'
+  if (ie === 'int') return 'd_i'
+  if (ie === 'ext') return 'd_e'
+  return 'd_ie'
+}
 
-  if (!scene) {
+export default function SceneEditor({ szeneId, episodeId, stageId, panelMode = 'both', onSzeneUpdated }: SceneEditorProps) {
+  const [scene, setScene] = useState<any | null>(null)
+  const [lock, setLock] = useState<any | null>(null)
+  const [kommentareCount, setKommentareCount] = useState<number>(0)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Load scene when szeneId changes
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    api.getSzene(szeneId)
+      .then(data => {
+        setScene(data)
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
+
+    // Load kommentare count
+    api.getKommentare(szeneId)
+      .then(list => setKommentareCount(Array.isArray(list) ? list.length : 0))
+      .catch(() => setKommentareCount(0))
+  }, [szeneId])
+
+  // Load lock when episode changes
+  useEffect(() => {
+    if (!episodeId) { setLock(null); return }
+    api.getLock(episodeId)
+      .then(setLock)
+      .catch(() => setLock(null))
+  }, [episodeId])
+
+  const handleContentChange = useCallback((content: any[]) => {
+    if (!scene) return
+    const updated = { ...scene, content }
+    setScene(updated)
+    onSzeneUpdated?.(updated)
+
+    // Debounced auto-save
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(async () => {
+      setSaving(true)
+      setSaveMsg(null)
+      try {
+        const saved = await api.updateSzene(szeneId, { content })
+        setScene(saved)
+        onSzeneUpdated?.(saved)
+        // Create auto-save version
+        await api.createVersion(szeneId, {
+          content_snapshot: content,
+          change_summary: 'Auto-save',
+        }).catch(() => {})
+        setSaveMsg('Gespeichert')
+      } catch {
+        setSaveMsg('Fehler beim Speichern')
+      } finally {
+        setSaving(false)
+        setTimeout(() => setSaveMsg(null), 2000)
+      }
+    }, 3000)
+  }, [scene, szeneId, onSzeneUpdated])
+
+  const handleRequestLock = async () => {
+    if (!episodeId) return
+    try {
+      const newLock = await api.createLock(episodeId)
+      setLock(newLock)
+    } catch (e: any) {
+      alert('Lock konnte nicht angefordert werden: ' + e.message)
+    }
+  }
+
+  if (loading) {
     return (
-      <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center', fontSize: 13 }}>
-        Keine Szene ausgewählt
+      <div className="detail" style={{ padding: 32, color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center' }}>
+        Lädt Szene…
       </div>
     )
   }
 
-  const envColor = ENV_COLORS[scene.env]
+  if (error || !scene) {
+    return (
+      <div className="detail" style={{ padding: 32, color: 'var(--sw-danger)', fontSize: 13 }}>
+        {error ?? 'Szene nicht gefunden'}
+      </div>
+    )
+  }
+
+  const envKey = getEnvKey(scene)
+  const envColor = ENV_COLORS[envKey]
+  const stripeColor = envColor.stripe
   const panelsClass = panelMode === 'script' ? 'panels mode-script'
     : panelMode === 'treatment' ? 'panels mode-treatment'
     : 'panels'
 
-  const stripeColor = envColor.stripe
+  const contentBlocks: any[] = Array.isArray(scene.content) ? scene.content : []
+  const sceneIsLocked = !!lock
+  const lockIsOwn = lock && (lock.user_id === 'test-user' || lock.user_name === 'Ich')
 
   return (
     <div className="detail">
       {/* Sticky head */}
       <div className="detail-head">
-        {/* Scene title bar */}
         <div className="scene-title-bar">
-          <button className="nav-arrow" title="Vorherige Szene" disabled={sceneIndex <= 0}>
+          <button className="nav-arrow" title="Vorherige Szene" disabled>
             <ChevronLeft size={13} />
           </button>
-          <button className="nav-arrow" title="Nächste Szene" disabled={sceneIndex >= SCENES.length - 1}>
+          <button className="nav-arrow" title="Nächste Szene" disabled>
             <ChevronRight size={13} />
           </button>
-          <span className="scene-big">SZ {scene.nummer}</span>
-          <span className="scene-title">{scene.motiv}</span>
+          <span className="scene-big">SZ {scene.scene_nummer}</span>
+          <span className="scene-title">{scene.ort_name}</span>
           <span className="spacer" />
-          {scene.locked && (
+          {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Speichert…</span>}
+          {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg}</span>}
+          {kommentareCount > 0 && (
+            <button className="btn ghost" title="Kommentare">
+              <MessageSquare size={12} />
+              {kommentareCount}
+            </button>
+          )}
+          {sceneIsLocked ? (
             <button className="btn lock held">
               <Lock size={12} />
               Gelockt
             </button>
+          ) : (
+            <button className="btn ghost" onClick={handleRequestLock} title="Lock anfordern">
+              <Lock size={12} />
+              Locken
+            </button>
           )}
-          <button className="btn ghost">
+          <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId).then(r => r.blob()).then(b => {
+            const url = URL.createObjectURL(b)
+            window.open(url, '_blank')
+          })}>
             <FileDown size={12} />
             PDF
           </button>
@@ -62,51 +180,45 @@ export default function SceneEditor({ sceneId, panelMode = 'both' }: SceneEditor
         <div className="metarow">
           <div className="cell">
             <span className="lbl">Int/Ext</span>
-            <span className="val">{scene.intExt}</span>
+            <span className="val">{scene.int_ext}</span>
           </div>
           <div className="cell">
             <span className="lbl">Motiv</span>
-            <span className="val">{scene.motiv.split('–')[0].trim()}</span>
+            <span className="val">{scene.ort_name}</span>
           </div>
           <div className="cell">
             <span className="lbl">Tageszeit</span>
             <span className="val">{scene.tageszeit}</span>
           </div>
-          <div className="cell">
-            <span className="lbl">Stage</span>
-            <span className="val">{scene.stageNr}</span>
-          </div>
-          <div className="cell">
-            <span className="lbl">Seiten</span>
-            <span className="val">{scene.seiten}</span>
-          </div>
-          <div className="cell">
-            <span className="lbl">Dauer</span>
-            <span className="val">{scene.dauer}</span>
-          </div>
-          <div className="cell">
-            <span className="lbl">Einst.</span>
-            <span className="val">—</span>
-          </div>
+          {scene.dauer_min && (
+            <div className="cell">
+              <span className="lbl">Dauer</span>
+              <span className="val">{scene.dauer_min} min</span>
+            </div>
+          )}
         </div>
-        {scene.synopsis && (
+        {scene.zusammenfassung && (
           <div className="desc-row">
-            <div className="lbl">Treatment</div>
-            <div className="desc">{scene.synopsis}</div>
+            <div className="lbl">Zusammenfassung</div>
+            <div className="desc">{scene.zusammenfassung}</div>
           </div>
         )}
       </div>
 
       {/* Lock banner */}
-      {scene.locked && (
-        <div className="lock-banner mine">
-          <div className="lb-avatar">JD</div>
+      {sceneIsLocked && (
+        <div className={`lock-banner${lockIsOwn ? ' mine' : ''}`}>
+          <div className="lb-avatar">{lock.user_id?.slice(0, 2).toUpperCase() ?? 'LK'}</div>
           <div>
-            <div className="lb-title">Gelockt von JD</div>
-            <div className="lb-sub">Jan Diepers · seit 14:32 Uhr</div>
+            <div className="lb-title">Gelockt von {lock.user_name || lock.user_id}</div>
+            <div className="lb-sub">{lock.lock_type === 'contract' ? 'Contract-Lock' : 'Exklusiv-Lock'}</div>
           </div>
           <span className="lb-spacer" />
-          <span className="chip-ok">Mein Lock</span>
+          {lockIsOwn ? (
+            <span className="chip-ok">Mein Lock</span>
+          ) : (
+            <button className="btn ghost" onClick={handleRequestLock} title="Lock übernehmen">Übernehmen</button>
+          )}
         </div>
       )}
 
@@ -125,14 +237,10 @@ export default function SceneEditor({ sceneId, panelMode = 'both' }: SceneEditor
             </div>
             <div className="pbody">
               <div className="treatment-body">
-                {scene.synopsis ? (
-                  <p>{scene.synopsis}</p>
+                {scene.zusammenfassung ? (
+                  <p>{scene.zusammenfassung}</p>
                 ) : (
-                  <>
-                    <p>Eva kann nicht schlafen. Die Nacht ist lang und die Gedanken lassen ihr keine Ruhe. Sie steht auf, schleicht sich in die Küche.</p>
-                    <p>Jonas folgt ihr nach einer Weile. Er findet sie am Fenster stehend, den Blick auf die dunkle Straße gerichtet. Ein Gespräch beginnt, das alles verändern wird.</p>
-                    <p>Die beiden reden zum ersten Mal seit Wochen wirklich miteinander. Alte Wunden öffnen sich, aber auch neue Möglichkeiten werden sichtbar.</p>
-                  </>
+                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Noch kein Treatment vorhanden.</p>
                 )}
               </div>
             </div>
@@ -152,21 +260,31 @@ export default function SceneEditor({ sceneId, panelMode = 'both' }: SceneEditor
             </div>
             <div className="pbody">
               <div className="script-body">
-                <div className="heading">INT. SCHLAFZIMMER EVA – NACHT</div>
-                <div className="action">Eva liegt wach. Die Decke starrt sie an. Die digitale Uhr zeigt 3:17.</div>
-                <div className="character">EVA</div>
-                <div className="parenthetical">(flüsternd, für sich)</div>
-                <div className="dialogue">Das kann doch nicht alles sein.</div>
-                <div className="action">Sie steht auf. Schleicht aus dem Zimmer.</div>
-                <div className="heading">INT. KÜCHE – DURCHGEHEND</div>
-                <div className="action">Eva steht am Fenster, hält eine Tasse Tee. Die Straße ist leer.</div>
-                <div className="action">Jonas erscheint in der Tür. Er hat sie gehört.</div>
-                <div className="character">JONAS</div>
-                <div className="dialogue">Schon wieder nicht schlafen können?</div>
-                <div className="character">EVA</div>
-                <div className="parenthetical">(dreht sich um)</div>
-                <div className="dialogue">Ich muss dir etwas sagen.</div>
-                <div className="transition">SCHNITT AUF:</div>
+                {contentBlocks.length === 0 ? (
+                  <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 12 }}>
+                    Noch kein Inhalt vorhanden.
+                  </div>
+                ) : (
+                  contentBlocks.map((block: any, i: number) => (
+                    <div
+                      key={block.id ?? i}
+                      className={block.type ?? 'action'}
+                      contentEditable
+                      suppressContentEditableWarning
+                      onBlur={e => {
+                        const newText = e.currentTarget.textContent ?? ''
+                        if (newText !== block.text) {
+                          const newBlocks = contentBlocks.map((b: any, bi: number) =>
+                            bi === i ? { ...b, text: newText } : b
+                          )
+                          handleContentChange(newBlocks)
+                        }
+                      }}
+                    >
+                      {block.text}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -175,7 +293,3 @@ export default function SceneEditor({ sceneId, panelMode = 'both' }: SceneEditor
     </div>
   )
 }
-
-// suppress unused import
-const _unused = BREAKDOWN_CATEGORIES
-void _unused
