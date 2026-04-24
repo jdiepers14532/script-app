@@ -391,7 +391,13 @@ export default function ImportPage() {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Block</label>
                 <select value={selectedBlockId ?? ''} onChange={e => setSelectedBlockId(Number(e.target.value))} style={selectStyle}>
-                  {bloecke.map(b => <option key={b.id} value={b.id}>Block {b.block_nummer}{b.name ? ` — ${b.name}` : ''}</option>)}
+                  {bloecke.map(b => {
+                    const m = b.meta_json || {}
+                    const folgeVon = m.folge_von_a ?? m.folge_von_b
+                    const folgeBis = m.folge_bis_b ?? m.folge_bis_a
+                    const folgenInfo = folgeVon != null ? ` (Folgen ${folgeVon}–${folgeBis ?? folgeVon})` : ''
+                    return <option key={b.id} value={b.id}>Block {b.block_nummer}{folgenInfo}</option>
+                  })}
                 </select>
               </div>
               <div style={{ marginBottom: 16 }}>
