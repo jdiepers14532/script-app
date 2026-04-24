@@ -20,7 +20,6 @@ episodenRouter.get('/:id', async (req, res) => {
   }
 })
 
-// POST /api/episoden (not used — use bloecke route)
 // PUT /api/episoden/:id
 episodenRouter.put('/:id', async (req, res) => {
   try {
@@ -45,6 +44,17 @@ episodenRouter.put('/:id', async (req, res) => {
 // GET /api/bloecke/:blockId/episoden
 bloeckeRouter.get('/:blockId/episoden', async (req, res) => {
   try {
+    const block = await queryOne(
+      `SELECT b.*, s.produktion_db_id FROM bloecke b
+       JOIN staffeln s ON s.id = b.staffel_id
+       WHERE b.id = $1`,
+      [req.params.blockId]
+    )
+
+    if (block?.produktion_db_id && block.meta_json) {
+      await syncEpisodenFromProdDB(block)
+    }
+
     const rows = await query(
       'SELECT * FROM episoden WHERE block_id = $1 ORDER BY episode_nummer',
       [req.params.blockId]
@@ -107,6 +117,34 @@ episodenRouter.get('/:id/synopsis', async (req, res) => {
     res.status(500).json({ error: String(err) })
   }
 })
+
+async function syncEpisodenFromProdDB(block: any): Promise<void> {
+  const meta = block.meta_json || {}
+
+  // Build list of episode numbers from team A and team B ranges
+  const episodes: number[] = []
+
+  if (meta.folge_von_a != null && meta.folge_bis_a != null) {
+    for (let ep = meta.folge_von_a; ep <= meta.folge_bis_a; ep++) episodes.push(ep)
+  } else if (meta.folge_von_a != null) {
+    episodes.push(meta.folge_von_a)
+  }
+
+  if (meta.folge_von_b != null && meta.folge_bis_b != null) {
+    for (let ep = meta.folge_von_b; ep <= meta.folge_bis_b; ep++) episodes.push(ep)
+  } else if (meta.folge_von_b != null) {
+    episodes.push(meta.folge_von_b)
+  }
+
+  for (const epNr of episodes) {
+    await query(
+      `INSERT INTO episoden (block_id, episode_nummer, staffel_nummer)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (block_id, episode_nummer) DO NOTHING`,
+      [block.id, epNr, block.block_nummer]
+    )
+  }
+}
 
 // Default export for backward compat
 export default episodenRouter

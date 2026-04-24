@@ -101,7 +101,7 @@ setInterval(async () => {
 
 // Run migration on startup
 async function runMigrations() {
-  const migrationFiles = ['v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql', 'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql', 'v8_user_settings.sql']
+  const migrationFiles = ['v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql', 'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql', 'v8_user_settings.sql', 'v9_proddb_sync.sql']
   for (const file of migrationFiles) {
     const paths = [
       path.join(__dirname, 'migrations', file),
