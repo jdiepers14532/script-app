@@ -23,42 +23,32 @@
 }
 [data-mode='focus'] .topbar { height: 44px; }
 
-/* Brand area: firm logo + separator + script mark in one row */
+/* Brand area: just the S·script button */
 .topbar .brand-area {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 0;
   flex-shrink: 0;
 }
 
-/* Thin vertical separator between logos */
-.topbar .brand-sep {
-  width: 1px;
-  height: 20px;
-  background: var(--border);
-  margin: 0 8px;
-  flex-shrink: 0;
-}
-
-/* Firm logo button */
+/* Firm logo button — standalone between script and production selector */
 .topbar .firm-logo-btn {
   display: flex;
   align-items: center;
-  height: 32px;
-  padding: 0 6px;
+  height: 36px;
+  padding: 0 8px;
   border: none;
   background: transparent;
   border-radius: 6px;
   color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s;
+  flex-shrink: 0;
 }
 .topbar .firm-logo-btn:hover { background: var(--bg-subtle); }
 .topbar .firm-logo-img {
-  height: 16px;
+  height: 24px;
   width: auto;
-  max-width: 110px;
+  max-width: 140px;
   object-fit: contain;
   display: block;
 }

@@ -192,20 +192,6 @@ export default function AppShell({
       {/* Topbar */}
       <header className="topbar">
         <div className="brand-area">
-          {/* Firm logo (left) — opens company menu */}
-          <button
-            className="firm-logo-btn"
-            onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
-            title="Firmenprofil"
-          >
-            {headerLogoUrl
-              ? <img src={headerLogoUrl} alt="Logo" className="firm-logo-img" style={headerLogoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
-              : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
-            }
-          </button>
-
-          <div className="brand-sep" />
-
           {/* Script brand — opens nav menu */}
           <button
             className="brand-btn"
@@ -216,6 +202,18 @@ export default function AppShell({
             <span>script</span>
           </button>
         </div>
+
+        {/* Firm logo — between script and production selector */}
+        <button
+          className="firm-logo-btn"
+          onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
+          title="Firmenprofil"
+        >
+          {headerLogoUrl
+            ? <img src={headerLogoUrl} alt="Logo" className="firm-logo-img" style={headerLogoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
+            : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
+          }
+        </button>
 
         <div className="divider" />
 
