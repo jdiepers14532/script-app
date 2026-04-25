@@ -5,6 +5,8 @@
   grid-template-rows: 48px 1fr;
   height: 100vh;
   overflow: hidden;
+  color: var(--text-primary);
+  background: var(--bg-page);
 }
 [data-mode='focus'] .app {
   grid-template-rows: 44px 1fr;
