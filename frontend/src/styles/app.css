@@ -43,12 +43,13 @@
   cursor: pointer;
   transition: background 0.15s;
   flex-shrink: 0;
+  margin-top: -10px;
 }
 .topbar .firm-logo-btn:hover { background: var(--bg-subtle); }
 .topbar .firm-logo-img {
-  height: 24px;
+  height: 30px;
   width: auto;
-  max-width: 140px;
+  max-width: 160px;
   object-fit: contain;
   display: block;
 }
@@ -627,3 +628,56 @@
   font-family:var(--font-mono);
 }
 [data-mode='focus'] .page { border-color:var(--border); box-shadow:var(--shadow-sm); max-width:660px; }
+
+/* ── Scene list drag handle + collapse button ── */
+.scene-list-handle {
+  position: relative;
+  width: 8px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  z-index: 5;
+}
+.scene-list-handle::before {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: var(--border);
+  transition: background 0.15s;
+}
+.scene-list-handle:hover::before { background: var(--text-muted); }
+
+.scene-list-collapse-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
+  padding: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+.scene-list-collapse-btn:hover {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border-color: var(--text-muted);
+}
+
+/* When sidebar is collapsed the handle sits at the left edge */
+.scene-list-handle:only-child,
+.scene-list-handle:first-child {
+  cursor: default;
+}

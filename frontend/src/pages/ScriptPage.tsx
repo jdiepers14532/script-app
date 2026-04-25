@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import { useFocus, useSelectedProduction } from '../App'
+
+const MIN_WIDTH = 180
+const MAX_WIDTH = 520
+const DEFAULT_WIDTH = 260
 
 export default function ScriptPage() {
   const { focus } = useFocus()
@@ -22,6 +27,66 @@ export default function ScriptPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isDragging = useRef(false)
+  const dragStartX = useRef(0)
+  const dragStartWidth = useRef(0)
+
+  // Load user settings (sidebar width/collapsed)
+  useEffect(() => {
+    api.getSettings().then(s => {
+      const ui = s?.ui_settings || {}
+      if (ui.scene_list_width) setSidebarWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, ui.scene_list_width)))
+      if (typeof ui.scene_list_collapsed === 'boolean') setSidebarCollapsed(ui.scene_list_collapsed)
+      setSettingsLoaded(true)
+    }).catch(() => setSettingsLoaded(true))
+  }, [])
+
+  // Debounced save to backend
+  const saveSettings = useCallback((width: number, collapsed: boolean) => {
+    if (!settingsLoaded) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      api.updateSettings({ ui_settings: { scene_list_width: width, scene_list_collapsed: collapsed } })
+        .catch(() => {})
+    }, 800)
+  }, [settingsLoaded])
+
+  // Drag-to-resize
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+    dragStartX.current = e.clientX
+    dragStartWidth.current = sidebarWidth
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging.current) return
+      const delta = ev.clientX - dragStartX.current
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
+      setSidebarWidth(newWidth)
+    }
+    const onUp = (ev: MouseEvent) => {
+      isDragging.current = false
+      const delta = ev.clientX - dragStartX.current
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
+      saveSettings(newWidth, sidebarCollapsed)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [sidebarWidth, sidebarCollapsed, saveSettings])
+
+  const toggleCollapse = useCallback(() => {
+    setSidebarCollapsed(v => {
+      const next = !v
+      saveSettings(sidebarWidth, next)
+      return next
+    })
+  }, [sidebarWidth, saveSettings])
 
   // Sync selected production as staffel
   useEffect(() => {
@@ -109,35 +174,57 @@ export default function ScriptPage() {
       selectedStageId={selectedStageId}
       onSelectStage={setSelectedStageId}
     >
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-        <SceneList
-          szenen={szenen}
-          selectedSzeneId={selectedSzeneId}
-          onSelectSzene={setSelectedSzeneId}
-          staffelId={selectedStaffelId}
-          folgeNummer={selectedFolgeNummer}
-          stageId={selectedStageId}
-          onSzeneCreated={(newSzene) => {
-            setSzenen(prev => [...prev, newSzene])
-            setSelectedSzeneId(newSzene.id)
-          }}
-        />
-        {selectedSzeneId && (
-          <SceneEditor
-            szeneId={selectedSzeneId!}
-            stageId={selectedStageId}
-            staffelId={selectedStaffelId}
-            folgeNummer={selectedFolgeNummer}
-            onSzeneUpdated={(updated) => {
-              setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
-            }}
-          />
-        )}
-        {!selectedSzeneId && (
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-            Keine Szene ausgewählt
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
+
+        {/* Collapsible + resizable scene list */}
+        {!sidebarCollapsed && (
+          <div style={{ width: sidebarWidth, flexShrink: 0, overflow: 'hidden', display: 'flex' }}>
+            <SceneList
+              szenen={szenen}
+              selectedSzeneId={selectedSzeneId}
+              onSelectSzene={setSelectedSzeneId}
+              staffelId={selectedStaffelId}
+              folgeNummer={selectedFolgeNummer}
+              stageId={selectedStageId}
+              onSzeneCreated={(newSzene) => {
+                setSzenen(prev => [...prev, newSzene])
+                setSelectedSzeneId(newSzene.id)
+              }}
+            />
           </div>
         )}
+
+        {/* Drag handle + collapse arrow */}
+        <div className="scene-list-handle" onMouseDown={!sidebarCollapsed ? onDragStart : undefined}>
+          <button
+            className="scene-list-collapse-btn"
+            onClick={toggleCollapse}
+            title={sidebarCollapsed ? 'Szenenübersicht öffnen' : 'Szenenübersicht schließen'}
+          >
+            {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </div>
+
+        {/* Editor area */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+          {selectedSzeneId && (
+            <SceneEditor
+              szeneId={selectedSzeneId}
+              stageId={selectedStageId}
+              staffelId={selectedStaffelId}
+              folgeNummer={selectedFolgeNummer}
+              onSzeneUpdated={(updated) => {
+                setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
+              }}
+            />
+          )}
+          {!selectedSzeneId && (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+              Keine Szene ausgewählt
+            </div>
+          )}
+        </div>
+
         {!focus && <BreakdownPanel szenen={szenen} />}
       </div>
     </AppShell>

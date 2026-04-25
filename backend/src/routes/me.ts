@@ -76,7 +76,7 @@ router.get('/settings', authMiddleware, async (req: any, res) => {
     const result = await pool.query(
       'SELECT * FROM user_settings WHERE user_id = $1', [userId]
     )
-    res.json(result.rows[0] || { user_id: userId, selected_production_id: null })
+    res.json(result.rows[0] || { user_id: userId, selected_production_id: null, ui_settings: {} })
   } catch (err) {
     console.error('me/settings GET error:', err)
     res.status(500).json({ error: 'Fehler beim Laden der Einstellungen' })
@@ -87,12 +87,15 @@ router.get('/settings', authMiddleware, async (req: any, res) => {
 router.put('/settings', authMiddleware, async (req: any, res) => {
   try {
     const userId = req.user.user_id
-    const { selected_production_id } = req.body
+    const { selected_production_id, ui_settings } = req.body
     await pool.query(
-      `INSERT INTO user_settings (user_id, selected_production_id, updated_at)
-       VALUES ($1, $2, NOW())
-       ON CONFLICT (user_id) DO UPDATE SET selected_production_id = $2, updated_at = NOW()`,
-      [userId, selected_production_id || null]
+      `INSERT INTO user_settings (user_id, selected_production_id, ui_settings, updated_at)
+       VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id) DO UPDATE
+         SET selected_production_id = COALESCE($2, user_settings.selected_production_id),
+             ui_settings = COALESCE(user_settings.ui_settings, '{}') || COALESCE($3, '{}'),
+             updated_at = NOW()`,
+      [userId, selected_production_id || null, ui_settings ? JSON.stringify(ui_settings) : null]
     )
     res.json({ ok: true })
   } catch (err) {

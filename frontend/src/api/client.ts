@@ -81,6 +81,11 @@ export const api = {
   resolveKommentar: (id: number) => request<any>('PATCH', `/kommentare/${id}/resolve`, {}),
   deleteKommentar: (id: number) => request<void>('DELETE', `/kommentare/${id}`),
 
+  // User settings
+  getSettings: () => request<any>('GET', '/me/settings'),
+  updateSettings: (data: { selected_production_id?: string | null; ui_settings?: Record<string, any> }) =>
+    request<any>('PUT', '/me/settings', data),
+
   // Export
   exportPdf: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/pdf`, { credentials: 'include' }),
   exportFountain: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fountain`, { credentials: 'include' }),

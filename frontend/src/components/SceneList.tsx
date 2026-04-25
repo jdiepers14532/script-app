@@ -35,12 +35,14 @@ export default function SceneList({
       .catch(() => setLock(null))
   }, [staffelId, folgeNummer])
 
-  const filtered = szenen.filter(s =>
-    searchQuery === '' ||
-    String(s.scene_nummer).includes(searchQuery) ||
-    (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filtered = szenen
+    .filter(s =>
+      searchQuery === '' ||
+      String(s.scene_nummer).includes(searchQuery) ||
+      (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => (a.scene_nummer ?? 0) - (b.scene_nummer ?? 0))
 
   const handleNewSzene = async () => {
     if (!stageId || creating) return
