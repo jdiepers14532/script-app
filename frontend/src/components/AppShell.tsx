@@ -97,6 +97,7 @@ export default function AppShell({
 
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false)
   const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
+  const [firmendatenOpen, setFirmendatenOpen] = useState(false)
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null)
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
@@ -183,7 +184,7 @@ export default function AppShell({
       {/* Topbar */}
       <header className="topbar">
         <div className="brand-area">
-          {/* Firm logo — opens company menu */}
+          {/* Firm logo (top) — opens company menu */}
           <button
             className="firm-logo-btn"
             onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
@@ -195,7 +196,7 @@ export default function AppShell({
             }
           </button>
 
-          {/* Script brand — opens nav menu */}
+          {/* Script brand (below firm logo) — opens nav menu */}
           <button
             className="brand-btn"
             onClick={() => { setScriptMenuOpen(v => !v); setCompanyMenuOpen(false) }}
@@ -335,82 +336,96 @@ export default function AppShell({
         </div>
       </div>
 
-      {/* ── Company Menu ── */}
+      {/* ── Company Menu (pure menu list) ── */}
       {companyMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setCompanyMenuOpen(false)} />
           <div className="company-menu">
-            {/* Logo + Name */}
-            <div className="cm-header">
+            <div className="cm-menu">
+              <button className="cm-menu-item" onClick={() => { setFirmendatenOpen(true); setCompanyMenuOpen(false) }}>
+                <span className="cm-menu-item-icon"><FileCheck size={14} /></span>
+                <span className="cm-menu-item-label">Firmendaten</span>
+                <ChevronRight size={12} className="cm-menu-item-arrow" />
+              </button>
+              <button className="cm-menu-item disabled">
+                <span className="cm-menu-item-icon"><CreditCard size={14} /></span>
+                <span className="cm-menu-item-label">Kontakt zur Buchhaltung</span>
+                <span className="cm-bald">Bald</span>
+              </button>
+              <button className="cm-menu-item disabled">
+                <span className="cm-menu-item-icon"><BookMarked size={14} /></span>
+                <span className="cm-menu-item-label">VG Wort</span>
+                <span className="cm-bald">Bald</span>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Firmendaten Modal (centered) ── */}
+      {firmendatenOpen && (
+        <>
+          <div className="fd-overlay" onClick={() => setFirmendatenOpen(false)} />
+          <div className="fd-modal">
+            <div className="fd-header">
               {logoUrl && (
-                <img src={logoUrl} alt="Logo" className="cm-logo" style={logoNeedsInvert ? { filter: 'invert(0)' } : undefined} />
+                <img src={logoUrl} alt="Logo" className="fd-logo" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
               )}
-              <div className="cm-name">{companyInfo?.company_name || 'Serienwerft'}</div>
+              <div className="fd-title">{companyInfo?.company_name || 'Serienwerft'}</div>
               {companyInfo?.company_legal_form && (
-                <div className="cm-legal">{legalFormLabel(companyInfo.company_legal_form)}</div>
+                <div className="fd-legal">{legalFormLabel(companyInfo.company_legal_form)}</div>
               )}
+              <button className="fd-close" onClick={() => setFirmendatenOpen(false)}><X size={14} /></button>
             </div>
 
-            {/* Pflichtangaben — copyable */}
-            {companyInfo && (
-              <div className="cm-info-block">
-                {companyInfo.company_address?.street && (
-                  <CopyRow
-                    icon={<MapPin size={11} />}
+            <div className="fd-body">
+              {/* Pflichtangaben */}
+              <div className="fd-section-label">Pflichtangaben</div>
+              <div className="fd-rows">
+                {companyInfo?.company_address?.street && (
+                  <CopyRow icon={<MapPin size={12} />}
                     label={`${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`}
                     value={`${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`}
-                    copied={copiedKey === 'address'}
-                    onCopy={() => copy('address', `${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`)}
-                  />
+                    copied={copiedKey === 'address'} onCopy={() => copy('address', `${companyInfo!.company_address.street}, ${companyInfo!.company_address.zip} ${companyInfo!.company_address.city}`)} />
                 )}
-                {companyInfo.company_vat_id && (
-                  <CopyRow icon={<Receipt size={11} />} label={`USt-ID: ${companyInfo.company_vat_id}`} value={companyInfo.company_vat_id} copied={copiedKey === 'vat'} onCopy={() => copy('vat', companyInfo.company_vat_id)} />
+                {companyInfo?.company_vat_id && (
+                  <CopyRow icon={<Receipt size={12} />} label={`USt-ID: ${companyInfo.company_vat_id}`} value={companyInfo.company_vat_id} copied={copiedKey === 'vat'} onCopy={() => copy('vat', companyInfo!.company_vat_id)} />
                 )}
-                {companyInfo.company_tax_id && (
-                  <CopyRow icon={<Receipt size={11} />} label={`St-Nr: ${companyInfo.company_tax_id}`} value={companyInfo.company_tax_id} copied={copiedKey === 'tax'} onCopy={() => copy('tax', companyInfo.company_tax_id)} />
+                {companyInfo?.company_tax_id && (
+                  <CopyRow icon={<Receipt size={12} />} label={`Steuernummer: ${companyInfo.company_tax_id}`} value={companyInfo.company_tax_id} copied={copiedKey === 'tax'} onCopy={() => copy('tax', companyInfo!.company_tax_id)} />
                 )}
-                {companyInfo.company_register_number && (
-                  <CopyRow
-                    icon={<FileCheck size={11} />}
+                {companyInfo?.company_register_number && (
+                  <CopyRow icon={<FileCheck size={12} />}
                     label={`HRB ${companyInfo.company_register_number}${companyInfo.company_register_court ? ` · ${companyInfo.company_register_court}` : ''}`}
                     value={`HRB ${companyInfo.company_register_number}`}
-                    copied={copiedKey === 'hrb'}
-                    onCopy={() => copy('hrb', `HRB ${companyInfo.company_register_number}`)}
-                  />
+                    copied={copiedKey === 'hrb'} onCopy={() => copy('hrb', `HRB ${companyInfo!.company_register_number}`)} />
                 )}
-                {companyInfo.company_email && (
-                  <CopyRow icon={<Mail size={11} />} label={companyInfo.company_email} value={companyInfo.company_email} copied={copiedKey === 'email'} onCopy={() => copy('email', companyInfo.company_email)} />
+                {companyInfo?.company_email && (
+                  <CopyRow icon={<Mail size={12} />} label={companyInfo.company_email} value={companyInfo.company_email} copied={copiedKey === 'email'} onCopy={() => copy('email', companyInfo!.company_email)} />
                 )}
-                {companyInfo.company_phone && (
-                  <CopyRow icon={<Phone size={11} />} label={companyInfo.company_phone} value={companyInfo.company_phone} copied={copiedKey === 'phone'} onCopy={() => copy('phone', companyInfo.company_phone)} />
+                {companyInfo?.company_phone && (
+                  <CopyRow icon={<Phone size={12} />} label={companyInfo.company_phone} value={companyInfo.company_phone} copied={copiedKey === 'phone'} onCopy={() => copy('phone', companyInfo!.company_phone)} />
                 )}
               </div>
-            )}
 
-            {/* EDV / IT Ansprechpartner */}
-            {companyInfo?.it_contact && (companyInfo.it_contact.name || companyInfo.it_contact.email || companyInfo.it_contact.phone) && (
-              <>
-                <div className="cm-section-label">EDV Ansprechpartner</div>
-                <div className="cm-info-block">
-                  {companyInfo.it_contact.name && (
-                    <CopyRow icon={<Users size={11} />} label={companyInfo.it_contact.name} value={companyInfo.it_contact.name} copied={copiedKey === 'it_name'} onCopy={() => copy('it_name', companyInfo.it_contact.name)} />
-                  )}
-                  {companyInfo.it_contact.email && (
-                    <CopyRow icon={<Mail size={11} />} label={companyInfo.it_contact.email} value={companyInfo.it_contact.email} copied={copiedKey === 'it_email'} onCopy={() => copy('it_email', companyInfo.it_contact.email)} />
-                  )}
-                  {companyInfo.it_contact.phone && (
-                    <CopyRow icon={<Phone size={11} />} label={companyInfo.it_contact.phone} value={companyInfo.it_contact.phone} copied={copiedKey === 'it_phone'} onCopy={() => copy('it_phone', companyInfo.it_contact.phone)} />
-                  )}
-                </div>
-              </>
-            )}
-
-            <div className="cm-divider" />
-
-            {/* Future action items */}
-            <div className="cm-menu">
-              <CompanyMenuItem icon={<CreditCard size={14} />} label="Kontakt zur Buchhaltung" description="Abrechnungen, Bescheinigungen, Rechnung" hasArrow />
-              <CompanyMenuItem icon={<BookMarked size={14} />} label="VG Wort" description="Meldungen und Ausschüttungen" />
+              {/* EDV Ansprechpartner */}
+              {companyInfo?.it_contact && (companyInfo.it_contact.name || companyInfo.it_contact.email || companyInfo.it_contact.phone) && (
+                <>
+                  <div className="fd-divider" />
+                  <div className="fd-section-label">EDV Ansprechpartner</div>
+                  <div className="fd-rows">
+                    {companyInfo.it_contact.name && (
+                      <CopyRow icon={<Users size={12} />} label={companyInfo.it_contact.name} value={companyInfo.it_contact.name} copied={copiedKey === 'it_name'} onCopy={() => copy('it_name', companyInfo!.it_contact.name)} />
+                    )}
+                    {companyInfo.it_contact.email && (
+                      <CopyRow icon={<Mail size={12} />} label={companyInfo.it_contact.email} value={companyInfo.it_contact.email} copied={copiedKey === 'it_email'} onCopy={() => copy('it_email', companyInfo!.it_contact.email)} />
+                    )}
+                    {companyInfo.it_contact.phone && (
+                      <CopyRow icon={<Phone size={12} />} label={companyInfo.it_contact.phone} value={companyInfo.it_contact.phone} copied={copiedKey === 'it_phone'} onCopy={() => copy('it_phone', companyInfo!.it_contact.phone)} />
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </>
@@ -448,10 +463,10 @@ function legalFormLabel(lf: string) {
 
 function CopyRow({ icon, label, value, copied, onCopy }: { icon: ReactNode; label: string; value: string; copied: boolean; onCopy: () => void }) {
   return (
-    <button className="cm-copy-row" onClick={onCopy} title="Kopieren">
-      <span className="cm-copy-icon">{icon}</span>
-      <span className="cm-copy-label">{label}</span>
-      <span className="cm-copy-btn">{copied ? <Check size={10} /> : <Copy size={10} />}</span>
+    <button className="fd-copy-row" onClick={onCopy} title="Kopieren">
+      <span className="fd-copy-icon">{icon}</span>
+      <span className="fd-copy-label">{label}</span>
+      <span className="fd-copy-btn">{copied ? <Check size={11} /> : <Copy size={11} />}</span>
     </button>
   )
 }
