@@ -45,7 +45,7 @@
   cursor: pointer;
   transition: background 0.15s;
   flex-shrink: 0;
-  margin-top: -10px;
+  margin-top: 10px;
 }
 .topbar .firm-logo-btn:hover { background: var(--bg-subtle); }
 .topbar .firm-logo-img {

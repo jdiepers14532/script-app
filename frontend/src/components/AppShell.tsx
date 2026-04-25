@@ -1,4 +1,4 @@
-import { ReactNode, useState, useMemo } from 'react'
+import { ReactNode, useState, useMemo, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
@@ -85,6 +85,21 @@ export default function AppShell({
   const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
   const [firmendatenOpen, setFirmendatenOpen] = useState(false)
   const [buchMenuOpen, setBuchMenuOpen] = useState(false)
+  const [headerLogoUrl, setHeaderLogoUrl] = useState<string | null>(null)
+  const [headerLogoNeedsInvert, setHeaderLogoNeedsInvert] = useState(false)
+
+  useEffect(() => {
+    fetch('https://auth.serienwerft.studio/api/public/company-info')
+      .then(r => r.json())
+      .then((d: any) => {
+        const logos = d?.logos || {}
+        const isDark = tweaks.theme === 'dark'
+        const url = isDark ? (logos.dark2 || logos.light2) : logos.light2
+        setHeaderLogoUrl(url || null)
+        setHeaderLogoNeedsInvert(isDark && !logos.dark2 && !!logos.light2)
+      })
+      .catch(() => {})
+  }, [tweaks.theme])
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
@@ -167,7 +182,10 @@ export default function AppShell({
           onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
           title="Firmenprofil"
         >
-          <span className="firm-logo-text">Serienwerft</span>
+          {headerLogoUrl
+            ? <img src={headerLogoUrl} alt="Logo" className="firm-logo-img" style={headerLogoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
+            : <span className="firm-logo-text">Serienwerft</span>
+          }
         </button>
 
         <div className="divider" />
