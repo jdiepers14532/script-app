@@ -1,14 +1,14 @@
-import { ReactNode, useState, useEffect, useMemo, useRef } from 'react'
+import { ReactNode, useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
   Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
-  X, FileUp, MapPin, Receipt, FileCheck, CreditCard, BookMarked,
-  ChevronRight, Copy, Check, Mail, Phone,
+  X, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
+import { CompanyInfoModal } from '../sw-ui'
 
 interface AppShellProps {
   children: ReactNode
@@ -37,20 +37,6 @@ export interface TweakState {
   density: Density
   breakdown: boolean
   conn: 'online' | 'offline'
-}
-
-interface CompanyInfo {
-  company_name: string
-  company_legal_form: string
-  company_address: { street: string; zip: string; city: string; country: string }
-  company_register_court: string
-  company_register_number: string
-  company_vat_id: string
-  company_tax_id: string
-  company_email: string
-  company_phone: string
-  it_contact: { name: string; email: string; phone: string }
-  logos: { light: string | null; dark: string | null; light2: string | null; dark2: string | null }
 }
 
 const selectStyle: React.CSSProperties = {
@@ -99,16 +85,6 @@ export default function AppShell({
   const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
   const [firmendatenOpen, setFirmendatenOpen] = useState(false)
   const [buchMenuOpen, setBuchMenuOpen] = useState(false)
-  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null)
-  const [edvContacts, setEdvContacts] = useState<any[]>([])
-  const [copiedKey, setCopiedKey] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch('https://auth.serienwerft.studio/api/public/company-info')
-      .then(r => r.json()).then(d => setCompanyInfo(d)).catch(() => {})
-    fetch('https://auth.serienwerft.studio/api/public/edv-contacts')
-      .then(r => r.json()).then(d => setEdvContacts(d.contacts || [])).catch(() => {})
-  }, [])
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
@@ -136,24 +112,6 @@ export default function AppShell({
   const selectedStage = stages.find(s => s.id === selectedStageId)
   const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
-
-  // Header: logo 2 — dark2, fallback to inverted light2
-  const headerLogoUrl = tweaks.theme === 'dark'
-    ? (companyInfo?.logos?.dark2 || companyInfo?.logos?.light2)
-    : companyInfo?.logos?.light2
-  const headerLogoNeedsInvert = tweaks.theme === 'dark' && !companyInfo?.logos?.dark2 && !!companyInfo?.logos?.light2
-  // Modal: logo 1 — theme-appropriate
-  const logoUrl = tweaks.theme === 'dark'
-    ? (companyInfo?.logos?.dark || companyInfo?.logos?.light)
-    : companyInfo?.logos?.light
-  const logoNeedsInvert = tweaks.theme === 'dark' && !!companyInfo?.logos?.light && !companyInfo?.logos?.dark
-
-  const copy = (key: string, value: string) => {
-    navigator.clipboard.writeText(value).then(() => {
-      setCopiedKey(key)
-      setTimeout(() => setCopiedKey(null), 1500)
-    })
-  }
 
   const navSections = [
     {
@@ -209,10 +167,7 @@ export default function AppShell({
           onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
           title="Firmenprofil"
         >
-          {headerLogoUrl
-            ? <img src={headerLogoUrl} alt="Logo" className="firm-logo-img" style={headerLogoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
-            : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
-          }
+          <span className="firm-logo-text">Serienwerft</span>
         </button>
 
         <div className="divider" />
@@ -396,106 +351,12 @@ export default function AppShell({
         </>
       )}
 
-      {/* ── Firmendaten Modal (centered) ── */}
-      {firmendatenOpen && (
-        <>
-          <div className="fd-overlay" onClick={() => setFirmendatenOpen(false)} />
-          <div className="fd-modal">
-            {/* Header: only logo (clickable → copy name) + close */}
-            <div className="fd-header">
-              {logoUrl
-                ? <button
-                    className="fd-logo-btn"
-                    onClick={() => copy('company', `${companyInfo?.company_name || 'Serienwerft'} ${legalFormLabel(companyInfo?.company_legal_form || '')}`)}
-                    title="Firmenname kopieren"
-                  >
-                    <img src={logoUrl} alt="Logo" className="fd-logo" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
-                    {copiedKey === 'company' && <span className="fd-logo-copied"><Check size={10} /> Kopiert</span>}
-                  </button>
-                : null
-              }
-              <div className="fd-header-spacer" />
-              <button className="fd-close" onClick={() => setFirmendatenOpen(false)}><X size={14} /></button>
-            </div>
-
-            <div className="fd-body">
-              {/* Pflichtangaben */}
-              <div className="fd-section-label">Pflichtangaben</div>
-              <div className="fd-rows">
-                {/* Firmenname + Rechtsform (erste Zeile) */}
-                {companyInfo?.company_name && (
-                  <CopyRow
-                    icon={<FileCheck size={12} />}
-                    label={`${companyInfo.company_name}${companyInfo.company_legal_form ? ' · ' + legalFormLabel(companyInfo.company_legal_form) : ''}`}
-                    value={`${companyInfo.company_name} ${legalFormLabel(companyInfo.company_legal_form || '')}`}
-                    copied={copiedKey === 'company_name'} onCopy={() => copy('company_name', `${companyInfo!.company_name} ${legalFormLabel(companyInfo!.company_legal_form || '')}`)}
-                  />
-                )}
-                {companyInfo?.company_address?.street && (
-                  <CopyRow icon={<MapPin size={12} />}
-                    label={`${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`}
-                    value={`${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`}
-                    copied={copiedKey === 'address'} onCopy={() => copy('address', `${companyInfo!.company_address.street}, ${companyInfo!.company_address.zip} ${companyInfo!.company_address.city}`)} />
-                )}
-                {companyInfo?.company_vat_id && (
-                  <CopyRow icon={<Receipt size={12} />} label={`USt-ID: ${companyInfo.company_vat_id}`} value={companyInfo.company_vat_id} copied={copiedKey === 'vat'} onCopy={() => copy('vat', companyInfo!.company_vat_id)} />
-                )}
-                {companyInfo?.company_tax_id && (
-                  <CopyRow icon={<Receipt size={12} />} label={`Steuernummer: ${companyInfo.company_tax_id}`} value={companyInfo.company_tax_id} copied={copiedKey === 'tax'} onCopy={() => copy('tax', companyInfo!.company_tax_id)} />
-                )}
-                {companyInfo?.company_register_number && (() => {
-                  const num = companyInfo.company_register_number
-                  const hasPrefix = /^hrb\s/i.test(num)
-                  const label = `${hasPrefix ? '' : 'HRB '}${num}${companyInfo.company_register_court ? ` · ${companyInfo.company_register_court}` : ''}`
-                  const value = `${hasPrefix ? '' : 'HRB '}${num}`
-                  return <CopyRow icon={<FileCheck size={12} />} label={label} value={value} copied={copiedKey === 'hrb'} onCopy={() => copy('hrb', value)} />
-                })()}
-                {companyInfo?.company_email && (
-                  <CopyRow icon={<Mail size={12} />} label={companyInfo.company_email} value={companyInfo.company_email} copied={copiedKey === 'email'} onCopy={() => copy('email', companyInfo!.company_email)} />
-                )}
-                {companyInfo?.company_phone && (
-                  <CopyRow icon={<Phone size={12} />} label={companyInfo.company_phone} value={companyInfo.company_phone} copied={copiedKey === 'phone'} onCopy={() => copy('phone', companyInfo!.company_phone)} />
-                )}
-              </div>
-
-              {/* EDV Ansprechpartner — from /api/public/edv-contacts */}
-              <div className="fd-divider" />
-              <div className="fd-section-label">EDV Ansprechpartner</div>
-              <div className="fd-rows">
-                {edvContacts.length > 0 ? edvContacts.map(c => {
-                  const teamsTarget = c.ms_teams || c.email
-                  const teamsUrl = teamsTarget ? `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(teamsTarget)}` : null
-                  return (
-                    <div key={c.id} className="fd-edv-contact">
-                      {c.name && (
-                        <div className="fd-contact-row">
-                          <span className="fd-copy-icon"><Users size={12} /></span>
-                          <span className="fd-copy-label fd-contact-name">{c.name}</span>
-                        </div>
-                      )}
-                      {c.telefon && (
-                        <div className="fd-contact-row">
-                          <span className="fd-copy-icon"><Phone size={12} /></span>
-                          <span className="fd-copy-label">{c.telefon}</span>
-                        </div>
-                      )}
-                      {teamsUrl && (
-                        <a className="fd-contact-row fd-contact-link" href={teamsUrl} target="_blank" rel="noreferrer" title="In Teams öffnen">
-                          <span className="fd-copy-icon"><Mail size={12} /></span>
-                          <span className="fd-copy-label">{c.email || c.ms_teams}</span>
-                          <span className="fd-teams-badge">Teams</span>
-                        </a>
-                      )}
-                    </div>
-                  )
-                }) : (
-                  <div className="fd-contact-empty">Nicht konfiguriert · Auth-App → Firmenstammdaten → EDV</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* ── Firmendaten Modal ── */}
+      <CompanyInfoModal
+        open={firmendatenOpen}
+        onClose={() => setFirmendatenOpen(false)}
+        dark={tweaks.theme === 'dark'}
+      />
 
       {/* ── Script / Nav Menu ── */}
       {scriptMenuOpen && (
@@ -519,21 +380,6 @@ export default function AppShell({
         </>
       )}
     </div>
-  )
-}
-
-function legalFormLabel(lf: string) {
-  const map: Record<string, string> = { gmbh: 'GmbH', ag: 'AG', ug: 'UG (haftungsbeschränkt)', gbr: 'GbR', kg: 'KG', ohg: 'OHG', einzelunternehmen: 'Einzelunternehmen' }
-  return map[lf] || lf.toUpperCase()
-}
-
-function CopyRow({ icon, label, value, copied, onCopy }: { icon: ReactNode; label: string; value: string; copied: boolean; onCopy: () => void }) {
-  return (
-    <button className="fd-copy-row" onClick={onCopy} title="Kopieren">
-      <span className="fd-copy-icon">{icon}</span>
-      <span className="fd-copy-label">{label}</span>
-      <span className="fd-copy-btn">{copied ? <Check size={11} /> : <Copy size={11} />}</span>
-    </button>
   )
 }
 
