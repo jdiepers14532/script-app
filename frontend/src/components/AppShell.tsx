@@ -1,9 +1,10 @@
-import { ReactNode, useState, useMemo } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { ReactNode, useState, useMemo, useEffect, useRef } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
   Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
-  X, FileUp
+  X, FileUp, PanelLeftClose, PanelLeftOpen, Building2, ChevronRight,
+  MapPin, Receipt, FileCheck, CreditCard, BookMarked,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
@@ -38,6 +39,17 @@ export interface TweakState {
   conn: 'online' | 'offline'
 }
 
+interface CompanyInfo {
+  company_name: string
+  company_legal_form: string
+  company_address: { street: string; zip: string; city: string; country: string }
+  company_register_court: string
+  company_register_number: string
+  company_vat_id: string
+  company_tax_id: string
+  logos: { light: string | null; dark: string | null }
+}
+
 const selectStyle: React.CSSProperties = {
   fontSize: 12,
   border: 'none',
@@ -49,6 +61,8 @@ const selectStyle: React.CSSProperties = {
   borderRadius: 4,
   outline: 'none',
 }
+
+const AUTH_URL = 'https://auth.serienwerft.studio'
 
 export default function AppShell({
   children,
@@ -66,9 +80,11 @@ export default function AppShell({
   hideProductionSelector = false,
 }: AppShellProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { focus, toggle } = useFocus()
   const { isOnline, pendingCount, isSyncing } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
+
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tweaks, setTweaks] = useState<TweakState>({
     theme: 'light',
@@ -79,10 +95,35 @@ export default function AppShell({
     conn: 'online',
   })
 
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    try { return localStorage.getItem('script_sidebar_open') !== 'false' } catch { return true }
+  })
+
+  const [companyMenuOpen, setCompanyMenuOpen] = useState(false)
+  const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null)
+
+  const companyBtnRef = useRef<HTMLButtonElement>(null)
+  const scriptBtnRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    fetch(`${AUTH_URL}/api/public/company-info`)
+      .then(r => r.json())
+      .then(d => setCompanyInfo(d))
+      .catch(() => {})
+  }, [])
+
+  const toggleSidebar = () => {
+    setSidebarOpen(v => {
+      const next = !v
+      try { localStorage.setItem('script_sidebar_open', String(next)) } catch {}
+      return next
+    })
+  }
+
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
 
-  // All folgen across all blocks, flat
   const allFolgen = useMemo(() => {
     const result: { nr: number; block: any }[] = []
     for (const b of bloecke) {
@@ -104,17 +145,88 @@ export default function AppShell({
 
   const selectedStaffel = staffeln.find(s => s.id === selectedStaffelId)
   const selectedStage = stages.find(s => s.id === selectedStageId)
-
   const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
+  const logoUrl = tweaks.theme === 'dark'
+    ? (companyInfo?.logos?.dark || companyInfo?.logos?.light)
+    : companyInfo?.logos?.light
+  const logoNeedsInvert = tweaks.theme === 'dark' && !companyInfo?.logos?.dark
+
+  const navSections = [
+    {
+      label: 'Projekt',
+      items: [
+        { to: '/', icon: <LayoutDashboard size={15} />, label: 'Folgen', count: '12', active: location.pathname === '/' },
+        { to: '/editor', icon: <FileText size={15} />, label: 'Editor', active: location.pathname === '/editor' },
+        { to: '/import', icon: <FileUp size={15} />, label: 'Import', active: location.pathname === '/import' },
+        { to: '/', icon: <Film size={15} />, label: 'Drehplan', active: false },
+      ],
+    },
+    {
+      label: 'Autor',
+      items: [
+        { to: '/', icon: <BookOpen size={15} />, label: 'Treatments', count: '4', active: false },
+      ],
+    },
+    {
+      label: 'Blöcke',
+      items: [
+        { to: '/', icon: <BarChart2 size={15} />, label: 'Breakdown', active: false },
+        { to: '/', icon: <Lock size={15} />, label: 'Lock-Status', active: false },
+      ],
+    },
+    {
+      label: 'Verwaltung',
+      items: [
+        { to: '/admin', icon: <Settings size={15} />, label: 'Einstellungen', active: location.pathname === '/admin' },
+        { to: '/', icon: <Users size={15} />, label: 'Benutzer', active: false },
+      ],
+    },
+  ]
+
   return (
-    <div className="app" data-theme={tweaks.theme}>
+    <div className="app" data-theme={tweaks.theme} data-sidebar={sidebarOpen ? 'open' : 'closed'}>
       {/* Topbar */}
       <header className="topbar">
-        <div className="brand">
-          <div className="mark">S</div>
-          <span>script</span>
+        <div className="brand-area">
+          {/* Firm logo */}
+          <button
+            ref={companyBtnRef}
+            className="firm-logo-btn"
+            onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
+            title="Firmenprofil"
+          >
+            {logoUrl
+              ? <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="firm-logo-img"
+                  style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined}
+                />
+              : <Building2 size={16} />
+            }
+          </button>
+
+          {/* Script brand */}
+          <button
+            ref={scriptBtnRef}
+            className="brand-btn"
+            onClick={() => { setScriptMenuOpen(v => !v); setCompanyMenuOpen(false) }}
+            title="Navigation"
+          >
+            <div className="mark">S</div>
+            <span>script</span>
+          </button>
+
+          {/* Sidebar toggle */}
+          <button
+            className="iconbtn sidebar-toggle"
+            onClick={toggleSidebar}
+            title={sidebarOpen ? 'Sidebar schließen' : 'Sidebar öffnen'}
+          >
+            {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
+          </button>
         </div>
 
         <div className="divider" />
@@ -179,7 +291,6 @@ export default function AppShell({
 
         <div className="spacer" />
 
-        {/* Online pill */}
         <div className="status-pill topbar-extra" style={{ borderColor: isOnline ? undefined : 'var(--sw-warning)' }}>
           <span className="dot" style={{ background: isOnline && pendingCount === 0 ? 'var(--sw-green)' : isOnline ? 'var(--sw-warning)' : 'var(--sw-danger)' }} />
           <span>
@@ -214,22 +325,14 @@ export default function AppShell({
 
       {/* Left Nav */}
       <nav className="nav">
-        <div className="section">Projekt</div>
-        <NavItem to="/" icon={<LayoutDashboard size={15} />} label="Folgen" count="12" active={location.pathname === '/'} />
-        <NavItem to="/editor" icon={<FileText size={15} />} label="Editor" active={location.pathname === '/editor'} />
-        <NavItem to="/import" icon={<FileUp size={15} />} label="Import" active={location.pathname === '/import'} />
-        <NavItem to="/" icon={<Film size={15} />} label="Drehplan" active={false} />
-
-        <div className="section">Autor</div>
-        <NavItem to="/" icon={<BookOpen size={15} />} label="Treatments" count="4" active={false} />
-
-        <div className="section">Blöcke</div>
-        <NavItem to="/" icon={<BarChart2 size={15} />} label="Breakdown" active={false} />
-        <NavItem to="/" icon={<Lock size={15} />} label="Lock-Status" active={false} />
-
-        <div className="section">Verwaltung</div>
-        <NavItem to="/admin" icon={<Settings size={15} />} label="Einstellungen" active={location.pathname === '/admin'} />
-        <NavItem to="/" icon={<Users size={15} />} label="Benutzer" active={false} />
+        {navSections.map(section => (
+          <div key={section.label}>
+            <div className="section">{section.label}</div>
+            {section.items.map(item => (
+              <NavItem key={item.label} to={item.to} icon={item.icon} label={item.label} count={(item as any).count} active={item.active} />
+            ))}
+          </div>
+        ))}
       </nav>
 
       {/* Main content */}
@@ -292,6 +395,139 @@ export default function AppShell({
           </TweakGroup>
         </div>
       </div>
+
+      {/* ── Company Menu ── */}
+      {companyMenuOpen && (
+        <>
+          <div className="menu-overlay" onClick={() => setCompanyMenuOpen(false)} />
+          <div className="company-menu" data-theme="dark">
+            {/* Header: Firm info */}
+            <div className="cm-header">
+              {logoUrl && (
+                <img
+                  src={logoUrl}
+                  alt="Logo"
+                  className="cm-logo"
+                  style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined}
+                />
+              )}
+              <div className="cm-name">{companyInfo?.company_name || 'Serienwerft'}</div>
+              {companyInfo?.company_legal_form && (
+                <div className="cm-legal">{legalFormLabel(companyInfo.company_legal_form)}</div>
+              )}
+            </div>
+
+            {companyInfo && (
+              <div className="cm-info-block">
+                {companyInfo.company_address?.street && (
+                  <div className="cm-info-row">
+                    <MapPin size={11} />
+                    <span>
+                      {companyInfo.company_address.street}<br />
+                      {companyInfo.company_address.zip} {companyInfo.company_address.city}
+                      {companyInfo.company_address.country !== 'Deutschland' ? `, ${companyInfo.company_address.country}` : ''}
+                    </span>
+                  </div>
+                )}
+                {companyInfo.company_vat_id && (
+                  <div className="cm-info-row">
+                    <Receipt size={11} />
+                    <span>USt-ID: {companyInfo.company_vat_id}</span>
+                  </div>
+                )}
+                {companyInfo.company_tax_id && (
+                  <div className="cm-info-row">
+                    <Receipt size={11} />
+                    <span>St-Nr: {companyInfo.company_tax_id}</span>
+                  </div>
+                )}
+                {companyInfo.company_register_number && (
+                  <div className="cm-info-row">
+                    <FileCheck size={11} />
+                    <span>
+                      HRB {companyInfo.company_register_number}
+                      {companyInfo.company_register_court ? ` · ${companyInfo.company_register_court}` : ''}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="cm-divider" />
+
+            {/* Menu items — all "bald" */}
+            <div className="cm-menu">
+              <CompanyMenuItem
+                icon={<Building2 size={14} />}
+                label="Firmendaten"
+                description="Adresse, Pflichtangaben, Register"
+              />
+              <CompanyMenuItem
+                icon={<CreditCard size={14} />}
+                label="Kontakt zur Buchhaltung"
+                description="Abrechnungen, Bescheinigungen, Rechnung"
+                hasArrow
+              />
+              <CompanyMenuItem
+                icon={<BookMarked size={14} />}
+                label="VG Wort"
+                description="Meldungen und Ausschüttungen"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Script / Nav Menu ── */}
+      {scriptMenuOpen && (
+        <>
+          <div className="menu-overlay" onClick={() => setScriptMenuOpen(false)} />
+          <div className="script-menu">
+            <div className="sm-header">Navigation</div>
+            {navSections.map(section => (
+              <div key={section.label} className="sm-section">
+                <div className="sm-section-label">{section.label}</div>
+                {section.items.map(item => (
+                  <Link
+                    key={item.label}
+                    to={item.to}
+                    className={`sm-item${item.active ? ' active' : ''}`}
+                    onClick={() => setScriptMenuOpen(false)}
+                  >
+                    <span className="sm-icon">{item.icon}</span>
+                    <span className="sm-label">{item.label}</span>
+                    {(item as any).count && <span className="sm-count">{(item as any).count}</span>}
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+function legalFormLabel(lf: string) {
+  const map: Record<string, string> = {
+    gmbh: 'GmbH', ag: 'AG', ug: 'UG (haftungsbeschränkt)',
+    gbr: 'GbR', kg: 'KG', ohg: 'OHG', einzelunternehmen: 'Einzelunternehmen',
+  }
+  return map[lf] || lf.toUpperCase()
+}
+
+function CompanyMenuItem({ icon, label, description, hasArrow }: {
+  icon: ReactNode; label: string; description: string; hasArrow?: boolean
+}) {
+  return (
+    <div className="cm-item disabled">
+      <span className="cm-item-icon">{icon}</span>
+      <span className="cm-item-body">
+        <span className="cm-item-label">{label}</span>
+        <span className="cm-item-desc">{description}</span>
+      </span>
+      <span className="cm-bald">Bald</span>
+      {hasArrow && <ChevronRight size={12} className="cm-arrow" />}
     </div>
   )
 }
