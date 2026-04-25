@@ -137,6 +137,9 @@ export default function AppShell({
   const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
+  // Header uses dark logo (logo 2) always; fallback to light logo
+  const headerLogoUrl = companyInfo?.logos?.dark || companyInfo?.logos?.light
+  // Modal uses theme-appropriate logo
   const logoUrl = tweaks.theme === 'dark'
     ? (companyInfo?.logos?.dark || companyInfo?.logos?.light)
     : companyInfo?.logos?.light
@@ -186,7 +189,21 @@ export default function AppShell({
       {/* Topbar */}
       <header className="topbar">
         <div className="brand-area">
-          {/* Script brand (top) — opens nav menu */}
+          {/* Firm logo (left) — opens company menu */}
+          <button
+            className="firm-logo-btn"
+            onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
+            title="Firmenprofil"
+          >
+            {headerLogoUrl
+              ? <img src={headerLogoUrl} alt="Logo" className="firm-logo-img" />
+              : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
+            }
+          </button>
+
+          <div className="brand-sep" />
+
+          {/* Script brand — opens nav menu */}
           <button
             className="brand-btn"
             onClick={() => { setScriptMenuOpen(v => !v); setCompanyMenuOpen(false) }}
@@ -194,18 +211,6 @@ export default function AppShell({
           >
             <div className="mark">S</div>
             <span>script</span>
-          </button>
-
-          {/* Firm logo (below script) — opens company menu */}
-          <button
-            className="firm-logo-btn"
-            onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
-            title="Firmenprofil"
-          >
-            {logoUrl
-              ? <img src={logoUrl} alt="Logo" className="firm-logo-img" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
-              : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
-            }
           </button>
         </div>
 
