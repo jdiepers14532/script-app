@@ -463,7 +463,7 @@
 }
 .fd-logo-btn:hover { background: var(--bg-subtle); }
 .fd-logo {
-  height: 20px; width: auto; max-width: 130px; object-fit: contain; display: block;
+  height: 50px; width: auto; max-width: 320px; object-fit: contain; display: block;
 }
 .fd-logo-copied {
   display: inline-flex; align-items: center; gap: 3px;
@@ -524,6 +524,11 @@
   padding: 8px 16px 4px;
   font-size: 11px; color: var(--text-muted); font-style: italic;
 }
+.fd-edv-contact + .fd-edv-contact {
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 2px; padding-top: 2px;
+}
+.fd-contact-name { font-weight: 500; color: var(--text-primary) !important; }
 
 /* ── Script / Nav Menu ── */
 .script-menu {

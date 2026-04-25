@@ -99,13 +99,14 @@ export default function AppShell({
   const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
   const [firmendatenOpen, setFirmendatenOpen] = useState(false)
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null)
+  const [edvContacts, setEdvContacts] = useState<any[]>([])
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('https://auth.serienwerft.studio/api/public/company-info')
-      .then(r => r.json())
-      .then(d => setCompanyInfo(d))
-      .catch(() => {})
+      .then(r => r.json()).then(d => setCompanyInfo(d)).catch(() => {})
+    fetch('https://auth.serienwerft.studio/api/public/edv-contacts')
+      .then(r => r.json()).then(d => setEdvContacts(d.contacts || [])).catch(() => {})
   }, [])
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
@@ -184,7 +185,17 @@ export default function AppShell({
       {/* Topbar */}
       <header className="topbar">
         <div className="brand-area">
-          {/* Firm logo (top) — opens company menu */}
+          {/* Script brand (top) — opens nav menu */}
+          <button
+            className="brand-btn"
+            onClick={() => { setScriptMenuOpen(v => !v); setCompanyMenuOpen(false) }}
+            title="Navigation"
+          >
+            <div className="mark">S</div>
+            <span>script</span>
+          </button>
+
+          {/* Firm logo (below script) — opens company menu */}
           <button
             className="firm-logo-btn"
             onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
@@ -194,16 +205,6 @@ export default function AppShell({
               ? <img src={logoUrl} alt="Logo" className="firm-logo-img" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
               : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
             }
-          </button>
-
-          {/* Script brand (below firm logo) — opens nav menu */}
-          <button
-            className="brand-btn"
-            onClick={() => { setScriptMenuOpen(v => !v); setCompanyMenuOpen(false) }}
-            title="Navigation"
-          >
-            <div className="mark">S</div>
-            <span>script</span>
           </button>
         </div>
 
@@ -424,39 +425,38 @@ export default function AppShell({
                 )}
               </div>
 
-              {/* EDV Ansprechpartner — always shown, Teams-link on click */}
+              {/* EDV Ansprechpartner — from /api/public/edv-contacts */}
               <div className="fd-divider" />
               <div className="fd-section-label">EDV Ansprechpartner</div>
               <div className="fd-rows">
-                {companyInfo?.it_contact?.name || companyInfo?.it_contact?.email || companyInfo?.it_contact?.phone ? (
-                  <>
-                    {companyInfo.it_contact.name && (
-                      <div className="fd-contact-row">
-                        <span className="fd-copy-icon"><Users size={12} /></span>
-                        <span className="fd-copy-label">{companyInfo.it_contact.name}</span>
-                      </div>
-                    )}
-                    {companyInfo.it_contact.email && (
-                      <a
-                        className="fd-contact-row fd-contact-link"
-                        href={`https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(companyInfo.it_contact.email)}`}
-                        target="_blank" rel="noreferrer"
-                        title="In Teams öffnen"
-                      >
-                        <span className="fd-copy-icon"><Mail size={12} /></span>
-                        <span className="fd-copy-label">{companyInfo.it_contact.email}</span>
-                        <span className="fd-teams-badge">Teams</span>
-                      </a>
-                    )}
-                    {companyInfo.it_contact.phone && (
-                      <div className="fd-contact-row">
-                        <span className="fd-copy-icon"><Phone size={12} /></span>
-                        <span className="fd-copy-label">{companyInfo.it_contact.phone}</span>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="fd-contact-empty">Noch nicht konfiguriert · Auth-App → Admin → Einstellungen</div>
+                {edvContacts.length > 0 ? edvContacts.map(c => {
+                  const teamsTarget = c.ms_teams || c.email
+                  const teamsUrl = teamsTarget ? `https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(teamsTarget)}` : null
+                  return (
+                    <div key={c.id} className="fd-edv-contact">
+                      {c.name && (
+                        <div className="fd-contact-row">
+                          <span className="fd-copy-icon"><Users size={12} /></span>
+                          <span className="fd-copy-label fd-contact-name">{c.name}</span>
+                        </div>
+                      )}
+                      {c.telefon && (
+                        <div className="fd-contact-row">
+                          <span className="fd-copy-icon"><Phone size={12} /></span>
+                          <span className="fd-copy-label">{c.telefon}</span>
+                        </div>
+                      )}
+                      {teamsUrl && (
+                        <a className="fd-contact-row fd-contact-link" href={teamsUrl} target="_blank" rel="noreferrer" title="In Teams öffnen">
+                          <span className="fd-copy-icon"><Mail size={12} /></span>
+                          <span className="fd-copy-label">{c.email || c.ms_teams}</span>
+                          <span className="fd-teams-badge">Teams</span>
+                        </a>
+                      )}
+                    </div>
+                  )
+                }) : (
+                  <div className="fd-contact-empty">Nicht konfiguriert · Auth-App → Firmenstammdaten → EDV</div>
                 )}
               </div>
             </div>
