@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Lock, Search, ChevronDown, Plus } from 'lucide-react'
+import { Lock, Search, Plus } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
 
@@ -77,25 +77,8 @@ export default function SceneList({
 
   return (
     <div className="scenes" data-colormode={colorMode}>
-      {/* Folge bar */}
-      <div className="ep-bar">
-        <button className="ep-picker">
-          <span>{folgeNummer != null ? `Folge ${folgeNummer}` : 'Keine Folge'}</span>
-          <ChevronDown size={12} />
-        </button>
-        <span className="spacer" />
-        {lock && (
-          <span title={`Gelockt von ${lock.user_name || lock.user_id}`} style={{ marginRight: 4 }}>
-            <Lock size={11} style={{ color: 'var(--sw-warning)' }} />
-          </span>
-        )}
-        <button className="iconbtn" title="Neue Szene" onClick={handleNewSzene} disabled={creating || !stageId}>
-          <Plus size={13} />
-        </button>
-      </div>
-
-      {/* Search bar */}
-      <div className="searchbar" style={{ position: 'relative' }}>
+      {/* Search bar + actions */}
+      <div className="searchbar" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}>
         <Search size={11} style={{
           position: 'absolute', left: 20, top: '50%',
           transform: 'translateY(-50%)',
@@ -105,7 +88,16 @@ export default function SceneList({
           placeholder="Szene suchen…"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
+          style={{ flex: 1 }}
         />
+        {lock && (
+          <span title={`Gelockt von ${lock.user_name || lock.user_id}`} style={{ flexShrink: 0 }}>
+            <Lock size={11} style={{ color: 'var(--sw-warning)', display: 'block' }} />
+          </span>
+        )}
+        <button className="iconbtn" title="Neue Szene" onClick={handleNewSzene} disabled={creating || !stageId} style={{ flexShrink: 0 }}>
+          <Plus size={13} />
+        </button>
       </div>
 
       {/* Scene rows */}

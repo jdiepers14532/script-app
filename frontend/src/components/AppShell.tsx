@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
   Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
-  X, FileUp, Building2, MapPin, Receipt, FileCheck, CreditCard, BookMarked,
+  X, FileUp, MapPin, Receipt, FileCheck, CreditCard, BookMarked,
   ChevronRight, Copy, Check, Mail, Phone,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction } from '../App'
@@ -191,7 +191,7 @@ export default function AppShell({
           >
             {logoUrl
               ? <img src={logoUrl} alt="Logo" className="firm-logo-img" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
-              : <Building2 size={16} />
+              : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
             }
           </button>
 
@@ -407,9 +407,8 @@ export default function AppShell({
 
             <div className="cm-divider" />
 
-            {/* Menu items — all "bald" */}
+            {/* Future action items */}
             <div className="cm-menu">
-              <CompanyMenuItem icon={<Building2 size={14} />} label="Firmendaten" description="Adresse, Pflichtangaben, Register" />
               <CompanyMenuItem icon={<CreditCard size={14} />} label="Kontakt zur Buchhaltung" description="Abrechnungen, Bescheinigungen, Rechnung" hasArrow />
               <CompanyMenuItem icon={<BookMarked size={14} />} label="VG Wort" description="Meldungen und Ausschüttungen" />
             </div>
