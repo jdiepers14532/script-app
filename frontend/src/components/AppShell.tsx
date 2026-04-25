@@ -50,7 +50,7 @@ interface CompanyInfo {
   company_email: string
   company_phone: string
   it_contact: { name: string; email: string; phone: string }
-  logos: { light: string | null; dark: string | null }
+  logos: { light: string | null; dark: string | null; light2: string | null; dark2: string | null }
 }
 
 const selectStyle: React.CSSProperties = {
@@ -137,9 +137,12 @@ export default function AppShell({
   const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
-  // Header uses dark logo (logo 2) always; fallback to light logo
-  const headerLogoUrl = companyInfo?.logos?.dark || companyInfo?.logos?.light
-  // Modal uses theme-appropriate logo
+  // Header: logo 2 — dark2, fallback to inverted light2
+  const headerLogoUrl = tweaks.theme === 'dark'
+    ? (companyInfo?.logos?.dark2 || companyInfo?.logos?.light2)
+    : companyInfo?.logos?.light2
+  const headerLogoNeedsInvert = tweaks.theme === 'dark' && !companyInfo?.logos?.dark2 && !!companyInfo?.logos?.light2
+  // Modal: logo 1 — theme-appropriate
   const logoUrl = tweaks.theme === 'dark'
     ? (companyInfo?.logos?.dark || companyInfo?.logos?.light)
     : companyInfo?.logos?.light
@@ -196,7 +199,7 @@ export default function AppShell({
             title="Firmenprofil"
           >
             {headerLogoUrl
-              ? <img src={headerLogoUrl} alt="Logo" className="firm-logo-img" />
+              ? <img src={headerLogoUrl} alt="Logo" className="firm-logo-img" style={headerLogoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
               : <span className="firm-logo-text">{companyInfo?.company_name || 'Serienwerft'}</span>
             }
           </button>
