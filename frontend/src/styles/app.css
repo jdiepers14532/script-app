@@ -394,7 +394,7 @@
   color: #fff;
   border-radius: 10px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.55);
-  overflow: hidden;
+  overflow: visible;
   padding: 6px 0 8px;
 }
 .cm-menu { display: flex; flex-direction: column; }
@@ -433,12 +433,14 @@
 /* Submenu flyout */
 .cm-menu-item-wrap {
   position: relative;
+  /* extend hover area to the right so gap doesn't break hover */
+  padding-right: 8px;
+  margin-right: -8px;
 }
 .cm-submenu {
   position: absolute;
   top: 0;
-  left: 100%;
-  margin-left: 4px;
+  left: calc(100% - 8px);
   background: #111;
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px;
