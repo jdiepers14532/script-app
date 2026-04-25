@@ -40,6 +40,8 @@ export interface TweakState {
   conn: 'online' | 'offline'
   lightBgIndex: number
   darkBgIndex: number
+  lightCustomBg: string
+  darkCustomBg: string
   interfaceFont: string
   interfaceFontSize: number
   scriptFont: string
@@ -70,7 +72,9 @@ interface BgPalette {
 
 const LIGHT_PALETTES: BgPalette[] = [
   { name: 'Standard',     preview: '#FFFFFF', bg: '#FFFFFF', surface: '#FFFFFF', subtle: '#F5F5F5', active: '#F5F5F5', hover: '#EDEDED', border: '#E0E0E0', borderSubtle: '#EEEEEE' },
+  { name: 'Naturweiß',    preview: '#FCFCFA', bg: '#FCFCFA', surface: '#FCFCFA', subtle: '#F4F4F2', active: '#EEEEED', hover: '#E8E8E6', border: '#DCDCDA', borderSubtle: '#EBEBEA' },
   { name: 'Warm-Weiß',    preview: '#FAFAF8', bg: '#FAFAF8', surface: '#FAFAF8', subtle: '#F2F1EF', active: '#ECEAE6', hover: '#E5E3DF', border: '#DDDBD7', borderSubtle: '#E9E7E3' },
+  { name: 'Elfenbein',    preview: '#FEFCE8', bg: '#FEFCE8', surface: '#FEFCE8', subtle: '#F5F0D8', active: '#EDE8CE', hover: '#E8E3CA', border: '#D6D0BC', borderSubtle: '#EDE9D5' },
   { name: 'Solarized',    preview: '#FDF6E3', bg: '#FDF6E3', surface: '#FDF6E3', subtle: '#EEE8D5', active: '#E8E2CE', hover: '#DDD8C6', border: '#CEC9B8', borderSubtle: '#E5E0CF' },
   { name: 'Leinen',       preview: '#FAF0E6', bg: '#FAF0E6', surface: '#FAF0E6', subtle: '#F0E6DC', active: '#E6DACE', hover: '#DDD2C4', border: '#C8BEB4', borderSubtle: '#E8DFDA' },
   { name: 'Pergament',    preview: '#F5F0E8', bg: '#F5F0E8', surface: '#F5F0E8', subtle: '#ECE7DF', active: '#E0DAD0', hover: '#D5CFC5', border: '#C0BAAE', borderSubtle: '#E5E0D8' },
@@ -84,7 +88,33 @@ const DARK_PALETTES: BgPalette[] = [
   { name: 'Warm Dark',    preview: '#1C1A17', bg: '#1C1A17', surface: '#242018', subtle: '#2C281F', active: '#333026', hover: '#3A3628', border: '#3D3929', borderSubtle: '#28241C' },
   { name: 'Mittelgrau',   preview: '#242424', bg: '#242424', surface: '#2A2A2A', subtle: '#313131', active: '#383838', hover: '#3E3E3E', border: '#454545', borderSubtle: '#323232' },
   { name: 'One Dark',     preview: '#21252B', bg: '#21252B', surface: '#282C34', subtle: '#2C313C', active: '#323842', hover: '#393F4A', border: '#3E4451', borderSubtle: '#2C313C' },
+  { name: 'Hellgrau',     preview: '#2E2E2E', bg: '#2E2E2E', surface: '#353535', subtle: '#3C3C3C', active: '#424242', hover: '#454545', border: '#505050', borderSubtle: '#3D3D3D' },
+  { name: 'Silbergrau',   preview: '#3C3C3C', bg: '#3C3C3C', surface: '#444444', subtle: '#4C4C4C', active: '#535353', hover: '#555555', border: '#626262', borderSubtle: '#4E4E4E' },
 ]
+
+// ── Eigene Farbe ableiten (HSL-basiert) ──────────────────────────────────────
+function mixHex(hex: string, target: string, amount: number): string {
+  const p = (h: string) => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)]
+  const [r1,g1,b1] = p(hex), [r2,g2,b2] = p(target)
+  const m = (a: number, b: number) => Math.round(a + (b - a) * amount).toString(16).padStart(2,'0')
+  return `#${m(r1,r2)}${m(g1,g2)}${m(b1,b2)}`
+}
+
+function derivePalette(hex: string, name: string, isDark: boolean): BgPalette {
+  const w = '#ffffff', b = '#000000'
+  return isDark ? {
+    name, preview: hex,
+    bg: hex,          surface: mixHex(hex,w,0.04), subtle: mixHex(hex,w,0.08),
+    active: mixHex(hex,w,0.10), hover: mixHex(hex,w,0.09),
+    border: mixHex(hex,w,0.14), borderSubtle: mixHex(hex,w,0.07),
+  } : {
+    name, preview: hex,
+    bg: hex, surface: hex,
+    subtle: mixHex(hex,b,0.04), active: mixHex(hex,b,0.07),
+    hover:  mixHex(hex,b,0.05), border: mixHex(hex,b,0.13),
+    borderSubtle: mixHex(hex,b,0.06),
+  }
+}
 
 // ── Wissenschaftlich empfohlene Schriften ────────────────────────────────────
 // Interface: Inter (für Bildschirme optimiert, Andersson 2016)
@@ -115,6 +145,8 @@ const SCRIPT_FONTS: FontOption[] = [
 
 const FONT_SIZES = [11, 12, 13, 14, 15, 16]
 
+const CUSTOM_IDX = 99  // sentinel: eigene Farbe gewählt
+
 const DEFAULT_TWEAKS: TweakState = {
   theme: 'light',
   colorMode: 'subtle',
@@ -124,10 +156,23 @@ const DEFAULT_TWEAKS: TweakState = {
   conn: 'online',
   lightBgIndex: 0,
   darkBgIndex: 0,
+  lightCustomBg: '#FAFAFA',
+  darkCustomBg: '#2A2A2A',
   interfaceFont: INTERFACE_FONTS[0].value,
   interfaceFontSize: 13,
   scriptFont: SCRIPT_FONTS[0].value,
   fontSize: 13,
+}
+
+function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
+  if (mode === 'light') {
+    return tweaks.lightBgIndex === CUSTOM_IDX
+      ? derivePalette(tweaks.lightCustomBg || '#FAFAFA', 'Eigene Farbe', false)
+      : (LIGHT_PALETTES[tweaks.lightBgIndex] ?? LIGHT_PALETTES[0])
+  }
+  return tweaks.darkBgIndex === CUSTOM_IDX
+    ? derivePalette(tweaks.darkCustomBg || '#2A2A2A', 'Eigene Farbe', true)
+    : (DARK_PALETTES[tweaks.darkBgIndex] ?? DARK_PALETTES[0])
 }
 
 const INTERFACE_FONT_SIZES = [11, 12, 13, 14]
@@ -135,8 +180,8 @@ const INTERFACE_FONT_SIZES = [11, 12, 13, 14]
 // ── CSS-Variablen via injiziertem <style>-Tag anwenden ───────────────────────
 // Wirkt auf alle Seiten inkl. EditorPage (.editor-app hat kein data-theme).
 function applyViewSettings(tweaks: TweakState) {
-  const light = LIGHT_PALETTES[tweaks.lightBgIndex] ?? LIGHT_PALETTES[0]
-  const dark = DARK_PALETTES[tweaks.darkBgIndex] ?? DARK_PALETTES[0]
+  const light = resolvePalette(tweaks, 'light')
+  const dark  = resolvePalette(tweaks, 'dark')
 
   let style = document.getElementById('sw-view-settings') as HTMLStyleElement | null
   if (!style) {
@@ -217,6 +262,8 @@ export default function AppShell({
 
   const settingsReady = useRef(false)
   const saveTimer = useRef<number>()
+  const lightColorInputRef = useRef<HTMLInputElement>(null)
+  const darkColorInputRef  = useRef<HTMLInputElement>(null)
   const [companyLogo, setCompanyLogo] = useState<{ light: string | null; dark: string | null }>({ light: null, dark: null })
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
@@ -251,6 +298,8 @@ export default function AppShell({
           breakdown:     s.breakdown     ?? prev.breakdown,
           lightBgIndex:  typeof s.lightBgIndex  === 'number' ? s.lightBgIndex  : 0,
           darkBgIndex:   typeof s.darkBgIndex   === 'number' ? s.darkBgIndex   : 0,
+          lightCustomBg: s.lightCustomBg ?? '#FAFAFA',
+          darkCustomBg:  s.darkCustomBg  ?? '#2A2A2A',
           interfaceFont:     s.interfaceFont     ?? INTERFACE_FONTS[0].value,
           interfaceFontSize: typeof s.interfaceFontSize === 'number' ? s.interfaceFontSize : 13,
           scriptFont:        s.scriptFont        ?? SCRIPT_FONTS[0].value,
@@ -276,7 +325,7 @@ export default function AppShell({
   // ── CSS-Variablen bei Änderung sofort anwenden ────────────────────────────
   useEffect(() => {
     applyViewSettings(tweaks)
-  }, [tweaks.lightBgIndex, tweaks.darkBgIndex, tweaks.interfaceFont, tweaks.interfaceFontSize, tweaks.scriptFont, tweaks.fontSize])
+  }, [tweaks.lightBgIndex, tweaks.darkBgIndex, tweaks.lightCustomBg, tweaks.darkCustomBg, tweaks.interfaceFont, tweaks.interfaceFontSize, tweaks.scriptFont, tweaks.fontSize])
 
   const allFolgen = useMemo(() => {
     const result: { nr: number; block: any }[] = []
@@ -334,9 +383,7 @@ export default function AppShell({
     },
   ]
 
-  const activeBgName = tweaks.theme === 'light'
-    ? (LIGHT_PALETTES[tweaks.lightBgIndex] ?? LIGHT_PALETTES[0]).name
-    : (DARK_PALETTES[tweaks.darkBgIndex] ?? DARK_PALETTES[0]).name
+  const activeBgName = resolvePalette(tweaks, tweaks.theme).name
 
   return (
     <div className="app" data-theme={tweaks.theme}>
@@ -466,21 +513,47 @@ export default function AppShell({
           </TweakGroup>
 
           <TweakGroup label="Hintergrundfarbe">
-            <div className="swatches">
-              {(tweaks.theme === 'light' ? LIGHT_PALETTES : DARK_PALETTES).map((p, i) => {
-                const activeIdx = tweaks.theme === 'light' ? tweaks.lightBgIndex : tweaks.darkBgIndex
-                return (
-                  <button
-                    key={i}
-                    className={`swatch${activeIdx === i ? ' active' : ''}`}
-                    style={{ background: p.preview }}
-                    title={p.name}
-                    onClick={() => tweaks.theme === 'light' ? set('lightBgIndex', i) : set('darkBgIndex', i)}
-                  />
-                )
-              })}
-            </div>
-            <div className="swatch-name">{activeBgName}</div>
+            {(() => {
+              const isDark = tweaks.theme === 'dark'
+              const palettes = isDark ? DARK_PALETTES : LIGHT_PALETTES
+              const activeIdx = isDark ? tweaks.darkBgIndex : tweaks.lightBgIndex
+              const customColor = isDark ? tweaks.darkCustomBg : tweaks.lightCustomBg
+              return (
+                <>
+                  <div className="swatches" data-dark={isDark ? 'true' : undefined}>
+                    {palettes.map((p, i) => (
+                      <button
+                        key={i}
+                        className={`swatch${activeIdx === i ? ' active' : ''}`}
+                        style={{ background: p.preview }}
+                        title={p.name}
+                        onClick={() => isDark ? set('darkBgIndex', i) : set('lightBgIndex', i)}
+                      />
+                    ))}
+                    {/* Eigene Farbe */}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      <button
+                        className={`swatch swatch-custom${activeIdx === CUSTOM_IDX ? ' active' : ''}`}
+                        style={activeIdx === CUSTOM_IDX ? { background: customColor } : undefined}
+                        title="Eigene Farbe"
+                        onClick={() => {
+                          if (isDark) { set('darkBgIndex', CUSTOM_IDX); darkColorInputRef.current?.click() }
+                          else        { set('lightBgIndex', CUSTOM_IDX); lightColorInputRef.current?.click() }
+                        }}
+                      />
+                      <input
+                        ref={isDark ? darkColorInputRef : lightColorInputRef}
+                        type="color"
+                        value={customColor}
+                        style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+                        onChange={e => isDark ? set('darkCustomBg', e.target.value) : set('lightCustomBg', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="swatch-name">{activeBgName}</div>
+                </>
+              )
+            })()}
           </TweakGroup>
 
           <TweakGroup label="Farbcodierung">

@@ -318,7 +318,7 @@
 .breakdown .bd-row .cnt.hot { background:var(--text-primary); color:var(--text-inverse); }
 
 /* ── Tweaks Panel ── */
-.tweaks { position:fixed; bottom:16px; right:16px; width:280px; z-index:100; background:var(--bg-surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-xl); display:none; }
+.tweaks { position:fixed; bottom:16px; right:16px; width:300px; z-index:100; background:var(--bg-surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-xl); display:none; }
 .tweaks.open { display:block; }
 .tweaks .th { padding:10px 14px; border-bottom:1px solid var(--border-subtle); display:flex; align-items:center; gap:8px; }
 .tweaks .th .title { font-size:13px; font-weight:600; }
@@ -339,6 +339,11 @@
 }
 .tweaks .swatch:hover { transform:scale(1.12); }
 .tweaks .swatch.active { border-color:var(--text-primary); box-shadow:0 0 0 2px var(--bg-surface), 0 0 0 4px var(--text-primary), inset 0 0 0 1px rgba(0,0,0,0.12); }
+/* Dunkelmodus: weißer Rand auf allen Swatches */
+.tweaks .swatches[data-dark] .swatch { box-shadow:inset 0 0 0 1px rgba(255,255,255,0.18); }
+.tweaks .swatches[data-dark] .swatch.active { border-color:#fff; box-shadow:0 0 0 2px var(--bg-surface), 0 0 0 4px rgba(255,255,255,0.8), inset 0 0 0 1px rgba(255,255,255,0.18); }
+/* Eigene Farbe: Spektrum-Verlauf wenn noch keine Farbe gewählt */
+.tweaks .swatch.swatch-custom { background: conic-gradient(red 0deg, #ff0 60deg, lime 120deg, cyan 180deg, blue 240deg, magenta 300deg, red 360deg); }
 .tweaks .swatch-row { display:flex; flex-direction:column; gap:3px; }
 .tweaks .swatch-label { font-size:9px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.3px; }
 .tweaks .swatch-name { font-size:10px; color:var(--text-muted); margin-top:2px; }
