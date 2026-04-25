@@ -719,6 +719,7 @@
 /* ── Panelmodus via data-attribute ── */
 .app-main[data-panelmode='script'] .panels { grid-template-columns: 1fr !important; }
 .app-main[data-panelmode='script'] .panels .panel:first-child { display: none !important; }
+.app-main[data-panelmode='script'] .panels .panel .script-body { max-width: 100%; }
 .app-main[data-panelmode='treatment'] .panels { grid-template-columns: 1fr !important; }
 .app-main[data-panelmode='treatment'] .panels .panel:last-child { display: none !important; }
 

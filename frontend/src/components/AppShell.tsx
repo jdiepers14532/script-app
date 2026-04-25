@@ -574,14 +574,6 @@ export default function AppShell({
             })()}
           </TweakGroup>
 
-          <TweakGroup label="Farbcodierung">
-            <div className="seg">
-              <button className={tweaks.colorMode === 'full' ? 'on' : ''} onClick={() => set('colorMode', 'full')}>Vollfarbe</button>
-              <button className={tweaks.colorMode === 'subtle' ? 'on' : ''} onClick={() => set('colorMode', 'subtle')}>Subtil</button>
-              <button className={tweaks.colorMode === 'off' ? 'on' : ''} onClick={() => set('colorMode', 'off')}>Aus</button>
-            </div>
-          </TweakGroup>
-
           <TweakGroup label="Panelmodus">
             <div className="seg">
               <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}>Beide</button>
