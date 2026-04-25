@@ -1,15 +1,16 @@
 import { ReactNode, useState, useMemo, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
-  Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
-  X, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
+  LayoutDashboard, Minimize2, Maximize2,
+  Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
+  X, User, Settings2, ExternalLink, Check,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
 import { CompanyInfoModal } from '../sw-ui'
 import { api } from '../api/client'
+import Tooltip from './Tooltip'
 
 interface AppShellProps {
   children: ReactNode
@@ -258,9 +259,16 @@ export default function AppShell({
   const [tweaks, setTweaks] = useState<TweakState>(DEFAULT_TWEAKS)
 
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false)
-  const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
   const [firmendatenOpen, setFirmendatenOpen] = useState(false)
   const [buchMenuOpen, setBuchMenuOpen] = useState(false)
+  const [appSwitcherOpen, setAppSwitcherOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
+  const [appList, setAppList] = useState<any[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string } | null>(null)
+  const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline'>('Treatment')
+  const [adminSaving, setAdminSaving] = useState(false)
 
   const settingsReady = useRef(false)
   const saveTimer = useRef<number>()
@@ -282,6 +290,29 @@ export default function AppShell({
             dark:  data.logos.dark  || null,
           })
         }
+      })
+      .catch(() => {})
+  }, [])
+
+  // ── App-Liste + User-Info von auth.app laden ──────────────────────────────
+  useEffect(() => {
+    fetch('https://auth.serienwerft.studio/api/auth/my-apps', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (!data) return
+        setAppList(data.apps || [])
+        setIsAdmin(data.is_admin || false)
+        setCurrentUser(data.user || null)
+      })
+      .catch(() => {})
+  }, [])
+
+  // ── Treatment-Bezeichnung von Produktions-Backend laden ───────────────────
+  useEffect(() => {
+    fetch('https://produktion.serienwerft.studio/api/public/settings', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
       })
       .catch(() => {})
   }, [])
@@ -353,34 +384,13 @@ export default function AppShell({
   const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
+  // Print-only nav (screen: hidden, print: visible)
   const navSections = [
     {
       label: 'Projekt',
       items: [
-        { to: '/', icon: <LayoutDashboard size={15} />, label: 'Folgen', count: '12', active: location.pathname === '/' },
-        { to: '/editor', icon: <FileText size={15} />, label: 'Editor', active: location.pathname === '/editor' },
+        { to: '/', icon: <LayoutDashboard size={15} />, label: 'Folgen', active: location.pathname === '/' },
         { to: '/import', icon: <FileUp size={15} />, label: 'Import', active: location.pathname === '/import' },
-        { to: '/', icon: <Film size={15} />, label: 'Drehplan', active: false },
-      ],
-    },
-    {
-      label: 'Autor',
-      items: [
-        { to: '/', icon: <BookOpen size={15} />, label: 'Treatments', count: '4', active: false },
-      ],
-    },
-    {
-      label: 'Blöcke',
-      items: [
-        { to: '/', icon: <BarChart2 size={15} />, label: 'Breakdown', active: false },
-        { to: '/', icon: <Lock size={15} />, label: 'Lock-Status', active: false },
-      ],
-    },
-    {
-      label: 'Verwaltung',
-      items: [
-        { to: '/admin', icon: <Settings size={15} />, label: 'Einstellungen', active: location.pathname === '/admin' },
-        { to: '/', icon: <Users size={15} />, label: 'Benutzer', active: false },
       ],
     },
   ]
@@ -392,19 +402,20 @@ export default function AppShell({
       {/* Topbar */}
       <header className="topbar">
         <div className="brand-area">
-          <button
-            className="brand-btn"
-            onClick={() => { setScriptMenuOpen(v => !v); setCompanyMenuOpen(false) }}
-            title="Navigation"
-          >
-            <div className="mark">S</div>
-            <span>script</span>
-          </button>
+          <Tooltip text="App wechseln">
+            <button
+              className="brand-btn"
+              onClick={() => { setAppSwitcherOpen(v => !v); setCompanyMenuOpen(false); setUserMenuOpen(false) }}
+            >
+              <div className="mark">S</div>
+              <span>script</span>
+            </button>
+          </Tooltip>
         </div>
 
         <button
           className="firm-logo-btn"
-          onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
+          onClick={() => { setCompanyMenuOpen(v => !v); setAppSwitcherOpen(false); setUserMenuOpen(false) }}
           title="Firmenprofil"
         >
           {(tweaks.theme === 'dark' ? companyLogo.dark : companyLogo.light) ? (
@@ -471,19 +482,24 @@ export default function AppShell({
           </span>
         </div>
 
-        <button className="iconbtn topbar-extra" onClick={() => set('theme', tweaks.theme === 'light' ? 'dark' : 'light')} title="Theme wechseln">
-          {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+        <Tooltip text="Benachrichtigungen">
+          <button className="iconbtn topbar-extra">
+            <Bell size={14} />
+          </button>
+        </Tooltip>
+        <Tooltip text="Fokus-Modus (F10)">
+          <button className="focus-toggle" onClick={toggle}>
+            {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+          </button>
+        </Tooltip>
+        <button
+          className="avatar"
+          onClick={() => { setUserMenuOpen(v => !v); setAppSwitcherOpen(false); setCompanyMenuOpen(false) }}
+        >
+          {currentUser?.username
+            ? currentUser.username.slice(0, 2).toUpperCase()
+            : <User size={14} />}
         </button>
-        <button className="iconbtn topbar-extra" onClick={() => setTweaksOpen(v => !v)} title="Ansichtsoptionen">
-          <SlidersHorizontal size={14} />
-        </button>
-        <button className="iconbtn topbar-extra" title="Benachrichtigungen">
-          <Bell size={14} />
-        </button>
-        <button className="focus-toggle" onClick={toggle} title="Fokus-Modus (F10)">
-          {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
-        </button>
-        <div className="avatar" title="Jan Diepers">JD</div>
       </header>
 
       {/* Main content */}
@@ -616,24 +632,10 @@ export default function AppShell({
             </div>
           </TweakGroup>
 
-          <TweakGroup label="Dichte">
-            <div className="seg">
-              <button className={tweaks.density === 'compact' ? 'on' : ''} onClick={() => set('density', 'compact')}>Kompakt</button>
-              <button className={tweaks.density === 'normal' ? 'on' : ''} onClick={() => set('density', 'normal')}>Normal</button>
-            </div>
-          </TweakGroup>
-
-          <TweakGroup label="Breakdown">
+          <TweakGroup label="Breakdown-Sidebar">
             <div className="seg">
               <button className={tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', true)}>An</button>
               <button className={!tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', false)}>Aus</button>
-            </div>
-          </TweakGroup>
-
-          <TweakGroup label="Verbindung">
-            <div className="seg">
-              <button className={tweaks.conn === 'online' ? 'on' : ''} onClick={() => set('conn', 'online')}>Online</button>
-              <button className={tweaks.conn === 'offline' ? 'on' : ''} onClick={() => set('conn', 'offline')}>Offline</button>
             </div>
           </TweakGroup>
 
@@ -706,24 +708,141 @@ export default function AppShell({
         dark={tweaks.theme === 'dark'}
       />
 
-      {/* ── Script / Nav Menu ── */}
-      {scriptMenuOpen && (
+      {/* ── Print-only Script Nav ── */}
+      <div className="script-menu-print">
+        {navSections.map(section => (
+          <div key={section.label} className="sm-section">
+            <div className="sm-section-label">{section.label}</div>
+            {section.items.map(item => (
+              <Link key={item.label} to={item.to} className={`sm-item${item.active ? ' active' : ''}`}>
+                <span className="sm-icon">{item.icon}</span>
+                <span className="sm-label">{item.label}</span>
+              </Link>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* ── App Switcher ── */}
+      {appSwitcherOpen && (
         <>
-          <div className="menu-overlay" onClick={() => setScriptMenuOpen(false)} />
-          <div className="script-menu">
-            <div className="sm-header">Navigation</div>
-            {navSections.map(section => (
-              <div key={section.label} className="sm-section">
-                <div className="sm-section-label">{section.label}</div>
-                {section.items.map(item => (
-                  <Link key={item.label} to={item.to} className={`sm-item${item.active ? ' active' : ''}`} onClick={() => setScriptMenuOpen(false)}>
-                    <span className="sm-icon">{item.icon}</span>
-                    <span className="sm-label">{item.label}</span>
-                    {(item as any).count && <span className="sm-count">{(item as any).count}</span>}
-                  </Link>
+          <div className="menu-overlay" onClick={() => setAppSwitcherOpen(false)} />
+          <div className="app-switcher">
+            <div className="as-header">Apps</div>
+            <div className="as-grid">
+              {appList.map(app => (
+                <a
+                  key={app.id}
+                  href={app.url || `https://${app.subdomain}.serienwerft.studio`}
+                  className="as-item"
+                  target="_self"
+                  onClick={() => setAppSwitcherOpen(false)}
+                >
+                  {app.icon_url
+                    ? <img src={app.icon_url} alt={app.name} className="as-icon-img" />
+                    : <div className="as-icon-placeholder" style={{ background: app.color || 'var(--bg-subtle)' }}>
+                        {app.name.slice(0, 1).toUpperCase()}
+                      </div>
+                  }
+                  <span className="as-name">{app.name}</span>
+                  <ExternalLink size={10} className="as-ext" />
+                </a>
+              ))}
+              {appList.length === 0 && (
+                <div className="as-empty">Keine Apps verfügbar</div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── User Menu ── */}
+      {userMenuOpen && (
+        <>
+          <div className="menu-overlay" onClick={() => setUserMenuOpen(false)} />
+          <div className="user-menu">
+            {currentUser && (
+              <div className="um-user">
+                <div className="um-name">{currentUser.username || currentUser.email}</div>
+                <div className="um-email">{currentUser.email}</div>
+              </div>
+            )}
+            <div className="um-divider" />
+            <button className="um-item" onClick={() => { setTweaksOpen(true); setUserMenuOpen(false) }}>
+              <Sun size={14} />
+              Ansicht
+            </button>
+            <button className="um-item" onClick={() => { set('theme', tweaks.theme === 'light' ? 'dark' : 'light') }}>
+              {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
+              {tweaks.theme === 'light' ? 'Dunkles Theme' : 'Helles Theme'}
+            </button>
+            {isAdmin && (
+              <>
+                <div className="um-divider" />
+                <button className="um-item" onClick={() => { setAdminOpen(true); setUserMenuOpen(false) }}>
+                  <Settings2 size={14} />
+                  Admin-Einstellungen
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ── Admin-Einstellungen Modal ── */}
+      {adminOpen && (
+        <>
+          <div className="modal-backdrop" onClick={() => setAdminOpen(false)} />
+          <div className="admin-modal">
+            <div className="admin-modal-head">
+              <span>Admin-Einstellungen</span>
+              <button className="close" onClick={() => setAdminOpen(false)}><X size={14} /></button>
+            </div>
+            <div className="admin-modal-body">
+              <div className="admin-section-label">Treatment-Bezeichnung</div>
+              <p className="admin-hint">Legt fest, wie Treatments in allen Apps dieser Produktion bezeichnet werden.</p>
+              <div className="seg">
+                {(['Treatment', 'Storylines', 'Outline'] as const).map(opt => (
+                  <button
+                    key={opt}
+                    className={treatmentLabel === opt ? 'on' : ''}
+                    onClick={() => setTreatmentLabel(opt)}
+                  >
+                    {opt}
+                  </button>
                 ))}
               </div>
-            ))}
+
+              <div className="admin-section-label" style={{ marginTop: 24 }}>Zugriff</div>
+              <p className="admin-hint">User mit Zugriff auf die Script-App (via Auth-App verwaltet).</p>
+              <div className="admin-roles-list">
+                {appList.find(a => a.subdomain === 'script')?.roles?.map((r: string) => (
+                  <span key={r} className="admin-role-chip">{r}</span>
+                )) ?? <span className="admin-hint">—</span>}
+              </div>
+            </div>
+            <div className="admin-modal-foot">
+              <button
+                className="admin-save-btn"
+                disabled={adminSaving}
+                onClick={async () => {
+                  setAdminSaving(true)
+                  try {
+                    await fetch('https://produktion.serienwerft.studio/api/admin/einstellungen/treatment_label', {
+                      method: 'PUT',
+                      credentials: 'include',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ value: treatmentLabel }),
+                    })
+                    setAdminOpen(false)
+                  } catch { /* ignore */ }
+                  finally { setAdminSaving(false) }
+                }}
+              >
+                <Check size={13} />
+                {adminSaving ? 'Speichert…' : 'Speichern'}
+              </button>
+            </div>
           </div>
         </>
       )}

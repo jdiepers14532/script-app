@@ -101,7 +101,7 @@ async function runMigrations() {
   const migrationFiles = [
     'v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql',
     'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql',
-    'v8_user_settings.sql', 'v9_proddb_sync.sql', 'v10_proddb_direct.sql',
+    'v8_user_settings.sql', 'v9_proddb_sync.sql', 'v10_proddb_direct.sql', 'v11_ui_settings.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
