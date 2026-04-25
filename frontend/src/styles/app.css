@@ -430,6 +430,39 @@
   padding: 2px 6px; border-radius: 999px; flex-shrink: 0;
 }
 
+/* Submenu flyout */
+.cm-menu-item-wrap {
+  position: relative;
+}
+.cm-submenu {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 4px;
+  background: #111;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  padding: 4px;
+  min-width: 220px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  z-index: 1001;
+}
+.cm-submenu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 7px;
+  cursor: default;
+  transition: background 0.12s;
+}
+.cm-submenu-item.disabled { opacity: 0.45; }
+.cm-submenu-item-label {
+  flex: 1;
+  font-size: 13px;
+  color: rgba(255,255,255,0.85);
+}
+
 /* ── Firmendaten Modal (centered dialog) ── */
 .fd-overlay {
   position: fixed; inset: 0; z-index: 300;

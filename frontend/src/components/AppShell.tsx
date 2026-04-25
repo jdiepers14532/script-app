@@ -98,6 +98,7 @@ export default function AppShell({
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false)
   const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
   const [firmendatenOpen, setFirmendatenOpen] = useState(false)
+  const [buchMenuOpen, setBuchMenuOpen] = useState(false)
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null)
   const [edvContacts, setEdvContacts] = useState<any[]>([])
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
@@ -348,11 +349,37 @@ export default function AppShell({
                 <span className="cm-menu-item-label">Firmendaten</span>
                 <ChevronRight size={12} className="cm-menu-item-arrow" />
               </button>
-              <button className="cm-menu-item disabled">
-                <span className="cm-menu-item-icon"><CreditCard size={14} /></span>
-                <span className="cm-menu-item-label">Kontakt zur Buchhaltung</span>
-                <span className="cm-bald">Bald</span>
-              </button>
+              <div
+                className="cm-menu-item-wrap"
+                onMouseEnter={() => setBuchMenuOpen(true)}
+                onMouseLeave={() => setBuchMenuOpen(false)}
+              >
+                <button className="cm-menu-item disabled">
+                  <span className="cm-menu-item-icon"><CreditCard size={14} /></span>
+                  <span className="cm-menu-item-label">Buchhaltung</span>
+                  <ChevronRight size={12} className="cm-menu-item-arrow" />
+                </button>
+                {buchMenuOpen && (
+                  <div className="cm-submenu">
+                    <div className="cm-submenu-item disabled">
+                      <span className="cm-submenu-item-label">Buchhaltung kontaktieren</span>
+                      <span className="cm-bald">Bald</span>
+                    </div>
+                    <div className="cm-submenu-item disabled">
+                      <span className="cm-submenu-item-label">Übersicht gestellte Rechnungen</span>
+                      <span className="cm-bald">Bald</span>
+                    </div>
+                    <div className="cm-submenu-item disabled">
+                      <span className="cm-submenu-item-label">Rechnung erstellen</span>
+                      <span className="cm-bald">Bald</span>
+                    </div>
+                    <div className="cm-submenu-item disabled">
+                      <span className="cm-submenu-item-label">Upload Dokumente &amp; Nachweise</span>
+                      <span className="cm-bald">Bald</span>
+                    </div>
+                  </div>
+                )}
+              </div>
               <button className="cm-menu-item disabled">
                 <span className="cm-menu-item-icon"><BookMarked size={14} /></span>
                 <span className="cm-menu-item-label">VG Wort</span>
