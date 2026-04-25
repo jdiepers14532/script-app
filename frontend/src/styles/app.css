@@ -45,12 +45,12 @@
   cursor: pointer;
   transition: background 0.15s;
   flex-shrink: 0;
-  margin-top: 1px;
-  margin-left: -5px;
+  margin-top: 2px;
+  margin-left: -7px;
 }
 .topbar .firm-logo-btn:hover { background: var(--bg-subtle); }
 .topbar .firm-logo-img {
-  height: 30px;
+  height: 36px;
   width: auto;
   max-width: 160px;
   object-fit: contain;
