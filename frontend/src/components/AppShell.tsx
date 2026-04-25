@@ -5,7 +5,7 @@ import {
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
   X, User, Settings2, ExternalLink, Check,
 } from 'lucide-react'
-import { useFocus, useSelectedProduction } from '../App'
+import { useFocus, useSelectedProduction, PanelModeContext } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
 import { CompanyInfoModal } from '../sw-ui'
@@ -511,7 +511,9 @@ export default function AppShell({
         data-breakdown={tweaks.breakdown ? 'on' : 'off'}
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
-        {children}
+        <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
+          {children}
+        </PanelModeContext.Provider>
       </main>
 
       {/* ── Ansichtsoptionen-Panel ── */}

@@ -41,6 +41,11 @@ export function useSelectedProduction() {
   return useContext(ProductionContext)
 }
 
+type PanelMode = 'both' | 'treatment' | 'script'
+interface PanelModeContextType { panelMode: PanelMode; setPanelMode: (m: PanelMode) => void }
+export const PanelModeContext = createContext<PanelModeContextType>({ panelMode: 'both', setPanelMode: () => {} })
+export function usePanelMode() { return useContext(PanelModeContext) }
+
 export default function App() {
   const { focus, toggle } = useFocusMode()
   const productionCtx = useProduction()

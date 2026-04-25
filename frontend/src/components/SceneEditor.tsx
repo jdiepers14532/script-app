@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useContext } from 'react'
 import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles, MessageSquare } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
+import { PanelModeContext } from '../App'
 
 interface SceneEditorProps {
   szeneId: number
@@ -27,7 +28,9 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode = 'both', onSzeneUpdated }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, onSzeneUpdated }: SceneEditorProps) {
+  const { panelMode: panelModeCtx } = useContext(PanelModeContext)
+  const panelMode = panelModeProp ?? panelModeCtx
   const [scene, setScene] = useState<any | null>(null)
   const [lock, setLock] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)

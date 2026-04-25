@@ -716,12 +716,9 @@
 .app-main[data-breakdown='off'] .work { grid-template-columns: 230px 1fr 0 !important; }
 .app-main[data-breakdown='off'] .breakdown { display: none !important; }
 
-/* ── Panelmodus via data-attribute ── */
-.app-main[data-panelmode='script'] .panels { grid-template-columns: 1fr !important; }
-.app-main[data-panelmode='script'] .panels .panel:first-child { display: none !important; }
-.app-main[data-panelmode='script'] .panels .panel .script-body { max-width: 100%; }
-.app-main[data-panelmode='treatment'] .panels { grid-template-columns: 1fr !important; }
-.app-main[data-panelmode='treatment'] .panels .panel:last-child { display: none !important; }
+/* ── Panelmodus — SceneEditor handles conditional rendering via PanelModeContext ── */
+/* Single-panel mode: remove script-body max-width so it uses full available width */
+.panels.mode-script .panel .script-body { max-width: 100%; }
 
 /* ── Print-only script nav ── */
 .script-menu-print { display: none; }
