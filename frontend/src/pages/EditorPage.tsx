@@ -261,7 +261,7 @@ export default function EditorPage() {
               className={getTextelementClass(te.type)}
               contentEditable
               suppressContentEditableWarning
-              style={{ fontFamily: 'var(--font-mono)', fontSize: 13, lineHeight: 1.7, outline: 'none', padding: '1px 0', color: 'var(--text-primary)' }}
+              style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--user-script-size, 13px)', lineHeight: 1.7, outline: 'none', padding: '1px 0', color: 'var(--text-primary)' }}
             >
               {te.text}
             </div>
