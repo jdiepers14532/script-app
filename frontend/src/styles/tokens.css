@@ -4,6 +4,7 @@
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'Courier Prime', 'Courier New', Courier, monospace;
   --user-script-size: 13px;
+  --user-interface-size: 13px;
 
   /* Brand raw tokens */
   --sw-black:       #000000;
@@ -103,7 +104,7 @@
 html, body {
   margin:0; padding:0; height:100%;
   font-family: var(--font-sans);
-  font-size: var(--fs-base);
+  font-size: var(--user-interface-size, var(--fs-base));
   line-height: var(--lh-base);
   color: var(--text-primary);
   background: var(--bg-page);

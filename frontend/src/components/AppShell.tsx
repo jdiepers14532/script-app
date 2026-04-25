@@ -41,6 +41,7 @@ export interface TweakState {
   lightBgIndex: number
   darkBgIndex: number
   interfaceFont: string
+  interfaceFontSize: number
   scriptFont: string
   fontSize: number
 }
@@ -124,9 +125,12 @@ const DEFAULT_TWEAKS: TweakState = {
   lightBgIndex: 0,
   darkBgIndex: 0,
   interfaceFont: INTERFACE_FONTS[0].value,
+  interfaceFontSize: 13,
   scriptFont: SCRIPT_FONTS[0].value,
   fontSize: 13,
 }
+
+const INTERFACE_FONT_SIZES = [11, 12, 13, 14]
 
 // ── CSS-Variablen via injiziertem <style>-Tag anwenden ───────────────────────
 // Wirkt auf alle Seiten inkl. EditorPage (.editor-app hat kein data-theme).
@@ -145,6 +149,7 @@ function applyViewSettings(tweaks: TweakState) {
     :root {
       --font-sans: ${tweaks.interfaceFont};
       --font-mono: ${tweaks.scriptFont};
+      --user-interface-size: ${tweaks.interfaceFontSize}px;
       --user-script-size: ${tweaks.fontSize}px;
     }
     [data-theme='light'], .editor-app {
@@ -212,9 +217,25 @@ export default function AppShell({
 
   const settingsReady = useRef(false)
   const saveTimer = useRef<number>()
+  const [companyLogo, setCompanyLogo] = useState<{ light: string | null; dark: string | null }>({ light: null, dark: null })
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
+
+  // ── Firmenlogo von auth.app laden ─────────────────────────────────────────
+  useEffect(() => {
+    fetch('https://auth.serienwerft.studio/api/public/company-info')
+      .then(r => r.json())
+      .then((data: any) => {
+        if (data?.logos) {
+          setCompanyLogo({
+            light: data.logos.light || null,
+            dark:  data.logos.dark  || null,
+          })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   // ── Einstellungen beim Start vom Backend laden ────────────────────────────
   useEffect(() => {
@@ -230,9 +251,10 @@ export default function AppShell({
           breakdown:     s.breakdown     ?? prev.breakdown,
           lightBgIndex:  typeof s.lightBgIndex  === 'number' ? s.lightBgIndex  : 0,
           darkBgIndex:   typeof s.darkBgIndex   === 'number' ? s.darkBgIndex   : 0,
-          interfaceFont: s.interfaceFont ?? INTERFACE_FONTS[0].value,
-          scriptFont:    s.scriptFont    ?? SCRIPT_FONTS[0].value,
-          fontSize:      typeof s.fontSize === 'number' ? s.fontSize : 13,
+          interfaceFont:     s.interfaceFont     ?? INTERFACE_FONTS[0].value,
+          interfaceFontSize: typeof s.interfaceFontSize === 'number' ? s.interfaceFontSize : 13,
+          scriptFont:        s.scriptFont        ?? SCRIPT_FONTS[0].value,
+          fontSize:          typeof s.fontSize === 'number' ? s.fontSize : 13,
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -254,7 +276,7 @@ export default function AppShell({
   // ── CSS-Variablen bei Änderung sofort anwenden ────────────────────────────
   useEffect(() => {
     applyViewSettings(tweaks)
-  }, [tweaks.lightBgIndex, tweaks.darkBgIndex, tweaks.interfaceFont, tweaks.scriptFont, tweaks.fontSize])
+  }, [tweaks.lightBgIndex, tweaks.darkBgIndex, tweaks.interfaceFont, tweaks.interfaceFontSize, tweaks.scriptFont, tweaks.fontSize])
 
   const allFolgen = useMemo(() => {
     const result: { nr: number; block: any }[] = []
@@ -336,7 +358,15 @@ export default function AppShell({
           onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
           title="Firmenprofil"
         >
-          <span className="firm-logo-text">Serienwerft</span>
+          {(tweaks.theme === 'dark' ? companyLogo.dark : companyLogo.light) ? (
+            <img
+              src={(tweaks.theme === 'dark' ? companyLogo.dark : companyLogo.light)!}
+              alt="Firmenlogo"
+              className="firm-logo-img"
+            />
+          ) : (
+            <span className="firm-logo-text">Serienwerft</span>
+          )}
         </button>
 
         <div className="divider" />
@@ -436,33 +466,19 @@ export default function AppShell({
           </TweakGroup>
 
           <TweakGroup label="Hintergrundfarbe">
-            <div className="swatch-row">
-              <div className="swatch-label">Hell</div>
-              <div className="swatches">
-                {LIGHT_PALETTES.map((p, i) => (
+            <div className="swatches">
+              {(tweaks.theme === 'light' ? LIGHT_PALETTES : DARK_PALETTES).map((p, i) => {
+                const activeIdx = tweaks.theme === 'light' ? tweaks.lightBgIndex : tweaks.darkBgIndex
+                return (
                   <button
                     key={i}
-                    className={`swatch${tweaks.lightBgIndex === i ? ' active' : ''}`}
+                    className={`swatch${activeIdx === i ? ' active' : ''}`}
                     style={{ background: p.preview }}
                     title={p.name}
-                    onClick={() => set('lightBgIndex', i)}
+                    onClick={() => tweaks.theme === 'light' ? set('lightBgIndex', i) : set('darkBgIndex', i)}
                   />
-                ))}
-              </div>
-            </div>
-            <div className="swatch-row" style={{ marginTop: 6 }}>
-              <div className="swatch-label">Dunkel</div>
-              <div className="swatches">
-                {DARK_PALETTES.map((p, i) => (
-                  <button
-                    key={i}
-                    className={`swatch${tweaks.darkBgIndex === i ? ' active' : ''}`}
-                    style={{ background: p.preview }}
-                    title={p.name}
-                    onClick={() => set('darkBgIndex', i)}
-                  />
-                ))}
-              </div>
+                )
+              })}
             </div>
             <div className="swatch-name">{activeBgName}</div>
           </TweakGroup>
@@ -493,6 +509,13 @@ export default function AppShell({
                 <option key={f.value} value={f.value}>{f.name}</option>
               ))}
             </select>
+            <div className="seg" style={{ marginTop: 4 }}>
+              {INTERFACE_FONT_SIZES.map(s => (
+                <button key={s} className={tweaks.interfaceFontSize === s ? 'on' : ''} onClick={() => set('interfaceFontSize', s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
           </TweakGroup>
 
           <TweakGroup label="Text-Schrift (Drehbuch)">
