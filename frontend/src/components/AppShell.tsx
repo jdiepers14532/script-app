@@ -175,7 +175,7 @@ function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
     : (DARK_PALETTES[tweaks.darkBgIndex] ?? DARK_PALETTES[0])
 }
 
-const INTERFACE_FONT_SIZES = [11, 12, 13, 14]
+const INTERFACE_FONT_SIZES = [11, 12, 13, 14, 15, 16]
 
 // ── CSS-Variablen via injiziertem <style>-Tag anwenden ───────────────────────
 // Wirkt auf alle Seiten inkl. EditorPage (.editor-app hat kein data-theme).
@@ -190,6 +190,7 @@ function applyViewSettings(tweaks: TweakState) {
     document.head.appendChild(style)
   }
 
+  const zoomFactor = (tweaks.interfaceFontSize / 13).toFixed(4)
   style.textContent = `
     :root {
       --font-sans: ${tweaks.interfaceFont};
@@ -197,6 +198,7 @@ function applyViewSettings(tweaks: TweakState) {
       --user-interface-size: ${tweaks.interfaceFontSize}px;
       --user-script-size: ${tweaks.fontSize}px;
     }
+    .app, .editor-app { zoom: ${zoomFactor}; }
     [data-theme='light'], .editor-app {
       --bg-page: ${light.bg} !important;
       --bg-surface: ${light.surface} !important;

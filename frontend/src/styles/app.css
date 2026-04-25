@@ -45,7 +45,7 @@
   cursor: pointer;
   transition: background 0.15s;
   flex-shrink: 0;
-  margin-top: 10px;
+  margin-top: -10px;
 }
 .topbar .firm-logo-btn:hover { background: var(--bg-subtle); }
 .topbar .firm-logo-img {
@@ -161,10 +161,10 @@
 /* ── Work Area ── */
 .work {
   display:grid;
-  grid-template-columns: 260px 1fr 280px;
+  grid-template-columns: 220px 1fr 280px;
   min-width:0; min-height:0; overflow:hidden;
 }
-.work.no-breakdown { grid-template-columns: 260px 1fr 0; }
+.work.no-breakdown { grid-template-columns: 220px 1fr 0; }
 .work.no-breakdown .breakdown { display:none; }
 [data-mode='focus'] .work { grid-template-columns: 240px 1fr 0; }
 [data-mode='focus'] .work .breakdown { display:none; }
