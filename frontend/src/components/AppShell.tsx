@@ -1,10 +1,10 @@
-import { ReactNode, useState, useMemo, useEffect, useRef } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { ReactNode, useState, useEffect, useMemo, useRef } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, Settings, Minimize2, Maximize2,
   Bell, SlidersHorizontal, Sun, Moon, Film, BookOpen, Users, Lock, BarChart2,
-  X, FileUp, PanelLeftClose, PanelLeftOpen, Building2, ChevronRight,
-  MapPin, Receipt, FileCheck, CreditCard, BookMarked,
+  X, FileUp, Building2, MapPin, Receipt, FileCheck, CreditCard, BookMarked,
+  ChevronRight, Copy, Check, Mail, Phone,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
@@ -47,6 +47,9 @@ interface CompanyInfo {
   company_register_number: string
   company_vat_id: string
   company_tax_id: string
+  company_email: string
+  company_phone: string
+  it_contact: { name: string; email: string; phone: string }
   logos: { light: string | null; dark: string | null }
 }
 
@@ -61,8 +64,6 @@ const selectStyle: React.CSSProperties = {
   borderRadius: 4,
   outline: 'none',
 }
-
-const AUTH_URL = 'https://auth.serienwerft.studio'
 
 export default function AppShell({
   children,
@@ -80,7 +81,6 @@ export default function AppShell({
   hideProductionSelector = false,
 }: AppShellProps) {
   const location = useLocation()
-  const navigate = useNavigate()
   const { focus, toggle } = useFocus()
   const { isOnline, pendingCount, isSyncing } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
@@ -95,31 +95,17 @@ export default function AppShell({
     conn: 'online',
   })
 
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
-    try { return localStorage.getItem('script_sidebar_open') !== 'false' } catch { return true }
-  })
-
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false)
   const [scriptMenuOpen, setScriptMenuOpen] = useState(false)
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo | null>(null)
-
-  const companyBtnRef = useRef<HTMLButtonElement>(null)
-  const scriptBtnRef = useRef<HTMLButtonElement>(null)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`${AUTH_URL}/api/public/company-info`)
+    fetch('https://auth.serienwerft.studio/api/public/company-info')
       .then(r => r.json())
       .then(d => setCompanyInfo(d))
       .catch(() => {})
   }, [])
-
-  const toggleSidebar = () => {
-    setSidebarOpen(v => {
-      const next = !v
-      try { localStorage.setItem('script_sidebar_open', String(next)) } catch {}
-      return next
-    })
-  }
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
@@ -151,7 +137,14 @@ export default function AppShell({
   const logoUrl = tweaks.theme === 'dark'
     ? (companyInfo?.logos?.dark || companyInfo?.logos?.light)
     : companyInfo?.logos?.light
-  const logoNeedsInvert = tweaks.theme === 'dark' && !companyInfo?.logos?.dark
+  const logoNeedsInvert = tweaks.theme === 'dark' && !!companyInfo?.logos?.light && !companyInfo?.logos?.dark
+
+  const copy = (key: string, value: string) => {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopiedKey(key)
+      setTimeout(() => setCopiedKey(null), 1500)
+    })
+  }
 
   const navSections = [
     {
@@ -186,31 +179,24 @@ export default function AppShell({
   ]
 
   return (
-    <div className="app" data-theme={tweaks.theme} data-sidebar={sidebarOpen ? 'open' : 'closed'}>
+    <div className="app" data-theme={tweaks.theme}>
       {/* Topbar */}
       <header className="topbar">
         <div className="brand-area">
-          {/* Firm logo */}
+          {/* Firm logo — opens company menu */}
           <button
-            ref={companyBtnRef}
             className="firm-logo-btn"
             onClick={() => { setCompanyMenuOpen(v => !v); setScriptMenuOpen(false) }}
             title="Firmenprofil"
           >
             {logoUrl
-              ? <img
-                  src={logoUrl}
-                  alt="Logo"
-                  className="firm-logo-img"
-                  style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined}
-                />
+              ? <img src={logoUrl} alt="Logo" className="firm-logo-img" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
               : <Building2 size={16} />
             }
           </button>
 
-          {/* Script brand */}
+          {/* Script brand — opens nav menu */}
           <button
-            ref={scriptBtnRef}
             className="brand-btn"
             onClick={() => { setScriptMenuOpen(v => !v); setCompanyMenuOpen(false) }}
             title="Navigation"
@@ -218,26 +204,13 @@ export default function AppShell({
             <div className="mark">S</div>
             <span>script</span>
           </button>
-
-          {/* Sidebar toggle */}
-          <button
-            className="iconbtn sidebar-toggle"
-            onClick={toggleSidebar}
-            title={sidebarOpen ? 'Sidebar schließen' : 'Sidebar öffnen'}
-          >
-            {sidebarOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
-          </button>
         </div>
 
         <div className="divider" />
 
         <div className="crumbs">
           {!hideProductionSelector && productions.length > 0 ? (
-            <ProductionSelector
-              productions={productions}
-              selectedId={selectedProdId}
-              onSelect={selectProduction}
-            />
+            <ProductionSelector productions={productions} selectedId={selectedProdId} onSelect={selectProduction} />
           ) : !hideProductionSelector && staffeln.length > 0 && onSelectStaffel ? (
             <select style={selectStyle} value={selectedStaffelId} onChange={e => onSelectStaffel(e.target.value)}>
               {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
@@ -249,11 +222,7 @@ export default function AppShell({
           {bloecke.length > 0 && onSelectBlock && (
             <>
               <span>·</span>
-              <select
-                style={selectStyle}
-                value={selectedBlock?.proddb_id ?? ''}
-                onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}
-              >
+              <select style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
                 {bloecke.map(b => (
                   <option key={b.proddb_id} value={b.proddb_id}>
                     Block {b.block_nummer}{b.folge_von != null ? ` (${b.folge_von}–${b.folge_bis})` : ''}
@@ -266,17 +235,9 @@ export default function AppShell({
           {allFolgen.length > 0 && onSelectFolge && (
             <>
               <span>·</span>
-              <select
-                style={selectStyle}
-                value={selectedFolgeNummer ?? ''}
-                onChange={e => handleFolgeSelect(Number(e.target.value))}
-              >
+              <select style={selectStyle} value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))}>
                 {allFolgen.map(({ nr, block }) => (
-                  <option
-                    key={nr}
-                    value={nr}
-                    style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}
-                  >
+                  <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
                     Folge {nr}
                   </option>
                 ))}
@@ -294,50 +255,28 @@ export default function AppShell({
         <div className="status-pill topbar-extra" style={{ borderColor: isOnline ? undefined : 'var(--sw-warning)' }}>
           <span className="dot" style={{ background: isOnline && pendingCount === 0 ? 'var(--sw-green)' : isOnline ? 'var(--sw-warning)' : 'var(--sw-danger)' }} />
           <span>
-            {!isOnline
-              ? `Offline${pendingCount > 0 ? ` · ${pendingCount} ausstehend` : ''}`
-              : isSyncing
-              ? 'Synchronisiert…'
-              : pendingCount > 0
-              ? `${pendingCount} ausstehende Änderungen`
-              : 'Online · Synced'}
+            {!isOnline ? `Offline${pendingCount > 0 ? ` · ${pendingCount} ausstehend` : ''}` : isSyncing ? 'Synchronisiert…' : pendingCount > 0 ? `${pendingCount} ausstehende Änderungen` : 'Online · Synced'}
           </span>
         </div>
 
         <button className="iconbtn topbar-extra" onClick={() => set('theme', tweaks.theme === 'light' ? 'dark' : 'light')} title="Theme wechseln">
           {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
         </button>
-
         <button className="iconbtn topbar-extra" onClick={() => setTweaksOpen(v => !v)} title="Ansichtsoptionen">
           <SlidersHorizontal size={14} />
         </button>
-
         <button className="iconbtn topbar-extra" title="Benachrichtigungen">
           <Bell size={14} />
         </button>
-
-        <button className="focus-toggle" onClick={toggle} title="Fokus-Modus (F10)" aria-label={focus ? 'Fokus-Modus beenden' : 'Fokus-Modus aktivieren'}>
+        <button className="focus-toggle" onClick={toggle} title="Fokus-Modus (F10)">
           {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
         </button>
-
         <div className="avatar" title="Jan Diepers">JD</div>
       </header>
 
-      {/* Left Nav */}
-      <nav className="nav">
-        {navSections.map(section => (
-          <div key={section.label}>
-            <div className="section">{section.label}</div>
-            {section.items.map(item => (
-              <NavItem key={item.label} to={item.to} icon={item.icon} label={item.label} count={(item as any).count} active={item.active} />
-            ))}
-          </div>
-        ))}
-      </nav>
-
-      {/* Main content */}
+      {/* Main content — spans full width (no sidebar) */}
       <main
-        className="app-main"
+        className="app-main app-main-full"
         data-colormode={tweaks.colorMode}
         data-panelmode={tweaks.panelMode}
         data-density={tweaks.density}
@@ -400,16 +339,11 @@ export default function AppShell({
       {companyMenuOpen && (
         <>
           <div className="menu-overlay" onClick={() => setCompanyMenuOpen(false)} />
-          <div className="company-menu" data-theme="dark">
-            {/* Header: Firm info */}
+          <div className="company-menu">
+            {/* Logo + Name */}
             <div className="cm-header">
               {logoUrl && (
-                <img
-                  src={logoUrl}
-                  alt="Logo"
-                  className="cm-logo"
-                  style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined}
-                />
+                <img src={logoUrl} alt="Logo" className="cm-logo" style={logoNeedsInvert ? { filter: 'invert(0)' } : undefined} />
               )}
               <div className="cm-name">{companyInfo?.company_name || 'Serienwerft'}</div>
               {companyInfo?.company_legal_form && (
@@ -417,62 +351,67 @@ export default function AppShell({
               )}
             </div>
 
+            {/* Pflichtangaben — copyable */}
             {companyInfo && (
               <div className="cm-info-block">
                 {companyInfo.company_address?.street && (
-                  <div className="cm-info-row">
-                    <MapPin size={11} />
-                    <span>
-                      {companyInfo.company_address.street}<br />
-                      {companyInfo.company_address.zip} {companyInfo.company_address.city}
-                      {companyInfo.company_address.country !== 'Deutschland' ? `, ${companyInfo.company_address.country}` : ''}
-                    </span>
-                  </div>
+                  <CopyRow
+                    icon={<MapPin size={11} />}
+                    label={`${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`}
+                    value={`${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`}
+                    copied={copiedKey === 'address'}
+                    onCopy={() => copy('address', `${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`)}
+                  />
                 )}
                 {companyInfo.company_vat_id && (
-                  <div className="cm-info-row">
-                    <Receipt size={11} />
-                    <span>USt-ID: {companyInfo.company_vat_id}</span>
-                  </div>
+                  <CopyRow icon={<Receipt size={11} />} label={`USt-ID: ${companyInfo.company_vat_id}`} value={companyInfo.company_vat_id} copied={copiedKey === 'vat'} onCopy={() => copy('vat', companyInfo.company_vat_id)} />
                 )}
                 {companyInfo.company_tax_id && (
-                  <div className="cm-info-row">
-                    <Receipt size={11} />
-                    <span>St-Nr: {companyInfo.company_tax_id}</span>
-                  </div>
+                  <CopyRow icon={<Receipt size={11} />} label={`St-Nr: ${companyInfo.company_tax_id}`} value={companyInfo.company_tax_id} copied={copiedKey === 'tax'} onCopy={() => copy('tax', companyInfo.company_tax_id)} />
                 )}
                 {companyInfo.company_register_number && (
-                  <div className="cm-info-row">
-                    <FileCheck size={11} />
-                    <span>
-                      HRB {companyInfo.company_register_number}
-                      {companyInfo.company_register_court ? ` · ${companyInfo.company_register_court}` : ''}
-                    </span>
-                  </div>
+                  <CopyRow
+                    icon={<FileCheck size={11} />}
+                    label={`HRB ${companyInfo.company_register_number}${companyInfo.company_register_court ? ` · ${companyInfo.company_register_court}` : ''}`}
+                    value={`HRB ${companyInfo.company_register_number}`}
+                    copied={copiedKey === 'hrb'}
+                    onCopy={() => copy('hrb', `HRB ${companyInfo.company_register_number}`)}
+                  />
+                )}
+                {companyInfo.company_email && (
+                  <CopyRow icon={<Mail size={11} />} label={companyInfo.company_email} value={companyInfo.company_email} copied={copiedKey === 'email'} onCopy={() => copy('email', companyInfo.company_email)} />
+                )}
+                {companyInfo.company_phone && (
+                  <CopyRow icon={<Phone size={11} />} label={companyInfo.company_phone} value={companyInfo.company_phone} copied={copiedKey === 'phone'} onCopy={() => copy('phone', companyInfo.company_phone)} />
                 )}
               </div>
+            )}
+
+            {/* EDV / IT Ansprechpartner */}
+            {companyInfo?.it_contact && (companyInfo.it_contact.name || companyInfo.it_contact.email || companyInfo.it_contact.phone) && (
+              <>
+                <div className="cm-section-label">EDV Ansprechpartner</div>
+                <div className="cm-info-block">
+                  {companyInfo.it_contact.name && (
+                    <CopyRow icon={<Users size={11} />} label={companyInfo.it_contact.name} value={companyInfo.it_contact.name} copied={copiedKey === 'it_name'} onCopy={() => copy('it_name', companyInfo.it_contact.name)} />
+                  )}
+                  {companyInfo.it_contact.email && (
+                    <CopyRow icon={<Mail size={11} />} label={companyInfo.it_contact.email} value={companyInfo.it_contact.email} copied={copiedKey === 'it_email'} onCopy={() => copy('it_email', companyInfo.it_contact.email)} />
+                  )}
+                  {companyInfo.it_contact.phone && (
+                    <CopyRow icon={<Phone size={11} />} label={companyInfo.it_contact.phone} value={companyInfo.it_contact.phone} copied={copiedKey === 'it_phone'} onCopy={() => copy('it_phone', companyInfo.it_contact.phone)} />
+                  )}
+                </div>
+              </>
             )}
 
             <div className="cm-divider" />
 
             {/* Menu items — all "bald" */}
             <div className="cm-menu">
-              <CompanyMenuItem
-                icon={<Building2 size={14} />}
-                label="Firmendaten"
-                description="Adresse, Pflichtangaben, Register"
-              />
-              <CompanyMenuItem
-                icon={<CreditCard size={14} />}
-                label="Kontakt zur Buchhaltung"
-                description="Abrechnungen, Bescheinigungen, Rechnung"
-                hasArrow
-              />
-              <CompanyMenuItem
-                icon={<BookMarked size={14} />}
-                label="VG Wort"
-                description="Meldungen und Ausschüttungen"
-              />
+              <CompanyMenuItem icon={<Building2 size={14} />} label="Firmendaten" description="Adresse, Pflichtangaben, Register" />
+              <CompanyMenuItem icon={<CreditCard size={14} />} label="Kontakt zur Buchhaltung" description="Abrechnungen, Bescheinigungen, Rechnung" hasArrow />
+              <CompanyMenuItem icon={<BookMarked size={14} />} label="VG Wort" description="Meldungen und Ausschüttungen" />
             </div>
           </div>
         </>
@@ -488,12 +427,7 @@ export default function AppShell({
               <div key={section.label} className="sm-section">
                 <div className="sm-section-label">{section.label}</div>
                 {section.items.map(item => (
-                  <Link
-                    key={item.label}
-                    to={item.to}
-                    className={`sm-item${item.active ? ' active' : ''}`}
-                    onClick={() => setScriptMenuOpen(false)}
-                  >
+                  <Link key={item.label} to={item.to} className={`sm-item${item.active ? ' active' : ''}`} onClick={() => setScriptMenuOpen(false)}>
                     <span className="sm-icon">{item.icon}</span>
                     <span className="sm-label">{item.label}</span>
                     {(item as any).count && <span className="sm-count">{(item as any).count}</span>}
@@ -509,16 +443,21 @@ export default function AppShell({
 }
 
 function legalFormLabel(lf: string) {
-  const map: Record<string, string> = {
-    gmbh: 'GmbH', ag: 'AG', ug: 'UG (haftungsbeschränkt)',
-    gbr: 'GbR', kg: 'KG', ohg: 'OHG', einzelunternehmen: 'Einzelunternehmen',
-  }
+  const map: Record<string, string> = { gmbh: 'GmbH', ag: 'AG', ug: 'UG (haftungsbeschränkt)', gbr: 'GbR', kg: 'KG', ohg: 'OHG', einzelunternehmen: 'Einzelunternehmen' }
   return map[lf] || lf.toUpperCase()
 }
 
-function CompanyMenuItem({ icon, label, description, hasArrow }: {
-  icon: ReactNode; label: string; description: string; hasArrow?: boolean
-}) {
+function CopyRow({ icon, label, value, copied, onCopy }: { icon: ReactNode; label: string; value: string; copied: boolean; onCopy: () => void }) {
+  return (
+    <button className="cm-copy-row" onClick={onCopy} title="Kopieren">
+      <span className="cm-copy-icon">{icon}</span>
+      <span className="cm-copy-label">{label}</span>
+      <span className="cm-copy-btn">{copied ? <Check size={10} /> : <Copy size={10} />}</span>
+    </button>
+  )
+}
+
+function CompanyMenuItem({ icon, label, description, hasArrow }: { icon: ReactNode; label: string; description: string; hasArrow?: boolean }) {
   return (
     <div className="cm-item disabled">
       <span className="cm-item-icon">{icon}</span>
