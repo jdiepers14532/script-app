@@ -452,20 +452,24 @@
 .fd-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 16px 16px 12px;
+  gap: 8px;
+  padding: 12px 12px 10px 16px;
   border-bottom: 1px solid var(--border-subtle);
-  position: relative;
 }
+.fd-logo-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: transparent; border: none; cursor: pointer;
+  border-radius: 6px; padding: 4px 6px; transition: background 0.15s;
+}
+.fd-logo-btn:hover { background: var(--bg-subtle); }
 .fd-logo {
-  height: 20px; width: auto; max-width: 120px; object-fit: contain; display: block;
+  height: 20px; width: auto; max-width: 130px; object-fit: contain; display: block;
 }
-.fd-title {
-  font-size: 14px; font-weight: 600; color: var(--text-primary); flex: 1; min-width: 0;
+.fd-logo-copied {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 10px; font-weight: 600; color: var(--sw-green);
 }
-.fd-legal {
-  font-size: 11px; color: var(--text-muted);
-}
+.fd-header-spacer { flex: 1; }
 .fd-close {
   width: 28px; height: 28px; border-radius: 6px; border: none;
   background: transparent; color: var(--text-secondary);
@@ -497,6 +501,29 @@
   color: var(--text-muted);
 }
 .fd-copy-row:hover .fd-copy-btn { color: var(--text-secondary); }
+
+/* EDV contact rows (not copyable) */
+.fd-contact-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 16px;
+  color: var(--text-secondary); font-size: 12px;
+}
+.fd-contact-link {
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  border-radius: 0;
+}
+.fd-contact-link:hover { background: var(--bg-subtle); color: var(--text-primary); }
+.fd-teams-badge {
+  font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px;
+  color: #6264a7; background: rgba(98,100,167,0.12);
+  padding: 2px 6px; border-radius: 999px; flex-shrink: 0;
+}
+.fd-contact-empty {
+  padding: 8px 16px 4px;
+  font-size: 11px; color: var(--text-muted); font-style: italic;
+}
 
 /* ── Script / Nav Menu ── */
 .script-menu {

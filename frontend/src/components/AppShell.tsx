@@ -367,14 +367,20 @@ export default function AppShell({
         <>
           <div className="fd-overlay" onClick={() => setFirmendatenOpen(false)} />
           <div className="fd-modal">
+            {/* Header: only logo (clickable → copy name) + close */}
             <div className="fd-header">
-              {logoUrl && (
-                <img src={logoUrl} alt="Logo" className="fd-logo" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
-              )}
-              <div className="fd-title">{companyInfo?.company_name || 'Serienwerft'}</div>
-              {companyInfo?.company_legal_form && (
-                <div className="fd-legal">{legalFormLabel(companyInfo.company_legal_form)}</div>
-              )}
+              {logoUrl
+                ? <button
+                    className="fd-logo-btn"
+                    onClick={() => copy('company', `${companyInfo?.company_name || 'Serienwerft'} ${legalFormLabel(companyInfo?.company_legal_form || '')}`)}
+                    title="Firmenname kopieren"
+                  >
+                    <img src={logoUrl} alt="Logo" className="fd-logo" style={logoNeedsInvert ? { filter: 'invert(1)' } : undefined} />
+                    {copiedKey === 'company' && <span className="fd-logo-copied"><Check size={10} /> Kopiert</span>}
+                  </button>
+                : null
+              }
+              <div className="fd-header-spacer" />
               <button className="fd-close" onClick={() => setFirmendatenOpen(false)}><X size={14} /></button>
             </div>
 
@@ -382,6 +388,15 @@ export default function AppShell({
               {/* Pflichtangaben */}
               <div className="fd-section-label">Pflichtangaben</div>
               <div className="fd-rows">
+                {/* Firmenname + Rechtsform (erste Zeile) */}
+                {companyInfo?.company_name && (
+                  <CopyRow
+                    icon={<FileCheck size={12} />}
+                    label={`${companyInfo.company_name}${companyInfo.company_legal_form ? ' · ' + legalFormLabel(companyInfo.company_legal_form) : ''}`}
+                    value={`${companyInfo.company_name} ${legalFormLabel(companyInfo.company_legal_form || '')}`}
+                    copied={copiedKey === 'company_name'} onCopy={() => copy('company_name', `${companyInfo!.company_name} ${legalFormLabel(companyInfo!.company_legal_form || '')}`)}
+                  />
+                )}
                 {companyInfo?.company_address?.street && (
                   <CopyRow icon={<MapPin size={12} />}
                     label={`${companyInfo.company_address.street}, ${companyInfo.company_address.zip} ${companyInfo.company_address.city}`}
@@ -394,12 +409,13 @@ export default function AppShell({
                 {companyInfo?.company_tax_id && (
                   <CopyRow icon={<Receipt size={12} />} label={`Steuernummer: ${companyInfo.company_tax_id}`} value={companyInfo.company_tax_id} copied={copiedKey === 'tax'} onCopy={() => copy('tax', companyInfo!.company_tax_id)} />
                 )}
-                {companyInfo?.company_register_number && (
-                  <CopyRow icon={<FileCheck size={12} />}
-                    label={`HRB ${companyInfo.company_register_number}${companyInfo.company_register_court ? ` · ${companyInfo.company_register_court}` : ''}`}
-                    value={`HRB ${companyInfo.company_register_number}`}
-                    copied={copiedKey === 'hrb'} onCopy={() => copy('hrb', `HRB ${companyInfo!.company_register_number}`)} />
-                )}
+                {companyInfo?.company_register_number && (() => {
+                  const num = companyInfo.company_register_number
+                  const hasPrefix = /^hrb\s/i.test(num)
+                  const label = `${hasPrefix ? '' : 'HRB '}${num}${companyInfo.company_register_court ? ` · ${companyInfo.company_register_court}` : ''}`
+                  const value = `${hasPrefix ? '' : 'HRB '}${num}`
+                  return <CopyRow icon={<FileCheck size={12} />} label={label} value={value} copied={copiedKey === 'hrb'} onCopy={() => copy('hrb', value)} />
+                })()}
                 {companyInfo?.company_email && (
                   <CopyRow icon={<Mail size={12} />} label={companyInfo.company_email} value={companyInfo.company_email} copied={copiedKey === 'email'} onCopy={() => copy('email', companyInfo!.company_email)} />
                 )}
@@ -408,24 +424,41 @@ export default function AppShell({
                 )}
               </div>
 
-              {/* EDV Ansprechpartner */}
-              {companyInfo?.it_contact && (companyInfo.it_contact.name || companyInfo.it_contact.email || companyInfo.it_contact.phone) && (
-                <>
-                  <div className="fd-divider" />
-                  <div className="fd-section-label">EDV Ansprechpartner</div>
-                  <div className="fd-rows">
+              {/* EDV Ansprechpartner — always shown, Teams-link on click */}
+              <div className="fd-divider" />
+              <div className="fd-section-label">EDV Ansprechpartner</div>
+              <div className="fd-rows">
+                {companyInfo?.it_contact?.name || companyInfo?.it_contact?.email || companyInfo?.it_contact?.phone ? (
+                  <>
                     {companyInfo.it_contact.name && (
-                      <CopyRow icon={<Users size={12} />} label={companyInfo.it_contact.name} value={companyInfo.it_contact.name} copied={copiedKey === 'it_name'} onCopy={() => copy('it_name', companyInfo!.it_contact.name)} />
+                      <div className="fd-contact-row">
+                        <span className="fd-copy-icon"><Users size={12} /></span>
+                        <span className="fd-copy-label">{companyInfo.it_contact.name}</span>
+                      </div>
                     )}
                     {companyInfo.it_contact.email && (
-                      <CopyRow icon={<Mail size={12} />} label={companyInfo.it_contact.email} value={companyInfo.it_contact.email} copied={copiedKey === 'it_email'} onCopy={() => copy('it_email', companyInfo!.it_contact.email)} />
+                      <a
+                        className="fd-contact-row fd-contact-link"
+                        href={`https://teams.microsoft.com/l/chat/0/0?users=${encodeURIComponent(companyInfo.it_contact.email)}`}
+                        target="_blank" rel="noreferrer"
+                        title="In Teams öffnen"
+                      >
+                        <span className="fd-copy-icon"><Mail size={12} /></span>
+                        <span className="fd-copy-label">{companyInfo.it_contact.email}</span>
+                        <span className="fd-teams-badge">Teams</span>
+                      </a>
                     )}
                     {companyInfo.it_contact.phone && (
-                      <CopyRow icon={<Phone size={12} />} label={companyInfo.it_contact.phone} value={companyInfo.it_contact.phone} copied={copiedKey === 'it_phone'} onCopy={() => copy('it_phone', companyInfo!.it_contact.phone)} />
+                      <div className="fd-contact-row">
+                        <span className="fd-copy-icon"><Phone size={12} /></span>
+                        <span className="fd-copy-label">{companyInfo.it_contact.phone}</span>
+                      </div>
                     )}
-                  </div>
-                </>
-              )}
+                  </>
+                ) : (
+                  <div className="fd-contact-empty">Noch nicht konfiguriert · Auth-App → Admin → Einstellungen</div>
+                )}
+              </div>
             </div>
           </div>
         </>
