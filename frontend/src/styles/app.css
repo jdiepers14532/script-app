@@ -239,7 +239,7 @@
 [data-mode='focus'] .scenes .row .meta { display:none; }
 
 /* ── Detail Column ── */
-.detail { min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--bg-page); overflow-y:auto; }
+.detail { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--bg-page); overflow-y:auto; }
 .detail .detail-head { position:sticky; top:0; z-index:5; background:var(--bg-page); border-bottom:1px solid var(--border); }
 .detail .scene-title-bar { display:flex; align-items:center; gap:10px; padding:12px 20px; }
 .detail .scene-title-bar .nav-arrow { width:26px; height:26px; border-radius:6px; border:1px solid var(--border); background:var(--bg-surface); display:grid; place-items:center; color:var(--text-secondary); cursor:pointer; }
