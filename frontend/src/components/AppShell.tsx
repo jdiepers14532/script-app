@@ -527,15 +527,10 @@ export default function AppShell({
       setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
       return
     }
-    // Adresse bereinigen: Zeilen ohne Buchstaben entfernen (Telefonnummern, Fax, etc.)
-    // PLZ-Zeilen wie "21337 Lüneburg" haben Buchstaben → bleiben erhalten
-    const adresseClean = rawAdresse
-      .split(/\r?\n/)
-      .map(l => l.trim())
-      .filter(l => l && /[a-zA-ZäöüÄÖÜß]/.test(l))
-      .slice(0, 2)
-      .join(', ')
-    if (!adresseClean) {
+    // Stadtname aus PLZ-Zeile extrahieren (z.B. "21337 Lüneburg" → "Lüneburg")
+    const plzLine = rawAdresse.split(/\r?\n/).map(l => l.trim()).find(l => /^\d{5}\s+/.test(l))
+    const cityName = plzLine ? plzLine.replace(/^\d{5}\s+/, '').trim() : ''
+    if (!cityName) {
       setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
       return
     }
@@ -543,20 +538,19 @@ export default function AppShell({
     let cancelled = false
 
     const geocodeAndFetch = async () => {
-      // Geocoding: Nominatim
+      // Geocoding: Open-Meteo Geocoding API (kein Nominatim, kein User-Agent-Problem)
       let lat: number, lon: number
       try {
         const geoRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(adresseClean)}&format=json&limit=1`,
-          { headers: { 'Accept-Language': 'de', 'User-Agent': 'SerienwerftScriptApp/1.0' } }
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=de&format=json`
         )
         const geoData = await geoRes.json()
-        if (!geoData?.length) {
+        if (!geoData?.results?.length) {
           setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
           return
         }
-        lat = parseFloat(geoData[0].lat)
-        lon = parseFloat(geoData[0].lon)
+        lat = geoData.results[0].latitude
+        lon = geoData.results[0].longitude
       } catch {
         setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
         return
