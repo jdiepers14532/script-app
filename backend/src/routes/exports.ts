@@ -173,7 +173,7 @@ router.get('/:stageId/export/pdf', async (req, res) => {
   h1 { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; }
   .scene-heading { font-weight: bold; text-transform: uppercase; background: #f0f0f0; padding: 5px; margin: 20px 0 10px; }
 </style></head><body>
-<h1>${episode?.arbeitstitel || 'Drehbuch'}</h1>`
+<h1>${stage.version_label || 'Drehbuch'}</h1>`
 
     for (const szene of szenen) {
       const intExt = szene.int_ext || 'INT'
