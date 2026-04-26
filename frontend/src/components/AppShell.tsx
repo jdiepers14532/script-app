@@ -521,9 +521,20 @@ export default function AppShell({
 
     // Büro-Adresse der aktuellen Produktion → Geocoding via Nominatim
     const selectedProd = productions.find(p => p.id === selectedProdId)
-    const bueroAdresse = selectedProd?.buero_adresse?.trim() ?? ''
-    if (!bueroAdresse) {
+    const rawAdresse = selectedProd?.buero_adresse?.trim() ?? ''
+    if (!rawAdresse) {
       // Keine Adresse → nur DST-Warnung anzeigen
+      setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
+      return
+    }
+    // Adresse bereinigen: Zeilen mit Tel/Fax/+49 entfernen, max. 2 sinnvolle Zeilen
+    const adresseClean = rawAdresse
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(l => l && !/^(\+|tel|fax|phone|\d{4,}[\s/])/i.test(l))
+      .slice(0, 2)
+      .join(', ')
+    if (!adresseClean) {
       setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
       return
     }
@@ -535,7 +546,7 @@ export default function AppShell({
       let lat: number, lon: number
       try {
         const geoRes = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(bueroAdresse)}&format=json&limit=1`,
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(adresseClean)}&format=json&limit=1`,
           { headers: { 'Accept-Language': 'de', 'User-Agent': 'SerienwerftScriptApp/1.0' } }
         )
         const geoData = await geoRes.json()
