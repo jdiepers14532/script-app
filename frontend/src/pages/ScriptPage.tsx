@@ -31,21 +31,29 @@ export default function ScriptPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const navSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDragging = useRef(false)
   const dragStartX = useRef(0)
   const dragStartWidth = useRef(0)
+  // Holds saved nav values during initial cascading restore; cleared after use
+  const pendingNav = useRef<{ staffelId?: string; folgeNummer?: number; stageId?: number; szeneId?: number }>({})
+  const navRestored = useRef(false)
 
-  // Load user settings (sidebar width/collapsed)
+  // Load user settings (sidebar + last navigation position)
   useEffect(() => {
     api.getSettings().then(s => {
       const ui = s?.ui_settings || {}
       if (ui.scene_list_width) setSidebarWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, ui.scene_list_width)))
       if (typeof ui.scene_list_collapsed === 'boolean') setSidebarCollapsed(ui.scene_list_collapsed)
+      if (ui.last_staffel_id)    pendingNav.current.staffelId   = ui.last_staffel_id
+      if (ui.last_folge_nummer)  pendingNav.current.folgeNummer = ui.last_folge_nummer
+      if (ui.last_stage_id)      pendingNav.current.stageId     = ui.last_stage_id
+      if (ui.last_szene_id)      pendingNav.current.szeneId     = ui.last_szene_id
       setSettingsLoaded(true)
     }).catch(() => setSettingsLoaded(true))
   }, [])
 
-  // Debounced save to backend
+  // Debounced save layout to backend
   const saveSettings = useCallback((width: number, collapsed: boolean) => {
     if (!settingsLoaded) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -54,6 +62,22 @@ export default function ScriptPage() {
         .catch(() => {})
     }, 800)
   }, [settingsLoaded])
+
+  // Debounced save navigation position to backend
+  const saveNavPosition = useCallback((
+    staffelId: string, folgeNummer: number | null, stageId: number | null, szeneId: number | null
+  ) => {
+    if (!navRestored.current) return
+    if (navSaveTimer.current) clearTimeout(navSaveTimer.current)
+    navSaveTimer.current = setTimeout(() => {
+      api.updateSettings({ ui_settings: {
+        last_staffel_id:   staffelId,
+        last_folge_nummer: folgeNummer,
+        last_stage_id:     stageId,
+        last_szene_id:     szeneId,
+      }}).catch(() => {})
+    }, 600)
+  }, [])
 
   // Drag-to-resize
   const onDragStart = useCallback((e: React.MouseEvent) => {
@@ -107,55 +131,82 @@ export default function ScriptPage() {
       .catch(console.error)
   }, [selectedProduction?.id])
 
-  // Load staffeln
+  // Load staffeln — restore saved staffelId if available
   useEffect(() => {
     api.getStaffeln()
       .then(data => {
         setStaffeln(data)
-        if (data.length > 0 && !selectedProduction) setSelectedStaffelId(data[0].id)
+        if (data.length > 0 && !selectedProduction) {
+          const saved = pendingNav.current.staffelId
+          const match = saved && data.find((s: any) => s.id === saved)
+          setSelectedStaffelId(match ? match.id : data[0].id)
+        }
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
 
-  // Load Blöcke from ProdDB when Staffel changes
+  // Load Blöcke — restore saved folgeNummer by finding the right block
   useEffect(() => {
     if (!selectedStaffelId) return
     setBloecke([])
     setSelectedBlock(null)
     api.getBloecke(selectedStaffelId).then(data => {
       setBloecke(data)
-      setSelectedBlock(data.length > 0 ? data[0] : null)
+      if (!data.length) return
+      const savedFolge = pendingNav.current.folgeNummer
+      const match = savedFolge && data.find((b: any) =>
+        b.folge_von != null && savedFolge >= b.folge_von && savedFolge <= (b.folge_bis ?? b.folge_von)
+      )
+      setSelectedBlock(match || data[0])
     }).catch(() => {})
   }, [selectedStaffelId])
 
-  // Set default Folge when Block changes
+  // Set default Folge when Block changes — restore saved folgeNummer if in range
   useEffect(() => {
     if (!selectedBlock) { setSelectedFolgeNummer(null); return }
-    setSelectedFolgeNummer(selectedBlock.folge_von ?? null)
+    const savedFolge = pendingNav.current.folgeNummer
+    const inRange = savedFolge != null
+      && savedFolge >= (selectedBlock.folge_von ?? savedFolge)
+      && savedFolge <= (selectedBlock.folge_bis ?? savedFolge)
+    setSelectedFolgeNummer(inRange ? savedFolge : (selectedBlock.folge_von ?? null))
   }, [selectedBlock?.proddb_id])
 
-  // Load Stages when Folge changes
+  // Load Stages — restore saved stageId if available
   useEffect(() => {
     if (!selectedStaffelId || selectedFolgeNummer == null) return
     setStages([])
     setSelectedStageId(null)
     api.getStages(selectedStaffelId, selectedFolgeNummer).then(data => {
       setStages(data)
-      setSelectedStageId(data.length > 0 ? data[0].id : null)
+      if (!data.length) return
+      const savedStage = pendingNav.current.stageId
+      const match = savedStage && data.find((s: any) => s.id === savedStage)
+      setSelectedStageId(match ? match.id : data[0].id)
+      delete pendingNav.current.stageId
     }).catch(() => {})
   }, [selectedStaffelId, selectedFolgeNummer])
 
-  // Load Szenen when Stage changes
+  // Load Szenen — restore saved szeneId if available
   useEffect(() => {
     if (!selectedStageId) return
     setSzenen([])
     setSelectedSzeneId(null)
     api.getSzenen(selectedStageId).then(data => {
       setSzenen(data)
-      setSelectedSzeneId(data.length > 0 ? data[0].id : null)
+      if (!data.length) return
+      const savedSzene = pendingNav.current.szeneId
+      const match = savedSzene && data.find((s: any) => s.id === savedSzene)
+      setSelectedSzeneId(match ? match.id : data[0].id)
+      delete pendingNav.current.szeneId
+      navRestored.current = true
     }).catch(() => {})
   }, [selectedStageId])
+
+  // Save navigation position when selections change
+  useEffect(() => {
+    if (selectedStaffelId) saveNavPosition(selectedStaffelId, selectedFolgeNummer, selectedStageId, selectedSzeneId)
+  }, [selectedStaffelId, selectedFolgeNummer, selectedStageId, selectedSzeneId, saveNavPosition])
 
   if (loading) return <div style={{ padding: 32, color: 'var(--text-secondary)' }}>Lädt…</div>
   if (error) return <div style={{ padding: 32, color: 'var(--sw-danger)' }}>Fehler: {error}</div>
@@ -164,15 +215,15 @@ export default function ScriptPage() {
     <AppShell
       staffeln={staffeln}
       selectedStaffelId={selectedStaffelId}
-      onSelectStaffel={setSelectedStaffelId}
+      onSelectStaffel={id => { pendingNav.current = {}; navRestored.current = true; setSelectedStaffelId(id) }}
       bloecke={bloecke}
       selectedBlock={selectedBlock}
-      onSelectBlock={setSelectedBlock}
+      onSelectBlock={b => { pendingNav.current = {}; navRestored.current = true; setSelectedBlock(b) }}
       selectedFolgeNummer={selectedFolgeNummer}
-      onSelectFolge={setSelectedFolgeNummer}
+      onSelectFolge={nr => { pendingNav.current = {}; navRestored.current = true; setSelectedFolgeNummer(nr) }}
       stages={stages}
       selectedStageId={selectedStageId}
-      onSelectStage={setSelectedStageId}
+      onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
     >
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
 
