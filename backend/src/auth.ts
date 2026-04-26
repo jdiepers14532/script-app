@@ -35,10 +35,13 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:3002/api/internal/validate', {
+    const response = await fetch('http://127.0.0.1:3002/api/internal/validate-with-roles', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-key': process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP',
+      },
+      body: JSON.stringify({ token, app_name: 'script' }),
     })
 
     if (!response.ok) {
@@ -46,12 +49,15 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     }
 
     const data = await response.json() as any
+    if (!data.valid) {
+      return res.status(401).json({ error: data.error || 'Token ungültig' })
+    }
     req.user = {
-      user_id: data.user_id || data.id,
+      user_id: data.user_id,
       name: data.name || '',
       email: data.email || '',
       role: data.role || '',
-      roles: data.roles || [data.role],
+      roles: data.roles || [],
     }
     next()
   } catch (err) {
