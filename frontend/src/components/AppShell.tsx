@@ -500,6 +500,7 @@ export default function AppShell({
   useEffect(() => {
     const von = selectedBlock?.dreh_von
     const bis = selectedBlock?.dreh_bis
+    console.log('[SunWeather] effect fired', { von, bis, selectedProdId, prods: productions.length })
     if (!von || !bis) { setSunWeather(null); return }
 
     const vonDate = new Date(von + 'T00:00:00')
@@ -519,17 +520,17 @@ export default function AppShell({
       }
     }
 
-    // Büro-Adresse der aktuellen Produktion → Geocoding via Nominatim
     const selectedProd = productions.find(p => p.id === selectedProdId)
     const rawAdresse = selectedProd?.buero_adresse?.trim() ?? ''
+    console.log('[SunWeather] selectedProd:', selectedProd?.title, '| rawAdresse:', JSON.stringify(rawAdresse))
     if (!rawAdresse) {
-      // Keine Adresse → nur DST-Warnung anzeigen
       setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
       return
     }
     // Stadtname aus PLZ-Zeile extrahieren (z.B. "21337 Lüneburg" → "Lüneburg")
     const plzLine = rawAdresse.split(/\r?\n/).map(l => l.trim()).find(l => /^\d{5}\s+/.test(l))
     const cityName = plzLine ? plzLine.replace(/^\d{5}\s+/, '').trim() : ''
+    console.log('[SunWeather] cityName:', cityName)
     if (!cityName) {
       setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
       return
@@ -538,20 +539,21 @@ export default function AppShell({
     let cancelled = false
 
     const geocodeAndFetch = async () => {
-      // Geocoding: Open-Meteo Geocoding API (kein Nominatim, kein User-Agent-Problem)
       let lat: number, lon: number
       try {
         const geoRes = await fetch(
           `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityName)}&count=1&language=de&format=json`
         )
         const geoData = await geoRes.json()
+        console.log('[SunWeather] geocode result:', geoData?.results?.[0])
         if (!geoData?.results?.length) {
           setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
           return
         }
         lat = geoData.results[0].latitude
         lon = geoData.results[0].longitude
-      } catch {
+      } catch (e) {
+        console.error('[SunWeather] geocode error:', e)
         setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
         return
       }
@@ -578,7 +580,9 @@ export default function AppShell({
 
       try {
         const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&start_date=${queryVon}&end_date=${queryBis}&daily=sunrise,sunset,temperature_2m_mean,precipitation_hours&timezone=Europe%2FBerlin`
+        console.log('[SunWeather] fetching archive:', url)
         const data = await fetch(url).then(r => r.json())
+        console.log('[SunWeather] archive result:', data?.daily ? 'OK' : 'NO DAILY', '| cancelled:', cancelled)
         if (cancelled) return
         const daily = data.daily
         if (!daily) { setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate }); return }
