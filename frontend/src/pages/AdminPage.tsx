@@ -284,7 +284,7 @@ export default function AdminPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/')}
               style={{
                 display: 'flex', alignItems: 'center', gap: 5,
                 background: 'none', border: 'none', cursor: 'pointer',
