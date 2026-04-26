@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import AdminKI from '../components/AdminKI'
 import { api } from '../api/client'
@@ -264,6 +265,7 @@ function WasserzeichenTab() {
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
+  const navigate = useNavigate()
 
   return (
     <AppShell>
@@ -280,12 +282,21 @@ export default function AdminPage() {
           background: 'var(--bg-page)',
           flexShrink: 0,
         }}>
-          <h2 style={{
-            fontSize: 16, fontWeight: 600,
-            marginBottom: 12, color: 'var(--text-primary)',
-          }}>
-            Einstellungen
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <button
+              onClick={() => navigate(-1)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-secondary)', fontSize: 13, padding: '2px 6px 2px 0',
+              }}
+            >
+              ← Zurück
+            </button>
+            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
+              Einstellungen
+            </h2>
+          </div>
           <div style={{ display: 'flex', gap: 0 }}>
             {ADMIN_TABS.map(tab => (
               <button
