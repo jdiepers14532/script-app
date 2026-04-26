@@ -122,7 +122,8 @@ szenenRouter.put('/:id', async (req, res) => {
         stimmung = COALESCE($11, stimmung),
         spielzeit = COALESCE($12, spielzeit),
         storyline = COALESCE($13, storyline),
-        updated_at = NOW()
+        updated_at = NOW(),
+        updated_by_name = $14
        WHERE id = $8 RETURNING *`,
       [
         int_ext,
@@ -138,6 +139,7 @@ szenenRouter.put('/:id', async (req, res) => {
         stimmung ?? null,
         spielzeit ?? null,
         storyline ?? null,
+        req.user?.name ?? null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })

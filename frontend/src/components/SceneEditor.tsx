@@ -16,6 +16,13 @@ interface SceneEditorProps {
   onNavigateNext?: () => void
 }
 
+function formatUpdatedAt(iso: string): string {
+  const d = new Date(iso)
+  const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const time = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+  return `${date} ${time} CET`
+}
+
 // Map tageszeit/int_ext to env key for colors
 function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   const ie = (scene.int_ext ?? '').toLowerCase()
@@ -443,6 +450,9 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               <span className="title">{treatmentLabel}</span>
               <span className="vchip draft">Entwurf</span>
               <span className="spacer" />
+              {scene.updated_by_name && scene.updated_at && (
+                <span className="phead-meta">Zuletzt von: {scene.updated_by_name} · {formatUpdatedAt(scene.updated_at)}</span>
+              )}
             </div>
             <div className="pbody" onWheel={handlePbodyWheel}>
               <div className="treatment-body">
@@ -477,6 +487,9 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
                 <span className="vchip wip">In Arbeit</span>
               )}
               <span className="spacer" />
+              {scene.updated_by_name && scene.updated_at && (
+                <span className="phead-meta">Zuletzt von: {scene.updated_by_name} · {formatUpdatedAt(scene.updated_at)}</span>
+              )}
               {changedBlocks.size > 0 && (
                 <button
                   className={`btn-sm${showRevisions ? ' active' : ''}`}

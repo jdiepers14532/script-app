@@ -317,6 +317,7 @@
 .panel .phead .vchip.draft { background:color-mix(in srgb,var(--sw-info) 15%,transparent); color:var(--sw-info); border-color:transparent; }
 .panel .phead .vchip.wip { background:var(--sw-warning); color:#000; border-color:transparent; }
 .panel .phead .spacer { flex:1; }
+.panel .phead .phead-meta { font-size:10px; color:var(--text-secondary); white-space:nowrap; }
 .panel .phead .btn-sm { padding:4px 10px; font-size:11px; border:1px solid var(--border); border-radius:6px; background:var(--bg-surface); color:var(--text-primary); display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
 .panel .phead .btn-sm:hover { background:var(--bg-subtle); }
 .panel .pbody { padding:18px 22px; overflow-y:auto; flex:1; }
