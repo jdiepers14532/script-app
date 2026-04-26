@@ -135,7 +135,7 @@ export default function ScriptPage() {
       if (!data.length) return
       const savedFolge = pendingNav.current.folgeNummer
       const match = savedFolge && data.find((b: any) =>
-        b.folge_von != null && savedFolge >= b.folge_von && savedFolge <= (b.folge_bis ?? b.folge_von)
+        b.folge_von != null && savedFolge >= b.folge_von && (b.folge_bis == null || savedFolge <= b.folge_bis)
       )
       setSelectedBlock(match || data[0])
     }).catch(() => {})
@@ -146,8 +146,9 @@ export default function ScriptPage() {
     if (!selectedBlock) { setSelectedFolgeNummer(null); return }
     const savedFolge = pendingNav.current.folgeNummer
     const inRange = savedFolge != null
-      && savedFolge >= (selectedBlock.folge_von ?? savedFolge)
-      && savedFolge <= (selectedBlock.folge_bis ?? savedFolge)
+      && selectedBlock.folge_von != null
+      && savedFolge >= selectedBlock.folge_von
+      && (selectedBlock.folge_bis == null || savedFolge <= selectedBlock.folge_bis)
     setSelectedFolgeNummer(inRange ? savedFolge : (selectedBlock.folge_von ?? null))
   }, [selectedBlock?.proddb_id])
 

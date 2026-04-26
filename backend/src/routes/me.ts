@@ -95,7 +95,7 @@ router.put('/settings', authMiddleware, async (req: any, res) => {
          SET selected_production_id = COALESCE($2, user_settings.selected_production_id),
              ui_settings = COALESCE(user_settings.ui_settings, '{}') || COALESCE($3, '{}'),
              updated_at = NOW()`,
-      [userId, selected_production_id || null, ui_settings ? JSON.stringify(ui_settings) : null]
+      [userId, selected_production_id || null, ui_settings ? JSON.stringify(ui_settings) : '{}']
     )
     res.json({ ok: true })
   } catch (err) {
