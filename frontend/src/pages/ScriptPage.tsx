@@ -9,7 +9,7 @@ import { useFocus, useSelectedProduction } from '../App'
 
 const MIN_WIDTH = 180
 const MAX_WIDTH = 520
-const DEFAULT_WIDTH = 260
+const DEFAULT_WIDTH = 276
 
 export default function ScriptPage() {
   const { focus } = useFocus()
@@ -39,7 +39,6 @@ export default function ScriptPage() {
   useEffect(() => {
     api.getSettings().then(s => {
       const ui = s?.ui_settings || {}
-      if (ui.scene_list_width) setSidebarWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, ui.scene_list_width)))
       if (typeof ui.scene_list_collapsed === 'boolean') setSidebarCollapsed(ui.scene_list_collapsed)
       if (ui.last_staffel_id)    pendingNav.current.staffelId   = ui.last_staffel_id
       if (ui.last_folge_nummer)  pendingNav.current.folgeNummer = ui.last_folge_nummer
@@ -50,11 +49,11 @@ export default function ScriptPage() {
   }, [])
 
   // Debounced save layout to backend
-  const saveSettings = useCallback((width: number, collapsed: boolean) => {
+  const saveSettings = useCallback((collapsed: boolean) => {
     if (!settingsLoaded) return
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
-      api.updateSettings({ ui_settings: { scene_list_width: width, scene_list_collapsed: collapsed } })
+      api.updateSettings({ ui_settings: { scene_list_collapsed: collapsed } })
         .catch(() => {})
     }, 800)
   }, [settingsLoaded])
@@ -89,7 +88,7 @@ export default function ScriptPage() {
       isDragging.current = false
       const delta = ev.clientX - dragStartX.current
       const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
-      saveSettings(newWidth, sidebarCollapsed)
+      saveSettings(sidebarCollapsed)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
@@ -100,10 +99,10 @@ export default function ScriptPage() {
   const toggleCollapse = useCallback(() => {
     setSidebarCollapsed(v => {
       const next = !v
-      saveSettings(sidebarWidth, next)
+      saveSettings(next)
       return next
     })
-  }, [sidebarWidth, saveSettings])
+  }, [saveSettings])
 
   // Sync selected production as staffel — wait for settings first to avoid race condition
   useEffect(() => {
