@@ -167,6 +167,14 @@ export const api = {
   linkCharacterToProduction: (characterId: string, data: any) =>
     request<any>('POST', `/characters/${characterId}/productions`, data),
 
+  // Revisionen
+  getSzeneRevisionen: (szeneId: number, stageId?: number) => {
+    const qs = stageId ? `?stage_id=${stageId}` : ''
+    return request<any[]>('GET', `/szenen/${szeneId}/revisionen${qs}`)
+  },
+  createSzeneRevision: (szeneId: number, data: any) =>
+    request<any>('POST', `/szenen/${szeneId}/revisionen`, data),
+
   // Vorstopp
   getVorstopp: (szeneId: number) =>
     request<any>('GET', `/szenen/${szeneId}/vorstopp`),

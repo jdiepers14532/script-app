@@ -30,6 +30,61 @@ szenenRouter.get('/:id', async (req, res) => {
   }
 })
 
+// Helper: record revision deltas if stage is in revision mode
+async function recordRevisionDeltas(
+  szeneId: string,
+  stageId: number,
+  oldSzene: any,
+  body: any,
+  newContent: any[] | null
+) {
+  // Only record if stage has a revision_color_id set
+  const stage = await queryOne(
+    `SELECT revision_color_id FROM stages WHERE id = $1`,
+    [stageId]
+  )
+  if (!stage?.revision_color_id) return
+
+  const deltaInsert = (
+    fieldType: string, fieldName: string | null,
+    blockIndex: number | null, blockType: string | null,
+    speaker: string | null, oldVal: string | null, newVal: string | null
+  ) => queryOne(
+    `INSERT INTO szenen_revisionen
+       (szene_id, stage_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+    [szeneId, stageId, fieldType, fieldName, blockIndex, blockType, speaker, oldVal, newVal]
+  ).catch(() => {})
+
+  // Header fields
+  const headerFields = ['int_ext', 'tageszeit', 'ort_name', 'zusammenfassung', 'seiten', 'spieltag'] as const
+  for (const f of headerFields) {
+    if (body[f] !== undefined && String(body[f] ?? '') !== String(oldSzene[f] ?? '')) {
+      await deltaInsert('header', f, null, null, null, String(oldSzene[f] ?? ''), String(body[f] ?? ''))
+    }
+  }
+
+  // Content block deltas
+  if (newContent !== null) {
+    const oldBlocks: any[] = Array.isArray(oldSzene.content) ? oldSzene.content : []
+    const maxLen = Math.max(oldBlocks.length, newContent.length)
+    for (let i = 0; i < maxLen; i++) {
+      const ob = oldBlocks[i]
+      const nb = newContent[i]
+      if (!ob && nb) {
+        // Added block
+        await deltaInsert('content_block', null, i, nb.type, nb.character ?? null, null, nb.text ?? '')
+      } else if (ob && !nb) {
+        // Removed block
+        await deltaInsert('content_block', null, i, ob.type, ob.character ?? null, ob.text ?? '', null)
+      } else if (ob && nb && (ob.text !== nb.text || ob.type !== nb.type)) {
+        // Changed block
+        await deltaInsert('content_block', null, i, nb.type, nb.character ?? null, ob.text ?? '', nb.text ?? '')
+      }
+    }
+  }
+}
+
 // PUT /api/szenen/:id
 szenenRouter.put('/:id', async (req, res) => {
   try {
@@ -44,6 +99,15 @@ szenenRouter.put('/:id', async (req, res) => {
       }
       content = parsed.data
     }
+
+    // Fetch current state before update (for delta recording)
+    const oldSzene = await queryOne(
+      `SELECT sz.*, st.id AS stage_id_val, st.revision_color_id
+       FROM szenen sz JOIN stages st ON st.id = sz.stage_id
+       WHERE sz.id = $1`,
+      [req.params.id]
+    )
+
     const row = await queryOne(
       `UPDATE szenen SET
         int_ext = COALESCE($1, int_ext),
@@ -71,6 +135,18 @@ szenenRouter.put('/:id', async (req, res) => {
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
+
+    // Record deltas asynchronously (non-blocking, don't fail the save if this errors)
+    if (oldSzene?.stage_id_val) {
+      recordRevisionDeltas(
+        req.params.id,
+        oldSzene.stage_id_val,
+        oldSzene,
+        req.body,
+        content ?? null
+      ).catch(() => {})
+    }
+
     res.json(row)
   } catch (err) {
     res.status(500).json({ error: String(err) })
