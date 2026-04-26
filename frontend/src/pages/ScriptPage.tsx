@@ -109,9 +109,9 @@ export default function ScriptPage() {
     })
   }, [sidebarWidth, saveSettings])
 
-  // Sync selected production as staffel
+  // Sync selected production as staffel — wait for settings first to avoid race condition
   useEffect(() => {
-    if (!selectedProduction) return
+    if (!selectedProduction || !settingsLoaded) return
     fetch('/api/staffeln/sync', {
       method: 'POST',
       credentials: 'include',
@@ -212,13 +212,19 @@ export default function ScriptPage() {
             <SceneList
               szenen={szenen}
               selectedSzeneId={selectedSzeneId}
-              onSelectSzene={setSelectedSzeneId}
+              onSelectSzene={(id) => {
+                setSelectedSzeneId(id)
+                if (navRestored.current && selectedStaffelId)
+                  api.updateSettings({ ui_settings: { last_szene_id: id } }).catch(() => {})
+              }}
               staffelId={selectedStaffelId}
               folgeNummer={selectedFolgeNummer}
               stageId={selectedStageId}
               onSzeneCreated={(newSzene) => {
                 setSzenen(prev => [...prev, newSzene])
                 setSelectedSzeneId(newSzene.id)
+                if (navRestored.current && selectedStaffelId)
+                  api.updateSettings({ ui_settings: { last_szene_id: newSzene.id } }).catch(() => {})
               }}
               onSzeneDeleted={(id) => {
                 setSzenen(prev => prev.filter(s => s.id !== id))
