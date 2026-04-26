@@ -35,6 +35,22 @@ export default function ScriptPage() {
   const pendingNav = useRef<{ staffelId?: string; folgeNummer?: number; stageId?: number; szeneId?: number }>({})
   const navRestored = useRef(false)
 
+  // Live refs for keyboard handler (avoid stale closures without re-registering listener)
+  const bloeckeRef = useRef(bloecke)
+  bloeckeRef.current = bloecke
+  const selectedBlockRef = useRef(selectedBlock)
+  selectedBlockRef.current = selectedBlock
+  const selectedFolgeNummerRef = useRef(selectedFolgeNummer)
+  selectedFolgeNummerRef.current = selectedFolgeNummer
+  const selectedStageIdRef = useRef(selectedStageId)
+  selectedStageIdRef.current = selectedStageId
+  const szenenRef = useRef(szenen)
+  szenenRef.current = szenen
+  const selectedSzeneIdRef = useRef(selectedSzeneId)
+  selectedSzeneIdRef.current = selectedSzeneId
+  const selectedStaffelIdRef = useRef(selectedStaffelId)
+  selectedStaffelIdRef.current = selectedStaffelId
+
   // Load user settings (sidebar + last navigation position)
   useEffect(() => {
     api.getSettings().then(s => {
@@ -70,6 +86,81 @@ export default function ScriptPage() {
       last_szene_id:     szeneId,
     }}).catch(() => {})
   }, [])
+
+  // Keyboard navigation: ↑↓ = Episode, ←→ = Szene
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
+      const tag = (document.activeElement?.tagName || '').toLowerCase()
+      if (['input', 'textarea', 'select'].includes(tag)) return
+      if (document.activeElement?.getAttribute('contenteditable')) return
+
+      const currentBloecke    = bloeckeRef.current
+      const currentBlock      = selectedBlockRef.current
+      const currentFolge      = selectedFolgeNummerRef.current
+      const currentStageId    = selectedStageIdRef.current
+      const currentSzenen     = szenenRef.current
+      const currentSzeneId    = selectedSzeneIdRef.current
+      const staffelId         = selectedStaffelIdRef.current
+
+      // ↑↓ — Episode wechseln (block-übergreifend)
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (currentFolge == null || !currentBlock || !staffelId) return
+        const dir = e.key === 'ArrowDown' ? 1 : -1
+        const nextFolge = currentFolge + dir
+        const inBlock = nextFolge >= (currentBlock.folge_von ?? nextFolge)
+          && (currentBlock.folge_bis == null || nextFolge <= currentBlock.folge_bis)
+
+        if (inBlock) {
+          pendingNav.current = {}; navRestored.current = true
+          setSelectedFolgeNummer(nextFolge)
+          api.updateSettings({ ui_settings: {
+            last_staffel_id: staffelId, last_folge_nummer: nextFolge,
+            last_stage_id: null, last_szene_id: null,
+          }}).catch(() => {})
+        } else {
+          const sorted = [...currentBloecke].sort((a, b) => (a.folge_von ?? 0) - (b.folge_von ?? 0))
+          const idx = sorted.findIndex(b => b.proddb_id === currentBlock.proddb_id)
+          const nextIdx = idx + dir
+          if (nextIdx < 0 || nextIdx >= sorted.length) return
+          const nextBlock = sorted[nextIdx]
+          const targetFolge = dir > 0
+            ? (nextBlock.folge_von ?? null)
+            : (nextBlock.folge_bis ?? nextBlock.folge_von ?? null)
+          if (targetFolge == null) return
+          pendingNav.current = {}; navRestored.current = true
+          setSelectedBlock(nextBlock)
+          setSelectedFolgeNummer(targetFolge)
+          api.updateSettings({ ui_settings: {
+            last_staffel_id: staffelId, last_folge_nummer: targetFolge,
+            last_stage_id: null, last_szene_id: null,
+          }}).catch(() => {})
+        }
+      }
+
+      // ←→ — Szene wechseln
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault()
+        if (!currentSzenen.length || currentSzeneId == null) return
+        const idx = currentSzenen.findIndex(s => s.id === currentSzeneId)
+        if (idx === -1) return
+        const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
+        if (nextIdx < 0 || nextIdx >= currentSzenen.length) return
+        const nextSzene = currentSzenen[nextIdx]
+        setSelectedSzeneId(nextSzene.id)
+        if (navRestored.current && staffelId)
+          api.updateSettings({ ui_settings: {
+            last_staffel_id: staffelId,
+            last_folge_nummer: currentFolge,
+            last_stage_id: currentStageId,
+            last_szene_id: nextSzene.id,
+          }}).catch(() => {})
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, []) // empty deps — all state accessed via live refs
 
   // Drag-to-resize
   const onDragStart = useCallback((e: React.MouseEvent) => {
