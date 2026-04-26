@@ -350,6 +350,21 @@
 .breakdown .bd-remove { opacity:0; background:none; border:none; cursor:pointer; color:var(--text-muted); padding:2px; display:flex; border-radius:4px; }
 .breakdown .bd-remove:hover { color:var(--sw-danger); background:color-mix(in srgb,var(--sw-danger) 10%,transparent); }
 
+/* ── Revision Markup ── */
+.script-body.show-revisions .revised { position:relative; }
+.script-body.show-revisions .revised::before {
+  content: '*';
+  position: absolute;
+  left: -18px;
+  top: 0;
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--sw-info);
+  line-height: inherit;
+  pointer-events: none;
+}
+.btn-sm.active { background:var(--text-primary) !important; color:var(--text-inverse) !important; }
+
 /* ── Vorstopp Bar ── */
 .vorstopp-bar { display:flex; align-items:center; gap:8px; padding:7px 16px; background:var(--bg-subtle); border-bottom:1px solid var(--border-subtle); flex-shrink:0; }
 .vorstopp-label { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; color:var(--text-muted); flex-shrink:0; }

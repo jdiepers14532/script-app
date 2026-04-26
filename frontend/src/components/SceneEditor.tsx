@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles, MessageSquare } from 'lucide-react'
+import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles, MessageSquare, GitCompare } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext } from '../App'
@@ -39,6 +39,9 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showRevisions, setShowRevisions] = useState(false)
+  const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
+  const [revisionColor, setRevisionColor] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Load scene when szeneId changes
@@ -56,7 +59,23 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     api.getKommentare(szeneId)
       .then(list => setKommentareCount(Array.isArray(list) ? list.length : 0))
       .catch(() => setKommentareCount(0))
-  }, [szeneId])
+
+    // Load revision deltas for this scene
+    api.getSzeneRevisionen(szeneId, stageId ?? undefined)
+      .then(deltas => {
+        const changed = new Set<number>()
+        deltas.forEach((d: any) => {
+          if (d.field_type === 'content_block' && d.block_index != null) {
+            changed.add(d.block_index)
+          }
+        })
+        setChangedBlocks(changed)
+        // Get revision color from first delta that has one
+        const colorDelta = deltas.find((d: any) => d.revision_color)
+        setRevisionColor(colorDelta?.revision_color ?? null)
+      })
+      .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
+  }, [szeneId, stageId])
 
   // Load lock when folge changes
   useEffect(() => {
@@ -292,15 +311,32 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           <div className="panel">
             <div className="phead">
               <span className="title">Drehbuch</span>
-              <span className="vchip wip">In Arbeit</span>
+              {revisionColor && showRevisions ? (
+                <span className="vchip" style={{ background: revisionColor + '33', color: revisionColor, borderColor: revisionColor + '66' }}>
+                  Revision
+                </span>
+              ) : (
+                <span className="vchip wip">In Arbeit</span>
+              )}
               <span className="spacer" />
+              {changedBlocks.size > 0 && (
+                <button
+                  className={`btn-sm${showRevisions ? ' active' : ''}`}
+                  onClick={() => setShowRevisions(v => !v)}
+                  title={showRevisions ? 'Revisions-Markierungen ausblenden' : 'Revisions-Markierungen anzeigen'}
+                  style={showRevisions ? { background: 'var(--text-primary)', color: 'var(--text-inverse)' } : {}}
+                >
+                  <GitCompare size={11} />
+                  {changedBlocks.size} Änderung{changedBlocks.size !== 1 ? 'en' : ''}
+                </button>
+              )}
               <button className="btn-sm">
                 <Sparkles size={11} />
                 KI
               </button>
             </div>
             <div className="pbody">
-              <div className="script-body">
+              <div className={`script-body${showRevisions ? ' show-revisions' : ''}`}>
                 {contentTextelemente.length === 0 ? (
                   <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 12 }}>
                     Noch kein Inhalt vorhanden.
@@ -309,7 +345,10 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
                   contentTextelemente.map((te: any, i: number) => (
                     <div
                       key={te.id ?? i}
-                      className={te.type ?? 'action'}
+                      className={[
+                        te.type ?? 'action',
+                        showRevisions && changedBlocks.has(i) ? 'revised' : '',
+                      ].filter(Boolean).join(' ')}
                       contentEditable
                       suppressContentEditableWarning
                       onBlur={e => {
