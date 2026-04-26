@@ -758,7 +758,7 @@ export default function AppShell({
                       <>
                         <span style={{ color: '#F5C842' }}>☀ {sunWeather.avgSunrise}</span>
                         {' – '}
-                        <span style={{ color: '#FF7043' }}>{sunWeather.avgSunset} Uhr</span>
+                        <span style={{ color: '#C264E8' }}>{sunWeather.avgSunset} Uhr</span>
                       </>
                     )}
                     {hasSun && hasTemp && ' · '}
