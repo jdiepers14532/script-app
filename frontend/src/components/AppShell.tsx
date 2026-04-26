@@ -432,9 +432,9 @@ export default function AppShell({
       .catch(() => {})
   }, [])
 
-  // ── Treatment-Bezeichnung von Produktions-Backend laden ───────────────────
+  // ── Treatment-Bezeichnung vom Script-Backend laden ────────────────────────
   useEffect(() => {
-    fetch('https://produktion.serienwerft.studio/api/public/settings', { credentials: 'include' })
+    fetch('/api/admin/app-settings', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
         if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
@@ -960,7 +960,15 @@ export default function AppShell({
                   <button
                     key={opt}
                     className={treatmentLabel === opt ? 'on' : ''}
-                    onClick={() => setTreatmentLabel(opt)}
+                    onClick={async () => {
+                      setTreatmentLabel(opt)
+                      await fetch('/api/admin/app-settings/treatment_label', {
+                        method: 'PUT',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ value: opt }),
+                      }).catch(() => {})
+                    }}
                   >
                     {opt}
                   </button>
@@ -976,25 +984,9 @@ export default function AppShell({
               </div>
             </div>
             <div className="admin-modal-foot">
-              <button
-                className="admin-save-btn"
-                disabled={adminSaving}
-                onClick={async () => {
-                  setAdminSaving(true)
-                  try {
-                    await fetch('https://produktion.serienwerft.studio/api/admin/einstellungen/treatment_label', {
-                      method: 'PUT',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ value: treatmentLabel }),
-                    })
-                    setAdminOpen(false)
-                  } catch { /* ignore */ }
-                  finally { setAdminSaving(false) }
-                }}
-              >
+              <button className="admin-save-btn" onClick={() => setAdminOpen(false)}>
                 <Check size={13} />
-                {adminSaving ? 'Speichert…' : 'Speichern'}
+                Schließen
               </button>
             </div>
           </div>
