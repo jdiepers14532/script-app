@@ -121,6 +121,7 @@
   display:inline-flex; align-items:center; gap:6px;
   padding:4px 10px; border-radius:999px;
   background:var(--bg-subtle); color:var(--text-secondary); font-size:11px; font-weight:500;
+  flex-shrink:0; white-space:nowrap;
 }
 .topbar .status-pill .dot { width:6px; height:6px; border-radius:999px; background:var(--sw-green); }
 .topbar .iconbtn {
@@ -133,6 +134,10 @@
 
 /* Focus-mode: hide extras */
 [data-mode='focus'] .topbar-extra { display:none; }
+
+/* Responsive: hide chips at narrow viewports */
+@media (max-width: 1100px) { .topbar .chip.topbar-extra { display:none; } }
+@media (max-width: 900px)  { .topbar .status-pill.topbar-extra, .topbar .iconbtn.topbar-extra { display:none; } }
 [data-mode='focus'] .topbar .status-pill span:last-child { display:none; }
 [data-mode='focus'] .topbar .firm-logo-btn { display:none; }
 
