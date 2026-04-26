@@ -111,6 +111,24 @@ export const api = {
     return fetch(`${BASE}/import/commit`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
   },
 
+  // Characters
+  getCharacters: (staffelId: string) =>
+    request<any[]>('GET', `/characters?staffel_id=${encodeURIComponent(staffelId)}`),
+  createCharacter: (data: any) => request<any>('POST', '/characters', data),
+  updateCharacter: (id: string, data: any) => request<any>('PUT', `/characters/${id}`, data),
+  getCharKategorien: (staffelId: string) =>
+    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien`),
+  getSceneCharacters: (szeneId: number) =>
+    request<any[]>('GET', `/szenen/${szeneId}/characters`),
+  addSceneCharacter: (szeneId: number, data: any) =>
+    request<any>('POST', `/szenen/${szeneId}/characters`, data),
+  updateSceneCharacter: (szeneId: number, characterId: string, data: any) =>
+    request<any>('PUT', `/szenen/${szeneId}/characters/${characterId}`, data),
+  removeSceneCharacter: (szeneId: number, characterId: string) =>
+    request<void>('DELETE', `/szenen/${szeneId}/characters/${characterId}`),
+  linkCharacterToProduction: (characterId: string, data: any) =>
+    request<any>('POST', `/characters/${characterId}/productions`, data),
+
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {
     const fd = new FormData(); fd.append('file', file)

@@ -225,7 +225,7 @@ export default function ScriptPage() {
           )}
         </div>
 
-        {!focus && <BreakdownPanel szenen={szenen} />}
+        {!focus && <BreakdownPanel szeneId={selectedSzeneId} staffelId={selectedStaffelId} />}
       </div>
     </AppShell>
   )

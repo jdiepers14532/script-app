@@ -200,6 +200,39 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               <span className="val">{scene.dauer_min} min</span>
             </div>
           )}
+          <div className="cell">
+            <span className="lbl">Seiten</span>
+            <input
+              className="meta-input"
+              defaultValue={scene.seiten ?? ''}
+              placeholder="z.B. 2 5/8"
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.seiten ?? null)) {
+                  api.updateSzene(szeneId, { seiten: val }).then(s => {
+                    setScene(s); onSzeneUpdated?.(s)
+                  }).catch(() => {})
+                }
+              }}
+            />
+          </div>
+          <div className="cell">
+            <span className="lbl">Spieltag</span>
+            <input
+              className="meta-input"
+              type="number"
+              defaultValue={scene.spieltag ?? ''}
+              placeholder="—"
+              onBlur={e => {
+                const val = e.target.value !== '' ? parseInt(e.target.value, 10) : null
+                if (val !== (scene.spieltag ?? null)) {
+                  api.updateSzene(szeneId, { spieltag: val }).then(s => {
+                    setScene(s); onSzeneUpdated?.(s)
+                  }).catch(() => {})
+                }
+              }}
+            />
+          </div>
         </div>
         {scene.zusammenfassung && (
           <div className="desc-row">
