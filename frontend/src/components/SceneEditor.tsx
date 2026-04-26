@@ -3,7 +3,7 @@ import { Lock, ChevronLeft, ChevronRight, FileDown, MessageSquare, GitCompare, I
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
-import { PanelModeContext, useAppSettings } from '../App'
+import { PanelModeContext, useAppSettings, useUserPrefs } from '../App'
 
 interface SceneEditorProps {
   szeneId: number
@@ -42,6 +42,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
+  const { scrollNavDelay } = useUserPrefs()
   const [scene, setScene] = useState<any | null>(null)
   const [lock, setLock] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
@@ -72,14 +73,14 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
         overscrollTimer.current = setTimeout(() => {
           overscrollTimer.current = null
           onNavigateNext()
-        }, 500)
+        }, scrollNavDelay)
       }
     } else if (goingUp && atTop && onNavigatePrev) {
       if (!overscrollTimer.current) {
         overscrollTimer.current = setTimeout(() => {
           overscrollTimer.current = null
           onNavigatePrev()
-        }, 500)
+        }, scrollNavDelay)
       }
     } else {
       if (overscrollTimer.current) {
@@ -87,7 +88,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
         overscrollTimer.current = null
       }
     }
-  }, [onNavigatePrev, onNavigateNext])
+  }, [onNavigatePrev, onNavigateNext, scrollNavDelay])
 
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()

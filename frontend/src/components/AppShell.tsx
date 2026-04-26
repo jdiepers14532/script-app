@@ -6,7 +6,7 @@ import {
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
 } from 'lucide-react'
-import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings } from '../App'
+import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
 import { CompanyInfoModal } from '../sw-ui'
@@ -46,6 +46,7 @@ export interface TweakState {
   interfaceFontSize: number
   scriptFont: string
   fontSize: number
+  scrollNavDelay: number
 }
 
 // ── Wissenschaftlich empfohlene Hintergrundpaletten ──────────────────────────
@@ -162,6 +163,7 @@ const DEFAULT_TWEAKS: TweakState = {
   interfaceFontSize: 13,
   scriptFont: SCRIPT_FONTS[0].value,
   fontSize: 13,
+  scrollNavDelay: 1000,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -465,6 +467,7 @@ export default function AppShell({
           interfaceFontSize: typeof s.interfaceFontSize === 'number' ? s.interfaceFontSize : 13,
           scriptFont:        s.scriptFont        ?? SCRIPT_FONTS[0].value,
           fontSize:          typeof s.fontSize === 'number' ? s.fontSize : 13,
+          scrollNavDelay:    typeof s.scrollNavDelay === 'number' ? s.scrollNavDelay : 1000,
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -825,9 +828,11 @@ export default function AppShell({
         data-breakdown={tweaks.breakdown ? 'on' : 'off'}
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
-        <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
-          {children}
-        </PanelModeContext.Provider>
+        <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay }}>
+          <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
+            {children}
+          </PanelModeContext.Provider>
+        </UserPrefsContext.Provider>
       </main>
 
       {/* ── Ansichtsoptionen-Panel ── */}
@@ -944,6 +949,16 @@ export default function AppShell({
             <div className="seg">
               <button className={tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', true)}>An</button>
               <button className={!tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', false)}>Aus</button>
+            </div>
+          </TweakGroup>
+
+          <TweakGroup label="Scroll-Navigation Verzögerung">
+            <div className="seg">
+              {[500, 1000, 1500, 2000, 3000].map(ms => (
+                <button key={ms} className={tweaks.scrollNavDelay === ms ? 'on' : ''} onClick={() => set('scrollNavDelay', ms)}>
+                  {ms / 1000}s
+                </button>
+              ))}
             </div>
           </TweakGroup>
 
