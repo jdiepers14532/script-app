@@ -19,21 +19,18 @@ function AllgemeinTab() {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
+    // Treatment label from script backend
     fetch('/api/admin/app-settings', { credentials: 'include' })
-      .then(r => r.json())
-      .then((data: any[]) => {
-        const tl = data.find((s: any) => s.key === 'treatment_label')?.value
-        if (tl) setTreatmentLabel(tl as any)
-        const scriptApp = data.find((s: any) => s.subdomain === 'script') // may not be here
-        if (scriptApp?.roles) setRoles(scriptApp.roles)
-      })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => { if (data?.treatment_label) setTreatmentLabel(data.treatment_label) })
       .catch(() => {})
 
-    fetch('/api/admin/app-settings/apps', { credentials: 'include' })
-      .then(r => r.json())
-      .then((apps: any[]) => {
-        const script = apps.find(a => a.subdomain === 'script')
-        if (script?.roles) setRoles(script.roles)
+    // Roles from auth app
+    fetch('https://auth.serienwerft.studio/api/auth/my-apps', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        const script = (data?.apps || []).find((a: any) => a.subdomain === 'script')
+        setRoles(script?.roles || [])
       })
       .catch(() => {})
   }, [])
@@ -318,7 +315,8 @@ export default function AdminPage() {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'ki'              && <AdminKI />}
           {activeTab === 'wasserzeichen'   && <WasserzeichenTab />}
-          {activeTab !== 'ki' && activeTab !== 'wasserzeichen' && (
+          {activeTab === 'allgemein'       && <AllgemeinTab />}
+          {activeTab !== 'ki' && activeTab !== 'wasserzeichen' && activeTab !== 'allgemein' && (
             <div style={{ padding: '28px 32px', color: 'var(--text-secondary)', fontSize: 13 }}>
               Dieser Bereich ist noch in Entwicklung.
             </div>
