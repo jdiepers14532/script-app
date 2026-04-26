@@ -331,9 +331,9 @@
 .tweaks .body { padding:10px 14px 14px; display:flex; flex-direction:column; gap:12px; max-height:calc(100vh - 80px); overflow-y:auto; }
 .tweaks .group { display:flex; flex-direction:column; gap:6px; }
 .tweaks .group .lbl { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); font-weight:600; }
-.tweaks .seg { display:inline-flex; padding:2px; background:var(--bg-subtle); border-radius:7px; gap:2px; }
-.tweaks .seg button { flex:1; border:none; background:transparent; padding:5px 8px; font:inherit; font-size:11px; color:var(--text-secondary); border-radius:5px; cursor:pointer; }
-.tweaks .seg button.on { background:var(--bg-surface); color:var(--text-primary); box-shadow:var(--shadow-sm); font-weight:500; }
+.seg { display:inline-flex; padding:2px; background:var(--bg-subtle); border-radius:7px; gap:2px; }
+.seg button { flex:1; border:none; background:transparent; padding:5px 8px; font:inherit; font-size:11px; color:var(--text-secondary); border-radius:5px; cursor:pointer; }
+.seg button.on { background:var(--bg-surface); color:var(--text-primary); box-shadow:var(--shadow-sm); font-weight:500; }
 .tweaks .swatches { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
 .tweaks .swatch {
   width:22px; height:22px; border-radius:50%; border:2px solid transparent; cursor:pointer;
