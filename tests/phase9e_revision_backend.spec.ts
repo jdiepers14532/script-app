@@ -156,24 +156,24 @@ test.describe('Phase 9e — Revision Backend (Delta-Tracking)', () => {
     if (!ctx) test.skip()
     const { stageId, szeneId } = ctx!
 
-    // Set a revision color on the stage — need to use a real revision color ID
-    // First get the revision colors for our staffel
-    const colors = await (await request.get(
-      `${BASE}/api/staffeln/${STAFFEL_ID}/revision-colors`
+    // Create a temporary revision color for the UUID staffelId
+    const colorRes = await (await request.post(
+      `${BASE}/api/staffeln/${STAFFEL_ID}/revision-colors`,
+      { data: { name: 'AutoDelta-Test-Farbe', color: '#FF0000' } }
     )).json()
 
-    if (!Array.isArray(colors) || colors.length === 0) {
-      // No revision colors configured for this staffelId (UUID) — skip
+    if (!colorRes.id) {
       await cleanupCtx(request, szeneId)
       test.skip()
       return
     }
 
-    // Update stage to have revision_color_id
+    // Set revision_color_id on the stage
     const stageUpdate = await request.put(`${BASE}/api/stages/${stageId}`, {
-      data: { revision_color_id: colors[0].id },
+      data: { revision_color_id: colorRes.id },
     })
     if (stageUpdate.status() !== 200) {
+      await request.delete(`${BASE}/api/staffeln/${STAFFEL_ID}/revision-colors/${colorRes.id}`)
       await cleanupCtx(request, szeneId)
       test.skip()
       return
@@ -184,8 +184,8 @@ test.describe('Phase 9e — Revision Backend (Delta-Tracking)', () => {
       data: { ort_name: 'AutoDelta-Motiv' },
     })
 
-    // Small wait for async delta recording
-    await new Promise(r => setTimeout(r, 300))
+    // Wait briefly for async delta recording
+    await new Promise(r => setTimeout(r, 500))
 
     const revisionen = await (await request.get(`${BASE}/api/szenen/${szeneId}/revisionen`)).json()
     expect(revisionen.length).toBeGreaterThanOrEqual(1)
@@ -193,6 +193,8 @@ test.describe('Phase 9e — Revision Backend (Delta-Tracking)', () => {
     expect(headerDelta).toBeTruthy()
     expect(headerDelta.new_value).toBe('AutoDelta-Motiv')
 
+    // Cleanup
+    await request.delete(`${BASE}/api/staffeln/${STAFFEL_ID}/revision-colors/${colorRes.id}`)
     await cleanupCtx(request, szeneId)
   })
 

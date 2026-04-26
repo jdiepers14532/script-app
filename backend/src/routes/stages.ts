@@ -63,14 +63,17 @@ stagesRouter.post('/', async (req, res) => {
 // PUT /api/stages/:id
 stagesRouter.put('/:id', async (req, res) => {
   try {
-    const { status, version_label, is_locked } = req.body
+    const { status, version_label, is_locked, revision_color_id, label_id } = req.body
     const row = await queryOne(
       `UPDATE stages SET
         status = COALESCE($1, status),
         version_label = COALESCE($2, version_label),
-        is_locked = COALESCE($3, is_locked)
+        is_locked = COALESCE($3, is_locked),
+        revision_color_id = COALESCE($5, revision_color_id),
+        label_id = COALESCE($6, label_id)
        WHERE id = $4 RETURNING *`,
-      [status, version_label, is_locked, req.params.id]
+      [status, version_label, is_locked, req.params.id,
+       revision_color_id ?? null, label_id ?? null]
     )
     if (!row) return res.status(404).json({ error: 'Stage nicht gefunden' })
     res.json(row)
