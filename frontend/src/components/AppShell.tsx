@@ -519,33 +519,62 @@ export default function AppShell({
       }
     }
 
-    // Open-Meteo: Archivdaten nur für vergangene Daten (bis heute)
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const effectiveBis = bisDate <= today ? bis : today.toISOString().slice(0, 10)
-    const isPast = bisDate < today
-    const hasAnyPast = vonDate <= today
-
-    if (!hasAnyPast) {
+    // Büro-Adresse der aktuellen Produktion → Geocoding via Nominatim
+    const selectedProd = productions.find(p => p.id === selectedProdId)
+    const bueroAdresse = selectedProd?.buero_adresse?.trim() ?? ''
+    if (!bueroAdresse) {
+      // Keine Adresse → nur DST-Warnung anzeigen
       setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
       return
     }
 
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=53.25&longitude=10.41&start_date=${von}&end_date=${effectiveBis}&daily=sunrise,sunset,temperature_2m_mean,precipitation_hours&timezone=Europe%2FBerlin`
-    fetch(url)
-      .then(r => r.json())
-      .then((data: any) => {
+    let cancelled = false
+
+    const geocodeAndFetch = async () => {
+      // Geocoding: Nominatim
+      let lat: number, lon: number
+      try {
+        const geoRes = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(bueroAdresse)}&format=json&limit=1`,
+          { headers: { 'Accept-Language': 'de', 'User-Agent': 'SerienwerftScriptApp/1.0' } }
+        )
+        const geoData = await geoRes.json()
+        if (!geoData?.length) {
+          setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
+          return
+        }
+        lat = parseFloat(geoData[0].lat)
+        lon = parseFloat(geoData[0].lon)
+      } catch {
+        setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
+        return
+      }
+
+      // Open-Meteo: Archivdaten nur für vergangene Daten (bis heute)
+      const today = new Date(); today.setHours(0, 0, 0, 0)
+      const effectiveBis = bisDate <= today ? bis : today.toISOString().slice(0, 10)
+      const isPast = bisDate < today
+      const hasAnyPast = vonDate <= today
+
+      if (!hasAnyPast) {
+        if (!cancelled) setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
+        return
+      }
+
+      try {
+        const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&start_date=${von}&end_date=${effectiveBis}&daily=sunrise,sunset,temperature_2m_mean,precipitation_hours&timezone=Europe%2FBerlin`
+        const data = await fetch(url).then(r => r.json())
+        if (cancelled) return
         const daily = data.daily
         if (!daily) { setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate }); return }
 
         const fmtTime = (mins: number | null) => mins == null ? null
           : `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
-
         const toMins = (iso: string) => { const t = new Date(iso); return isNaN(t.getTime()) ? null : t.getHours() * 60 + t.getMinutes() }
         const avg = (arr: (number | null)[]) => { const v = arr.filter(x => x != null) as number[]; return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null }
 
         const avgSrMin = avg((daily.sunrise ?? []).map(toMins))
         const avgSsMin = avg((daily.sunset ?? []).map(toMins))
-
         const avgTemp = isPast ? (() => { const v = avg(daily.temperature_2m_mean ?? []); return v != null ? Math.round(v * 10) / 10 : null })() : null
         const precipHours: number[] = isPast ? (daily.precipitation_hours ?? []).filter((p: any) => p != null) : []
         const rainPct = precipHours.length ? Math.round(precipHours.filter((h: number) => h > 0).length / precipHours.length * 100) : null
@@ -558,9 +587,14 @@ export default function AppShell({
           hasDst,
           dstDate,
         })
-      })
-      .catch(() => setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate }))
-  }, [selectedBlock?.dreh_von, selectedBlock?.dreh_bis])
+      } catch {
+        if (!cancelled) setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
+      }
+    }
+
+    geocodeAndFetch()
+    return () => { cancelled = true }
+  }, [selectedBlock?.dreh_von, selectedBlock?.dreh_bis, selectedProdId, productions])
 
   const allFolgen = useMemo(() => {
     const result: { nr: number; block: any }[] = []

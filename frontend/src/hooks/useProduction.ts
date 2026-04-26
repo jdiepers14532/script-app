@@ -7,6 +7,7 @@ export interface Production {
   projektnummer: string | null
   is_active: boolean
   logo_filename: string | null
+  buero_adresse: string | null
 }
 
 export function productionLabel(p: Production): string {
