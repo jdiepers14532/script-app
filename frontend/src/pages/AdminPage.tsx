@@ -453,10 +453,15 @@ function ProduktionTab() {
   const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
   const delBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px', lineHeight: 1 }
 
-  const prodLabel = (p: any) => p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+  const prodLabel = (p: any) => {
+    const title = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+    return p.projektnummer ? `${p.projektnummer} · ${title}` : title
+  }
   const copySourceProd = productions.find(p => p.id === copySourceId)
   const copySourceName = copySourceProd ? prodLabel(copySourceProd) : ''
-  const filteredProductions = productions.filter(p => p.id !== staffelId && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
+  const othersActive   = productions.filter(p => p.id !== staffelId && p.is_active   && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
+  const othersInactive = productions.filter(p => p.id !== staffelId && !p.is_active  && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
+  const filteredProductions = [...othersActive, ...othersInactive]
   const COPY_SECTIONS = [
     { id: 'kategorien', label: 'Charakter-Kategorien' },
     { id: 'labels',     label: 'Fassungs-Labels' },
@@ -527,21 +532,31 @@ function ProduktionTab() {
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
                   background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
-                  marginTop: 2, maxHeight: 180, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                  marginTop: 2, maxHeight: 220, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
                 }}>
-                  {filteredProductions.map(p => (
-                    <div
-                      key={p.id}
-                      onMouseDown={() => { setCopySourceId(p.id); setCopySearch(''); setCopyDropOpen(false) }}
-                      style={{
-                        padding: '8px 12px', cursor: 'pointer', fontSize: 13,
-                        background: copySourceId === p.id ? 'var(--bg-subtle)' : undefined,
-                      }}
+                  {othersActive.length > 0 && (
+                    <div style={{ padding: '5px 10px 2px', fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      Aktiv
+                    </div>
+                  )}
+                  {othersActive.map(p => (
+                    <div key={p.id} onMouseDown={() => { setCopySourceId(p.id); setCopySearch(''); setCopyDropOpen(false) }}
+                      style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 13, background: copySourceId === p.id ? 'var(--bg-subtle)' : undefined }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
                       onMouseLeave={e => (e.currentTarget.style.background = copySourceId === p.id ? 'var(--bg-subtle)' : '')}
-                    >
-                      {prodLabel(p)}
+                    >{prodLabel(p)}</div>
+                  ))}
+                  {othersInactive.length > 0 && (
+                    <div style={{ padding: '7px 10px 2px', fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', borderTop: othersActive.length > 0 ? '1px solid var(--border-subtle)' : undefined }}>
+                      Inaktiv
                     </div>
+                  )}
+                  {othersInactive.map(p => (
+                    <div key={p.id} onMouseDown={() => { setCopySourceId(p.id); setCopySearch(''); setCopyDropOpen(false) }}
+                      style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 13, background: copySourceId === p.id ? 'var(--bg-subtle)' : undefined, opacity: 0.7 }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = copySourceId === p.id ? 'var(--bg-subtle)' : '')}
+                    >{prodLabel(p)}</div>
                   ))}
                 </div>
               )}

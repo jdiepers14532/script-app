@@ -68,7 +68,9 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
-          {selected ? productionLabel(selected) : '— Produktion wählen —'}
+          {selected
+            ? (selected.projektnummer ? `${selected.projektnummer} · ${productionLabel(selected)}` : productionLabel(selected))
+            : '— Produktion wählen —'}
         </span>
         <svg width="10" height="6" viewBox="0 0 10 6" style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
           <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
@@ -141,8 +143,8 @@ function ProdOption({ p, selected, onSelect }: { p: Production; selected: boolea
     <button
       onClick={() => onSelect(p.id)}
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        width: '100%', padding: '8px 16px', background: selected ? 'var(--bg-active)' : 'transparent',
+        display: 'flex', alignItems: 'center', gap: 10,
+        width: '100%', padding: '7px 16px', background: selected ? 'var(--bg-active)' : 'transparent',
         border: 'none', cursor: 'pointer', textAlign: 'left',
         color: 'var(--text-primary)', fontSize: 12, fontFamily: 'inherit',
         transition: 'background 0.1s',
@@ -150,6 +152,11 @@ function ProdOption({ p, selected, onSelect }: { p: Production; selected: boolea
       onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)' }}
       onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
     >
+      {p.projektnummer && (
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, minWidth: 32 }}>
+          {p.projektnummer}
+        </span>
+      )}
       <span style={{ fontWeight: selected ? 600 : 400 }}>{productionLabel(p)}</span>
     </button>
   )

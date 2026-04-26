@@ -496,7 +496,10 @@ export default function AppShell({
   const selectedStaffel = productions.find(p => p.id === selectedStaffelId)
   const selectedStage = stages.find(s => s.id === selectedStageId)
   const crumbStaffel = selectedStaffel
-    ? (selectedStaffel.staffelnummer ? `${selectedStaffel.title} Staffel ${selectedStaffel.staffelnummer}` : selectedStaffel.title)
+    ? (() => {
+        const title = selectedStaffel.staffelnummer ? `${selectedStaffel.title} Staffel ${selectedStaffel.staffelnummer}` : selectedStaffel.title
+        return selectedStaffel.projektnummer ? `${selectedStaffel.projektnummer} · ${title}` : title
+      })()
     : selectedStaffelId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
@@ -1146,7 +1149,22 @@ export default function AppShell({
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Staffel</div>
                         <select value={importStaffelId} onChange={e => setImportStaffelId(e.target.value)}
                           style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
-                          {productions.map(p => <option key={p.id} value={p.id}>{p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title}</option>)}
+                          {productions.filter(p => p.is_active).length > 0 && (
+                            <optgroup label="Aktive Produktionen">
+                              {productions.filter(p => p.is_active).map(p => {
+                                const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+                                return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
+                              })}
+                            </optgroup>
+                          )}
+                          {productions.filter(p => !p.is_active).length > 0 && (
+                            <optgroup label="Inaktive Produktionen">
+                              {productions.filter(p => !p.is_active).map(p => {
+                                const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+                                return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
+                              })}
+                            </optgroup>
+                          )}
                         </select>
                       </div>
                       <div>

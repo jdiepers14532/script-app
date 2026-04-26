@@ -388,7 +388,22 @@ export default function ImportPage() {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Staffel</label>
                 <select value={selectedStaffelId} onChange={e => setSelectedStaffelId(e.target.value)} style={selectStyle}>
-                  {productions.map(p => <option key={p.id} value={p.id}>{p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title}</option>)}
+                  {productions.filter(p => p.is_active).length > 0 && (
+                    <optgroup label="Aktive Produktionen">
+                      {productions.filter(p => p.is_active).map(p => {
+                        const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+                        return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
+                      })}
+                    </optgroup>
+                  )}
+                  {productions.filter(p => !p.is_active).length > 0 && (
+                    <optgroup label="Inaktive Produktionen">
+                      {productions.filter(p => !p.is_active).map(p => {
+                        const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+                        return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
+                      })}
+                    </optgroup>
+                  )}
                 </select>
               </div>
               <div style={{ marginBottom: 16 }}>
