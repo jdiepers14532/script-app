@@ -185,6 +185,28 @@ charKategorienRouter.post('/', async (req, res) => {
   }
 })
 
+// PATCH /api/staffeln/:id/character-kategorien/reorder
+charKategorienRouter.patch('/reorder', async (req, res) => {
+  const { staffelId } = req.params as any
+  const { order } = req.body
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' })
+  try {
+    for (const { id, sort_order } of order) {
+      await queryOne(
+        `UPDATE character_kategorien SET sort_order = $1 WHERE id = $2 AND staffel_id = $3`,
+        [sort_order, id, staffelId]
+      )
+    }
+    const rows = await query(
+      `SELECT * FROM character_kategorien WHERE staffel_id = $1 ORDER BY sort_order, id`,
+      [staffelId]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // PUT /api/staffeln/:id/character-kategorien/:katId
 charKategorienRouter.put('/:katId', async (req, res) => {
   const { staffelId } = req.params as any
