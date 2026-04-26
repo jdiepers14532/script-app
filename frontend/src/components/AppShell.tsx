@@ -737,13 +737,40 @@ export default function AppShell({
             return <span className="chip topbar-extra">Drehzeit: {wd(selectedBlock.dreh_von)} {fmt(selectedBlock.dreh_von)} – {wd(selectedBlock.dreh_bis)} {fmt(selectedBlock.dreh_bis)}.{yr}</span>
           })()}
           {sunWeather && (() => {
-            const parts: string[] = []
-            if (sunWeather.avgSunrise && sunWeather.avgSunset) parts.push(`☀ ${sunWeather.avgSunrise}–${sunWeather.avgSunset} Uhr`)
-            if (sunWeather.avgTemp != null) parts.push(`Ø ${sunWeather.avgTemp}°C`)
-            if (sunWeather.rainPct != null) parts.push(`${sunWeather.rainPct}% Regen`)
+            const hasSun  = !!(sunWeather.avgSunrise && sunWeather.avgSunset)
+            const hasTemp = sunWeather.avgTemp != null
+            const hasRain = sunWeather.rainPct != null
+            const hasParts = hasSun || hasTemp || hasRain
+            const tempColor = hasTemp
+              ? sunWeather.avgTemp! < 12   ? '#4A9EF5'
+              : sunWeather.avgTemp! >= 26  ? '#FF3B30'
+              : sunWeather.avgTemp! > 20   ? '#FF8C7A'
+              : undefined : undefined
+            const rainColor = hasRain
+              ? sunWeather.rainPct! > 50 ? '#007AFF'
+              : sunWeather.rainPct! > 40 ? '#6DB8F5'
+              : undefined : undefined
             return (
               <>
-                {parts.length > 0 && <span className="chip topbar-extra">{parts.join(' · ')}</span>}
+                {hasParts && (
+                  <span className="chip topbar-extra">
+                    {hasSun && (
+                      <>
+                        <span style={{ color: '#F5C842' }}>☀ {sunWeather.avgSunrise}</span>
+                        {' – '}
+                        <span style={{ color: '#FF7043' }}>{sunWeather.avgSunset} Uhr</span>
+                      </>
+                    )}
+                    {hasSun && hasTemp && ' · '}
+                    {hasTemp && (
+                      <span style={tempColor ? { color: tempColor } : undefined}>Ø {sunWeather.avgTemp}°C</span>
+                    )}
+                    {(hasSun || hasTemp) && hasRain && ' · '}
+                    {hasRain && (
+                      <span style={rainColor ? { color: rainColor } : undefined}>{sunWeather.rainPct}% Regen</span>
+                    )}
+                  </span>
+                )}
                 {sunWeather.hasDst && (
                   <span className="chip topbar-extra" style={{ color: 'var(--sw-warning)', borderColor: 'var(--sw-warning)' }}>
                     ⚠ Zeitumstellung {sunWeather.dstDate}
