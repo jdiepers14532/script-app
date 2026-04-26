@@ -15,9 +15,7 @@ import Tooltip from './Tooltip'
 
 interface AppShellProps {
   children: ReactNode
-  staffeln?: any[]
   selectedStaffelId?: string
-  onSelectStaffel?: (id: string) => void
   bloecke?: any[]
   selectedBlock?: any | null
   onSelectBlock?: (block: any) => void
@@ -238,9 +236,7 @@ const selectStyle: React.CSSProperties = {
 
 export default function AppShell({
   children,
-  staffeln = [],
   selectedStaffelId = '',
-  onSelectStaffel,
   bloecke = [],
   selectedBlock = null,
   onSelectBlock,
@@ -294,7 +290,6 @@ export default function AppShell({
   const [importFolge, setImportFolge]             = useState('')
   const [importStageType, setImportStageType]     = useState('draft')
   const [importSaveMeta, setImportSaveMeta]       = useState(false)
-  const [importStaffeln, setImportStaffeln]       = useState<any[]>([])
   const [importLoading, setImportLoading]         = useState(false)
   const [importResult, setImportResult]           = useState<any>(null)
 
@@ -311,15 +306,11 @@ export default function AppShell({
     loadCacheStats()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openImportView = useCallback(async () => {
+  const openImportView = useCallback(() => {
     setOfflineView('import')
     setImportFile(null); setImportPreview(null); setImportResult(null)
-    try {
-      const staffeln = await api.getStaffeln()
-      setImportStaffeln(staffeln)
-      if (staffeln.length > 0 && !importStaffelId) setImportStaffelId(staffeln[0].id)
-    } catch { /* ignore */ }
-  }, [importStaffelId])
+    if (!importStaffelId && productions.length > 0) setImportStaffelId(productions[0].id)
+  }, [importStaffelId, productions])
 
   const handleImportFile = useCallback(async (file: File) => {
     setImportFile(file)
@@ -502,9 +493,11 @@ export default function AppShell({
     onSelectFolge?.(nr)
   }
 
-  const selectedStaffel = staffeln.find(s => s.id === selectedStaffelId)
+  const selectedStaffel = productions.find(p => p.id === selectedStaffelId)
   const selectedStage = stages.find(s => s.id === selectedStageId)
-  const crumbStaffel = selectedStaffel?.titel ?? selectedStaffelId ?? 'Script'
+  const crumbStaffel = selectedStaffel
+    ? (selectedStaffel.staffelnummer ? `${selectedStaffel.title} Staffel ${selectedStaffel.staffelnummer}` : selectedStaffel.title)
+    : selectedStaffelId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
   // Print-only nav (screen: hidden, print: visible)
@@ -569,10 +562,6 @@ export default function AppShell({
         <div className="crumbs">
           {!hideProductionSelector && productions.length > 0 ? (
             <ProductionSelector productions={productions} selectedId={selectedProdId} onSelect={selectProduction} />
-          ) : !hideProductionSelector && staffeln.length > 0 && onSelectStaffel ? (
-            <select style={selectStyle} value={selectedStaffelId} onChange={e => onSelectStaffel(e.target.value)}>
-              {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
-            </select>
           ) : (
             <span>{crumbStaffel}</span>
           )}
@@ -1157,7 +1146,7 @@ export default function AppShell({
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Staffel</div>
                         <select value={importStaffelId} onChange={e => setImportStaffelId(e.target.value)}
                           style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
-                          {importStaffeln.map((s: any) => <option key={s.id} value={s.id}>{s.titel}</option>)}
+                          {productions.map(p => <option key={p.id} value={p.id}>{p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title}</option>)}
                         </select>
                       </div>
                       <div>
@@ -1242,7 +1231,7 @@ export default function AppShell({
                   </span>
                 </button>
                 <button
-                  onClick={() => { setOfflineView('import'); if (importStaffeln.length === 0) api.getStaffeln().then(setImportStaffeln).catch(() => {}) }}
+                  onClick={openImportView}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                     gap: 4, padding: '14px 14px', borderRadius: 8,

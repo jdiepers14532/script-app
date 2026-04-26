@@ -7,17 +7,6 @@ const router = Router()
 
 router.use(authMiddleware)
 
-// GET /api/staffeln
-router.get('/', async (req, res) => {
-  try {
-    const rows = await query('SELECT * FROM staffeln ORDER BY titel')
-    res.json(rows)
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: String(err) })
-  }
-})
-
 // GET /api/staffeln/:id
 router.get('/:id', async (req, res) => {
   try {

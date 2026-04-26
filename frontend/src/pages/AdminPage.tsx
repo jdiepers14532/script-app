@@ -305,8 +305,7 @@ function SortableList({
 
 // ── Produktion Tab ─────────────────────────────────────────────────────────────
 function ProduktionTab() {
-  const { selectedProduction } = useSelectedProduction()
-  // staffeln.id = produktion_db_id = selectedProduction.id (set during sync)
+  const { selectedProduction, productions } = useSelectedProduction()
   const staffelId = selectedProduction?.id ?? ''
 
   const [kategorien, setKategorien] = useState<any[]>([])
@@ -324,7 +323,6 @@ function ProduktionTab() {
   const [newColor, setNewColor] = useState({ name: '', color: '#4A90D9' })
 
   // Copy-settings state
-  const [allStaffeln, setAllStaffeln] = useState<any[]>([])
   const [copyOpen, setCopyOpen] = useState(false)
   const [copySearch, setCopySearch] = useState('')
   const [copySourceId, setCopySourceId] = useState('')
@@ -332,10 +330,6 @@ function ProduktionTab() {
   const [copyConfirm, setCopyConfirm] = useState(false)
   const [copying, setCopying] = useState(false)
   const [copyDropOpen, setCopyDropOpen] = useState(false)
-
-  useEffect(() => {
-    api.getStaffeln().then(setAllStaffeln).catch(() => {})
-  }, [])
 
   useEffect(() => {
     if (!staffelId) return
@@ -459,8 +453,10 @@ function ProduktionTab() {
   const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
   const delBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px', lineHeight: 1 }
 
-  const copySourceName = allStaffeln.find(s => s.id === copySourceId)?.titel ?? ''
-  const filteredStaffeln = allStaffeln.filter(s => s.id !== staffelId && (!copySearch || s.titel.toLowerCase().includes(copySearch.toLowerCase())))
+  const prodLabel = (p: any) => p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+  const copySourceProd = productions.find(p => p.id === copySourceId)
+  const copySourceName = copySourceProd ? prodLabel(copySourceProd) : ''
+  const filteredProductions = productions.filter(p => p.id !== staffelId && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
   const COPY_SECTIONS = [
     { id: 'kategorien', label: 'Charakter-Kategorien' },
     { id: 'labels',     label: 'Fassungs-Labels' },
@@ -527,24 +523,24 @@ function ProduktionTab() {
                 onFocus={() => setCopyDropOpen(true)}
                 onBlur={() => setTimeout(() => setCopyDropOpen(false), 150)}
               />
-              {copyDropOpen && filteredStaffeln.length > 0 && (
+              {copyDropOpen && filteredProductions.length > 0 && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
                   background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
                   marginTop: 2, maxHeight: 180, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
                 }}>
-                  {filteredStaffeln.map(s => (
+                  {filteredProductions.map(p => (
                     <div
-                      key={s.id}
-                      onMouseDown={() => { setCopySourceId(s.id); setCopySearch(''); setCopyDropOpen(false) }}
+                      key={p.id}
+                      onMouseDown={() => { setCopySourceId(p.id); setCopySearch(''); setCopyDropOpen(false) }}
                       style={{
                         padding: '8px 12px', cursor: 'pointer', fontSize: 13,
-                        background: copySourceId === s.id ? 'var(--bg-subtle)' : undefined,
+                        background: copySourceId === p.id ? 'var(--bg-subtle)' : undefined,
                       }}
                       onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-                      onMouseLeave={e => (e.currentTarget.style.background = copySourceId === s.id ? 'var(--bg-subtle)' : '')}
+                      onMouseLeave={e => (e.currentTarget.style.background = copySourceId === p.id ? 'var(--bg-subtle)' : '')}
                     >
-                      {s.titel}
+                      {prodLabel(p)}
                     </div>
                   ))}
                 </div>

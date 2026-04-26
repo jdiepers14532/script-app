@@ -48,7 +48,7 @@ interface CommitResult {
 export default function ImportPage() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { selectedProduction } = useSelectedProduction()
+  const { selectedProduction, productions } = useSelectedProduction()
   const [step, setStep] = useState<Step>(1)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -59,7 +59,6 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Step 2 settings
-  const [staffeln, setStaffeln] = useState<any[]>([])
   const [selectedStaffelId, setSelectedStaffelId] = useState('')
   const [bloecke, setBloecke] = useState<any[]>([])
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
@@ -84,20 +83,14 @@ export default function ImportPage() {
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
 
-  // Load staffeln on mount
+  // Set selectedStaffelId from context
   useEffect(() => {
-    fetch('/api/staffeln', { credentials: 'include' })
-      .then(r => r.json())
-      .then(data => {
-        setStaffeln(data)
-        if (selectedProduction && data.find((s: any) => s.id === selectedProduction.id)) {
-          setSelectedStaffelId(selectedProduction.id)
-        } else if (data.length > 0) {
-          setSelectedStaffelId(data[0].id)
-        }
-      })
-      .catch(() => {})
-  }, [selectedProduction?.id])
+    if (selectedProduction) {
+      setSelectedStaffelId(selectedProduction.id)
+    } else if (productions.length > 0) {
+      setSelectedStaffelId(productions[0].id)
+    }
+  }, [selectedProduction?.id, productions.length])
 
   // Load Blöcke from ProdDB (live, no sync)
   useEffect(() => {
@@ -395,7 +388,7 @@ export default function ImportPage() {
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Staffel</label>
                 <select value={selectedStaffelId} onChange={e => setSelectedStaffelId(e.target.value)} style={selectStyle}>
-                  {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
+                  {productions.map(p => <option key={p.id} value={p.id}>{p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title}</option>)}
                 </select>
               </div>
               <div style={{ marginBottom: 16 }}>

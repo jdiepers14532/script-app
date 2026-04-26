@@ -22,7 +22,6 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 export const api = {
   // Staffeln
-  getStaffeln: () => request<any[]>('GET', '/staffeln'),
   getStaffel: (id: string) => request<any>('GET', `/staffeln/${id}`),
 
   // Blöcke — live from ProdDB, returns { proddb_id, block_nummer, folge_von, folge_bis, ... }

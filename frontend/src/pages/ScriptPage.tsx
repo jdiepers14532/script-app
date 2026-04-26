@@ -13,8 +13,7 @@ const DEFAULT_WIDTH = 260
 
 export default function ScriptPage() {
   const { focus } = useFocus()
-  const { selectedProduction } = useSelectedProduction()
-  const [staffeln, setStaffeln] = useState<any[]>([])
+  const { selectedProduction, loading } = useSelectedProduction()
   const [bloecke, setBloecke] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
@@ -24,8 +23,6 @@ export default function ScriptPage() {
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -131,20 +128,6 @@ export default function ScriptPage() {
       .catch(console.error)
   }, [selectedProduction?.id])
 
-  // Load staffeln — restore saved staffelId if available
-  useEffect(() => {
-    api.getStaffeln()
-      .then(data => {
-        setStaffeln(data)
-        if (data.length > 0 && !selectedProduction) {
-          const saved = pendingNav.current.staffelId
-          const match = saved && data.find((s: any) => s.id === saved)
-          setSelectedStaffelId(match ? match.id : data[0].id)
-        }
-      })
-      .catch(e => setError(e.message))
-      .finally(() => setLoading(false))
-  }, [])
 
   // Load Blöcke — restore saved folgeNummer by finding the right block
   useEffect(() => {
@@ -209,13 +192,9 @@ export default function ScriptPage() {
   }, [selectedStaffelId, selectedFolgeNummer, selectedStageId, selectedSzeneId, saveNavPosition])
 
   if (loading) return <div style={{ padding: 32, color: 'var(--text-secondary)' }}>Lädt…</div>
-  if (error) return <div style={{ padding: 32, color: 'var(--sw-danger)' }}>Fehler: {error}</div>
-
   return (
     <AppShell
-      staffeln={staffeln}
       selectedStaffelId={selectedStaffelId}
-      onSelectStaffel={id => { pendingNav.current = {}; navRestored.current = true; setSelectedStaffelId(id) }}
       bloecke={bloecke}
       selectedBlock={selectedBlock}
       onSelectBlock={b => { pendingNav.current = {}; navRestored.current = true; setSelectedBlock(b) }}
