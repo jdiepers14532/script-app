@@ -378,14 +378,8 @@ export default function ScriptPage() {
               onSzeneUpdated={(updated) => {
                 setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
               }}
-              onNavigatePrev={(() => {
-                const idx = szenen.findIndex(s => s.id === selectedSzeneId)
-                return idx > 0 ? () => setSelectedSzeneId(szenen[idx - 1].id) : undefined
-              })()}
-              onNavigateNext={(() => {
-                const idx = szenen.findIndex(s => s.id === selectedSzeneId)
-                return idx >= 0 && idx < szenen.length - 1 ? () => setSelectedSzeneId(szenen[idx + 1].id) : undefined
-              })()}
+              onNavigatePrev={() => navigateSzene(-1)}
+              onNavigateNext={() => navigateSzene(1)}
             />
           )}
           {!selectedSzeneId && (
