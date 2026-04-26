@@ -264,12 +264,9 @@ export default function AppShell({
   const [buchMenuOpen, setBuchMenuOpen] = useState(false)
   const [appSwitcherOpen, setAppSwitcherOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
-  const [adminOpen, setAdminOpen] = useState(false)
   const [appList, setAppList] = useState<any[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string } | null>(null)
-  const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline'>('Treatment')
-  const [adminSaving, setAdminSaving] = useState(false)
 
   // ── Offline-Modal ──────────────────────────────────────────────────────────
   const [offlineOpen, setOfflineOpen] = useState(false)
@@ -918,10 +915,15 @@ export default function AppShell({
             {isAdmin && (
               <>
                 <div className="um-divider" />
-                <button className="um-item" onClick={() => { setAdminOpen(true); setUserMenuOpen(false) }}>
+                <Link
+                  to="/admin"
+                  className="um-item"
+                  onClick={() => setUserMenuOpen(false)}
+                  style={{ textDecoration: 'none' }}
+                >
                   <Settings2 size={14} />
                   Admin-Einstellungen
-                </button>
+                </Link>
               </>
             )}
             <div className="um-divider" />
@@ -939,56 +941,6 @@ export default function AppShell({
               <LogOut size={14} />
               Ausloggen
             </button>
-          </div>
-        </>
-      )}
-
-      {/* ── Admin-Einstellungen Modal ── */}
-      {adminOpen && (
-        <>
-          <div className="modal-backdrop" onClick={() => setAdminOpen(false)} />
-          <div className="admin-modal">
-            <div className="admin-modal-head">
-              <span>Admin-Einstellungen</span>
-              <button className="close" onClick={() => setAdminOpen(false)}><X size={14} /></button>
-            </div>
-            <div className="admin-modal-body">
-              <div className="admin-section-label">Treatment-Bezeichnung</div>
-              <p className="admin-hint">Legt fest, wie Treatments in allen Apps dieser Produktion bezeichnet werden.</p>
-              <div className="seg">
-                {(['Treatment', 'Storylines', 'Outline'] as const).map(opt => (
-                  <button
-                    key={opt}
-                    className={treatmentLabel === opt ? 'on' : ''}
-                    onClick={async () => {
-                      setTreatmentLabel(opt)
-                      await fetch('/api/admin/app-settings/treatment_label', {
-                        method: 'PUT',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ value: opt }),
-                      }).catch(() => {})
-                    }}
-                  >
-                    {opt}
-                  </button>
-                ))}
-              </div>
-
-              <div className="admin-section-label" style={{ marginTop: 24 }}>Zugriff</div>
-              <p className="admin-hint">User mit Zugriff auf die Script-App (via Auth-App verwaltet).</p>
-              <div className="admin-roles-list">
-                {appList.find(a => a.subdomain === 'script')?.roles?.map((r: string) => (
-                  <span key={r} className="admin-role-chip">{r}</span>
-                )) ?? <span className="admin-hint">—</span>}
-              </div>
-            </div>
-            <div className="admin-modal-foot">
-              <button className="admin-save-btn" onClick={() => setAdminOpen(false)}>
-                <Check size={13} />
-                Schließen
-              </button>
-            </div>
           </div>
         </>
       )}

@@ -23,6 +23,16 @@ import meRouter from './routes/me'
 import watermarkAdminRouter from './routes/watermark-admin'
 import appSettingsRouter from './routes/app-settings'
 import { folgenRouter } from './routes/folgen'
+import {
+  charactersRouter, sceneCharactersRouter, charKategorienRouter,
+} from './routes/characters'
+import {
+  szenenVorstoppRouter, vorstoppEinstellungenRouter,
+} from './routes/vorstopp'
+import {
+  stageLabelsRouter, revisionColorsRouter,
+  revisionEinstellungenRouter, szenenRevisionenRouter,
+} from './routes/revision'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -89,7 +99,22 @@ app.use('/api/import', importRouter)
 app.use('/api/me', meRouter)
 app.use('/api/folgen', folgenRouter)
 app.use('/api/admin/watermark', watermarkAdminRouter)
-app.use('/api/admin/app-settings', appSettingsRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
+app.use('/api/admin/app-settings', appSettingsRouter)
+
+// Characters
+app.use('/api/characters', charactersRouter)
+app.use('/api/szenen/:szeneId/characters', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, sceneCharactersRouter)
+app.use('/api/staffeln/:staffelId/character-kategorien', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, charKategorienRouter)
+
+// Vorstopp
+app.use('/api/szenen/:szeneId/vorstopp', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenVorstoppRouter)
+app.use('/api/staffeln/:staffelId/vorstopp-einstellungen', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, vorstoppEinstellungenRouter)
+
+// Stage Labels + Revision
+app.use('/api/staffeln/:staffelId/stage-labels', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, stageLabelsRouter)
+app.use('/api/staffeln/:staffelId/revision-colors', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, revisionColorsRouter)
+app.use('/api/staffeln/:staffelId/revision-einstellungen', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, revisionEinstellungenRouter)
+app.use('/api/szenen/:szeneId/revisionen', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenRevisionenRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
@@ -107,6 +132,7 @@ async function runMigrations() {
     'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql',
     'v8_user_settings.sql', 'v9_proddb_sync.sql', 'v10_proddb_direct.sql', 'v11_ui_settings.sql',
     'v12_export_logs.sql', 'v13_app_settings.sql',
+    'v16_szenen_columns.sql', 'v17_characters.sql', 'v18_vorstopp.sql', 'v19_stages_revision.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [

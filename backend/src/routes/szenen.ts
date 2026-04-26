@@ -33,7 +33,7 @@ szenenRouter.get('/:id', async (req, res) => {
 // PUT /api/szenen/:id
 szenenRouter.put('/:id', async (req, res) => {
   try {
-    const { int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, sort_order } = req.body
+    const { int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, sort_order, seiten, spieltag } = req.body
     let content = req.body.content
 
     // Validate content schema if provided
@@ -53,6 +53,8 @@ szenenRouter.put('/:id', async (req, res) => {
         content = COALESCE($5, content),
         dauer_min = COALESCE($6, dauer_min),
         sort_order = COALESCE($7, sort_order),
+        seiten = COALESCE($9, seiten),
+        spieltag = COALESCE($10, spieltag),
         updated_at = NOW()
        WHERE id = $8 RETURNING *`,
       [
@@ -64,6 +66,8 @@ szenenRouter.put('/:id', async (req, res) => {
         dauer_min,
         sort_order,
         req.params.id,
+        seiten ?? null,
+        spieltag ?? null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })

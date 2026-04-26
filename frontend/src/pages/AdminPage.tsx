@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import AppShell from '../components/AppShell'
 import AdminKI from '../components/AdminKI'
 import { api } from '../api/client'
@@ -12,6 +12,85 @@ const ADMIN_TABS = [
   { id: 'users',      label: 'Benutzer & Rollen' },
   { id: 'audit',      label: 'Audit-Log' },
 ]
+
+function AllgemeinTab() {
+  const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline' | null>(null)
+  const [roles, setRoles] = useState<string[] | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/app-settings', { credentials: 'include' })
+      .then(r => r.json())
+      .then((data: any[]) => {
+        const tl = data.find((s: any) => s.key === 'treatment_label')?.value
+        if (tl) setTreatmentLabel(tl as any)
+        const scriptApp = data.find((s: any) => s.subdomain === 'script') // may not be here
+        if (scriptApp?.roles) setRoles(scriptApp.roles)
+      })
+      .catch(() => {})
+
+    fetch('/api/admin/app-settings/apps', { credentials: 'include' })
+      .then(r => r.json())
+      .then((apps: any[]) => {
+        const script = apps.find(a => a.subdomain === 'script')
+        if (script?.roles) setRoles(script.roles)
+      })
+      .catch(() => {})
+  }, [])
+
+  const saveTreatmentLabel = async (val: 'Treatment' | 'Storylines' | 'Outline') => {
+    setTreatmentLabel(val)
+    setSaving(true)
+    await fetch('/api/admin/app-settings/treatment_label', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 32 }}>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Treatment-Bezeichnung</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Legt fest, wie die Vorstufe vor dem Drehbuch in allen Apps dieser Produktion bezeichnet wird.
+        </p>
+        <div className="seg" style={{ display: 'inline-flex' }}>
+          {(['Treatment', 'Storylines', 'Outline'] as const).map(opt => (
+            <button
+              key={opt}
+              className={treatmentLabel === opt ? 'on' : ''}
+              onClick={() => saveTreatmentLabel(opt)}
+              disabled={saving}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+        {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert…</span>}
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Zugriff</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+          User mit Zugriff auf die Script-App werden in der Auth-App verwaltet.
+        </p>
+        <div className="admin-roles-list">
+          {roles === null
+            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt…</span>
+            : roles.length === 0
+            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>—</span>
+            : roles.map(r => <span key={r} className="admin-role-chip">{r}</span>)
+          }
+        </div>
+      </section>
+
+    </div>
+  )
+}
 
 function WasserzeichenTab() {
   const [decodeFile, setDecodeFile]   = useState<File | null>(null)
