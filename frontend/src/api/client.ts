@@ -190,6 +190,10 @@ export const api = {
   updateVorstoppEinstellungen: (staffelId: string, data: any) =>
     request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/vorstopp-einstellungen`, data),
 
+  // Copy settings between staffeln
+  copySettings: (staffelId: string, data: { source_staffel_id: string; sections: string[] }) =>
+    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/copy-settings`, data),
+
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {
     const fd = new FormData(); fd.append('file', file)

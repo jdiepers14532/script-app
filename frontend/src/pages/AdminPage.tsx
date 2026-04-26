@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import AdminKI from '../components/AdminKI'
 import { api } from '../api/client'
+import { useSelectedProduction } from '../App'
 
 const ADMIN_TABS = [
   { id: 'ki',         label: 'KI-Konfiguration' },
@@ -304,8 +305,9 @@ function SortableList({
 
 // ── Produktion Tab ─────────────────────────────────────────────────────────────
 function ProduktionTab() {
-  const [staffeln, setStaffeln] = useState<any[]>([])
-  const [staffelId, setStaffelId] = useState<string>('')
+  const { selectedProduction } = useSelectedProduction()
+  // staffeln.id = produktion_db_id = selectedProduction.id (set during sync)
+  const staffelId = selectedProduction?.id ?? ''
 
   const [kategorien, setKategorien] = useState<any[]>([])
   const [labels, setLabels] = useState<any[]>([])
@@ -321,11 +323,18 @@ function ProduktionTab() {
   const [newLabel, setNewLabel] = useState({ name: '', is_produktionsfassung: false })
   const [newColor, setNewColor] = useState({ name: '', color: '#4A90D9' })
 
+  // Copy-settings state
+  const [allStaffeln, setAllStaffeln] = useState<any[]>([])
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copySearch, setCopySearch] = useState('')
+  const [copySourceId, setCopySourceId] = useState('')
+  const [copySections, setCopySections] = useState<string[]>(['kategorien', 'labels', 'colors', 'einstellungen'])
+  const [copyConfirm, setCopyConfirm] = useState(false)
+  const [copying, setCopying] = useState(false)
+  const [copyDropOpen, setCopyDropOpen] = useState(false)
+
   useEffect(() => {
-    api.getStaffeln().then(list => {
-      setStaffeln(list)
-      if (list.length) setStaffelId(list[0].id)
-    }).catch(() => {})
+    api.getStaffeln().then(setAllStaffeln).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -417,6 +426,31 @@ function ProduktionTab() {
     catch {} finally { set('vs', false) }
   }
 
+  const reloadAll = () => {
+    if (!staffelId) return
+    api.getCharKategorien(staffelId).then(setKategorien).catch(() => setKategorien([]))
+    api.getStageLabels(staffelId).then(setLabels).catch(() => setLabels([]))
+    api.getRevisionColors(staffelId).then(setColors).catch(() => setColors([]))
+    api.getRevisionEinstellungen(staffelId).then(e => setMemoSchwelle(e.memo_schwellwert_zeichen ?? 100)).catch(() => {})
+  }
+
+  const executeCopy = async () => {
+    if (!copySourceId || !copySections.length) return
+    setCopying(true)
+    try {
+      await api.copySettings(staffelId, { source_staffel_id: copySourceId, sections: copySections })
+      reloadAll()
+      setCopyConfirm(false)
+      setCopyOpen(false)
+      setCopySourceId('')
+      setCopySearch('')
+    } catch (err: any) {
+      alert('Fehler beim Kopieren: ' + err.message)
+    } finally {
+      setCopying(false)
+    }
+  }
+
   const sectionStyle: React.CSSProperties = { marginBottom: 40 }
   const h3Style: React.CSSProperties = { fontSize: 13, fontWeight: 600, margin: '0 0 4px' }
   const subStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }
@@ -425,20 +459,161 @@ function ProduktionTab() {
   const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
   const delBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px', lineHeight: 1 }
 
+  const copySourceName = allStaffeln.find(s => s.id === copySourceId)?.titel ?? ''
+  const filteredStaffeln = allStaffeln.filter(s => s.id !== staffelId && (!copySearch || s.titel.toLowerCase().includes(copySearch.toLowerCase())))
+  const COPY_SECTIONS = [
+    { id: 'kategorien', label: 'Charakter-Kategorien' },
+    { id: 'labels',     label: 'Fassungs-Labels' },
+    { id: 'colors',     label: 'Revisions-Farben' },
+    { id: 'einstellungen', label: 'Revisions-Export' },
+  ]
+
+  if (!selectedProduction) {
+    return (
+      <div style={{ padding: '28px 32px', color: 'var(--text-secondary)', fontSize: 13 }}>
+        Keine Produktion ausgewählt. Wähle eine Produktion im Header aus.
+      </div>
+    )
+  }
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 640 }}>
 
-      {/* Staffel selector */}
-      <div style={{ marginBottom: 28 }}>
-        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Produktion</label>
-        <select
-          value={staffelId}
-          onChange={e => setStaffelId(e.target.value)}
-          style={{ ...inputStyle, minWidth: 240 }}
-        >
-          {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
-        </select>
+      {/* Production header */}
+      <div style={{ marginBottom: 28, padding: '14px 18px', background: 'var(--bg-subtle)', borderRadius: 10, border: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+          Produktionsspezifische Einstellungen von
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>
+          {[
+            selectedProduction.projektnummer,
+            selectedProduction.title,
+            selectedProduction.staffelnummer != null ? `Staffel ${selectedProduction.staffelnummer}` : null
+          ].filter(Boolean).join(' · ')}
+        </div>
+        {selectedProduction.staffelnummer != null && (
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
+            Reihe: {selectedProduction.title}
+          </div>
+        )}
       </div>
+
+      {/* Copy settings section */}
+      <section style={{ ...sectionStyle, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+        <button
+          onClick={() => setCopyOpen(v => !v)}
+          style={{
+            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 16px', background: 'var(--bg-subtle)', border: 'none', cursor: 'pointer',
+            fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)',
+          }}
+        >
+          <span>Einstellungen kopieren von…</span>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{copyOpen ? '▲' : '▼'}</span>
+        </button>
+
+        {copyOpen && (
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Source autocomplete */}
+            <div style={{ position: 'relative' }}>
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                Quelle (Produktion)
+              </label>
+              <input
+                style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+                placeholder="Produktion suchen…"
+                value={copySourceId ? copySourceName : copySearch}
+                onChange={e => { setCopySearch(e.target.value); setCopySourceId(''); setCopyDropOpen(true) }}
+                onFocus={() => setCopyDropOpen(true)}
+                onBlur={() => setTimeout(() => setCopyDropOpen(false), 150)}
+              />
+              {copyDropOpen && filteredStaffeln.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                  background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8,
+                  marginTop: 2, maxHeight: 180, overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                }}>
+                  {filteredStaffeln.map(s => (
+                    <div
+                      key={s.id}
+                      onMouseDown={() => { setCopySourceId(s.id); setCopySearch(''); setCopyDropOpen(false) }}
+                      style={{
+                        padding: '8px 12px', cursor: 'pointer', fontSize: 13,
+                        background: copySourceId === s.id ? 'var(--bg-subtle)' : undefined,
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = copySourceId === s.id ? 'var(--bg-subtle)' : '')}
+                    >
+                      {s.titel}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section checkboxes */}
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>Bereiche kopieren</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {COPY_SECTIONS.map(sec => (
+                  <label key={sec.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={copySections.includes(sec.id)}
+                      onChange={e => setCopySections(prev =>
+                        e.target.checked ? [...prev, sec.id] : prev.filter(s => s !== sec.id)
+                      )}
+                    />
+                    {sec.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Confirm / copy button */}
+            {!copyConfirm ? (
+              <button
+                onClick={() => setCopyConfirm(true)}
+                disabled={!copySourceId || !copySections.length}
+                style={{
+                  alignSelf: 'flex-start', padding: '8px 16px', borderRadius: 8,
+                  background: copySourceId && copySections.length ? 'var(--text-primary)' : 'var(--bg-subtle)',
+                  color: copySourceId && copySections.length ? 'var(--text-inverse)' : 'var(--text-muted)',
+                  border: 'none', cursor: copySourceId && copySections.length ? 'pointer' : 'not-allowed',
+                  fontFamily: 'inherit', fontWeight: 600, fontSize: 13,
+                }}
+              >
+                Kopieren…
+              </button>
+            ) : (
+              <div style={{ padding: '12px 14px', background: 'rgba(255,59,48,0.06)', borderRadius: 8, border: '1px solid rgba(255,59,48,0.3)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5 }}>
+                  <strong>Achtung:</strong> Die bestehenden Einstellungen von{' '}
+                  <strong>{[selectedProduction.projektnummer, selectedProduction.title, selectedProduction.staffelnummer != null ? `Staffel ${selectedProduction.staffelnummer}` : null].filter(Boolean).join(' · ')}</strong>{' '}
+                  werden durch die Einstellungen von <strong>{copySourceName}</strong> ersetzt.
+                  Bereiche: {copySections.map(s => COPY_SECTIONS.find(c => c.id === s)?.label).join(', ')}.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={executeCopy}
+                    disabled={copying}
+                    style={{ padding: '7px 16px', borderRadius: 7, background: 'var(--sw-danger)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, fontSize: 13 }}
+                  >
+                    {copying ? 'Kopiert…' : 'Ja, ersetzen'}
+                  </button>
+                  <button
+                    onClick={() => setCopyConfirm(false)}
+                    disabled={copying}
+                    style={btnStyle}
+                  >
+                    Abbrechen
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* ── Character Kategorien ── */}
       <section style={sectionStyle}>

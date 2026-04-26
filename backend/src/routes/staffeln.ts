@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { query, queryOne } from '../db'
+import { query, queryOne, pool } from '../db'
 import { authMiddleware } from '../auth'
 import { prodQueryOne } from '../prodDb'
 
@@ -54,6 +54,78 @@ router.get('/:id/bloecke', async (req, res) => {
     })))
   } catch (err) {
     res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/staffeln/:id/copy-settings — copy settings from another staffel (atomic)
+router.post('/:id/copy-settings', async (req, res) => {
+  const { source_staffel_id, sections } = req.body
+  const targetId = req.params.id
+  if (!source_staffel_id || !Array.isArray(sections) || !sections.length) {
+    return res.status(400).json({ error: 'source_staffel_id und sections erforderlich' })
+  }
+  const allowed = ['kategorien', 'labels', 'colors', 'einstellungen']
+  const invalid = (sections as string[]).filter(s => !allowed.includes(s))
+  if (invalid.length) return res.status(400).json({ error: `Ungültige Sections: ${invalid.join(', ')}` })
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    if (sections.includes('kategorien')) {
+      await client.query('DELETE FROM character_kategorien WHERE staffel_id = $1', [targetId])
+      const src = await client.query('SELECT * FROM character_kategorien WHERE staffel_id = $1 ORDER BY sort_order, id', [source_staffel_id])
+      for (const row of src.rows) {
+        await client.query(
+          'INSERT INTO character_kategorien (staffel_id, name, typ, sort_order) VALUES ($1, $2, $3, $4)',
+          [targetId, row.name, row.typ, row.sort_order]
+        )
+      }
+    }
+
+    if (sections.includes('labels')) {
+      await client.query('DELETE FROM stage_labels WHERE staffel_id = $1', [targetId])
+      const src = await client.query('SELECT * FROM stage_labels WHERE staffel_id = $1 ORDER BY sort_order, id', [source_staffel_id])
+      for (const row of src.rows) {
+        await client.query(
+          'INSERT INTO stage_labels (staffel_id, name, sort_order, is_produktionsfassung) VALUES ($1, $2, $3, $4)',
+          [targetId, row.name, row.sort_order, row.is_produktionsfassung]
+        )
+      }
+    }
+
+    if (sections.includes('colors')) {
+      await client.query('DELETE FROM revision_colors WHERE staffel_id = $1', [targetId])
+      const src = await client.query('SELECT * FROM revision_colors WHERE staffel_id = $1 ORDER BY sort_order, id', [source_staffel_id])
+      for (const row of src.rows) {
+        await client.query(
+          'INSERT INTO revision_colors (staffel_id, name, color, sort_order) VALUES ($1, $2, $3, $4)',
+          [targetId, row.name, row.color, row.sort_order]
+        )
+      }
+    }
+
+    if (sections.includes('einstellungen')) {
+      const src = await client.query('SELECT * FROM revision_export_einstellungen WHERE staffel_id = $1', [source_staffel_id])
+      if (src.rows.length) {
+        const e = src.rows[0]
+        await client.query(
+          `INSERT INTO revision_export_einstellungen (staffel_id, memo_schwellwert_zeichen)
+           VALUES ($1, $2)
+           ON CONFLICT (staffel_id) DO UPDATE SET memo_schwellwert_zeichen = $2`,
+          [targetId, e.memo_schwellwert_zeichen]
+        )
+      }
+    }
+
+    await client.query('COMMIT')
+    res.json({ ok: true })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('copy-settings error:', err)
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
   }
 })
 
