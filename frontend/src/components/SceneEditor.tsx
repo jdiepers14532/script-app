@@ -43,7 +43,28 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const [showRevisions, setShowRevisions] = useState(false)
   const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
+  const [splitRatio, setSplitRatio] = useState(0.5)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const panelsRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef(false)
+
+  const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    draggingRef.current = true
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!draggingRef.current || !panelsRef.current) return
+      const rect = panelsRef.current.getBoundingClientRect()
+      const ratio = (ev.clientX - rect.left) / rect.width
+      setSplitRatio(Math.max(0.2, Math.min(0.8, ratio)))
+    }
+    const onMouseUp = () => {
+      draggingRef.current = false
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [])
 
   // Load scene when szeneId changes
   useEffect(() => {
@@ -148,6 +169,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const panelsClass = panelMode === 'script' ? 'panels mode-script'
     : panelMode === 'treatment' ? 'panels mode-treatment'
     : 'panels'
+  const isBothMode = panelMode !== 'script' && panelMode !== 'treatment'
 
   const contentTextelemente: any[] = Array.isArray(scene.content) ? scene.content : []
   const sceneIsLocked = !!lock
@@ -284,7 +306,11 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       <VorstoppPanel szeneId={szeneId} staffelId={staffelId} />
 
       {/* Panels */}
-      <div className={panelsClass}>
+      <div
+        className={panelsClass}
+        ref={panelsRef}
+        style={isBothMode ? { gridTemplateColumns: `${splitRatio}fr 12px ${1 - splitRatio}fr`, gap: 0 } : undefined}
+      >
         {panelMode !== 'script' && (
           <div className="panel">
             <div className="phead">
@@ -306,6 +332,15 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               </div>
             </div>
           </div>
+        )}
+
+        {isBothMode && (
+          <div
+            className="panel-divider"
+            onMouseDown={handleDividerMouseDown}
+            onDoubleClick={() => setSplitRatio(0.5)}
+            title="Ziehen zum Verschieben · Doppelklick zum Zurücksetzen"
+          />
         )}
 
         {panelMode !== 'treatment' && (

@@ -299,6 +299,9 @@
 .panels { padding:0 20px 24px; display:grid; gap:16px; grid-template-columns:1fr 1fr; }
 .panels.mode-script { grid-template-columns:1fr; }
 .panels.mode-treatment { grid-template-columns:1fr; }
+.panel-divider { cursor:col-resize; position:relative; user-select:none; }
+.panel-divider::after { content:''; position:absolute; top:0; bottom:0; left:50%; transform:translateX(-50%); width:3px; border-radius:2px; background:var(--border); transition:background 0.15s; }
+.panel-divider:hover::after, .panel-divider:active::after { background:var(--sw-info); }
 .panel { background:var(--bg-surface); border:1px solid var(--border); border-radius:12px; display:flex; flex-direction:column; min-height:420px; }
 .panel .phead { display:flex; align-items:center; gap:8px; padding:12px 14px; border-bottom:1px solid var(--border-subtle); }
 .panel .phead .title { font-size:14px; font-weight:600; }
