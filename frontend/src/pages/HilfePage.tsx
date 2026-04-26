@@ -295,7 +295,7 @@ function OfflineTab() {
       {/* Cache-Schichten */}
       <Section title="3. Was ist offline verfügbar?">
         <p style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
-          Der Service Worker der App speichert bestimmte Inhalte automatisch zwischen. Diese drei Strategien sind aktiv:
+          Der Service Worker der App speichert bestimmte Inhalte automatisch zwischen. Diese Strategien sind aktiv:
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
@@ -320,6 +320,20 @@ function OfflineTab() {
               strategy: 'Stale-While-Revalidate',
               label: 'Szenen',
               desc: 'Der Cache antwortet sofort (kein Warten). Im Hintergrund wird der Server gefragt und der Cache aktualisiert — für die nächste Seite ist er dann frisch.',
+            },
+            {
+              color: C.orange,
+              icon: '🎬',
+              strategy: 'Stale-While-Revalidate',
+              label: 'Blöcke & Folgen',
+              desc: 'Die Blockliste (Folgenbereich, Drehtage) wird sofort aus dem Cache geladen und im Hintergrund aktualisiert. Offline siehst du die zuletzt geladene Blockliste — ohne Verzögerung.',
+            },
+            {
+              color: C.orange,
+              icon: '📅',
+              strategy: 'Stale-While-Revalidate',
+              label: 'Sendedatum & Drehzeitraum',
+              desc: 'Sendetermine und Drehzeitraum aus der Produktionsdatenbank werden im Cache zwischengespeichert. Offline wird der zuletzt bekannte Wert angezeigt — er kann veraltet sein, wird aber sofort aktualisiert sobald wieder Netz besteht.',
             },
           ].map((item, i) => (
             <div key={i} style={{
@@ -355,6 +369,8 @@ function OfflineTab() {
             { ok: true,  label: 'App starten & navigieren' },
             { ok: true,  label: 'Szenen lesen (aus Cache)' },
             { ok: true,  label: 'Staffeln & Episoden ansehen' },
+            { ok: true,  label: 'Blöcke & Folgen (gecacht)' },
+            { ok: true,  label: 'Sendedatum & Drehzeitraum (gecacht)' },
             { ok: true,  label: 'Szenen bearbeiten & speichern' },
             { ok: false, label: 'KI-Funktionen (brauchen Netz)' },
             { ok: false, label: 'Kommentare anderer sehen (live)' },

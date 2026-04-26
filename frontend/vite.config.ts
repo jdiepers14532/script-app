@@ -11,6 +11,16 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,woff2}'],
         runtimeCaching: [
           {
+            urlPattern: /\/api\/staffeln\/[^/]+\/bloecke/,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'api-bloecke' }
+          },
+          {
+            urlPattern: /\/api\/folgen\/[^/]+\/[^/]+\/sendedatum/,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'api-sendedatum' }
+          },
+          {
             urlPattern: /\/api\/staffeln/,
             handler: 'NetworkFirst',
             options: { cacheName: 'api-staffeln', networkTimeoutSeconds: 10 }
