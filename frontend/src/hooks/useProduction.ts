@@ -37,7 +37,8 @@ export function useProduction() {
         } else if (prods.length > 0) {
           const firstActive = prods.find((p: Production) => p.is_active) || prods[0]
           setSelectedId(firstActive.id)
-          persistSelection(firstActive.id)
+          // Do NOT auto-persist the fallback — it would race with an explicit
+          // user selection made immediately after load and could overwrite it.
         }
       })
       .catch(console.error)
