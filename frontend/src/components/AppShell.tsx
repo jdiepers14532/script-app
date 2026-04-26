@@ -527,11 +527,12 @@ export default function AppShell({
       setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
       return
     }
-    // Adresse bereinigen: Zeilen mit Tel/Fax/+49 entfernen, max. 2 sinnvolle Zeilen
+    // Adresse bereinigen: Zeilen ohne Buchstaben entfernen (Telefonnummern, Fax, etc.)
+    // PLZ-Zeilen wie "21337 Lüneburg" haben Buchstaben → bleiben erhalten
     const adresseClean = rawAdresse
       .split(/\r?\n/)
       .map(l => l.trim())
-      .filter(l => l && !/^(\+|tel|fax|phone|\d{4,}[\s/])/i.test(l))
+      .filter(l => l && /[a-zA-ZäöüÄÖÜß]/.test(l))
       .slice(0, 2)
       .join(', ')
     if (!adresseClean) {
