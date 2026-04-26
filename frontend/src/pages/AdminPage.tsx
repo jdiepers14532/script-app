@@ -16,16 +16,33 @@ const ADMIN_TABS = [
   { id: 'audit',      label: 'Audit-Log' },
 ]
 
+const KUERZEL_FIELDS = [
+  { key: 'int',       label: 'Innen (INT)' },
+  { key: 'ext',       label: 'Außen (EXT)' },
+  { key: 'tag',       label: 'Tag' },
+  { key: 'nacht',     label: 'Nacht' },
+  { key: 'daemmerung',label: 'Dämmerung' },
+  { key: 'abend',     label: 'Abend' },
+]
+const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
+
 function AllgemeinTab() {
   const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline' | null>(null)
+  const [kuerzel, setKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
   const [roles, setRoles] = useState<string[] | null>(null)
   const [saving, setSaving] = useState(false)
+  const [kuerzelSaving, setKuerzelSaving] = useState(false)
 
   useEffect(() => {
     // Treatment label from script backend
     fetch('/api/admin/app-settings', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then((data: any) => { if (data?.treatment_label) setTreatmentLabel(data.treatment_label) })
+      .then((data: any) => {
+        if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
+        if (data?.scene_kuerzel) {
+          try { setKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
+        }
+      })
       .catch(() => {})
 
     // Roles from auth app
@@ -37,6 +54,18 @@ function AllgemeinTab() {
       })
       .catch(() => {})
   }, [])
+
+  const saveKuerzel = async (next: Record<string, string>) => {
+    setKuerzel(next)
+    setKuerzelSaving(true)
+    await fetch('/api/admin/app-settings/scene_kuerzel', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    setKuerzelSaving(false)
+  }
 
   const saveTreatmentLabel = async (val: 'Treatment' | 'Storylines' | 'Outline') => {
     setTreatmentLabel(val)
@@ -71,6 +100,36 @@ function AllgemeinTab() {
           ))}
         </div>
         {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert…</span>}
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Szenen-Kürzel</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Abkürzungen für die einzeilige Szenenübersicht.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 360 }}>
+          {KUERZEL_FIELDS.map(({ key, label }) => (
+            <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
+              <input
+                type="text"
+                maxLength={4}
+                value={kuerzel[key] ?? ''}
+                onChange={e => setKuerzel(prev => ({ ...prev, [key]: e.target.value }))}
+                onBlur={() => saveKuerzel(kuerzel)}
+                style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit', textTransform: 'uppercase' }}
+              />
+            </label>
+          ))}
+        </div>
+        <button
+          style={{ marginTop: 12, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, cursor: 'pointer' }}
+          onClick={() => saveKuerzel(DEFAULT_KUERZEL)}
+          disabled={kuerzelSaving}
+        >
+          Zurücksetzen
+        </button>
+        {kuerzelSaving && <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert…</span>}
       </section>
 
       <section>

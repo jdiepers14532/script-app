@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Lock, Search, Plus, MoreHorizontal } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
+import { useAppSettings } from '../App'
 
 interface SceneListProps {
   szenen: any[]
@@ -26,6 +27,7 @@ export default function SceneList({
   onSzeneCreated,
   onSzeneDeleted,
 }: SceneListProps) {
+  const { sceneKuerzel } = useAppSettings()
   const [searchQuery, setSearchQuery] = useState('')
   const [lock, setLock] = useState<any | null>(null)
   const [creating, setCreating] = useState(false)
@@ -163,21 +165,11 @@ export default function SceneList({
               )}
               <div className="num">{scene.scene_nummer}</div>
               <div className="body">
-                <div className="title-line">
-                  <span className="ie">{scene.int_ext}</span>
-                  <span className="set">{scene.ort_name}</span>
-                </div>
-                <div className="meta">
-                  <span className="env-dot" style={{ background: envColor.stripe }} />
-                  <span>{scene.tageszeit}</span>
-                  {scene.zusammenfassung && (
-                    <>
-                      <span>·</span>
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
-                        {scene.zusammenfassung}
-                      </span>
-                    </>
-                  )}
+                <div className="sl-line">
+                  <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
+                  <span className="sl-set">{scene.ort_name}</span>
+                  <span className="sl-dot" style={{ background: envColor.stripe }} />
+                  <span className="sl-tz">{sceneKuerzel[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
                 </div>
               </div>
               <div className="rt">

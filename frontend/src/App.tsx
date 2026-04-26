@@ -47,24 +47,36 @@ interface PanelModeContextType { panelMode: PanelMode; setPanelMode: (m: PanelMo
 export const PanelModeContext = createContext<PanelModeContextType>({ panelMode: 'both', setPanelMode: () => {} })
 export function usePanelMode() { return useContext(PanelModeContext) }
 
-interface AppSettingsContextType { treatmentLabel: string }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment' })
+export const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
+
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string> }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL })
 export function useAppSettings() { return useContext(AppSettingsContext) }
+
+interface UserPrefsContextType { scrollNavDelay: number }
+export const UserPrefsContext = createContext<UserPrefsContextType>({ scrollNavDelay: 1000 })
+export function useUserPrefs() { return useContext(UserPrefsContext) }
 
 export default function App() {
   const { focus, toggle } = useFocusMode()
   const productionCtx = useProduction()
   const [treatmentLabel, setTreatmentLabel] = useState('Treatment')
+  const [sceneKuerzel, setSceneKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
 
   useEffect(() => {
     fetch('/api/admin/app-settings', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then((data: any) => { if (data?.treatment_label) setTreatmentLabel(data.treatment_label) })
+      .then((data: any) => {
+        if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
+        if (data?.scene_kuerzel) {
+          try { setSceneKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
+        }
+      })
       .catch(() => {})
   }, [])
 
   return (
-    <AppSettingsContext.Provider value={{ treatmentLabel }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle }}>
           <BrowserRouter>

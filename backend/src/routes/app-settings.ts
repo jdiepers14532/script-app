@@ -16,7 +16,7 @@ router.put('/:key', async (req, res) => {
   const { key } = req.params
   const { value } = req.body
   if (!value) return res.status(400).json({ error: 'value required' })
-  const allowed = ['treatment_label']
+  const allowed = ['treatment_label', 'scene_kuerzel']
   if (!allowed.includes(key)) return res.status(400).json({ error: 'Unknown setting' })
   await pool.query(
     'INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2, NOW()) ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW()',
