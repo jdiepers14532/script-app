@@ -263,6 +263,7 @@ export default function AppShell({
   const [firmendatenOpen, setFirmendatenOpen] = useState(false)
   const [buchMenuOpen, setBuchMenuOpen] = useState(false)
   const [appSwitcherOpen, setAppSwitcherOpen] = useState(false)
+  const [navMenuOpen, setNavMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [appList, setAppList] = useState<any[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
@@ -524,15 +525,27 @@ export default function AppShell({
       {/* Topbar */}
       <header className="topbar">
         <div className="brand-area">
+          {/* Icon → App-Switcher */}
           <Tooltip text="App wechseln">
             <button
-              className="brand-btn"
-              onClick={() => { setAppSwitcherOpen(v => !v); setCompanyMenuOpen(false); setUserMenuOpen(false) }}
+              className="brand-icon-btn"
+              onClick={() => { setAppSwitcherOpen(v => !v); setNavMenuOpen(false); setCompanyMenuOpen(false); setUserMenuOpen(false) }}
             >
-              <div className="mark">S</div>
-              <span>script</span>
+              {(() => {
+                const scriptApp = appList.find(a => a.subdomain === 'script')
+                return scriptApp?.icon_url
+                  ? <img src={scriptApp.icon_url} alt="Script" style={{ width: 24, height: 24, borderRadius: 6, objectFit: 'cover' }} />
+                  : <div className="mark">S</div>
+              })()}
             </button>
           </Tooltip>
+          {/* Text → App-Nav-Menü */}
+          <button
+            className="brand-label-btn"
+            onClick={() => { setNavMenuOpen(v => !v); setAppSwitcherOpen(false); setCompanyMenuOpen(false); setUserMenuOpen(false) }}
+          >
+            script
+          </button>
         </div>
 
         <button
@@ -838,6 +851,32 @@ export default function AppShell({
           </div>
         ))}
       </div>
+
+      {/* ── App-Nav-Menü ── */}
+      {navMenuOpen && (
+        <>
+          <div className="menu-overlay" onClick={() => setNavMenuOpen(false)} />
+          <div className="user-menu" style={{ left: 8, right: 'auto', minWidth: 180 }}>
+            {[
+              { to: '/',       label: 'Folgen',   icon: <LayoutDashboard size={14} /> },
+              { to: '/import', label: 'Import',   icon: <FileUp size={14} /> },
+              { to: '/hilfe',  label: 'Handbuch', icon: <BookOpen size={14} /> },
+              ...(isAdmin ? [{ to: '/admin', label: 'Einstellungen', icon: <Settings2 size={14} /> }] : []),
+            ].map(item => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`um-item${location.pathname === item.to ? ' um-item-active' : ''}`}
+                onClick={() => setNavMenuOpen(false)}
+                style={{ textDecoration: 'none' }}
+              >
+                {item.icon}
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* ── App Switcher ── */}
       {appSwitcherOpen && (
