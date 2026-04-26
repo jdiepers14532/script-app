@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { prodQueryOne } from '../prodDb'
 
 export const folgenRouter = Router()
 folgenRouter.use(authMiddleware)
@@ -36,6 +37,34 @@ folgenRouter.put('/:staffelId/:folgeNummer', async (req, res) => {
       [staffelId, parseInt(folgeNummer), arbeitstitel || null, air_date || null, synopsis || null]
     )
     res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/folgen/:staffelId/:folgeNummer/sendedatum — live from ProdDB broadcast_events
+folgenRouter.get('/:staffelId/:folgeNummer/sendedatum', async (req, res) => {
+  try {
+    const { staffelId, folgeNummer } = req.params
+    const staffel = await queryOne('SELECT produktion_db_id FROM staffeln WHERE id = $1', [staffelId])
+    if (!staffel?.produktion_db_id) return res.json(null)
+
+    const prod = await prodQueryOne(
+      'SELECT id, reihen_id FROM productions WHERE id = $1',
+      [staffel.produktion_db_id]
+    )
+    if (!prod) return res.json(null)
+
+    const col = prod.reihen_id ? 'reihen_id' : 'production_id'
+    const target = prod.reihen_id ?? prod.id
+
+    const event = await prodQueryOne(
+      `SELECT datum::text, ist_ki_prognose FROM broadcast_events
+       WHERE ${col} = $1 AND folge_nr = $2 AND ist_ausfall = FALSE
+       ORDER BY datum LIMIT 1`,
+      [target, parseInt(folgeNummer)]
+    )
+    res.json(event || null)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

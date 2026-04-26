@@ -32,6 +32,8 @@ export const api = {
     request<any>('GET', `/folgen/${staffelId}/${folgeNummer}`),
   updateFolge: (staffelId: string, folgeNummer: number, data: any) =>
     request<any>('PUT', `/folgen/${staffelId}/${folgeNummer}`, data),
+  getSendedatum: (staffelId: string, folgeNummer: number) =>
+    request<{ datum: string; ist_ki_prognose: boolean } | null>('GET', `/folgen/${staffelId}/${folgeNummer}/sendedatum`),
 
   // Stages
   getStages: (staffelId: string, folgeNummer: number) =>
