@@ -20,6 +20,7 @@ import kiRouter, { kiAdminRouter } from './routes/ki'
 import { szenenKommentareRouter, kommentareRouter } from './routes/kommentare'
 import { importRouter } from './routes/import'
 import meRouter from './routes/me'
+import weatherRouter from './routes/weather'
 import watermarkAdminRouter from './routes/watermark-admin'
 import appSettingsRouter from './routes/app-settings'
 import { folgenRouter } from './routes/folgen'
@@ -97,6 +98,7 @@ app.use('/api/szenen', szenenKommentareRouter)
 app.use('/api/kommentare', kommentareRouter)
 app.use('/api/import', importRouter)
 app.use('/api/me', meRouter)
+app.use('/api/weather', weatherRouter)
 app.use('/api/folgen', folgenRouter)
 app.use('/api/admin/watermark', watermarkAdminRouter)
 app.use('/api/admin/app-settings', appSettingsRouter)
