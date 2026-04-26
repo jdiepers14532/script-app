@@ -78,7 +78,7 @@ vorstoppEinstellungenRouter.get('/', async (req, res) => {
   const { staffelId } = req.params as any
   try {
     const row = await queryOne(
-      `SELECT * FROM vorstopp_einstellungen WHERE staffel_id = $1`,
+      `SELECT staffel_id, methode, menge::float8 AS menge, dauer_sekunden, updated_at FROM vorstopp_einstellungen WHERE staffel_id = $1`,
       [staffelId]
     )
     // Return defaults if not configured yet
@@ -109,7 +109,7 @@ vorstoppEinstellungenRouter.put('/', async (req, res) => {
          menge = EXCLUDED.menge,
          dauer_sekunden = EXCLUDED.dauer_sekunden,
          updated_at = NOW()
-       RETURNING *`,
+       RETURNING staffel_id, methode, menge::float8 AS menge, dauer_sekunden, updated_at`,
       [staffelId, methode ?? 'seiten', menge ?? 0.125, dauer_sekunden ?? 60]
     )
     res.json(row)
