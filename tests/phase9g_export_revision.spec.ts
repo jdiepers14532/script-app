@@ -6,7 +6,7 @@ const STAFFEL_ID = 'd26dff66-57cf-4b32-9649-4009618fce4d'
 async function createCtx(request: any) {
   const folge = 94000 + Math.floor(Math.random() * 5999)
   const stage = await (await request.post(`${BASE}/api/stages`, {
-    data: { staffel_id: STAFFEL_ID, folge_nummer: folge, stage_type: 'revision' },
+    data: { staffel_id: STAFFEL_ID, folge_nummer: folge, stage_type: 'final' },
   })).json()
   if (!stage.id) return null
 
