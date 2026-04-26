@@ -2,8 +2,8 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
-export const szenenVorstoppRouter = Router()
-export const vorstoppEinstellungenRouter = Router()
+export const szenenVorstoppRouter = Router({ mergeParams: true })
+export const vorstoppEinstellungenRouter = Router({ mergeParams: true })
 
 szenenVorstoppRouter.use(authMiddleware)
 vorstoppEinstellungenRouter.use(authMiddleware)

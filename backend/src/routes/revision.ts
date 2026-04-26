@@ -2,10 +2,10 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
-export const stageLabelsRouter = Router()
-export const revisionColorsRouter = Router()
-export const revisionEinstellungenRouter = Router()
-export const szenenRevisionenRouter = Router()
+export const stageLabelsRouter = Router({ mergeParams: true })
+export const revisionColorsRouter = Router({ mergeParams: true })
+export const revisionEinstellungenRouter = Router({ mergeParams: true })
+export const szenenRevisionenRouter = Router({ mergeParams: true })
 
 stageLabelsRouter.use(authMiddleware)
 revisionColorsRouter.use(authMiddleware)

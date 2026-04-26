@@ -3,9 +3,9 @@ import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
 export const charactersRouter = Router()
-export const staffelCharactersRouter = Router()
-export const sceneCharactersRouter = Router()
-export const charKategorienRouter = Router()
+export const staffelCharactersRouter = Router({ mergeParams: true })
+export const sceneCharactersRouter = Router({ mergeParams: true })
+export const charKategorienRouter = Router({ mergeParams: true })
 
 charactersRouter.use(authMiddleware)
 staffelCharactersRouter.use(authMiddleware)
