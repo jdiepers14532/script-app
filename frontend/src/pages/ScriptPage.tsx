@@ -28,7 +28,6 @@ export default function ScriptPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const navSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDragging = useRef(false)
   const dragStartX = useRef(0)
   const dragStartWidth = useRef(0)
@@ -60,20 +59,17 @@ export default function ScriptPage() {
     }, 800)
   }, [settingsLoaded])
 
-  // Debounced save navigation position to backend
+  // Immediate save navigation position to backend
   const saveNavPosition = useCallback((
     staffelId: string, folgeNummer: number | null, stageId: number | null, szeneId: number | null
   ) => {
     if (!navRestored.current) return
-    if (navSaveTimer.current) clearTimeout(navSaveTimer.current)
-    navSaveTimer.current = setTimeout(() => {
-      api.updateSettings({ ui_settings: {
-        last_staffel_id:   staffelId,
-        last_folge_nummer: folgeNummer,
-        last_stage_id:     stageId,
-        last_szene_id:     szeneId,
-      }}).catch(() => {})
-    }, 600)
+    api.updateSettings({ ui_settings: {
+      last_staffel_id:   staffelId,
+      last_folge_nummer: folgeNummer,
+      last_stage_id:     stageId,
+      last_szene_id:     szeneId,
+    }}).catch(() => {})
   }, [])
 
   // Drag-to-resize
@@ -126,7 +122,7 @@ export default function ScriptPage() {
       .then(r => r.json())
       .then(data => { if (data.staffel_id) setSelectedStaffelId(data.staffel_id) })
       .catch(console.error)
-  }, [selectedProduction?.id])
+  }, [selectedProduction?.id, settingsLoaded])
 
 
   // Load Blöcke — restore saved folgeNummer by finding the right block
@@ -199,7 +195,11 @@ export default function ScriptPage() {
       selectedBlock={selectedBlock}
       onSelectBlock={b => { pendingNav.current = {}; navRestored.current = true; setSelectedBlock(b) }}
       selectedFolgeNummer={selectedFolgeNummer}
-      onSelectFolge={nr => { pendingNav.current = {}; navRestored.current = true; setSelectedFolgeNummer(nr) }}
+      onSelectFolge={nr => {
+        pendingNav.current = {}; navRestored.current = true; setSelectedFolgeNummer(nr)
+        if (selectedStaffelId)
+          api.updateSettings({ ui_settings: { last_staffel_id: selectedStaffelId, last_folge_nummer: nr, last_stage_id: null, last_szene_id: null } }).catch(() => {})
+      }}
       stages={stages}
       selectedStageId={selectedStageId}
       onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
@@ -215,7 +215,12 @@ export default function ScriptPage() {
               onSelectSzene={(id) => {
                 setSelectedSzeneId(id)
                 if (navRestored.current && selectedStaffelId)
-                  api.updateSettings({ ui_settings: { last_szene_id: id } }).catch(() => {})
+                  api.updateSettings({ ui_settings: {
+                    last_staffel_id: selectedStaffelId,
+                    last_folge_nummer: selectedFolgeNummer,
+                    last_stage_id: selectedStageId,
+                    last_szene_id: id,
+                  } }).catch(() => {})
               }}
               staffelId={selectedStaffelId}
               folgeNummer={selectedFolgeNummer}
@@ -224,7 +229,12 @@ export default function ScriptPage() {
                 setSzenen(prev => [...prev, newSzene])
                 setSelectedSzeneId(newSzene.id)
                 if (navRestored.current && selectedStaffelId)
-                  api.updateSettings({ ui_settings: { last_szene_id: newSzene.id } }).catch(() => {})
+                  api.updateSettings({ ui_settings: {
+                    last_staffel_id: selectedStaffelId,
+                    last_folge_nummer: selectedFolgeNummer,
+                    last_stage_id: selectedStageId,
+                    last_szene_id: newSzene.id,
+                  } }).catch(() => {})
               }}
               onSzeneDeleted={(id) => {
                 setSzenen(prev => prev.filter(s => s.id !== id))
