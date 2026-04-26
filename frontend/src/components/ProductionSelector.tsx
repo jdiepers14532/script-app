@@ -68,9 +68,16 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: 'left' }}>
-          {selected
-            ? (selected.projektnummer ? `${selected.projektnummer} · ${productionLabel(selected)}` : productionLabel(selected))
-            : '— Produktion wählen —'}
+          {selected ? (
+            <>
+              <span className="prod-label-full">
+                {selected.projektnummer ? `${selected.projektnummer} · ${productionLabel(selected)}` : productionLabel(selected)}
+              </span>
+              <span className="prod-label-compact">
+                {selected.projektnummer || productionLabel(selected)}
+              </span>
+            </>
+          ) : '— Produktion wählen —'}
         </span>
         <svg width="10" height="6" viewBox="0 0 10 6" style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
           <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>

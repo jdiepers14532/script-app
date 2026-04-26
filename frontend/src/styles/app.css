@@ -135,9 +135,24 @@
 /* Focus-mode: hide extras */
 [data-mode='focus'] .topbar-extra { display:none; }
 
-/* Responsive: hide chips at narrow viewports */
-@media (max-width: 1100px) { .topbar .chip.topbar-extra { display:none; } }
-@media (max-width: 900px)  { .topbar .status-pill.topbar-extra, .topbar .iconbtn.topbar-extra { display:none; } }
+/* Block label: full visible by default, compact hidden */
+.topbar .block-compact { display:none; }
+/* Production label: full visible by default, compact hidden */
+.topbar .prod-label-compact { display:none; }
+
+/* Responsive hide/shorten — priority order */
+/* 1. Wetter zuerst */
+@media (max-width: 1440px) { .topbar .chip-weather { display:none; } }
+/* 2. Block-Label kürzen */
+@media (max-width: 1200px) { .topbar .block-full { display:none; } .topbar .block-compact { display:inline; } }
+/* 3. Produktion auf Prodnr kürzen */
+@media (max-width: 1050px) { .topbar .prod-label-full { display:none; } .topbar .prod-label-compact { display:inline; } }
+/* 4. Drehzeit ausblenden */
+@media (max-width: 920px)  { .topbar .chip-drehzeit { display:none; } }
+/* 5. Sendedatum ausblenden */
+@media (max-width: 780px)  { .topbar .chip-sendedatum { display:none; } }
+/* Status-Pill + Bell bei sehr schmalem Fenster */
+@media (max-width: 640px)  { .topbar .status-pill.topbar-extra, .topbar .iconbtn.topbar-extra { display:none; } }
 [data-mode='focus'] .topbar .status-pill span:last-child { display:none; }
 [data-mode='focus'] .topbar .firm-logo-btn { display:none; }
 

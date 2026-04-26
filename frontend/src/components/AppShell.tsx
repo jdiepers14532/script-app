@@ -710,11 +710,16 @@ export default function AppShell({
           {bloecke.length > 0 && onSelectBlock && (
             <>
               <span>·</span>
-              <select style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
+              <select className="block-full" style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
                 {bloecke.map(b => (
                   <option key={b.proddb_id} value={b.proddb_id}>
                     Block {b.block_nummer}{b.folge_von != null && b.folge_bis != null ? ` (${b.folge_von}–${b.folge_bis}) · ${b.folge_bis - b.folge_von + 1} Folgen` : ''}
                   </option>
+                ))}
+              </select>
+              <select className="block-compact" style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
+                {bloecke.map(b => (
+                  <option key={b.proddb_id} value={b.proddb_id}>Block {b.block_nummer}</option>
                 ))}
               </select>
             </>
@@ -737,7 +742,7 @@ export default function AppShell({
             const wd = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short' })
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
             const yr = new Date(selectedBlock.dreh_bis + 'T00:00:00').getFullYear()
-            return <span className="chip topbar-extra">Drehzeit: {wd(selectedBlock.dreh_von)} {fmt(selectedBlock.dreh_von)} – {wd(selectedBlock.dreh_bis)} {fmt(selectedBlock.dreh_bis)}.{yr}</span>
+            return <span className="chip topbar-extra chip-drehzeit">Drehzeit: {wd(selectedBlock.dreh_von)} {fmt(selectedBlock.dreh_von)} – {wd(selectedBlock.dreh_bis)} {fmt(selectedBlock.dreh_bis)}.{yr}</span>
           })()}
           {sunWeather && (() => {
             const hasSun  = !!(sunWeather.avgSunrise && sunWeather.avgSunset)
@@ -756,7 +761,7 @@ export default function AppShell({
             return (
               <>
                 {hasParts && (
-                  <span className="chip topbar-extra">
+                  <span className="chip topbar-extra chip-weather">
                     {hasSun && (
                       <>
                         <span style={{ color: '#F5C842' }}>☀ {sunWeather.avgSunrise}</span>
@@ -786,7 +791,7 @@ export default function AppShell({
             const dt = new Date(sendedatum.datum + 'T00:00:00')
             const wd = dt.toLocaleDateString('de-DE', { weekday: 'short' })
             const d = dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            return <span className="chip topbar-extra">vorauss.: {wd} {d}{sendedatum.ist_ki_prognose ? ' (Prognose)' : ''}</span>
+            return <span className="chip topbar-extra chip-sendedatum">vorauss.: {wd} {d}{sendedatum.ist_ki_prognose ? ' (Prognose)' : ''}</span>
           })()}
         </div>
 
