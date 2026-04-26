@@ -352,6 +352,7 @@ export default function ScriptPage() {
                 setSzenen(prev => prev.filter(s => s.id !== id))
                 if (selectedSzeneId === id) setSelectedSzeneId(null)
               }}
+              onSzenesReordered={setSzenen}
             />
           </div>
         )}

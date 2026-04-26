@@ -48,6 +48,12 @@ export const api = {
   createSzene: (stageId: number, data: any) => request<any>('POST', `/stages/${stageId}/szenen`, data),
   updateSzene: (id: number, data: any) => request<any>('PUT', `/szenen/${id}`, data),
   deleteSzene: (id: number) => request<void>('DELETE', `/szenen/${id}`),
+  reorderSzenen: (stageId: number, order: number[]) =>
+    request<any[]>('PATCH', `/stages/${stageId}/szenen/reorder`, { order }),
+  renumberSzenen: (stageId: number) =>
+    request<{ scenes: any[]; renumbered: boolean }>('POST', `/stages/${stageId}/szenen/renumber`),
+  setSceneLogging: (stageId: number) =>
+    request<{ updated: number }>('POST', `/stages/${stageId}/szenen/set-logging`),
 
   // Locks (keyed by staffelId + folgeNummer)
   getLock: (staffelId: string, folgeNummer: number) =>
