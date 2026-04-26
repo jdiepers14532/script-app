@@ -550,19 +550,28 @@ export default function AppShell({
         return
       }
 
-      // Open-Meteo: Archivdaten nur für vergangene Daten (bis heute)
+      // Open-Meteo-Archiv hat ca. 5 Tage Verzögerung.
+      // Liegt dreh_bis innerhalb dieser Grenze oder in der Zukunft → Vorjahr verwenden.
       const today = new Date(); today.setHours(0, 0, 0, 0)
-      const effectiveBis = bisDate <= today ? bis : today.toISOString().slice(0, 10)
-      const isPast = bisDate < today
-      const hasAnyPast = vonDate <= today
+      const archiveCutoff = new Date(today); archiveCutoff.setDate(archiveCutoff.getDate() - 5)
 
-      if (!hasAnyPast) {
-        if (!cancelled) setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
-        return
+      let queryVon = von
+      let queryBis = bis
+      if (bisDate >= archiveCutoff) {
+        // Gleichen Zeitraum im Vorjahr verwenden
+        const prevVon = new Date(vonDate); prevVon.setFullYear(prevVon.getFullYear() - 1)
+        const prevBis = new Date(bisDate); prevBis.setFullYear(prevBis.getFullYear() - 1)
+        if (prevBis >= archiveCutoff) {
+          // Auch Vorjahr noch nicht im Archiv → keine Wetterdaten
+          if (!cancelled) setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
+          return
+        }
+        queryVon = prevVon.toISOString().slice(0, 10)
+        queryBis = prevBis.toISOString().slice(0, 10)
       }
 
       try {
-        const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&start_date=${von}&end_date=${effectiveBis}&daily=sunrise,sunset,temperature_2m_mean,precipitation_hours&timezone=Europe%2FBerlin`
+        const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&start_date=${queryVon}&end_date=${queryBis}&daily=sunrise,sunset,temperature_2m_mean,precipitation_hours&timezone=Europe%2FBerlin`
         const data = await fetch(url).then(r => r.json())
         if (cancelled) return
         const daily = data.daily
@@ -575,8 +584,8 @@ export default function AppShell({
 
         const avgSrMin = avg((daily.sunrise ?? []).map(toMins))
         const avgSsMin = avg((daily.sunset ?? []).map(toMins))
-        const avgTemp = isPast ? (() => { const v = avg(daily.temperature_2m_mean ?? []); return v != null ? Math.round(v * 10) / 10 : null })() : null
-        const precipHours: number[] = isPast ? (daily.precipitation_hours ?? []).filter((p: any) => p != null) : []
+        const avgTemp = (() => { const v = avg(daily.temperature_2m_mean ?? []); return v != null ? Math.round(v * 10) / 10 : null })()
+        const precipHours: number[] = (daily.precipitation_hours ?? []).filter((p: any) => p != null)
         const rainPct = precipHours.length ? Math.round(precipHours.filter((h: number) => h > 0).length / precipHours.length * 100) : null
 
         setSunWeather({
