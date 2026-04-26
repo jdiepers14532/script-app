@@ -4,6 +4,7 @@ import {
   LayoutDashboard, Minimize2, Maximize2,
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen,
+  Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
@@ -252,7 +253,7 @@ export default function AppShell({
 }: AppShellProps) {
   const location = useLocation()
   const { focus, toggle } = useFocus()
-  const { isOnline, pendingCount, isSyncing } = useOfflineQueue()
+  const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
 
   const [tweaksOpen, setTweaksOpen] = useState(false)
@@ -269,6 +270,45 @@ export default function AppShell({
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string } | null>(null)
   const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline'>('Treatment')
   const [adminSaving, setAdminSaving] = useState(false)
+
+  // ── Offline-Modal ──────────────────────────────────────────────────────────
+  const [offlineOpen, setOfflineOpen] = useState(false)
+  const [installPrompt, setInstallPrompt] = useState<any>(null)
+  const [isInstalled, setIsInstalled] = useState(
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as any).standalone === true
+  )
+  const [cacheStats, setCacheStats] = useState<{ name: string; count: number; label: string }[]>([])
+  const [cacheLoading, setCacheLoading] = useState(false)
+
+  useEffect(() => {
+    const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e) }
+    window.addEventListener('beforeinstallprompt', handler)
+    window.addEventListener('appinstalled', () => setIsInstalled(true))
+    return () => { window.removeEventListener('beforeinstallprompt', handler) }
+  }, [])
+
+  const loadCacheStats = async () => {
+    if (!('caches' in window)) return
+    setCacheLoading(true)
+    try {
+      const keys = await caches.keys()
+      const LABELS: Record<string, string> = {
+        'api-staffeln': 'Staffeln (NetworkFirst)',
+        'api-episoden': 'Episoden (NetworkFirst)',
+        'api-szenen': 'Szenen (Stale-While-Revalidate)',
+        'workbox-precache-v2-https://script.serienwerft.studio/': 'App-Shell (CacheFirst)',
+      }
+      const stats = await Promise.all(keys.map(async name => {
+        const cache = await caches.open(name)
+        const entries = await cache.keys()
+        const shortName = Object.keys(LABELS).find(k => name.startsWith(k)) ?? name
+        return { name, label: LABELS[shortName] ?? name, count: entries.length }
+      }))
+      setCacheStats(stats.filter(s => s.count > 0))
+    } catch { /* ignore */ } finally { setCacheLoading(false) }
+  }
+
 
   const settingsReady = useRef(false)
   const saveTimer = useRef<number>()
@@ -766,6 +806,17 @@ export default function AppShell({
               <Sun size={14} />
               Ansicht
             </button>
+            <button className="um-item" onClick={() => { setOfflineOpen(true); setUserMenuOpen(false); loadCacheStats() }}>
+              {isOnline ? <Wifi size={14} /> : <WifiOff size={14} style={{ color: 'var(--sw-danger)' }} />}
+              Offline-Modus
+              {pendingCount > 0 && (
+                <span style={{
+                  marginLeft: 'auto', fontSize: 10, fontWeight: 700,
+                  background: 'var(--sw-warning)', color: '#000',
+                  borderRadius: 10, padding: '1px 6px',
+                }}>{pendingCount}</span>
+              )}
+            </button>
             <Link
               to="/hilfe"
               className="um-item"
@@ -859,6 +910,231 @@ export default function AppShell({
               >
                 <Check size={13} />
                 {adminSaving ? 'Speichert…' : 'Speichern'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Offline-Modus Modal ── */}
+      {offlineOpen && (
+        <>
+          <div className="modal-backdrop" onClick={() => setOfflineOpen(false)} />
+          <div className="admin-modal" style={{ maxWidth: 480 }}>
+
+            {/* Header */}
+            <div className="admin-modal-head">
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {isOnline ? <Wifi size={15} /> : <WifiOff size={15} style={{ color: 'var(--sw-danger)' }} />}
+                Offline-Modus
+              </span>
+              <button className="close" onClick={() => setOfflineOpen(false)}><X size={14} /></button>
+            </div>
+
+            <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* Status */}
+              <div>
+                <div className="admin-section-label">Verbindungsstatus</div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 14px',
+                  border: `1px solid ${isOnline && pendingCount === 0 ? 'var(--sw-green)' : isOnline ? '#FF950044' : 'var(--sw-danger)'}`,
+                  borderRadius: 8,
+                  background: isOnline && pendingCount === 0 ? 'rgba(0,200,83,0.06)' : isOnline ? 'rgba(255,149,0,0.06)' : 'rgba(255,59,48,0.06)',
+                }}>
+                  <span style={{
+                    width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                    background: isOnline && pendingCount === 0 ? 'var(--sw-green)' : isOnline ? '#FF9500' : 'var(--sw-danger)',
+                  }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>
+                      {!isOnline
+                        ? `Offline${pendingCount > 0 ? ` · ${pendingCount} Änderung${pendingCount === 1 ? '' : 'en'} ausstehend` : ''}`
+                        : isSyncing ? 'Synchronisiert…'
+                        : pendingCount > 0 ? `${pendingCount} ausstehende Änderung${pendingCount === 1 ? '' : 'en'}`
+                        : 'Online · Alles synchronisiert'}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                      {!isOnline
+                        ? 'Änderungen werden lokal gespeichert und automatisch übertragen, sobald das Netz zurückkommt.'
+                        : pendingCount > 0
+                        ? 'Die App überträgt deine Änderungen gerade zum Server.'
+                        : 'Alle Daten sind auf dem Server gespeichert.'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warteschlange */}
+              {(pendingCount > 0 || !isOnline) && (
+                <div>
+                  <div className="admin-section-label">Warteschlange</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      flex: 1, padding: '8px 12px', borderRadius: 6,
+                      background: 'var(--bg-subtle)', fontSize: 12,
+                      color: 'var(--text-secondary)',
+                    }}>
+                      {pendingCount === 0
+                        ? 'Keine ausstehenden Anfragen'
+                        : `${pendingCount} Anfrage${pendingCount === 1 ? '' : 'n'} warten auf Übertragung`}
+                    </div>
+                    <button
+                      onClick={() => { if (isOnline) syncQueue() }}
+                      disabled={!isOnline || isSyncing}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '7px 14px', border: '1px solid var(--border)',
+                        borderRadius: 6, background: 'var(--bg-surface)',
+                        cursor: isOnline ? 'pointer' : 'not-allowed',
+                        fontSize: 12, fontWeight: 600,
+                        opacity: !isOnline || isSyncing ? 0.5 : 1,
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <RefreshCw size={13} style={{ animation: isSyncing ? 'spin 1s linear infinite' : undefined }} />
+                      {isSyncing ? 'Läuft…' : 'Jetzt sync'}
+                    </button>
+                  </div>
+                  {!isOnline && pendingCount > 0 && (
+                    <p style={{ fontSize: 11, color: '#FF9500', margin: '8px 0 0', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                      <span style={{ flexShrink: 0 }}>⚠</span>
+                      Tab nicht schließen, solange Änderungen ausstehen — sie könnten verloren gehen.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Cache */}
+              <div>
+                <div className="admin-section-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <HardDrive size={12} />
+                  Lokaler Cache
+                </div>
+                {cacheLoading ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '8px 0' }}>Wird geladen…</div>
+                ) : cacheStats.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '8px 0' }}>
+                    {!('caches' in window) ? 'Cache API nicht verfügbar (kein HTTPS?)' : 'Noch keine Daten gecacht — öffne die App einmal online.'}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {cacheStats.map(s => (
+                      <div key={s.name} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        padding: '6px 10px', borderRadius: 6,
+                        background: 'var(--bg-subtle)', fontSize: 12,
+                      }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>{s.label}</span>
+                        <span style={{
+                          fontWeight: 700, fontSize: 11, fontFamily: 'monospace',
+                          color: 'var(--sw-green)',
+                        }}>{s.count} Eintr{s.count === 1 ? 'ag' : 'äge'}</span>
+                      </div>
+                    ))}
+                    <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+                      Cache wird beim nächsten Öffnen automatisch aktualisiert.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* App installieren */}
+              <div>
+                <div className="admin-section-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Smartphone size={12} />
+                  App installieren
+                </div>
+                {isInstalled ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', borderRadius: 8,
+                    border: '1px solid var(--sw-green)',
+                    background: 'rgba(0,200,83,0.06)',
+                    fontSize: 13,
+                  }}>
+                    <Check size={16} style={{ color: 'var(--sw-green)', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 600 }}>App ist installiert</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        Du kannst die Script-App direkt vom Home-Screen oder Taskbar öffnen.
+                      </div>
+                    </div>
+                  </div>
+                ) : installPrompt ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+                      Installiere die App auf deinem Gerät — dann öffnet sie sich wie eine native App,
+                      auch ohne Browser-Chrome, und ist offline vollständig nutzbar.
+                    </p>
+                    <button
+                      onClick={async () => {
+                        if (!installPrompt) return
+                        installPrompt.prompt()
+                        const { outcome } = await installPrompt.userChoice
+                        if (outcome === 'accepted') { setIsInstalled(true); setInstallPrompt(null) }
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '10px 16px', borderRadius: 8,
+                        background: 'var(--sw-green)', color: '#fff',
+                        border: 'none', cursor: 'pointer',
+                        fontWeight: 700, fontSize: 13,
+                      }}
+                    >
+                      <Download size={15} />
+                      App auf diesem Gerät installieren
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+                      Installiere die App als PWA auf deinem Gerät, um sie direkt vom Home-Screen oder der Taskbar zu öffnen — auch offline nutzbar.
+                    </p>
+                    {/iPad|iPhone|iPod/.test(navigator.userAgent) ? (
+                      <div style={{
+                        padding: '10px 14px', borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        background: 'var(--bg-subtle)',
+                        fontSize: 12, lineHeight: 1.6,
+                      }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4 }}>iOS — Safari</div>
+                        <ol style={{ margin: 0, paddingLeft: 18, color: 'var(--text-secondary)' }}>
+                          <li>Antippen: <strong>Teilen</strong> <span style={{ fontSize: 14 }}>⎙</span> in der Safari-Menüleiste</li>
+                          <li><strong>Zum Home-Bildschirm hinzufügen</strong> wählen</li>
+                          <li><strong>Hinzufügen</strong> bestätigen</li>
+                        </ol>
+                      </div>
+                    ) : (
+                      <div style={{
+                        padding: '10px 14px', borderRadius: 8,
+                        border: '1px solid var(--border)',
+                        background: 'var(--bg-subtle)',
+                        fontSize: 12, lineHeight: 1.6, color: 'var(--text-secondary)',
+                      }}>
+                        <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>Chrome / Edge</div>
+                        In der Adressleiste das <strong>Installieren</strong>-Symbol (⊕) anklicken, oder Menü → <strong>App installieren</strong>.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            <div className="admin-modal-foot" style={{ justifyContent: 'space-between' }}>
+              <Link
+                to="/hilfe"
+                style={{ fontSize: 12, color: 'var(--text-secondary)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}
+                onClick={() => setOfflineOpen(false)}
+              >
+                <BookOpen size={12} />
+                Mehr im Handbuch
+              </Link>
+              <button className="admin-save-btn" onClick={() => setOfflineOpen(false)}>
+                <Check size={13} />
+                Schließen
               </button>
             </div>
           </div>
