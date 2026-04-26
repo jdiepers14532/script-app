@@ -6,7 +6,7 @@ import {
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
 } from 'lucide-react'
-import { useFocus, useSelectedProduction, PanelModeContext } from '../App'
+import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
 import { CompanyInfoModal } from '../sw-ui'
@@ -251,6 +251,7 @@ export default function AppShell({
   const { focus, toggle } = useFocus()
   const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
+  const { treatmentLabel } = useAppSettings()
 
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tweaks, setTweaks] = useState<TweakState>(DEFAULT_TWEAKS)
@@ -421,15 +422,6 @@ export default function AppShell({
       .catch(() => {})
   }, [])
 
-  // ── Treatment-Bezeichnung vom Script-Backend laden ────────────────────────
-  useEffect(() => {
-    fetch('/api/admin/app-settings', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then((data: any) => {
-        if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
-      })
-      .catch(() => {})
-  }, [])
 
   // ── Einstellungen beim Start vom Backend laden ────────────────────────────
   useEffect(() => {
@@ -706,7 +698,7 @@ export default function AppShell({
           <TweakGroup label="Panelmodus">
             <div className="seg">
               <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}>Beide</button>
-              <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}>Treatment</button>
+              <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}>{treatmentLabel}</button>
               <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}>Drehbuch</button>
             </div>
           </TweakGroup>
@@ -1178,7 +1170,7 @@ export default function AppShell({
                       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Fassungstyp</div>
                       <select value={importStageType} onChange={e => setImportStageType(e.target.value)}
                         style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
-                        {[['expose','Exposé'],['treatment','Treatment'],['draft','Drehbuch'],['final','Endfassung']].map(([v,l]) => (
+                        {[['expose','Exposé'],['treatment', treatmentLabel],['draft','Drehbuch'],['final','Endfassung']].map(([v,l]) => (
                           <option key={v} value={v}>{l}</option>
                         ))}
                       </select>

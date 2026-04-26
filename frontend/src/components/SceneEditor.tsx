@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useContext } from 'react'
 import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles, MessageSquare, GitCompare } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
-import { PanelModeContext } from '../App'
+import { PanelModeContext, useAppSettings } from '../App'
 import VorstoppPanel from './VorstoppPanel'
 
 interface SceneEditorProps {
@@ -32,6 +32,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
 export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, onSzeneUpdated }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
+  const { treatmentLabel } = useAppSettings()
   const [scene, setScene] = useState<any | null>(null)
   const [lock, setLock] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
@@ -287,7 +288,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
         {panelMode !== 'script' && (
           <div className="panel">
             <div className="phead">
-              <span className="title">Treatment</span>
+              <span className="title">{treatmentLabel}</span>
               <span className="vchip draft">Entwurf</span>
               <span className="spacer" />
               <button className="btn-sm">
@@ -300,7 +301,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
                 {scene.zusammenfassung ? (
                   <p>{scene.zusammenfassung}</p>
                 ) : (
-                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Noch kein Treatment vorhanden.</p>
+                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Noch kein {treatmentLabel} vorhanden.</p>
                 )}
               </div>
             </div>

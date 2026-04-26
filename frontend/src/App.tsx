@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ScriptPage from './pages/ScriptPage'
 import EditorPage from './pages/EditorPage'
@@ -47,24 +47,38 @@ interface PanelModeContextType { panelMode: PanelMode; setPanelMode: (m: PanelMo
 export const PanelModeContext = createContext<PanelModeContextType>({ panelMode: 'both', setPanelMode: () => {} })
 export function usePanelMode() { return useContext(PanelModeContext) }
 
+interface AppSettingsContextType { treatmentLabel: string }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment' })
+export function useAppSettings() { return useContext(AppSettingsContext) }
+
 export default function App() {
   const { focus, toggle } = useFocusMode()
   const productionCtx = useProduction()
+  const [treatmentLabel, setTreatmentLabel] = useState('Treatment')
+
+  useEffect(() => {
+    fetch('/api/admin/app-settings', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => { if (data?.treatment_label) setTreatmentLabel(data.treatment_label) })
+      .catch(() => {})
+  }, [])
 
   return (
-    <ProductionContext.Provider value={productionCtx}>
-      <FocusContext.Provider value={{ focus, toggle }}>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<ScriptPage />} />
-            <Route path="/editor" element={<EditorPage />} />
-            <Route path="/admin" element={<AdminPage />} />
-            <Route path="/import" element={<ImportPage />} />
-            <Route path="/hilfe" element={<HilfePage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </BrowserRouter>
-      </FocusContext.Provider>
-    </ProductionContext.Provider>
+    <AppSettingsContext.Provider value={{ treatmentLabel }}>
+      <ProductionContext.Provider value={productionCtx}>
+        <FocusContext.Provider value={{ focus, toggle }}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<ScriptPage />} />
+              <Route path="/editor" element={<EditorPage />} />
+              <Route path="/admin" element={<AdminPage />} />
+              <Route path="/import" element={<ImportPage />} />
+              <Route path="/hilfe" element={<HilfePage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </BrowserRouter>
+        </FocusContext.Provider>
+      </ProductionContext.Provider>
+    </AppSettingsContext.Provider>
   )
 }

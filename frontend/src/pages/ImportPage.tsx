@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X } from 'lucide-react'
-import { useSelectedProduction } from '../App'
+import { useSelectedProduction, useAppSettings } from '../App'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 const FORMAT_LABELS: Record<string, string> = {
@@ -14,12 +14,6 @@ const FORMAT_LABELS: Record<string, string> = {
   writerduet: 'WriterDuet (.wdz)',
   unknown: 'Unbekannt',
 }
-const STAGE_TYPES = [
-  { value: 'expose', label: 'Exposé' },
-  { value: 'treatment', label: 'Treatment' },
-  { value: 'draft', label: 'Drehbuch (Draft)' },
-  { value: 'final', label: 'Final' },
-]
 
 type Step = 1 | 2 | 3
 
@@ -49,6 +43,13 @@ export default function ImportPage() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { selectedProduction, productions } = useSelectedProduction()
+  const { treatmentLabel } = useAppSettings()
+  const STAGE_TYPES = [
+    { value: 'expose', label: 'Exposé' },
+    { value: 'treatment', label: treatmentLabel },
+    { value: 'draft', label: 'Drehbuch (Draft)' },
+    { value: 'final', label: 'Final' },
+  ]
   const [step, setStep] = useState<Step>(1)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
