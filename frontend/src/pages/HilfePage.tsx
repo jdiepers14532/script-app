@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import AppShell from '../components/AppShell'
 
 // ── Farben ────────────────────────────────────────────────────────────────────
@@ -115,7 +116,407 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+// ── Offline-Modus Tab ─────────────────────────────────────────────────────────
+function OfflineTab() {
+  return (
+    <div>
+      {/* Intro */}
+      <div style={{
+        background: `linear-gradient(135deg, ${C.blue}18 0%, ${C.green}12 100%)`,
+        border: `1px solid ${C.blue}33`,
+        borderRadius: 12,
+        padding: '20px 24px',
+        marginBottom: 32,
+        display: 'flex',
+        gap: 16,
+        alignItems: 'flex-start',
+      }}>
+        <div style={{ fontSize: 32, lineHeight: 1, flexShrink: 0 }}>📶</div>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Die Script-App funktioniert auch offline</div>
+          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
+            Dank Service Worker und lokalem Cache kannst du Szenen lesen und bearbeiten — auch ohne Internetverbindung.
+            Änderungen werden automatisch synchronisiert, sobald du wieder online bist.
+          </div>
+        </div>
+      </div>
+
+      {/* Status-Indikator */}
+      <Section title="1. Der Status-Indikator">
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
+          Oben rechts in der Topbar zeigt ein farbiger Punkt jederzeit den aktuellen Verbindungsstatus an.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            {
+              dot: C.green,
+              label: 'Online · Synced',
+              desc: 'Alles ist synchronisiert. Du arbeitest in Echtzeit mit dem Server.',
+              icon: '✓',
+            },
+            {
+              dot: '#FF9500',
+              label: 'X ausstehende Änderungen',
+              desc: 'Du bist online, aber einige Änderungen wurden noch nicht übertragen. Die App synchronisiert automatisch — warte kurz.',
+              icon: '⏳',
+            },
+            {
+              dot: '#FF9500',
+              label: 'Synchronisiert…',
+              desc: 'Die App überträgt gerade deine gespeicherten Änderungen zum Server.',
+              icon: '↻',
+            },
+            {
+              dot: C.red,
+              label: 'Offline · X ausstehend',
+              desc: 'Keine Internetverbindung. Deine Änderungen werden lokal gespeichert und übertragen, sobald die Verbindung zurückkehrt.',
+              icon: '✗',
+            },
+          ].map((s, i) => (
+            <div key={i} style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 14,
+              padding: '12px 16px',
+              border: `1px solid ${s.dot}33`,
+              borderLeft: `3px solid ${s.dot}`,
+              borderRadius: 8,
+              background: s.dot + '0a',
+            }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%',
+                background: s.dot,
+                flexShrink: 0, marginTop: 4,
+              }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 3, fontFamily: 'monospace', color: s.dot }}>{s.label}</div>
+                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{s.desc}</div>
+              </div>
+              <div style={{ fontSize: 20, lineHeight: 1, flexShrink: 0, opacity: 0.5 }}>{s.icon}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Wie Sync funktioniert */}
+      <Section title="2. So funktioniert die Synchronisation">
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 20 }}>
+          Die App speichert Änderungen in drei Schichten — von schnell (RAM) bis dauerhaft (Server):
+        </p>
+
+        {/* Flow-Diagramm */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', maxWidth: 580 }}>
+
+          {/* Schritt 1 */}
+          <div style={{
+            border: `2px solid ${C.blue}`,
+            borderRadius: 10, padding: '14px 18px',
+            background: C.blue + '0e',
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 8,
+              background: C.blue, color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, flexShrink: 0,
+            }}>✏️</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>Du tippst / speicherst</div>
+              <div style={{ fontSize: 12, color: C.muted }}>Die App sendet eine Anfrage an den Server.</div>
+            </div>
+          </div>
+
+          <Arrow label="Server erreichbar?" />
+
+          {/* Verzweigung */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+
+            {/* Online-Pfad */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div style={{
+                textAlign: 'center', fontSize: 11, fontWeight: 700,
+                color: C.green, padding: '4px 8px', background: C.green + '15',
+                borderRadius: '6px 6px 0 0', border: `1px solid ${C.green}44`, borderBottom: 'none',
+              }}>JA — Online</div>
+              <div style={{
+                border: `1px solid ${C.green}44`, borderTop: 'none',
+                borderRadius: '0 0 8px 8px', padding: '12px 14px',
+                background: C.green + '08', fontSize: 12, color: C.muted, lineHeight: 1.5,
+              }}>
+                Änderung wird direkt auf dem Server gespeichert.
+                Status: <span style={{ color: C.green, fontWeight: 600 }}>Online · Synced</span>
+              </div>
+            </div>
+
+            {/* Offline-Pfad */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              <div style={{
+                textAlign: 'center', fontSize: 11, fontWeight: 700,
+                color: C.red, padding: '4px 8px', background: C.red + '15',
+                borderRadius: '6px 6px 0 0', border: `1px solid ${C.red}44`, borderBottom: 'none',
+              }}>NEIN — Offline</div>
+              <div style={{
+                border: `1px solid ${C.red}44`, borderTop: 'none',
+                borderRadius: '0 0 8px 8px', padding: '12px 14px',
+                background: C.red + '08', fontSize: 12, color: C.muted, lineHeight: 1.5,
+              }}>
+                Anfrage landet in der <strong>lokalen Warteschlange</strong> (IndexedDB im Browser).
+                Status: <span style={{ color: C.red, fontWeight: 600 }}>Offline · ausstehend</span>
+              </div>
+            </div>
+          </div>
+
+          <Arrow label="Verbindung kommt zurück" />
+
+          <div style={{
+            border: `2px solid ${C.green}`,
+            borderRadius: 10, padding: '14px 18px',
+            background: C.green + '0e',
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 8,
+              background: C.green, color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, flexShrink: 0,
+            }}>🔄</div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 2 }}>Automatische Synchronisation</div>
+              <div style={{ fontSize: 12, color: C.muted }}>
+                Sobald das Netz zurückkommt, überträgt die App alle gespeicherten Anfragen der Reihe nach.
+                Du musst nichts tun — es passiert automatisch im Hintergrund.
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Cache-Schichten */}
+      <Section title="3. Was ist offline verfügbar?">
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
+          Der Service Worker der App speichert bestimmte Inhalte automatisch zwischen. Diese drei Strategien sind aktiv:
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+          {[
+            {
+              color: C.blue,
+              icon: '🏠',
+              strategy: 'Cache First',
+              label: 'App-Oberfläche (Shell)',
+              desc: 'HTML, JavaScript, CSS, Schriften — immer aus dem lokalen Cache geladen. Die App startet auch komplett ohne Netz.',
+            },
+            {
+              color: C.purple,
+              icon: '📋',
+              strategy: 'Network First',
+              label: 'Staffeln & Episoden',
+              desc: 'Zuerst wird der Server gefragt (max. 10 Sekunden). Antwortet er nicht, liefert der Cache die letzte bekannte Version.',
+            },
+            {
+              color: C.orange,
+              icon: '📝',
+              strategy: 'Stale-While-Revalidate',
+              label: 'Szenen',
+              desc: 'Der Cache antwortet sofort (kein Warten). Im Hintergrund wird der Server gefragt und der Cache aktualisiert — für die nächste Seite ist er dann frisch.',
+            },
+          ].map((item, i) => (
+            <div key={i} style={{
+              display: 'grid',
+              gridTemplateColumns: '40px 1fr',
+              gap: 14,
+              padding: '14px 16px',
+              border: `1px solid ${item.color}44`,
+              borderLeft: `3px solid ${item.color}`,
+              borderRadius: 8,
+              background: item.color + '08',
+            }}>
+              <div style={{ fontSize: 22, textAlign: 'center', paddingTop: 2 }}>{item.icon}</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>{item.label}</span>
+                  <span style={{
+                    fontSize: 10, fontWeight: 600, fontFamily: 'monospace',
+                    background: item.color + '22', color: item.color,
+                    border: `1px solid ${item.color}44`,
+                    borderRadius: 4, padding: '1px 6px',
+                  }}>{item.strategy}</span>
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>{item.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Verfügbarkeits-Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[
+            { ok: true,  label: 'App starten & navigieren' },
+            { ok: true,  label: 'Szenen lesen (aus Cache)' },
+            { ok: true,  label: 'Staffeln & Episoden ansehen' },
+            { ok: true,  label: 'Szenen bearbeiten & speichern' },
+            { ok: false, label: 'KI-Funktionen (brauchen Netz)' },
+            { ok: false, label: 'Kommentare anderer sehen (live)' },
+            { ok: false, label: 'Neue Produktionen laden' },
+            { ok: false, label: 'Einloggen / Ausloggen' },
+          ].map((item, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px',
+              border: `1px solid ${item.ok ? C.green : C.border}`,
+              borderRadius: 6,
+              background: item.ok ? C.green + '08' : C.surface,
+              fontSize: 12,
+            }}>
+              <span style={{
+                fontSize: 14, fontWeight: 700,
+                color: item.ok ? C.green : C.muted,
+                flexShrink: 0,
+              }}>{item.ok ? '✓' : '—'}</span>
+              <span style={{ color: item.ok ? C.text : C.muted }}>{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Datenverlust vermeiden */}
+      <Section title="4. Datenverlust vermeiden">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            {
+              num: '1',
+              color: C.blue,
+              title: 'Status-Indikator beobachten',
+              desc: 'Schau vor dem Schließen des Tabs auf den farbigen Punkt oben rechts. Ist er grün und zeigt "Online · Synced", ist alles sicher übertragen.',
+            },
+            {
+              num: '2',
+              color: C.orange,
+              title: 'Bei "ausstehenden Änderungen" Tab offen lassen',
+              desc: 'Wenn der Indikator "X ausstehende Änderungen" oder "Synchronisiert…" anzeigt: Tab-Browser offen lassen und warten, bis grün erscheint. Nicht neu laden!',
+            },
+            {
+              num: '3',
+              color: C.purple,
+              title: 'Zuletzt bearbeitete Szenen bleiben gecacht',
+              desc: 'Der Browser speichert die zuletzt abgerufenen Szenen lokal. Auch wenn du offline bist, siehst du den Stand von deiner letzten Online-Sitzung.',
+            },
+            {
+              num: '4',
+              color: C.green,
+              title: 'Versionshistorie als Sicherheitsnetz',
+              desc: 'Bei jedem Speichern wird automatisch ein Versions-Snapshot angelegt. Auch nach einem Sync-Problem kannst du zur letzten gespeicherten Version zurück.',
+            },
+          ].map((tip, i) => (
+            <div key={i} style={{
+              display: 'flex', gap: 14,
+              padding: '14px 16px',
+              border: `1px solid ${tip.color}33`,
+              borderRadius: 8,
+              background: tip.color + '08',
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: tip.color, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, fontSize: 13, flexShrink: 0,
+              }}>{tip.num}</div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{tip.title}</div>
+                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{tip.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Section>
+
+      {/* Troubleshooting */}
+      <Section title="5. Probleme beheben">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            {
+              q: 'Der Status bleibt "ausstehend", obwohl ich wieder online bin',
+              a: 'Warte 15–30 Sekunden — die Sync läuft automatisch. Hilft das nicht, lade die Seite einmal neu (F5). Die Warteschlange bleibt erhalten und wird nach dem Neuladen fortgesetzt.',
+            },
+            {
+              q: 'Die App lädt gar nicht (komplett weißer Bildschirm)',
+              a: 'Der Service Worker wurde möglicherweise noch nicht installiert. Verbinde dich einmal mit dem Internet und öffne die App — danach steht sie offline zur Verfügung.',
+            },
+            {
+              q: 'Ich sehe veraltete Inhalte, obwohl ich online bin',
+              a: '"Stale-While-Revalidate" zeigt zuerst den Cache und aktualisiert im Hintergrund. Nach einem kurzen Moment oder einem erneuten Öffnen der Seite siehst du die neuesten Daten.',
+            },
+            {
+              q: 'Ich möchte den Cache komplett leeren',
+              a: 'Browser-Einstellungen → Datenschutz → Browserdaten löschen → "Gecachte Bilder und Dateien". Achtung: danach ist die App erst nach einer Online-Sitzung wieder offline nutzbar.',
+            },
+          ].map((item, i) => (
+            <details key={i} style={{
+              border: `1px solid ${C.border}`,
+              borderRadius: 8,
+              overflow: 'hidden',
+            }}>
+              <summary style={{
+                padding: '12px 16px',
+                fontWeight: 600, fontSize: 13,
+                cursor: 'pointer',
+                background: C.subtle,
+                listStyle: 'none',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <span style={{ color: C.orange, fontSize: 15, flexShrink: 0 }}>?</span>
+                {item.q}
+              </summary>
+              <div style={{
+                padding: '12px 16px',
+                fontSize: 12, color: C.muted, lineHeight: 1.7,
+                borderTop: `1px solid ${C.border}`,
+              }}>
+                {item.a}
+              </div>
+            </details>
+          ))}
+        </div>
+      </Section>
+
+      {/* Technische Details (collapsible) */}
+      <Section title="6. Technische Details">
+        <details style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
+          <summary style={{
+            padding: '12px 16px', cursor: 'pointer',
+            fontWeight: 600, fontSize: 12,
+            background: C.subtle, listStyle: 'none',
+          }}>
+            Für Entwickler — Implementierungsdetails
+          </summary>
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 12, color: C.muted }}>
+              <strong style={{ color: C.text }}>Service Worker (VitePWA + Workbox)</strong> — <code>registerType: 'autoUpdate'</code>
+            </div>
+            <div style={{ background: C.subtle, borderRadius: 6, padding: 12, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.8 }}>
+              <div><Badge color={C.purple}>NetworkFirst</Badge> <code style={{ color: C.muted }}>/api/staffeln</code> — 10s Timeout → Cache Fallback</div>
+              <div><Badge color={C.purple}>NetworkFirst</Badge> <code style={{ color: C.muted }}>/api/episoden</code> — 10s Timeout → Cache Fallback</div>
+              <div><Badge color={C.orange}>StaleWhileRevalidate</Badge> <code style={{ color: C.muted }}>/api/szenen</code> — Cache sofort, Update im BG</div>
+              <div><Badge color={C.blue}>CacheFirst</Badge> <code style={{ color: C.muted }}>*.js *.css *.html *.woff2</code> — App Shell immer lokal</div>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted }}>
+              <strong style={{ color: C.text }}>Write Queue</strong> — <code>useOfflineQueue</code> Hook, IndexedDB Store: <code>script-offline-queue / requests</code>
+            </div>
+            <div style={{ background: C.subtle, borderRadius: 6, padding: 12, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.8 }}>
+              <div><code style={{ color: C.blue }}>enqueue(method, url, body)</code> → speichert <code>{`{id, method, url, body, timestamp}`}</code></div>
+              <div><code style={{ color: C.green }}>window.addEventListener('online')</code> → <code>syncQueue()</code> automatisch</div>
+              <div>Sync: jede Anfrage der Reihe nach, erfolgreich → aus Queue löschen</div>
+            </div>
+          </div>
+        </details>
+      </Section>
+    </div>
+  )
+}
+
 function HilfePage() {
+  const [activeTab, setActiveTab] = useState<'offline' | 'datenmodell'>('offline')
+
   return (
     <AppShell hideProductionSelector>
       <div style={{
@@ -127,12 +528,63 @@ function HilfePage() {
         width: '100%',
         boxSizing: 'border-box',
       }}>
-        <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px 0' }}>Datenmodell — Script-App</h1>
+
+        {/* Page header */}
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px 0' }}>Handbuch</h1>
           <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>
-            Wie Drehbuchdaten in der PostgreSQL-Datenbank <code>script_db</code> strukturiert sind.
+            Dokumentation und Anleitungen zur Script-App.
           </p>
         </div>
+
+        {/* Tab navigation */}
+        <div style={{
+          display: 'flex',
+          gap: 2,
+          marginBottom: 32,
+          borderBottom: `2px solid ${C.border}`,
+        }}>
+          {([
+            { id: 'offline',      label: 'Offline-Modus',  icon: '📶' },
+            { id: 'datenmodell',  label: 'Datenmodell',    icon: '🗄️' },
+          ] as const).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '8px 18px',
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: activeTab === tab.id ? 700 : 400,
+                color: activeTab === tab.id ? C.text : C.muted,
+                borderBottom: activeTab === tab.id ? `2px solid ${C.blue}` : '2px solid transparent',
+                marginBottom: -2,
+                borderRadius: '4px 4px 0 0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                transition: 'color 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 15 }}>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        {activeTab === 'offline' && <OfflineTab />}
+
+        {activeTab === 'datenmodell' && (
+          <div>
+            <div style={{ marginBottom: 32 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px 0' }}>Datenmodell — Script-App</h2>
+              <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>
+                Wie Drehbuchdaten in der PostgreSQL-Datenbank <code>script_db</code> strukturiert sind.
+              </p>
+            </div>
 
         {/* ── 1. Hierarchie ── */}
         <Section title="1. Hierarchie">
@@ -469,6 +921,8 @@ function HilfePage() {
             ))}
           </div>
         </Section>
+          </div>
+        )}
 
       </div>
     </AppShell>
