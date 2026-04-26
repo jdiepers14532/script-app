@@ -91,6 +91,29 @@ export default function ScriptPage() {
     }}).catch(() => {})
   }, [])
 
+  // Szene navigation (shared by keyboard + scroll overscroll)
+  const navigateSzene = useCallback((dir: 1 | -1) => {
+    const currentSzenen = szenenRef.current
+    const currentSzeneId = selectedSzeneIdRef.current
+    const currentFolge = selectedFolgeNummerRef.current
+    const currentStageId = selectedStageIdRef.current
+    const staffelId = selectedStaffelIdRef.current
+    if (!currentSzenen.length || currentSzeneId == null) return
+    const idx = currentSzenen.findIndex(s => s.id === currentSzeneId)
+    if (idx === -1) return
+    const nextIdx = idx + dir
+    if (nextIdx < 0 || nextIdx >= currentSzenen.length) return
+    const nextSzene = currentSzenen[nextIdx]
+    setSelectedSzeneId(nextSzene.id)
+    if (navRestored.current && staffelId)
+      api.updateSettings({ ui_settings: {
+        last_staffel_id: staffelId,
+        last_folge_nummer: currentFolge,
+        last_stage_id: currentStageId,
+        last_szene_id: nextSzene.id,
+      }}).catch(() => {})
+  }, [])
+
   // Keyboard navigation: ↑↓ = Episode, ←→ = Szene
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -153,21 +176,7 @@ export default function ScriptPage() {
         const now = Date.now()
         if (now - kbSzeneLastFire.current < 200) return
         kbSzeneLastFire.current = now
-
-        if (!currentSzenen.length || currentSzeneId == null) return
-        const idx = currentSzenen.findIndex(s => s.id === currentSzeneId)
-        if (idx === -1) return
-        const nextIdx = e.key === 'ArrowRight' ? idx + 1 : idx - 1
-        if (nextIdx < 0 || nextIdx >= currentSzenen.length) return
-        const nextSzene = currentSzenen[nextIdx]
-        setSelectedSzeneId(nextSzene.id)
-        if (navRestored.current && staffelId)
-          api.updateSettings({ ui_settings: {
-            last_staffel_id: staffelId,
-            last_folge_nummer: currentFolge,
-            last_stage_id: currentStageId,
-            last_szene_id: nextSzene.id,
-          }}).catch(() => {})
+        navigateSzene(e.key === 'ArrowRight' ? 1 : -1)
       }
     }
     window.addEventListener('keydown', handler)
@@ -369,6 +378,14 @@ export default function ScriptPage() {
               onSzeneUpdated={(updated) => {
                 setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
               }}
+              onNavigatePrev={(() => {
+                const idx = szenen.findIndex(s => s.id === selectedSzeneId)
+                return idx > 0 ? () => setSelectedSzeneId(szenen[idx - 1].id) : undefined
+              })()}
+              onNavigateNext={(() => {
+                const idx = szenen.findIndex(s => s.id === selectedSzeneId)
+                return idx >= 0 && idx < szenen.length - 1 ? () => setSelectedSzeneId(szenen[idx + 1].id) : undefined
+              })()}
             />
           )}
           {!selectedSzeneId && (

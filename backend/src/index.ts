@@ -61,10 +61,10 @@ app.use(cors({
 app.use(cookieParser())
 app.use(express.json({ limit: '10mb' }))
 
-// Rate limiting: general — 100 req/min per IP
+// Rate limiting: general — 300 req/min per IP
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen, bitte später erneut versuchen' },

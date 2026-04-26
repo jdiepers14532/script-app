@@ -12,6 +12,8 @@ interface SceneEditorProps {
   folgeNummer?: number | null
   panelMode?: 'both' | 'treatment' | 'script'
   onSzeneUpdated?: (updated: any) => void
+  onNavigatePrev?: () => void
+  onNavigateNext?: () => void
 }
 
 // Map tageszeit/int_ext to env key for colors
@@ -29,7 +31,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, onSzeneUpdated }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, onSzeneUpdated, onNavigatePrev, onNavigateNext }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -49,6 +51,36 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
+  const overscrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handlePbodyWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2
+    const atTop = el.scrollTop <= 0
+    const goingDown = e.deltaY > 0
+    const goingUp = e.deltaY < 0
+
+    if (goingDown && atBottom && onNavigateNext) {
+      if (!overscrollTimer.current) {
+        overscrollTimer.current = setTimeout(() => {
+          overscrollTimer.current = null
+          onNavigateNext()
+        }, 500)
+      }
+    } else if (goingUp && atTop && onNavigatePrev) {
+      if (!overscrollTimer.current) {
+        overscrollTimer.current = setTimeout(() => {
+          overscrollTimer.current = null
+          onNavigatePrev()
+        }, 500)
+      }
+    } else {
+      if (overscrollTimer.current) {
+        clearTimeout(overscrollTimer.current)
+        overscrollTimer.current = null
+      }
+    }
+  }, [onNavigatePrev, onNavigateNext])
 
   const handleDividerMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -67,6 +99,14 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
   }, [])
+
+  // Cancel pending overscroll navigation when scene changes
+  useEffect(() => {
+    if (overscrollTimer.current) {
+      clearTimeout(overscrollTimer.current)
+      overscrollTimer.current = null
+    }
+  }, [szeneId])
 
   // Load scene when szeneId changes
   useEffect(() => {
@@ -351,10 +391,10 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           <div className="lbl">Storyline</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 4 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 1, flexShrink: 0 }}>
-              <button className="nav-arrow" title="Vorherige Szene" disabled>
+              <button className="nav-arrow" title="Vorherige Szene" onClick={onNavigatePrev} disabled={!onNavigatePrev}>
                 <ChevronLeft size={13} />
               </button>
-              <button className="nav-arrow" title="Nächste Szene" disabled>
+              <button className="nav-arrow" title="Nächste Szene" onClick={onNavigateNext} disabled={!onNavigateNext}>
                 <ChevronRight size={13} />
               </button>
             </div>
@@ -404,7 +444,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               <span className="vchip draft">Entwurf</span>
               <span className="spacer" />
             </div>
-            <div className="pbody">
+            <div className="pbody" onWheel={handlePbodyWheel}>
               <div className="treatment-body">
                 {scene.zusammenfassung ? (
                   <p>{scene.zusammenfassung}</p>
@@ -449,7 +489,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
                 </button>
               )}
             </div>
-            <div className="pbody">
+            <div className="pbody" onWheel={handlePbodyWheel}>
               <div className={`script-body${showRevisions ? ' show-revisions' : ''}`}>
                 {contentTextelemente.length === 0 ? (
                   <div style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: 12 }}>
