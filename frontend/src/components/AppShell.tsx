@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Minimize2, Maximize2,
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
-  X, User, Settings2, ExternalLink, Check, LogOut,
+  X, User, Settings2, ExternalLink, Check, LogOut, BookOpen,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
@@ -766,6 +766,15 @@ export default function AppShell({
               <Sun size={14} />
               Ansicht
             </button>
+            <Link
+              to="/hilfe"
+              className="um-item"
+              style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}
+              onClick={() => setUserMenuOpen(false)}
+            >
+              <BookOpen size={14} />
+              Handbuch
+            </Link>
             <button className="um-item" onClick={() => { set('theme', tweaks.theme === 'light' ? 'dark' : 'light') }}>
               {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
               {tweaks.theme === 'light' ? 'Dunkles Theme' : 'Helles Theme'}

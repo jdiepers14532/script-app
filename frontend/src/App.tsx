@@ -4,6 +4,7 @@ import ScriptPage from './pages/ScriptPage'
 import EditorPage from './pages/EditorPage'
 import AdminPage from './pages/AdminPage'
 import ImportPage from './pages/ImportPage'
+import HilfePage from './pages/HilfePage'
 import { useFocusMode } from './hooks/useFocusMode'
 import { useProduction, Production } from './hooks/useProduction'
 
@@ -59,6 +60,7 @@ export default function App() {
             <Route path="/editor" element={<EditorPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/import" element={<ImportPage />} />
+            <Route path="/hilfe" element={<HilfePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
