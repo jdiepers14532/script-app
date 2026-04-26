@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Minimize2, Maximize2,
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
-  X, User, Settings2, ExternalLink, Check,
+  X, User, Settings2, ExternalLink, Check, LogOut,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext } from '../App'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
@@ -779,6 +779,21 @@ export default function AppShell({
                 </button>
               </>
             )}
+            <div className="um-divider" />
+            <button
+              className="um-item um-item-danger"
+              onClick={async () => {
+                setUserMenuOpen(false)
+                await fetch('https://auth.serienwerft.studio/api/auth/logout', {
+                  method: 'POST',
+                  credentials: 'include',
+                }).catch(() => {})
+                window.location.href = 'https://auth.serienwerft.studio'
+              }}
+            >
+              <LogOut size={14} />
+              Ausloggen
+            </button>
           </div>
         </>
       )}

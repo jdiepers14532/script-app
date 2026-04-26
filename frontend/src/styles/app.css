@@ -772,6 +772,8 @@
   cursor: pointer; text-align: left; transition: background 0.12s;
 }
 .user-menu .um-item:hover { background: var(--bg-hover); }
+.user-menu .um-item-danger { color: var(--sw-danger); }
+.user-menu .um-item-danger:hover { background: rgba(255,59,48,0.08); }
 
 /* ── Admin Modal ── */
 .modal-backdrop {
