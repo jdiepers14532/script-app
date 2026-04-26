@@ -35,6 +35,10 @@ export default function ScriptPage() {
   const pendingNav = useRef<{ staffelId?: string; folgeNummer?: number; stageId?: number; szeneId?: number }>({})
   const navRestored = useRef(false)
 
+  // Throttle timestamps for keyboard navigation (max 1 navigation per interval)
+  const kbFolgeLastFire = useRef(0)
+  const kbSzeneLastFire = useRef(0)
+
   // Live refs for keyboard handler (avoid stale closures without re-registering listener)
   const bloeckeRef = useRef(bloecke)
   bloeckeRef.current = bloecke
@@ -103,9 +107,13 @@ export default function ScriptPage() {
       const currentSzeneId    = selectedSzeneIdRef.current
       const staffelId         = selectedStaffelIdRef.current
 
-      // ↑↓ — Episode wechseln (block-übergreifend)
+      // ↑↓ — Episode wechseln (block-übergreifend), throttled auf 400ms
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
         e.preventDefault()
+        const now = Date.now()
+        if (now - kbFolgeLastFire.current < 400) return
+        kbFolgeLastFire.current = now
+
         if (currentFolge == null || !currentBlock || !staffelId) return
         const dir = e.key === 'ArrowDown' ? 1 : -1
         const nextFolge = currentFolge + dir
@@ -139,9 +147,13 @@ export default function ScriptPage() {
         }
       }
 
-      // ←→ — Szene wechseln
+      // ←→ — Szene wechseln, throttled auf 200ms
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         e.preventDefault()
+        const now = Date.now()
+        if (now - kbSzeneLastFire.current < 200) return
+        kbSzeneLastFire.current = now
+
         if (!currentSzenen.length || currentSzeneId == null) return
         const idx = currentSzenen.findIndex(s => s.id === currentSzeneId)
         if (idx === -1) return
