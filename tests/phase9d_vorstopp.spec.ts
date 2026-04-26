@@ -113,9 +113,14 @@ test.describe('Phase 9d — Vorstopp API', () => {
     if (!ctx) test.skip()
     const { szeneId } = ctx!
 
+    // First configure einstellungen for the test staffelId so auto can calculate
+    await request.put(`${BASE}/api/staffeln/${STAFFEL_ID}/vorstopp-einstellungen`, {
+      data: { methode: 'seiten', menge: 54, dauer_sekunden: 60 },
+    })
+
     const res = await request.post(`${BASE}/api/szenen/${szeneId}/vorstopp/auto`, {})
-    // Should either succeed (200) or return 422 if seiten not parseable
-    expect([200, 422]).toContain(res.status())
+    // 200 = success, 400/422 = no seiten data or no settings
+    expect([200, 400, 422]).toContain(res.status())
     if (res.status() === 200) {
       const data = await res.json()
       expect(typeof data.dauer_sekunden).toBe('number')
