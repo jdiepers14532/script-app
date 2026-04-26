@@ -7,6 +7,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     headers: body ? { 'Content-Type': 'application/json' } : {},
     body: body ? JSON.stringify(body) : undefined,
   })
+  if (res.status === 401) {
+    const redirectUrl = encodeURIComponent(window.location.href)
+    window.location.href = `https://auth.serienwerft.studio/?redirect=${redirectUrl}`
+    return new Promise(() => {}) // halt execution while redirecting
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(err.error || `HTTP ${res.status}`)
