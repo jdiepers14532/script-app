@@ -222,6 +222,19 @@ function applyViewSettings(tweaks: TweakState) {
   `
 }
 
+// ── DST-Umstellungstermine für Deutschland ────────────────────────────────
+function getDeutschlandDstDates(year: number): Date[] {
+  // Letzte Sonntag im März (Sommer → +1h)
+  const marchLast = new Date(year, 3, 0) // April-0 = 31. März
+  const marchSun = new Date(marchLast)
+  marchSun.setDate(marchLast.getDate() - marchLast.getDay())
+  // Letzter Sonntag im Oktober (Winter → −1h)
+  const octLast = new Date(year, 10, 0) // Nov-0 = 31. Oktober
+  const octSun = new Date(octLast)
+  octSun.setDate(octLast.getDate() - octLast.getDay())
+  return [marchSun, octSun]
+}
+
 const selectStyle: React.CSSProperties = {
   fontSize: 12,
   border: 'none',
@@ -266,6 +279,14 @@ export default function AppShell({
   const [isAdmin, setIsAdmin] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string } | null>(null)
   const [sendedatum, setSendedatum] = useState<{ datum: string; ist_ki_prognose: boolean } | null>(null)
+  const [sunWeather, setSunWeather] = useState<{
+    avgSunrise: string | null
+    avgSunset: string | null
+    avgTemp: number | null
+    rainPct: number | null
+    hasDst: boolean
+    dstDate: string | null
+  } | null>(null)
 
   // ── Offline-Modal ──────────────────────────────────────────────────────────
   const [offlineOpen, setOfflineOpen] = useState(false)
@@ -475,6 +496,72 @@ export default function AppShell({
       .catch(() => setSendedatum(null))
   }, [selectedStaffelId, selectedFolgeNummer])
 
+  // ── Sonnenauf/-untergang + Wetter (Open-Meteo) + Zeitumstellung ──────────
+  useEffect(() => {
+    const von = selectedBlock?.dreh_von
+    const bis = selectedBlock?.dreh_bis
+    if (!von || !bis) { setSunWeather(null); return }
+
+    const vonDate = new Date(von + 'T00:00:00')
+    const bisDate = new Date(bis + 'T00:00:00')
+
+    // DST-Prüfung: Liegt eine Zeitumstellung im Drehzeitraum?
+    let hasDst = false
+    let dstDate: string | null = null
+    const years = new Set([vonDate.getFullYear(), bisDate.getFullYear()])
+    outer: for (const yr of years) {
+      for (const t of getDeutschlandDstDates(yr)) {
+        if (t >= vonDate && t <= bisDate) {
+          hasDst = true
+          dstDate = t.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+          break outer
+        }
+      }
+    }
+
+    // Open-Meteo: Archivdaten nur für vergangene Daten (bis heute)
+    const today = new Date(); today.setHours(0, 0, 0, 0)
+    const effectiveBis = bisDate <= today ? bis : today.toISOString().slice(0, 10)
+    const isPast = bisDate < today
+    const hasAnyPast = vonDate <= today
+
+    if (!hasAnyPast) {
+      setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate })
+      return
+    }
+
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=53.25&longitude=10.41&start_date=${von}&end_date=${effectiveBis}&daily=sunrise,sunset,temperature_2m_mean,precipitation_hours&timezone=Europe%2FBerlin`
+    fetch(url)
+      .then(r => r.json())
+      .then((data: any) => {
+        const daily = data.daily
+        if (!daily) { setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate }); return }
+
+        const fmtTime = (mins: number | null) => mins == null ? null
+          : `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`
+
+        const toMins = (iso: string) => { const t = new Date(iso); return isNaN(t.getTime()) ? null : t.getHours() * 60 + t.getMinutes() }
+        const avg = (arr: (number | null)[]) => { const v = arr.filter(x => x != null) as number[]; return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null }
+
+        const avgSrMin = avg((daily.sunrise ?? []).map(toMins))
+        const avgSsMin = avg((daily.sunset ?? []).map(toMins))
+
+        const avgTemp = isPast ? (() => { const v = avg(daily.temperature_2m_mean ?? []); return v != null ? Math.round(v * 10) / 10 : null })() : null
+        const precipHours: number[] = isPast ? (daily.precipitation_hours ?? []).filter((p: any) => p != null) : []
+        const rainPct = precipHours.length ? Math.round(precipHours.filter((h: number) => h > 0).length / precipHours.length * 100) : null
+
+        setSunWeather({
+          avgSunrise: fmtTime(avgSrMin != null ? Math.round(avgSrMin) : null),
+          avgSunset:  fmtTime(avgSsMin != null ? Math.round(avgSsMin) : null),
+          avgTemp,
+          rainPct,
+          hasDst,
+          dstDate,
+        })
+      })
+      .catch(() => setSunWeather({ avgSunrise: null, avgSunset: null, avgTemp: null, rainPct: null, hasDst, dstDate }))
+  }, [selectedBlock?.dreh_von, selectedBlock?.dreh_bis])
+
   const allFolgen = useMemo(() => {
     const result: { nr: number; block: any }[] = []
     for (const b of bloecke) {
@@ -601,6 +688,22 @@ export default function AppShell({
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
             const yr = new Date(selectedBlock.dreh_bis + 'T00:00:00').getFullYear()
             return <span className="chip topbar-extra">Drehzeit: {wd(selectedBlock.dreh_von)} {fmt(selectedBlock.dreh_von)} – {wd(selectedBlock.dreh_bis)} {fmt(selectedBlock.dreh_bis)}.{yr}</span>
+          })()}
+          {sunWeather && (() => {
+            const parts: string[] = []
+            if (sunWeather.avgSunrise && sunWeather.avgSunset) parts.push(`☀ ${sunWeather.avgSunrise}–${sunWeather.avgSunset} Uhr`)
+            if (sunWeather.avgTemp != null) parts.push(`Ø ${sunWeather.avgTemp}°C`)
+            if (sunWeather.rainPct != null) parts.push(`${sunWeather.rainPct}% Regen`)
+            return (
+              <>
+                {parts.length > 0 && <span className="chip topbar-extra">{parts.join(' · ')}</span>}
+                {sunWeather.hasDst && (
+                  <span className="chip topbar-extra" style={{ color: 'var(--sw-warning)', borderColor: 'var(--sw-warning)' }}>
+                    ⚠ Zeitumstellung {sunWeather.dstDate}
+                  </span>
+                )}
+              </>
+            )
           })()}
           {sendedatum?.datum && (() => {
             const dt = new Date(sendedatum.datum + 'T00:00:00')
