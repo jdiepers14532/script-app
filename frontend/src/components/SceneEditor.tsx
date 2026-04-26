@@ -3,6 +3,7 @@ import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles, MessageSqua
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext } from '../App'
+import VorstoppPanel from './VorstoppPanel'
 
 interface SceneEditorProps {
   szeneId: number
@@ -258,6 +259,9 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           )}
         </div>
       )}
+
+      {/* Vorstopp */}
+      <VorstoppPanel szeneId={szeneId} staffelId={staffelId} />
 
       {/* Panels */}
       <div className={panelsClass}>

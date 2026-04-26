@@ -311,6 +311,9 @@ function ProduktionTab() {
   const [labels, setLabels] = useState<any[]>([])
   const [colors, setColors] = useState<any[]>([])
   const [memoSchwelle, setMemoSchwelle] = useState<number>(100)
+  const [vorstoppEin, setVorstoppEin] = useState<{ methode: string; menge: number; dauer_sekunden: number }>({
+    methode: 'seiten', menge: 54, dauer_sekunden: 60,
+  })
   const [saving, setSaving] = useState<Record<string, boolean>>({})
 
   // New-item input state
@@ -331,6 +334,11 @@ function ProduktionTab() {
     api.getStageLabels(staffelId).then(setLabels).catch(() => setLabels([]))
     api.getRevisionColors(staffelId).then(setColors).catch(() => setColors([]))
     api.getRevisionEinstellungen(staffelId).then(e => setMemoSchwelle(e.memo_schwellwert_zeichen ?? 100)).catch(() => {})
+    api.getVorstoppEinstellungen(staffelId).then(e => setVorstoppEin({
+      methode: e.methode ?? 'seiten',
+      menge: e.menge ?? 54,
+      dauer_sekunden: e.dauer_sekunden ?? 60,
+    })).catch(() => {})
   }, [staffelId])
 
   const busy = (key: string) => saving[key]
@@ -402,6 +410,11 @@ function ProduktionTab() {
     set('memo', true)
     try { await api.updateRevisionEinstellungen(staffelId, { memo_schwellwert_zeichen: memoSchwelle }) }
     catch {} finally { set('memo', false) }
+  }
+  const saveVorstopp = async () => {
+    set('vs', true)
+    try { await api.updateVorstoppEinstellungen(staffelId, vorstoppEin) }
+    catch {} finally { set('vs', false) }
   }
 
   const sectionStyle: React.CSSProperties = { marginBottom: 40 }
@@ -571,6 +584,51 @@ function ProduktionTab() {
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Zeichen (Schwellwert)</span>
           <button style={btnStyle} onClick={saveMemo} disabled={busy('memo')}>
             {busy('memo') ? '…' : 'Speichern'}
+          </button>
+        </div>
+      </section>
+
+      {/* ── Vorstopp Einstellungen ── */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Vorstopp-Einstellungen</h3>
+        <p style={subStyle}>Basis für die automatische Vorstopp-Berechnung aus der Seitenanzahl einer Szene.</p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Methode</span>
+            <select
+              style={inputStyle}
+              value={vorstoppEin.methode}
+              onChange={e => setVorstoppEin(v => ({ ...v, methode: e.target.value }))}
+            >
+              <option value="seiten">Seiten</option>
+              <option value="sekunden">Sekunden direkt</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              {vorstoppEin.methode === 'seiten' ? 'Sekunden pro Seite (1/8)' : 'Menge'}
+            </span>
+            <input
+              type="number"
+              style={{ ...inputStyle, width: 120 }}
+              value={vorstoppEin.menge}
+              min={0}
+              step={0.5}
+              onChange={e => setVorstoppEin(v => ({ ...v, menge: parseFloat(e.target.value) || 0 }))}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Dauer gesamt (Sek.)</span>
+            <input
+              type="number"
+              style={{ ...inputStyle, width: 100 }}
+              value={vorstoppEin.dauer_sekunden}
+              min={0}
+              onChange={e => setVorstoppEin(v => ({ ...v, dauer_sekunden: parseInt(e.target.value) || 0 }))}
+            />
+          </div>
+          <button style={{ ...btnStyle, alignSelf: 'flex-end' }} onClick={saveVorstopp} disabled={busy('vs')}>
+            {busy('vs') ? '…' : 'Speichern'}
           </button>
         </div>
       </section>

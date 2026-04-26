@@ -167,6 +167,20 @@ export const api = {
   linkCharacterToProduction: (characterId: string, data: any) =>
     request<any>('POST', `/characters/${characterId}/productions`, data),
 
+  // Vorstopp
+  getVorstopp: (szeneId: number) =>
+    request<any>('GET', `/szenen/${szeneId}/vorstopp`),
+  addVorstopp: (szeneId: number, data: { stage: string; dauer_sekunden: number; methode?: string; user_name?: string }) =>
+    request<any>('POST', `/szenen/${szeneId}/vorstopp`, data),
+  deleteVorstopp: (szeneId: number, entryId: number) =>
+    request<void>('DELETE', `/szenen/${szeneId}/vorstopp/${entryId}`),
+  autoVorstopp: (szeneId: number) =>
+    request<any>('POST', `/szenen/${szeneId}/vorstopp/auto`, {}),
+  getVorstoppEinstellungen: (staffelId: string) =>
+    request<any>('GET', `/staffeln/${encodeURIComponent(staffelId)}/vorstopp-einstellungen`),
+  updateVorstoppEinstellungen: (staffelId: string, data: any) =>
+    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/vorstopp-einstellungen`, data),
+
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {
     const fd = new FormData(); fd.append('file', file)
