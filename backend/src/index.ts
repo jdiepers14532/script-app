@@ -20,6 +20,7 @@ import kiRouter, { kiAdminRouter } from './routes/ki'
 import { szenenKommentareRouter, kommentareRouter } from './routes/kommentare'
 import { importRouter } from './routes/import'
 import meRouter from './routes/me'
+import watermarkAdminRouter from './routes/watermark-admin'
 import { folgenRouter } from './routes/folgen'
 
 // Load .env from project root or backend dir
@@ -85,7 +86,8 @@ app.use('/api/szenen', szenenKommentareRouter)
 app.use('/api/kommentare', kommentareRouter)
 app.use('/api/import', importRouter)
 app.use('/api/me', meRouter)
-app.use('/api/folgen', folgenRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
+app.use('/api/folgen', folgenRouter)
+app.use('/api/admin/watermark', watermarkAdminRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
@@ -102,6 +104,7 @@ async function runMigrations() {
     'v1_init.sql', 'v2_locks.sql', 'v3_versionen.sql', 'v4_entities.sql',
     'v5_ki.sql', 'v6_kommentare.sql', 'v7_entities_unique.sql',
     'v8_user_settings.sql', 'v9_proddb_sync.sql', 'v10_proddb_direct.sql', 'v11_ui_settings.sql',
+    'v12_export_logs.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [

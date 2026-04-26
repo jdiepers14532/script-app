@@ -3,6 +3,30 @@ import multer from 'multer'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { detectFormat, parseScript } from '../importers'
+import { stripWatermark, decodeWatermarkFromText } from '../utils/watermark'
+
+/** Extract human-readable metadata from Fountain title page or FDX header */
+function extractFileMetadata(filename: string, buffer: Buffer): Record<string, string> {
+  const meta: Record<string, string> = {}
+  const text = buffer.toString('utf8').slice(0, 4000) // only scan header area
+
+  if (filename.toLowerCase().endsWith('.fountain') || filename.toLowerCase().endsWith('.txt')) {
+    // Fountain title page: lines of "Key: Value" before first blank-blank or scene heading
+    const lines = text.split('\n')
+    for (const line of lines) {
+      const m = line.match(/^([A-Za-z][A-Za-z ]{1,30}):\s*(.+)$/)
+      if (m) meta[m[1].trim().toLowerCase().replace(/ /g, '_')] = m[2].trim()
+      if (line.trim() === '' && Object.keys(meta).length > 0) break
+    }
+  } else if (filename.toLowerCase().endsWith('.fdx')) {
+    // FDX: extract from root attributes and SmartType elements
+    const versionMatch   = text.match(/Version="([^"]+)"/)
+    const templateMatch  = text.match(/Template="([^"]+)"/)
+    if (versionMatch)  meta['fdx_version']  = versionMatch[1]
+    if (templateMatch) meta['fdx_template'] = templateMatch[1]
+  }
+  return meta
+}
 
 export const importRouter = Router()
 
@@ -22,11 +46,20 @@ importRouter.post('/detect', upload.single('file'), async (req, res) => {
   }
 })
 
-// POST /api/import/preview — Parse + Preview, no save
+// POST /api/import/preview — Parse + Preview + metadata, no save
 importRouter.post('/preview', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
-    const result = await parseScript(req.file.originalname, req.file.buffer)
+
+    // Strip watermark before parsing
+    const rawText  = req.file.buffer.toString('utf8')
+    const wmPayload = decodeWatermarkFromText(rawText)
+    const cleanText = stripWatermark(rawText)
+    const cleanBuf  = Buffer.from(cleanText, 'utf8')
+
+    const result   = await parseScript(req.file.originalname, cleanBuf)
+    const fileMeta = extractFileMetadata(req.file.originalname, req.file.buffer)
+
     res.json({
       format: result.meta.format,
       version: result.meta.version,
@@ -35,6 +68,8 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       charaktere: result.meta.charaktere,
       warnings: result.meta.warnings,
       szenen: result.szenen,
+      file_metadata: fileMeta,
+      watermark_found: wmPayload !== null,
     })
   } catch (err) {
     res.status(422).json({ error: String(err) })
@@ -60,12 +95,30 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       return res.status(400).json({ error: `Ungültiger stage_type: ${stage_type}` })
     }
 
-    const result = await parseScript(req.file.originalname, req.file.buffer)
+    // Strip watermark before parsing
+    const rawText   = req.file.buffer.toString('utf8')
+    const cleanText = stripWatermark(rawText)
+    const cleanBuf  = Buffer.from(cleanText, 'utf8')
+
+    const result    = await parseScript(req.file.originalname, cleanBuf)
+    const fileMeta  = extractFileMetadata(req.file.originalname, req.file.buffer)
+    const saveMetadata = req.body.save_metadata === 'true'
+
+    // Build meta_json for the stage
+    const metaJson: Record<string, any> = {}
+    if (saveMetadata && Object.keys(fileMeta).length > 0) {
+      metaJson.import_metadata = {
+        ...fileMeta,
+        source_filename: req.file.originalname,
+        imported_at: new Date().toISOString(),
+        imported_by: req.user!.name || req.user!.user_id,
+      }
+    }
 
     const stage = await queryOne(
-      `INSERT INTO stages (staffel_id, folge_nummer, proddb_block_id, stage_type, version_label, erstellt_von)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [staffel_id, folge_nummer, proddb_block_id, stage_type, `Import: ${req.file.originalname}`, req.user!.name || req.user!.user_id]
+      `INSERT INTO stages (staffel_id, folge_nummer, proddb_block_id, stage_type, version_label, erstellt_von, meta_json)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [staffel_id, folge_nummer, proddb_block_id, stage_type, `Import: ${req.file.originalname}`, req.user!.name || req.user!.user_id, JSON.stringify(metaJson)]
     )
 
     if (!stage) return res.status(500).json({ error: 'Stage konnte nicht angelegt werden' })
@@ -103,6 +156,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       scenes_imported: scenesImported,
       entities_created: entitiesCreated,
       warnings: result.meta.warnings,
+      metadata_saved: saveMetadata && Object.keys(fileMeta).length > 0,
     })
   } catch (err) {
     console.error('Import commit error:', err)

@@ -1,9 +1,19 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { buildPayload, injectIntoText } from '../utils/watermark'
 
 const router = Router()
 router.use(authMiddleware)
+
+async function logExport(userId: string, userName: string, stage: any, format: string): Promise<string> {
+  const result = await queryOne(
+    `INSERT INTO export_logs (user_id, user_name, stage_id, stage_label, staffel_id, format)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [userId, userName, stage.id, stage.version_label || stage.stage_type, stage.staffel_id, format]
+  )
+  return result?.id as string
+}
 
 interface Block {
   id: string
@@ -93,9 +103,13 @@ router.get('/:stageId/export/fountain', async (req, res) => {
       [req.params.stageId]
     )
 
-    const fountain = contentToFountain(szenen)
+    const exportId = await logExport(req.user!.user_id, req.user!.name, stage, 'fountain')
+    const payload  = buildPayload(req.user!.user_id, exportId)
+    const fountain = injectIntoText(contentToFountain(szenen), payload)
+
+    const label = (stage.version_label || stage.stage_type || 'fassung').replace(/[^a-zA-Z0-9_-]/g, '_')
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    res.setHeader('Content-Disposition', `attachment; filename="stage-${req.params.stageId}.fountain"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${label}.fountain"`)
     res.send(fountain)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -113,13 +127,17 @@ router.get('/:stageId/export/fdx', async (req, res) => {
       [req.params.stageId]
     )
 
-    const episode = stage.episode_id
-      ? await queryOne('SELECT * FROM episoden WHERE id = $1', [stage.episode_id])
-      : null
+    const exportId = await logExport(req.user!.user_id, req.user!.name, stage, 'fdx')
+    const payload  = buildPayload(req.user!.user_id, exportId)
 
-    const fdx = contentToFdx(szenen, episode?.arbeitstitel || 'Drehbuch')
+    // Embed watermark as XML comment right after the root element opening tag
+    const wm = require('../utils/watermark').encodeWatermark(payload)
+    let fdx = contentToFdx(szenen, stage.version_label || 'Drehbuch')
+    fdx = fdx.replace('<Content>', `<!-- ${wm} -->\n<Content>`)
+
+    const label = (stage.version_label || stage.stage_type || 'fassung').replace(/[^a-zA-Z0-9_-]/g, '_')
     res.setHeader('Content-Type', 'application/xml')
-    res.setHeader('Content-Disposition', `attachment; filename="stage-${req.params.stageId}.fdx"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${label}.fdx"`)
     res.send(fdx)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -137,12 +155,12 @@ router.get('/:stageId/export/pdf', async (req, res) => {
       [req.params.stageId]
     )
 
-    const episode = stage.episode_id
-      ? await queryOne('SELECT * FROM episoden WHERE id = $1', [stage.episode_id])
-      : null
+    const exportId = await logExport(req.user!.user_id, req.user!.name, stage, 'pdf')
+    const payload  = buildPayload(req.user!.user_id, exportId)
+    const wm       = require('../utils/watermark').encodeWatermark(payload)
 
     // Return HTML that can be printed as PDF
-    let html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="wm" content="${wm}">
 <style>
   body { font-family: "Courier New", monospace; font-size: 12pt; margin: 1.5cm 2.5cm; line-height: 1.5; }
   .heading { font-weight: bold; text-transform: uppercase; margin: 20px 0 10px; }

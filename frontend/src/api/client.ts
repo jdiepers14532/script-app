@@ -96,4 +96,25 @@ export const api = {
   exportFountain: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fountain`, { credentials: 'include' }),
   exportFdx: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fdx`, { credentials: 'include' }),
   exportDrehplan: (stageId: number) => request<any[]>('GET', `/stages/${stageId}/drehplan-export`),
+
+  // Import with metadata opt-in
+  importPreview: (file: File) => {
+    const fd = new FormData(); fd.append('file', file)
+    return fetch(`${BASE}/import/preview`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
+  },
+  importCommit: (file: File, params: {
+    staffel_id: string; folge_nummer: number
+    proddb_block_id?: string; stage_type?: string; save_metadata?: boolean
+  }) => {
+    const fd = new FormData(); fd.append('file', file)
+    Object.entries(params).forEach(([k, v]) => { if (v !== undefined) fd.append(k, String(v)) })
+    return fetch(`${BASE}/import/commit`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
+  },
+
+  // Admin: watermark decoder
+  watermarkDecode: (file: File) => {
+    const fd = new FormData(); fd.append('file', file)
+    return fetch(`${BASE}/admin/watermark/decode`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
+  },
+  watermarkLogs: (limit = 100) => request<any[]>('GET', `/admin/watermark/logs?limit=${limit}`),
 }

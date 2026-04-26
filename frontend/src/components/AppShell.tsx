@@ -1,4 +1,4 @@
-import { ReactNode, useState, useMemo, useEffect, useRef } from 'react'
+import { ReactNode, useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Minimize2, Maximize2,
@@ -273,6 +273,7 @@ export default function AppShell({
 
   // ── Offline-Modal ──────────────────────────────────────────────────────────
   const [offlineOpen, setOfflineOpen] = useState(false)
+  const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import'>('main')
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -281,12 +282,96 @@ export default function AppShell({
   const [cacheStats, setCacheStats] = useState<{ name: string; count: number; label: string }[]>([])
   const [cacheLoading, setCacheLoading] = useState(false)
 
+  // Export sub-view
+  const [exportStageId, setExportStageId] = useState<number | null>(null)
+  const [exportFormat, setExportFormat]   = useState<'fountain' | 'fdx' | 'pdf'>('fountain')
+  const [exportLoading, setExportLoading] = useState(false)
+
+  // Import sub-view
+  const importFileRef = useRef<HTMLInputElement>(null)
+  const [importFile, setImportFile]               = useState<File | null>(null)
+  const [importPreview, setImportPreview]         = useState<any>(null)
+  const [importPreviewLoading, setImportPreviewLoading] = useState(false)
+  const [importStaffelId, setImportStaffelId]     = useState('')
+  const [importFolge, setImportFolge]             = useState('')
+  const [importStageType, setImportStageType]     = useState('draft')
+  const [importSaveMeta, setImportSaveMeta]       = useState(false)
+  const [importStaffeln, setImportStaffeln]       = useState<any[]>([])
+  const [importLoading, setImportLoading]         = useState(false)
+  const [importResult, setImportResult]           = useState<any>(null)
+
   useEffect(() => {
     const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e) }
     window.addEventListener('beforeinstallprompt', handler)
     window.addEventListener('appinstalled', () => setIsInstalled(true))
     return () => { window.removeEventListener('beforeinstallprompt', handler) }
   }, [])
+
+  const openOfflineModal = useCallback(async () => {
+    setOfflineOpen(true)
+    setOfflineView('main')
+    loadCacheStats()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openImportView = useCallback(async () => {
+    setOfflineView('import')
+    setImportFile(null); setImportPreview(null); setImportResult(null)
+    try {
+      const staffeln = await api.getStaffeln()
+      setImportStaffeln(staffeln)
+      if (staffeln.length > 0 && !importStaffelId) setImportStaffelId(staffeln[0].id)
+    } catch { /* ignore */ }
+  }, [importStaffelId])
+
+  const handleImportFile = useCallback(async (file: File) => {
+    setImportFile(file)
+    setImportPreview(null)
+    setImportResult(null)
+    setImportPreviewLoading(true)
+    try {
+      const preview = await api.importPreview(file)
+      setImportPreview(preview)
+    } catch { /* ignore */ }
+    finally { setImportPreviewLoading(false) }
+  }, [])
+
+  const handleImportCommit = useCallback(async () => {
+    if (!importFile || !importStaffelId || !importFolge) return
+    setImportLoading(true)
+    try {
+      const result = await api.importCommit(importFile, {
+        staffel_id: importStaffelId,
+        folge_nummer: parseInt(importFolge),
+        stage_type: importStageType,
+        save_metadata: importSaveMeta,
+      })
+      setImportResult(result)
+    } catch (e: any) {
+      setImportResult({ error: e.message })
+    } finally { setImportLoading(false) }
+  }, [importFile, importStaffelId, importFolge, importStageType, importSaveMeta])
+
+  const handleExportDownload = useCallback(async () => {
+    const stageId = exportStageId ?? (stages.length > 0 ? stages[0].id : null)
+    if (!stageId) return
+    setExportLoading(true)
+    try {
+      let res: Response
+      if (exportFormat === 'fountain') res = await api.exportFountain(stageId)
+      else if (exportFormat === 'fdx')  res = await api.exportFdx(stageId)
+      else                              res = await api.exportPdf(stageId)
+
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      const cd   = res.headers.get('Content-Disposition') || ''
+      const fnMatch = cd.match(/filename="([^"]+)"/)
+      a.download = fnMatch ? fnMatch[1] : `fassung.${exportFormat}`
+      a.href = url; a.click()
+      URL.revokeObjectURL(url)
+    } catch { /* ignore */ }
+    finally { setExportLoading(false) }
+  }, [exportStageId, exportFormat, stages])
 
   const loadCacheStats = async () => {
     if (!('caches' in window)) return
@@ -806,7 +891,7 @@ export default function AppShell({
               <Sun size={14} />
               Ansicht
             </button>
-            <button className="um-item" onClick={() => { setOfflineOpen(true); setUserMenuOpen(false); loadCacheStats() }}>
+            <button className="um-item" onClick={() => { setUserMenuOpen(false); openOfflineModal() }}>
               {isOnline ? <Wifi size={14} /> : <WifiOff size={14} style={{ color: 'var(--sw-danger)' }} />}
               Offline-Modus
               {pendingCount > 0 && (
@@ -925,13 +1010,271 @@ export default function AppShell({
             {/* Header */}
             <div className="admin-modal-head">
               <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {offlineView !== 'main' && (
+                  <button onClick={() => setOfflineView('main')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
+                    ←
+                  </button>
+                )}
                 {isOnline ? <Wifi size={15} /> : <WifiOff size={15} style={{ color: 'var(--sw-danger)' }} />}
-                Offline-Modus
+                {offlineView === 'main'   ? 'Offline-Modus'
+                : offlineView === 'export' ? 'Fassung exportieren'
+                : 'Fassung importieren'}
               </span>
               <button className="close" onClick={() => setOfflineOpen(false)}><X size={14} /></button>
             </div>
 
             <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+            {/* ── Export sub-view ── */}
+            {offlineView === 'export' && (() => {
+              const currentStage = stages.find(s => s.id === (exportStageId ?? selectedStageId)) || stages[0] || null
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                    Die exportierte Datei enthält ein unsichtbares Wasserzeichen, das dem Export-Vorgang zugeordnet ist.
+                    Beim Reimport wird das Wasserzeichen automatisch entfernt.
+                  </p>
+
+                  {/* Stage selector */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Fassung</div>
+                    {stages.length === 0 ? (
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '10px 12px', background: 'var(--bg-subtle)', borderRadius: 6 }}>
+                        Öffne zuerst eine Folge im Script-Bereich, dann steht der Export hier zur Verfügung.
+                      </div>
+                    ) : (
+                      <select
+                        value={exportStageId ?? stages[0]?.id ?? ''}
+                        onChange={e => setExportStageId(Number(e.target.value))}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit' }}
+                      >
+                        {stages.map((s: any) => (
+                          <option key={s.id} value={s.id}>
+                            {s.version_label || s.stage_type} {s.folge_nummer ? `· Folge ${s.folge_nummer}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+
+                  {/* Format selector */}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Format</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {([
+                        { id: 'fountain', label: 'Fountain (.fountain)', desc: 'Offenes Textformat — lesbar in jedem Editor, empfohlen' },
+                        { id: 'fdx',      label: 'Final Draft (.fdx)',   desc: 'Industriestandard D/A/CH TV-Produktion' },
+                        { id: 'pdf',      label: 'PDF (Druckansicht)',   desc: 'HTML-basiert, im Browser drucken / als PDF speichern' },
+                      ] as const).map(f => (
+                        <label key={f.id} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
+                          border: `1px solid ${exportFormat === f.id ? 'var(--text-primary)' : 'var(--border)'}`,
+                          background: exportFormat === f.id ? 'var(--bg-subtle)' : 'transparent',
+                        }}>
+                          <input type="radio" name="exportFormat" value={f.id}
+                            checked={exportFormat === f.id}
+                            onChange={() => setExportFormat(f.id)}
+                            style={{ marginTop: 2, flexShrink: 0 }}
+                          />
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 500 }}>{f.label}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{f.desc}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleExportDownload}
+                    disabled={exportLoading || stages.length === 0}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      padding: '11px 18px', borderRadius: 8,
+                      background: stages.length > 0 ? 'var(--text-primary)' : 'var(--bg-subtle)',
+                      color: stages.length > 0 ? 'var(--bg-page)' : 'var(--text-secondary)',
+                      border: 'none', cursor: stages.length > 0 ? 'pointer' : 'not-allowed',
+                      fontWeight: 700, fontSize: 13,
+                    }}
+                  >
+                    <Download size={14} />
+                    {exportLoading ? 'Wird erstellt…' : currentStage ? `„${currentStage.version_label || currentStage.stage_type}" exportieren` : 'Exportieren'}
+                  </button>
+                </div>
+              )
+            })()}
+
+            {/* ── Import sub-view ── */}
+            {offlineView === 'import' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                  Importiere eine Fountain- oder FDX-Datei als neue Fassung. Enthaltene Wasserzeichen werden automatisch entfernt.
+                </p>
+
+                {/* File drop */}
+                {!importResult && (
+                <>
+                <div
+                  onClick={() => importFileRef.current?.click()}
+                  style={{
+                    border: `1.5px dashed ${importFile ? 'var(--sw-green)' : 'var(--border)'}`,
+                    borderRadius: 8, padding: '16px 20px',
+                    textAlign: 'center', cursor: 'pointer',
+                    background: importFile ? 'rgba(0,200,83,0.05)' : 'var(--bg-subtle)',
+                    fontSize: 13, color: importFile ? 'var(--sw-green)' : 'var(--text-secondary)',
+                  }}
+                >
+                  {importFile ? `📄 ${importFile.name}` : '+ .fountain oder .fdx auswählen'}
+                  <input ref={importFileRef} type="file" accept=".fountain,.fdx,.txt"
+                    style={{ display: 'none' }}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleImportFile(f) }}
+                  />
+                </div>
+
+                {/* Preview */}
+                {importPreviewLoading && (
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Datei wird analysiert…</div>
+                )}
+                {importPreview && !importPreviewLoading && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      {[
+                        ['Format', importPreview.format?.toUpperCase()],
+                        ['Szenen', importPreview.total_scenes],
+                        ['Charaktere', importPreview.charaktere?.length],
+                      ].map(([k, v]) => (
+                        <div key={k} style={{ padding: '6px 12px', background: 'var(--bg-subtle)', borderRadius: 6, fontSize: 12 }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>{k}: </span><strong>{v}</strong>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Metadata opt-in */}
+                    {Object.keys(importPreview.file_metadata || {}).length > 0 && (
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 6 }}>
+                        <input type="checkbox" checked={importSaveMeta} onChange={e => setImportSaveMeta(e.target.checked)} style={{ marginTop: 2 }} />
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 600 }}>Datei-Metadaten zur Dokumentation speichern</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                            {Object.entries(importPreview.file_metadata).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                          </div>
+                        </div>
+                      </label>
+                    )}
+                    {importPreview.watermark_found && (
+                      <div style={{ fontSize: 11, color: 'var(--sw-green)', padding: '6px 10px', background: 'rgba(0,200,83,0.07)', borderRadius: 6 }}>
+                        Wasserzeichen gefunden und wird beim Import entfernt.
+                      </div>
+                    )}
+
+                    {/* Target */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Staffel</div>
+                        <select value={importStaffelId} onChange={e => setImportStaffelId(e.target.value)}
+                          style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
+                          {importStaffeln.map((s: any) => <option key={s.id} value={s.id}>{s.titel}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Folge</div>
+                        <input type="number" value={importFolge} onChange={e => setImportFolge(e.target.value)}
+                          placeholder="Nr."
+                          style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Fassungstyp</div>
+                      <select value={importStageType} onChange={e => setImportStageType(e.target.value)}
+                        style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
+                        {[['expose','Exposé'],['treatment','Treatment'],['draft','Drehbuch'],['final','Endfassung']].map(([v,l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={handleImportCommit}
+                      disabled={importLoading || !importStaffelId || !importFolge}
+                      style={{
+                        padding: '11px', borderRadius: 8, border: 'none',
+                        background: importStaffelId && importFolge ? 'var(--sw-green)' : 'var(--bg-subtle)',
+                        color: importStaffelId && importFolge ? '#fff' : 'var(--text-secondary)',
+                        fontWeight: 700, fontSize: 13, cursor: importStaffelId && importFolge ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {importLoading ? 'Importiere…' : 'Als neue Fassung importieren'}
+                    </button>
+                  </div>
+                )}
+                </>
+                )}
+
+                {/* Result */}
+                {importResult && (
+                  <div style={{
+                    padding: '14px 16px', borderRadius: 8,
+                    border: `1px solid ${importResult.error ? 'var(--sw-danger)' : 'var(--sw-green)'}`,
+                    background: importResult.error ? 'rgba(255,59,48,0.05)' : 'rgba(0,200,83,0.05)',
+                  }}>
+                    {importResult.error ? (
+                      <div style={{ color: 'var(--sw-danger)', fontSize: 13 }}>Fehler: {importResult.error}</div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sw-green)' }}>Import erfolgreich</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {importResult.scenes_imported} Szenen · {importResult.entities_created} neue Charaktere
+                          {importResult.metadata_saved ? ' · Metadaten gespeichert' : ''}
+                        </div>
+                        <button onClick={() => { setImportResult(null); setImportFile(null); setImportPreview(null) }}
+                          style={{ marginTop: 4, fontSize: 12, padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer' }}>
+                          Weitere Datei importieren
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {offlineView === 'main' && (<>
+
+              {/* Export / Import Navigation */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <button
+                  onClick={() => setOfflineView('export')}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                    gap: 4, padding: '14px 14px', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                    cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
+                    <Download size={14} /> Exportieren
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Fountain, FDX oder PDF herunterladen
+                  </span>
+                </button>
+                <button
+                  onClick={() => { setOfflineView('import'); if (importStaffeln.length === 0) api.getStaffeln().then(setImportStaffeln).catch(() => {}) }}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                    gap: 4, padding: '14px 14px', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                    cursor: 'pointer', textAlign: 'left',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
+                    <FileUp size={14} /> Importieren
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Fountain oder FDX als neue Fassung
+                  </span>
+                </button>
+              </div>
 
               {/* Status */}
               <div>
@@ -1120,6 +1463,8 @@ export default function AppShell({
                   </div>
                 )}
               </div>
+
+            </>)}
 
             </div>
 
