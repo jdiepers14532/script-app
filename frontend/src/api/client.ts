@@ -111,6 +111,36 @@ export const api = {
     return fetch(`${BASE}/import/commit`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
   },
 
+  // Stage Labels
+  getStageLabels: (staffelId: string) =>
+    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels`),
+  createStageLabel: (staffelId: string, data: any) =>
+    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels`, data),
+  updateStageLabel: (staffelId: string, labelId: number, data: any) =>
+    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels/${labelId}`, data),
+  deleteStageLabel: (staffelId: string, labelId: number) =>
+    request<void>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels/${labelId}`),
+  reorderStageLabels: (staffelId: string, order: {id: number, sort_order: number}[]) =>
+    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels/reorder`, { order }),
+
+  // Revision Colors
+  getRevisionColors: (staffelId: string) =>
+    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors`),
+  createRevisionColor: (staffelId: string, data: any) =>
+    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors`, data),
+  updateRevisionColor: (staffelId: string, colorId: number, data: any) =>
+    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors/${colorId}`, data),
+  deleteRevisionColor: (staffelId: string, colorId: number) =>
+    request<void>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors/${colorId}`),
+  reorderRevisionColors: (staffelId: string, order: {id: number, sort_order: number}[]) =>
+    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors/reorder`, { order }),
+
+  // Revision Einstellungen
+  getRevisionEinstellungen: (staffelId: string) =>
+    request<any>('GET', `/staffeln/${encodeURIComponent(staffelId)}/revision-einstellungen`),
+  updateRevisionEinstellungen: (staffelId: string, data: any) =>
+    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/revision-einstellungen`, data),
+
   // Characters
   getCharacters: (staffelId: string) =>
     request<any[]>('GET', `/characters?staffel_id=${encodeURIComponent(staffelId)}`),
@@ -118,6 +148,14 @@ export const api = {
   updateCharacter: (id: string, data: any) => request<any>('PUT', `/characters/${id}`, data),
   getCharKategorien: (staffelId: string) =>
     request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien`),
+  createCharKategorie: (staffelId: string, data: any) =>
+    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien`, data),
+  updateCharKategorie: (staffelId: string, katId: number, data: any) =>
+    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/${katId}`, data),
+  deleteCharKategorie: (staffelId: string, katId: number) =>
+    request<void>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/${katId}`),
+  reorderCharKategorien: (staffelId: string, order: {id: number, sort_order: number}[]) =>
+    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/reorder`, { order }),
   getSceneCharacters: (szeneId: number) =>
     request<any[]>('GET', `/szenen/${szeneId}/characters`),
   addSceneCharacter: (szeneId: number, data: any) =>

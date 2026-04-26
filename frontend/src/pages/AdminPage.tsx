@@ -6,6 +6,7 @@ import { api } from '../api/client'
 
 const ADMIN_TABS = [
   { id: 'ki',         label: 'KI-Konfiguration' },
+  { id: 'produktion', label: 'Produktion' },
   { id: 'wasserzeichen', label: 'Wasserzeichen & Export-Log' },
   { id: 'allgemein',  label: 'Allgemein' },
   { id: 'export',     label: 'Export-Vorlagen' },
@@ -263,6 +264,321 @@ function WasserzeichenTab() {
   )
 }
 
+// ── Drag-sortable list helper ──────────────────────────────────────────────────
+function SortableList({
+  items, onReorder, renderItem,
+}: {
+  items: any[]
+  onReorder: (newItems: any[]) => void
+  renderItem: (item: any, dragHandle: React.ReactNode) => React.ReactNode
+}) {
+  const dragIdx = useRef<number | null>(null)
+  const overIdx = useRef<number | null>(null)
+
+  return (
+    <div>
+      {items.map((item, i) => (
+        <div
+          key={item.id}
+          draggable
+          onDragStart={() => { dragIdx.current = i }}
+          onDragOver={e => { e.preventDefault(); overIdx.current = i }}
+          onDrop={() => {
+            if (dragIdx.current === null || dragIdx.current === overIdx.current) return
+            const arr = [...items]
+            const [moved] = arr.splice(dragIdx.current, 1)
+            arr.splice(overIdx.current!, 0, moved)
+            onReorder(arr)
+            dragIdx.current = null; overIdx.current = null
+          }}
+          style={{ userSelect: 'none' }}
+        >
+          {renderItem(item, (
+            <span style={{ cursor: 'grab', color: 'var(--text-muted)', fontSize: 14, lineHeight: 1, paddingRight: 8 }}>⠿</span>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ── Produktion Tab ─────────────────────────────────────────────────────────────
+function ProduktionTab() {
+  const [staffeln, setStaffeln] = useState<any[]>([])
+  const [staffelId, setStaffelId] = useState<string>('')
+
+  const [kategorien, setKategorien] = useState<any[]>([])
+  const [labels, setLabels] = useState<any[]>([])
+  const [colors, setColors] = useState<any[]>([])
+  const [memoSchwelle, setMemoSchwelle] = useState<number>(100)
+  const [saving, setSaving] = useState<Record<string, boolean>>({})
+
+  // New-item input state
+  const [newKat, setNewKat] = useState({ name: '', typ: 'rolle' as 'rolle' | 'komparse' })
+  const [newLabel, setNewLabel] = useState({ name: '', is_produktionsfassung: false })
+  const [newColor, setNewColor] = useState({ name: '', color: '#4A90D9' })
+
+  useEffect(() => {
+    api.getStaffeln().then(list => {
+      setStaffeln(list)
+      if (list.length) setStaffelId(list[0].id)
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!staffelId) return
+    api.getCharKategorien(staffelId).then(setKategorien).catch(() => setKategorien([]))
+    api.getStageLabels(staffelId).then(setLabels).catch(() => setLabels([]))
+    api.getRevisionColors(staffelId).then(setColors).catch(() => setColors([]))
+    api.getRevisionEinstellungen(staffelId).then(e => setMemoSchwelle(e.memo_schwellwert_zeichen ?? 100)).catch(() => {})
+  }, [staffelId])
+
+  const busy = (key: string) => saving[key]
+  const set = (key: string, v: boolean) => setSaving(s => ({ ...s, [key]: v }))
+
+  // ── Character Kategorien ──
+  const addKat = async () => {
+    if (!newKat.name.trim()) return
+    set('kat', true)
+    try {
+      const r = await api.createCharKategorie(staffelId, newKat)
+      setKategorien(prev => [...prev, r])
+      setNewKat({ name: '', typ: 'rolle' })
+    } catch {} finally { set('kat', false) }
+  }
+  const delKat = async (id: number) => {
+    try { await api.deleteCharKategorie(staffelId, id); setKategorien(prev => prev.filter(k => k.id !== id)) } catch {}
+  }
+  const reorderKat = async (ordered: any[]) => {
+    setKategorien(ordered)
+    const order = ordered.map((k, i) => ({ id: k.id, sort_order: i + 1 }))
+    try { const r = await api.reorderCharKategorien(staffelId, order); setKategorien(r) } catch {}
+  }
+
+  // ── Stage Labels ──
+  const addLabel = async () => {
+    if (!newLabel.name.trim()) return
+    set('lbl', true)
+    try {
+      const r = await api.createStageLabel(staffelId, newLabel)
+      setLabels(prev => [...prev, r])
+      setNewLabel({ name: '', is_produktionsfassung: false })
+    } catch {} finally { set('lbl', false) }
+  }
+  const delLabel = async (id: number) => {
+    try { await api.deleteStageLabel(staffelId, id); setLabels(prev => prev.filter(l => l.id !== id)) } catch {}
+  }
+  const toggleProd = async (id: number, current: boolean) => {
+    try {
+      const r = await api.updateStageLabel(staffelId, id, { is_produktionsfassung: !current })
+      setLabels(prev => prev.map(l => l.id === id ? r : l))
+    } catch {}
+  }
+  const reorderLabels = async (ordered: any[]) => {
+    setLabels(ordered)
+    const order = ordered.map((l, i) => ({ id: l.id, sort_order: i + 1 }))
+    try { const r = await api.reorderStageLabels(staffelId, order); setLabels(r) } catch {}
+  }
+
+  // ── Revision Colors ──
+  const addColor = async () => {
+    if (!newColor.name.trim()) return
+    set('col', true)
+    try {
+      const r = await api.createRevisionColor(staffelId, newColor)
+      setColors(prev => [...prev, r])
+      setNewColor({ name: '', color: '#4A90D9' })
+    } catch {} finally { set('col', false) }
+  }
+  const delColor = async (id: number) => {
+    try { await api.deleteRevisionColor(staffelId, id); setColors(prev => prev.filter(c => c.id !== id)) } catch {}
+  }
+  const reorderColors = async (ordered: any[]) => {
+    setColors(ordered)
+    const order = ordered.map((c, i) => ({ id: c.id, sort_order: i + 1 }))
+    try { const r = await api.reorderRevisionColors(staffelId, order); setColors(r) } catch {}
+  }
+  const saveMemo = async () => {
+    set('memo', true)
+    try { await api.updateRevisionEinstellungen(staffelId, { memo_schwellwert_zeichen: memoSchwelle }) }
+    catch {} finally { set('memo', false) }
+  }
+
+  const sectionStyle: React.CSSProperties = { marginBottom: 40 }
+  const h3Style: React.CSSProperties = { fontSize: 13, fontWeight: 600, margin: '0 0 4px' }
+  const subStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 4 }
+  const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none' }
+  const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
+  const delBtnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px', lineHeight: 1 }
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 640 }}>
+
+      {/* Staffel selector */}
+      <div style={{ marginBottom: 28 }}>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Produktion</label>
+        <select
+          value={staffelId}
+          onChange={e => setStaffelId(e.target.value)}
+          style={{ ...inputStyle, minWidth: 240 }}
+        >
+          {staffeln.map(s => <option key={s.id} value={s.id}>{s.titel}</option>)}
+        </select>
+      </div>
+
+      {/* ── Character Kategorien ── */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Charakter-Kategorien</h3>
+        <p style={subStyle}>Definiert die Kategorien für Rollen und Komparsen in dieser Produktion. Reihenfolge per Drag &amp; Drop.</p>
+
+        <SortableList
+          items={kategorien}
+          onReorder={reorderKat}
+          renderItem={(k, handle) => (
+            <div style={rowStyle}>
+              {handle}
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 7px', borderRadius: 99, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 }}>
+                {k.typ === 'komparse' ? 'Komparse' : 'Rolle'}
+              </span>
+              <span style={{ flex: 1, fontSize: 13 }}>{k.name}</span>
+              <button style={delBtnStyle} onClick={() => delKat(k.id)} title="Löschen">×</button>
+            </div>
+          )}
+        />
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <input
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="Neue Kategorie…"
+            value={newKat.name}
+            onChange={e => setNewKat(v => ({ ...v, name: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && addKat()}
+          />
+          <select style={inputStyle} value={newKat.typ} onChange={e => setNewKat(v => ({ ...v, typ: e.target.value as any }))}>
+            <option value="rolle">Rolle</option>
+            <option value="komparse">Komparse</option>
+          </select>
+          <button style={btnStyle} onClick={addKat} disabled={busy('kat') || !newKat.name.trim()}>
+            {busy('kat') ? '…' : '+ Hinzufügen'}
+          </button>
+        </div>
+      </section>
+
+      {/* ── Stage Labels ── */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Fassungs-Labels</h3>
+        <p style={subStyle}>Labels für Fassungen (Stages) dieser Produktion. Ein Label kann als Produktionsfassung markiert werden — dieses löst den Schloss-Mechanismus aus.</p>
+
+        <SortableList
+          items={labels}
+          onReorder={reorderLabels}
+          renderItem={(l, handle) => (
+            <div style={rowStyle}>
+              {handle}
+              <span style={{ flex: 1, fontSize: 13 }}>{l.name}</span>
+              <button
+                onClick={() => toggleProd(l.id, l.is_produktionsfassung)}
+                style={{
+                  fontSize: 11, padding: '2px 8px', borderRadius: 99, border: '1px solid',
+                  cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+                  background: l.is_produktionsfassung ? 'var(--text-primary)' : 'var(--bg-subtle)',
+                  color: l.is_produktionsfassung ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                  borderColor: l.is_produktionsfassung ? 'var(--text-primary)' : 'var(--border)',
+                }}
+                title="Als Produktionsfassung markieren"
+              >
+                {l.is_produktionsfassung ? '🔒 Produktion' : 'Kein PF'}
+              </button>
+              <button style={delBtnStyle} onClick={() => delLabel(l.id)} title="Löschen">×</button>
+            </div>
+          )}
+        />
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <input
+            style={{ ...inputStyle, flex: 1 }}
+            placeholder="Neues Label…"
+            value={newLabel.name}
+            onChange={e => setNewLabel(v => ({ ...v, name: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && addLabel()}
+          />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={newLabel.is_produktionsfassung}
+              onChange={e => setNewLabel(v => ({ ...v, is_produktionsfassung: e.target.checked }))}
+            />
+            Produktionsfassung
+          </label>
+          <button style={btnStyle} onClick={addLabel} disabled={busy('lbl') || !newLabel.name.trim()}>
+            {busy('lbl') ? '…' : '+ Hinzufügen'}
+          </button>
+        </div>
+      </section>
+
+      {/* ── Revision Colors ── */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Revisions-Farben (WGA-Standard)</h3>
+        <p style={subStyle}>Farbmarkierung für Revisionsstände. Reihenfolge bestimmt die Revisions-Sequenz.</p>
+
+        <SortableList
+          items={colors}
+          onReorder={reorderColors}
+          renderItem={(c, handle) => (
+            <div style={rowStyle}>
+              {handle}
+              <span style={{ width: 16, height: 16, borderRadius: 4, background: c.color, flexShrink: 0, border: '1px solid rgba(0,0,0,0.1)' }} />
+              <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
+              <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.color}</code>
+              <button style={delBtnStyle} onClick={() => delColor(c.id)} title="Löschen">×</button>
+            </div>
+          )}
+        />
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+          <input
+            style={{ ...inputStyle, flex: 1, minWidth: 160 }}
+            placeholder="Name (z.B. Pinke Seiten)…"
+            value={newColor.name}
+            onChange={e => setNewColor(v => ({ ...v, name: e.target.value }))}
+            onKeyDown={e => e.key === 'Enter' && addColor()}
+          />
+          <input
+            type="color"
+            value={newColor.color}
+            onChange={e => setNewColor(v => ({ ...v, color: e.target.value }))}
+            style={{ width: 44, height: 36, border: '1px solid var(--border)', borderRadius: 7, padding: 2, cursor: 'pointer' }}
+          />
+          <button style={btnStyle} onClick={addColor} disabled={busy('col') || !newColor.name.trim()}>
+            {busy('col') ? '…' : '+ Hinzufügen'}
+          </button>
+        </div>
+      </section>
+
+      {/* ── Revision Export Einstellungen ── */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Revisions-Export</h3>
+        <p style={subStyle}>Änderungen mit weniger als dieser Zeichenanzahl werden im Export als kurze Notiz (Memo-Zeile) statt als vollständiger Absatz dargestellt.</p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input
+            type="number"
+            style={{ ...inputStyle, width: 100 }}
+            value={memoSchwelle}
+            min={0}
+            onChange={e => setMemoSchwelle(parseInt(e.target.value) || 0)}
+          />
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Zeichen (Schwellwert)</span>
+          <button style={btnStyle} onClick={saveMemo} disabled={busy('memo')}>
+            {busy('memo') ? '…' : 'Speichern'}
+          </button>
+        </div>
+      </section>
+
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
   const navigate = useNavigate()
@@ -325,9 +641,10 @@ export default function AdminPage() {
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {activeTab === 'ki'              && <AdminKI />}
+          {activeTab === 'produktion'      && <ProduktionTab />}
           {activeTab === 'wasserzeichen'   && <WasserzeichenTab />}
           {activeTab === 'allgemein'       && <AllgemeinTab />}
-          {activeTab !== 'ki' && activeTab !== 'wasserzeichen' && activeTab !== 'allgemein' && (
+          {activeTab !== 'ki' && activeTab !== 'produktion' && activeTab !== 'wasserzeichen' && activeTab !== 'allgemein' && (
             <div style={{ padding: '28px 32px', color: 'var(--text-secondary)', fontSize: 13 }}>
               Dieser Bereich ist noch in Entwicklung.
             </div>
