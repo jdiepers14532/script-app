@@ -94,7 +94,6 @@ export const api = {
   exportPdf: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/pdf`, { credentials: 'include' }),
   exportFountain: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fountain`, { credentials: 'include' }),
   exportFdx: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fdx`, { credentials: 'include' }),
-  exportDrehplan: (stageId: number) => request<any[]>('GET', `/stages/${stageId}/drehplan-export`),
   exportRevisionSummary: (stageId: number) => request<any>('GET', `/stages/${stageId}/export/revision-summary`),
 
   // Import with metadata opt-in

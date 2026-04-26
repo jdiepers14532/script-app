@@ -220,6 +220,10 @@ export default function ScriptPage() {
                 setSzenen(prev => [...prev, newSzene])
                 setSelectedSzeneId(newSzene.id)
               }}
+              onSzeneDeleted={(id) => {
+                setSzenen(prev => prev.filter(s => s.id !== id))
+                if (selectedSzeneId === id) setSelectedSzeneId(null)
+              }}
             />
           </div>
         )}

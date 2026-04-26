@@ -350,6 +350,33 @@
 .breakdown .bd-remove { opacity:0; background:none; border:none; cursor:pointer; color:var(--text-muted); padding:2px; display:flex; border-radius:4px; }
 .breakdown .bd-remove:hover { color:var(--sw-danger); background:color-mix(in srgb,var(--sw-danger) 10%,transparent); }
 
+/* ── Scene Context Menu ── */
+.row .scene-ctx-wrap { position:relative; flex-shrink:0; }
+.row .scene-ctx-btn {
+  display:none; align-items:center; justify-content:center;
+  width:22px; height:22px; border-radius:5px;
+  background:none; border:none; cursor:pointer; color:var(--text-muted);
+  padding:0; flex-shrink:0;
+}
+.row:hover .scene-ctx-btn,
+.row .scene-ctx-btn.open { display:flex; }
+.row .scene-ctx-btn:hover,
+.row .scene-ctx-btn.open { background:var(--bg-subtle); color:var(--text-primary); }
+.row.deleting { opacity:0.4; pointer-events:none; }
+.scene-ctx-menu {
+  position:absolute; right:0; top:calc(100% + 2px); z-index:200;
+  background:var(--bg-surface); border:1px solid var(--border); border-radius:8px;
+  box-shadow:0 4px 16px rgba(0,0,0,0.15); min-width:120px; padding:4px;
+}
+.scene-ctx-item {
+  display:block; width:100%; text-align:left; padding:7px 10px;
+  background:none; border:none; cursor:pointer; font-size:12px; font-family:inherit;
+  border-radius:5px; color:var(--text-primary);
+}
+.scene-ctx-item:hover { background:var(--bg-subtle); }
+.scene-ctx-item.danger { color:var(--sw-danger); }
+.scene-ctx-item.danger:hover { background:rgba(255,59,48,0.08); }
+
 /* ── Revision Markup ── */
 .script-body.show-revisions .revised { position:relative; }
 .script-body.show-revisions .revised::before {

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Lock, Search, Plus } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Lock, Search, Plus, MoreHorizontal } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
 
@@ -12,6 +12,7 @@ interface SceneListProps {
   stageId: number | null
   colorMode?: 'full' | 'subtle' | 'off'
   onSzeneCreated?: (szene: any) => void
+  onSzeneDeleted?: (id: number) => void
 }
 
 export default function SceneList({
@@ -23,10 +24,14 @@ export default function SceneList({
   stageId,
   colorMode = 'subtle',
   onSzeneCreated,
+  onSzeneDeleted,
 }: SceneListProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [lock, setLock] = useState<any | null>(null)
   const [creating, setCreating] = useState(false)
+  const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (!staffelId || folgeNummer == null) { setLock(null); return }
@@ -43,6 +48,32 @@ export default function SceneList({
       (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => (a.scene_nummer ?? 0) - (b.scene_nummer ?? 0))
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpenId) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenId(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpenId])
+
+  const handleDelete = async (e: React.MouseEvent, szeneId: number) => {
+    e.stopPropagation()
+    setMenuOpenId(null)
+    setDeleting(szeneId)
+    try {
+      await api.deleteSzene(szeneId)
+      onSzeneDeleted?.(szeneId)
+    } catch (err: any) {
+      alert('Fehler beim Löschen: ' + err.message)
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   const handleNewSzene = async () => {
     if (!stageId || creating) return
@@ -117,12 +148,15 @@ export default function SceneList({
           if (colorMode === 'full') rowStyle['--row-bg'] = envColor.bg
           if (colorMode === 'subtle' || colorMode === 'full') rowStyle['--stripe'] = envColor.stripe
 
+          const isMenuOpen = menuOpenId === scene.id
+          const isDeleting = deleting === scene.id
+
           return (
             <div
               key={scene.id}
-              className={`row${scene.id === selectedSzeneId ? ' active' : ''}${colorMode === 'full' && isDark ? ' on-dark' : ''}`}
-              style={rowStyle}
-              onClick={() => onSelectSzene(scene.id)}
+              className={`row${scene.id === selectedSzeneId ? ' active' : ''}${colorMode === 'full' && isDark ? ' on-dark' : ''}${isDeleting ? ' deleting' : ''}`}
+              style={{ ...rowStyle, position: 'relative' }}
+              onClick={() => !isMenuOpen && onSelectSzene(scene.id)}
             >
               {scene.id !== selectedSzeneId && (colorMode === 'subtle' || colorMode === 'full') && (
                 <div className="env-stripe" style={{ background: envColor.stripe }} />
@@ -150,6 +184,27 @@ export default function SceneList({
                 {scene.dauer_min && <span>{scene.dauer_min} min</span>}
                 <div className="badges">
                   {scene.is_locked && <Lock size={11} className="lock-ico" />}
+                </div>
+                {/* Context menu trigger */}
+                <div className="scene-ctx-wrap" ref={isMenuOpen ? menuRef : null}>
+                  <button
+                    className={`scene-ctx-btn${isMenuOpen ? ' open' : ''}`}
+                    onClick={e => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : scene.id) }}
+                    title="Optionen"
+                    disabled={isDeleting}
+                  >
+                    <MoreHorizontal size={13} />
+                  </button>
+                  {isMenuOpen && (
+                    <div className="scene-ctx-menu">
+                      <button
+                        className="scene-ctx-item danger"
+                        onClick={e => handleDelete(e, scene.id)}
+                      >
+                        Löschen
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
