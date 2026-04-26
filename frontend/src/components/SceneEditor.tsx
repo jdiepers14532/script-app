@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { Lock, ChevronLeft, ChevronRight, FileDown, Edit3, Sparkles, MessageSquare, GitCompare } from 'lucide-react'
+import { Lock, ChevronLeft, ChevronRight, FileDown, MessageSquare, GitCompare, Info } from 'lucide-react'
+import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext, useAppSettings } from '../App'
@@ -43,6 +44,8 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(0.5)
+  const [vorstoppDrehbuch, setVorstoppDrehbuch] = useState<{ dauer_sekunden: number } | null>(null)
+  const [sceneChars, setSceneChars] = useState<any[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
@@ -96,6 +99,18 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
         setRevisionColor(colorDelta?.revision_color ?? null)
       })
       .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
+
+    // Load vorstopp (drehbuch stage)
+    setVorstoppDrehbuch(null)
+    api.getVorstopp(szeneId)
+      .then(data => setVorstoppDrehbuch(data?.latest_per_stage?.drehbuch ?? null))
+      .catch(() => setVorstoppDrehbuch(null))
+
+    // Load scene characters
+    setSceneChars([])
+    api.getSceneCharacters(szeneId)
+      .then(data => setSceneChars(Array.isArray(data) ? data : []))
+      .catch(() => setSceneChars([]))
   }, [szeneId, stageId])
 
   // Load lock when folge changes
@@ -214,50 +229,50 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
             <FileDown size={12} />
             PDF
           </button>
-          <button className="btn primary">
-            <Edit3 size={12} />
-            Bearbeiten
-          </button>
         </div>
       </div>
 
-      {/* Meta card */}
-      <div className="meta-card" style={{ '--stripe': stripeColor } as React.CSSProperties}>
+      {/* Meta card — 4 Zeilen */}
+      <div className="meta-card" key={szeneId} style={{ '--stripe': stripeColor } as React.CSSProperties}>
+
+        {/* Z1: Sz-Nr | Int/Ext | Motiv | Vorstoppzeit | Stimmung */}
         <div className="metarow">
+          <div className="cell">
+            <span className="lbl">Sz.-Nr.</span>
+            <span className="val">{scene.scene_nummer}</span>
+          </div>
           <div className="cell">
             <span className="lbl">Int/Ext</span>
             <span className="val">{scene.int_ext}</span>
           </div>
-          <div className="cell">
+          <div className="cell" style={{ flex: 2 }}>
             <span className="lbl">Motiv</span>
             <span className="val">{scene.ort_name}</span>
           </div>
-          <div className="cell">
-            <span className="lbl">Tageszeit</span>
-            <span className="val">{scene.tageszeit}</span>
-          </div>
-          {scene.dauer_min && (
+          {vorstoppDrehbuch && (
             <div className="cell">
-              <span className="lbl">Dauer</span>
-              <span className="val">{scene.dauer_min} min</span>
+              <span className="lbl">Vorstoppzeit</span>
+              <span className="val">{Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)} min</span>
             </div>
           )}
           <div className="cell">
-            <span className="lbl">Seiten</span>
+            <span className="lbl">Stimmung</span>
             <input
               className="meta-input"
-              defaultValue={scene.seiten ?? ''}
-              placeholder="z.B. 2 5/8"
+              defaultValue={scene.stimmung ?? ''}
+              placeholder="—"
               onBlur={e => {
                 const val = e.target.value.trim() || null
-                if (val !== (scene.seiten ?? null)) {
-                  api.updateSzene(szeneId, { seiten: val }).then(s => {
-                    setScene(s); onSzeneUpdated?.(s)
-                  }).catch(() => {})
+                if (val !== (scene.stimmung ?? null)) {
+                  api.updateSzene(szeneId, { stimmung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                 }
               }}
             />
           </div>
+        </div>
+
+        {/* Z2: Spieltag | Spielzeit | Oneliner | Seiten */}
+        <div className="metarow">
           <div className="cell">
             <span className="lbl">Spieltag</span>
             <input
@@ -268,20 +283,93 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               onBlur={e => {
                 const val = e.target.value !== '' ? parseInt(e.target.value, 10) : null
                 if (val !== (scene.spieltag ?? null)) {
-                  api.updateSzene(szeneId, { spieltag: val }).then(s => {
-                    setScene(s); onSzeneUpdated?.(s)
-                  }).catch(() => {})
+                  api.updateSzene(szeneId, { spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }
+              }}
+            />
+          </div>
+          <div className="cell">
+            <span className="lbl" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              Spielzeit
+              <Tooltip text="Spielzeit ist die wahrscheinliche Uhrzeit zu der die Handlung dieser Szene spielt.">
+                <Info size={10} style={{ color: 'var(--text-muted)' }} />
+              </Tooltip>
+            </span>
+            <input
+              className="meta-input"
+              defaultValue={scene.spielzeit ?? ''}
+              placeholder="z.B. 08:30"
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.spielzeit ?? null)) {
+                  api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }
+              }}
+            />
+          </div>
+          <div className="cell" style={{ flex: 3 }}>
+            <span className="lbl">Oneliner</span>
+            <input
+              className="meta-input"
+              defaultValue={scene.zusammenfassung ?? ''}
+              placeholder="—"
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.zusammenfassung ?? null)) {
+                  api.updateSzene(szeneId, { zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }
+              }}
+            />
+          </div>
+          <div className="cell">
+            <span className="lbl">Seiten</span>
+            <input
+              className="meta-input"
+              defaultValue={scene.seiten ?? ''}
+              placeholder="z.B. 2 5/8"
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.seiten ?? null)) {
+                  api.updateSzene(szeneId, { seiten: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                 }
               }}
             />
           </div>
         </div>
-        {scene.zusammenfassung && (
-          <div className="desc-row">
-            <div className="lbl">Zusammenfassung</div>
-            <div className="desc">{scene.zusammenfassung}</div>
+
+        {/* Z3: Rollen | Komparsen */}
+        <div className="metarow">
+          <div className="cell" style={{ flex: 1 }}>
+            <span className="lbl">Rollen</span>
+            <span className="val" style={{ fontWeight: 400, fontSize: 12 }}>
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any) => c.name).join(', ') || '—'}
+            </span>
           </div>
-        )}
+          <div className="cell" style={{ flex: 1 }}>
+            <span className="lbl">Komparsen</span>
+            <span className="val" style={{ fontWeight: 400, fontSize: 12 }}>
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => c.name).join(', ') || '—'}
+            </span>
+          </div>
+        </div>
+
+        {/* Z4: Storyline */}
+        <div className="desc-row">
+          <div className="lbl">Storyline</div>
+          <textarea
+            className="meta-input"
+            defaultValue={scene.storyline ?? ''}
+            placeholder="—"
+            rows={2}
+            style={{ resize: 'vertical', width: '100%', fontFamily: 'inherit' }}
+            onBlur={e => {
+              const val = e.target.value.trim() || null
+              if (val !== (scene.storyline ?? null)) {
+                api.updateSzene(szeneId, { storyline: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+              }
+            }}
+          />
+        </div>
       </div>
 
       {/* Lock banner */}
@@ -313,10 +401,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               <span className="title">{treatmentLabel}</span>
               <span className="vchip draft">Entwurf</span>
               <span className="spacer" />
-              <button className="btn-sm">
-                <Edit3 size={11} />
-                Bearbeiten
-              </button>
             </div>
             <div className="pbody">
               <div className="treatment-body">
@@ -362,10 +446,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
                   {changedBlocks.size} Änderung{changedBlocks.size !== 1 ? 'en' : ''}
                 </button>
               )}
-              <button className="btn-sm">
-                <Sparkles size={11} />
-                KI
-              </button>
             </div>
             <div className="pbody">
               <div className={`script-body${showRevisions ? ' show-revisions' : ''}`}>

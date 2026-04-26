@@ -57,7 +57,7 @@ async function recordRevisionDeltas(
   ).catch(() => {})
 
   // Header fields
-  const headerFields = ['int_ext', 'tageszeit', 'ort_name', 'zusammenfassung', 'seiten', 'spieltag'] as const
+  const headerFields = ['int_ext', 'tageszeit', 'ort_name', 'zusammenfassung', 'seiten', 'spieltag', 'stimmung', 'spielzeit', 'storyline'] as const
   for (const f of headerFields) {
     if (body[f] !== undefined && String(body[f] ?? '') !== String(oldSzene[f] ?? '')) {
       await deltaInsert('header', f, null, null, null, String(oldSzene[f] ?? ''), String(body[f] ?? ''))
@@ -88,7 +88,7 @@ async function recordRevisionDeltas(
 // PUT /api/szenen/:id
 szenenRouter.put('/:id', async (req, res) => {
   try {
-    const { int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, sort_order, seiten, spieltag } = req.body
+    const { int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, sort_order, seiten, spieltag, stimmung, spielzeit, storyline } = req.body
     let content = req.body.content
 
     // Validate content schema if provided
@@ -119,6 +119,9 @@ szenenRouter.put('/:id', async (req, res) => {
         sort_order = COALESCE($7, sort_order),
         seiten = COALESCE($9, seiten),
         spieltag = COALESCE($10, spieltag),
+        stimmung = COALESCE($11, stimmung),
+        spielzeit = COALESCE($12, spielzeit),
+        storyline = COALESCE($13, storyline),
         updated_at = NOW()
        WHERE id = $8 RETURNING *`,
       [
@@ -132,6 +135,9 @@ szenenRouter.put('/:id', async (req, res) => {
         req.params.id,
         seiten ?? null,
         spieltag ?? null,
+        stimmung ?? null,
+        spielzeit ?? null,
+        storyline ?? null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })

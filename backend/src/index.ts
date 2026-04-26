@@ -133,6 +133,7 @@ async function runMigrations() {
     'v8_user_settings.sql', 'v9_proddb_sync.sql', 'v10_proddb_direct.sql', 'v11_ui_settings.sql',
     'v12_export_logs.sql', 'v13_app_settings.sql',
     'v16_szenen_columns.sql', 'v17_characters.sql', 'v18_vorstopp.sql', 'v19_stages_revision.sql',
+    'v20_szenen_extended.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
