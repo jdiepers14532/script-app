@@ -597,13 +597,16 @@ export default function AppShell({
           )}
 
           {selectedBlock?.dreh_von && selectedBlock?.dreh_bis && (() => {
+            const wd = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short' })
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
             const yr = new Date(selectedBlock.dreh_bis + 'T00:00:00').getFullYear()
-            return <span className="chip topbar-extra">Drehzeit: {fmt(selectedBlock.dreh_von)} – {fmt(selectedBlock.dreh_bis)}.{yr}</span>
+            return <span className="chip topbar-extra">Drehzeit: {wd(selectedBlock.dreh_von)} {fmt(selectedBlock.dreh_von)} – {wd(selectedBlock.dreh_bis)} {fmt(selectedBlock.dreh_bis)}.{yr}</span>
           })()}
           {sendedatum?.datum && (() => {
-            const d = new Date(sendedatum.datum + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            return <span className="chip topbar-extra">vorauss.: {d}{sendedatum.ist_ki_prognose ? ' (Prognose)' : ''}</span>
+            const dt = new Date(sendedatum.datum + 'T00:00:00')
+            const wd = dt.toLocaleDateString('de-DE', { weekday: 'short' })
+            const d = dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            return <span className="chip topbar-extra">vorauss.: {wd} {d}{sendedatum.ist_ki_prognose ? ' (Prognose)' : ''}</span>
           })()}
         </div>
 
