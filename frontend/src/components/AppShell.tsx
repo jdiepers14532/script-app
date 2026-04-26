@@ -576,7 +576,7 @@ export default function AppShell({
               <select style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
                 {bloecke.map(b => (
                   <option key={b.proddb_id} value={b.proddb_id}>
-                    Block {b.block_nummer}{b.folge_von != null ? ` (${b.folge_von}–${b.folge_bis})` : ''}{b.drehtage ? ` · ${b.drehtage} DT` : ''}
+                    Block {b.block_nummer}{b.folge_von != null && b.folge_bis != null ? ` (${b.folge_von}–${b.folge_bis}) · ${b.folge_bis - b.folge_von + 1} Folgen` : ''}
                   </option>
                 ))}
               </select>
@@ -599,11 +599,11 @@ export default function AppShell({
           {selectedBlock?.dreh_von && selectedBlock?.dreh_bis && (() => {
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
             const yr = new Date(selectedBlock.dreh_bis + 'T00:00:00').getFullYear()
-            return <span className="chip topbar-extra">{fmt(selectedBlock.dreh_von)} – {fmt(selectedBlock.dreh_bis)}.{yr}</span>
+            return <span className="chip topbar-extra">Drehzeit: {fmt(selectedBlock.dreh_von)} – {fmt(selectedBlock.dreh_bis)}.{yr}</span>
           })()}
           {sendedatum?.datum && (() => {
             const d = new Date(sendedatum.datum + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            return <span className="chip topbar-extra">voraussichtlich {d}{sendedatum.ist_ki_prognose ? ' (Prognose)' : ''}</span>
+            return <span className="chip topbar-extra">vorauss.: {d}{sendedatum.ist_ki_prognose ? ' (Prognose)' : ''}</span>
           })()}
         </div>
 
