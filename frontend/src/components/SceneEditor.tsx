@@ -194,13 +194,14 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       {/* Sticky head */}
       <div className="detail-head">
         <div className="scene-title-bar">
-          <button className="nav-arrow" title="Vorherige Szene" disabled>
-            <ChevronLeft size={13} />
-          </button>
-          <button className="nav-arrow" title="Nächste Szene" disabled>
-            <ChevronRight size={13} />
-          </button>
           <span className="scene-big">SZ {scene.scene_nummer}</span>
+          <span style={{
+            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+            background: stripeColor + '20', border: `1px solid ${stripeColor}66`, color: stripeColor,
+            letterSpacing: '0.3px', whiteSpace: 'nowrap',
+          }}>
+            {scene.int_ext} · {scene.tageszeit}
+          </span>
           <span className="scene-title">{scene.ort_name}</span>
           <span className="spacer" />
           {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Speichert…</span>}
@@ -235,27 +236,13 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       {/* Meta card — 4 Zeilen */}
       <div className="meta-card" key={szeneId} style={{ '--stripe': stripeColor } as React.CSSProperties}>
 
-        {/* Z1: Sz-Nr | Int/Ext | Motiv | Vorstoppzeit | Stimmung */}
+        {/* Z1: Tageszeit | Stimmung | Vorstoppzeit */}
         <div className="metarow">
           <div className="cell">
-            <span className="lbl">Sz.-Nr.</span>
-            <span className="val">{scene.scene_nummer}</span>
-          </div>
-          <div className="cell">
-            <span className="lbl">Int/Ext</span>
-            <span className="val">{scene.int_ext}</span>
+            <span className="lbl">Tageszeit</span>
+            <span className="val">{scene.tageszeit}</span>
           </div>
           <div className="cell" style={{ flex: 2 }}>
-            <span className="lbl">Motiv</span>
-            <span className="val">{scene.ort_name}</span>
-          </div>
-          {vorstoppDrehbuch && (
-            <div className="cell">
-              <span className="lbl">Vorstoppzeit</span>
-              <span className="val">{Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)} min</span>
-            </div>
-          )}
-          <div className="cell">
             <span className="lbl">Stimmung</span>
             <input
               className="meta-input"
@@ -269,6 +256,12 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               }}
             />
           </div>
+          {vorstoppDrehbuch && (
+            <div className="cell">
+              <span className="lbl">Vorstoppzeit</span>
+              <span className="val">{Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)} min</span>
+            </div>
+          )}
         </div>
 
         {/* Z2: Spieltag | Spielzeit | Oneliner | Seiten */}
@@ -353,22 +346,31 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           </div>
         </div>
 
-        {/* Z4: Storyline */}
+        {/* Z4: Storyline + Nav-Pfeile */}
         <div className="desc-row">
           <div className="lbl">Storyline</div>
-          <textarea
-            className="meta-input"
-            defaultValue={scene.storyline ?? ''}
-            placeholder="—"
-            rows={2}
-            style={{ resize: 'vertical', width: '100%', fontFamily: 'inherit' }}
-            onBlur={e => {
-              const val = e.target.value.trim() || null
-              if (val !== (scene.storyline ?? null)) {
-                api.updateSzene(szeneId, { storyline: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }
-            }}
-          />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 4 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 1, flexShrink: 0 }}>
+              <button className="nav-arrow" title="Vorherige Szene" disabled>
+                <ChevronLeft size={13} />
+              </button>
+              <button className="nav-arrow" title="Nächste Szene" disabled>
+                <ChevronRight size={13} />
+              </button>
+            </div>
+            <textarea
+              className="meta-input"
+              defaultValue={scene.storyline ?? ''}
+              placeholder="—"
+              rows={2}
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.storyline ?? null)) {
+                  api.updateSzene(szeneId, { storyline: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }
+              }}
+            />
+          </div>
         </div>
       </div>
 

@@ -258,8 +258,9 @@
 .detail { flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; background:var(--bg-page); overflow-y:auto; }
 .detail .detail-head { position:sticky; top:0; z-index:5; background:var(--bg-page); border-bottom:1px solid var(--border); }
 .detail .scene-title-bar { display:flex; align-items:center; gap:10px; padding:12px 20px; }
-.detail .scene-title-bar .nav-arrow { width:26px; height:26px; border-radius:6px; border:1px solid var(--border); background:var(--bg-surface); display:grid; place-items:center; color:var(--text-secondary); cursor:pointer; }
-.detail .scene-title-bar .scene-big { font-size:22px; font-weight:700; letter-spacing:-0.005em; }
+.detail .nav-arrow { width:26px; height:26px; border-radius:6px; border:1px solid var(--border); background:var(--bg-surface); display:grid; place-items:center; color:var(--text-secondary); cursor:pointer; }
+.detail .nav-arrow:disabled { opacity:0.35; cursor:default; }
+.detail .scene-title-bar .scene-big { font-size:17px; font-weight:700; letter-spacing:-0.005em; }
 .detail .scene-title-bar .scene-title { color:var(--text-secondary); font-size:14px; }
 .detail .scene-title-bar .spacer { flex:1; }
 .detail .btn { padding:6px 12px; font-size:12px; font-weight:500; border:1px solid var(--border); border-radius:6px; background:var(--bg-surface); color:var(--text-primary); display:inline-flex; align-items:center; gap:6px; transition:all 0.15s; cursor:pointer; }
@@ -412,6 +413,8 @@
 .meta-card .cell .meta-input:hover, .meta-card .cell .meta-input:focus { border-bottom-color:var(--border); }
 .meta-card .cell .meta-input[type=number] { -moz-appearance:textfield; }
 .meta-card .cell .meta-input[type=number]::-webkit-inner-spin-button { display:none; }
+.meta-card .desc-row .meta-input { font-size:13px; font-weight:400; color:var(--text-primary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:100%; padding:0; font-family:inherit; line-height:1.5; resize:vertical; }
+.meta-card .desc-row .meta-input:hover, .meta-card .desc-row .meta-input:focus { border-bottom-color:var(--border); }
 
 /* ── Tweaks Panel ── */
 .tweaks { position:fixed; bottom:16px; right:16px; width:300px; z-index:100; background:var(--bg-surface); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow-xl); display:none; }
