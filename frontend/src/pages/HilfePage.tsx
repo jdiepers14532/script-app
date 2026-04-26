@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 
 // ── Farben ────────────────────────────────────────────────────────────────────
@@ -516,6 +517,7 @@ function OfflineTab() {
 
 function HilfePage() {
   const [activeTab, setActiveTab] = useState<'offline' | 'datenmodell'>('offline')
+  const navigate = useNavigate()
 
   return (
     <AppShell hideProductionSelector>
@@ -531,6 +533,16 @@ function HilfePage() {
 
         {/* Page header */}
         <div style={{ marginBottom: 28 }}>
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: C.muted, fontSize: 13, padding: '0 0 12px 0',
+            }}
+          >
+            ← Zurück
+          </button>
           <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px 0' }}>Handbuch</h1>
           <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>
             Dokumentation und Anleitungen zur Script-App.
