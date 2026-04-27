@@ -272,7 +272,7 @@
 .scenes .lock-ico { color: var(--sw-warning-alt); }
 .scenes .lock-ico.contract { color: var(--sw-green); }
 .scenes .shot-ico { color: var(--sw-green); }
-.scenes .comment-bubble { display:inline-flex; align-items:center; gap:3px; font-size:10px; color:var(--sw-info); font-weight:600; }
+.scenes .comment-bubble { display:inline-flex; align-items:center; gap:2px; font-size:10px; color:var(--sw-warning, #FFCC00); font-weight:700; flex-shrink:0; padding:0 4px; }
 
 [data-mode='focus'] .scenes .row .sl-tz,
 [data-mode='focus'] .scenes .row .sl-dot { display:none; }

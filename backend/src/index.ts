@@ -41,6 +41,7 @@ import { folgenDokumenteRouter, dokumentRouter } from './routes/dokumente'
 import { fassungenRouter, annotationenRouter } from './routes/fassungen'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
+import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from './routes/scene-comments'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -148,6 +149,9 @@ app.use('/api/dokumente/:dokumentId/annotationen', (req, _res, next) => {
 }, annotationenRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
+app.use('/api/stages', stagesCommentRouter)
+app.use('/api/szenen', szenenCommentRouter)
+app.use('/api/internal', commentWebhookRouter)
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
@@ -170,6 +174,7 @@ async function runMigrations() {
     'v23_dokument_system.sql',
     'v24_storyline_richtext.sql',
     'v25_yjs_state.sql',
+    'v26_scene_comment_read_state.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [

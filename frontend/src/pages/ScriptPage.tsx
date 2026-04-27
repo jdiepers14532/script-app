@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
 import AppShell from '../components/AppShell'
@@ -23,6 +23,8 @@ export default function ScriptPage() {
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | null>(null)
+
+  const [commentCounts, setCommentCounts] = useState<Record<number, number>>({})
 
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -294,6 +296,25 @@ export default function ScriptPage() {
     }).catch(() => {})
   }, [selectedStageId])
 
+  // Poll unread comment counts from Messenger-App every 60s
+  useEffect(() => {
+    if (!selectedStageId) { setCommentCounts({}); return }
+    let cancelled = false
+    const load = () => {
+      api.getSceneCommentCounts(selectedStageId)
+        .then(data => { if (!cancelled) setCommentCounts(data) })
+        .catch(() => {})
+    }
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [selectedStageId])
+
+  const handleMarkCommentsRead = useCallback((szeneId: number) => {
+    setCommentCounts(prev => ({ ...prev, [szeneId]: 0 }))
+    api.markSceneCommentsRead(szeneId).catch(() => {})
+  }, [])
+
   // Save navigation position when selections change
   useEffect(() => {
     if (selectedStaffelId) saveNavPosition(selectedStaffelId, selectedFolgeNummer, selectedStageId, selectedSzeneId)
@@ -353,6 +374,7 @@ export default function ScriptPage() {
                 if (selectedSzeneId === id) setSelectedSzeneId(null)
               }}
               onSzenesReordered={setSzenen}
+              commentCounts={commentCounts}
             />
           </div>
         )}
@@ -381,6 +403,7 @@ export default function ScriptPage() {
               }}
               onNavigatePrev={() => navigateSzene(-1)}
               onNavigateNext={() => navigateSzene(1)}
+              onMarkCommentsRead={handleMarkCommentsRead}
             />
           )}
           {!selectedSzeneId && (

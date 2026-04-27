@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info } from 'lucide-react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
 import { useAppSettings } from '../App'
@@ -16,6 +16,7 @@ interface SceneListProps {
   onSzeneCreated?: (szene: any) => void
   onSzeneDeleted?: (id: number) => void
   onSzenesReordered?: (scenes: any[]) => void
+  commentCounts?: Record<number, number>
 }
 
 export default function SceneList({
@@ -29,6 +30,7 @@ export default function SceneList({
   onSzeneCreated,
   onSzeneDeleted,
   onSzenesReordered,
+  commentCounts,
 }: SceneListProps) {
   const { sceneKuerzel } = useAppSettings()
   const [searchQuery, setSearchQuery] = useState('')
@@ -303,6 +305,8 @@ export default function SceneList({
 
           const sceneLabel = `${scene.scene_nummer}${scene.scene_nummer_suffix || ''}`
 
+          const unreadCount = commentCounts?.[scene.id] ?? 0
+
           return (
             <div
               key={scene.id}
@@ -337,6 +341,12 @@ export default function SceneList({
               <div className="rt">
                 {scene.dauer_min && <span>{scene.dauer_min} min</span>}
                 <div className="badges">
+                  {unreadCount > 0 && (
+                    <div className="comment-bubble" title={`${unreadCount} ungelesene Kommentare`}>
+                      <MessageCircle size={11} />
+                      <span>{unreadCount > 99 ? '99+' : unreadCount}</span>
+                    </div>
+                  )}
                   {scene.is_locked && <Lock size={11} className="lock-ico" />}
                   {scene.szeneninfo && (
                     <Tooltip text={scene.szeneninfo}>

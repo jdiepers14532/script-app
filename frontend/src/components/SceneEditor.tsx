@@ -14,6 +14,7 @@ interface SceneEditorProps {
   onSzeneUpdated?: (updated: any) => void
   onNavigatePrev?: () => void
   onNavigateNext?: () => void
+  onMarkCommentsRead?: (szeneId: number) => void
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -38,7 +39,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, onSzeneUpdated, onNavigatePrev, onNavigateNext }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -255,7 +256,11 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Speichert…</span>}
           {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg}</span>}
           {kommentareCount > 0 && (
-            <button className="btn ghost" title="Kommentare">
+            <button
+              className="btn ghost"
+              title="Kommentare anzeigen (als gelesen markieren)"
+              onClick={() => onMarkCommentsRead?.(szeneId)}
+            >
               <MessageSquare size={12} />
               {kommentareCount}
             </button>
