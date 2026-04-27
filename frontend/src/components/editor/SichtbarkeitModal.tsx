@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X, Eye, Lock, Users, Globe, Building } from 'lucide-react'
 import { api } from '../../api/client'
-import { Tooltip } from '../../sw-ui'
+import Tooltip from '../Tooltip'
 
 type SichtbarkeitState = 'privat' | 'colab' | 'review' | 'produktion' | 'alle'
 

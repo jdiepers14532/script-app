@@ -6,7 +6,7 @@ import { useEditorPrefs } from '../hooks/useEditorPrefs'
 import { useAppSettings } from '../App'
 import EditorPanel from '../components/editor/EditorPanel'
 import { api } from '../api/client'
-import { Tooltip } from '../sw-ui'
+import Tooltip from '../components/Tooltip'
 
 export default function DokumentEditorPage() {
   const [searchParams] = useSearchParams()

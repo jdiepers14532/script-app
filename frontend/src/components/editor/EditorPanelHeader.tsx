@@ -4,7 +4,7 @@ import { SICHTBARKEIT_COLORS } from './SichtbarkeitModal'
 import SichtbarkeitModal from './SichtbarkeitModal'
 import AbgabeModal from './AbgabeModal'
 import type { DokumentMeta, FassungMeta } from '../../hooks/useDokument'
-import { Tooltip } from '../../sw-ui'
+import Tooltip from '../Tooltip'
 
 const SICHTBARKEIT_ICONS: Record<string, React.ReactNode> = {
   privat:     <Lock size={11} />,
