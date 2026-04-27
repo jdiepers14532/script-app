@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ScriptPage from './pages/ScriptPage'
 import EditorPage from './pages/EditorPage'
+import DokumentEditorPage from './pages/DokumentEditorPage'
 import AdminPage from './pages/AdminPage'
 import ImportPage from './pages/ImportPage'
 import HilfePage from './pages/HilfePage'
@@ -83,6 +84,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<ScriptPage />} />
               <Route path="/editor" element={<EditorPage />} />
+              <Route path="/dokument-editor" element={<DokumentEditorPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/hilfe" element={<HilfePage />} />

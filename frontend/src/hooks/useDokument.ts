@@ -1,0 +1,134 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { api } from '../api/client'
+
+export interface DokumentMeta {
+  id: string
+  typ: string
+  staffel_id: string
+  folge_nummer: number
+  erstellt_von: string
+  erstellt_am: string
+  fassung_id?: string
+  fassung_nummer?: number
+  fassung_label?: string
+  sichtbarkeit?: string
+  abgegeben?: boolean
+  zuletzt_geaendert_am?: string
+  zuletzt_geaendert_von?: string
+}
+
+export interface FassungMeta {
+  id: string
+  dokument_id: string
+  fassung_nummer: number
+  fassung_label: string | null
+  sichtbarkeit: string
+  abgegeben: boolean
+  abgegeben_am: string | null
+  abgegeben_von: string | null
+  erstellt_von: string
+  erstellt_am: string
+  zuletzt_geaendert_am: string | null
+  zuletzt_geaendert_von: string | null
+  seitenformat: string
+  format_template_id: number | null
+  colab_gruppe_id: number | null
+  _access?: 'rw' | 'review' | 'r' | null
+}
+
+export interface FassungWithInhalt extends FassungMeta {
+  inhalt: any  // ProseMirror JSON
+  plaintext_index: string | null
+}
+
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+
+export function useDokument(staffelId: string | null, folgeNummer: number | null) {
+  const [dokumente, setDokumente] = useState<DokumentMeta[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    if (!staffelId || !folgeNummer) return
+    setLoading(true)
+    setError(null)
+    try {
+      const rows = await api.getDokumente(staffelId, folgeNummer)
+      setDokumente(rows)
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }, [staffelId, folgeNummer])
+
+  useEffect(() => { load() }, [load])
+
+  const createDokument = useCallback(async (typ: string) => {
+    if (!staffelId || !folgeNummer) return null
+    const result = await api.createDokument(staffelId, folgeNummer, typ)
+    await load()
+    return result
+  }, [staffelId, folgeNummer, load])
+
+  return { dokumente, loading, error, reload: load, createDokument }
+}
+
+export function useFassung(dokumentId: string | null) {
+  const [fassungen, setFassungen] = useState<FassungMeta[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!dokumentId) { setFassungen([]); return }
+    setLoading(true)
+    try {
+      const rows = await api.getFassungen(dokumentId)
+      setFassungen(rows)
+    } catch { setFassungen([]) }
+    finally { setLoading(false) }
+  }, [dokumentId])
+
+  useEffect(() => { load() }, [load])
+
+  return { fassungen, loading, reload: load }
+}
+
+export function useFassungContent(dokumentId: string | null, fassungId: string | null) {
+  const [fassung, setFassung] = useState<FassungWithInhalt | null>(null)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [loading, setLoading] = useState(false)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!dokumentId || !fassungId) { setFassung(null); return }
+    setLoading(true)
+    api.getFassung(dokumentId, fassungId)
+      .then(setFassung)
+      .catch(() => setFassung(null))
+      .finally(() => setLoading(false))
+  }, [dokumentId, fassungId])
+
+  const save = useCallback(async (inhalt: any, label?: string) => {
+    if (!dokumentId || !fassungId) return
+    setSaveStatus('saving')
+    try {
+      const updated = await api.saveFassung(dokumentId, fassungId, { inhalt, fassung_label: label })
+      setFassung(prev => prev ? { ...prev, ...updated } : updated)
+      setSaveStatus('saved')
+    } catch {
+      setSaveStatus('error')
+    }
+  }, [dokumentId, fassungId])
+
+  // Debounced auto-save
+  const scheduleSave = useCallback((inhalt: any) => {
+    setSaveStatus('saving')
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => save(inhalt), 1500)
+  }, [save])
+
+  // Cleanup
+  useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
+
+  return { fassung, loading, saveStatus, save, scheduleSave }
+}
