@@ -1264,8 +1264,8 @@ function DokumentEinstellungenTab() {
   const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    api.getOverrideRollen().then(setOverrideRollen).catch(() => {})
-    api.getFassungsNummerierung().then((m: string) => setNumModus(m as 'global' | 'per_typ')).catch(() => {})
+    api.getOverrideRollen().then((d: any) => setOverrideRollen(d.rollen ?? [])).catch(() => {})
+    api.getFassungsNummerierung().then((d: any) => setNumModus((d.modus ?? 'global') as 'global' | 'per_typ')).catch(() => {})
   }, [])
 
   const handleSave = async () => {

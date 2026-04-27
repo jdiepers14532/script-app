@@ -133,8 +133,18 @@ export default function EditorPanel({
         ) : !selectedDokument || !fassung ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              {!selectedDokument ? 'Kein Dokument gewählt' : 'Keine Fassung geladen'}
+              {!selectedDokument ? 'Dokument-Typ auswählen' : 'Keine Fassung geladen'}
             </p>
+            {!selectedDokument && allDokumente.length === 0 && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['drehbuch', 'storyline', 'notiz'].map(typ => (
+                  <button key={typ} onClick={() => onCreateDokument(typ)}
+                    style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+                    {typ}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : editorModus === 'screenplay' ? (
           <ScreenplayEditor
