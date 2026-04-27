@@ -38,6 +38,7 @@ export const api = {
   // Stages
   getStages: (staffelId: string, folgeNummer: number) =>
     request<any[]>('GET', `/stages?staffel_id=${encodeURIComponent(staffelId)}&folge_nummer=${folgeNummer}`),
+  getStage: (id: number) => request<any>('GET', `/stages/${id}`),
   createStage: (staffelId: string, folgeNummer: number, proddbBlockId: string | null, data: any) =>
     request<any>('POST', '/stages', { staffel_id: staffelId, folge_nummer: folgeNummer, proddb_block_id: proddbBlockId, ...data }),
   updateStage: (id: number, data: any) => request<any>('PUT', `/stages/${id}`, data),

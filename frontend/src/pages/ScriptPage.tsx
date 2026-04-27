@@ -18,6 +18,22 @@ export default function ScriptPage() {
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
 
+  // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
+  const [deepLink] = useState<{ staffelId?: string; folgeNummer?: number; stageId?: number; szeneId?: number } | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const scene = params.get('scene')
+    if (!scene) return null
+    const staffel = params.get('staffel')
+    const folge = params.get('folge')
+    const stage = params.get('stage')
+    // Clean URL immediately
+    window.history.replaceState({}, '', window.location.pathname)
+    if (staffel && folge && stage) {
+      return { staffelId: staffel, folgeNummer: parseInt(folge), stageId: parseInt(stage), szeneId: parseInt(scene) }
+    }
+    return { szeneId: parseInt(scene) }
+  })
+
   const [selectedStaffelId, setSelectedStaffelId] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
@@ -58,17 +74,42 @@ export default function ScriptPage() {
   selectedStaffelIdRef.current = selectedStaffelId
 
   // Load user settings (sidebar + last navigation position)
+  // Deep-link (?scene=...) takes priority over saved settings
   useEffect(() => {
+    if (deepLink && !deepLink.staffelId) {
+      // Minimal deep-link — only scene ID, need to resolve staffel/folge/stage via API
+      api.getSzene(deepLink.szeneId!).then(scene =>
+        api.getStage(scene.stage_id).then(stage => {
+          pendingNav.current = {
+            staffelId: stage.staffel_id,
+            folgeNummer: stage.folge_nummer,
+            stageId: stage.id,
+            szeneId: deepLink.szeneId,
+          }
+          setSettingsLoaded(true)
+        })
+      ).catch(() => setSettingsLoaded(true))
+      return
+    }
+
     api.getSettings().then(s => {
       const ui = s?.ui_settings || {}
       if (typeof ui.scene_list_collapsed === 'boolean') setSidebarCollapsed(ui.scene_list_collapsed)
-      if (ui.last_staffel_id)    pendingNav.current.staffelId   = ui.last_staffel_id
-      if (ui.last_folge_nummer)  pendingNav.current.folgeNummer = ui.last_folge_nummer
-      if (ui.last_stage_id)      pendingNav.current.stageId     = ui.last_stage_id
-      if (ui.last_szene_id)      pendingNav.current.szeneId     = ui.last_szene_id
+      if (deepLink) {
+        // Full deep-link (staffel + folge + stage + scene) — override saved nav
+        if (deepLink.staffelId)   pendingNav.current.staffelId   = deepLink.staffelId
+        if (deepLink.folgeNummer) pendingNav.current.folgeNummer = deepLink.folgeNummer
+        if (deepLink.stageId)     pendingNav.current.stageId     = deepLink.stageId
+        if (deepLink.szeneId)     pendingNav.current.szeneId     = deepLink.szeneId
+      } else {
+        if (ui.last_staffel_id)    pendingNav.current.staffelId   = ui.last_staffel_id
+        if (ui.last_folge_nummer)  pendingNav.current.folgeNummer = ui.last_folge_nummer
+        if (ui.last_stage_id)      pendingNav.current.stageId     = ui.last_stage_id
+        if (ui.last_szene_id)      pendingNav.current.szeneId     = ui.last_szene_id
+      }
       setSettingsLoaded(true)
     }).catch(() => setSettingsLoaded(true))
-  }, [])
+  }, [deepLink])
 
   // Debounced save layout to backend
   const saveSettings = useCallback((collapsed: boolean) => {
