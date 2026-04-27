@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { Lock, ChevronLeft, ChevronRight, FileDown, MessageSquare, GitCompare, Info } from 'lucide-react'
+import { Lock, FileDown, MessageSquare } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
@@ -61,6 +61,27 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const panelsRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
   const overscrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cycleIntExt = useCallback(async () => {
+    const next = scene?.int_ext === 'int' ? 'ext' : 'int'
+    try {
+      const updated = await api.updateSzene(szeneId, { int_ext: next })
+      setScene(updated); onSzeneUpdated?.(updated)
+    } catch {}
+  }, [scene, szeneId, onSzeneUpdated])
+
+  const cycleTageszeit = useCallback(async () => {
+    const order = ['TAG', 'NACHT', 'ABEND']
+    const idx = order.indexOf(scene?.tageszeit ?? 'TAG')
+    const next = order[(idx + 1) % order.length]
+    try {
+      const updated = await api.updateSzene(szeneId, { tageszeit: next })
+      setScene(updated); onSzeneUpdated?.(updated)
+    } catch {}
+  }, [scene, szeneId, onSzeneUpdated])
+
+  const ieAbbr = (ie: string) => ie === 'int' ? 'I' : 'A'
+  const tzAbbr = (tz: string) => ({ TAG: 'T', NACHT: 'N', ABEND: 'A' }[tz] ?? 'T')
 
   const handlePbodyWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const el = e.currentTarget
@@ -240,187 +261,98 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
 
   return (
     <div className="detail">
-      {/* Sticky head */}
-      <div className="detail-head">
-        <div className="scene-title-bar">
+      {/* Lean header — alles inline, kein Kasten */}
+      <div className="detail-head" style={{ borderLeft: `3px solid ${stripeColor}` }}>
+
+        {/* Zeile 1: SZ · I/T-Toggle · Spielzeit · Spacer · Actions */}
+        <div className="scene-r1">
           <span className="scene-big">SZ {scene.scene_nummer}</span>
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
-            background: stripeColor + '20', border: `1px solid ${stripeColor}66`, color: stripeColor,
-            letterSpacing: '0.3px', whiteSpace: 'nowrap',
-          }}>
-            {scene.int_ext} · {scene.tageszeit}
+          <span
+            className="ie-toggle"
+            onClick={cycleIntExt}
+            title={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'}
+          >
+            {ieAbbr(scene.int_ext ?? 'int')}
           </span>
-          <span className="scene-title">{scene.ort_name}</span>
+          <span className="ie-sep">/</span>
+          <span
+            className="ie-toggle"
+            onClick={cycleTageszeit}
+            title={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`}
+          >
+            {tzAbbr(scene.tageszeit ?? 'TAG')}
+          </span>
+          <Tooltip text="Spielzeit ist die wahrscheinliche Uhrzeit zu der die Handlung dieser Szene spielt.">
+            <input
+              key={`sz-${szeneId}`}
+              className="spielzeit-inp"
+              defaultValue={scene.spielzeit ?? ''}
+              placeholder="00:00"
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.spielzeit ?? null))
+                  api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+              }}
+            />
+          </Tooltip>
           <span className="spacer" />
           {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Speichert…</span>}
           {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg}</span>}
           {kommentareCount > 0 && (
-            <button
-              className="btn ghost"
-              title="Kommentare anzeigen (als gelesen markieren)"
-              onClick={() => onMarkCommentsRead?.(szeneId)}
-            >
-              <MessageSquare size={12} />
-              {kommentareCount}
+            <button className="btn ghost" title="Kommentare (als gelesen markieren)" onClick={() => onMarkCommentsRead?.(szeneId)}>
+              <MessageSquare size={12} />{kommentareCount}
             </button>
           )}
           {sceneIsLocked ? (
-            <button className="btn lock held">
-              <Lock size={12} />
-              Gelockt
-            </button>
+            <button className="btn lock held"><Lock size={12} />Gelockt</button>
           ) : (
-            <button className="btn ghost" onClick={handleRequestLock} title="Lock anfordern">
-              <Lock size={12} />
-              Locken
-            </button>
+            <button className="btn ghost" onClick={handleRequestLock} title="Lock anfordern"><Lock size={12} />Locken</button>
           )}
           <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId).then(r => r.blob()).then(b => {
-            const url = URL.createObjectURL(b)
-            window.open(url, '_blank')
+            const url = URL.createObjectURL(b); window.open(url, '_blank')
           })}>
-            <FileDown size={12} />
-            PDF
+            <FileDown size={12} />PDF
           </button>
         </div>
-      </div>
 
-      {/* Meta card — 4 Zeilen */}
-      <div className="meta-card" key={szeneId} style={{ '--stripe': stripeColor } as React.CSSProperties}>
-
-        {/* Z1: Tageszeit | Stimmung | Vorstoppzeit */}
-        <div className="metarow">
-          <div className="cell">
-            <span className="lbl">Tageszeit</span>
-            <span className="val">{scene.tageszeit}</span>
+        {/* Zeilen 2–6: Motiv + Felder ab fester px-Position */}
+        <div className="scene-fields" key={szeneId}>
+          <div className="sf-row">
+            <span className="sf-motiv">{scene.ort_name}</span>
           </div>
-          <div className="cell" style={{ flex: 2 }}>
-            <span className="lbl">Stimmung</span>
+          <div className="sf-row">
             <input
-              className="meta-input"
-              defaultValue={scene.stimmung ?? ''}
-              placeholder="—"
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.stimmung ?? null)) {
-                  api.updateSzene(szeneId, { stimmung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }
-              }}
-            />
-          </div>
-          {vorstoppDrehbuch && (
-            <div className="cell">
-              <span className="lbl">Vorstoppzeit</span>
-              <span className="val">{Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)} min</span>
-            </div>
-          )}
-        </div>
-
-        {/* Z2: Spieltag | Spielzeit | Oneliner | Seiten */}
-        <div className="metarow">
-          <div className="cell">
-            <span className="lbl">Spieltag</span>
-            <input
-              className="meta-input"
-              type="number"
-              defaultValue={scene.spieltag ?? ''}
-              placeholder="—"
-              onBlur={e => {
-                const val = e.target.value !== '' ? parseInt(e.target.value, 10) : null
-                if (val !== (scene.spieltag ?? null)) {
-                  api.updateSzene(szeneId, { spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }
-              }}
-            />
-          </div>
-          <div className="cell">
-            <span className="lbl" style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              Spielzeit
-              <Tooltip text="Spielzeit ist die wahrscheinliche Uhrzeit zu der die Handlung dieser Szene spielt.">
-                <Info size={10} style={{ color: 'var(--text-muted)' }} />
-              </Tooltip>
-            </span>
-            <input
-              className="meta-input"
-              defaultValue={scene.spielzeit ?? ''}
-              placeholder="z.B. 08:30"
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.spielzeit ?? null)) {
-                  api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }
-              }}
-            />
-          </div>
-          <div className="cell" style={{ flex: 3 }}>
-            <span className="lbl">Oneliner</span>
-            <input
-              className="meta-input"
+              className="sf-input"
               defaultValue={scene.zusammenfassung ?? ''}
-              placeholder="—"
+              placeholder="Oneliner…"
               onBlur={e => {
                 const val = e.target.value.trim() || null
-                if (val !== (scene.zusammenfassung ?? null)) {
+                if (val !== (scene.zusammenfassung ?? null))
                   api.updateSzene(szeneId, { zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }
               }}
             />
           </div>
-          <div className="cell">
-            <span className="lbl">Seiten</span>
+          <div className="sf-row sf-chars">
+            <span className="sf-tag">R·</span>
+            <span className="sf-charlist">
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any) => c.name).join(', ') || <em className="sf-empty">—</em>}
+            </span>
+          </div>
+          <div className="sf-row sf-chars">
+            <span className="sf-tag">K·</span>
+            <span className="sf-charlist">
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => c.name).join(', ') || <em className="sf-empty">—</em>}
+            </span>
+          </div>
+          <div className="sf-row">
             <input
-              className="meta-input"
-              defaultValue={scene.seiten ?? ''}
-              placeholder="z.B. 2 5/8"
+              className="sf-input sf-notiz"
+              defaultValue={scene.stimmung ?? ''}
+              placeholder="Notiz…"
               onBlur={e => {
                 const val = e.target.value.trim() || null
-                if (val !== (scene.seiten ?? null)) {
-                  api.updateSzene(szeneId, { seiten: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Z3: Rollen | Komparsen */}
-        <div className="metarow">
-          <div className="cell" style={{ flex: 1 }}>
-            <span className="lbl">Rollen</span>
-            <span className="val" style={{ fontWeight: 400, fontSize: 12 }}>
-              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any) => c.name).join(', ') || '—'}
-            </span>
-          </div>
-          <div className="cell" style={{ flex: 1 }}>
-            <span className="lbl">Komparsen</span>
-            <span className="val" style={{ fontWeight: 400, fontSize: 12 }}>
-              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => c.name).join(', ') || '—'}
-            </span>
-          </div>
-        </div>
-
-        {/* Z4: Storyline + Nav-Pfeile */}
-        <div className="desc-row">
-          <div className="lbl">Storyline</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 4 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingTop: 1, flexShrink: 0 }}>
-              <button className="nav-arrow" title="Vorherige Szene" onClick={onNavigatePrev} disabled={!onNavigatePrev}>
-                <ChevronLeft size={13} />
-              </button>
-              <button className="nav-arrow" title="Nächste Szene" onClick={onNavigateNext} disabled={!onNavigateNext}>
-                <ChevronRight size={13} />
-              </button>
-            </div>
-            <textarea
-              className="meta-input"
-              defaultValue={scene.storyline ?? ''}
-              placeholder="—"
-              rows={2}
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.storyline ?? null)) {
-                  api.updateSzene(szeneId, { storyline: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }
+                if (val !== (scene.stimmung ?? null))
+                  api.updateSzene(szeneId, { stimmung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
               }}
             />
           </div>
