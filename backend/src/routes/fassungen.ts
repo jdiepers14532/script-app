@@ -207,7 +207,8 @@ fassungenRouter.put('/:fassungId', async (req, res) => {
            fassung_label = COALESCE($3, fassung_label),
            seitenformat = COALESCE($4, seitenformat),
            zuletzt_geaendert_von = $5,
-           zuletzt_geaendert_am = NOW()
+           zuletzt_geaendert_am = NOW(),
+           yjs_state = NULL
        WHERE id = $6 RETURNING *`,
       [inhalt ?? null, plaintextIndex, fassung_label ?? null, seitenformat ?? null, user.user_id, fassungId]
     )

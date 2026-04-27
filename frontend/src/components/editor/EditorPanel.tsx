@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useFassung, useFassungContent } from '../../hooks/useDokument'
 import type { DokumentMeta, FassungMeta } from '../../hooks/useDokument'
+import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
 import LastEditedRow from './LastEditedRow'
+import CollaborationPresence from './CollaborationPresence'
 import ScreenplayEditor from './ScreenplayEditor'
 import RichTextEditor from './RichTextEditor'
 import { api } from '../../api/client'
@@ -80,6 +82,13 @@ export default function EditorPanel({
 
   const isReadOnly = fassung?._access === 'r' || fassung?._access === 'review' || fassung?.abgegeben
 
+  // Collaboration: only for colab sichtbarkeit and rw access
+  const collabEnabled = fassung?.sichtbarkeit === 'colab' && fassung?._access === 'rw'
+  const { ydoc, provider, status: collabStatus, users: collabUsers } = useCollaboration({
+    fassungId: collabEnabled ? selectedFassungId : null,
+    enabled: collabEnabled,
+  })
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <EditorPanelHeader
@@ -98,13 +107,22 @@ export default function EditorPanel({
       />
 
       {fassung && (
-        <LastEditedRow
-          dokumentId={selectedDokumentId!}
-          fassungId={selectedFassungId!}
-          zuletzt_geaendert_von={fassung.zuletzt_geaendert_von}
-          zuletzt_geaendert_am={fassung.zuletzt_geaendert_am}
-          saveStatus={saveStatus}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ flex: 1 }}>
+            <LastEditedRow
+              dokumentId={selectedDokumentId!}
+              fassungId={selectedFassungId!}
+              zuletzt_geaendert_von={fassung.zuletzt_geaendert_von}
+              zuletzt_geaendert_am={fassung.zuletzt_geaendert_am}
+              saveStatus={saveStatus}
+            />
+          </div>
+          {collabEnabled && (
+            <div style={{ padding: '0 10px' }}>
+              <CollaborationPresence status={collabStatus} users={collabUsers} />
+            </div>
+          )}
+        </div>
       )}
 
       <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -126,6 +144,8 @@ export default function EditorPanel({
             seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
             showShadow={prefs.showShadow}
             formatElements={formatElements}
+            ydoc={ydoc}
+            provider={provider}
           />
         ) : (
           <RichTextEditor
@@ -134,6 +154,8 @@ export default function EditorPanel({
             readOnly={!!isReadOnly}
             seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
             showShadow={prefs.showShadow}
+            ydoc={ydoc}
+            provider={provider}
           />
         )}
       </div>

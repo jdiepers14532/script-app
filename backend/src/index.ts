@@ -6,7 +6,10 @@ import rateLimit from 'express-rate-limit'
 import * as dotenv from 'dotenv'
 import * as fs from 'fs'
 import * as path from 'path'
+import { createServer } from 'http'
+import { WebSocketServer } from 'ws'
 import { pool } from './db'
+import { createHocuspocusServer } from './hocuspocus'
 
 import healthRouter from './routes/health'
 import staffelnRouter from './routes/staffeln'
@@ -166,6 +169,7 @@ async function runMigrations() {
     'v20_szenen_extended.sql', 'v21_szenen_updated_by.sql', 'v22_szenen_info_logging.sql',
     'v23_dokument_system.sql',
     'v24_storyline_richtext.sql',
+    'v25_yjs_state.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
@@ -183,11 +187,29 @@ async function runMigrations() {
   }
 }
 
-app.listen(PORT, async () => {
+// Create HTTP server for Express + Hocuspocus WebSocket on same port
+const httpServer = createServer(app)
+
+// Hocuspocus real-time collaboration (WebSocket at /ws/collab)
+const hocuspocus = createHocuspocusServer()
+const wss = new WebSocketServer({ noServer: true })
+
+httpServer.on('upgrade', (request, socket, head) => {
+  const url = request.url ?? ''
+  if (url.startsWith('/ws/collab')) {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      hocuspocus.handleConnection(ws, request)
+    })
+  } else {
+    socket.destroy()
+  }
+})
+
+httpServer.listen(PORT, async () => {
   try {
     await runMigrations()
   } catch (err) {
     console.error('Migration error:', err)
   }
-  console.log(`Script backend running on port ${PORT}`)
+  console.log(`Script backend running on port ${PORT} (HTTP + WebSocket)`)
 })

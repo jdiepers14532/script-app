@@ -1,3 +1,7 @@
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
+import * as Y from 'yjs'
+import type { HocuspocusProvider } from '@hocuspocus/provider'
 import { useEffect, useRef, useCallback } from 'react'
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -27,6 +31,8 @@ const ELEMENT_TYPE_LABELS: Record<ScreenplayElementType, string> = {
 }
 
 interface ScreenplayEditorProps {
+  ydoc?: Y.Doc | null
+  provider?: HocuspocusProvider | null
   initialContent?: any  // ProseMirror JSON
   onSave?: (content: any) => void
   autoSaveMs?: number
@@ -46,12 +52,22 @@ export default function ScreenplayEditor({
   showShadow = true,
   formatElements = [],
   placeholder = 'INT. ORT - TAG',
+  ydoc,
+  provider,
 }: ScreenplayEditorProps) {
   injectScreenplayCSS()
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
+
+  const collabExtensions = ydoc ? [
+    Collaboration.configure({ document: ydoc }),
+    ...(provider ? [CollaborationCursor.configure({
+      provider,
+      user: { name: 'Ich', color: '#007AFF' },
+    })] : []),
+  ] : []
 
   const editor = useEditor({
     extensions: [
@@ -65,6 +81,7 @@ export default function ScreenplayEditor({
         blockquote: false,
         codeBlock: false,
         horizontalRule: false,
+        history: ydoc ? false : undefined,
       }),
       ScreenplayExtension.configure({ formatElements }),
       AnnotationMark,
@@ -72,11 +89,12 @@ export default function ScreenplayEditor({
         placeholder,
         emptyEditorClass: 'sp-editor-empty',
       }),
+      ...collabExtensions,
     ],
-    content: initialContent || {
+    content: ydoc ? undefined : (initialContent || {
       type: 'doc',
       content: [{ type: 'screenplay_element', attrs: { element_type: 'scene_heading' } }],
-    },
+    }),
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       if (readOnly || !onSaveRef.current) return

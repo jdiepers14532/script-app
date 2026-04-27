@@ -1,3 +1,7 @@
+import Collaboration from '@tiptap/extension-collaboration'
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
+import * as Y from 'yjs'
+import type { HocuspocusProvider } from '@hocuspocus/provider'
 import { useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -14,6 +18,8 @@ import {
 } from 'lucide-react'
 
 interface RichTextEditorProps {
+  ydoc?: Y.Doc | null
+  provider?: HocuspocusProvider | null
   initialContent?: any  // ProseMirror JSON
   onSave?: (content: any) => void
   autoSaveMs?: number
@@ -51,14 +57,24 @@ export default function RichTextEditor({
   seitenformat = 'a4',
   showShadow = true,
   placeholder = 'Text eingeben…',
+  ydoc,
+  provider,
 }: RichTextEditorProps) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
 
+  const collabExtensions = ydoc ? [
+    Collaboration.configure({ document: ydoc }),
+    ...(provider ? [CollaborationCursor.configure({
+      provider,
+      user: { name: 'Ich', color: '#007AFF' },
+    })] : []),
+  ] : []
+
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ history: ydoc ? false : undefined }),
       Underline,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Image.configure({ inline: false }),
@@ -68,7 +84,7 @@ export default function RichTextEditor({
         emptyEditorClass: 'rt-editor-empty',
       }),
     ],
-    content: initialContent || { type: 'doc', content: [{ type: 'paragraph' }] },
+    content: ydoc ? undefined : (initialContent || { type: 'doc', content: [{ type: 'paragraph' }] }),
     editable: !readOnly,
     onUpdate: ({ editor }) => {
       if (readOnly || !onSaveRef.current) return
