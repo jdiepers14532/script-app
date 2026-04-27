@@ -116,7 +116,7 @@ export const dokumentRouter = Router({ mergeParams: true })
 dokumentRouter.use(authMiddleware)
 
 dokumentRouter.get('/', async (req, res) => {
-  const { dokumentId } = req.params
+  const { dokumentId } = req.params as any
   try {
     const dok = await queryOne('SELECT * FROM folgen_dokumente WHERE id = $1', [dokumentId])
     if (!dok) return res.status(404).json({ error: 'Dokument nicht gefunden' })
@@ -128,7 +128,7 @@ dokumentRouter.get('/', async (req, res) => {
 
 // DELETE /api/folgen/:staffelId/:folgeNummer/dokumente/:dokumentId — admin only
 dokumentRouter.delete('/', async (req, res) => {
-  const { dokumentId } = req.params
+  const { dokumentId } = req.params as any
   const user = req.user!
   const adminRoles = ['superadmin', 'herstellungsleitung']
   if (!user.roles.some(r => adminRoles.includes(r))) {

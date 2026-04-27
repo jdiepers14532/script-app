@@ -34,8 +34,8 @@ import {
   stageLabelsRouter, revisionColorsRouter,
   revisionEinstellungenRouter, szenenRevisionenRouter,
 } from './routes/revision'
-import { folgenDokumenteRouter, dokumentRouter, annotationenRouter } from './routes/dokumente'
-import { fassungenRouter } from './routes/fassungen'
+import { folgenDokumenteRouter, dokumentRouter } from './routes/dokumente'
+import { fassungenRouter, annotationenRouter } from './routes/fassungen'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
 

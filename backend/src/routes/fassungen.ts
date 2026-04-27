@@ -57,7 +57,7 @@ async function checkFassungAccess(fassungId: string, userId: string, userRoles: 
 
 // GET /api/dokumente/:dokumentId/fassungen — list (meta, no inhalt)
 fassungenRouter.get('/', async (req, res) => {
-  const { dokumentId } = req.params
+  const { dokumentId } = req.params as any
   const user = req.user!
   try {
     const rows = await query(
@@ -97,7 +97,7 @@ fassungenRouter.get('/', async (req, res) => {
 
 // POST /api/dokumente/:dokumentId/fassungen — create new Fassung
 fassungenRouter.post('/', async (req, res) => {
-  const { dokumentId } = req.params
+  const { dokumentId } = req.params as any
   const { fassung_label, sichtbarkeit, colab_gruppe_id, seitenformat } = req.body
   const user = req.user!
   try {
@@ -168,7 +168,7 @@ fassungenRouter.post('/', async (req, res) => {
 
 // GET /api/dokumente/:dokumentId/fassungen/:fassungId — get incl. inhalt
 fassungenRouter.get('/:fassungId', async (req, res) => {
-  const { fassungId } = req.params
+  const { fassungId } = req.params as any
   const user = req.user!
   try {
     const access = await checkFassungAccess(fassungId, user.user_id, user.roles)
@@ -182,7 +182,7 @@ fassungenRouter.get('/:fassungId', async (req, res) => {
 
 // PUT /api/dokumente/:dokumentId/fassungen/:fassungId — save inhalt
 fassungenRouter.put('/:fassungId', async (req, res) => {
-  const { fassungId } = req.params
+  const { fassungId } = req.params as any
   const { inhalt, fassung_label, seitenformat } = req.body
   const user = req.user!
   try {
@@ -226,7 +226,7 @@ fassungenRouter.put('/:fassungId', async (req, res) => {
 
 // POST /api/dokumente/:dokumentId/fassungen/:fassungId/abgabe — freeze
 fassungenRouter.post('/:fassungId/abgabe', async (req, res) => {
-  const { dokumentId, fassungId } = req.params
+  const { dokumentId, fassungId } = req.params as any
   const { erstelle_naechste } = req.body  // boolean
   const user = req.user!
   try {
@@ -301,7 +301,7 @@ fassungenRouter.post('/:fassungId/abgabe', async (req, res) => {
 
 // PUT /api/dokumente/:dokumentId/fassungen/:fassungId/sichtbarkeit
 fassungenRouter.put('/:fassungId/sichtbarkeit', async (req, res) => {
-  const { fassungId, dokumentId } = req.params
+  const { fassungId, dokumentId } = req.params as any
   const { sichtbarkeit, colab_gruppe_id, produktion_gruppe_id } = req.body
   const user = req.user!
 
@@ -340,7 +340,7 @@ fassungenRouter.put('/:fassungId/sichtbarkeit', async (req, res) => {
 
 // GET /api/dokumente/:dokumentId/fassungen/:fassungId/autoren
 fassungenRouter.get('/:fassungId/autoren', async (req, res) => {
-  const { fassungId } = req.params
+  const { fassungId } = req.params as any
   const user = req.user!
   try {
     const access = await checkFassungAccess(fassungId, user.user_id, user.roles)
@@ -354,7 +354,7 @@ fassungenRouter.get('/:fassungId/autoren', async (req, res) => {
 
 // POST /api/dokumente/:dokumentId/fassungen/:fassungId/autoren
 fassungenRouter.post('/:fassungId/autoren', async (req, res) => {
-  const { fassungId, dokumentId } = req.params
+  const { fassungId, dokumentId } = req.params as any
   const { user_id, user_name, rolle, cursor_farbe } = req.body
   const reqUser = req.user!
   if (!user_id || !rolle) return res.status(400).json({ error: 'user_id und rolle required' })
@@ -389,7 +389,7 @@ fassungenRouter.post('/:fassungId/autoren', async (req, res) => {
 
 // DELETE /api/dokumente/:dokumentId/fassungen/:fassungId/autoren/:userId
 fassungenRouter.delete('/:fassungId/autoren/:userId', async (req, res) => {
-  const { fassungId, userId } = req.params
+  const { fassungId, userId } = req.params as any
   const reqUser = req.user!
   try {
     const access = await checkFassungAccess(fassungId, reqUser.user_id, reqUser.roles)
@@ -411,7 +411,7 @@ fassungenRouter.delete('/:fassungId/autoren/:userId', async (req, res) => {
 
 // GET /api/dokumente/:dokumentId/fassungen/:fassungId/annotationen
 fassungenRouter.get('/:fassungId/annotationen', async (req, res) => {
-  const { fassungId } = req.params
+  const { fassungId } = req.params as any
   const user = req.user!
   try {
     const access = await checkFassungAccess(fassungId, user.user_id, user.roles)
@@ -430,7 +430,7 @@ fassungenRouter.get('/:fassungId/annotationen', async (req, res) => {
 
 // POST /api/dokumente/:dokumentId/fassungen/:fassungId/annotationen
 fassungenRouter.post('/:fassungId/annotationen', async (req, res) => {
-  const { fassungId, dokumentId } = req.params
+  const { fassungId, dokumentId } = req.params as any
   const { von_pos, bis_pos, text, typ } = req.body
   const user = req.user!
   if (von_pos == null || bis_pos == null || !text) {
@@ -509,7 +509,7 @@ annotationenRouter.delete('/:id', async (req, res) => {
 
 // GET /api/dokumente/:dokumentId/fassungen/:fassungId/audit
 fassungenRouter.get('/:fassungId/audit', async (req, res) => {
-  const { fassungId } = req.params
+  const { fassungId } = req.params as any
   const user = req.user!
   try {
     const access = await checkFassungAccess(fassungId, user.user_id, user.roles)
