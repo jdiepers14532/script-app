@@ -34,6 +34,10 @@ import {
   stageLabelsRouter, revisionColorsRouter,
   revisionEinstellungenRouter, szenenRevisionenRouter,
 } from './routes/revision'
+import { folgenDokumenteRouter, dokumentRouter, annotationenRouter } from './routes/dokumente'
+import { fassungenRouter } from './routes/fassungen'
+import dokAdminRouter from './routes/dokument-admin'
+import autocompleteRouter from './routes/autocomplete'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -121,6 +125,27 @@ app.use('/api/staffeln/:staffelId/revision-colors', (req, _res, next) => { (req.
 app.use('/api/staffeln/:staffelId/revision-einstellungen', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, revisionEinstellungenRouter)
 app.use('/api/szenen/:szeneId/revisionen', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenRevisionenRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
 
+// Dokument-Editor System
+app.use('/api/folgen/:staffelId/:folgeNummer/dokumente', (req, _res, next) => {
+  (req.params as any).staffelId = req.params.staffelId
+  ;(req.params as any).folgeNummer = req.params.folgeNummer
+  next()
+}, folgenDokumenteRouter)
+app.use('/api/folgen/:staffelId/:folgeNummer/dokumente/:dokumentId', (req, _res, next) => {
+  (req.params as any).dokumentId = req.params.dokumentId
+  next()
+}, dokumentRouter)
+app.use('/api/dokumente/:dokumentId/fassungen', (req, _res, next) => {
+  (req.params as any).dokumentId = req.params.dokumentId
+  next()
+}, fassungenRouter)
+app.use('/api/dokumente/:dokumentId/annotationen', (req, _res, next) => {
+  (req.params as any).dokumentId = req.params.dokumentId
+  next()
+}, annotationenRouter)
+app.use('/api/admin', dokAdminRouter)
+app.use('/api/autocomplete', autocompleteRouter)
+
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
   try {
@@ -139,6 +164,7 @@ async function runMigrations() {
     'v12_export_logs.sql', 'v13_app_settings.sql',
     'v16_szenen_columns.sql', 'v17_characters.sql', 'v18_vorstopp.sql', 'v19_stages_revision.sql',
     'v20_szenen_extended.sql', 'v21_szenen_updated_by.sql', 'v22_szenen_info_logging.sql',
+    'v23_dokument_system.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
