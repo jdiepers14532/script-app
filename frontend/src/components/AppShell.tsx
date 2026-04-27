@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, Minimize2, Maximize2, Columns2, PanelLeft, PanelRight,
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
-  X, User, Settings2, ExternalLink, Check, LogOut, BookOpen,
+  X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext } from '../App'
@@ -47,6 +47,7 @@ export interface TweakState {
   scriptFont: string
   fontSize: number
   scrollNavDelay: number
+  showPageShadow: boolean
 }
 
 // ── Wissenschaftlich empfohlene Hintergrundpaletten ──────────────────────────
@@ -164,6 +165,7 @@ const DEFAULT_TWEAKS: TweakState = {
   scriptFont: SCRIPT_FONTS[0].value,
   fontSize: 13,
   scrollNavDelay: 1000,
+  showPageShadow: true,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -468,6 +470,7 @@ export default function AppShell({
           scriptFont:        s.scriptFont        ?? SCRIPT_FONTS[0].value,
           fontSize:          typeof s.fontSize === 'number' ? s.fontSize : 13,
           scrollNavDelay:    typeof s.scrollNavDelay === 'number' ? s.scrollNavDelay : 1000,
+          showPageShadow:    typeof s.showPageShadow === 'boolean' ? s.showPageShadow : true,
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -833,7 +836,7 @@ export default function AppShell({
         data-breakdown={tweaks.breakdown ? 'on' : 'off'}
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
-        <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay }}>
+        <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow }}>
           <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
             {children}
           </PanelModeContext.Provider>
@@ -905,6 +908,13 @@ export default function AppShell({
               <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')} title="Beide Panels"><Columns2 size={13} /></button>
               <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')} title={`Nur linkes Panel (${treatmentLabel})`}><PanelLeft size={13} /></button>
               <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')} title="Nur rechtes Panel (Drehbuch)"><PanelRight size={13} /></button>
+            </div>
+          </TweakGroup>
+
+          <TweakGroup label="Editor-Ansicht">
+            <div className="seg">
+              <button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)} title="Blatt mit Schatten"><BookOpen size={13} /></button>
+              <button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)} title="Fliesstext mit Seitentrennlinie"><AlignLeft size={13} /></button>
             </div>
           </TweakGroup>
 

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, Eye, Send, Plus, Lock, Users, Globe, Building, BookOpen, AlignLeft } from 'lucide-react'
+import { ChevronDown, Eye, Send, Plus, Lock, Users, Globe, Building } from 'lucide-react'
 import { SICHTBARKEIT_COLORS } from './SichtbarkeitModal'
 import SichtbarkeitModal from './SichtbarkeitModal'
 import AbgabeModal from './AbgabeModal'
@@ -29,8 +29,6 @@ interface Props {
   staffelId: string
   folgeNummer: number
   customTypen?: { name: string; editor_modus: string }[]
-  showShadow?: boolean
-  onToggleShadow?: () => void
   onSelectDokument: (dokumentId: string) => void
   onSelectFassung: (fassungId: string) => void
   onCreateDokument: (typ: string) => void
@@ -42,8 +40,6 @@ export default function EditorPanelHeader({
   dokument, allDokumente, fassungen, selectedFassungId,
   staffelId, folgeNummer,
   customTypen = [],
-  showShadow = true,
-  onToggleShadow,
   onSelectDokument, onSelectFassung, onCreateDokument, onCreateFassung, onFassungUpdated,
 }: Props) {
   const [showTypMenu, setShowTypMenu] = useState(false)
@@ -178,18 +174,6 @@ export default function EditorPanelHeader({
       )}
 
       <div style={{ flex: 1 }} />
-
-      {/* Ansichts-Toggle: Blatt mit Schatten ↔ Fließtext mit Trennlinie */}
-      {onToggleShadow && (
-        <Tooltip text={showShadow ? 'Blatt-Ansicht — klicken für Fließtext' : 'Fließtext-Ansicht — klicken für Blatt'}>
-          <button
-            onClick={onToggleShadow}
-            style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: showShadow ? 'var(--bg-active)' : 'transparent', cursor: 'pointer', color: showShadow ? 'var(--text-primary)' : 'var(--text-muted)' }}
-          >
-            {showShadow ? <BookOpen size={13} /> : <AlignLeft size={13} />}
-          </button>
-        </Tooltip>
-      )}
 
       {/* Abgabe-Button — nur wenn aktiv & nicht abgegeben & rw-Zugriff */}
       {selectedFassung && !selectedFassung.abgegeben && selectedFassung._access === 'rw' && (

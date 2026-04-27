@@ -9,6 +9,7 @@ import ScreenplayEditor from './ScreenplayEditor'
 import RichTextEditor from './RichTextEditor'
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
+import { useUserPrefs } from '../../App'
 
 // Editor modus per document type
 const EDITOR_MODUS: Record<string, 'screenplay' | 'richtext'> = {
@@ -33,7 +34,8 @@ export default function EditorPanel({
   staffelId, folgeNummer, allDokumente, customTypen = [], formatElements = [],
   defaultTyp, onCreateDokument, onReloadDokumente,
 }: Props) {
-  const { prefs, updatePrefs } = useEditorPrefs()
+  const { prefs } = useEditorPrefs()
+  const { showPageShadow } = useUserPrefs()
 
   // Panel state: which document and fassung are selected
   const [selectedDokumentId, setSelectedDokumentId] = useState<string | null>(null)
@@ -107,8 +109,6 @@ export default function EditorPanel({
         staffelId={staffelId}
         folgeNummer={folgeNummer}
         customTypen={customTypen}
-        showShadow={prefs.showShadow}
-        onToggleShadow={() => updatePrefs({ showShadow: !prefs.showShadow })}
         onSelectDokument={handleSelectDokument}
         onSelectFassung={setSelectedFassungId}
         onCreateDokument={onCreateDokument}
@@ -162,7 +162,7 @@ export default function EditorPanel({
             onSave={isReadOnly ? undefined : scheduleSave}
             readOnly={!!isReadOnly}
             seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
-            showShadow={prefs.showShadow}
+            showShadow={showPageShadow}
             formatElements={formatElements}
             ydoc={ydoc}
             provider={provider}
@@ -174,7 +174,7 @@ export default function EditorPanel({
             onSave={isReadOnly ? undefined : scheduleSave}
             readOnly={!!isReadOnly}
             seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
-            showShadow={prefs.showShadow}
+            showShadow={showPageShadow}
             ydoc={ydoc}
             provider={provider}
           />

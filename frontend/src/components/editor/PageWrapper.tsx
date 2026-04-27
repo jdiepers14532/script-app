@@ -55,9 +55,12 @@ export default function PageWrapper({
     )
   }
 
-  // ── Fließtext-Modus: kein Blatt, sichtbare Seitentrennlinie ───────────
+  // ── Fließtext-Modus: kein Blatt, druckgenaue Seitentrennlinie ────────
+  // contentHeight = nutzbare Höhe pro Seite (ohne Ränder: 2 × 96px = 192px)
+  const contentHeight = dim.height - 192  // A4: 931px, Letter: 864px
+
   return (
-    <div style={{ background: 'var(--bg-page)', padding: '24px 32px', minHeight: '100%', overflowY: 'auto' }}>
+    <div style={{ background: 'var(--bg-page)', padding: '0 32px', minHeight: '100%', overflowY: 'auto' }}>
       <div
         className={className}
         style={{
@@ -67,27 +70,24 @@ export default function PageWrapper({
           background: 'transparent',
           padding: '0 96px',
           position: 'relative',
-          // Seitentrennlinie — deutliche gestrichelte Linie bei jedem Seitenende
+          // Trennlinie exakt an Druckseiten-Ende — jede contentHeight-px
           backgroundImage: `repeating-linear-gradient(
-            to bottom,
             transparent 0,
-            transparent ${dim.height - 2}px,
-            var(--border) ${dim.height - 2}px,
-            var(--border) ${dim.height}px,
-            transparent ${dim.height}px,
-            transparent ${dim.height + 20}px
+            transparent ${contentHeight - 1}px,
+            var(--border) ${contentHeight - 1}px,
+            var(--border) ${contentHeight}px
           )`,
-          backgroundSize: `100% ${dim.height + 20}px`,
+          backgroundSize: `100% ${contentHeight}px`,
         }}
       >
-        {/* Seitennummer-Labels — alle 10 Seiten würde zu viel sein, max 30 Labels */}
+        {/* Seitennummer-Labels an jeder Trennlinie (max. 30 Seiten) */}
         {Array.from({ length: 30 }, (_, i) => (
           <div
             key={i}
             style={{
               position: 'absolute',
               left: 0,
-              top: (i + 1) * dim.height + i * 20 - 1,
+              top: contentHeight * (i + 1),
               width: '100%',
               display: 'flex',
               alignItems: 'center',
