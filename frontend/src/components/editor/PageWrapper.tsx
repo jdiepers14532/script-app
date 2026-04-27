@@ -10,7 +10,7 @@ interface PageWrapperProps {
 // Standard screenplay page dimensions (at 96 DPI):
 // A4:     794px × 1123px (210mm × 297mm)
 // Letter: 816px × 1056px (8.5in × 11in)
-const DIMENSIONS = {
+export const DIMENSIONS = {
   a4:     { width: 794, height: 1123 },
   letter: { width: 816, height: 1056 },
 }
@@ -23,31 +23,86 @@ export default function PageWrapper({
 }: PageWrapperProps) {
   const dim = DIMENSIONS[seitenformat]
 
+  if (showShadow) {
+    // ── Blatt-Modus: weißes Blatt mit Schatten, subtile Trennlinie ────────
+    return (
+      <div style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowY: 'auto' }}>
+        <div
+          className={className}
+          style={{
+            width: dim.width,
+            minHeight: dim.height,
+            maxWidth: '100%',
+            margin: '0 auto',
+            background: 'var(--bg-surface)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
+            borderRadius: 2,
+            padding: '96px 96px 96px 96px',
+            position: 'relative',
+            backgroundImage: `repeating-linear-gradient(
+              to bottom,
+              transparent 0,
+              transparent ${dim.height - 1}px,
+              rgba(0,122,255,0.12) ${dim.height - 1}px,
+              rgba(0,122,255,0.12) ${dim.height}px
+            )`,
+            backgroundSize: `100% ${dim.height}px`,
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Fließtext-Modus: kein Blatt, sichtbare Seitentrennlinie ───────────
   return (
-    <div style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowY: 'auto' }}>
+    <div style={{ background: 'var(--bg-page)', padding: '24px 32px', minHeight: '100%', overflowY: 'auto' }}>
       <div
         className={className}
         style={{
           width: dim.width,
-          minHeight: dim.height,
           maxWidth: '100%',
           margin: '0 auto',
-          background: 'var(--bg-surface)',
-          boxShadow: showShadow ? '0 4px 24px rgba(0,0,0,0.15)' : 'none',
-          borderRadius: 2,
-          padding: '96px 96px 96px 96px',  // 1in margins = 96px at 96dpi
+          background: 'transparent',
+          padding: '0 96px',
           position: 'relative',
-          // Page break indicator lines
+          // Seitentrennlinie — deutliche gestrichelte Linie bei jedem Seitenende
           backgroundImage: `repeating-linear-gradient(
             to bottom,
             transparent 0,
-            transparent ${dim.height - 1}px,
-            rgba(0,122,255,0.15) ${dim.height - 1}px,
-            rgba(0,122,255,0.15) ${dim.height}px
+            transparent ${dim.height - 2}px,
+            var(--border) ${dim.height - 2}px,
+            var(--border) ${dim.height}px,
+            transparent ${dim.height}px,
+            transparent ${dim.height + 20}px
           )`,
-          backgroundSize: `100% ${dim.height}px`,
+          backgroundSize: `100% ${dim.height + 20}px`,
         }}
       >
+        {/* Seitennummer-Labels — alle 10 Seiten würde zu viel sein, max 30 Labels */}
+        {Array.from({ length: 30 }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: (i + 1) * dim.height + i * 20 - 1,
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          >
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', whiteSpace: 'nowrap', padding: '2px 6px', background: 'var(--bg-page)', borderRadius: 4 }}>
+              S.{i + 2} · {seitenformat.toUpperCase()}
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+        ))}
         {children}
       </div>
     </div>

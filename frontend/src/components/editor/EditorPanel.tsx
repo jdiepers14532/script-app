@@ -33,7 +33,7 @@ export default function EditorPanel({
   staffelId, folgeNummer, allDokumente, customTypen = [], formatElements = [],
   defaultTyp, onCreateDokument, onReloadDokumente,
 }: Props) {
-  const { prefs } = useEditorPrefs()
+  const { prefs, updatePrefs } = useEditorPrefs()
 
   // Panel state: which document and fassung are selected
   const [selectedDokumentId, setSelectedDokumentId] = useState<string | null>(null)
@@ -107,6 +107,8 @@ export default function EditorPanel({
         staffelId={staffelId}
         folgeNummer={folgeNummer}
         customTypen={customTypen}
+        showShadow={prefs.showShadow}
+        onToggleShadow={() => updatePrefs({ showShadow: !prefs.showShadow })}
         onSelectDokument={handleSelectDokument}
         onSelectFassung={setSelectedFassungId}
         onCreateDokument={onCreateDokument}
