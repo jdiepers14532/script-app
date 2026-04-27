@@ -101,6 +101,9 @@ app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:staffelId/:folgeN
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
 app.use('/api/szenen', versionenRouter)
 app.use('/api/stages', exportsRouter)
+// Internal webhook — no auth, must be registered BEFORE the catch-all /api entitiesRouter
+app.use('/api/internal', commentWebhookRouter)
+
 app.use('/api/entities', entitiesRouter)
 app.use('/api', entitiesRouter)            // for /api/stages/:id/entities
 app.use('/api/ki', kiLimiter, kiRouter)
@@ -151,7 +154,6 @@ app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)
-app.use('/api/internal', commentWebhookRouter)
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
