@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useFassung, useFassungContent } from '../../hooks/useDokument'
 import type { DokumentMeta, FassungMeta } from '../../hooks/useDokument'
 import { useCollaboration } from '../../hooks/useCollaboration'
@@ -24,20 +24,28 @@ interface Props {
   allDokumente: DokumentMeta[]
   customTypen?: { name: string; editor_modus: string }[]
   formatElements?: any[]
+  defaultTyp?: string
   onCreateDokument: (typ: string) => void
   onReloadDokumente: () => void
 }
 
 export default function EditorPanel({
   staffelId, folgeNummer, allDokumente, customTypen = [], formatElements = [],
-  onCreateDokument, onReloadDokumente,
+  defaultTyp, onCreateDokument, onReloadDokumente,
 }: Props) {
   const { prefs } = useEditorPrefs()
 
   // Panel state: which document and fassung are selected
-  const [selectedDokumentId, setSelectedDokumentId] = useState<string | null>(
-    allDokumente[0]?.id ?? null
-  )
+  const [selectedDokumentId, setSelectedDokumentId] = useState<string | null>(null)
+  const initialTypApplied = useRef(false)
+
+  // Auto-select preferred document type once on first load
+  useEffect(() => {
+    if (initialTypApplied.current || allDokumente.length === 0) return
+    initialTypApplied.current = true
+    const preferred = defaultTyp ? allDokumente.find(d => d.typ === defaultTyp) : null
+    setSelectedDokumentId(preferred?.id ?? allDokumente[0]?.id ?? null)
+  }, [allDokumente]) // eslint-disable-line react-hooks/exhaustive-deps
   const [selectedFassungId, setSelectedFassungId] = useState<string | null>(null)
 
   const selectedDokument = allDokumente.find(d => d.id === selectedDokumentId) ?? null

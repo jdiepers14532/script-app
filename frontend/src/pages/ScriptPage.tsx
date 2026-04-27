@@ -1,11 +1,74 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
-import { useFocus, useSelectedProduction } from '../App'
+import EditorPanel from '../components/editor/EditorPanel'
+import { useFocus, useSelectedProduction, PanelModeContext } from '../App'
+import { useDokument } from '../hooks/useDokument'
+
+// ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
+// Rendered inside AppShell children → has access to PanelModeContext
+function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; folgeNummer: number | null }) {
+  const { panelMode } = useContext(PanelModeContext)
+  const { dokumente, createDokument, reload } = useDokument(staffelId || null, folgeNummer)
+  const [customTypen, setCustomTypen] = useState<{ name: string; editor_modus: string }[]>([])
+  const [formatElements, setFormatElements] = useState<any[]>([])
+
+  useEffect(() => {
+    api.getFormatTemplates().then((templates: any[]) => {
+      const standard = templates.find((t: any) => t.ist_standard)
+      if (standard?.elemente) setFormatElements(standard.elemente)
+    }).catch(() => {})
+    if (staffelId) {
+      api.getDokumentTypen(staffelId).then((typen: any[]) => {
+        setCustomTypen(typen.map((t: any) => ({ name: t.name, editor_modus: t.editor_modus })))
+      }).catch(() => {})
+    }
+  }, [staffelId])
+
+  if (!staffelId || !folgeNummer) return null
+
+  const showLeft = panelMode !== 'script'
+  const showRight = panelMode !== 'treatment'
+
+  return (
+    <div style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      {showLeft && (
+        <div style={{ flex: 1, overflow: 'hidden', borderRight: showRight ? '1px solid var(--border)' : undefined }}>
+          <EditorPanel
+            key={`${staffelId}-${folgeNummer}-left`}
+            staffelId={staffelId}
+            folgeNummer={folgeNummer}
+            allDokumente={dokumente}
+            customTypen={customTypen}
+            formatElements={formatElements}
+            defaultTyp="storyline"
+            onCreateDokument={createDokument}
+            onReloadDokumente={reload}
+          />
+        </div>
+      )}
+      {showRight && (
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <EditorPanel
+            key={`${staffelId}-${folgeNummer}-right`}
+            staffelId={staffelId}
+            folgeNummer={folgeNummer}
+            allDokumente={dokumente}
+            customTypen={customTypen}
+            formatElements={formatElements}
+            defaultTyp="drehbuch"
+            onCreateDokument={createDokument}
+            onReloadDokumente={reload}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
 
 const MIN_WIDTH = 180
 const MAX_WIDTH = 520
@@ -431,27 +494,30 @@ export default function ScriptPage() {
           </button>
         </div>
 
-        {/* Editor area */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-          {selectedSzeneId && (
-            <SceneEditor
-              szeneId={selectedSzeneId}
-              stageId={selectedStageId}
-              staffelId={selectedStaffelId}
-              folgeNummer={selectedFolgeNummer}
-              onSzeneUpdated={(updated) => {
-                setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
-              }}
-              onNavigatePrev={() => navigateSzene(-1)}
-              onNavigateNext={() => navigateSzene(1)}
-              onMarkCommentsRead={handleMarkCommentsRead}
-            />
-          )}
-          {!selectedSzeneId && (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-              Keine Szene ausgewählt
-            </div>
-          )}
+        {/* Editor area — vertical split: SceneEditor (top) + DockedEditorPanels (bottom) */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
+            {selectedSzeneId && (
+              <SceneEditor
+                szeneId={selectedSzeneId}
+                stageId={selectedStageId}
+                staffelId={selectedStaffelId}
+                folgeNummer={selectedFolgeNummer}
+                onSzeneUpdated={(updated) => {
+                  setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
+                }}
+                onNavigatePrev={() => navigateSzene(-1)}
+                onNavigateNext={() => navigateSzene(1)}
+                onMarkCommentsRead={handleMarkCommentsRead}
+              />
+            )}
+            {!selectedSzeneId && (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+                Keine Szene ausgewählt
+              </div>
+            )}
+          </div>
+          <DockedEditorPanels staffelId={selectedStaffelId} folgeNummer={selectedFolgeNummer} />
         </div>
 
         {!focus && <BreakdownPanel szeneId={selectedSzeneId} staffelId={selectedStaffelId} />}

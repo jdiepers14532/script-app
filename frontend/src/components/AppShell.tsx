@@ -1,7 +1,7 @@
 import { ReactNode, useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Minimize2, Maximize2, FileText,
+  LayoutDashboard, Minimize2, Maximize2, Columns2, PanelLeft, PanelRight,
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
@@ -804,20 +804,7 @@ export default function AppShell({
           </span>
         </div>
 
-        {selectedStaffelId && selectedFolgeNummer != null && (
-          <Tooltip text={`Dokument-Editor — Folge ${selectedFolgeNummer}`}>
-            <Link
-              to={`/dokument-editor?staffel=${selectedStaffelId}&folge=${selectedFolgeNummer}`}
-              className="iconbtn topbar-extra"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', color: 'inherit',
-                background: location.pathname === '/dokument-editor' ? 'var(--bg-active)' : undefined }}
-            >
-              <FileText size={14} />
-            </Link>
-          </Tooltip>
-        )}
-
-        <Tooltip text="Benachrichtigungen">
+<Tooltip text="Benachrichtigungen">
           <button className="iconbtn topbar-extra">
             <Bell size={14} />
           </button>
@@ -915,9 +902,9 @@ export default function AppShell({
 
           <TweakGroup label="Panelmodus">
             <div className="seg">
-              <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}>Beide</button>
-              <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}>{treatmentLabel}</button>
-              <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}>Drehbuch</button>
+              <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')} title="Beide Panels"><Columns2 size={13} /></button>
+              <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')} title={`Nur linkes Panel (${treatmentLabel})`}><PanelLeft size={13} /></button>
+              <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')} title="Nur rechtes Panel (Drehbuch)"><PanelRight size={13} /></button>
             </div>
           </TweakGroup>
 
@@ -1073,7 +1060,6 @@ export default function AppShell({
               { to: '/',       label: 'Folgen',   icon: <LayoutDashboard size={14} /> },
               { to: '/import', label: 'Import',   icon: <FileUp size={14} /> },
               { to: '/hilfe',  label: 'Handbuch', icon: <BookOpen size={14} /> },
-              { to: selectedStaffelId && selectedFolgeNummer ? `/dokument-editor?staffel=${selectedStaffelId}&folge=${selectedFolgeNummer}` : '/dokument-editor', label: 'Dokumente', icon: <FileText size={14} /> },
               ...(isAdmin ? [{ to: '/admin', label: 'Einstellungen', icon: <Settings2 size={14} /> }] : []),
             ].map(item => (
               <Link
