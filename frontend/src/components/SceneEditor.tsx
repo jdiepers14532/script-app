@@ -266,12 +266,12 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
 
         {/* Zeile 1: SZ·stopp | Motiv (grows) | spielzeit·ⓘ | I/T | buttons */}
         <div className="scene-r1">
-          {/* SZ + Stoppzeit ohne Space */}
+          {/* SZ + Stoppzeit ohne Space — immer sichtbar */}
           <span className="sz-group">
             <span className="scene-big">SZ{scene.scene_nummer}</span>
-            {vorstoppDrehbuch && (
-              <span className="sz-stopp">·{Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)}'</span>
-            )}
+            <span className="sz-stopp">
+              {vorstoppDrehbuch ? `·${Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)}'` : '·—'}
+            </span>
           </span>
 
           {/* Motiv — wächst und füllt */}

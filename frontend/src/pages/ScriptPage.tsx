@@ -496,7 +496,7 @@ export default function ScriptPage() {
 
         {/* Editor area — vertical split: SceneEditor (top) + DockedEditorPanels (bottom) */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex' }}>
+          <div style={{ flexShrink: 0, overflow: 'hidden', display: 'flex' }}>
             {selectedSzeneId && (
               <SceneEditor
                 szeneId={selectedSzeneId}
