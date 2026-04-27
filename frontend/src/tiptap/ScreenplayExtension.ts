@@ -1,5 +1,5 @@
 import { Node, mergeAttributes, Command } from '@tiptap/core'
-import { v4 as uuidv4 } from '../utils/uuid'
+import { uuidv4 } from '../utils/uuid'
 
 export type ScreenplayElementType =
   | 'scene_heading'
