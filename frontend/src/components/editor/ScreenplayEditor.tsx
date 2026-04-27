@@ -2,7 +2,7 @@ import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
-import { useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -33,6 +33,7 @@ const ELEMENT_TYPE_LABELS: Record<ScreenplayElementType, string> = {
 interface ScreenplayEditorProps {
   ydoc?: Y.Doc | null
   provider?: HocuspocusProvider | null
+  staffelId?: string
   initialContent?: any  // ProseMirror JSON
   onSave?: (content: any) => void
   autoSaveMs?: number
@@ -54,12 +55,46 @@ export default function ScreenplayEditor({
   placeholder = 'INT. ORT - TAG',
   ydoc,
   provider,
+  staffelId,
 }: ScreenplayEditorProps) {
   injectScreenplayCSS()
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
+
+  // Character autocomplete state
+  const [acSuggestions, setAcSuggestions] = useState<string[]>([])
+  const [acQuery, setAcQuery] = useState('')
+  const [acPos, setAcPos] = useState<{ x: number; y: number } | null>(null)
+  const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const triggerAutocomplete = useCallback((query: string, domRect: DOMRect | null) => {
+    setAcQuery(query)
+    if (!query || !staffelId || !domRect) { setAcSuggestions([]); setAcPos(null); return }
+    if (acTimer.current) clearTimeout(acTimer.current)
+    acTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/autocomplete/characters?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(query)}`, { credentials: 'include' })
+        const data = await res.json()
+        const names = [
+          ...(data.own ?? []).map((c: any) => c.name),
+          ...(data.cross ?? []).map((c: any) => `${c.name} • ${c.staffel_id}`),
+        ].slice(0, 8)
+        setAcSuggestions(names)
+        if (names.length > 0) setAcPos({ x: domRect.left, y: domRect.bottom + 4 })
+        else setAcPos(null)
+      } catch { setAcSuggestions([]); setAcPos(null) }
+    }, 250)
+  }, [staffelId])
+
+  const applyAutocomplete = useCallback((suggestion: string, ed: any) => {
+    const name = suggestion.split(' • ')[0]
+    if (!ed) return
+    const { from, to } = ed.state.selection
+    ed.chain().focus().deleteRange({ from: from - acQuery.length, to }).insertContent(name.toUpperCase()).run()
+    setAcSuggestions([]); setAcPos(null)
+  }, [acQuery])
 
   const collabExtensions = ydoc ? [
     Collaboration.configure({ document: ydoc }),

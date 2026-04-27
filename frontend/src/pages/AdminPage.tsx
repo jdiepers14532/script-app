@@ -6,14 +6,19 @@ import { api } from '../api/client'
 import { useSelectedProduction } from '../App'
 
 const ADMIN_TABS = [
-  { id: 'ki',         label: 'KI-Konfiguration' },
-  { id: 'produktion', label: 'Produktion' },
-  { id: 'wasserzeichen', label: 'Wasserzeichen & Export-Log' },
-  { id: 'allgemein',  label: 'Allgemein' },
-  { id: 'export',     label: 'Export-Vorlagen' },
-  { id: 'locks',      label: 'Lock-Regeln' },
-  { id: 'users',      label: 'Benutzer & Rollen' },
-  { id: 'audit',      label: 'Audit-Log' },
+  { id: 'ki',                   label: 'KI-Konfiguration' },
+  { id: 'produktion',           label: 'Produktion' },
+  { id: 'wasserzeichen',        label: 'Wasserzeichen & Export-Log' },
+  { id: 'allgemein',            label: 'Allgemein' },
+  { id: 'export',               label: 'Export-Vorlagen' },
+  { id: 'locks',                label: 'Lock-Regeln' },
+  { id: 'users',                label: 'Benutzer & Rollen' },
+  { id: 'audit',                label: 'Audit-Log' },
+  { id: 'dokument-typen',       label: 'Dokument-Typen' },
+  { id: 'colab-gruppen',        label: 'Colab-Gruppen' },
+  { id: 'format-templates',     label: 'Format-Templates' },
+  { id: 'benachrichtigungen',   label: 'Benachrichtigungen' },
+  { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -882,6 +887,461 @@ function ProduktionTab() {
   )
 }
 
+
+// ── Admin: Dokument-Typen ──────────────────────────────────────────────────────
+
+function DokumentTypenTab() {
+  const { selectedProduction } = useSelectedProduction()
+  const staffelId = selectedProduction?.id ?? ''
+  const [typen, setTypen] = useState<any[]>([])
+  const [name, setName] = useState('')
+  const [modus, setModus] = useState<'richtext' | 'screenplay'>('richtext')
+  const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const load = async () => {
+    if (!staffelId) return
+    try { setTypen(await api.getDokumentTypen(staffelId)) } catch {}
+  }
+
+  useEffect(() => { load() }, [staffelId])
+
+  const handleAdd = async () => {
+    if (!name.trim() || !staffelId) return
+    setLoading(true); setMsg(null)
+    try {
+      await api.createDokumentTyp(staffelId, { name: name.trim(), editor_modus: modus })
+      setName(''); await load(); setMsg('Typ erstellt.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') } finally { setLoading(false) }
+  }
+
+  const handleDelete = async (typName: string, typId: number) => {
+    if (!confirm(`Typ "${typName}" loeschen?`)) return
+    try { await api.deleteDokumentTyp(staffelId, typId); await load() } catch (e: any) { setMsg(e.message) }
+  }
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Dokument-Typen</h2>
+      {!staffelId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion wählen.</p>}
+      {staffelId && (
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' }}>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Typ-Name (z.B. Expose)"
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, width: 200 }} />
+            <select value={modus} onChange={e => setModus(e.target.value as any)}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, background: 'var(--bg-surface)' }}>
+              <option value="richtext">Rich Text</option>
+              <option value="screenplay">Drehbuch-Format</option>
+            </select>
+            <button onClick={handleAdd} disabled={loading || !name.trim()}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+              Hinzufügen
+            </button>
+          </div>
+          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 12 }}>{msg}</p>}
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>Name</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>Editor</th>
+              <th style={{ padding: '6px 8px' }} />
+            </tr></thead>
+            <tbody>
+              {typen.map(t => (
+                <tr key={t.name} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '8px' }}>{t.name}</td>
+                  <td style={{ padding: '8px', color: 'var(--text-secondary)' }}>{t.editor_modus}</td>
+                  <td style={{ padding: '8px', textAlign: 'right' }}>
+                    <button onClick={() => handleDelete(t.name, t.id)}
+                      style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>Löschen</button>
+                  </td>
+                </tr>
+              ))}
+              {typen.length === 0 && <tr><td colSpan={3} style={{ padding: 12, color: 'var(--text-muted)' }}>Keine Custom-Typen.</td></tr>}
+            </tbody>
+          </table>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Admin: Colab-Gruppen ───────────────────────────────────────────────────────
+
+function ColabGruppenTab() {
+  const { selectedProduction } = useSelectedProduction()
+  const staffelId = selectedProduction?.id ?? ''
+  const [gruppen, setGruppen] = useState<any[]>([])
+  const [name, setName] = useState('')
+  const [typ, setTyp] = useState<'colab' | 'produktion'>('colab')
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [mitglieder, setMitglieder] = useState<Record<number, any[]>>({})
+  const [newUserId, setNewUserId] = useState('')
+  const [newUserName, setNewUserName] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const load = async () => {
+    if (!staffelId) return
+    try { setGruppen(await api.getColabGruppen(staffelId)) } catch {}
+  }
+
+  useEffect(() => { load() }, [staffelId])
+
+  const loadMitglieder = async (gruppeId: number) => {
+    try {
+      const res = await fetch(`/api/admin/colab-gruppen/${gruppeId}/mitglieder`, { credentials: 'include' })
+      const data = await res.json()
+      setMitglieder(prev => ({ ...prev, [gruppeId]: data }))
+    } catch {}
+  }
+
+  const handleCreate = async () => {
+    if (!name.trim() || !staffelId) return
+    try {
+      await api.createColabGruppe(staffelId, { name: name.trim(), typ })
+      setName(''); await load(); setMsg('Gruppe erstellt.')
+    } catch (e: any) { setMsg(e.message) }
+  }
+
+  const handleDelete = async (gruppeId: number) => {
+    if (!confirm('Gruppe loeschen?')) return
+    try { await api.deleteColabGruppe(staffelId, gruppeId); await load() } catch (e: any) { setMsg(e.message) }
+  }
+
+  const handleAddMitglied = async (gruppeId: number) => {
+    if (!newUserId.trim()) return
+    try {
+      await fetch(`/api/admin/colab-gruppen/${gruppeId}/mitglieder`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: newUserId.trim(), user_name: newUserName.trim() || newUserId.trim() }),
+      })
+      setNewUserId(''); setNewUserName(''); loadMitglieder(gruppeId)
+    } catch {}
+  }
+
+  const handleRemoveMitglied = async (gruppeId: number, userId: string) => {
+    try {
+      await fetch(`/api/admin/colab-gruppen/${gruppeId}/mitglieder/${userId}`, { method: 'DELETE', credentials: 'include' })
+      loadMitglieder(gruppeId)
+    } catch {}
+  }
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Colab-Gruppen</h2>
+      {!staffelId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
+      {staffelId && (
+        <>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+            <input value={name} onChange={e => setName(e.target.value)} placeholder="Gruppenname"
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, width: 200 }} />
+            <select value={typ} onChange={e => setTyp(e.target.value as any)}
+              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, background: 'var(--bg-surface)' }}>
+              <option value="colab">Colab</option>
+              <option value="produktion">Produktion</option>
+            </select>
+            <button onClick={handleCreate} disabled={!name.trim()}
+              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+              Erstellen
+            </button>
+          </div>
+          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
+          <div style={{ marginTop: 16 }}>
+            {gruppen.map(g => (
+              <div key={g.id} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', gap: 8, cursor: 'pointer', background: 'var(--bg-surface)' }}
+                  onClick={() => { setExpandedId(expandedId === g.id ? null : g.id); if (expandedId !== g.id) loadMitglieder(g.id) }}>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{g.name}</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: 4 }}>{g.typ}</span>
+                  <button onClick={e => { e.stopPropagation(); handleDelete(g.id) }}
+                    style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>Loeschen</button>
+                </div>
+                {expandedId === g.id && (
+                  <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                      <input value={newUserId} onChange={e => setNewUserId(e.target.value)} placeholder="User-ID"
+                        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, width: 120 }} />
+                      <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Name"
+                        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, width: 140 }} />
+                      <button onClick={() => handleAddMitglied(g.id)}
+                        style={{ padding: '4px 10px', borderRadius: 4, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>+</button>
+                    </div>
+                    {(mitglieder[g.id] ?? []).map((m: any) => (
+                      <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12 }}>
+                        <span style={{ flex: 1 }}>{m.user_name ?? m.user_id}</span>
+                        <button onClick={() => handleRemoveMitglied(g.id, m.user_id)}
+                          style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>x</button>
+                      </div>
+                    ))}
+                    {(mitglieder[g.id] ?? []).length === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Mitglieder.</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+            {gruppen.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Keine Gruppen.</p>}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Admin: Format-Templates ────────────────────────────────────────────────────
+
+function FormatTemplatesTab() {
+  const [templates, setTemplates] = useState<any[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [elemente, setElemente] = useState<any[]>([])
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.getFormatTemplates().then(setTemplates).catch(() => {})
+  }, [])
+
+  const loadElemente = async (id: number) => {
+    setSelectedId(id)
+    try {
+      const ts = await api.getFormatTemplates()
+      const found = ts.find((x: any) => x.id === id)
+      setElemente(found?.elemente ?? [])
+    } catch {}
+  }
+
+  const handleSaveElemente = async () => {
+    if (!selectedId) return
+    try {
+      await api.updateFormatElemente(selectedId, elemente)
+      setMsg('Gespeichert.')
+    } catch (e: any) { setMsg(e.message) }
+  }
+
+  const updateEl = (idx: number, field: string, val: any) => {
+    setElemente(prev => prev.map((e, i) => i === idx ? { ...e, [field]: val } : e))
+  }
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>Format-Templates</h2>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+        {templates.map(t => (
+          <button key={t.id} onClick={() => loadElemente(t.id)}
+            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer',
+              background: selectedId === t.id ? 'var(--text-primary)' : 'transparent',
+              color: selectedId === t.id ? '#fff' : 'var(--text-primary)' }}>
+            {t.name}{t.ist_standard ? ' (Standard)' : ''}
+          </button>
+        ))}
+      </div>
+      {selectedId && (
+        <>
+          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+              <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
+                {['Element', 'Links %', 'Rechts %', 'Ausrichtung', 'Grossbuchst.', 'Tab-Folge', 'Enter-Folge'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {elemente.map((e, i) => (
+                  <tr key={e.element_typ} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '6px 8px', fontWeight: 500 }}>{e.element_typ}</td>
+                    <td style={{ padding: '6px 4px' }}><input type="number" value={e.einrueckung_links} onChange={ev => updateEl(i, 'einrueckung_links', +ev.target.value)}
+                      style={{ width: 48, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
+                    <td style={{ padding: '6px 4px' }}><input type="number" value={e.einrueckung_rechts} onChange={ev => updateEl(i, 'einrueckung_rechts', +ev.target.value)}
+                      style={{ width: 48, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
+                    <td style={{ padding: '6px 4px' }}>
+                      <select value={e.ausrichtung} onChange={ev => updateEl(i, 'ausrichtung', ev.target.value)}
+                        style={{ padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: 'var(--bg-surface)' }}>
+                        {['left','center','right'].map(v => <option key={v} value={v}>{v}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ padding: '6px 4px', textAlign: 'center' }}>
+                      <input type="checkbox" checked={!!e.grossbuchstaben} onChange={ev => updateEl(i, 'grossbuchstaben', ev.target.checked)} />
+                    </td>
+                    <td style={{ padding: '6px 4px' }}><input value={e.tab_folge_element ?? ''} onChange={ev => updateEl(i, 'tab_folge_element', ev.target.value)}
+                      style={{ width: 90, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
+                    <td style={{ padding: '6px 4px' }}><input value={e.enter_folge_element ?? ''} onChange={ev => updateEl(i, 'enter_folge_element', ev.target.value)}
+                      style={{ width: 90, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <button onClick={handleSaveElemente} style={{ marginTop: 16, padding: '8px 20px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+            Speichern
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Admin: Benachrichtigungen ──────────────────────────────────────────────────
+
+const EREIGNIS_LABELS: Record<string, string> = {
+  neue_hauptrolle:         'Neue Hauptrolle angelegt',
+  neue_episodenrolle:      'Neue Episodenrolle angelegt',
+  neuer_komparse:          'Neuer Komparse angelegt',
+  neue_location:           'Neuer Drehort angelegt',
+  uebernahme_schauspieler: 'Schauspieler Cross-Staffel uebernommen',
+  uebernahme_komparse:     'Komparse Cross-Staffel uebernommen',
+}
+
+function BenachrichtigungenTab() {
+  const { selectedProduction } = useSelectedProduction()
+  const staffelId = selectedProduction?.id ?? ''
+  const [settings, setSettings] = useState<Record<string, { empfaenger: string; aktiv: boolean }>>({})
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!staffelId) return
+    fetch(`/api/admin/benachrichtigungen/${staffelId}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then((data: any[]) => {
+        const map: Record<string, { empfaenger: string; aktiv: boolean }> = {}
+        Object.keys(EREIGNIS_LABELS).forEach(k => {
+          const found = data.find(d => d.ereignis === k)
+          map[k] = { empfaenger: (found?.empfaenger_user_ids ?? []).join(', '), aktiv: found?.aktiv ?? true }
+        })
+        setSettings(map)
+      }).catch(() => {})
+  }, [staffelId])
+
+  const handleSave = async () => {
+    if (!staffelId) return
+    try {
+      const body = Object.entries(settings).map(([ereignis, v]) => ({
+        ereignis,
+        empfaenger_user_ids: v.empfaenger.split(',').map(s => s.trim()).filter(Boolean),
+        aktiv: v.aktiv,
+      }))
+      await fetch(`/api/admin/benachrichtigungen/${staffelId}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      setMsg('Gespeichert.')
+    } catch (e: any) { setMsg(e.message) }
+  }
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Benachrichtigungen</h2>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20 }}>
+        User-IDs (kommagetrennt) die bei diesen Ereignissen eine Benachrichtigung erhalten.
+      </p>
+      {!staffelId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
+      {staffelId && (
+        <>
+          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 12 }}>{msg}</p>}
+          {Object.entries(EREIGNIS_LABELS).map(([k, label]) => (
+            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+              <input type="checkbox" checked={settings[k]?.aktiv ?? true}
+                onChange={e => setSettings(prev => ({ ...prev, [k]: { ...prev[k], aktiv: e.target.checked } }))} />
+              <span style={{ fontSize: 12, width: 280 }}>{label}</span>
+              <input value={settings[k]?.empfaenger ?? ''} placeholder="user-id1, user-id2"
+                onChange={e => setSettings(prev => ({ ...prev, [k]: { ...prev[k], empfaenger: e.target.value } }))}
+                style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
+            </div>
+          ))}
+          <button onClick={handleSave} style={{ marginTop: 12, padding: '8px 20px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+            Speichern
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── Admin: Dokument-Einstellungen ──────────────────────────────────────────────
+
+function DokumentEinstellungenTab() {
+  const [overrideRollen, setOverrideRollen] = useState<string[]>([])
+  const [numModus, setNumModus] = useState<'global' | 'per_typ'>('global')
+  const [newRolle, setNewRolle] = useState('')
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.getOverrideRollen().then(setOverrideRollen).catch(() => {})
+    api.getFassungsNummerierung().then((m: string) => setNumModus(m as 'global' | 'per_typ')).catch(() => {})
+  }, [])
+
+  const handleSave = async () => {
+    try {
+      await api.updateOverrideRollen(overrideRollen)
+      await api.updateFassungsNummerierung(numModus)
+      setMsg('Gespeichert.')
+    } catch (e: any) { setMsg(e.message) }
+  }
+
+  const addRolle = () => {
+    const r = newRolle.trim()
+    if (!r || overrideRollen.includes(r)) return
+    setOverrideRollen(prev => [...prev, r]); setNewRolle('')
+  }
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 600 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 24 }}>Dokument-Einstellungen</h2>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Fassungs-Nummerierung</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          Global: Alle Dokument-Typen teilen eine gemeinsame Nummerierung pro Folge.
+          Pro Typ: Jeder Typ beginnt bei Fassung 1.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {(['global', 'per_typ'] as const).map(m => (
+            <button key={m} onClick={() => setNumModus(m)}
+              style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer',
+                background: numModus === m ? 'var(--text-primary)' : 'transparent',
+                color: numModus === m ? '#fff' : 'var(--text-primary)' }}>
+              {m === 'global' ? 'Global' : 'Pro Typ'}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Status-Override-Rollen</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          Nutzer mit diesen Rollen koennen alle Dokumente lesen und bearbeiten,
+          unabhaengig von der Sichtbarkeits-Einstellung.
+        </p>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+          <input value={newRolle} onChange={e => setNewRolle(e.target.value)} placeholder="z.B. herstellungsleitung"
+            onKeyDown={e => e.key === 'Enter' && addRolle()}
+            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, width: 220 }} />
+          <button onClick={addRolle}
+            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+            Hinzufuegen
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {overrideRollen.map(r => (
+            <span key={r} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 99,
+              background: 'var(--bg-subtle)', border: '1px solid var(--border)', fontSize: 12 }}>
+              {r}
+              <button onClick={() => setOverrideRollen(prev => prev.filter(x => x !== r))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, lineHeight: 1, padding: 0 }}>x</button>
+            </span>
+          ))}
+          {overrideRollen.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Override-Rollen.</span>}
+        </div>
+      </section>
+
+      {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
+      <button onClick={handleSave}
+        style={{ padding: '8px 24px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+        Speichern
+      </button>
+    </div>
+  )
+}
+
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
   const navigate = useNavigate()
@@ -943,11 +1403,16 @@ export default function AdminPage() {
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeTab === 'ki'              && <AdminKI />}
-          {activeTab === 'produktion'      && <ProduktionTab />}
-          {activeTab === 'wasserzeichen'   && <WasserzeichenTab />}
-          {activeTab === 'allgemein'       && <AllgemeinTab />}
-          {activeTab !== 'ki' && activeTab !== 'produktion' && activeTab !== 'wasserzeichen' && activeTab !== 'allgemein' && (
+          {activeTab === 'ki'                     && <AdminKI />}
+          {activeTab === 'produktion'               && <ProduktionTab />}
+          {activeTab === 'wasserzeichen'            && <WasserzeichenTab />}
+          {activeTab === 'allgemein'                && <AllgemeinTab />}
+          {activeTab === 'dokument-typen'           && <DokumentTypenTab />}
+          {activeTab === 'colab-gruppen'            && <ColabGruppenTab />}
+          {activeTab === 'format-templates'         && <FormatTemplatesTab />}
+          {activeTab === 'benachrichtigungen'       && <BenachrichtigungenTab />}
+          {activeTab === 'dokument-einstellungen'   && <DokumentEinstellungenTab />}
+          {!['ki','produktion','wasserzeichen','allgemein','dokument-typen','colab-gruppen','format-templates','benachrichtigungen','dokument-einstellungen','export','locks','users','audit'].includes(activeTab) && (
             <div style={{ padding: '28px 32px', color: 'var(--text-secondary)', fontSize: 13 }}>
               Dieser Bereich ist noch in Entwicklung.
             </div>

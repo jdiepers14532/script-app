@@ -146,6 +146,7 @@ export default function EditorPanel({
             formatElements={formatElements}
             ydoc={ydoc}
             provider={provider}
+            staffelId={staffelId}
           />
         ) : (
           <RichTextEditor
