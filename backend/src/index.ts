@@ -165,6 +165,7 @@ async function runMigrations() {
     'v16_szenen_columns.sql', 'v17_characters.sql', 'v18_vorstopp.sql', 'v19_stages_revision.sql',
     'v20_szenen_extended.sql', 'v21_szenen_updated_by.sql', 'v22_szenen_info_logging.sql',
     'v23_dokument_system.sql',
+    'v24_storyline_richtext.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [

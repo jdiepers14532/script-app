@@ -200,6 +200,97 @@ export const api = {
   copySettings: (staffelId: string, data: { source_staffel_id: string; sections: string[] }) =>
     request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/copy-settings`, data),
 
+  // ── Dokument-Editor System ────────────────────────────────────────────────
+
+  // Dokumente (one per type per Folge)
+  getDokumente: (staffelId: string, folgeNummer: number) =>
+    request<any[]>('GET', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente`),
+  createDokument: (staffelId: string, folgeNummer: number, typ: string) =>
+    request<any>('POST', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente`, { typ }),
+  getDokument: (staffelId: string, folgeNummer: number, dokumentId: string) =>
+    request<any>('GET', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente/${dokumentId}`),
+  deleteDokument: (staffelId: string, folgeNummer: number, dokumentId: string) =>
+    request<void>('DELETE', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente/${dokumentId}`),
+
+  // Fassungen
+  getFassungen: (dokumentId: string) =>
+    request<any[]>('GET', `/dokumente/${dokumentId}/fassungen`),
+  createFassung: (dokumentId: string, data: { fassung_label?: string; sichtbarkeit?: string; seitenformat?: string }) =>
+    request<any>('POST', `/dokumente/${dokumentId}/fassungen`, data),
+  getFassung: (dokumentId: string, fassungId: string) =>
+    request<any>('GET', `/dokumente/${dokumentId}/fassungen/${fassungId}`),
+  saveFassung: (dokumentId: string, fassungId: string, data: { inhalt?: any; fassung_label?: string; seitenformat?: string }) =>
+    request<any>('PUT', `/dokumente/${dokumentId}/fassungen/${fassungId}`, data),
+  abgabeFassung: (dokumentId: string, fassungId: string, erstelleNaechste?: boolean) =>
+    request<any>('POST', `/dokumente/${dokumentId}/fassungen/${fassungId}/abgabe`, { erstelle_naechste: erstelleNaechste }),
+  updateSichtbarkeit: (dokumentId: string, fassungId: string, data: { sichtbarkeit: string; colab_gruppe_id?: number; produktion_gruppe_id?: number }) =>
+    request<any>('PUT', `/dokumente/${dokumentId}/fassungen/${fassungId}/sichtbarkeit`, data),
+
+  // Autoren
+  getAutoren: (dokumentId: string, fassungId: string) =>
+    request<any[]>('GET', `/dokumente/${dokumentId}/fassungen/${fassungId}/autoren`),
+  addAutor: (dokumentId: string, fassungId: string, data: { user_id: string; user_name?: string; rolle: 'autor' | 'reviewer'; cursor_farbe?: string }) =>
+    request<any>('POST', `/dokumente/${dokumentId}/fassungen/${fassungId}/autoren`, data),
+  removeAutor: (dokumentId: string, fassungId: string, userId: string) =>
+    request<void>('DELETE', `/dokumente/${dokumentId}/fassungen/${fassungId}/autoren/${userId}`),
+
+  // Annotationen
+  getAnnotationen: (dokumentId: string, fassungId: string) =>
+    request<any[]>('GET', `/dokumente/${dokumentId}/fassungen/${fassungId}/annotationen`),
+  createAnnotation: (dokumentId: string, fassungId: string, data: { von_pos: number; bis_pos: number; text: string; typ?: string }) =>
+    request<any>('POST', `/dokumente/${dokumentId}/fassungen/${fassungId}/annotationen`, data),
+  archiviereAnnotation: (dokumentId: string, annotationId: string) =>
+    request<any>('POST', `/dokumente/${dokumentId}/annotationen/${annotationId}/archivieren`),
+  deleteAnnotation: (dokumentId: string, annotationId: string) =>
+    request<void>('DELETE', `/dokumente/${dokumentId}/annotationen/${annotationId}`),
+
+  // Audit
+  getAudit: (dokumentId: string, fassungId: string) =>
+    request<any[]>('GET', `/dokumente/${dokumentId}/fassungen/${fassungId}/audit`),
+
+  // Admin: Dokument-Typen
+  getDokumentTypen: (staffelId: string) =>
+    request<any[]>('GET', `/admin/dokument-typen/${encodeURIComponent(staffelId)}`),
+  createDokumentTyp: (staffelId: string, data: { name: string; editor_modus?: string }) =>
+    request<any>('POST', `/admin/dokument-typen/${encodeURIComponent(staffelId)}`, data),
+  updateDokumentTyp: (staffelId: string, id: number, data: any) =>
+    request<any>('PUT', `/admin/dokument-typen/${encodeURIComponent(staffelId)}/${id}`, data),
+  deleteDokumentTyp: (staffelId: string, id: number) =>
+    request<void>('DELETE', `/admin/dokument-typen/${encodeURIComponent(staffelId)}/${id}`),
+
+  // Admin: Colab-Gruppen
+  getColabGruppen: (staffelId: string) =>
+    request<any[]>('GET', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}`),
+  createColabGruppe: (staffelId: string, data: { name: string; typ?: string }) =>
+    request<any>('POST', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}`, data),
+  updateColabGruppe: (staffelId: string, id: number, data: any) =>
+    request<any>('PUT', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}/${id}`, data),
+  deleteColabGruppe: (staffelId: string, id: number) =>
+    request<void>('DELETE', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}/${id}`),
+  addColabMitglied: (gruppeId: number, data: { user_id: string; user_name?: string }) =>
+    request<any>('POST', `/admin/colab-gruppen/${gruppeId}/mitglieder`, data),
+  removeColabMitglied: (gruppeId: number, userId: string) =>
+    request<void>('DELETE', `/admin/colab-gruppen/${gruppeId}/mitglieder/${userId}`),
+
+  // Admin: Format-Templates
+  getFormatTemplates: () => request<any[]>('GET', '/admin/format-templates'),
+  updateFormatElemente: (templateId: number, elemente: any[]) =>
+    request<any[]>('PUT', `/admin/format-templates/${templateId}/elemente`, { elemente }),
+
+  // Admin: Override-Rollen & Nummerierung
+  getOverrideRollen: () => request<{ rollen: string[] }>('GET', '/admin/dokument-override-rollen'),
+  updateOverrideRollen: (rollen: string[]) =>
+    request<any>('PUT', '/admin/dokument-override-rollen', { rollen }),
+  getFassungsNummerierung: () => request<{ modus: string }>('GET', '/admin/fassungs-nummerierung'),
+  updateFassungsNummerierung: (modus: 'global' | 'per_typ') =>
+    request<any>('PUT', '/admin/fassungs-nummerierung', { modus }),
+
+  // Autocomplete
+  autocompleteCharacters: (staffelId: string, q: string) =>
+    request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/characters?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(q)}`),
+  autocompleteLocations: (staffelId: string, q: string) =>
+    request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/locations?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(q)}`),
+
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {
     const fd = new FormData(); fd.append('file', file)
