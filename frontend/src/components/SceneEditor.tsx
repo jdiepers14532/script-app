@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { Lock, FileDown, MessageSquare } from 'lucide-react'
+import { Lock, FileDown, MessageSquare, Info } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
@@ -264,40 +264,54 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       {/* Lean header — alles inline, kein Kasten */}
       <div className="detail-head" style={{ borderLeft: `3px solid ${stripeColor}` }}>
 
-        {/* Zeile 1: SZ · I/T-Toggle · Spielzeit · Spacer · Actions */}
+        {/* Zeile 1: SZ·stopp | Motiv (grows) | spielzeit·ⓘ | I/T | buttons */}
         <div className="scene-r1">
-          <span className="scene-big">SZ {scene.scene_nummer}</span>
-          <span
-            className="ie-toggle"
-            onClick={cycleIntExt}
-            title={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'}
-          >
-            {ieAbbr(scene.int_ext ?? 'int')}
+          {/* SZ + Stoppzeit ohne Space */}
+          <span className="sz-group">
+            <span className="scene-big">SZ{scene.scene_nummer}</span>
+            {vorstoppDrehbuch && (
+              <span className="sz-stopp">·{Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)}'</span>
+            )}
           </span>
-          <span className="ie-sep">/</span>
-          <span
-            className="ie-toggle"
-            onClick={cycleTageszeit}
-            title={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`}
-          >
-            {tzAbbr(scene.tageszeit ?? 'TAG')}
-          </span>
-          <Tooltip text="Spielzeit ist die wahrscheinliche Uhrzeit zu der die Handlung dieser Szene spielt.">
-            <input
-              key={`sz-${szeneId}`}
-              className="spielzeit-inp"
-              defaultValue={scene.spielzeit ?? ''}
-              placeholder="00:00"
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.spielzeit ?? null))
-                  api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
+
+          {/* Motiv — wächst und füllt */}
+          <span className="sf-motiv">{scene.ort_name}</span>
+
+          {/* Save status */}
+          {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Speichert…</span>}
+          {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)', flexShrink: 0 }}>{saveMsg}</span>}
+
+          {/* Spielzeit + Info-Icon als Tooltip-Trigger */}
+          <Tooltip text="Spielzeit: wahrscheinliche Uhrzeit der Handlung dieser Szene">
+            <span className="spielzeit-wrap">
+              <input
+                key={`sz-${szeneId}`}
+                className="spielzeit-inp"
+                defaultValue={scene.spielzeit ?? ''}
+                placeholder="00:00"
+                onBlur={e => {
+                  const val = e.target.value.trim() || null
+                  if (val !== (scene.spielzeit ?? null))
+                    api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }}
+              />
+              <Info size={10} className="sz-info-icon" />
+            </span>
           </Tooltip>
-          <span className="spacer" />
-          {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Speichert…</span>}
-          {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg}</span>}
+
+          {/* I/T als enge Gruppe — rechtsbündig vor Lock */}
+          <span className="ie-group">
+            <span className="ie-toggle" onClick={cycleIntExt}
+              title={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'}>
+              {ieAbbr(scene.int_ext ?? 'int')}
+            </span>
+            <span className="ie-sep">/</span>
+            <span className="ie-toggle" onClick={cycleTageszeit}
+              title={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`}>
+              {tzAbbr(scene.tageszeit ?? 'TAG')}
+            </span>
+          </span>
+
           {kommentareCount > 0 && (
             <button className="btn ghost" title="Kommentare (als gelesen markieren)" onClick={() => onMarkCommentsRead?.(szeneId)}>
               <MessageSquare size={12} />{kommentareCount}
@@ -315,11 +329,8 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           </button>
         </div>
 
-        {/* Zeilen 2–6: Motiv + Felder ab fester px-Position */}
+        {/* Zeilen 2–5: Felder eingerückt unter Motiv-Position */}
         <div className="scene-fields" key={szeneId}>
-          <div className="sf-row">
-            <span className="sf-motiv">{scene.ort_name}</span>
-          </div>
           <div className="sf-row">
             <input
               className="sf-input"
