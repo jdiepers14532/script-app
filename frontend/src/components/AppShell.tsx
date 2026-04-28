@@ -49,6 +49,7 @@ export interface TweakState {
   fontSize: number
   scrollNavDelay: number
   showPageShadow: boolean
+  showTooltips: boolean
 }
 
 // ── Wissenschaftlich empfohlene Hintergrundpaletten ──────────────────────────
@@ -167,6 +168,7 @@ const DEFAULT_TWEAKS: TweakState = {
   fontSize: 13,
   scrollNavDelay: 1000,
   showPageShadow: true,
+  showTooltips: true,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -472,6 +474,7 @@ export default function AppShell({
           fontSize:          typeof s.fontSize === 'number' ? s.fontSize : 13,
           scrollNavDelay:    typeof s.scrollNavDelay === 'number' ? s.scrollNavDelay : 1000,
           showPageShadow:    typeof s.showPageShadow === 'boolean' ? s.showPageShadow : true,
+          showTooltips:      typeof s.showTooltips === 'boolean' ? s.showTooltips : true,
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -837,7 +840,7 @@ export default function AppShell({
         data-breakdown={tweaks.breakdown ? 'on' : 'off'}
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
-        <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow }}>
+        <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips }}>
           <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
             {children}
           </PanelModeContext.Provider>
@@ -916,6 +919,13 @@ export default function AppShell({
             <div className="seg">
               <button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)} title="Blatt mit Schatten"><BookOpen size={13} /></button>
               <button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)} title="Fliesstext mit Seitentrennlinie"><AlignLeft size={13} /></button>
+            </div>
+          </TweakGroup>
+
+          <TweakGroup label="Tooltips">
+            <div className="seg">
+              <button className={tweaks.showTooltips ? 'on' : ''} onClick={() => set('showTooltips', true)} title="Tooltips anzeigen">An</button>
+              <button className={!tweaks.showTooltips ? 'on' : ''} onClick={() => set('showTooltips', false)} title="Tooltips ausblenden">Aus</button>
             </div>
           </TweakGroup>
 

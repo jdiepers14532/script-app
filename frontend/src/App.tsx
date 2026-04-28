@@ -57,8 +57,8 @@ interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<
 export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen' })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
-interface UserPrefsContextType { scrollNavDelay: number; showPageShadow: boolean }
-export const UserPrefsContext = createContext<UserPrefsContextType>({ scrollNavDelay: 1000, showPageShadow: true })
+interface UserPrefsContextType { scrollNavDelay: number; showPageShadow: boolean; showTooltips: boolean }
+export const UserPrefsContext = createContext<UserPrefsContextType>({ scrollNavDelay: 1000, showPageShadow: true, showTooltips: true })
 export function useUserPrefs() { return useContext(UserPrefsContext) }
 
 export default function App() {

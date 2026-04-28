@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback, ReactNode } from 'react'
+import { useState, useRef, useCallback, ReactNode, useContext } from 'react'
 import { createPortal } from 'react-dom'
+import { UserPrefsContext } from '../App'
 
 interface TooltipProps {
   text: string
@@ -9,6 +10,7 @@ interface TooltipProps {
 }
 
 export default function Tooltip({ text, children, placement = 'top', delay = 0 }: TooltipProps) {
+  const { showTooltips } = useContext(UserPrefsContext)
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -35,6 +37,8 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
     if (timer.current) { clearTimeout(timer.current); timer.current = null }
     setPos(null)
   }, [])
+
+  if (!showTooltips) return <>{children}</>
 
   return (
     <>
