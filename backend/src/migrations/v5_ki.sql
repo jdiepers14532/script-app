@@ -9,10 +9,10 @@ CREATE TABLE IF NOT EXISTS ki_settings (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-INSERT INTO ki_settings (funktion, provider, model_name, dsgvo_level) VALUES
-  ('scene_summary', 'ollama', 'llama3.2', 'gruen'),
-  ('entity_detect', 'ollama', 'llama3.2', 'gruen'),
-  ('style_check', 'mistral', 'mistral-small', 'orange'),
-  ('synopsis', 'mistral', 'mistral-small', 'orange'),
-  ('consistency_check', 'openai', 'gpt-4o-mini', 'rot')
+INSERT INTO ki_settings (funktion, provider, model_name) VALUES
+  ('scene_summary', 'ollama', 'llama3.2'),
+  ('entity_detect', 'ollama', 'llama3.2'),
+  ('style_check', 'mistral', 'mistral-small'),
+  ('synopsis', 'mistral', 'mistral-small'),
+  ('consistency_check', 'openai', 'gpt-4o-mini')
 ON CONFLICT DO NOTHING;
