@@ -463,4 +463,76 @@ stagesSzenenRouter.post('/:stageId/szenen', async (req, res) => {
   }
 })
 
+// GET /api/stages/:stageId/szenen-comment-counts
+// Proxy: counts unarchived annotations from messenger.app per scene
+stagesSzenenRouter.get('/:stageId/szenen-comment-counts', async (req, res) => {
+  try {
+    const { rows: scenes } = await pool.query(
+      'SELECT id FROM szenen WHERE stage_id = $1',
+      [req.params.stageId]
+    )
+    const sceneIds: number[] = scenes.map((s: any) => s.id)
+    if (!sceneIds.length) return res.json({})
+
+    const cookieHeader = req.headers.cookie || ''
+    const messengerRes = await fetch('http://127.0.0.1:3012/api/annotations?app=script', {
+      headers: { Cookie: cookieHeader },
+    })
+    if (!messengerRes.ok) return res.json({})
+
+    const annotations: any[] = await messengerRes.json()
+    const counts: Record<number, number> = {}
+    for (const ann of annotations) {
+      const srcId = parseInt(ann.source_id)
+      if (!isNaN(srcId) && sceneIds.includes(srcId) && !ann.archived_at) {
+        counts[srcId] = (counts[srcId] || 0) + 1
+      }
+    }
+    res.json(counts)
+  } catch {
+    res.json({})
+  }
+})
+
+// GET /api/szenen/:id/messenger-annotations
+szenenRouter.get('/:id/messenger-annotations', async (req, res) => {
+  try {
+    const cookieHeader = req.headers.cookie || ''
+    const messengerRes = await fetch(
+      `http://127.0.0.1:3012/api/annotations?app=script&source_id=${req.params.id}`,
+      { headers: { Cookie: cookieHeader } }
+    )
+    if (!messengerRes.ok) return res.json([])
+    const data = await messengerRes.json()
+    res.json(Array.isArray(data) ? data.filter((a: any) => !a.archived_at) : [])
+  } catch {
+    res.json([])
+  }
+})
+
+// POST /api/szenen/:id/messenger-annotations
+szenenRouter.post('/:id/messenger-annotations', async (req, res) => {
+  try {
+    const { text } = req.body
+    if (!text?.trim()) return res.status(400).json({ error: 'text required' })
+
+    const cookieHeader = req.headers.cookie || ''
+    const messengerRes = await fetch('http://127.0.0.1:3012/api/annotations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
+      body: JSON.stringify({ app: 'script', source_id: String(req.params.id), text: text.trim() }),
+    })
+    const data = await messengerRes.json()
+    res.status(messengerRes.ok ? 201 : messengerRes.status).json(data)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/szenen/:id/mark-comments-read
+// Messenger has no per-scene read-state for annotations — clear locally only
+szenenRouter.post('/:id/mark-comments-read', async (_req, res) => {
+  res.json({ ok: true })
+})
+
 export default szenenRouter

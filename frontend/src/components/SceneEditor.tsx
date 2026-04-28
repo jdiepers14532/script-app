@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { FileDown, MessageSquare } from 'lucide-react'
+import { FileDown, MessageSquare, Send, ExternalLink, X } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
@@ -56,6 +56,10 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const [vorstoppDrehbuch, setVorstoppDrehbuch] = useState<{ dauer_sekunden: number } | null>(null)
   const [showSpielzeitInfo, setShowSpielzeitInfo] = useState(false)
   const [sceneChars, setSceneChars] = useState<any[]>([])
+  const [showAnnotations, setShowAnnotations] = useState(false)
+  const [annotations, setAnnotations] = useState<any[]>([])
+  const [annotationText, setAnnotationText] = useState('')
+  const [annotationSending, setAnnotationSending] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelsRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
@@ -128,6 +132,21 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
   }, [])
+
+  // Load annotations when panel opens or scene changes
+  useEffect(() => {
+    if (!showAnnotations) return
+    api.getSceneAnnotations(szeneId)
+      .then(data => setAnnotations(data))
+      .catch(() => setAnnotations([]))
+  }, [showAnnotations, szeneId])
+
+  // Reset annotation panel when scene changes
+  useEffect(() => {
+    setShowAnnotations(false)
+    setAnnotations([])
+    setAnnotationText('')
+  }, [szeneId])
 
   // Cancel pending overscroll navigation when scene changes
   useEffect(() => {
@@ -332,11 +351,22 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
             </Tooltip>
           </span>
 
-          {kommentareCount > 0 && (
-            <button className="btn ghost" title="Kommentare (als gelesen markieren)" onClick={() => onMarkCommentsRead?.(szeneId)}>
-              <MessageSquare size={12} />{kommentareCount}
+          <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
+            <button
+              className={`btn ghost${showAnnotations ? ' active' : ''}`}
+              style={showAnnotations ? { color: 'var(--sw-green)' } : undefined}
+              onClick={() => {
+                const next = !showAnnotations
+                setShowAnnotations(next)
+                if (!next && kommentareCount > 0) onMarkCommentsRead?.(szeneId)
+              }}
+            >
+              <MessageSquare size={12} />
+              {kommentareCount > 0 && !showAnnotations && (
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--sw-green)', marginLeft: 1 }}>{kommentareCount}</span>
+              )}
             </button>
-          )}
+          </Tooltip>
           <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId).then(r => r.blob()).then(b => {
             const url = URL.createObjectURL(b); window.open(url, '_blank')
           })}>
@@ -384,6 +414,78 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           </div>
         </div>
       </div>
+
+      {/* Annotation panel */}
+      {showAnnotations && (
+        <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 320, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Annotationen · Szene {scene.scene_nummer}{scene.scene_nummer_suffix || ''}
+            </span>
+            <a
+              href={`https://messenger.serienwerft.studio`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3, textDecoration: 'none' }}
+            >
+              Messenger <ExternalLink size={10} />
+            </a>
+          </div>
+
+          {/* List */}
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {annotations.length === 0 && (
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Noch keine Annotationen zu dieser Szene.</span>
+            )}
+            {annotations.map((ann: any) => (
+              <div key={ann.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{ann.text}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  {ann.user_name || ann.author_name || 'Unbekannt'} · {new Date(ann.created_at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* New annotation input */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+            <textarea
+              value={annotationText}
+              onChange={e => setAnnotationText(e.target.value)}
+              placeholder="Annotation hinzufügen…"
+              rows={2}
+              style={{ flex: 1, resize: 'none', fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text-primary)', fontFamily: 'inherit' }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                  e.preventDefault()
+                  if (annotationText.trim() && !annotationSending) {
+                    setAnnotationSending(true)
+                    api.createSceneAnnotation(szeneId, annotationText)
+                      .then(ann => { setAnnotations(prev => [...prev, ann]); setAnnotationText('') })
+                      .catch(() => {})
+                      .finally(() => setAnnotationSending(false))
+                  }
+                }
+              }}
+            />
+            <button
+              className="btn primary"
+              style={{ padding: '6px 10px', flexShrink: 0 }}
+              disabled={!annotationText.trim() || annotationSending}
+              onClick={() => {
+                if (!annotationText.trim() || annotationSending) return
+                setAnnotationSending(true)
+                api.createSceneAnnotation(szeneId, annotationText)
+                  .then(ann => { setAnnotations(prev => [...prev, ann]); setAnnotationText('') })
+                  .catch(() => {})
+                  .finally(() => setAnnotationSending(false))
+              }}
+            >
+              <Send size={11} />
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   )

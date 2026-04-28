@@ -299,6 +299,10 @@ export const api = {
     request<Record<number, number>>('GET', `/stages/${stageId}/szenen-comment-counts`),
   markSceneCommentsRead: (szeneId: number) =>
     request<{ ok: boolean }>('POST', `/szenen/${szeneId}/mark-comments-read`),
+  getSceneAnnotations: (szeneId: number) =>
+    request<any[]>('GET', `/szenen/${szeneId}/messenger-annotations`),
+  createSceneAnnotation: (szeneId: number, text: string) =>
+    request<any>('POST', `/szenen/${szeneId}/messenger-annotations`, { text }),
 
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {
