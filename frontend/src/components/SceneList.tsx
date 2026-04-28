@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle } from 'lucide-react'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
-import { useAppSettings } from '../App'
+import { useAppSettings } from '../contexts'
 import Tooltip from './Tooltip'
 
 interface SceneListProps {

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, ReactNode, useContext } from 'react'
 import { createPortal } from 'react-dom'
-import { UserPrefsContext } from '../App'
+import { UserPrefsContext } from '../contexts'
 
 interface TooltipProps {
   text: string

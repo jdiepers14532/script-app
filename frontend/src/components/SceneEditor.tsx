@@ -3,7 +3,7 @@ import { FileDown, MessageSquare, Send, ExternalLink, X } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
-import { PanelModeContext, useAppSettings, useUserPrefs } from '../App'
+import { PanelModeContext, useAppSettings, useUserPrefs } from '../contexts'
 
 interface SceneEditorProps {
   szeneId: number

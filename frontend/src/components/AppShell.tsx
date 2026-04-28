@@ -7,7 +7,7 @@ import {
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
   Users, UserCheck, MapPin,
 } from 'lucide-react'
-import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext } from '../App'
+import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext } from '../contexts'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
 import { CompanyInfoModal } from '../sw-ui'

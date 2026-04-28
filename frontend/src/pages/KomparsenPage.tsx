@@ -5,7 +5,7 @@ import EntitySidebar from '../components/figuren/EntitySidebar'
 import FotoGalerie from '../components/figuren/FotoGalerie'
 const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import { api } from '../api/client'
-import { useSelectedProduction } from '../App'
+import { useSelectedProduction } from '../contexts'
 import { Plus, X } from 'lucide-react'
 
 export default function KomparsenPage() {

@@ -7,7 +7,7 @@ const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import BeziehungsPanel from '../components/figuren/BeziehungsPanel'
 import RollenprofilImportModal from '../components/RollenprofilImportModal'
 import { api } from '../api/client'
-import { useSelectedProduction, useAppSettings } from '../App'
+import { useSelectedProduction, useAppSettings } from '../contexts'
 import { Plus, X, FileUp } from 'lucide-react'
 
 const ROLLENPROFIL_LABELS: Record<string, string> = {

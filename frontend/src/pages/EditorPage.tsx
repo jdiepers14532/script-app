@@ -6,7 +6,7 @@ import {
   MoreHorizontal, FileDown, Lock, Bold, Italic,
   AlignLeft, List, Mic2
 } from 'lucide-react'
-import { useFocus } from '../App'
+import { useFocus } from '../contexts'
 
 // Keep types inline — editorData.ts is no longer imported in production code
 type TextelementType = 'heading' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'shot'

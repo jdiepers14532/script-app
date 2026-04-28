@@ -9,7 +9,7 @@ const ScreenplayEditor = lazy(() => import('./ScreenplayEditor'))
 const RichTextEditor = lazy(() => import('./RichTextEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
-import { useUserPrefs } from '../../App'
+import { useUserPrefs } from '../../contexts'
 
 // Editor modus per document type
 const EDITOR_MODUS: Record<string, 'screenplay' | 'richtext'> = {

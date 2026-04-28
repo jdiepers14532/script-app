@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import AdminKI from '../components/AdminKI'
 import { api } from '../api/client'
-import { useSelectedProduction } from '../App'
+import { useSelectedProduction } from '../contexts'
 
 const ADMIN_TABS = [
   { id: 'ki',                   label: 'KI-Konfiguration' },

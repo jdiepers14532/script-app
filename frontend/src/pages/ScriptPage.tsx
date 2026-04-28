@@ -6,7 +6,7 @@ import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
-import { useFocus, useSelectedProduction, PanelModeContext } from '../App'
+import { useFocus, useSelectedProduction, PanelModeContext } from '../contexts'
 import { useDokument } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
