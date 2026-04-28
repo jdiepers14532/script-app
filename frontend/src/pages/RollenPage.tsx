@@ -5,9 +5,53 @@ import EntitySidebar from '../components/figuren/EntitySidebar'
 import FotoGalerie from '../components/figuren/FotoGalerie'
 import FeldEditor from '../components/figuren/FeldEditor'
 import BeziehungsPanel from '../components/figuren/BeziehungsPanel'
+import RollenprofilImportModal from '../components/RollenprofilImportModal'
 import { api } from '../api/client'
 import { useSelectedProduction, useAppSettings } from '../App'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, FileUp } from 'lucide-react'
+
+const ROLLENPROFIL_LABELS: Record<string, string> = {
+  alter: 'Alter / Geburtsjahr', kurzbeschreibung: 'Kurzbeschreibung',
+  geburtsort: 'Geburtsort', familienstand: 'Familienstand', eltern: 'Eltern',
+  verwandte: 'Kinder / Verwandte', beruf: 'Beruf', typ: 'Typ', charakter: 'Charakter',
+  aussehen: 'Aussehen / Stil', dramaturgische_funktion: 'Dramaturgische Funktion',
+  staerken: 'Stärken', schwaechem: 'Schwächen', verletzungen: 'Verletzungen / Wunden',
+  leidenschaften: 'Ticks / Leidenschaften', wuensche: 'Wünsche / Ziele',
+  inneres_ziel: 'Was braucht die Figur wirklich', cast_anbindung: 'Anbindung an Cast',
+  produktion: 'Produktion', staffel: 'Staffel', folgen_range: 'Episodenbereich',
+}
+const ROLLENPROFIL_ORDER = [
+  'kurzbeschreibung', 'alter', 'geburtsort', 'familienstand', 'eltern', 'verwandte', 'beruf',
+  'produktion', 'staffel', 'folgen_range',
+  'typ', 'charakter', 'aussehen', 'dramaturgische_funktion',
+  'staerken', 'schwaechem', 'verletzungen', 'leidenschaften', 'wuensche', 'inneres_ziel', 'cast_anbindung',
+]
+
+function RollenprofilAnzeige({ data }: { data: Record<string, string> }) {
+  const [expanded, setExpanded] = useState(false)
+  const fields = ROLLENPROFIL_ORDER.filter(k => data[k]?.trim())
+  if (fields.length === 0) return null
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{ width: '100%', padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-subtle)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+        Rollenprofil
+        <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-secondary)' }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && (
+        <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {fields.map(key => (
+            <div key={key} style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 8, fontSize: 13 }}>
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{ROLLENPROFIL_LABELS[key] || key}</span>
+              <span style={{ whiteSpace: 'pre-wrap' }}>{data[key]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function RollenPage() {
   const { selectedProduction } = useSelectedProduction()
@@ -31,6 +75,7 @@ export default function RollenPage() {
   const [newName, setNewName] = useState('')
   const [creating, setCreating] = useState(false)
   const [showNewForm, setShowNewForm] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   const loadCharacters = useCallback(async () => {
     if (!staffelId) return
@@ -69,6 +114,13 @@ export default function RollenPage() {
   }
 
   const handleNew = () => setShowNewForm(true)
+
+  const handleImportSuccess = async (characterId: string, name: string) => {
+    setShowImportModal(false)
+    await loadCharacters()
+    setSelectedId(characterId)
+    setSearchParams({ id: characterId })
+  }
 
   const handleCreate = async () => {
     if (!newName.trim() || !staffelId) return
@@ -192,8 +244,16 @@ export default function RollenPage() {
           )}
 
           {staffelId && !selected && !showNewForm && (
-            <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-              {figurenLabel} aus der Liste auswählen oder <button onClick={handleNew} style={{ border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 14, padding: 0, textDecoration: 'underline' }}>neue anlegen</button>.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+                {figurenLabel} aus der Liste auswählen oder <button onClick={handleNew} style={{ border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 14, padding: 0, textDecoration: 'underline' }}>neue anlegen</button>.
+              </div>
+              <button
+                onClick={() => setShowImportModal(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', color: 'var(--text)', cursor: 'pointer', width: 'fit-content' }}>
+                <FileUp size={14} />
+                Rollenprofil importieren (PDF)
+              </button>
             </div>
           )}
 
@@ -265,6 +325,11 @@ export default function RollenPage() {
                   </div>
                 </div>
 
+                {/* Rollenprofil (importierte Daten) */}
+                {selected.meta_json?.rollenprofil && Object.keys(selected.meta_json.rollenprofil).length > 0 && (
+                  <RollenprofilAnzeige data={selected.meta_json.rollenprofil} />
+                )}
+
                 {/* Felder */}
                 {felder.map(f => {
                   const wert = feldwerte.find(v => v.feld_id === f.id)
@@ -293,6 +358,13 @@ export default function RollenPage() {
           )}
         </div>
       </div>
+      {showImportModal && staffelId && (
+        <RollenprofilImportModal
+          staffelId={staffelId}
+          onClose={() => setShowImportModal(false)}
+          onSuccess={handleImportSuccess}
+        />
+      )}
     </AppShell>
   )
 }

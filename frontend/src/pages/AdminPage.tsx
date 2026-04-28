@@ -1508,6 +1508,110 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
   )
 }
 
+function AdminRollenprofilImport() {
+  const [settings, setSettings] = useState<{ api_key: string; model_name: string; enabled: boolean } | null>(null)
+  const [apiKey, setApiKey] = useState('')
+  const [modelName, setModelName] = useState('mistral-large-latest')
+  const [enabled, setEnabled] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [showKey, setShowKey] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/ki-settings', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => {
+        const row = rows.find((r: any) => r.funktion === 'rollenprofil_import')
+        if (row) {
+          setEnabled(row.enabled ?? false)
+          setModelName(row.model_name || 'mistral-large-latest')
+          setSettings(row)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      const body: Record<string, any> = { enabled, model_name: modelName }
+      if (apiKey) body.api_key = apiKey
+      await fetch('/api/admin/ki-settings/rollenprofil_import', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      setSaved(true)
+      setApiKey('')
+      setTimeout(() => setSaved(false), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ padding: '0 32px 32px' }}>
+      <div style={{ maxWidth: 560, border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: '#FA520F', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 13 }}>M</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Rollenprofil-Import (Mistral)</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Mistral OCR + Parsing für intelligenten PDF-Import</div>
+            </div>
+            <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+              <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+              Aktiviert
+            </label>
+          </div>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+              Mistral API Key {settings?.api_key ? <span style={{ color: '#00C853' }}>(gespeichert)</span> : <span style={{ color: 'var(--text-secondary)' }}>(nicht gesetzt)</span>}
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder={settings?.api_key ? '••••••••  (leer lassen = unverändert)' : 'sk-...'}
+                style={{ flex: 1, fontSize: 13, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', fontFamily: 'monospace' }}
+              />
+              <button onClick={() => setShowKey(s => !s)} style={{ padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)' }}>
+                {showKey ? 'Verbergen' : 'Anzeigen'}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Modell</label>
+            <select
+              value={modelName}
+              onChange={e => setModelName(e.target.value)}
+              style={{ fontSize: 13, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', width: '100%' }}>
+              <option value="mistral-large-latest">mistral-large-latest (empfohlen)</option>
+              <option value="mistral-medium-latest">mistral-medium-latest</option>
+              <option value="mistral-small-latest">mistral-small-latest</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', paddingTop: 4 }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{ fontSize: 13, padding: '7px 16px', background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+              {saving ? 'Speichern…' : 'Speichern'}
+            </button>
+            {saved && <span style={{ fontSize: 12, color: '#00C853' }}>✓ Gespeichert</span>}
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 4 }}>DSGVO: orange · EU-Rechenzentren</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
   const navigate = useNavigate()
@@ -1569,7 +1673,7 @@ export default function AdminPage() {
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {activeTab === 'ki'                     && <AdminKI />}
+          {activeTab === 'ki'                     && <><AdminKI /><AdminRollenprofilImport /></>}
           {activeTab === 'produktion'               && <ProduktionTab />}
           {activeTab === 'wasserzeichen'            && <WasserzeichenTab />}
           {activeTab === 'allgemein'                && <AllgemeinTab />}

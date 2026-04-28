@@ -45,6 +45,7 @@ import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from '
 import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
 import { staffelMotiveRouter, motivRouter } from './routes/motive'
 import { staffelFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
+import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -119,6 +120,9 @@ app.use('/api/weather', weatherRouter)
 app.use('/api/folgen', folgenRouter)
 app.use('/api/admin/watermark', watermarkAdminRouter)
 app.use('/api/admin/app-settings', appSettingsRouter)
+
+// Rollenprofil Import (must be before /api/characters to avoid route conflict)
+app.use('/api/characters/rollenprofil-import', rollenprofilImportRouter)
 
 // Characters
 app.use('/api/characters', charactersRouter)
@@ -198,6 +202,7 @@ async function runMigrations() {
     'v27_rollen_motive.sql',
     'v28_media_typ.sql',
     'v29_adresse_feld.sql',
+    'v30_rollenprofil_import.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
