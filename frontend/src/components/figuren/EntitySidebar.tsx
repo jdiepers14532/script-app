@@ -20,7 +20,7 @@ interface EntitySidebarProps {
 }
 
 const MIN_WIDTH = 180
-const DEFAULT_WIDTH = 276
+const DEFAULT_WIDTH = 286
 const MAX_WIDTH = 360
 
 export default function EntitySidebar({
