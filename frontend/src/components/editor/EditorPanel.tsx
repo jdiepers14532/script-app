@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, lazy, Suspense } from 'react'
 import { useFassung, useFassungContent } from '../../hooks/useDokument'
 import type { DokumentMeta, FassungMeta } from '../../hooks/useDokument'
 import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
 import LastEditedRow from './LastEditedRow'
 import CollaborationPresence from './CollaborationPresence'
-import ScreenplayEditor from './ScreenplayEditor'
-import RichTextEditor from './RichTextEditor'
+const ScreenplayEditor = lazy(() => import('./ScreenplayEditor'))
+const RichTextEditor = lazy(() => import('./RichTextEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs } from '../../App'
@@ -157,27 +157,31 @@ export default function EditorPanel({
             )}
           </div>
         ) : editorModus === 'screenplay' ? (
-          <ScreenplayEditor
-            initialContent={fassung.inhalt}
-            onSave={isReadOnly ? undefined : scheduleSave}
-            readOnly={!!isReadOnly}
-            seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
-            showShadow={showPageShadow}
-            formatElements={formatElements}
-            ydoc={ydoc}
-            provider={provider}
-            staffelId={staffelId}
-          />
+          <Suspense fallback={null}>
+            <ScreenplayEditor
+              initialContent={fassung.inhalt}
+              onSave={isReadOnly ? undefined : scheduleSave}
+              readOnly={!!isReadOnly}
+              seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
+              showShadow={showPageShadow}
+              formatElements={formatElements}
+              ydoc={ydoc}
+              provider={provider}
+              staffelId={staffelId}
+            />
+          </Suspense>
         ) : (
-          <RichTextEditor
-            initialContent={fassung.inhalt}
-            onSave={isReadOnly ? undefined : scheduleSave}
-            readOnly={!!isReadOnly}
-            seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
-            showShadow={showPageShadow}
-            ydoc={ydoc}
-            provider={provider}
-          />
+          <Suspense fallback={null}>
+            <RichTextEditor
+              initialContent={fassung.inhalt}
+              onSave={isReadOnly ? undefined : scheduleSave}
+              readOnly={!!isReadOnly}
+              seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
+              showShadow={showPageShadow}
+              ydoc={ydoc}
+              provider={provider}
+            />
+          </Suspense>
         )}
       </div>
     </div>
