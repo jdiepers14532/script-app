@@ -260,7 +260,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   return (
     <div className="detail">
       {/* Lean header — alles inline, kein Kasten */}
-      <div className="detail-head" style={{ borderLeft: `3px solid ${stripeColor}` }}>
+      <div className="detail-head" style={{ borderLeft: 'none', borderBottom: 'none' }}>
 
         {/* Zeile 1: SZ | Stoppzeit-Input | Motiv (grows) | Spielzeit | DT · I/T | buttons */}
         <div className="scene-r1">
