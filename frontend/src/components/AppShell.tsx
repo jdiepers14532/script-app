@@ -811,12 +811,12 @@ export default function AppShell({
           </span>
         </div>
 
-<Tooltip text="Benachrichtigungen">
+<Tooltip text="Benachrichtigungen" placement="bottom">
           <button className="iconbtn topbar-extra">
             <Bell size={14} />
           </button>
         </Tooltip>
-        <Tooltip text="Fokus-Modus (F10)">
+        <Tooltip text="Fokus-Modus (F10)" placement="bottom">
           <button className="focus-toggle" onClick={toggle}>
             {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
           </button>
