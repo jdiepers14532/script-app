@@ -287,33 +287,42 @@
 .sz-group { display:flex; align-items:baseline; gap:1px; flex-shrink:0; min-width:52px; }
 .sz-group .scene-big { font-size:17px; font-weight:700; letter-spacing:-0.005em; }
 .sz-stopp { font-size:11px; color:var(--text-muted); font-weight:500; }
-/* Stoppzeit als Badge zwischen SZ und Motiv */
-.sz-stopp-mid { font-size:10px; color:var(--text-muted); background:var(--bg-subtle); border:1px solid var(--border); border-radius:4px; padding:1px 6px; flex-shrink:0; cursor:default; font-variant-numeric:tabular-nums; letter-spacing:0.01em; }
+
+/* Stoppzeit — einfaches Eingabefeld */
+.stopp-inp { font-size:11px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:32px; padding:0; font-family:inherit; cursor:text; text-align:center; flex-shrink:0; font-variant-numeric:tabular-nums; }
+.stopp-inp:hover, .stopp-inp:focus { border-bottom-color:var(--border); }
+.stopp-inp::placeholder { color:var(--text-muted); }
+.stopp-inp::-webkit-inner-spin-button, .stopp-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.stopp-inp { -moz-appearance:textfield; }
 
 /* Motiv — inline, wächst */
 .sf-motiv { flex:1; font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 
-/* Spieltag + Spielzeit — Label + Input als kleine Einheit */
-.spiel-field-wrap { display:inline-flex; align-items:center; gap:2px; flex-shrink:0; }
+/* Spielzeit — Label + Input */
 .spielzeit-wrap { display:inline-flex; align-items:center; gap:2px; flex-shrink:0; }
 .spiel-field-lbl { font-size:9px; font-weight:700; color:var(--text-muted); letter-spacing:0.3px; user-select:none; }
 .spielzeit-inp { font-size:11px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:44px; padding:0; font-family:inherit; cursor:text; }
-.spiel-dt-inp { width:28px; text-align:center; }
 .spielzeit-inp:hover, .spielzeit-inp:focus { border-bottom-color:var(--border); }
 .spielzeit-inp::placeholder { font-size:10px; color:var(--text-muted); }
-/* hide number input arrows */
-.spiel-dt-inp::-webkit-inner-spin-button, .spiel-dt-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
-.spiel-dt-inp { -moz-appearance:textfield; }
 /* Spielzeit info popover — erscheint unterhalb */
 .spielzeit-info-pop { position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%); width:220px; background:#111; color:#fff; border-radius:8px; padding:10px 12px; font-size:11px; line-height:1.5; box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:9999; pointer-events:none; }
 .spielzeit-info-pop strong { display:block; margin-bottom:4px; font-size:12px; }
 .spielzeit-info-pop p { margin:0; color:rgba(255,255,255,0.8); }
 
-/* I/T-Gruppe — eng zusammen */
-.ie-group { display:flex; align-items:center; gap:0; flex-shrink:0; }
-.ie-toggle { font-size:12px; font-weight:700; color:var(--text-primary); cursor:pointer; padding:2px 4px; border-radius:3px; line-height:1; user-select:none; }
+/* I/T + DT Gruppe — gleiche Schriftgröße wie Motiv (13px/600) */
+.ie-group { display:flex; align-items:center; gap:2px; flex-shrink:0; }
+/* DT-Feld innerhalb ie-group */
+.ie-field-wrap { display:inline-flex; align-items:center; gap:1px; }
+.ie-lbl { font-size:10px; font-weight:700; color:var(--text-muted); letter-spacing:0.2px; user-select:none; }
+.ie-num-inp { font-size:13px; font-weight:600; color:var(--text-primary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:22px; padding:0; font-family:inherit; cursor:text; text-align:center; }
+.ie-num-inp:hover, .ie-num-inp:focus { border-bottom-color:var(--border); }
+.ie-num-inp::placeholder { color:var(--text-muted); font-weight:400; }
+.ie-num-inp::-webkit-inner-spin-button, .ie-num-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.ie-num-inp { -moz-appearance:textfield; }
+/* I/T toggles — same size as Motiv */
+.ie-toggle { font-size:13px; font-weight:600; color:var(--text-primary); cursor:pointer; padding:1px 3px; border-radius:3px; line-height:1; user-select:none; }
 .ie-toggle:hover { background:var(--bg-subtle); }
-.ie-sep { font-size:12px; color:var(--text-muted); font-weight:400; line-height:1; padding:0 1px; }
+.ie-sep { font-size:13px; color:var(--text-muted); font-weight:400; line-height:1; padding:0; }
 
 /* Felder-Block — eingerückt auf Motiv-Startposition (76px = sz-group min-width + 8px gap - 8px detail-head gap) */
 .scene-fields { padding-left:84px; display:flex; flex-direction:column; gap:3px; padding-bottom:6px; }

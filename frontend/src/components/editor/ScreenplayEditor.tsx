@@ -192,8 +192,8 @@ export default function ScreenplayEditor({
               <button
                 onClick={() => editor?.commands.setElementType(type)}
                 style={{
-                  padding: '3px 7px',
-                  fontSize: 10,
+                  height: 28, padding: '0 8px',
+                  fontSize: 11,
                   fontFamily: 'inherit',
                   border: '1px solid var(--border)',
                   borderRadius: 4,
@@ -202,6 +202,7 @@ export default function ScreenplayEditor({
                   cursor: 'pointer',
                   fontWeight: currentType === type ? 600 : 400,
                   transition: '0.1s',
+                  display: 'flex', alignItems: 'center',
                 }}
               >
                 {ELEMENT_TYPE_LABELS[type]}
@@ -209,8 +210,8 @@ export default function ScreenplayEditor({
             </Tooltip>
           ))}
           <Tooltip text={'Tab: nächster Typ · Enter: folgendes Element\nAlt+1–7: Typ direkt setzen'} placement="bottom">
-            <span style={{ marginLeft: 4, display: 'inline-flex', alignItems: 'center', cursor: 'help', color: 'var(--text-muted)', padding: '2px 4px' }}>
-              <Info size={12} />
+            <span style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'help', color: 'var(--text-muted)', flexShrink: 0 }}>
+              <Info size={13} />
             </span>
           </Tooltip>
         </div>

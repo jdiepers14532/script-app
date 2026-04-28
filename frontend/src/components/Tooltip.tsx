@@ -38,7 +38,7 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
 
   return (
     <>
-      <span ref={ref} onMouseEnter={show} onMouseLeave={hide} style={{ display: 'contents' }}>
+      <span ref={ref} onMouseEnter={show} onMouseLeave={hide} style={{ display: 'inline-flex', alignItems: 'center' }}>
         {children}
       </span>
       {pos && createPortal(

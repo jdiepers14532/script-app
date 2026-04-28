@@ -243,19 +243,29 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       {/* Lean header — alles inline, kein Kasten */}
       <div className="detail-head" style={{ borderLeft: `3px solid ${stripeColor}` }}>
 
-        {/* Zeile 1: SZ | Stoppzeit (mittig) | Motiv (grows) | DT | Spielzeit | I/T | buttons */}
+        {/* Zeile 1: SZ | Stoppzeit-Input | Motiv (grows) | Spielzeit | DT · I/T | buttons */}
         <div className="scene-r1">
           {/* SZ-Nummer */}
           <span className="sz-group">
             <span className="scene-big">SZ{scene.scene_nummer}</span>
           </span>
 
-          {/* Stoppzeit — zwischen SZ und Motiv, zentriert mit Tooltip nach unten */}
-          <Tooltip text="Vorstopp-Drehbuch: geplante Szenenspieldauer" placement="bottom">
-            <span className="sz-stopp sz-stopp-mid">
-              {vorstoppDrehbuch ? `${Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)}'${vorstoppDrehbuch.dauer_sekunden % 60 ? (vorstoppDrehbuch.dauer_sekunden % 60) + '"' : ''}` : '—'}
-            </span>
-          </Tooltip>
+          {/* Stoppzeit — einfaches Eingabefeld zwischen SZ und Motiv */}
+          <input
+            key={`stopp-${szeneId}`}
+            className="spielzeit-inp stopp-inp"
+            defaultValue={scene.dauer_min != null ? String(scene.dauer_min) : ''}
+            placeholder="0'"
+            title="Geplante Dauer (Minuten)"
+            type="number"
+            min={0}
+            onBlur={e => {
+              const raw = e.target.value.trim()
+              const val = raw ? parseFloat(raw) : null
+              if (val !== (scene.dauer_min ?? null))
+                api.updateSzene(szeneId, { dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+            }}
+          />
 
           {/* Motiv — wächst und füllt */}
           <span className="sf-motiv">{scene.ort_name}</span>
@@ -264,27 +274,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Speichert…</span>}
           {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)', flexShrink: 0 }}>{saveMsg}</span>}
 
-          {/* Dramaturgischer Tag */}
-          <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nWird automatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
-            <span className="spiel-field-wrap">
-              <span className="spiel-field-lbl">DT</span>
-              <input
-                key={`dt-${szeneId}`}
-                className="spielzeit-inp spiel-dt-inp"
-                defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''}
-                placeholder="—"
-                type="number"
-                min={1}
-                onBlur={e => {
-                  const raw = e.target.value.trim()
-                  const val = raw ? parseInt(raw, 10) : null
-                  if (val !== (scene.spieltag ?? null))
-                    api.updateSzene(szeneId, { spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }}
-              />
-            </span>
-          </Tooltip>
-
           {/* Spielzeit mit Hover-Info */}
           <span
             className="spielzeit-wrap"
@@ -292,7 +281,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
             onMouseLeave={() => setShowSpielzeitInfo(false)}
             style={{ position: 'relative' }}
           >
-            <span className="spiel-field-lbl">SZ</span>
+            <span className="spiel-field-lbl">Sp</span>
             <input
               key={`sz-${szeneId}`}
               className="spielzeit-inp"
@@ -305,24 +294,42 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               }}
             />
             {showSpielzeitInfo && (
-              <div className="spielzeit-info-pop spielzeit-info-pop--below">
+              <div className="spielzeit-info-pop">
                 <strong>Spielzeit</strong>
-                <p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen. Für Continuity und Stundenplan-Planung.</p>
+                <p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen.</p>
               </div>
             )}
           </span>
 
-          {/* I/T als enge Gruppe — rechtsbündig vor Lock */}
+          {/* DT + I/T — gleiche Schriftgröße wie Motiv, direkt nebeneinander */}
           <span className="ie-group">
-            <span className="ie-toggle" onClick={cycleIntExt}
-              title={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'}>
-              {ieAbbr(scene.int_ext ?? 'int')}
-            </span>
+            <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
+              <span className="ie-field-wrap">
+                <span className="ie-lbl">DT</span>
+                <input
+                  key={`dt-${szeneId}`}
+                  className="ie-num-inp"
+                  defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''}
+                  placeholder="—"
+                  type="number"
+                  min={1}
+                  onBlur={e => {
+                    const raw = e.target.value.trim()
+                    const val = raw ? parseInt(raw, 10) : null
+                    if (val !== (scene.spieltag ?? null))
+                      api.updateSzene(szeneId, { spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  }}
+                />
+              </span>
+            </Tooltip>
+            <span className="ie-sep">·</span>
+            <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
+              <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
+            </Tooltip>
             <span className="ie-sep">/</span>
-            <span className="ie-toggle" onClick={cycleTageszeit}
-              title={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`}>
-              {tzAbbr(scene.tageszeit ?? 'TAG')}
-            </span>
+            <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
+              <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
+            </Tooltip>
           </span>
 
           {kommentareCount > 0 && (
