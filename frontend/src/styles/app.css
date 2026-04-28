@@ -1,5 +1,15 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Inline RichText Editor (FeldEditor) ── */
+.tiptap-feld .ProseMirror { outline: none; }
+.tiptap-feld .ProseMirror p { margin: 0 0 0.4em; }
+.tiptap-feld .ProseMirror p:last-child { margin-bottom: 0; }
+.tiptap-feld .ProseMirror ul,
+.tiptap-feld .ProseMirror ol { margin: 0 0 0.4em; padding-left: 1.4em; }
+.tiptap-feld .ProseMirror mark { background: #ffe566; color: inherit; border-radius: 2px; padding: 0 1px; }
+[data-theme='dark'] .tiptap-feld .ProseMirror mark { background: #7a6200; }
+.tiptap-feld .rt-editor-empty:before { content: attr(data-placeholder); color: var(--text-secondary); pointer-events: none; position: absolute; opacity: 0.5; }
+
 /* ── App Grid ── */
 .app {
   display: grid;

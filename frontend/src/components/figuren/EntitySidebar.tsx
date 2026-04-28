@@ -11,6 +11,7 @@ interface Entity {
   komparsen_nummer?: number | null
   is_active?: boolean
   primaerFoto?: string | null
+  badge?: string | null
 }
 
 interface EntitySidebarProps {
@@ -170,8 +171,15 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
       <span style={{ width: 32, flexShrink: 0, fontSize: 11, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
         {nr != null ? nr : '—'}
       </span>
-      <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {entity.name}
+      <span style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
+        <span style={{ fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {entity.name}
+        </span>
+        {entity.badge && (
+          <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginTop: 1 }}>
+            {entity.badge}
+          </span>
+        )}
       </span>
       {entity.primaerFoto && !inactive && (
         <>

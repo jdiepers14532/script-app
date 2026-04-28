@@ -133,6 +133,7 @@ export default function MotivenPage() {
     name: m.name,
     rollen_nummer: m.motiv_nummer ? parseInt(m.motiv_nummer) || null : null,
     is_active: true,
+    badge: TYP_LABELS[m.typ] ?? null,
     primaerFoto: m.primaer_thumbnail_dateiname
       ? `${THUMB_BASE}${m.primaer_thumbnail_dateiname}`
       : m.primaer_foto_dateiname && m.primaer_media_typ === 'image'
@@ -141,6 +142,7 @@ export default function MotivenPage() {
   }))
 
   const TYP_LABELS: Record<string, string> = { interior: 'Innen', exterior: 'Außen', both: 'Innen/Außen' }
+
 
   return (
     <AppShell hideProductionSelector={false}>
