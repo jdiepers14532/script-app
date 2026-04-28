@@ -1,10 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
+import { Mark } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
-import Highlight from '@tiptap/extension-highlight'
 import PlaceholderExt from '@tiptap/extension-placeholder'
 import { Search, Bold, Italic, Underline, List, Highlighter } from 'lucide-react'
+
+// Inline highlight mark — avoids circular dep from @tiptap/extension-highlight
+const HighlightMark = Mark.create({
+  name: 'highlight',
+  renderHTML() { return ['mark', 0] },
+  parseHTML() { return [{ tag: 'mark' }] },
+  addCommands() {
+    return {
+      toggleHighlight: () => ({ commands }: any) => commands.toggleMark(this.name),
+    }
+  },
+})
 
 interface Feld {
   id: number
@@ -95,7 +107,7 @@ function RichTextField({ feld, wert, onChange }: Pick<FeldEditorProps, 'feld' | 
     extensions: [
       StarterKit,
       UnderlineExt,
-      Highlight,
+      HighlightMark,
       PlaceholderExt.configure({ placeholder: 'Text eingeben…', emptyEditorClass: 'rt-editor-empty' }),
     ],
     content: initialContent,
