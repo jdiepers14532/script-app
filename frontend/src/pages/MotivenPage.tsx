@@ -49,7 +49,16 @@ export default function MotivenPage() {
   useEffect(() => {
     if (!staffelId) return
     api.getCharakterFelder(staffelId)
-      .then(f => setFelder(f.filter((x: any) => x.gilt_fuer === 'alle' || x.gilt_fuer === 'motiv')))
+      .then(f => {
+        const relevant = f.filter((x: any) => x.gilt_fuer === 'alle' || x.gilt_fuer === 'motiv')
+        relevant.sort((a: any, b: any) => {
+          const aOrder = a.gilt_fuer === 'motiv' ? 0 : 1
+          const bOrder = b.gilt_fuer === 'motiv' ? 0 : 1
+          if (aOrder !== bOrder) return aOrder - bOrder
+          return a.sort_order - b.sort_order
+        })
+        setFelder(relevant)
+      })
       .catch(() => {})
   }, [staffelId])
 
@@ -115,12 +124,20 @@ export default function MotivenPage() {
     })
   }
 
+  const FOTO_BASE = '/uploads/script-fotos/'
+  const THUMB_BASE = '/uploads/script-fotos/thumbnails/'
+
   // Adapt motive to EntitySidebar shape (no rollen/komparsen_nummer → use motiv_nummer as display)
-  const sidebarEntities = motive.map(m => ({
+  const sidebarEntities = (motive as any[]).map(m => ({
     id: m.id,
     name: m.name,
     rollen_nummer: m.motiv_nummer ? parseInt(m.motiv_nummer) || null : null,
     is_active: true,
+    primaerFoto: m.primaer_thumbnail_dateiname
+      ? `${THUMB_BASE}${m.primaer_thumbnail_dateiname}`
+      : m.primaer_foto_dateiname && m.primaer_media_typ === 'image'
+        ? `${FOTO_BASE}${m.primaer_foto_dateiname}`
+        : null,
   }))
 
   const TYP_LABELS: Record<string, string> = { interior: 'Innen', exterior: 'Außen', both: 'Innen/Außen' }

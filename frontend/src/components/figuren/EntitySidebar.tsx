@@ -7,6 +7,7 @@ interface Entity {
   rollen_nummer?: number | null
   komparsen_nummer?: number | null
   is_active?: boolean
+  primaerFoto?: string | null
 }
 
 interface EntitySidebarProps {
@@ -155,6 +156,13 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
       <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {entity.name}
       </span>
+      {entity.primaerFoto && !inactive && (
+        <img
+          src={entity.primaerFoto}
+          alt=""
+          style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }}
+        />
+      )}
       {inactive && onAktivieren && (
         <button
           onClick={ev => { ev.stopPropagation(); onAktivieren(entity.id) }}

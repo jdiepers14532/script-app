@@ -24,7 +24,10 @@ charactersRouter.get('/', async (req, res) => {
       `SELECT c.id, c.name, c.meta_json, c.created_at,
               cp.rollen_nummer, cp.komparsen_nummer, cp.kategorie_id, cp.updated_at AS prod_updated_at,
               cp.is_active,
-              ck.name AS kategorie_name, ck.typ AS kategorie_typ
+              ck.name AS kategorie_name, ck.typ AS kategorie_typ,
+              (SELECT dateiname FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_foto_dateiname,
+              (SELECT media_typ FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_media_typ,
+              (SELECT thumbnail_dateiname FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_thumbnail_dateiname
        FROM characters c
        JOIN character_productions cp ON cp.character_id = c.id AND cp.staffel_id = $1
        LEFT JOIN character_kategorien ck ON ck.id = cp.kategorie_id

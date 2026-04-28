@@ -124,11 +124,23 @@ export default function KomparsenPage() {
     })
   }
 
+  const FOTO_BASE = '/uploads/script-fotos/'
+  const THUMB_BASE = '/uploads/script-fotos/thumbnails/'
+
+  const sidebarCharacters = characters.map((c: any) => ({
+    ...c,
+    primaerFoto: c.primaer_thumbnail_dateiname
+      ? `${THUMB_BASE}${c.primaer_thumbnail_dateiname}`
+      : c.primaer_foto_dateiname && c.primaer_media_typ === 'image'
+        ? `${FOTO_BASE}${c.primaer_foto_dateiname}`
+        : null,
+  }))
+
   return (
     <AppShell hideProductionSelector={false}>
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
         <EntitySidebar
-          entities={characters}
+          entities={sidebarCharacters}
           selectedId={selectedId}
           onSelect={handleSelect}
           onNew={() => setShowNewForm(true)}

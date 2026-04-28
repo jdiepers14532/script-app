@@ -157,7 +157,19 @@ export default function RollenPage() {
       .map((c: any) => ({ id: c.id, name: c.name }))
   }
 
-  const rollenCharacters = characters.filter(c => c.kategorie_typ === 'rolle' || !c.kategorie_typ)
+  const FOTO_BASE = '/uploads/script-fotos/'
+  const THUMB_BASE = '/uploads/script-fotos/thumbnails/'
+
+  const rollenCharacters = characters
+    .filter(c => c.kategorie_typ === 'rolle' || !c.kategorie_typ)
+    .map((c: any) => ({
+      ...c,
+      primaerFoto: c.primaer_thumbnail_dateiname
+        ? `${THUMB_BASE}${c.primaer_thumbnail_dateiname}`
+        : c.primaer_foto_dateiname && c.primaer_media_typ === 'image'
+          ? `${FOTO_BASE}${c.primaer_foto_dateiname}`
+          : null,
+    }))
 
   return (
     <AppShell hideProductionSelector={false}>

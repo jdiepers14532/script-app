@@ -197,6 +197,7 @@ async function runMigrations() {
     'v26_scene_comment_read_state.sql',
     'v27_rollen_motive.sql',
     'v28_media_typ.sql',
+    'v29_adresse_feld.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [

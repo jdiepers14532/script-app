@@ -13,7 +13,7 @@ motivFeldwerteRouter.use(authMiddleware)
 const DEFAULT_FELDER = [
   { name: 'Beschreibung', typ: 'richtext', optionen: [], sort_order: 1, gilt_fuer: 'alle' },
   { name: 'Notizen', typ: 'text', optionen: [], sort_order: 2, gilt_fuer: 'alle' },
-  { name: 'Adresse', typ: 'text', optionen: [], sort_order: 1, gilt_fuer: 'motiv' },
+  { name: 'fiktionale Adresse in der Geschichte', typ: 'text', optionen: [], sort_order: 0, gilt_fuer: 'motiv' },
 ]
 
 async function autoInitFelder(staffelId: string) {

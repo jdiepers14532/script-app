@@ -13,7 +13,11 @@ staffelMotiveRouter.get('/', async (req, res) => {
   const { staffelId } = req.params as any
   try {
     const rows = await query(
-      'SELECT * FROM motive WHERE staffel_id = $1 ORDER BY motiv_nummer NULLS LAST, name',
+      `SELECT m.*,
+              (SELECT dateiname FROM motiv_fotos WHERE motiv_id = m.id AND ist_primaer = TRUE LIMIT 1) AS primaer_foto_dateiname,
+              (SELECT media_typ FROM motiv_fotos WHERE motiv_id = m.id AND ist_primaer = TRUE LIMIT 1) AS primaer_media_typ,
+              (SELECT thumbnail_dateiname FROM motiv_fotos WHERE motiv_id = m.id AND ist_primaer = TRUE LIMIT 1) AS primaer_thumbnail_dateiname
+       FROM motive m WHERE m.staffel_id = $1 ORDER BY m.motiv_nummer NULLS LAST, m.name`,
       [staffelId]
     )
     res.json(rows)
