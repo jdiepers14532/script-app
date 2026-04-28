@@ -241,7 +241,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
                 const isLong = key === 'backstory' || key === 'cast_anbindung' || key === 'charakter' || key === 'dramaturgische_funktion'
                 return (
                   <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 8, alignItems: 'start' }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', paddingTop: isLong ? 8 : 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', paddingTop: isLong ? 8 : 6 }}>
                       {FIELD_LABELS[key] || key}
                       {key === 'name' && <span style={{ color: '#FF3B30' }}> *</span>}
                     </label>
