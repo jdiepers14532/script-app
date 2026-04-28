@@ -19,8 +19,8 @@ interface EntitySidebarProps {
   numberKey?: 'rollen_nummer' | 'komparsen_nummer'
 }
 
-const MIN_WIDTH = 160
-const DEFAULT_WIDTH = 220
+const MIN_WIDTH = 180
+const DEFAULT_WIDTH = 276
 const MAX_WIDTH = 360
 
 export default function EntitySidebar({
