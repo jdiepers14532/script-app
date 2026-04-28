@@ -2,9 +2,9 @@
 
 CREATE TABLE IF NOT EXISTS charakter_feld_links (
   id SERIAL PRIMARY KEY,
-  source_character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+  source_character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
   feld_id INTEGER NOT NULL REFERENCES charakter_felder_config(id) ON DELETE CASCADE,
-  linked_character_id TEXT NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+  linked_character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(source_character_id, feld_id, linked_character_id)
 );
