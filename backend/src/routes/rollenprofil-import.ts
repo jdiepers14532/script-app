@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import multer from 'multer'
 import fetch from 'node-fetch'
-import { pool, query, queryOne } from '../db'
+import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { getProviderApiKey, recordUsage } from './ki'
 
 export const rollenprofilImportRouter = Router()
 rollenprofilImportRouter.use(authMiddleware)
@@ -16,12 +17,14 @@ const upload = multer({
   },
 })
 
-async function getMistralKey(): Promise<{ api_key: string; model_name: string } | null> {
-  const row = await queryOne(
-    `SELECT api_key, model_name, enabled FROM ki_settings WHERE funktion = 'rollenprofil_import'`
+async function getRollenprofilImportConfig(): Promise<{ api_key: string; model_name: string } | null> {
+  const setting = await queryOne(
+    `SELECT model_name, enabled FROM ki_settings WHERE funktion = 'rollenprofil_import'`
   )
-  if (!row || !row.enabled || !row.api_key) return null
-  return { api_key: row.api_key, model_name: row.model_name || 'mistral-large-latest' }
+  if (!setting?.enabled) return null
+  const apiKey = await getProviderApiKey('mistral')
+  if (!apiKey) return null
+  return { api_key: apiKey, model_name: setting.model_name || 'mistral-large-latest' }
 }
 
 async function extractTextViaMistralOCR(pdfBase64: string, apiKey: string): Promise<string> {
@@ -44,7 +47,6 @@ async function extractTextViaMistralOCR(pdfBase64: string, apiKey: string): Prom
     throw new Error(`Mistral OCR Fehler (${resp.status}): ${body}`)
   }
   const data = await resp.json() as any
-  // Mistral OCR returns pages array with markdown text
   const pages: any[] = data.pages || []
   return pages.map((p: any) => p.markdown || p.text || '').join('\n\n')
 }
@@ -79,7 +81,11 @@ Folgende Felder sollen extrahiert werden (leer lassen wenn nicht vorhanden):
 
 Antworte NUR mit einem validen JSON-Objekt, ohne Markdown-Codeblöcke.`
 
-async function parseRollenprofilViaChat(text: string, apiKey: string, modelName: string): Promise<Record<string, string>> {
+async function parseRollenprofilViaChat(
+  text: string,
+  apiKey: string,
+  modelName: string
+): Promise<{ parsed: Record<string, string>; tokensIn: number; tokensOut: number }> {
   const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -101,8 +107,10 @@ async function parseRollenprofilViaChat(text: string, apiKey: string, modelName:
   }
   const data = await resp.json() as any
   const content = data.choices?.[0]?.message?.content || '{}'
+  const tokensIn = data.usage?.prompt_tokens ?? 0
+  const tokensOut = data.usage?.completion_tokens ?? 0
   try {
-    return JSON.parse(content)
+    return { parsed: JSON.parse(content), tokensIn, tokensOut }
   } catch {
     throw new Error('Mistral hat kein valides JSON zurückgegeben')
   }
@@ -113,16 +121,19 @@ rollenprofilImportRouter.post('/preview', upload.single('file'), async (req, res
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine PDF-Datei hochgeladen' })
 
-    const creds = await getMistralKey()
-    if (!creds) {
+    const config = await getRollenprofilImportConfig()
+    if (!config) {
       return res.status(503).json({
-        error: 'Mistral API nicht konfiguriert oder deaktiviert. Bitte in der Admin-KI-Konfiguration aktivieren.',
+        error: 'Rollenprofil-Import nicht aktiviert oder kein Mistral API-Key konfiguriert. Bitte in Admin → KI-Konfiguration einrichten.',
       })
     }
 
     const pdfBase64 = req.file.buffer.toString('base64')
-    const extractedText = await extractTextViaMistralOCR(pdfBase64, creds.api_key)
-    const parsed = await parseRollenprofilViaChat(extractedText, creds.api_key, creds.model_name)
+    const extractedText = await extractTextViaMistralOCR(pdfBase64, config.api_key)
+    const { parsed, tokensIn, tokensOut } = await parseRollenprofilViaChat(extractedText, config.api_key, config.model_name)
+
+    // Record usage (chat completion only — OCR is page-based)
+    await recordUsage('mistral', config.model_name, tokensIn, tokensOut)
 
     res.json({ parsed, raw_text: extractedText })
   } catch (err: any) {
@@ -132,7 +143,6 @@ rollenprofilImportRouter.post('/preview', upload.single('file'), async (req, res
 })
 
 // POST /api/characters/rollenprofil-import/commit
-// Body: { staffel_id, parsed: {...}, beschreibung_feld_id? }
 rollenprofilImportRouter.post('/commit', async (req, res) => {
   const { staffel_id, parsed, beschreibung_feld_id } = req.body
   if (!staffel_id || !parsed?.name) {
@@ -142,24 +152,20 @@ rollenprofilImportRouter.post('/commit', async (req, res) => {
   try {
     const { backstory, name, ...rollenprofilFields } = parsed
 
-    // Create character
     const char = await queryOne(
       `INSERT INTO characters (name, meta_json) VALUES ($1, $2) RETURNING *`,
       [name, JSON.stringify({ rollenprofil: rollenprofilFields })]
     )
 
-    // Link to production
     await queryOne(
       `INSERT INTO character_productions (character_id, staffel_id) VALUES ($1, $2)
        ON CONFLICT (character_id, staffel_id) DO NOTHING`,
       [char.id, staffel_id]
     )
 
-    // Write backstory into "Beschreibung" field if it exists
     if (backstory?.trim()) {
       let feldId = beschreibung_feld_id
       if (!feldId) {
-        // Find the default "Beschreibung" field for this staffel
         const feld = await queryOne(
           `SELECT id FROM charakter_felder_config WHERE staffel_id = $1 AND name = 'Beschreibung' LIMIT 1`,
           [staffel_id]

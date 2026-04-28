@@ -19,7 +19,7 @@ import { locksRouter, contractLocksRouter } from './routes/locks'
 import versionenRouter from './routes/versionen'
 import exportsRouter from './routes/exports'
 import entitiesRouter from './routes/entities'
-import kiRouter, { kiAdminRouter } from './routes/ki'
+import kiRouter, { kiAdminRouter, kiProviderRouter } from './routes/ki'
 import { szenenKommentareRouter, kommentareRouter } from './routes/kommentare'
 import { importRouter } from './routes/import'
 import meRouter from './routes/me'
@@ -112,6 +112,7 @@ app.use('/api/entities', entitiesRouter)
 app.use('/api', entitiesRouter)            // for /api/stages/:id/entities
 app.use('/api/ki', kiLimiter, kiRouter)
 app.use('/api/admin/ki-settings', kiAdminRouter)
+app.use('/api/admin/ki-providers', kiProviderRouter)
 app.use('/api/szenen', szenenKommentareRouter)
 app.use('/api/kommentare', kommentareRouter)
 app.use('/api/import', importRouter)
@@ -203,6 +204,7 @@ async function runMigrations() {
     'v28_media_typ.sql',
     'v29_adresse_feld.sql',
     'v30_rollenprofil_import.sql',
+    'v31_ki_providers.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
