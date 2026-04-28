@@ -379,7 +379,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           {/* Unsichtbarer Spacer — spiegelt sz-group + stopp-inp aus scene-r1 für exakte Ausrichtung */}
           <span className="sf-align-spacer" aria-hidden="true">
             <span className="sz-group"><span className="scene-big">SZ0</span></span>
-            <input className="stopp-inp" tabIndex={-1} readOnly style={{ pointerEvents: 'none' }} />
+            <input className="stopp-inp" type="number" tabIndex={-1} readOnly style={{ pointerEvents: 'none' }} />
           </span>
           <div className="scene-fields-rows">
           <div className="sf-row">

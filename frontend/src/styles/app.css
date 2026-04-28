@@ -299,7 +299,7 @@
 .sz-stopp { font-size:11px; color:var(--text-muted); font-weight:500; }
 
 /* Stoppzeit — einfaches Eingabefeld */
-.stopp-inp { font-size:11px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:32px; padding:0; font-family:inherit; cursor:text; text-align:center; flex-shrink:0; font-variant-numeric:tabular-nums; }
+.stopp-inp { font-size:11px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:32px; min-width:32px; max-width:32px; box-sizing:border-box; padding:0; font-family:inherit; cursor:text; text-align:center; flex-shrink:0; font-variant-numeric:tabular-nums; }
 .stopp-inp:hover, .stopp-inp:focus { border-bottom-color:var(--border); }
 .stopp-inp::placeholder { color:var(--text-muted); }
 .stopp-inp::-webkit-inner-spin-button, .stopp-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
