@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { Lock, FileDown, MessageSquare, Info } from 'lucide-react'
+import { Lock, FileDown, MessageSquare } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
@@ -56,6 +56,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(0.5)
   const [vorstoppDrehbuch, setVorstoppDrehbuch] = useState<{ dauer_sekunden: number } | null>(null)
+  const [showSpielzeitInfo, setShowSpielzeitInfo] = useState(false)
   const [sceneChars, setSceneChars] = useState<any[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelsRef = useRef<HTMLDivElement>(null)
@@ -281,23 +282,53 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Speichert…</span>}
           {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)', flexShrink: 0 }}>{saveMsg}</span>}
 
-          {/* Spielzeit + Info-Icon als Tooltip-Trigger */}
-          <Tooltip text="Spielzeit: wahrscheinliche Uhrzeit der Handlung dieser Szene">
-            <span className="spielzeit-wrap">
+          {/* Dramaturgischer Tag */}
+          <Tooltip text={"Dramaturgischer Tag: Erzähltag in der Geschichte\n(1 = erster Tag der Handlung; steigt bei Nacht→Tag-Übergang)"}>
+            <span className="spiel-field-wrap">
+              <span className="spiel-field-lbl">DT</span>
               <input
-                key={`sz-${szeneId}`}
-                className="spielzeit-inp"
-                defaultValue={scene.spielzeit ?? ''}
-                placeholder="00:00"
+                key={`dt-${szeneId}`}
+                className="spielzeit-inp spiel-dt-inp"
+                defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''}
+                placeholder="—"
+                type="number"
+                min={1}
                 onBlur={e => {
-                  const val = e.target.value.trim() || null
-                  if (val !== (scene.spielzeit ?? null))
-                    api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  const raw = e.target.value.trim()
+                  const val = raw ? parseInt(raw, 10) : null
+                  if (val !== (scene.spieltag ?? null))
+                    api.updateSzene(szeneId, { spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                 }}
               />
-              <Info size={10} className="sz-info-icon" />
             </span>
           </Tooltip>
+
+          {/* Spielzeit mit Hover-Info */}
+          <span
+            className="spielzeit-wrap"
+            onMouseEnter={() => setShowSpielzeitInfo(true)}
+            onMouseLeave={() => setShowSpielzeitInfo(false)}
+            style={{ position: 'relative' }}
+          >
+            <span className="spiel-field-lbl">SZ</span>
+            <input
+              key={`sz-${szeneId}`}
+              className="spielzeit-inp"
+              defaultValue={scene.spielzeit ?? ''}
+              placeholder="00:00"
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.spielzeit ?? null))
+                  api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+              }}
+            />
+            {showSpielzeitInfo && (
+              <div className="spielzeit-info-pop">
+                <strong>Spielzeit</strong>
+                <p>Wahrscheinliche Uhrzeit der Handlung dieser Szene — z.B. „08:30" für frühen Morgen. Für Continuity und Stundenplan-Planung.</p>
+              </div>
+            )}
+          </span>
 
           {/* I/T als enge Gruppe — rechtsbündig vor Lock */}
           <span className="ie-group">

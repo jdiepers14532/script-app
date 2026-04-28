@@ -283,19 +283,29 @@
 
 /* Zeile 1 — alles in einer Flex-Reihe */
 .scene-r1 { display:flex; align-items:center; gap:8px; }
-.sz-group { display:flex; align-items:baseline; gap:1px; flex-shrink:0; }
+/* sz-group hat min-width:76px → Motiv und scene-fields starten auf gleicher X-Position */
+.sz-group { display:flex; align-items:baseline; gap:1px; flex-shrink:0; min-width:76px; }
 .sz-group .scene-big { font-size:17px; font-weight:700; letter-spacing:-0.005em; }
 .sz-stopp { font-size:11px; color:var(--text-muted); font-weight:500; }
 
 /* Motiv — inline, wächst */
 .sf-motiv { flex:1; font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 
-/* Spielzeit + Info-Icon */
-.spielzeit-wrap { display:inline-flex; align-items:center; gap:3px; flex-shrink:0; }
+/* Spieltag + Spielzeit — Label + Input als kleine Einheit */
+.spiel-field-wrap { display:inline-flex; align-items:center; gap:2px; flex-shrink:0; }
+.spielzeit-wrap { display:inline-flex; align-items:center; gap:2px; flex-shrink:0; }
+.spiel-field-lbl { font-size:9px; font-weight:700; color:var(--text-muted); letter-spacing:0.3px; user-select:none; }
 .spielzeit-inp { font-size:11px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:44px; padding:0; font-family:inherit; cursor:text; }
+.spiel-dt-inp { width:28px; text-align:center; }
 .spielzeit-inp:hover, .spielzeit-inp:focus { border-bottom-color:var(--border); }
 .spielzeit-inp::placeholder { font-size:10px; color:var(--text-muted); }
-.sz-info-icon { color:var(--text-muted); flex-shrink:0; }
+/* hide number input arrows */
+.spiel-dt-inp::-webkit-inner-spin-button, .spiel-dt-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.spiel-dt-inp { -moz-appearance:textfield; }
+/* Spielzeit info popover */
+.spielzeit-info-pop { position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); width:220px; background:#111; color:#fff; border-radius:8px; padding:10px 12px; font-size:11px; line-height:1.5; box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:9999; pointer-events:none; }
+.spielzeit-info-pop strong { display:block; margin-bottom:4px; font-size:12px; }
+.spielzeit-info-pop p { margin:0; color:rgba(255,255,255,0.8); }
 
 /* I/T-Gruppe — eng zusammen */
 .ie-group { display:flex; align-items:center; gap:0; flex-shrink:0; }
@@ -303,16 +313,16 @@
 .ie-toggle:hover { background:var(--bg-subtle); }
 .ie-sep { font-size:12px; color:var(--text-muted); font-weight:400; line-height:1; padding:0 1px; }
 
-/* Felder-Block — eingerückt auf Motiv-Startposition */
-.scene-fields { padding-left:80px; display:flex; flex-direction:column; gap:3px; padding-bottom:6px; }
+/* Felder-Block — eingerückt auf Motiv-Startposition (76px = sz-group min-width + 8px gap - 8px detail-head gap) */
+.scene-fields { padding-left:84px; display:flex; flex-direction:column; gap:3px; padding-bottom:6px; }
 .sf-row { display:flex; align-items:baseline; min-height:16px; }
-.sf-input { font-size:12px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:100%; padding:0; font-family:inherit; }
+.sf-input { font-size:14px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:100%; padding:0; font-family:inherit; }
 .sf-input:hover, .sf-input:focus { border-bottom-color:var(--border); }
-.sf-input::placeholder { color:var(--text-muted); font-size:11px; }
+.sf-input::placeholder { color:var(--text-muted); font-size:12px; }
 .sf-notiz::placeholder { font-style:italic; }
 .sf-chars { gap:4px; }
-.sf-tag { font-size:10px; font-weight:700; color:var(--text-muted); letter-spacing:0.3px; flex-shrink:0; }
-.sf-charlist { font-size:12px; color:var(--text-muted); }
+.sf-tag { font-size:11px; font-weight:700; color:var(--text-muted); letter-spacing:0.3px; flex-shrink:0; }
+.sf-charlist { font-size:14px; color:var(--text-muted); }
 .sf-empty { font-style:normal; color:var(--text-muted); opacity:0.5; }
 .detail .scene-title-bar .spacer { flex:1; }
 .detail .btn { padding:6px 12px; font-size:12px; font-weight:500; border:1px solid var(--border); border-radius:6px; background:var(--bg-surface); color:var(--text-primary); display:inline-flex; align-items:center; gap:6px; transition:all 0.15s; cursor:pointer; }

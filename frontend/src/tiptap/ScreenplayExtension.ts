@@ -140,6 +140,15 @@ export const ScreenplayExtension = Node.create<{ formatElements: FormatElement[]
           .updateAttributes('screenplay_element', attrs)
           .run()
       },
+
+      // Final Draft keyboard shortcuts: Ctrl/Cmd + 1–7
+      'Mod-1': () => this.editor.commands.setElementType('scene_heading'),
+      'Mod-2': () => this.editor.commands.setElementType('action'),
+      'Mod-3': () => this.editor.commands.setElementType('character'),
+      'Mod-4': () => this.editor.commands.setElementType('parenthetical'),
+      'Mod-5': () => this.editor.commands.setElementType('dialogue'),
+      'Mod-6': () => this.editor.commands.setElementType('transition'),
+      'Mod-7': () => this.editor.commands.setElementType('shot'),
     }
   },
 })

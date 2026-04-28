@@ -60,7 +60,7 @@ export default function EditorPanelHeader({
           onClick={() => setShowTypMenu(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}
         >
-          {dokument?.typ ?? 'Typ wählen'}
+          {alleTypen.find(t => t.value === dokument?.typ)?.label ?? 'Typ wählen'}
           <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
         </button>
         {showTypMenu && (

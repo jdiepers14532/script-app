@@ -3,7 +3,9 @@ import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
+import { Info } from 'lucide-react'
+import Tooltip from '../Tooltip'
+import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { ScreenplayExtension, ScreenplayElementType, FormatElement, DEFAULT_FORMAT, SCREENPLAY_CSS } from '../../tiptap/ScreenplayExtension'
@@ -28,6 +30,17 @@ const ELEMENT_TYPE_LABELS: Record<ScreenplayElementType, string> = {
   parenthetical: 'Regie',
   transition: 'Übergang',
   shot: 'Shot',
+}
+
+// Final Draft keyboard shortcuts (Ctrl/Cmd + 1–7)
+const ELEMENT_TYPE_SHORTCUTS: Record<ScreenplayElementType, string> = {
+  scene_heading: '⌃1',
+  action:        '⌃2',
+  character:     '⌃3',
+  dialogue:      '⌃5',
+  parenthetical: '⌃4',
+  transition:    '⌃6',
+  shot:          '⌃7',
 }
 
 interface ScreenplayEditorProps {
@@ -165,18 +178,18 @@ export default function ScreenplayEditor({
       {/* Toolbar */}
       {!readOnly && (
         <div style={{
-          display: 'flex', gap: 4, padding: '8px 12px',
+          display: 'flex', gap: 4, padding: '6px 12px',
           borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
-          background: 'var(--bg-surface)', flexShrink: 0,
+          background: 'var(--bg-surface)', flexShrink: 0, alignItems: 'center',
         }}>
           {(Object.keys(ELEMENT_TYPE_LABELS) as ScreenplayElementType[]).map(type => (
             <button
               key={type}
               onClick={() => editor?.commands.setElementType(type)}
-              title={`${ELEMENT_TYPE_LABELS[type]} (Tab/Enter)`}
               style={{
-                padding: '3px 8px',
-                fontSize: 11,
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '3px 7px',
+                fontSize: 10,
                 fontFamily: 'inherit',
                 border: '1px solid var(--border)',
                 borderRadius: 4,
@@ -188,45 +201,17 @@ export default function ScreenplayEditor({
               }}
             >
               {ELEMENT_TYPE_LABELS[type]}
+              <span style={{ opacity: 0.5, fontSize: 9, fontWeight: 400, letterSpacing: 0 }}>
+                {ELEMENT_TYPE_SHORTCUTS[type]}
+              </span>
             </button>
           ))}
-          <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', alignSelf: 'center', paddingRight: 4 }}>
-            Tab = nächster Typ · Enter = folge
-          </span>
+          <Tooltip text={'Tab: nächster Typ · Enter: folge\n⌃1–⌃7: Typ direkt setzen (Final Draft)'}>
+            <span style={{ marginLeft: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', cursor: 'help' }}>
+              <Info size={12} />
+            </span>
+          </Tooltip>
         </div>
-      )}
-
-      {/* Bubble Menu for element type changes */}
-      {editor && !readOnly && (
-        <BubbleMenu
-          editor={editor}
-          tippyOptions={{ duration: 100, placement: 'top' }}
-          shouldShow={({ editor }) => {
-            const { $from } = editor.state.selection
-            return $from.node().type.name === 'screenplay_element'
-          }}
-        >
-          <div style={{
-            display: 'flex', gap: 2, background: '#111', borderRadius: 6,
-            padding: '4px 6px', boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-          }}>
-            {(Object.keys(ELEMENT_TYPE_LABELS) as ScreenplayElementType[]).map(type => (
-              <button
-                key={type}
-                onClick={() => editor.commands.setElementType(type)}
-                style={{
-                  padding: '2px 6px', fontSize: 10, border: 'none', borderRadius: 4,
-                  background: currentType === type ? '#fff' : 'transparent',
-                  color: currentType === type ? '#111' : '#aaa',
-                  cursor: 'pointer', fontFamily: 'inherit',
-                }}
-              >
-                {ELEMENT_TYPE_LABELS[type]}
-              </button>
-            ))}
-          </div>
-        </BubbleMenu>
       )}
 
       {/* Page area */}
