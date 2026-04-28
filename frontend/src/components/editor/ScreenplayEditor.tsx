@@ -32,15 +32,15 @@ const ELEMENT_TYPE_LABELS: Record<ScreenplayElementType, string> = {
   shot: 'Shot',
 }
 
-// Final Draft keyboard shortcuts (Ctrl/Cmd + 1–7)
+// Alt+1–7 shortcuts (web-safe: Ctrl+1-9 = browser tab switch, Alt+1-7 doesn't conflict)
 const ELEMENT_TYPE_SHORTCUTS: Record<ScreenplayElementType, string> = {
-  scene_heading: '⌃1',
-  action:        '⌃2',
-  character:     '⌃3',
-  dialogue:      '⌃5',
-  parenthetical: '⌃4',
-  transition:    '⌃6',
-  shot:          '⌃7',
+  scene_heading: 'Alt+1',
+  action:        'Alt+2',
+  character:     'Alt+3',
+  parenthetical: 'Alt+4',
+  dialogue:      'Alt+5',
+  transition:    'Alt+6',
+  shot:          'Alt+7',
 }
 
 interface ScreenplayEditorProps {
@@ -183,31 +183,33 @@ export default function ScreenplayEditor({
           background: 'var(--bg-surface)', flexShrink: 0, alignItems: 'center',
         }}>
           {(Object.keys(ELEMENT_TYPE_LABELS) as ScreenplayElementType[]).map(type => (
-            <button
+            <Tooltip
               key={type}
-              onClick={() => editor?.commands.setElementType(type)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4,
-                padding: '3px 7px',
-                fontSize: 10,
-                fontFamily: 'inherit',
-                border: '1px solid var(--border)',
-                borderRadius: 4,
-                background: currentType === type ? 'var(--text-primary)' : 'transparent',
-                color: currentType === type ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                fontWeight: currentType === type ? 600 : 400,
-                transition: '0.1s',
-              }}
+              text={`${ELEMENT_TYPE_LABELS[type]}\n${ELEMENT_TYPE_SHORTCUTS[type]}`}
+              placement="bottom"
+              delay={500}
             >
-              {ELEMENT_TYPE_LABELS[type]}
-              <span style={{ opacity: 0.5, fontSize: 9, fontWeight: 400, letterSpacing: 0 }}>
-                {ELEMENT_TYPE_SHORTCUTS[type]}
-              </span>
-            </button>
+              <button
+                onClick={() => editor?.commands.setElementType(type)}
+                style={{
+                  padding: '3px 7px',
+                  fontSize: 10,
+                  fontFamily: 'inherit',
+                  border: '1px solid var(--border)',
+                  borderRadius: 4,
+                  background: currentType === type ? 'var(--text-primary)' : 'transparent',
+                  color: currentType === type ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontWeight: currentType === type ? 600 : 400,
+                  transition: '0.1s',
+                }}
+              >
+                {ELEMENT_TYPE_LABELS[type]}
+              </button>
+            </Tooltip>
           ))}
-          <Tooltip text={'Tab: nächster Typ · Enter: folge\n⌃1–⌃7: Typ direkt setzen (Final Draft)'}>
-            <span style={{ marginLeft: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', cursor: 'help' }}>
+          <Tooltip text={'Tab: nächster Typ · Enter: folgendes Element\nAlt+1–7: Typ direkt setzen'} placement="bottom">
+            <span style={{ marginLeft: 4, display: 'inline-flex', alignItems: 'center', cursor: 'help', color: 'var(--text-muted)', padding: '2px 4px' }}>
               <Info size={12} />
             </span>
           </Tooltip>

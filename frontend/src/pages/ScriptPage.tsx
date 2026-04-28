@@ -388,7 +388,7 @@ export default function ScriptPage() {
     if (!selectedStageId) return
     setSzenen([])
     setSelectedSzeneId(null)
-    api.getSzenen(selectedStageId).then(data => {
+    api.getSzenen(selectedStageId).then(async data => {
       setSzenen(data)
       if (!data.length) return
       const savedSzene = pendingNav.current.szeneId
@@ -396,6 +396,13 @@ export default function ScriptPage() {
       setSelectedSzeneId(match ? match.id : data[0].id)
       delete pendingNav.current.szeneId
       navRestored.current = true
+      // Auto-calculate spieltag if any scene is missing it
+      const needsCalc = data.some((s: any) => s.spieltag == null)
+      if (needsCalc) {
+        api.autoSpieltagCalc(selectedStageId)
+          .then(updated => setSzenen(updated))
+          .catch(() => {})
+      }
     }).catch(() => {})
   }, [selectedStageId])
 

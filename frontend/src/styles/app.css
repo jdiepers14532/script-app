@@ -283,10 +283,12 @@
 
 /* Zeile 1 — alles in einer Flex-Reihe */
 .scene-r1 { display:flex; align-items:center; gap:8px; }
-/* sz-group hat min-width:76px → Motiv und scene-fields starten auf gleicher X-Position */
-.sz-group { display:flex; align-items:baseline; gap:1px; flex-shrink:0; min-width:76px; }
+/* sz-group: SZ-Nummer allein, feste Breite für Ausrichtung mit scene-fields */
+.sz-group { display:flex; align-items:baseline; gap:1px; flex-shrink:0; min-width:52px; }
 .sz-group .scene-big { font-size:17px; font-weight:700; letter-spacing:-0.005em; }
 .sz-stopp { font-size:11px; color:var(--text-muted); font-weight:500; }
+/* Stoppzeit als Badge zwischen SZ und Motiv */
+.sz-stopp-mid { font-size:10px; color:var(--text-muted); background:var(--bg-subtle); border:1px solid var(--border); border-radius:4px; padding:1px 6px; flex-shrink:0; cursor:default; font-variant-numeric:tabular-nums; letter-spacing:0.01em; }
 
 /* Motiv — inline, wächst */
 .sf-motiv { flex:1; font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
@@ -302,8 +304,8 @@
 /* hide number input arrows */
 .spiel-dt-inp::-webkit-inner-spin-button, .spiel-dt-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .spiel-dt-inp { -moz-appearance:textfield; }
-/* Spielzeit info popover */
-.spielzeit-info-pop { position:absolute; bottom:calc(100% + 8px); left:50%; transform:translateX(-50%); width:220px; background:#111; color:#fff; border-radius:8px; padding:10px 12px; font-size:11px; line-height:1.5; box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:9999; pointer-events:none; }
+/* Spielzeit info popover — erscheint unterhalb */
+.spielzeit-info-pop { position:absolute; top:calc(100% + 8px); left:50%; transform:translateX(-50%); width:220px; background:#111; color:#fff; border-radius:8px; padding:10px 12px; font-size:11px; line-height:1.5; box-shadow:0 4px 16px rgba(0,0,0,0.3); z-index:9999; pointer-events:none; }
 .spielzeit-info-pop strong { display:block; margin-bottom:4px; font-size:12px; }
 .spielzeit-info-pop p { margin:0; color:rgba(255,255,255,0.8); }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { Lock, FileDown, MessageSquare } from 'lucide-react'
+import { FileDown, MessageSquare } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
@@ -45,13 +45,11 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const { treatmentLabel } = useAppSettings()
   const { scrollNavDelay } = useUserPrefs()
   const [scene, setScene] = useState<any | null>(null)
-  const [lock, setLock] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showRevisions, setShowRevisions] = useState(false)
   const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(0.5)
@@ -59,7 +57,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const [showSpielzeitInfo, setShowSpielzeitInfo] = useState(false)
   const [sceneChars, setSceneChars] = useState<any[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const panelsRef = useRef<HTMLDivElement>(null)
+  const panelsRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
   const overscrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -184,14 +182,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       .catch(() => setSceneChars([]))
   }, [szeneId, stageId])
 
-  // Load lock when folge changes
-  useEffect(() => {
-    if (!staffelId || folgeNummer == null) { setLock(null); return }
-    api.getLock(staffelId, folgeNummer)
-      .then(setLock)
-      .catch(() => setLock(null))
-  }, [staffelId, folgeNummer])
-
   const handleContentChange = useCallback((content: any[]) => {
     if (!scene) return
     const updated = { ...scene, content }
@@ -222,16 +212,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     }, 3000)
   }, [scene, szeneId, onSzeneUpdated])
 
-  const handleRequestLock = async () => {
-    if (!staffelId || folgeNummer == null) return
-    try {
-      const newLock = await api.createLock(staffelId, folgeNummer)
-      setLock(newLock)
-    } catch (e: any) {
-      alert('Lock konnte nicht angefordert werden: ' + e.message)
-    }
-  }
-
   if (loading) {
     return (
       <div className="detail" style={{ padding: 32, color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center' }}>
@@ -257,23 +237,25 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const isBothMode = panelMode !== 'script' && panelMode !== 'treatment'
 
   const contentTextelemente: any[] = Array.isArray(scene.content) ? scene.content : []
-  const sceneIsLocked = !!lock
-  const lockIsOwn = lock && (lock.user_id === 'test-user' || lock.user_name === 'Ich')
 
   return (
     <div className="detail">
       {/* Lean header — alles inline, kein Kasten */}
       <div className="detail-head" style={{ borderLeft: `3px solid ${stripeColor}` }}>
 
-        {/* Zeile 1: SZ·stopp | Motiv (grows) | spielzeit·ⓘ | I/T | buttons */}
+        {/* Zeile 1: SZ | Stoppzeit (mittig) | Motiv (grows) | DT | Spielzeit | I/T | buttons */}
         <div className="scene-r1">
-          {/* SZ + Stoppzeit ohne Space — immer sichtbar */}
+          {/* SZ-Nummer */}
           <span className="sz-group">
             <span className="scene-big">SZ{scene.scene_nummer}</span>
-            <span className="sz-stopp">
-              {vorstoppDrehbuch ? `·${Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)}'` : '·—'}
-            </span>
           </span>
+
+          {/* Stoppzeit — zwischen SZ und Motiv, zentriert mit Tooltip nach unten */}
+          <Tooltip text="Vorstopp-Drehbuch: geplante Szenenspieldauer" placement="bottom">
+            <span className="sz-stopp sz-stopp-mid">
+              {vorstoppDrehbuch ? `${Math.floor(vorstoppDrehbuch.dauer_sekunden / 60)}'${vorstoppDrehbuch.dauer_sekunden % 60 ? (vorstoppDrehbuch.dauer_sekunden % 60) + '"' : ''}` : '—'}
+            </span>
+          </Tooltip>
 
           {/* Motiv — wächst und füllt */}
           <span className="sf-motiv">{scene.ort_name}</span>
@@ -283,7 +265,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)', flexShrink: 0 }}>{saveMsg}</span>}
 
           {/* Dramaturgischer Tag */}
-          <Tooltip text={"Dramaturgischer Tag: Erzähltag in der Geschichte\n(1 = erster Tag der Handlung; steigt bei Nacht→Tag-Übergang)"}>
+          <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nWird automatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
             <span className="spiel-field-wrap">
               <span className="spiel-field-lbl">DT</span>
               <input
@@ -323,9 +305,9 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               }}
             />
             {showSpielzeitInfo && (
-              <div className="spielzeit-info-pop">
+              <div className="spielzeit-info-pop spielzeit-info-pop--below">
                 <strong>Spielzeit</strong>
-                <p>Wahrscheinliche Uhrzeit der Handlung dieser Szene — z.B. „08:30" für frühen Morgen. Für Continuity und Stundenplan-Planung.</p>
+                <p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen. Für Continuity und Stundenplan-Planung.</p>
               </div>
             )}
           </span>
@@ -347,11 +329,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
             <button className="btn ghost" title="Kommentare (als gelesen markieren)" onClick={() => onMarkCommentsRead?.(szeneId)}>
               <MessageSquare size={12} />{kommentareCount}
             </button>
-          )}
-          {sceneIsLocked ? (
-            <button className="btn lock held"><Lock size={12} />Gelockt</button>
-          ) : (
-            <button className="btn ghost" onClick={handleRequestLock} title="Lock anfordern"><Lock size={12} />Locken</button>
           )}
           <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId).then(r => r.blob()).then(b => {
             const url = URL.createObjectURL(b); window.open(url, '_blank')
@@ -400,23 +377,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           </div>
         </div>
       </div>
-
-      {/* Lock banner */}
-      {sceneIsLocked && (
-        <div className={`lock-banner${lockIsOwn ? ' mine' : ''}`}>
-          <div className="lb-avatar">{lock.user_id?.slice(0, 2).toUpperCase() ?? 'LK'}</div>
-          <div>
-            <div className="lb-title">Gelockt von {lock.user_name || lock.user_id}</div>
-            <div className="lb-sub">{lock.lock_type === 'contract' ? 'Contract-Lock' : 'Exklusiv-Lock'}</div>
-          </div>
-          <span className="lb-spacer" />
-          {lockIsOwn ? (
-            <span className="chip-ok">Mein Lock</span>
-          ) : (
-            <button className="btn ghost" onClick={handleRequestLock} title="Lock übernehmen">Übernehmen</button>
-          )}
-        </div>
-      )}
 
     </div>
   )

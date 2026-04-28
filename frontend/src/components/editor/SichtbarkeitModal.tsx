@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Eye, Lock, Users, Globe, Building, Info } from 'lucide-react'
+import { X, Eye, Lock, Users, Globe, Building } from 'lucide-react'
 import { api } from '../../api/client'
 import Tooltip from '../Tooltip'
 
@@ -72,8 +72,7 @@ export default function SichtbarkeitModal({ dokumentId, fassungId, staffelId, cu
           <span style={{ fontWeight: 600, fontSize: 14 }}>Sichtbarkeit</span>
           <div style={{ flex: 1 }} />
           <Tooltip text={'Bestimmte Rollen (z.B. Herstellungsleitung) können diese\nEinstellung überschreiben, um Produktionssperren zu vermeiden.'}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, color: 'var(--text-muted)', cursor: 'help' }}>
-              <Info size={11} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', cursor: 'help', borderBottom: '1px dashed currentColor' }}>
               Override-Info
             </span>
           </Tooltip>
@@ -98,7 +97,7 @@ export default function SichtbarkeitModal({ dokumentId, fassungId, staffelId, cu
                   display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                   border: `1px solid ${selected === s.value ? SICHTBARKEIT_COLORS[s.value] : s.value === 'privat' ? 'rgba(255,59,48,0.2)' : 'var(--border)'}`,
                   borderRadius: 8,
-                  background: selected === s.value ? `${SICHTBARKEIT_COLORS[s.value]}11` : s.value === 'privat' ? 'rgba(255,59,48,0.04)' : 'transparent',
+                  background: selected === s.value ? `${SICHTBARKEIT_COLORS[s.value]}22` : s.value === 'privat' ? 'rgba(255,59,48,0.08)' : 'transparent',
                   cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%',
                 }}
               >

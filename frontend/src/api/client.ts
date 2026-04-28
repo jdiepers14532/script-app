@@ -55,6 +55,8 @@ export const api = {
     request<{ scenes: any[]; renumbered: boolean }>('POST', `/stages/${stageId}/szenen/renumber`),
   setSceneLogging: (stageId: number) =>
     request<{ updated: number }>('POST', `/stages/${stageId}/szenen/set-logging`),
+  autoSpieltagCalc: (stageId: number) =>
+    request<any[]>('POST', `/stages/${stageId}/szenen/auto-spieltag`),
 
   // Locks (keyed by staffelId + folgeNummer)
   getLock: (staffelId: string, folgeNummer: number) =>

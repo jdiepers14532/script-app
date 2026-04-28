@@ -312,6 +312,47 @@ stagesSzenenRouter.post('/:stageId/szenen/renumber', async (req, res) => {
   }
 })
 
+// POST /api/stages/:stageId/szenen/auto-spieltag
+// Calculates spieltag for all scenes in order: increments when tageszeit switches from NACHT to non-NACHT
+stagesSzenenRouter.post('/:stageId/szenen/auto-spieltag', async (req, res) => {
+  const stageId = parseInt(req.params.stageId)
+  const client = await pool.connect()
+  try {
+    const { rows: scenes } = await client.query(
+      'SELECT id, tageszeit FROM szenen WHERE stage_id = $1 ORDER BY sort_order, scene_nummer, scene_nummer_suffix',
+      [stageId]
+    )
+
+    let spieltag = 1
+    let prevTageszeit: string | null = null
+    const updates: { id: number; spieltag: number }[] = []
+
+    for (const row of scenes) {
+      const tz = (row.tageszeit ?? 'TAG').toUpperCase()
+      if (prevTageszeit === 'NACHT' && tz !== 'NACHT') spieltag++
+      updates.push({ id: row.id, spieltag })
+      prevTageszeit = tz
+    }
+
+    await client.query('BEGIN')
+    for (const u of updates) {
+      await client.query('UPDATE szenen SET spieltag = $1 WHERE id = $2', [u.spieltag, u.id])
+    }
+    await client.query('COMMIT')
+
+    const { rows: updated } = await client.query(
+      'SELECT * FROM szenen WHERE stage_id = $1 ORDER BY sort_order, scene_nummer, scene_nummer_suffix',
+      [stageId]
+    )
+    res.json(updated)
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
+  }
+})
+
 // POST /api/stages/:stageId/szenen/set-logging
 // Sets logged_since = NOW() on all scenes of this stage (one-time, at Abgabe)
 stagesSzenenRouter.post('/:stageId/szenen/set-logging', async (req, res) => {

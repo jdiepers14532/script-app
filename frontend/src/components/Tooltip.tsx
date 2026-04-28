@@ -5,23 +5,36 @@ interface TooltipProps {
   text: string
   children: ReactNode
   placement?: 'top' | 'bottom'
+  delay?: number  // ms before showing
 }
 
-export default function Tooltip({ text, children, placement = 'top' }: TooltipProps) {
+export default function Tooltip({ text, children, placement = 'top', delay = 0 }: TooltipProps) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const show = useCallback(() => {
     if (!ref.current) return
-    const r = ref.current.getBoundingClientRect()
-    setPos(
-      placement === 'bottom'
-        ? { x: r.left + r.width / 2, y: r.bottom + 8 }
-        : { x: r.left + r.width / 2, y: r.top - 8 }
-    )
-  }, [placement])
+    const doShow = () => {
+      if (!ref.current) return
+      const r = ref.current.getBoundingClientRect()
+      setPos(
+        placement === 'bottom'
+          ? { x: r.left + r.width / 2, y: r.bottom + 8 }
+          : { x: r.left + r.width / 2, y: r.top - 8 }
+      )
+    }
+    if (delay > 0) {
+      timer.current = setTimeout(doShow, delay)
+    } else {
+      doShow()
+    }
+  }, [placement, delay])
 
-  const hide = useCallback(() => setPos(null), [])
+  const hide = useCallback(() => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null }
+    setPos(null)
+  }, [])
 
   return (
     <>
