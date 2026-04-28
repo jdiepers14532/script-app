@@ -26,6 +26,6 @@ BEGIN
       (sid, 'Was braucht die Figur wirklich',  'richtext', '[]', 25, 'rolle'),
       (sid, 'Anbindung an den Cast',           'richtext', '[]', 26, 'rolle'),
       (sid, 'Wesen',                           'richtext', '[]', 27, 'rolle')
-    ON CONFLICT (staffel_id, name) DO NOTHING;
+    ON CONFLICT (staffel_id, name, gilt_fuer) DO NOTHING;
   END LOOP;
 END $$;
