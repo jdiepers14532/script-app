@@ -376,6 +376,12 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
 
         {/* Zeilen 2–5: Felder eingerückt unter Motiv-Position */}
         <div className="scene-fields" key={szeneId}>
+          {/* Unsichtbarer Spacer — spiegelt sz-group + stopp-inp aus scene-r1 für exakte Ausrichtung */}
+          <span className="sf-align-spacer" aria-hidden="true">
+            <span className="sz-group"><span className="scene-big">SZ0</span></span>
+            <input className="stopp-inp" tabIndex={-1} readOnly style={{ pointerEvents: 'none' }} />
+          </span>
+          <div className="scene-fields-rows">
           <div className="sf-row">
             <input
               className="sf-input"
@@ -412,6 +418,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               }}
             />
           </div>
+          </div>{/* end scene-fields-rows */}
         </div>
       </div>
 

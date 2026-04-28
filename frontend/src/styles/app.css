@@ -334,8 +334,10 @@
 .ie-toggle:hover { background:var(--bg-subtle); }
 .ie-sep { font-size:13px; color:var(--text-muted); font-weight:400; line-height:1; padding:0; }
 
-/* Felder-Block — eingerückt auf Motiv-Startposition (sz-group 52px + gap 8px + stopp-inp 32px + gap 8px = 100px) */
-.scene-fields { padding-left:100px; display:flex; flex-direction:column; gap:3px; padding-bottom:6px; }
+/* Felder-Block — Spacer spiegelt scene-r1-Prefix für pixel-genaue Ausrichtung mit Motiv */
+.scene-fields { display:flex; flex-direction:row; gap:8px; padding-bottom:6px; }
+.sf-align-spacer { display:flex; align-items:center; gap:8px; visibility:hidden; flex-shrink:0; pointer-events:none; user-select:none; }
+.scene-fields-rows { flex:1; display:flex; flex-direction:column; gap:3px; min-width:0; }
 .sf-row { display:flex; align-items:baseline; min-height:16px; }
 .sf-input { font-size:14px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:100%; padding:0; font-family:inherit; }
 .sf-input:hover, .sf-input:focus { border-bottom-color:var(--border); }
