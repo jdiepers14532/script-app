@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import EntitySidebar from '../components/figuren/EntitySidebar'
 import FotoGalerie from '../components/figuren/FotoGalerie'
-import FeldEditor from '../components/figuren/FeldEditor'
+const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import { api } from '../api/client'
 import { useSelectedProduction } from '../App'
 import { Plus, X } from 'lucide-react'
@@ -208,7 +208,7 @@ export default function KomparsenPage() {
 
                 {felder.map(f => {
                   const wert = feldwerte.find(v => v.feld_id === f.id)
-                  return <FeldEditor key={f.id} feld={f} wert={wert} onChange={handleFeldChange} characterId={selectedId ?? undefined} />
+                  return <Suspense key={f.id} fallback={null}><FeldEditor feld={f} wert={wert} onChange={handleFeldChange} characterId={selectedId ?? undefined} /></Suspense>
                 })}
               </div>
             </div>

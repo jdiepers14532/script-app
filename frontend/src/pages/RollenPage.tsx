@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import EntitySidebar from '../components/figuren/EntitySidebar'
 import FotoGalerie from '../components/figuren/FotoGalerie'
-import FeldEditor from '../components/figuren/FeldEditor'
+const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import BeziehungsPanel from '../components/figuren/BeziehungsPanel'
 import RollenprofilImportModal from '../components/RollenprofilImportModal'
 import { api } from '../api/client'
@@ -349,7 +349,7 @@ export default function RollenPage() {
                         const wert = feldwerte.find(v => v.feld_id === f.id)
                         return (
                           <div key={f.id} style={f.typ === 'richtext' ? { gridColumn: '1 / -1' } : {}}>
-                            <FeldEditor feld={f} wert={wert} onChange={handleFeldChange} onCharacterSearch={handleCharacterSearch} characterId={selectedId ?? undefined} />
+                            <Suspense fallback={null}><FeldEditor feld={f} wert={wert} onChange={handleFeldChange} onCharacterSearch={handleCharacterSearch} characterId={selectedId ?? undefined} /></Suspense>
                           </div>
                         )
                       })}
@@ -365,7 +365,7 @@ export default function RollenPage() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                           {charRefFelder.map(f => {
                             const wert = feldwerte.find(v => v.feld_id === f.id)
-                            return <FeldEditor key={f.id} feld={f} wert={wert} onChange={handleFeldChange} onCharacterSearch={handleCharacterSearch} characterId={selectedId ?? undefined} />
+                            return <Suspense key={f.id} fallback={null}><FeldEditor feld={f} wert={wert} onChange={handleFeldChange} onCharacterSearch={handleCharacterSearch} characterId={selectedId ?? undefined} /></Suspense>
                           })}
                         </div>
                         <BeziehungsPanel
