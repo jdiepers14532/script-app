@@ -69,16 +69,21 @@ export default function App() {
   const [figurenLabel, setFigurenLabel] = useState('Rollen')
 
   useEffect(() => {
-    fetch('/api/admin/app-settings', { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then((data: any) => {
-        if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
-        if (data?.figuren_label) setFigurenLabel(data.figuren_label)
-        if (data?.scene_kuerzel) {
-          try { setSceneKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
-        }
-      })
-      .catch(() => {})
+    const loadSettings = () => {
+      fetch('/api/admin/app-settings', { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then((data: any) => {
+          if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
+          if (data?.figuren_label) setFigurenLabel(data.figuren_label)
+          if (data?.scene_kuerzel) {
+            try { setSceneKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
+          }
+        })
+        .catch(() => {})
+    }
+    loadSettings()
+    window.addEventListener('app-settings-changed', loadSettings)
+    return () => window.removeEventListener('app-settings-changed', loadSettings)
   }, [])
 
   return (

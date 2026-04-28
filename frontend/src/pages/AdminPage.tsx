@@ -1377,6 +1377,7 @@ function FigurenTab() {
       body: JSON.stringify({ value: val }),
     }).catch(() => {})
     setSaving(false)
+    window.dispatchEvent(new CustomEvent('app-settings-changed'))
   }
 
   const handleCreateFeld = async () => {
