@@ -1,5 +1,8 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Plus, Eye } from 'lucide-react'
+
+const THUMB_SIZE = 42   // px — Thumbnail-Größe in der Liste
+const PREVIEW_SIZE = 126 // px — Hover-Vorschau (300% von THUMB_SIZE)
 
 interface Entity {
   id: string
@@ -136,6 +139,20 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
   onAktivieren?: (id: string) => void
 }) {
   const nr = entity[numberKey]
+  const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null)
+  const thumbRef = useRef<HTMLImageElement>(null)
+
+  const showPreview = useCallback(() => {
+    if (!thumbRef.current) return
+    const rect = thumbRef.current.getBoundingClientRect()
+    setPreviewPos({
+      top: rect.top + rect.height / 2 - PREVIEW_SIZE / 2,
+      left: rect.right + 8,
+    })
+  }, [])
+
+  const hidePreview = useCallback(() => setPreviewPos(null), [])
+
   return (
     <div
       onClick={() => onSelect(entity.id)}
@@ -157,11 +174,33 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
         {entity.name}
       </span>
       {entity.primaerFoto && !inactive && (
-        <img
-          src={entity.primaerFoto}
-          alt=""
-          style={{ width: 28, height: 28, borderRadius: 4, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }}
-        />
+        <>
+          <img
+            ref={thumbRef}
+            src={entity.primaerFoto}
+            alt=""
+            onMouseEnter={showPreview}
+            onMouseLeave={hidePreview}
+            style={{ width: THUMB_SIZE, height: THUMB_SIZE, borderRadius: 4, objectFit: 'cover', flexShrink: 0, border: '1px solid var(--border)' }}
+          />
+          {previewPos && (
+            <div style={{
+              position: 'fixed',
+              top: previewPos.top,
+              left: previewPos.left,
+              width: PREVIEW_SIZE,
+              height: PREVIEW_SIZE,
+              borderRadius: 6,
+              overflow: 'hidden',
+              border: '1px solid var(--border)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+              pointerEvents: 'none',
+              zIndex: 9999,
+            }}>
+              <img src={entity.primaerFoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
+          )}
+        </>
       )}
       {inactive && onAktivieren && (
         <button
