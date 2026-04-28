@@ -208,7 +208,7 @@ export default function KomparsenPage() {
 
                 {felder.map(f => {
                   const wert = feldwerte.find(v => v.feld_id === f.id)
-                  return <FeldEditor key={f.id} feld={f} wert={wert} onChange={handleFeldChange} />
+                  return <FeldEditor key={f.id} feld={f} wert={wert} onChange={handleFeldChange} characterId={selectedId ?? undefined} />
                 })}
               </div>
             </div>

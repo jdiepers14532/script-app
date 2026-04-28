@@ -340,6 +340,7 @@ export default function RollenPage() {
                       wert={wert}
                       onChange={handleFeldChange}
                       onCharacterSearch={handleCharacterSearch}
+                      characterId={selectedId ?? undefined}
                     />
                   )
                 })}

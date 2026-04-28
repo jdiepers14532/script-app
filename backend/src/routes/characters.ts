@@ -63,6 +63,28 @@ charactersRouter.post('/', async (req, res) => {
   }
 })
 
+// GET /api/characters/search?q=... (global, staffel-übergreifend)
+// Must be before /:id to avoid route conflict
+charactersRouter.get('/search', async (req, res) => {
+  const q = String(req.query.q ?? '').trim()
+  if (q.length < 2) return res.json([])
+  try {
+    const rows = await query(
+      `SELECT c.id, c.name,
+              (SELECT STRING_AGG(DISTINCT s.name, ', ')
+               FROM character_productions cp
+               JOIN staffeln s ON s.id = cp.staffel_id
+               WHERE cp.character_id = c.id) AS staffeln
+       FROM characters c
+       WHERE c.name ILIKE $1
+       ORDER BY c.name
+       LIMIT 20`,
+      [`%${q}%`]
+    )
+    res.json(rows)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 // PUT /api/characters/:id
 charactersRouter.put('/:id', async (req, res) => {
   const { name, meta_json } = req.body

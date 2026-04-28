@@ -207,6 +207,7 @@ async function runMigrations() {
     'v31_ki_providers.sql',
     'v32_notizen_richtext.sql',
     'v33_rollenprofil_felder.sql',
+    'v34_charakter_feld_links.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [

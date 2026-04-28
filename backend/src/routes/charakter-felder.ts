@@ -66,7 +66,7 @@ staffelFelderRouter.post('/', async (req, res) => {
   const { staffelId } = req.params as any
   const { name, typ, optionen, sort_order, gilt_fuer } = req.body
   if (!name || !typ) return res.status(400).json({ error: 'name und typ required' })
-  const validTypen = ['text', 'richtext', 'select', 'link', 'date', 'number']
+  const validTypen = ['text', 'richtext', 'select', 'link', 'date', 'number', 'character_ref']
   if (!validTypen.includes(typ)) return res.status(400).json({ error: 'Ungültiger Feldtyp' })
   try {
     const maxOrder = await queryOne('SELECT COALESCE(MAX(sort_order), 0) AS m FROM charakter_felder_config WHERE staffel_id = $1', [staffelId])
@@ -179,6 +179,56 @@ characterFeldwerteRouter.put('/:feldId', async (req, res) => {
       [id, feldId, wert_text ?? null, wert_json ? JSON.stringify(wert_json) : null]
     )
     res.json(row)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// ── Feld-Links (character_ref) ────────────────────────────────────────────────
+
+// GET /api/characters/:id/feldwerte/:feldId/links
+characterFeldwerteRouter.get('/:feldId/links', async (req, res) => {
+  const { id, feldId } = req.params as any
+  try {
+    const rows = await query(
+      `SELECT fl.id, fl.linked_character_id, c.name AS linked_character_name,
+              (SELECT STRING_AGG(DISTINCT s.name, ', ')
+               FROM character_productions cp
+               JOIN staffeln s ON s.id = cp.staffel_id
+               WHERE cp.character_id = fl.linked_character_id) AS staffeln
+       FROM charakter_feld_links fl
+       JOIN characters c ON c.id = fl.linked_character_id
+       WHERE fl.source_character_id = $1 AND fl.feld_id = $2
+       ORDER BY c.name`,
+      [id, feldId]
+    )
+    res.json(rows)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// POST /api/characters/:id/feldwerte/:feldId/links
+characterFeldwerteRouter.post('/:feldId/links', async (req, res) => {
+  const { id, feldId } = req.params as any
+  const { linked_character_id } = req.body
+  if (!linked_character_id) return res.status(400).json({ error: 'linked_character_id required' })
+  try {
+    await queryOne(
+      `INSERT INTO charakter_feld_links (source_character_id, feld_id, linked_character_id)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [id, feldId, linked_character_id]
+    )
+    const linked = await queryOne('SELECT id, name FROM characters WHERE id = $1', [linked_character_id])
+    res.status(201).json({ linked_character_id, linked_character_name: linked?.name })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// DELETE /api/characters/:id/feldwerte/:feldId/links/:linkedId
+characterFeldwerteRouter.delete('/:feldId/links/:linkedId', async (req, res) => {
+  const { id, feldId, linkedId } = req.params as any
+  try {
+    await queryOne(
+      'DELETE FROM charakter_feld_links WHERE source_character_id = $1 AND feld_id = $2 AND linked_character_id = $3',
+      [id, feldId, linkedId]
+    )
+    res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 

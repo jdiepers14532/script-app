@@ -4,7 +4,7 @@ import { Mark } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import PlaceholderExt from '@tiptap/extension-placeholder'
-import { Search, Bold, Italic, Underline, List, Highlighter } from 'lucide-react'
+import { Search, Bold, Italic, Underline, List, Highlighter, Link2, Link2Off } from 'lucide-react'
 
 // Inline highlight mark — avoids circular dep from @tiptap/extension-highlight
 const HighlightMark = Mark.create({
@@ -21,7 +21,7 @@ const HighlightMark = Mark.create({
 interface Feld {
   id: number
   name: string
-  typ: 'text' | 'richtext' | 'select' | 'link' | 'date' | 'number'
+  typ: 'text' | 'richtext' | 'select' | 'link' | 'date' | 'number' | 'character_ref'
   optionen: string[]
   gilt_fuer: string
 }
@@ -39,11 +39,17 @@ interface FeldEditorProps {
   // For link fields: search characters
   onCharacterSearch?: (q: string) => Promise<{ id: string; name: string }[]>
   beziehungstypen?: string[]
+  // For character_ref fields: the current character being edited
+  characterId?: string
 }
 
 const BEZIEHUNGSTYPEN = ['eltern_von', 'kind_von', 'geschwister', 'partner', 'custom']
 
-export default function FeldEditor({ feld, wert, onChange, onCharacterSearch, beziehungstypen = BEZIEHUNGSTYPEN }: FeldEditorProps) {
+export default function FeldEditor({ feld, wert, onChange, onCharacterSearch, beziehungstypen = BEZIEHUNGSTYPEN, characterId }: FeldEditorProps) {
+  if (feld.typ === 'character_ref') {
+    return <CharacterRefFeld feld={feld} wert={wert} onChange={onChange} characterId={characterId} />
+  }
+
   if (feld.typ === 'link') {
     return (
       <LinkFeld
@@ -235,6 +241,146 @@ function LinkFeld({ feld, wert, onChange, onCharacterSearch, beziehungstypen }: 
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function extractNamesFromText(text: string): string[] {
+  return text
+    .split(/[,;\n]/)
+    .map(s => s.replace(/\(.*?\)/g, '').replace(/\s+/g, ' ').trim())
+    .filter(s => s.length >= 3)
+    .slice(0, 5)
+}
+
+function CharacterRefFeld({ feld, wert, onChange, characterId }: Pick<FeldEditorProps, 'feld' | 'wert' | 'onChange' | 'characterId'>) {
+  const [text, setText] = useState(wert?.wert_text ?? '')
+  const [links, setLinks] = useState<any[]>([])
+  const [suggestions, setSuggestions] = useState<any[]>([])
+  const [searching, setSearching] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevWertRef = useRef(wert)
+
+  // Load links when character changes
+  useEffect(() => {
+    setLinks([])
+    setSuggestions([])
+    if (!characterId) return
+    fetch(`/api/characters/${encodeURIComponent(characterId)}/feldwerte/${feld.id}/links`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(setLinks)
+      .catch(() => {})
+  }, [characterId, feld.id])
+
+  // Reset text when a different character is loaded
+  useEffect(() => {
+    if (prevWertRef.current !== wert) {
+      prevWertRef.current = wert
+      setText(wert?.wert_text ?? '')
+      setSuggestions([])
+    }
+  }, [wert])
+
+  const doSearch = async (val: string) => {
+    const names = extractNamesFromText(val)
+    if (names.length === 0) { setSuggestions([]); return }
+    setSearching(true)
+    try {
+      const linkedIds = new Set(links.map((l: any) => l.linked_character_id))
+      const seen = new Set<string>()
+      const results: any[] = []
+      for (const name of names) {
+        const r = await fetch(`/api/characters/search?q=${encodeURIComponent(name)}`, { credentials: 'include' })
+        if (!r.ok) continue
+        const data = await r.json()
+        for (const item of data) {
+          if (item.id !== characterId && !linkedIds.has(item.id) && !seen.has(item.id)) {
+            seen.add(item.id)
+            results.push(item)
+          }
+        }
+      }
+      setSuggestions(results)
+    } finally { setSearching(false) }
+  }
+
+  const handleTextChange = (val: string) => {
+    setText(val)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => doSearch(val), 700)
+  }
+
+  const handleBlur = () => {
+    onChange(feld.id, text || null, null)
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    doSearch(text)
+  }
+
+  const linkChar = async (item: any) => {
+    if (!characterId) return
+    const r = await fetch(`/api/characters/${encodeURIComponent(characterId)}/feldwerte/${feld.id}/links`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ linked_character_id: item.id }),
+    })
+    if (r.ok) {
+      setLinks(prev => [...prev, { linked_character_id: item.id, linked_character_name: item.name }])
+      setSuggestions(prev => prev.filter(s => s.id !== item.id))
+    }
+  }
+
+  const unlinkChar = async (linkedId: string) => {
+    if (!characterId) return
+    await fetch(`/api/characters/${encodeURIComponent(characterId)}/feldwerte/${feld.id}/links/${encodeURIComponent(linkedId)}`, {
+      method: 'DELETE', credentials: 'include',
+    })
+    setLinks(prev => prev.filter(l => l.linked_character_id !== linkedId))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <label style={labelStyle}>{feld.name}</label>
+      <input
+        type="text"
+        value={text}
+        onChange={e => handleTextChange(e.target.value)}
+        onBlur={handleBlur}
+        style={inputStyle}
+        placeholder="Name eingeben…"
+      />
+      {(links.length > 0 || suggestions.length > 0 || searching) && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 2 }}>
+          {links.map((link: any) => (
+            <span key={link.linked_character_id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11,
+              padding: '3px 6px 3px 5px', borderRadius: 12, color: 'var(--text)',
+              background: 'rgba(0,200,83,0.1)', border: '1px solid rgba(0,200,83,0.35)',
+            }}>
+              <Link2 size={10} color="#00C853" />
+              <span>{link.linked_character_name}</span>
+              {link.staffeln && <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>({link.staffeln})</span>}
+              <button onClick={() => unlinkChar(link.linked_character_id)}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, padding: 0, lineHeight: 1, marginLeft: 1 }}>×</button>
+            </span>
+          ))}
+          {suggestions.map((s: any) => (
+            <span key={s.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11,
+              padding: '3px 6px 3px 5px', borderRadius: 12, color: 'var(--text-secondary)',
+              background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+            }}>
+              <Link2Off size={10} />
+              <span>{s.name}</span>
+              {s.staffeln && <span style={{ fontSize: 10 }}>({s.staffeln})</span>}
+              <button onClick={() => linkChar(s)}
+                style={{ border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', color: 'var(--text)', fontSize: 10, padding: '1px 6px', borderRadius: 4, marginLeft: 2 }}>
+                Verknüpfen
+              </button>
+            </span>
+          ))}
+          {searching && <span style={{ fontSize: 11, color: 'var(--text-secondary)', alignSelf: 'center' }}>Sucht…</span>}
+        </div>
+      )}
     </div>
   )
 }
