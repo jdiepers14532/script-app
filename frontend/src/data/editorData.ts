@@ -1,14 +1,14 @@
-export type BlockType = 'heading' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'shot';
+export type TextelementType = 'heading' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'shot';
 
-export interface ScriptBlock {
+export interface ScriptTextelement {
   id: string;
-  type: BlockType;
+  type: TextelementType;
   text: string;
 }
 
 export interface Script {
   sceneId: number;
-  blocks: ScriptBlock[];
+  textelemente: ScriptTextelement[];
 }
 
 export interface Author {
@@ -57,7 +57,7 @@ export const AUTHORS: Record<string, Author> = {
 export const SCRIPTS: Record<number, Script> = {
   7: {
     sceneId: 7,
-    blocks: [
+    textelemente: [
       { id: 'b1',  type: 'heading',       text: 'INT. SCHLAFZIMMER WOLFSBERG – NACHT' },
       { id: 'b2',  type: 'action',        text: 'Das Zimmer liegt im Dunkeln. EVA (38) liegt im Bett, starrt an die Decke. Neben ihr schläft JONAS (41), gleichmäßig atmend.' },
       { id: 'b3',  type: 'action',        text: 'Eva dreht sich um. Einmal. Zweimal. Seufzt leise.' },

@@ -1447,7 +1447,7 @@ function HilfePage() {
                 { name: 'tageszeit',     type: 'TEXT',      desc: "TAG | NACHT | ABEND | DÄMMERUNG (Tag/Nacht)" },
                 { name: 'ort_name',      type: 'TEXT',      desc: 'Motivname, z.B. Gartenhaus / Küche' },
                 { name: 'zusammenfassung',type: 'TEXT',     desc: 'Kurzbeschreibung (Beschreibungs-Zeile)' },
-                { name: 'content',       type: 'JSONB []',  desc: 'Szenentext als Block-Array — siehe Abschnitt 3' },
+                { name: 'content',       type: 'JSONB []',  desc: 'Szenentext als Textelement-Array — siehe Abschnitt 3' },
                 { name: 'dauer_min',     type: 'INT',       desc: 'Spieldauer in Minuten (Integer)' },
                 { name: 'sort_order',    type: 'INT',       desc: 'Reihenfolge innerhalb der Fassung' },
                 { name: 'meta_json',     type: 'JSONB',     desc: 'Erweiterungsfelder — siehe Abschnitt 2' },
@@ -1574,7 +1574,7 @@ function HilfePage() {
         {/* ── 4. content JSONB ── */}
         <Section title="4. Szenentext — content JSONB">
           <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-            <code>szenen.content</code> ist ein Array von Blöcken. Jeder Block hat mindestens <code>type</code> und <code>text</code>.
+            <code>szenen.content</code> ist ein Array von Textelementen. Jedes Textelement hat mindestens <code>type</code> und <code>text</code>.
           </p>
           <div style={{ background: C.subtle, borderRadius: 8, padding: 16, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.7, overflowX: 'auto' }}>
             <pre style={{ margin: 0 }}>{`[
@@ -1587,7 +1587,7 @@ function HilfePage() {
 ]`}</pre>
           </div>
           <div style={{ marginTop: 12 }}>
-            <strong style={{ fontSize: 12 }}>Block-Typen:</strong>
+            <strong style={{ fontSize: 12 }}>Textelement-Typen:</strong>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
               {['heading', 'action', 'dialog', 'parenthetical', 'transition'].map(t => (
                 <Badge key={t} color={C.blue}>{t}</Badge>
@@ -1652,7 +1652,7 @@ function HilfePage() {
                 { name: 'szene_id',    type: 'INT FK', desc: 'Szene' },
                 { name: 'user_id',     type: 'TEXT',   desc: 'Autor' },
                 { name: 'text',        type: 'TEXT',   desc: 'Kommentartext' },
-                { name: 'line_ref',    type: 'TEXT',   desc: 'Block-Referenz im content-Array' },
+                { name: 'line_ref',    type: 'TEXT',   desc: 'Textelement-Referenz im content-Array' },
                 { name: 'resolved',    type: 'BOOL',   desc: 'Erledigt-Flag' },
                 { name: 'resolved_by', type: 'TEXT',   desc: 'Wer hat erledigt' },
               ]}
