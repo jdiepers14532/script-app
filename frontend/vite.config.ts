@@ -56,11 +56,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('prosemirror') || id.includes('y-prosemirror') || id.includes('yjs') || id.includes('@hocuspocus') || id.includes('y-protocols') || id.includes('lib0')) {
-            return 'prosemirror'
-          }
-          if (id.includes('@tiptap')) {
-            return 'tiptap'
+          if (
+            id.includes('@tiptap') ||
+            id.includes('prosemirror') ||
+            id.includes('y-prosemirror') ||
+            id.includes('yjs') ||
+            id.includes('@hocuspocus') ||
+            id.includes('y-protocols') ||
+            id.includes('lib0')
+          ) {
+            return 'editor'
           }
         }
       }
