@@ -360,6 +360,8 @@ export const api = {
     request<any>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/${feldId}`),
   reorderCharakterFelder: (staffelId: string, order: { id: number; sort_order: number }[]) =>
     request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/reorder`, { order }),
+  rollenprofilFelderPreset: (staffelId: string) =>
+    request<any[]>('POST', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/rollenprofil-preset`),
 
   // ── Feldwerte ─────────────────────────────────────────────────────────────
   getCharacterFeldwerte: (characterId: string) =>

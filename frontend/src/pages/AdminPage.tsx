@@ -1353,6 +1353,8 @@ function FigurenTab() {
   const [newFeld, setNewFeld] = useState<{ name: string; typ: string; gilt_fuer: string; optionen: string } | null>(null)
   const [feldSaving, setFeldSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [presetLoading, setPresetLoading] = useState(false)
+  const [presetDone, setPresetDone] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/app-settings', { credentials: 'include' })
@@ -1397,6 +1399,17 @@ function FigurenTab() {
     setDeleteConfirm(null)
   }
 
+  const handleRollenprofilPreset = async () => {
+    if (!staffelId) return
+    setPresetLoading(true)
+    try {
+      const rows = await api.rollenprofilFelderPreset(staffelId)
+      setFelder(rows)
+      setPresetDone(true)
+      setTimeout(() => setPresetDone(false), 3000)
+    } finally { setPresetLoading(false) }
+  }
+
   const rollenFelder = felder.filter(f => f.gilt_fuer === 'alle' || f.gilt_fuer === 'rolle' || f.gilt_fuer === 'komparse')
   const motivFelder = felder.filter(f => f.gilt_fuer === 'motiv')
 
@@ -1431,6 +1444,21 @@ function FigurenTab() {
           <section>
             <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder für Motive</h3>
             <FeldListe felder={motivFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
+          </section>
+
+          {/* Rollenprofil preset */}
+          <section>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Rollenprofil-Standardfelder</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+              Fügt die Standard-Rollenprofil-Felder hinzu (Alter, Geburtsort, Charakter, Backstory usw.). Bereits vorhandene Felder werden nicht überschrieben.
+            </p>
+            <button
+              onClick={handleRollenprofilPreset}
+              disabled={presetLoading}
+              style={{ fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: presetDone ? '#00C853' : 'transparent', color: presetDone ? '#fff' : 'var(--text)', transition: 'background 0.2s, color 0.2s' }}
+            >
+              {presetLoading ? 'Wird hinzugefügt…' : presetDone ? '✓ Felder hinzugefügt' : 'Rollenprofil-Felder hinzufügen'}
+            </button>
           </section>
 
           {/* Add field form */}

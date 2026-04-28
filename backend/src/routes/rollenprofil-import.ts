@@ -142,19 +142,42 @@ rollenprofilImportRouter.post('/preview', upload.single('file'), async (req, res
   }
 })
 
+// Mapping from parsed rollenprofil keys to charakter_felder_config names
+const PARSED_TO_FELDNAME: Record<string, string> = {
+  alter:                 'Alter',
+  geburtsort:            'Geburtsort',
+  familienstand:         'Familienstand',
+  eltern:                'Eltern',
+  verwandte:             'Kinder / Verwandte',
+  beruf:                 'Beruf',
+  typ:                   'Typ',
+  charakter:             'Charakter',
+  aussehen:              'Aussehen/Stil',
+  dramaturgische_funktion: 'Dramaturgische Funktion',
+  staerken:              'Stärken',
+  schwaechem:            'Schwächen',
+  verletzungen:          'Verletzungen/Wunden',
+  leidenschaften:        'Ticks/Leidenschaften',
+  wuensche:              'Wünsche/Ziele',
+  inneres_ziel:          'Was braucht die Figur wirklich',
+  cast_anbindung:        'Anbindung an den Cast',
+  backstory:             'Beschreibung',
+}
+
 // POST /api/characters/rollenprofil-import/commit
 rollenprofilImportRouter.post('/commit', async (req, res) => {
-  const { staffel_id, parsed, beschreibung_feld_id } = req.body
+  const { staffel_id, parsed } = req.body
   if (!staffel_id || !parsed?.name) {
     return res.status(400).json({ error: 'staffel_id und parsed.name erforderlich' })
   }
 
   try {
-    const { backstory, name, ...rollenprofilFields } = parsed
+    const { name, kurzbeschreibung, produktion, staffel, folgen_range, ...restParsed } = parsed
 
+    // Store only non-field metadata in meta_json
     const char = await queryOne(
       `INSERT INTO characters (name, meta_json) VALUES ($1, $2) RETURNING *`,
-      [name, JSON.stringify({ rollenprofil: rollenprofilFields })]
+      [name, JSON.stringify({ rollenprofil: { kurzbeschreibung, produktion, staffel, folgen_range } })]
     )
 
     await queryOne(
@@ -163,23 +186,25 @@ rollenprofilImportRouter.post('/commit', async (req, res) => {
       [char.id, staffel_id]
     )
 
-    if (backstory?.trim()) {
-      let feldId = beschreibung_feld_id
-      if (!feldId) {
-        const feld = await queryOne(
-          `SELECT id FROM charakter_felder_config WHERE staffel_id = $1 AND name = 'Beschreibung' LIMIT 1`,
-          [staffel_id]
-        )
-        feldId = feld?.id ?? null
-      }
-      if (feldId) {
-        await queryOne(
-          `INSERT INTO charakter_feldwerte (character_id, feld_id, wert_text)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (character_id, feld_id) WHERE character_id IS NOT NULL DO UPDATE SET wert_text = EXCLUDED.wert_text`,
-          [char.id, feldId, backstory]
-        )
-      }
+    // Load all configured felder for this staffel
+    const felder = await query(
+      'SELECT id, name FROM charakter_felder_config WHERE staffel_id = $1',
+      [staffel_id]
+    )
+    const feldByName = Object.fromEntries(felder.map((f: any) => [f.name, f.id]))
+
+    // Write each parsed field to charakter_feldwerte
+    for (const [key, feldName] of Object.entries(PARSED_TO_FELDNAME)) {
+      const wert = restParsed[key]
+      if (!wert?.trim()) continue
+      const feldId = feldByName[feldName]
+      if (!feldId) continue
+      await queryOne(
+        `INSERT INTO charakter_feldwerte (character_id, feld_id, wert_text)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (character_id, feld_id) WHERE character_id IS NOT NULL DO UPDATE SET wert_text = EXCLUDED.wert_text`,
+        [char.id, feldId, wert]
+      )
     }
 
     res.status(201).json({ character_id: char.id, name: char.name })

@@ -16,9 +16,29 @@ const DEFAULT_FELDER = [
   { name: 'fiktionale Adresse in der Geschichte', typ: 'text', optionen: [], sort_order: 0, gilt_fuer: 'motiv' },
 ]
 
+export const ROLLENPROFIL_FELDER = [
+  { name: 'Alter',                          typ: 'text',     optionen: [], sort_order: 10, gilt_fuer: 'rolle' },
+  { name: 'Geburtsort',                     typ: 'text',     optionen: [], sort_order: 11, gilt_fuer: 'rolle' },
+  { name: 'Familienstand',                  typ: 'text',     optionen: [], sort_order: 12, gilt_fuer: 'rolle' },
+  { name: 'Eltern',                         typ: 'text',     optionen: [], sort_order: 13, gilt_fuer: 'rolle' },
+  { name: 'Kinder / Verwandte',             typ: 'text',     optionen: [], sort_order: 14, gilt_fuer: 'rolle' },
+  { name: 'Beruf',                          typ: 'text',     optionen: [], sort_order: 15, gilt_fuer: 'rolle' },
+  { name: 'Typ',                            typ: 'richtext', optionen: [], sort_order: 16, gilt_fuer: 'rolle' },
+  { name: 'Charakter',                      typ: 'richtext', optionen: [], sort_order: 17, gilt_fuer: 'rolle' },
+  { name: 'Aussehen/Stil',                  typ: 'richtext', optionen: [], sort_order: 18, gilt_fuer: 'rolle' },
+  { name: 'Dramaturgische Funktion',        typ: 'richtext', optionen: [], sort_order: 19, gilt_fuer: 'rolle' },
+  { name: 'Stärken',                        typ: 'richtext', optionen: [], sort_order: 20, gilt_fuer: 'rolle' },
+  { name: 'Schwächen',                      typ: 'richtext', optionen: [], sort_order: 21, gilt_fuer: 'rolle' },
+  { name: 'Verletzungen/Wunden',            typ: 'richtext', optionen: [], sort_order: 22, gilt_fuer: 'rolle' },
+  { name: 'Ticks/Leidenschaften',           typ: 'richtext', optionen: [], sort_order: 23, gilt_fuer: 'rolle' },
+  { name: 'Wünsche/Ziele',                  typ: 'richtext', optionen: [], sort_order: 24, gilt_fuer: 'rolle' },
+  { name: 'Was braucht die Figur wirklich', typ: 'richtext', optionen: [], sort_order: 25, gilt_fuer: 'rolle' },
+  { name: 'Anbindung an den Cast',          typ: 'richtext', optionen: [], sort_order: 26, gilt_fuer: 'rolle' },
+  { name: 'Wesen',                          typ: 'richtext', optionen: [], sort_order: 27, gilt_fuer: 'rolle' },
+]
+
 async function autoInitFelder(staffelId: string) {
-  const existing = await query('SELECT id FROM charakter_felder_config WHERE staffel_id = $1 LIMIT 1', [staffelId])
-  if (existing.length > 0) return
+  // Always try to insert defaults — ON CONFLICT DO NOTHING handles duplicates
   for (const f of DEFAULT_FELDER) {
     await queryOne(
       `INSERT INTO charakter_felder_config (staffel_id, name, typ, optionen, sort_order, gilt_fuer)
@@ -70,6 +90,22 @@ staffelFelderRouter.patch('/reorder', async (req, res) => {
   try {
     for (const { id, sort_order } of order) {
       await queryOne('UPDATE charakter_felder_config SET sort_order = $1 WHERE id = $2 AND staffel_id = $3', [sort_order, id, staffelId])
+    }
+    const rows = await query('SELECT * FROM charakter_felder_config WHERE staffel_id = $1 ORDER BY gilt_fuer, sort_order, id', [staffelId])
+    res.json(rows)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// POST /api/staffeln/:staffelId/charakter-felder/rollenprofil-preset
+staffelFelderRouter.post('/rollenprofil-preset', async (req, res) => {
+  const { staffelId } = req.params as any
+  try {
+    for (const f of ROLLENPROFIL_FELDER) {
+      await queryOne(
+        `INSERT INTO charakter_felder_config (staffel_id, name, typ, optionen, sort_order, gilt_fuer)
+         VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
+        [staffelId, f.name, f.typ, JSON.stringify(f.optionen), f.sort_order, f.gilt_fuer]
+      )
     }
     const rows = await query('SELECT * FROM charakter_felder_config WHERE staffel_id = $1 ORDER BY gilt_fuer, sort_order, id', [staffelId])
     res.json(rows)
