@@ -136,24 +136,13 @@ function RichTextField({ feld, wert, onChange }: Pick<FeldEditorProps, 'feld' | 
       <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', background: 'var(--bg)' }}>
         {/* Toolbar */}
         <div style={{ display: 'flex', gap: 2, padding: '4px 6px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-          {([
-            { icon: <Bold size={12} />, title: 'Fett', fn: () => editor.chain().focus().toggleBold().run(), active: editor.isActive('bold') },
-            { icon: <Italic size={12} />, title: 'Kursiv', fn: () => editor.chain().focus().toggleItalic().run(), active: editor.isActive('italic') },
-            { icon: <Underline size={12} />, title: 'Unterstrichen', fn: () => editor.chain().focus().toggleUnderline().run(), active: editor.isActive('underline') },
-            null,
-            { icon: <List size={12} />, title: 'Aufzählung', fn: () => editor.chain().focus().toggleBulletList().run(), active: editor.isActive('bulletList') },
-            null,
-            { icon: <Highlighter size={12} />, title: 'Markieren', fn: () => editor.chain().focus().toggleHighlight().run(), active: editor.isActive('highlight') },
-          ] as const).map((btn, i) =>
-            btn === null
-              ? <div key={i} style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', alignSelf: 'center' }} />
-              : <button key={i} onClick={btn.fn} title={btn.title} style={{
-                  width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: '1px solid ' + (btn.active ? 'var(--text)' : 'transparent'),
-                  borderRadius: 3, background: btn.active ? 'var(--bg-active)' : 'transparent',
-                  cursor: 'pointer', color: 'var(--text)',
-                }}>{btn.icon}</button>
-          )}
+          <TBtn active={editor.isActive('bold')} title="Fett" onClick={() => editor.chain().focus().toggleBold().run()}><Bold size={12} /></TBtn>
+          <TBtn active={editor.isActive('italic')} title="Kursiv" onClick={() => editor.chain().focus().toggleItalic().run()}><Italic size={12} /></TBtn>
+          <TBtn active={editor.isActive('underline')} title="Unterstrichen" onClick={() => editor.chain().focus().toggleUnderline().run()}><Underline size={12} /></TBtn>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', alignSelf: 'center' }} />
+          <TBtn active={editor.isActive('bulletList')} title="Aufzählung" onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={12} /></TBtn>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', alignSelf: 'center' }} />
+          <TBtn active={editor.isActive('highlight')} title="Markieren" onClick={() => editor.chain().focus().toggleHighlight().run()}><Highlighter size={12} /></TBtn>
         </div>
         {/* Editor content — grows with text */}
         <div className="tiptap-feld" style={{ padding: '6px 10px', fontSize: 13, lineHeight: 1.6, minHeight: 60, position: 'relative' }}>
@@ -235,6 +224,24 @@ function LinkFeld({ feld, wert, onChange, onCharacterSearch, beziehungstypen }: 
         </div>
       </div>
     </div>
+  )
+}
+
+function TBtn({ active, title, onClick, children }: { active: boolean; title: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        border: '1px solid ' + (active ? 'var(--text)' : 'transparent'),
+        borderRadius: 3,
+        background: active ? 'var(--bg-active)' : 'transparent',
+        cursor: 'pointer', color: 'var(--text)',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 
