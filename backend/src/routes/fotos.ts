@@ -70,7 +70,7 @@ async function generateVideoThumbnail(filePath: string, baseKey: string): Promis
     // Kurze Probe um Dauer zu ermitteln
     let thumbTime = 2
     try {
-      const { stdout } = await execFileAsync('ffprobe', [
+      const { stdout } = await execFileAsync('/usr/bin/ffprobe', [
         '-v', 'error', '-show_entries', 'format=duration',
         '-of', 'default=noprint_wrappers=1:nokey=1', filePath,
       ])
@@ -78,7 +78,7 @@ async function generateVideoThumbnail(filePath: string, baseKey: string): Promis
       if (!isNaN(duration) && duration > 5) thumbTime = Math.round(duration * 0.1)
     } catch { /* ffprobe nicht verfügbar – Fallback auf 2s */ }
 
-    await execFileAsync('ffmpeg', [
+    await execFileAsync('/usr/bin/ffmpeg', [
       '-ss', String(thumbTime), '-i', filePath,
       '-vframes', '1', '-q:v', '3', '-y', thumbPath,
     ])

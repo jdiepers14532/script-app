@@ -161,8 +161,8 @@ app.use('/api/szenen', szenenCommentRouter)
 // Fotos
 app.use('/api/characters/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFotosRouter)
 app.use('/api/motive/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFotosRouter)
-app.use('/uploads/script-fotos', fotosStaticRouter)
 app.use('/uploads/script-fotos/thumbnails', fotosThumbnailRouter)
+app.use('/uploads/script-fotos', fotosStaticRouter)
 
 // Motive
 app.use('/api/staffeln/:staffelId/motive', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelMotiveRouter)
