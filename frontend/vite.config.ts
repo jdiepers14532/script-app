@@ -53,23 +53,7 @@ export default defineConfig({
     }),
   ],
   build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (
-            id.includes('@tiptap') ||
-            id.includes('prosemirror') ||
-            id.includes('y-prosemirror') ||
-            id.includes('yjs') ||
-            id.includes('@hocuspocus') ||
-            id.includes('y-protocols') ||
-            id.includes('lib0')
-          ) {
-            return 'editor'
-          }
-        }
-      }
-    }
+    chunkSizeWarningLimit: 800,
   },
   server: {
     proxy: {
