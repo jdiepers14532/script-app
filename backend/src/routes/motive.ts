@@ -17,9 +17,7 @@ staffelMotiveRouter.get('/', async (req, res) => {
       [staffelId]
     )
     res.json(rows)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
+  } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
 // POST /api/staffeln/:staffelId/motive
@@ -34,13 +32,12 @@ staffelMotiveRouter.post('/', async (req, res) => {
       [staffelId, name, motiv_nummer ?? null, typ ?? 'interior', meta_json ?? {}]
     )
     res.status(201).json(row)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
+  } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
 // PUT /api/motive/:id
 motivRouter.put('/', async (req, res) => {
+  const { id } = req.params as any
   const { name, motiv_nummer, typ, meta_json } = req.body
   try {
     const row = await queryOne(
@@ -50,22 +47,19 @@ motivRouter.put('/', async (req, res) => {
          typ = COALESCE($3, typ),
          meta_json = COALESCE($4, meta_json)
        WHERE id = $5 RETURNING *`,
-      [name ?? null, motiv_nummer ?? null, typ ?? null, meta_json ?? null, req.params.id]
+      [name ?? null, motiv_nummer ?? null, typ ?? null, meta_json ?? null, id]
     )
     if (!row) return res.status(404).json({ error: 'Motiv nicht gefunden' })
     res.json(row)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
+  } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
 // DELETE /api/motive/:id
 motivRouter.delete('/', async (req, res) => {
+  const { id } = req.params as any
   try {
-    const row = await queryOne('DELETE FROM motive WHERE id = $1 RETURNING id', [req.params.id])
+    const row = await queryOne('DELETE FROM motive WHERE id = $1 RETURNING id', [id])
     if (!row) return res.status(404).json({ error: 'Motiv nicht gefunden' })
     res.json({ ok: true })
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
+  } catch (err) { res.status(500).json({ error: String(err) }) }
 })
