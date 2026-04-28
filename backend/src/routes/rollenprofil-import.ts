@@ -73,12 +73,15 @@ Folgende Felder sollen extrahiert werden (leer lassen wenn nicht vorhanden):
 - leidenschaften: Ticks, Running Gags, Leidenschaften
 - wuensche: Wünsche und Ziele
 - inneres_ziel: Was braucht die Figur wirklich
-- cast_anbindung: Anbindung an den Cast (Beziehungen zu anderen Figuren)
+- wesen: Das Wesen / die Wesensart der Figur (Feld "WESEN")
+- cast_anbindung: Anbindung an den Cast (Beziehungen zu anderen Figuren) — als einzelner Fließtext, nicht als Array
 - backstory: Vollständiger Backstory-Freitext (alles nach "Backstory")
 - produktion: Name der Produktion (z.B. "Rote Rosen")
 - staffel: Staffel-Bezeichnung (z.B. "Staffel 24")
 - folgen_range: Episodenbereich (z.B. "845-856")
 
+WICHTIG: Alle Feldwerte müssen einfache Strings sein. Keine Arrays, keine verschachtelten Objekte.
+Wenn mehrere Personen oder Beziehungen aufgelistet sind, füge sie als kommagetrennten Text zusammen.
 Antworte NUR mit einem validen JSON-Objekt, ohne Markdown-Codeblöcke.`
 
 async function parseRollenprofilViaChat(
@@ -110,7 +113,17 @@ async function parseRollenprofilViaChat(
   const tokensIn = data.usage?.prompt_tokens ?? 0
   const tokensOut = data.usage?.completion_tokens ?? 0
   try {
-    return { parsed: JSON.parse(content), tokensIn, tokensOut }
+    const raw = JSON.parse(content)
+    // Normalize: Mistral sometimes returns arrays/objects instead of strings
+    const parsed: Record<string, string> = {}
+    for (const [k, v] of Object.entries(raw)) {
+      if (v === null || v === undefined || v === '') continue
+      if (typeof v === 'string') parsed[k] = v
+      else if (Array.isArray(v)) parsed[k] = v.map((x: any) => (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(', ')
+      else if (typeof v === 'object') parsed[k] = Object.values(v as object).filter(Boolean).join(', ')
+      else parsed[k] = String(v)
+    }
+    return { parsed, tokensIn, tokensOut }
   } catch {
     throw new Error('Mistral hat kein valides JSON zurückgegeben')
   }
@@ -160,6 +173,7 @@ const PARSED_TO_FELDNAME: Record<string, string> = {
   leidenschaften:        'Ticks/Leidenschaften',
   wuensche:              'Wünsche/Ziele',
   inneres_ziel:          'Was braucht die Figur wirklich',
+  wesen:                 'Wesen',
   cast_anbindung:        'Anbindung an den Cast',
   backstory:             'Beschreibung',
 }

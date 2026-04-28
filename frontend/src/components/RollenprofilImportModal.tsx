@@ -20,6 +20,7 @@ interface ParsedRollenprofil {
   leidenschaften?: string
   wuensche?: string
   inneres_ziel?: string
+  wesen?: string
   cast_anbindung?: string
   backstory?: string
   produktion?: string
@@ -47,6 +48,7 @@ const FIELD_LABELS: Record<string, string> = {
   leidenschaften: 'Ticks / Running Gags / Leidenschaften',
   wuensche: 'Wünsche / Ziele',
   inneres_ziel: 'Was braucht die Figur wirklich',
+  wesen: 'Wesen',
   cast_anbindung: 'Anbindung an den Cast',
   backstory: 'Backstory',
   produktion: 'Produktion',
@@ -59,7 +61,7 @@ const FIELD_ORDER = [
   'geburtsort', 'familienstand', 'eltern', 'verwandte', 'beruf',
   'typ', 'charakter', 'aussehen', 'dramaturgische_funktion',
   'staerken', 'schwaechem', 'verletzungen', 'leidenschaften', 'wuensche', 'inneres_ziel',
-  'cast_anbindung', 'backstory',
+  'wesen', 'cast_anbindung', 'backstory',
 ]
 
 interface Props {
