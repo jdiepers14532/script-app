@@ -144,7 +144,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{
-        background: 'var(--bg)', borderRadius: 12, width: '100%', maxWidth: 680,
+        background: 'var(--bg-surface)', borderRadius: 12, width: '100%', maxWidth: 680,
         maxHeight: '90vh', display: 'flex', flexDirection: 'column',
         boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
       }}>
@@ -169,12 +169,12 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
             <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
                 width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600,
-                background: step === s ? 'var(--text)' : s === 'done' && step === 'done' ? '#00C853' : 'var(--bg-subtle)',
+                background: step === s ? 'var(--text-primary)' : s === 'done' && step === 'done' ? '#00C853' : 'var(--bg-subtle)',
                 color: step === s || (s === 'done' && step === 'done') ? '#fff' : 'var(--text-secondary)',
               }}>
                 {s === 'done' && step === 'done' ? <Check size={12} /> : i + 1}
               </div>
-              <span style={{ fontSize: 12, color: step === s ? 'var(--text)' : 'var(--text-secondary)' }}>
+              <span style={{ fontSize: 12, color: step === s ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
                 {s === 'upload' ? 'Hochladen' : s === 'preview' ? 'Prüfen' : 'Fertig'}
               </span>
               {i < 2 && <ChevronRight size={14} style={{ color: 'var(--border)' }} />}
@@ -194,7 +194,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
                 onDrop={handleDrop}
                 onClick={() => !loading && fileInputRef.current?.click()}
                 style={{
-                  border: `2px dashed ${dragging ? 'var(--text)' : 'var(--border)'}`,
+                  border: `2px dashed ${dragging ? 'var(--text-primary)' : 'var(--border)'}`,
                   borderRadius: 12, padding: 48, textAlign: 'center',
                   cursor: loading ? 'default' : 'pointer',
                   background: dragging ? 'var(--bg-subtle)' : 'transparent',
@@ -210,7 +210,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: 'var(--text-secondary)' }}>
                     <FileText size={32} />
-                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)' }}>PDF hierher ziehen oder klicken</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>PDF hierher ziehen oder klicken</div>
                     <div style={{ fontSize: 12 }}>Rollenprofil im PDF-Format — Seite/n werden per KI ausgelesen</div>
                   </div>
                 )}
@@ -243,7 +243,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
                 const isLong = key === 'backstory' || key === 'cast_anbindung' || key === 'charakter' || key === 'dramaturgische_funktion'
                 return (
                   <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 8, alignItems: 'start' }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', paddingTop: isLong ? 8 : 6 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', paddingTop: isLong ? 8 : 6 }}>
                       {FIELD_LABELS[key] || key}
                       {key === 'name' && <span style={{ color: '#FF3B30' }}> *</span>}
                     </label>
@@ -252,13 +252,13 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
                         value={val}
                         onChange={e => updateField(key, e.target.value)}
                         rows={key === 'backstory' ? 6 : 3}
-                        style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
+                        style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }}
                       />
                     ) : (
                       <input
                         value={val}
                         onChange={e => updateField(key, e.target.value)}
-                        style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)' }}
+                        style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                       />
                     )}
                   </div>
@@ -293,13 +293,13 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
             <button
               onClick={() => { setStep('upload'); setError(null) }}
               disabled={committing}
-              style={{ fontSize: 13, padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
+              style={{ fontSize: 13, padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
               Zurück
             </button>
             <button
               onClick={handleCommit}
               disabled={committing || !parsed?.name}
-              style={{ fontSize: 13, padding: '8px 20px', background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, opacity: committing ? 0.7 : 1 }}>
+              style={{ fontSize: 13, padding: '8px 20px', background: 'var(--text-primary)', color: 'var(--bg-surface)', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, opacity: committing ? 0.7 : 1 }}>
               {committing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Anlegen…</> : <><Upload size={13} /> Figur anlegen</>}
             </button>
           </div>
