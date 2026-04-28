@@ -480,7 +480,7 @@ stagesSzenenRouter.get('/:stageId/szenen-comment-counts', async (req, res) => {
     })
     if (!messengerRes.ok) return res.json({})
 
-    const annotations: any[] = await messengerRes.json()
+    const annotations = (await messengerRes.json()) as any[]
     const counts: Record<number, number> = {}
     for (const ann of annotations) {
       const srcId = parseInt(ann.source_id)
@@ -503,7 +503,7 @@ szenenRouter.get('/:id/messenger-annotations', async (req, res) => {
       { headers: { Cookie: cookieHeader } }
     )
     if (!messengerRes.ok) return res.json([])
-    const data = await messengerRes.json()
+    const data = (await messengerRes.json()) as any[]
     res.json(Array.isArray(data) ? data.filter((a: any) => !a.archived_at) : [])
   } catch {
     res.json([])
@@ -522,7 +522,7 @@ szenenRouter.post('/:id/messenger-annotations', async (req, res) => {
       headers: { 'Content-Type': 'application/json', Cookie: cookieHeader },
       body: JSON.stringify({ app: 'script', source_id: String(req.params.id), text: text.trim() }),
     })
-    const data = await messengerRes.json()
+    const data = (await messengerRes.json()) as any
     res.status(messengerRes.ok ? 201 : messengerRes.status).json(data)
   } catch (err) {
     res.status(500).json({ error: String(err) })
