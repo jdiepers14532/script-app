@@ -335,7 +335,7 @@ export default function SceneList({
                   <span className="sl-set">{scene.ort_name}</span>
                   <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
                   <span className="sl-sep">/</span>
-                  <span className="sl-tz">{{ int: 'innen', ext: 'außen', 'int/ext': 'innen/außen' }[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
+                  <span className="sl-tz">{{ int: 'i', ext: 'a', 'int/ext': 'i/a' }[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
                 </div>
               </div>
               <div className="rt">

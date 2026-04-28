@@ -252,7 +252,7 @@
 .scenes .row .num { display:grid; place-items:center; font-size:12px; font-weight:600; color:var(--text-secondary); font-variant-numeric:tabular-nums; padding:8px 0; border-right:1px solid var(--border-subtle); }
 .scenes .row .body { padding:6px 10px; min-width:0; display:flex; align-items:center; }
 .scenes .row .sl-line { display:flex; align-items:center; gap:5px; min-width:0; width:100%; }
-.scenes .row .sl-ie { font-size:10px; font-weight:700; color:var(--text-secondary); letter-spacing:0.04em; flex-shrink:0; }
+.scenes .row .sl-ie { font-size:10px; font-weight:700; color:var(--text-secondary); letter-spacing:0.04em; flex-shrink:0; margin-left:auto; }
 .scenes .row .sl-set { font-size:12px; font-weight:500; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0; }
 .scenes .row .sl-sep { font-size:10px; color:var(--text-muted); flex-shrink:0; }
 .scenes .row .sl-tz { font-size:10px; font-weight:500; color:var(--text-secondary); flex-shrink:0; }
