@@ -330,30 +330,58 @@ export default function RollenPage() {
                   <RollenprofilAnzeige data={selected.meta_json.rollenprofil} />
                 )}
 
-                {/* Felder */}
-                {felder.map(f => {
-                  const wert = feldwerte.find(v => v.feld_id === f.id)
-                  return (
-                    <FeldEditor
-                      key={f.id}
-                      feld={f}
-                      wert={wert}
-                      onChange={handleFeldChange}
-                      onCharacterSearch={handleCharacterSearch}
-                      characterId={selectedId ?? undefined}
-                    />
-                  )
-                })}
+                {/* Felder — zweispaltig, character_ref neben Beziehungen */}
+                {(() => {
+                  const charRefFelder = felder.filter(f => f.typ === 'character_ref')
+                  const regularFelder = felder.filter(f => f.typ !== 'character_ref')
+                  const firstCharRefOrder = charRefFelder.length > 0
+                    ? Math.min(...charRefFelder.map(f => f.sort_order))
+                    : Infinity
+                  const lastCharRefOrder = charRefFelder.length > 0
+                    ? Math.max(...charRefFelder.map(f => f.sort_order))
+                    : -Infinity
+                  const preFelder = regularFelder.filter(f => f.sort_order < firstCharRefOrder)
+                  const postFelder = regularFelder.filter(f => f.sort_order > lastCharRefOrder)
 
-                {/* Beziehungen */}
-                <BeziehungsPanel
-                  beziehungen={beziehungen}
-                  characterId={selectedId!}
-                  targetRoute="/rollen"
-                  onAdd={handleAddBeziehung}
-                  onDelete={handleDeleteBeziehung}
-                  onSearchCharacters={handleCharacterSearch}
-                />
+                  const grid2col = (fields: any[]) => (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px 28px', alignItems: 'start' }}>
+                      {fields.map(f => {
+                        const wert = feldwerte.find(v => v.feld_id === f.id)
+                        return (
+                          <div key={f.id} style={f.typ === 'richtext' ? { gridColumn: '1 / -1' } : {}}>
+                            <FeldEditor feld={f} wert={wert} onChange={handleFeldChange} onCharacterSearch={handleCharacterSearch} characterId={selectedId ?? undefined} />
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+
+                  return (
+                    <>
+                      {preFelder.length > 0 && grid2col(preFelder)}
+
+                      {/* character_ref Felder + Beziehungen nebeneinander */}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px 28px', alignItems: 'start' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                          {charRefFelder.map(f => {
+                            const wert = feldwerte.find(v => v.feld_id === f.id)
+                            return <FeldEditor key={f.id} feld={f} wert={wert} onChange={handleFeldChange} onCharacterSearch={handleCharacterSearch} characterId={selectedId ?? undefined} />
+                          })}
+                        </div>
+                        <BeziehungsPanel
+                          beziehungen={beziehungen}
+                          characterId={selectedId!}
+                          targetRoute="/rollen"
+                          onAdd={handleAddBeziehung}
+                          onDelete={handleDeleteBeziehung}
+                          onSearchCharacters={handleCharacterSearch}
+                        />
+                      </div>
+
+                      {postFelder.length > 0 && grid2col(postFelder)}
+                    </>
+                  )
+                })()}
               </div>
             </div>
           )}
