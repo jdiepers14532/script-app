@@ -71,7 +71,6 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
 }
 
 const MIN_WIDTH = 180
-const MAX_WIDTH = 520
 const DEFAULT_WIDTH = 276
 
 export default function ScriptPage() {
@@ -299,13 +298,13 @@ export default function ScriptPage() {
     const onMove = (ev: MouseEvent) => {
       if (!isDragging.current) return
       const delta = ev.clientX - dragStartX.current
-      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
+      const newWidth = Math.min(window.innerWidth, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
       setSidebarWidth(newWidth)
     }
     const onUp = (ev: MouseEvent) => {
       isDragging.current = false
       const delta = ev.clientX - dragStartX.current
-      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
+      const newWidth = Math.min(window.innerWidth, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
       saveSettings(sidebarCollapsed)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
