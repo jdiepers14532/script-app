@@ -10,6 +10,7 @@ const ADMIN_TABS = [
   { id: 'produktion',           label: 'Produktion' },
   { id: 'wasserzeichen',        label: 'Wasserzeichen & Export-Log' },
   { id: 'allgemein',            label: 'Allgemein' },
+  { id: 'figuren',              label: 'Figuren & Motive' },
   { id: 'export',               label: 'Export-Vorlagen' },
   { id: 'locks',                label: 'Lock-Regeln' },
   { id: 'users',                label: 'Benutzer & Rollen' },
@@ -1342,6 +1343,171 @@ function DokumentEinstellungenTab() {
 }
 
 
+function FigurenTab() {
+  const { selectedProduction } = useSelectedProduction()
+  const staffelId = selectedProduction?.id ?? null
+
+  const [figurenLabel, setFigurenLabel] = useState<'Rollen' | 'Figuren' | 'Charaktere'>('Rollen')
+  const [felder, setFelder] = useState<any[]>([])
+  const [saving, setSaving] = useState(false)
+  const [newFeld, setNewFeld] = useState<{ name: string; typ: string; gilt_fuer: string; optionen: string } | null>(null)
+  const [feldSaving, setFeldSaving] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/app-settings', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => { if (d?.figuren_label) setFigurenLabel(d.figuren_label) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!staffelId) return
+    api.getCharakterFelder(staffelId).then(setFelder).catch(() => {})
+  }, [staffelId])
+
+  const saveFigurenLabel = async (val: 'Rollen' | 'Figuren' | 'Charaktere') => {
+    setFigurenLabel(val)
+    setSaving(true)
+    await fetch('/api/admin/app-settings/figuren_label', {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setSaving(false)
+  }
+
+  const handleCreateFeld = async () => {
+    if (!newFeld || !staffelId || !newFeld.name.trim()) return
+    setFeldSaving(true)
+    try {
+      const optionen = newFeld.typ === 'select'
+        ? newFeld.optionen.split(',').map(s => s.trim()).filter(Boolean)
+        : []
+      const f = await api.createCharakterFeld(staffelId, { name: newFeld.name.trim(), typ: newFeld.typ, optionen, gilt_fuer: newFeld.gilt_fuer })
+      setFelder(prev => [...prev, f])
+      setNewFeld(null)
+    } finally { setFeldSaving(false) }
+  }
+
+  const handleDeleteFeld = async (id: number) => {
+    if (!staffelId) return
+    await api.deleteCharakterFeld(staffelId, id)
+    setFelder(prev => prev.filter(f => f.id !== id))
+    setDeleteConfirm(null)
+  }
+
+  const rollenFelder = felder.filter(f => f.gilt_fuer === 'alle' || f.gilt_fuer === 'rolle' || f.gilt_fuer === 'komparse')
+  const motivFelder = felder.filter(f => f.gilt_fuer === 'motiv')
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 32 }}>
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Bezeichnung (Figuren/Rollen)</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Legt fest, wie Rollen in Navigation und UI bezeichnet werden.
+        </p>
+        <div className="seg" style={{ display: 'inline-flex' }}>
+          {(['Rollen', 'Figuren', 'Charaktere'] as const).map(opt => (
+            <button key={opt} className={figurenLabel === opt ? 'on' : ''} onClick={() => saveFigurenLabel(opt)} disabled={saving}>
+              {opt}
+            </button>
+          ))}
+        </div>
+        {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert…</span>}
+      </section>
+
+      {!staffelId && (
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bitte eine Produktion auswählen, um Felder zu konfigurieren.</p>
+      )}
+
+      {staffelId && (
+        <>
+          <section>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder für {figurenLabel} & Komparsen</h3>
+            <FeldListe felder={rollenFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
+          </section>
+
+          <section>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder für Motive</h3>
+            <FeldListe felder={motivFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
+          </section>
+
+          {/* Add field form */}
+          {newFeld ? (
+            <section style={{ padding: 16, background: 'var(--bg-subtle)', borderRadius: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Neues Feld</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <input placeholder="Feldname" value={newFeld.name} onChange={e => setNewFeld({ ...newFeld, name: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }} />
+                <select value={newFeld.typ} onChange={e => setNewFeld({ ...newFeld, typ: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}>
+                  {['text', 'richtext', 'select', 'link', 'date', 'number'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <select value={newFeld.gilt_fuer} onChange={e => setNewFeld({ ...newFeld, gilt_fuer: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}>
+                  <option value="alle">Alle</option>
+                  <option value="rolle">Nur {figurenLabel}</option>
+                  <option value="komparse">Nur Komparsen</option>
+                  <option value="motiv">Nur Motive</option>
+                </select>
+              </div>
+              {newFeld.typ === 'select' && (
+                <input placeholder="Optionen (kommagetrennt)" value={newFeld.optionen} onChange={e => setNewFeld({ ...newFeld, optionen: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }} />
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handleCreateFeld} disabled={!newFeld.name.trim() || feldSaving}
+                  style={{ fontSize: 12, padding: '6px 14px', background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                  {feldSaving ? 'Speichern…' : 'Speichern'}
+                </button>
+                <button onClick={() => setNewFeld(null)} style={{ fontSize: 12, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
+                  Abbrechen
+                </button>
+              </div>
+            </section>
+          ) : (
+            <button onClick={() => setNewFeld({ name: '', typ: 'text', gilt_fuer: 'alle', optionen: '' })}
+              style={{ alignSelf: 'flex-start', fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
+              + Feld hinzufügen
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelDelete }: {
+  felder: any[]
+  onDelete: (id: number) => void
+  deleteConfirm: number | null
+  onConfirmDelete: (id: number) => void
+  onCancelDelete: () => void
+}) {
+  if (felder.length === 0) return <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '8px 0' }}>Keine Felder konfiguriert.</p>
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+      {felder.map(f => (
+        <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-subtle)', borderRadius: 6 }}>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{f.name}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '2px 6px', background: 'var(--bg)', borderRadius: 4 }}>{f.typ}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.gilt_fuer}</span>
+          {deleteConfirm === f.id ? (
+            <span style={{ fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
+              <span style={{ color: '#FF3B30' }}>Alle Werte werden gelöscht!</span>
+              <button onClick={() => onConfirmDelete(f.id)} style={{ fontSize: 11, padding: '2px 8px', background: '#FF3B30', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Löschen</button>
+              <button onClick={onCancelDelete} style={{ fontSize: 11, padding: '2px 8px', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'transparent' }}>Abbrechen</button>
+            </span>
+          ) : (
+            <button onClick={() => onDelete(f.id)} style={{ fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>Löschen</button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
   const navigate = useNavigate()
@@ -1407,12 +1573,13 @@ export default function AdminPage() {
           {activeTab === 'produktion'               && <ProduktionTab />}
           {activeTab === 'wasserzeichen'            && <WasserzeichenTab />}
           {activeTab === 'allgemein'                && <AllgemeinTab />}
+          {activeTab === 'figuren'                  && <FigurenTab />}
           {activeTab === 'dokument-typen'           && <DokumentTypenTab />}
           {activeTab === 'colab-gruppen'            && <ColabGruppenTab />}
           {activeTab === 'format-templates'         && <FormatTemplatesTab />}
           {activeTab === 'benachrichtigungen'       && <BenachrichtigungenTab />}
           {activeTab === 'dokument-einstellungen'   && <DokumentEinstellungenTab />}
-          {!['ki','produktion','wasserzeichen','allgemein','dokument-typen','colab-gruppen','format-templates','benachrichtigungen','dokument-einstellungen','export','locks','users','audit'].includes(activeTab) && (
+          {!['ki','produktion','wasserzeichen','allgemein','figuren','dokument-typen','colab-gruppen','format-templates','benachrichtigungen','dokument-einstellungen','export','locks','users','audit'].includes(activeTab) && (
             <div style={{ padding: '28px 32px', color: 'var(--text-secondary)', fontSize: 13 }}>
               Dieser Bereich ist noch in Entwicklung.
             </div>

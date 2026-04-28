@@ -306,4 +306,76 @@ export const api = {
     return fetch(`${BASE}/admin/watermark/decode`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
   },
   watermarkLogs: (limit = 100) => request<any[]>('GET', `/admin/watermark/logs?limit=${limit}`),
+
+  // ── Charakter-Fotos ────────────────────────────────────────────────────────
+  getCharacterFotos: (characterId: string) =>
+    request<any[]>('GET', `/characters/${characterId}/fotos`),
+  uploadCharacterFoto: (characterId: string, file: File) => {
+    const fd = new FormData(); fd.append('foto', file)
+    return fetch(`${BASE}/characters/${characterId}/fotos`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
+  },
+  updateCharacterFoto: (characterId: string, fotoId: number, data: { label?: string; ist_primaer?: boolean }) =>
+    request<any>('PUT', `/characters/${characterId}/fotos/${fotoId}`, data),
+  deleteCharacterFoto: (characterId: string, fotoId: number) =>
+    request<any>('DELETE', `/characters/${characterId}/fotos/${fotoId}`),
+  reorderCharacterFotos: (characterId: string, order: { id: number; sort_order: number }[]) =>
+    request<any[]>('PATCH', `/characters/${characterId}/fotos/reorder`, { order }),
+
+  // ── Motiv-CRUD ────────────────────────────────────────────────────────────
+  getMotive: (staffelId: string) =>
+    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/motive`),
+  createMotiv: (staffelId: string, data: { name: string; motiv_nummer?: string | null; typ?: string }) =>
+    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/motive`, data),
+  updateMotiv: (motivId: string, data: { name?: string; motiv_nummer?: string | null; typ?: string }) =>
+    request<any>('PUT', `/motive/${motivId}`, data),
+  deleteMotiv: (motivId: string) =>
+    request<any>('DELETE', `/motive/${motivId}`),
+
+  // ── Motiv-Fotos ───────────────────────────────────────────────────────────
+  getMotivFotos: (motivId: string) =>
+    request<any[]>('GET', `/motive/${motivId}/fotos`),
+  uploadMotivFoto: (motivId: string, file: File) => {
+    const fd = new FormData(); fd.append('foto', file)
+    return fetch(`${BASE}/motive/${motivId}/fotos`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
+  },
+  updateMotivFoto: (motivId: string, fotoId: number, data: { label?: string; ist_primaer?: boolean }) =>
+    request<any>('PUT', `/motive/${motivId}/fotos/${fotoId}`, data),
+  deleteMotivFoto: (motivId: string, fotoId: number) =>
+    request<any>('DELETE', `/motive/${motivId}/fotos/${fotoId}`),
+  reorderMotivFotos: (motivId: string, order: { id: number; sort_order: number }[]) =>
+    request<any[]>('PATCH', `/motive/${motivId}/fotos/reorder`, { order }),
+
+  // ── Charakter-Felder-Config ───────────────────────────────────────────────
+  getCharakterFelder: (staffelId: string) =>
+    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder`),
+  createCharakterFeld: (staffelId: string, data: { name: string; typ: string; optionen?: string[]; sort_order?: number; gilt_fuer?: string }) =>
+    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder`, data),
+  updateCharakterFeld: (staffelId: string, feldId: number, data: any) =>
+    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/${feldId}`, data),
+  deleteCharakterFeld: (staffelId: string, feldId: number) =>
+    request<any>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/${feldId}`),
+  reorderCharakterFelder: (staffelId: string, order: { id: number; sort_order: number }[]) =>
+    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/reorder`, { order }),
+
+  // ── Feldwerte ─────────────────────────────────────────────────────────────
+  getCharacterFeldwerte: (characterId: string) =>
+    request<any[]>('GET', `/characters/${characterId}/feldwerte`),
+  setCharacterFeldwert: (characterId: string, feldId: number, data: { wert_text?: string | null; wert_json?: any }) =>
+    request<any>('PUT', `/characters/${characterId}/feldwerte/${feldId}`, data),
+  getMotivFeldwerte: (motivId: string) =>
+    request<any[]>('GET', `/motive/${motivId}/feldwerte`),
+  setMotivFeldwert: (motivId: string, feldId: number, data: { wert_text?: string | null; wert_json?: any }) =>
+    request<any>('PUT', `/motive/${motivId}/feldwerte/${feldId}`, data),
+
+  // ── Beziehungen ───────────────────────────────────────────────────────────
+  getCharacterBeziehungen: (characterId: string) =>
+    request<any[]>('GET', `/characters/${characterId}/beziehungen`),
+  addCharacterBeziehung: (characterId: string, data: { related_character_id: string; beziehungstyp: string; label?: string }) =>
+    request<any>('POST', `/characters/${characterId}/beziehungen`, data),
+  deleteCharacterBeziehung: (characterId: string, relId: number) =>
+    request<any>('DELETE', `/characters/${characterId}/beziehungen/${relId}`),
+
+  // ── Charakter aktivieren ──────────────────────────────────────────────────
+  aktiviereCharacter: (characterId: string, staffelId: string) =>
+    request<any>('POST', `/characters/${characterId}/aktivieren`, { staffel_id: staffelId }),
 }

@@ -6,6 +6,9 @@ import DokumentEditorPage from './pages/DokumentEditorPage'
 import AdminPage from './pages/AdminPage'
 import ImportPage from './pages/ImportPage'
 import HilfePage from './pages/HilfePage'
+import RollenPage from './pages/RollenPage'
+import KomparsenPage from './pages/KomparsenPage'
+import MotivenPage from './pages/MotivenPage'
 import { useFocusMode } from './hooks/useFocusMode'
 import { useProduction, Production } from './hooks/useProduction'
 
@@ -50,8 +53,8 @@ export function usePanelMode() { return useContext(PanelModeContext) }
 
 export const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
 
-interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string> }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL })
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen' })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 interface UserPrefsContextType { scrollNavDelay: number; showPageShadow: boolean }
@@ -63,12 +66,14 @@ export default function App() {
   const productionCtx = useProduction()
   const [treatmentLabel, setTreatmentLabel] = useState('Treatment')
   const [sceneKuerzel, setSceneKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
+  const [figurenLabel, setFigurenLabel] = useState('Rollen')
 
   useEffect(() => {
     fetch('/api/admin/app-settings', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
         if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
+        if (data?.figuren_label) setFigurenLabel(data.figuren_label)
         if (data?.scene_kuerzel) {
           try { setSceneKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
         }
@@ -77,7 +82,7 @@ export default function App() {
   }, [])
 
   return (
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle }}>
           <BrowserRouter>
@@ -88,6 +93,9 @@ export default function App() {
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/hilfe" element={<HilfePage />} />
+              <Route path="/rollen" element={<RollenPage />} />
+              <Route path="/komparsen" element={<KomparsenPage />} />
+              <Route path="/motive" element={<MotivenPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>

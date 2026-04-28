@@ -23,6 +23,7 @@ charactersRouter.get('/', async (req, res) => {
     const rows = await query(
       `SELECT c.id, c.name, c.meta_json, c.created_at,
               cp.rollen_nummer, cp.komparsen_nummer, cp.kategorie_id, cp.updated_at AS prod_updated_at,
+              cp.is_active,
               ck.name AS kategorie_name, ck.typ AS kategorie_typ
        FROM characters c
        JOIN character_productions cp ON cp.character_id = c.id AND cp.staffel_id = $1
@@ -237,6 +238,72 @@ charKategorienRouter.delete('/:katId', async (req, res) => {
       [req.params.katId, staffelId]
     )
     if (!row) return res.status(404).json({ error: 'Kategorie nicht gefunden' })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/characters/:id/aktivieren — set is_active = true in a production
+charactersRouter.post('/:id/aktivieren', async (req, res) => {
+  const { staffel_id } = req.body
+  if (!staffel_id) return res.status(400).json({ error: 'staffel_id required' })
+  try {
+    const row = await queryOne(
+      `UPDATE character_productions SET is_active = TRUE
+       WHERE character_id = $1 AND staffel_id = $2 RETURNING *`,
+      [req.params.id, staffel_id]
+    )
+    if (!row) return res.status(404).json({ error: 'Verknüpfung nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/characters/:id/beziehungen
+charactersRouter.get('/:id/beziehungen', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT cb.id, cb.beziehungstyp, cb.label,
+              c.id AS related_id, c.name AS related_name
+       FROM charakter_beziehungen cb
+       JOIN characters c ON c.id = cb.related_character_id
+       WHERE cb.character_id = $1
+       ORDER BY cb.beziehungstyp, c.name`,
+      [req.params.id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/characters/:id/beziehungen
+charactersRouter.post('/:id/beziehungen', async (req, res) => {
+  const { related_character_id, beziehungstyp, label } = req.body
+  if (!related_character_id || !beziehungstyp) return res.status(400).json({ error: 'related_character_id und beziehungstyp required' })
+  try {
+    const row = await queryOne(
+      `INSERT INTO charakter_beziehungen (character_id, related_character_id, beziehungstyp, label)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [req.params.id, related_character_id, beziehungstyp, label ?? null]
+    )
+    res.status(201).json(row)
+  } catch (err: any) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Beziehung bereits vorhanden' })
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// DELETE /api/characters/:id/beziehungen/:relId
+charactersRouter.delete('/:id/beziehungen/:relId', async (req, res) => {
+  try {
+    const row = await queryOne(
+      'DELETE FROM charakter_beziehungen WHERE id = $1 AND character_id = $2 RETURNING id',
+      [req.params.relId, req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Beziehung nicht gefunden' })
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: String(err) })

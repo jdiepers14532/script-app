@@ -42,6 +42,9 @@ import { fassungenRouter, annotationenRouter } from './routes/fassungen'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
 import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from './routes/scene-comments'
+import { characterFotosRouter, motivFotosRouter, fotosStaticRouter } from './routes/fotos'
+import { staffelMotiveRouter, motivRouter } from './routes/motive'
+import { staffelFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -155,6 +158,20 @@ app.use('/api/autocomplete', autocompleteRouter)
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)
 
+// Fotos
+app.use('/api/characters/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFotosRouter)
+app.use('/api/motive/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFotosRouter)
+app.use('/uploads/script-fotos', fotosStaticRouter)
+
+// Motive
+app.use('/api/staffeln/:staffelId/motive', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelMotiveRouter)
+app.use('/api/motive/:id', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivRouter)
+
+// Charakter-Felder + Feldwerte
+app.use('/api/staffeln/:staffelId/charakter-felder', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelFelderRouter)
+app.use('/api/characters/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFeldwerteRouter)
+app.use('/api/motive/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFeldwerteRouter)
+
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
   try {
@@ -177,6 +194,7 @@ async function runMigrations() {
     'v24_storyline_richtext.sql',
     'v25_yjs_state.sql',
     'v26_scene_comment_read_state.sql',
+    'v27_rollen_motive.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
