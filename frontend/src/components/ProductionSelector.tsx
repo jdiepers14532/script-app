@@ -15,8 +15,10 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
   const containerRef = useRef<HTMLDivElement>(null)
 
   const selected = productions.find(p => p.id === selectedId)
-  const active = productions.filter(p => p.is_active)
-  const inactive = productions.filter(p => !p.is_active)
+  const byProjNrDesc = (a: Production, b: Production) =>
+    (parseInt(b.projektnummer ?? '0') || 0) - (parseInt(a.projektnummer ?? '0') || 0)
+  const active = productions.filter(p => p.is_active).sort(byProjNrDesc)
+  const inactive = productions.filter(p => !p.is_active).sort(byProjNrDesc)
 
   const filter = (list: Production[]) =>
     query.trim()
@@ -159,11 +161,6 @@ function ProdOption({ p, selected, onSelect }: { p: Production; selected: boolea
       onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)' }}
       onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
     >
-      {p.projektnummer && (
-        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, minWidth: 32 }}>
-          {p.projektnummer}
-        </span>
-      )}
       <span style={{ fontWeight: selected ? 600 : 400 }}>{productionLabel(p)}</span>
     </button>
   )
