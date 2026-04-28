@@ -332,10 +332,10 @@ export default function SceneList({
               <div className="num">{sceneLabel}</div>
               <div className="body">
                 <div className="sl-line">
-                  <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
                   <span className="sl-set">{scene.ort_name}</span>
-                  <span className="sl-dot" style={{ background: envColor.stripe }} />
-                  <span className="sl-tz">{sceneKuerzel[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
+                  <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
+                  <span className="sl-sep">/</span>
+                  <span className="sl-tz">{{ int: 'innen', ext: 'außen', 'int/ext': 'innen/außen' }[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
                 </div>
               </div>
               <div className="rt">
