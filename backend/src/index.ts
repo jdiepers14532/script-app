@@ -42,7 +42,7 @@ import { fassungenRouter, annotationenRouter } from './routes/fassungen'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
 import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from './routes/scene-comments'
-import { characterFotosRouter, motivFotosRouter, fotosStaticRouter } from './routes/fotos'
+import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
 import { staffelMotiveRouter, motivRouter } from './routes/motive'
 import { staffelFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
 
@@ -162,6 +162,7 @@ app.use('/api/szenen', szenenCommentRouter)
 app.use('/api/characters/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFotosRouter)
 app.use('/api/motive/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFotosRouter)
 app.use('/uploads/script-fotos', fotosStaticRouter)
+app.use('/uploads/script-fotos/thumbnails', fotosThumbnailRouter)
 
 // Motive
 app.use('/api/staffeln/:staffelId/motive', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelMotiveRouter)
@@ -195,6 +196,7 @@ async function runMigrations() {
     'v25_yjs_state.sql',
     'v26_scene_comment_read_state.sql',
     'v27_rollen_motive.sql',
+    'v28_media_typ.sql',
   ]
   for (const file of migrationFiles) {
     const paths = [
