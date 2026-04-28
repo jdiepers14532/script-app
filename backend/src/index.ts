@@ -209,7 +209,37 @@ async function runMigrations() {
     'v33_rollenprofil_felder.sql',
     'v34_charakter_feld_links.sql',
   ]
+
+  // Tracking-Tabelle anlegen (idempotent)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+
+  // Bootstrap: Wenn szenen-Tabelle bereits existiert, alle Migrations als applied markieren
+  // ohne sie auszuführen (Übergang vom alten trackingfreien System)
+  const { rows: existingTables } = await pool.query(
+    "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='szenen'"
+  )
+  if (existingTables.length > 0) {
+    for (const file of migrationFiles) {
+      await pool.query(
+        'INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT DO NOTHING',
+        [file]
+      )
+    }
+  }
+
   for (const file of migrationFiles) {
+    // Skip wenn bereits applied
+    const { rows } = await pool.query(
+      'SELECT 1 FROM schema_migrations WHERE name = $1',
+      [file]
+    )
+    if (rows.length > 0) continue
+
     const paths = [
       path.join(__dirname, 'migrations', file),
       path.join(__dirname, '..', 'src', 'migrations', file),
@@ -220,6 +250,10 @@ async function runMigrations() {
     }
     if (sql) {
       await pool.query(sql)
+      await pool.query(
+        'INSERT INTO schema_migrations (name) VALUES ($1)',
+        [file]
+      )
       console.log(`Migration ${file} applied`)
     }
   }
