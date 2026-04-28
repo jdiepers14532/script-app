@@ -320,8 +320,16 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
             )}
           </span>
 
-          {/* DT + I/T — gleiche Schriftgröße wie Motiv, direkt nebeneinander */}
+          {/* A/T + DT — A/T zuerst, dann Dramaturgischer Tag */}
           <span className="ie-group">
+            <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
+              <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
+            </Tooltip>
+            <span className="ie-sep">/</span>
+            <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
+              <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
+            </Tooltip>
+            <span className="ie-sep">·</span>
             <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
               <span className="ie-field-wrap">
                 <span className="ie-lbl">DT</span>
@@ -340,14 +348,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
                   }}
                 />
               </span>
-            </Tooltip>
-            <span className="ie-sep">·</span>
-            <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
-              <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
-            </Tooltip>
-            <span className="ie-sep">/</span>
-            <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
-              <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
             </Tooltip>
           </span>
 
