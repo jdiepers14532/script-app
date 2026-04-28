@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Upload, X, ChevronRight, Check, AlertCircle, FileText, Loader } from 'lucide-react'
 
 interface ParsedRollenprofil {
@@ -138,7 +139,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
     setParsed(prev => prev ? { ...prev, [key]: value } : prev)
   }
 
-  return (
+  return createPortal(
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9000,
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
@@ -307,6 +308,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
       </div>
 
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
-    </div>
+    </div>,
+    document.body
   )
 }
