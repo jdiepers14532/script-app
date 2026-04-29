@@ -3,7 +3,7 @@ import multer from 'multer'
 import fetch from 'node-fetch'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
-import { getProviderApiKey, recordUsage } from './ki'
+import { getProviderApiKey } from './ki'
 
 export const rollenprofilImportRouter = Router()
 rollenprofilImportRouter.use(authMiddleware)
@@ -17,14 +17,12 @@ const upload = multer({
   },
 })
 
-async function getRollenprofilImportConfig(): Promise<{ api_key: string; model_name: string } | null> {
+async function getMistralOcrApiKey(): Promise<string | null> {
   const setting = await queryOne(
-    `SELECT model_name, enabled FROM ki_settings WHERE funktion = 'rollenprofil_import'`
+    `SELECT enabled FROM ki_settings WHERE funktion = 'rollenprofil_import'`
   )
   if (!setting?.enabled) return null
-  const apiKey = await getProviderApiKey('mistral')
-  if (!apiKey) return null
-  return { api_key: apiKey, model_name: setting.model_name || 'mistral-large-latest' }
+  return getProviderApiKey('mistral')
 }
 
 async function extractTextViaMistralOCR(pdfBase64: string, apiKey: string): Promise<string> {
@@ -51,82 +49,180 @@ async function extractTextViaMistralOCR(pdfBase64: string, apiKey: string): Prom
   return pages.map((p: any) => p.markdown || p.text || '').join('\n\n')
 }
 
-const PARSE_SYSTEM_PROMPT = `Du bist ein Experte für TV-Drehbuch-Rollenbeschreibungen.
-Extrahiere aus dem folgenden Text alle Felder eines Rollenprofils und gib sie als valides JSON zurück.
+// ── Deterministic Parser ───────────────────────────────────────────────────────
 
-Folgende Felder sollen extrahiert werden (leer lassen wenn nicht vorhanden):
-- name: Vollständiger Name der Figur (aus der Überschrift)
-- alter: Altersangabe oder Geburtsjahr (z.B. "45" oder "*1980")
-- kurzbeschreibung: Kurze Beschreibung aus der Überschrift (z.B. "Der Mann in der Krise")
-- geburtsort: Geburtsort
-- familienstand: Familienstand
-- eltern: Namen der Eltern
-- verwandte: Kinder und Verwandte (alle Angaben unter "KINDER / VERWANDTE")
-- beruf: Berufsbezeichnung
-- typ: Typbeschreibung (Feld "TYP")
-- charakter: Charakterbeschreibung (Feld "CHARAKTER")
-- aussehen: Aussehen und Stil
-- dramaturgische_funktion: Dramaturgische Funktion
-- staerken: Stärken der Figur
-- schwaechem: Schwächen der Figur
-- verletzungen: Verletzungen und Wunden
-- leidenschaften: Ticks, Running Gags, Leidenschaften
-- wuensche: Wünsche und Ziele
-- inneres_ziel: Was braucht die Figur wirklich
-- wesen: Das Wesen / die Wesensart der Figur (Feld "WESEN")
-- cast_anbindung: Anbindung an den Cast (Beziehungen zu anderen Figuren) — als einzelner Fließtext, nicht als Array
-- backstory: Vollständiger Backstory-Freitext (alles nach "Backstory")
-- produktion: Name der Produktion (z.B. "Rote Rosen")
-- staffel: Staffel-Bezeichnung (z.B. "Staffel 24")
-- folgen_range: Episodenbereich (z.B. "845-856")
+// Labels sorted longest first to prevent partial matches (e.g. "KINDER" before "KINDER / VERWANDTE")
+const LABELS: [string, string][] = [
+  ['FAMILIENSTAND / WICHTIGE EREIGNISSE', 'familienstand'],
+  ['FAMILIENSTAND/WICHTIGE EREIGNISSE',   'familienstand'],
+  ['TICKS / RUNNING GAGS / LEIDENSCHAFTEN', 'leidenschaften'],
+  ['TICKS/RUNNING GAGS/LEIDENSCHAFTEN',   'leidenschaften'],
+  ['WAS BRAUCHT DIE FIGUR WIRKLICH',      'inneres_ziel'],
+  ['ANBINDUNG AN DEN CAST',               'cast_anbindung'],
+  ['DRAMATURGISCHE FUNKTION',             'dramaturgische_funktion'],
+  ['CHARAKTEREIGENSCHAFTEN',              'typ'],
+  ['VERLETZUNGEN / WUNDEN',               'verletzungen'],
+  ['VERLETZUNGEN/WUNDEN',                 'verletzungen'],
+  ['KINDER / VERWANDTE',                  'verwandte'],
+  ['KINDER/VERWANDTE',                    'verwandte'],
+  ['TICKS/LEIDENSCHAFTEN',                'leidenschaften'],
+  ['AUSSEHEN / STIL',                     'aussehen'],
+  ['AUSSEHEN/STIL',                       'aussehen'],
+  ['WÜNSCHE / ZIELE',                     'wuensche'],
+  ['WÜNSCHE/ZIELE',                       'wuensche'],
+  ['WUNSCHE / ZIELE',                     'wuensche'],
+  ['WUNSCHE/ZIELE',                       'wuensche'],
+  ['FAMILIENSTAND',                       'familienstand'],
+  ['GEBURTSORT',                          'geburtsort'],
+  ['VERLETZUNGEN',                        'verletzungen'],
+  ['LEIDENSCHAFTEN',                      'leidenschaften'],
+  ['BACKSTORY',                           'backstory'],
+  ['STÄRKEN',                             'staerken'],
+  ['STARKEN',                             'staerken'],
+  ['SCHWÄCHEN',                           'schwaechem'],
+  ['SCHWACHEN',                           'schwaechem'],
+  ['ELTERN',                              'eltern'],
+  ['KINDER',                              'verwandte'],
+  ['ALTER',                               'alter'],
+  ['BERUF',                               'beruf'],
+  ['WESEN',                               'wesen'],
+  ['TYP',                                 'typ'],
+  ['CHARAKTER',                           'charakter'],
+]
 
-WICHTIG: Alle Feldwerte müssen einfache Strings sein. Keine Arrays, keine verschachtelten Objekte.
-Wenn mehrere Personen oder Beziehungen aufgelistet sind, füge sie als kommagetrennten Text zusammen.
-Antworte NUR mit einem validen JSON-Objekt, ohne Markdown-Codeblöcke.`
-
-async function parseRollenprofilViaChat(
-  text: string,
-  apiKey: string,
-  modelName: string
-): Promise<{ parsed: Record<string, string>; tokensIn: number; tokensOut: number }> {
-  const resp = await fetch('https://api.mistral.ai/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: modelName,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: PARSE_SYSTEM_PROMPT },
-        { role: 'user', content: `Rollenprofil-Text:\n\n${text}` },
-      ],
-    }),
-  })
-  if (!resp.ok) {
-    const body = await resp.text()
-    throw new Error(`Mistral Chat Fehler (${resp.status}): ${body}`)
+function matchLabel(text: string): string | null {
+  const up = text.toUpperCase().replace(/\s+/g, ' ').replace(/:\s*$/, '').trim()
+  for (const [label, key] of LABELS) {
+    if (up === label) return key
   }
-  const data = await resp.json() as any
-  const content = data.choices?.[0]?.message?.content || '{}'
-  const tokensIn = data.usage?.prompt_tokens ?? 0
-  const tokensOut = data.usage?.completion_tokens ?? 0
-  try {
-    const raw = JSON.parse(content)
-    // Normalize: Mistral sometimes returns arrays/objects instead of strings
-    const parsed: Record<string, string> = {}
-    for (const [k, v] of Object.entries(raw)) {
-      if (v === null || v === undefined || v === '') continue
-      if (typeof v === 'string') parsed[k] = v
-      else if (Array.isArray(v)) parsed[k] = v.map((x: any) => (typeof x === 'object' ? JSON.stringify(x) : String(x))).join(', ')
-      else if (typeof v === 'object') parsed[k] = Object.values(v as object).filter(Boolean).join(', ')
-      else parsed[k] = String(v)
+  return null
+}
+
+function parseRollenprofilDeterministic(ocrText: string): Record<string, string> {
+  const result: Record<string, string> = {}
+
+  // === Header metadata ===
+  result.produktion = 'Rote Rosen'
+  const staffelM = ocrText.match(/[Ss]taffel\s+(\d+)/i)
+  if (staffelM) result.staffel = `Staffel ${staffelM[1]}`
+  const folgenM = ocrText.match(/(\d{3,4})\s*[-–]\s*(\d{3,4})/)
+  if (folgenM) result.folgen_range = `${folgenM[1]}-${folgenM[2]}`
+
+  // === Normalize lines (strip markdown formatting) ===
+  const lines = ocrText.split('\n').map(l =>
+    l.replace(/\*\*([^*]*)\*\*/g, '$1')
+     .replace(/\*([^*]*)\*/g, '$1')
+     .replace(/^#+\s+/, '')
+     .trim()
+  )
+
+  // === Extract character name from first 35 lines ===
+  const nameSkip = /staffel|rote\s*rosen|futures?|figurenprofil|rollenprofil|\d{3,4}\s*[-–]\s*\d{3,4}|^\s*[-=|]+\s*$/i
+  for (let i = 0; i < Math.min(lines.length, 35); i++) {
+    const l = lines[i].replace(/[|#\\]/g, '').replace(/\s+/g, ' ').trim()
+    if (!l || l.length < 3 || nameSkip.test(l)) continue
+
+    // Mixed-case proper name: "Johanna Jansen" or "Victoria Kaiser"
+    if (/^[A-ZÄÖÜ][a-zäöüß\-]+(\s+[A-ZÄÖÜ][a-zäöüß\-]+){1,3}$/.test(l)) {
+      result.name = l
+      break
     }
-    return { parsed, tokensIn, tokensOut }
-  } catch {
-    throw new Error('Mistral hat kein valides JSON zurückgegeben')
+    // ALL-CAPS name: "VICTORIA KAISER" → "Victoria Kaiser"
+    if (/^[A-ZÄÖÜ\s\-]{4,45}$/.test(l) && !/^[-\s]+$/.test(l) &&
+        l.trim().split(/\s+/).filter(Boolean).length >= 2) {
+      result.name = l.trim().split(/\s+/).filter(Boolean)
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ')
+      break
+    }
   }
+
+  // === Kurzbeschreibung: subtitle with lowercase words, near the name ===
+  for (let i = 0; i < Math.min(lines.length, 20); i++) {
+    const l = lines[i].replace(/[|*·•#]/g, '').replace(/\s+/g, ' ').trim()
+    if (!l || l.length < 3 || l.length > 100) continue
+    if (result.name && l.toLowerCase() === result.name.toLowerCase()) continue
+    if (nameSkip.test(l)) continue
+    if (/[a-zäöüß]/.test(l) && !/^(alter|beruf|geburtsort|eltern|kinder|charakter|typ|wesen)\b/i.test(l)) {
+      // Exclude lines that look like field values (short standalone numbers/words)
+      if (l.split(' ').length >= 2 || l.length > 8) {
+        result.kurzbeschreibung = l
+        break
+      }
+    }
+  }
+
+  // === Scan lines for field labels and accumulate content ===
+  let currentKey: string | null = null
+  let buf: string[] = []
+
+  const flush = () => {
+    if (currentKey && buf.length > 0 && !result[currentKey]) {
+      result[currentKey] = buf.join('\n')
+        .replace(/\|/g, ' ')
+        .replace(/\s*\n\s*/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim()
+    }
+    buf = []
+  }
+
+  for (const line of lines) {
+    // Skip pure separator lines (table borders like "---", "===", "| | |")
+    if (/^[-=|:\s]+$/.test(line)) continue
+
+    // Handle pipe-separated table row: "| ALTER | 37 | GEBURTSORT | Hannover |"
+    if (line.includes('|')) {
+      const cells = line.split('|').map(c => c.trim()).filter(Boolean)
+      if (cells.every(c => /^[-\s]+$/.test(c))) continue  // separator row
+
+      let i = 0
+      while (i < cells.length) {
+        const key = matchLabel(cells[i])
+        if (key) {
+          flush()
+          currentKey = key
+          // Value might be immediately in next cell
+          if (i + 1 < cells.length && !matchLabel(cells[i + 1]) && cells[i + 1]) {
+            if (!result[key]) result[key] = cells[i + 1]
+            buf = []
+            i += 2
+            continue
+          }
+        } else if (cells[i] && currentKey) {
+          buf.push(cells[i])
+        }
+        i++
+      }
+      continue
+    }
+
+    // Check "Label: value" on same line
+    const colonIdx = line.indexOf(':')
+    if (colonIdx > 2 && colonIdx < 50) {
+      const labelPart = line.slice(0, colonIdx).trim()
+      const valuePart = line.slice(colonIdx + 1).trim()
+      const key = matchLabel(labelPart)
+      if (key) {
+        flush()
+        currentKey = key
+        if (valuePart && !result[key]) { result[key] = valuePart; buf = [] }
+        continue
+      }
+    }
+
+    // Plain line: check if it's a label
+    const key = matchLabel(line)
+    if (key) {
+      flush()
+      currentKey = key
+    } else if (line && currentKey) {
+      buf.push(line)
+    }
+  }
+  flush()
+
+  return result
 }
 
 // POST /api/characters/rollenprofil-import/preview
@@ -134,19 +230,16 @@ rollenprofilImportRouter.post('/preview', upload.single('file'), async (req, res
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine PDF-Datei hochgeladen' })
 
-    const config = await getRollenprofilImportConfig()
-    if (!config) {
+    const apiKey = await getMistralOcrApiKey()
+    if (!apiKey) {
       return res.status(503).json({
         error: 'Rollenprofil-Import nicht aktiviert oder kein Mistral API-Key konfiguriert. Bitte in Admin → KI-Konfiguration einrichten.',
       })
     }
 
     const pdfBase64 = req.file.buffer.toString('base64')
-    const extractedText = await extractTextViaMistralOCR(pdfBase64, config.api_key)
-    const { parsed, tokensIn, tokensOut } = await parseRollenprofilViaChat(extractedText, config.api_key, config.model_name)
-
-    // Record usage (chat completion only — OCR is page-based)
-    await recordUsage('mistral', config.model_name, tokensIn, tokensOut)
+    const extractedText = await extractTextViaMistralOCR(pdfBase64, apiKey)
+    const parsed = parseRollenprofilDeterministic(extractedText)
 
     res.json({ parsed, raw_text: extractedText })
   } catch (err: any) {
@@ -157,25 +250,25 @@ rollenprofilImportRouter.post('/preview', upload.single('file'), async (req, res
 
 // Mapping from parsed rollenprofil keys to charakter_felder_config names
 const PARSED_TO_FELDNAME: Record<string, string> = {
-  alter:                 'Alter',
-  geburtsort:            'Geburtsort',
-  familienstand:         'Familienstand',
-  eltern:                'Eltern',
-  verwandte:             'Kinder / Verwandte',
-  beruf:                 'Beruf',
-  typ:                   'Typ',
-  charakter:             'Charakter',
-  aussehen:              'Aussehen/Stil',
+  alter:                   'Alter',
+  geburtsort:              'Geburtsort',
+  familienstand:           'Familienstand',
+  eltern:                  'Eltern',
+  verwandte:               'Kinder / Verwandte',
+  beruf:                   'Beruf',
+  typ:                     'Typ',
+  charakter:               'Charakter',
+  aussehen:                'Aussehen/Stil',
   dramaturgische_funktion: 'Dramaturgische Funktion',
-  staerken:              'Stärken',
-  schwaechem:            'Schwächen',
-  verletzungen:          'Verletzungen/Wunden',
-  leidenschaften:        'Ticks/Leidenschaften',
-  wuensche:              'Wünsche/Ziele',
-  inneres_ziel:          'Was braucht die Figur wirklich',
-  wesen:                 'Wesen',
-  cast_anbindung:        'Anbindung an den Cast',
-  backstory:             'Beschreibung',
+  staerken:                'Stärken',
+  schwaechem:              'Schwächen',
+  verletzungen:            'Verletzungen/Wunden',
+  leidenschaften:          'Ticks/Leidenschaften',
+  wuensche:                'Wünsche/Ziele',
+  inneres_ziel:            'Was braucht die Figur wirklich',
+  wesen:                   'Wesen',
+  cast_anbindung:          'Anbindung an den Cast',
+  backstory:               'Beschreibung',
 }
 
 // POST /api/characters/rollenprofil-import/commit
@@ -188,7 +281,6 @@ rollenprofilImportRouter.post('/commit', async (req, res) => {
   try {
     const { name, kurzbeschreibung, produktion, staffel, folgen_range, ...restParsed } = parsed
 
-    // Store only non-field metadata in meta_json
     const char = await queryOne(
       `INSERT INTO characters (name, meta_json) VALUES ($1, $2) RETURNING *`,
       [name, JSON.stringify({ rollenprofil: { kurzbeschreibung, produktion, staffel, folgen_range } })]
@@ -207,7 +299,6 @@ rollenprofilImportRouter.post('/commit', async (req, res) => {
     )
     const feldByName = Object.fromEntries(felder.map((f: any) => [f.name, f.id]))
 
-    // Write each parsed field to charakter_feldwerte
     for (const [key, feldName] of Object.entries(PARSED_TO_FELDNAME)) {
       const wert = restParsed[key]
       if (!wert?.trim()) continue

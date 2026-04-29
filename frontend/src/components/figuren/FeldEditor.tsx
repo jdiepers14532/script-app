@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import { Mark } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
@@ -45,6 +45,32 @@ interface FeldEditorProps {
 
 const BEZIEHUNGSTYPEN = ['eltern_von', 'kind_von', 'geschwister', 'partner', 'custom']
 
+function AutoResizeTextarea({ value, onChange, style, placeholder }: {
+  value: string
+  onChange: (v: string) => void
+  style?: React.CSSProperties
+  placeholder?: string
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const resize = useCallback(() => {
+    if (ref.current) {
+      ref.current.style.height = 'auto'
+      ref.current.style.height = ref.current.scrollHeight + 'px'
+    }
+  }, [])
+  useEffect(() => { resize() }, [value, resize])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={1}
+      style={{ ...style, resize: 'none', overflow: 'hidden' }}
+    />
+  )
+}
+
 export default function FeldEditor({ feld, wert, onChange, onCharacterSearch, beziehungstypen = BEZIEHUNGSTYPEN, characterId }: FeldEditorProps) {
   if (feld.typ === 'character_ref') {
     return <CharacterRefFeld feld={feld} wert={wert} onChange={onChange} characterId={characterId} />
@@ -84,11 +110,24 @@ export default function FeldEditor({ feld, wert, onChange, onCharacterSearch, be
     )
   }
 
+  if (feld.typ === 'text') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={labelStyle}>{feld.name}</label>
+        <AutoResizeTextarea
+          value={currentValue}
+          onChange={v => onChange(feld.id, v || null, null)}
+          style={{ ...inputStyle, lineHeight: '1.5' }}
+        />
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <label style={labelStyle}>{feld.name}</label>
       <input
-        type={feld.typ === 'number' ? 'number' : feld.typ === 'date' ? 'date' : 'text'}
+        type={feld.typ === 'number' ? 'number' : 'date'}
         value={currentValue}
         onChange={e => onChange(feld.id, e.target.value || null, null)}
         style={inputStyle}

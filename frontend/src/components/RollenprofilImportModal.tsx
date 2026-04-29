@@ -1,6 +1,30 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Upload, X, ChevronRight, Check, AlertCircle, FileText, Loader, ChevronDown, ChevronUp, Minus } from 'lucide-react'
+
+function AutoResizeTextarea({ value, onChange, style }: {
+  value: string
+  onChange: (v: string) => void
+  style?: React.CSSProperties
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  const resize = useCallback(() => {
+    if (ref.current) {
+      ref.current.style.height = 'auto'
+      ref.current.style.height = ref.current.scrollHeight + 'px'
+    }
+  }, [])
+  useEffect(() => { resize() }, [value, resize])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      rows={1}
+      style={{ ...style, resize: 'none', overflow: 'hidden' }}
+    />
+  )
+}
 
 interface ParsedRollenprofil {
   name?: string
@@ -178,6 +202,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
     let lastName = ''
     for (const item of toCommit) {
       try {
+        // Step 1: Create character from parsed data
         const resp = await fetch('/api/characters/rollenprofil-import/commit', {
           method: 'POST',
           credentials: 'include',
@@ -186,8 +211,24 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
         })
         const data = await resp.json()
         if (!resp.ok) throw new Error(data.error || 'Fehler')
-        setFiles(prev => prev.map(f => f.id === item.id ? { ...f, character_id: data.character_id } : f))
-        lastId = data.character_id
+
+        const characterId: string = data.character_id
+
+        // Step 2: Attach original PDF as file (non-blocking — failure doesn't abort)
+        try {
+          const fd = new FormData()
+          fd.append('foto', item.file, item.file.name)
+          await fetch(`/api/characters/${encodeURIComponent(characterId)}/fotos`, {
+            method: 'POST',
+            credentials: 'include',
+            body: fd,
+          })
+        } catch (attachErr) {
+          console.warn('PDF anhängen fehlgeschlagen:', attachErr)
+        }
+
+        setFiles(prev => prev.map(f => f.id === item.id ? { ...f, character_id: characterId } : f))
+        lastId = characterId
         lastName = data.name
         committed++
       } catch (err: any) {
@@ -388,27 +429,17 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
                       {FIELD_ORDER.map(key => {
                         const val = item.parsed![key] ?? ''
                         if (!val && key !== 'name') return null
-                        const isLong = key === 'backstory' || key === 'cast_anbindung' || key === 'charakter' || key === 'dramaturgische_funktion'
                         return (
                           <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 8, alignItems: 'start' }}>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', paddingTop: isLong ? 8 : 6 }}>
+                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', paddingTop: 8 }}>
                               {FIELD_LABELS[key] || key}
                               {key === 'name' && <span style={{ color: '#FF3B30' }}> *</span>}
                             </label>
-                            {isLong ? (
-                              <textarea
-                                value={val}
-                                onChange={e => updateParsedField(item.id, key, e.target.value)}
-                                rows={key === 'backstory' ? 5 : 3}
-                                style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }}
-                              />
-                            ) : (
-                              <input
-                                value={val}
-                                onChange={e => updateParsedField(item.id, key, e.target.value)}
-                                style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                              />
-                            )}
+                            <AutoResizeTextarea
+                              value={val}
+                              onChange={v => updateParsedField(item.id, key, v)}
+                              style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', lineHeight: '1.5', width: '100%', boxSizing: 'border-box' as const }}
+                            />
                           </div>
                         )
                       })}
