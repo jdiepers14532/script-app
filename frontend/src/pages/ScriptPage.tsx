@@ -17,6 +17,29 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
   const [customTypen, setCustomTypen] = useState<{ name: string; editor_modus: string }[]>([])
   const [formatElements, setFormatElements] = useState<any[]>([])
 
+  // Resizable split
+  const [splitRatio, setSplitRatio] = useState(0.5)
+  const [isSplitDragging, setIsSplitDragging] = useState(false)
+  const splitContainerRef = useRef<HTMLDivElement>(null)
+
+  const onSplitDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsSplitDragging(true)
+    const onMove = (ev: MouseEvent) => {
+      if (!splitContainerRef.current) return
+      const rect = splitContainerRef.current.getBoundingClientRect()
+      const ratio = (ev.clientX - rect.left) / rect.width
+      setSplitRatio(Math.min(0.8, Math.max(0.2, ratio)))
+    }
+    const onUp = () => {
+      setIsSplitDragging(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [])
+
   useEffect(() => {
     api.getFormatTemplates().then((templates: any[]) => {
       const standard = templates.find((t: any) => t.ist_standard)
@@ -33,11 +56,17 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
 
   const showLeft = panelMode !== 'script'
   const showRight = panelMode !== 'treatment'
+  const showBoth = showLeft && showRight
 
   return (
-    <div style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+    <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {showLeft && (
-        <div style={{ flex: 1, overflow: 'hidden', borderRight: showRight ? '1px solid var(--border)' : undefined }}>
+        <div style={{
+          width: showBoth ? `${splitRatio * 100}%` : undefined,
+          flex: showBoth ? undefined : 1,
+          overflow: 'hidden', flexShrink: 0,
+          pointerEvents: isSplitDragging ? 'none' : 'auto',
+        }}>
           <EditorPanel
             key={`${staffelId}-${folgeNummer}-left`}
             staffelId={staffelId}
@@ -51,8 +80,30 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
           />
         </div>
       )}
+      {showBoth && (
+        <div
+          onMouseDown={onSplitDragStart}
+          onDoubleClick={() => setSplitRatio(0.5)}
+          style={{
+            width: 7, flexShrink: 0, cursor: 'col-resize',
+            background: isSplitDragging ? 'var(--sw-info)' : 'var(--border)',
+            transition: isSplitDragging ? 'none' : 'background 0.15s',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          title="Ziehen zum Ändern der Breite · Doppelklick = 50/50"
+        >
+          <div style={{
+            width: 3, height: 28, borderRadius: 2,
+            background: isSplitDragging ? '#fff' : 'var(--text-muted)',
+            opacity: isSplitDragging ? 1 : 0.35,
+          }} />
+        </div>
+      )}
       {showRight && (
-        <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{
+          flex: 1, overflow: 'hidden',
+          pointerEvents: isSplitDragging ? 'none' : 'auto',
+        }}>
           <EditorPanel
             key={`${staffelId}-${folgeNummer}-right`}
             staffelId={staffelId}
