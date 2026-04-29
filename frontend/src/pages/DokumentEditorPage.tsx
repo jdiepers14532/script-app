@@ -21,25 +21,21 @@ export default function DokumentEditorPage() {
 
   // Resizable split ratio (left panel fraction 0.2–0.8)
   const [splitRatio, setSplitRatio] = useState(0.5)
-  const dragging = useRef(false)
+  const [isDragging, setIsDragging] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    dragging.current = true
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
+    setIsDragging(true)
 
     const onMove = (ev: MouseEvent) => {
-      if (!dragging.current || !containerRef.current) return
+      if (!containerRef.current) return
       const rect = containerRef.current.getBoundingClientRect()
       const ratio = (ev.clientX - rect.left) / rect.width
       setSplitRatio(Math.min(0.8, Math.max(0.2, ratio)))
     }
     const onUp = () => {
-      dragging.current = false
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
+      setIsDragging(false)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
@@ -193,12 +189,20 @@ export default function DokumentEditorPage() {
               onMouseDown={onDragStart}
               onDoubleClick={() => setSplitRatio(0.5)}
               style={{
-                width: 5, flexShrink: 0, cursor: 'col-resize',
-                background: dragging.current ? 'var(--sw-info)' : 'var(--border)',
-                transition: dragging.current ? 'none' : 'background 0.15s',
+                width: 6, flexShrink: 0, cursor: 'col-resize',
+                background: isDragging ? 'var(--sw-info)' : 'var(--border)',
+                transition: isDragging ? 'none' : 'background 0.15s',
+                position: 'relative', zIndex: 10,
               }}
               title="Ziehen zum Ändern der Breite · Doppelklick = 50/50"
             />
+
+            {/* Overlay to capture mouse during drag (editors steal events otherwise) */}
+            {isDragging && (
+              <div style={{
+                position: 'fixed', inset: 0, zIndex: 9, cursor: 'col-resize',
+              }} />
+            )}
 
             {/* Right panel */}
             <div style={{ flex: 1, overflow: 'hidden' }}>
