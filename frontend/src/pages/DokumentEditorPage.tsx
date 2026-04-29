@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Columns, Square, Settings, Eye, EyeOff } from 'lucide-react'
 import { useDokument } from '../hooks/useDokument'
@@ -18,6 +18,34 @@ export default function DokumentEditorPage() {
 
   // Side-by-side vs single panel
   const [sideMode, setSideMode] = useState<'single' | 'split'>('single')
+
+  // Resizable split ratio (left panel fraction 0.2–0.8)
+  const [splitRatio, setSplitRatio] = useState(0.5)
+  const dragging = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragging.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMove = (ev: MouseEvent) => {
+      if (!dragging.current || !containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      const ratio = (ev.clientX - rect.left) / rect.width
+      setSplitRatio(Math.min(0.8, Math.max(0.2, ratio)))
+    }
+    const onUp = () => {
+      dragging.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }, [])
 
   // Document data
   const { dokumente, loading, createDokument, reload: reloadDokumente } = useDokument(
@@ -132,7 +160,7 @@ export default function DokumentEditorPage() {
       </div>
 
       {/* Editor area */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {sideMode === 'single' ? (
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <EditorPanel
@@ -148,7 +176,7 @@ export default function DokumentEditorPage() {
         ) : (
           <>
             {/* Left panel */}
-            <div style={{ flex: 1, borderRight: '1px solid var(--border)', overflow: 'hidden' }}>
+            <div style={{ width: `${splitRatio * 100}%`, overflow: 'hidden', flexShrink: 0 }}>
               <EditorPanel
                 staffelId={staffelId}
                 folgeNummer={folgeNummer}
@@ -159,6 +187,18 @@ export default function DokumentEditorPage() {
                 onReloadDokumente={reloadDokumente}
               />
             </div>
+
+            {/* Drag handle */}
+            <div
+              onMouseDown={onDragStart}
+              onDoubleClick={() => setSplitRatio(0.5)}
+              style={{
+                width: 5, flexShrink: 0, cursor: 'col-resize',
+                background: dragging.current ? 'var(--sw-info)' : 'var(--border)',
+                transition: dragging.current ? 'none' : 'background 0.15s',
+              }}
+              title="Ziehen zum Ändern der Breite · Doppelklick = 50/50"
+            />
 
             {/* Right panel */}
             <div style={{ flex: 1, overflow: 'hidden' }}>
