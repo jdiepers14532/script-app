@@ -8,6 +8,7 @@ import ImportPage from './pages/ImportPage'
 import HilfePage from './pages/HilfePage'
 import RollenPage from './pages/RollenPage'
 import KomparsenPage from './pages/KomparsenPage'
+import MotivenPage from './pages/MotivenPage'
 import { useFocusMode } from './hooks/useFocusMode'
 import { useProduction } from './hooks/useProduction'
 import {
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/hilfe" element={<HilfePage />} />
               <Route path="/rollen" element={<RollenPage />} />
               <Route path="/komparsen" element={<KomparsenPage />} />
+              <Route path="/motive" element={<MotivenPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>

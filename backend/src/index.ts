@@ -42,8 +42,9 @@ import { fassungenRouter, annotationenRouter } from './routes/fassungen'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
 import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from './routes/scene-comments'
-import { characterFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
-import { staffelFelderRouter, characterFeldwerteRouter } from './routes/charakter-felder'
+import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
+import { staffelFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
+import { staffelMotiveRouter, motivRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 
 // Load .env from project root or backend dir
@@ -164,12 +165,18 @@ app.use('/api/szenen', szenenCommentRouter)
 
 // Fotos
 app.use('/api/characters/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFotosRouter)
+app.use('/api/motive/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFotosRouter)
 app.use('/uploads/script-fotos/thumbnails', fotosThumbnailRouter)
 app.use('/uploads/script-fotos', fotosStaticRouter)
 
 // Charakter-Felder + Feldwerte
 app.use('/api/staffeln/:staffelId/charakter-felder', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelFelderRouter)
 app.use('/api/characters/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFeldwerteRouter)
+app.use('/api/motive/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFeldwerteRouter)
+
+// Motive
+app.use('/api/staffeln/:staffelId/motive', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelMotiveRouter)
+app.use('/api/motive/:id', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivRouter)
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {

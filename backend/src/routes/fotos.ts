@@ -178,6 +178,61 @@ characterFotosRouter.delete('/:fotoId', async (req, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
+// ── Motiv Fotos ───────────────────────────────────────────────────────────────
+
+export const motivFotosRouter = Router({ mergeParams: true })
+motivFotosRouter.use(authMiddleware)
+
+motivFotosRouter.get('/', async (req, res) => {
+  const p = req.params as any
+  try {
+    const rows = await query('SELECT * FROM motiv_fotos WHERE motiv_id = $1 ORDER BY sort_order, id', [p.id])
+    res.json(rows)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+motivFotosRouter.post('/', upload.single('foto'), (req, res) => handleUpload(req, res, 'motiv_fotos', 'motiv_id'))
+
+motivFotosRouter.patch('/reorder', async (req, res) => {
+  const p = req.params as any
+  const { order } = req.body
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' })
+  try {
+    for (const { id, sort_order } of order) {
+      await queryOne('UPDATE motiv_fotos SET sort_order = $1 WHERE id = $2 AND motiv_id = $3', [sort_order, id, p.id])
+    }
+    res.json(await query('SELECT * FROM motiv_fotos WHERE motiv_id = $1 ORDER BY sort_order, id', [p.id]))
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+motivFotosRouter.put('/:fotoId', async (req, res) => {
+  const p = req.params as any
+  const { label, ist_primaer } = req.body
+  try {
+    if (ist_primaer) await queryOne('UPDATE motiv_fotos SET ist_primaer = FALSE WHERE motiv_id = $1', [p.id])
+    const row = await queryOne(
+      `UPDATE motiv_fotos SET label = COALESCE($1, label), ist_primaer = COALESCE($2, ist_primaer)
+       WHERE id = $3 AND motiv_id = $4 RETURNING *`,
+      [label ?? null, ist_primaer ?? null, p.fotoId, p.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Nicht gefunden' })
+    res.json(row)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+motivFotosRouter.delete('/:fotoId', async (req, res) => {
+  const p = req.params as any
+  try {
+    const row = await queryOne(
+      'DELETE FROM motiv_fotos WHERE id = $1 AND motiv_id = $2 RETURNING dateiname, thumbnail_dateiname',
+      [p.fotoId, p.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Nicht gefunden' })
+    deleteFiles(row.dateiname, row.thumbnail_dateiname)
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function deleteFiles(dateiname: string | null, thumbnailDateiname: string | null) {

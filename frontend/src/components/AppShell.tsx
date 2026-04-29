@@ -5,7 +5,7 @@ import {
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
-  Users, UserCheck,
+  Users, UserCheck, MapPin,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext } from '../contexts'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
@@ -1081,6 +1081,7 @@ export default function AppShell({
               { to: '/',          label: 'Folgen',     icon: <LayoutDashboard size={14} /> },
               { to: '/rollen',    label: figurenLabel, icon: <Users size={14} /> },
               { to: '/komparsen', label: 'Komparsen',  icon: <UserCheck size={14} /> },
+              { to: '/motive',    label: 'Motive',     icon: <MapPin size={14} /> },
               { to: '/import',    label: 'Import',     icon: <FileUp size={14} /> },
               { to: '/hilfe',     label: 'Handbuch',   icon: <BookOpen size={14} /> },
               ...(isAdmin ? [{ to: '/admin', label: 'Einstellungen', icon: <Settings2 size={14} /> }] : []),
