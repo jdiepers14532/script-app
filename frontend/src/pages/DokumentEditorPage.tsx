@@ -172,7 +172,10 @@ export default function DokumentEditorPage() {
         ) : (
           <>
             {/* Left panel */}
-            <div style={{ width: `${splitRatio * 100}%`, overflow: 'hidden', flexShrink: 0 }}>
+            <div style={{
+              width: `${splitRatio * 100}%`, overflow: 'hidden', flexShrink: 0,
+              pointerEvents: isDragging ? 'none' : 'auto',
+            }}>
               <EditorPanel
                 staffelId={staffelId}
                 folgeNummer={folgeNummer}
@@ -189,23 +192,25 @@ export default function DokumentEditorPage() {
               onMouseDown={onDragStart}
               onDoubleClick={() => setSplitRatio(0.5)}
               style={{
-                width: 6, flexShrink: 0, cursor: 'col-resize',
+                width: 8, flexShrink: 0, cursor: 'col-resize',
                 background: isDragging ? 'var(--sw-info)' : 'var(--border)',
                 transition: isDragging ? 'none' : 'background 0.15s',
-                position: 'relative', zIndex: 10,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
               title="Ziehen zum Ändern der Breite · Doppelklick = 50/50"
-            />
-
-            {/* Overlay to capture mouse during drag (editors steal events otherwise) */}
-            {isDragging && (
+            >
               <div style={{
-                position: 'fixed', inset: 0, zIndex: 9, cursor: 'col-resize',
+                width: 3, height: 32, borderRadius: 2,
+                background: isDragging ? '#fff' : 'var(--text-muted)',
+                opacity: isDragging ? 1 : 0.4,
               }} />
-            )}
+            </div>
 
             {/* Right panel */}
-            <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{
+              flex: 1, overflow: 'hidden',
+              pointerEvents: isDragging ? 'none' : 'auto',
+            }}>
               <EditorPanel
                 staffelId={staffelId}
                 folgeNummer={folgeNummer}
