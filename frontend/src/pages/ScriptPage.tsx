@@ -85,17 +85,16 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
           onMouseDown={onSplitDragStart}
           onDoubleClick={() => setSplitRatio(0.5)}
           style={{
-            width: 7, flexShrink: 0, cursor: 'col-resize',
-            background: isSplitDragging ? 'var(--sw-info)' : 'var(--border)',
-            transition: isSplitDragging ? 'none' : 'background 0.15s',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 1, flexShrink: 0, cursor: 'col-resize',
+            background: 'var(--border)',
+            position: 'relative',
           }}
           title="Ziehen zum Ändern der Breite · Doppelklick = 50/50"
         >
+          {/* Invisible wider hit area */}
           <div style={{
-            width: 3, height: 28, borderRadius: 2,
-            background: isSplitDragging ? '#fff' : 'var(--text-muted)',
-            opacity: isSplitDragging ? 1 : 0.35,
+            position: 'absolute', top: 0, bottom: 0, left: -4, width: 9,
+            cursor: 'col-resize',
           }} />
         </div>
       )}
