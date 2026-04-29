@@ -325,30 +325,6 @@ export const api = {
   reorderCharacterFotos: (characterId: string, order: { id: number; sort_order: number }[]) =>
     request<any[]>('PATCH', `/characters/${characterId}/fotos/reorder`, { order }),
 
-  // ── Motiv-CRUD ────────────────────────────────────────────────────────────
-  getMotive: (staffelId: string) =>
-    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/motive`),
-  createMotiv: (staffelId: string, data: { name: string; motiv_nummer?: string | null; typ?: string }) =>
-    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/motive`, data),
-  updateMotiv: (motivId: string, data: { name?: string; motiv_nummer?: string | null; typ?: string }) =>
-    request<any>('PUT', `/motive/${motivId}`, data),
-  deleteMotiv: (motivId: string) =>
-    request<any>('DELETE', `/motive/${motivId}`),
-
-  // ── Motiv-Fotos ───────────────────────────────────────────────────────────
-  getMotivFotos: (motivId: string) =>
-    request<any[]>('GET', `/motive/${motivId}/fotos`),
-  uploadMotivFoto: (motivId: string, file: File) => {
-    const fd = new FormData(); fd.append('foto', file)
-    return fetch(`${BASE}/motive/${motivId}/fotos`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
-  },
-  updateMotivFoto: (motivId: string, fotoId: number, data: { label?: string; ist_primaer?: boolean }) =>
-    request<any>('PUT', `/motive/${motivId}/fotos/${fotoId}`, data),
-  deleteMotivFoto: (motivId: string, fotoId: number) =>
-    request<any>('DELETE', `/motive/${motivId}/fotos/${fotoId}`),
-  reorderMotivFotos: (motivId: string, order: { id: number; sort_order: number }[]) =>
-    request<any[]>('PATCH', `/motive/${motivId}/fotos/reorder`, { order }),
-
   // ── Charakter-Felder-Config ───────────────────────────────────────────────
   getCharakterFelder: (staffelId: string) =>
     request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder`),
@@ -368,11 +344,6 @@ export const api = {
     request<any[]>('GET', `/characters/${characterId}/feldwerte`),
   setCharacterFeldwert: (characterId: string, feldId: number, data: { wert_text?: string | null; wert_json?: any }) =>
     request<any>('PUT', `/characters/${characterId}/feldwerte/${feldId}`, data),
-  getMotivFeldwerte: (motivId: string) =>
-    request<any[]>('GET', `/motive/${motivId}/feldwerte`),
-  setMotivFeldwert: (motivId: string, feldId: number, data: { wert_text?: string | null; wert_json?: any }) =>
-    request<any>('PUT', `/motive/${motivId}/feldwerte/${feldId}`, data),
-
   // ── Beziehungen ───────────────────────────────────────────────────────────
   getCharacterBeziehungen: (characterId: string) =>
     request<any[]>('GET', `/characters/${characterId}/beziehungen`),

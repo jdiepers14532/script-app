@@ -10,7 +10,7 @@ const ADMIN_TABS = [
   { id: 'produktion',           label: 'Produktion' },
   { id: 'wasserzeichen',        label: 'Wasserzeichen & Export-Log' },
   { id: 'allgemein',            label: 'Allgemein' },
-  { id: 'figuren',              label: 'Figuren & Motive' },
+  { id: 'figuren',              label: 'Figuren' },
   { id: 'export',               label: 'Export-Vorlagen' },
   { id: 'locks',                label: 'Lock-Regeln' },
   { id: 'users',                label: 'Benutzer & Rollen' },
@@ -1412,7 +1412,6 @@ function FigurenTab() {
   }
 
   const rollenFelder = felder.filter(f => f.gilt_fuer === 'alle' || f.gilt_fuer === 'rolle' || f.gilt_fuer === 'komparse')
-  const motivFelder = felder.filter(f => f.gilt_fuer === 'motiv')
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -1440,11 +1439,6 @@ function FigurenTab() {
           <section>
             <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder für {figurenLabel} & Komparsen</h3>
             <FeldListe felder={rollenFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
-          </section>
-
-          <section>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder für Motive</h3>
-            <FeldListe felder={motivFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
           </section>
 
           {/* Rollenprofil preset */}
@@ -1478,7 +1472,6 @@ function FigurenTab() {
                   <option value="alle">Alle</option>
                   <option value="rolle">Nur {figurenLabel}</option>
                   <option value="komparse">Nur Komparsen</option>
-                  <option value="motiv">Nur Motive</option>
                 </select>
               </div>
               {newFeld.typ === 'select' && (

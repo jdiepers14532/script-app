@@ -4,16 +4,13 @@ import { authMiddleware } from '../auth'
 
 export const staffelFelderRouter = Router({ mergeParams: true })
 export const characterFeldwerteRouter = Router({ mergeParams: true })
-export const motivFeldwerteRouter = Router({ mergeParams: true })
 
 staffelFelderRouter.use(authMiddleware)
 characterFeldwerteRouter.use(authMiddleware)
-motivFeldwerteRouter.use(authMiddleware)
 
 const DEFAULT_FELDER = [
   { name: 'Beschreibung', typ: 'richtext', optionen: [], sort_order: 1, gilt_fuer: 'alle' },
   { name: 'Notizen', typ: 'richtext', optionen: [], sort_order: 2, gilt_fuer: 'alle' },
-  { name: 'fiktionale Adresse in der Geschichte', typ: 'text', optionen: [], sort_order: 0, gilt_fuer: 'motiv' },
 ]
 
 export const ROLLENPROFIL_FELDER = [
@@ -232,38 +229,3 @@ characterFeldwerteRouter.delete('/:feldId/links/:linkedId', async (req, res) => 
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
-// ── Feldwerte für Motive ──────────────────────────────────────────────────────
-
-// GET /api/motive/:id/feldwerte
-motivFeldwerteRouter.get('/', async (req, res) => {
-  const { id } = req.params as any
-  try {
-    const rows = await query(
-      `SELECT fv.*, fc.name AS feld_name, fc.typ AS feld_typ, fc.optionen AS feld_optionen, fc.gilt_fuer
-       FROM charakter_feldwerte fv
-       JOIN charakter_felder_config fc ON fc.id = fv.feld_id
-       WHERE fv.motiv_id = $1
-       ORDER BY fc.sort_order`,
-      [id]
-    )
-    res.json(rows)
-  } catch (err) { res.status(500).json({ error: String(err) }) }
-})
-
-// PUT /api/motive/:id/feldwerte/:feldId
-motivFeldwerteRouter.put('/:feldId', async (req, res) => {
-  const { id, feldId } = req.params as any
-  const { wert_text, wert_json } = req.body
-  try {
-    const row = await queryOne(
-      `INSERT INTO charakter_feldwerte (motiv_id, feld_id, wert_text, wert_json)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (motiv_id, feld_id) WHERE motiv_id IS NOT NULL DO UPDATE SET
-         wert_text = EXCLUDED.wert_text,
-         wert_json = EXCLUDED.wert_json
-       RETURNING *`,
-      [id, feldId, wert_text ?? null, wert_json ? JSON.stringify(wert_json) : null]
-    )
-    res.json(row)
-  } catch (err) { res.status(500).json({ error: String(err) }) }
-})
