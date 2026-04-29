@@ -47,6 +47,7 @@ export default function MotivenPage() {
   const [editName, setEditName] = useState('')
   const [editTyp, setEditTyp] = useState('interior')
   const [editNummer, setEditNummer] = useState('')
+  const [editFiktAdresse, setEditFiktAdresse] = useState('')
   const [saving, setSaving] = useState(false)
 
   const loadMotive = useCallback(async () => {
@@ -69,11 +70,18 @@ export default function MotivenPage() {
   }, [staffelId])
 
   useEffect(() => {
-    if (!selectedId) { setFotos([]); setFeldwerte([]); return }
+    if (!selectedId) { setFotos([]); setFeldwerte([]); setEditFiktAdresse(''); return }
     setFotosLoading(true)
     Promise.all([
       api.getMotivFotos(selectedId).then(setFotos).catch(() => setFotos([])),
-      api.getMotivFeldwerte(selectedId).then(setFeldwerte).catch(() => setFeldwerte([])),
+      api.getMotivFeldwerte(selectedId).then(werte => {
+        setFeldwerte(werte)
+        const fiktFeld = felder.find(f => f.name === 'Fiktionale Adresse in der Geschichte')
+        if (fiktFeld) {
+          const w = werte.find((v: any) => v.feld_id === fiktFeld.id)
+          setEditFiktAdresse(w?.wert_text ?? '')
+        }
+      }).catch(() => setFeldwerte([])),
     ]).finally(() => setFotosLoading(false))
   }, [selectedId])
 
@@ -294,25 +302,42 @@ export default function MotivenPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Typ</label>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      {TYP_OPTIONS.map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={() => setEditTyp(opt.value)}
-                          style={{
-                            fontSize: 12, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
-                            border: '1px solid',
-                            borderColor: editTyp === opt.value ? 'var(--text)' : 'var(--border)',
-                            background: editTyp === opt.value ? 'var(--text)' : 'transparent',
-                            color: editTyp === opt.value ? 'var(--bg)' : 'var(--text)',
-                          }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
+                  <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div>
+                      <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Typ</label>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {TYP_OPTIONS.map(opt => (
+                          <button
+                            key={opt.value}
+                            onClick={() => setEditTyp(opt.value)}
+                            style={{
+                              fontSize: 12, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                              border: '1px solid',
+                              borderColor: editTyp === opt.value ? 'var(--text)' : 'var(--border)',
+                              background: editTyp === opt.value ? 'var(--text)' : 'transparent',
+                              color: editTyp === opt.value ? 'var(--bg)' : 'var(--text)',
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                    {felder.some(f => f.name === 'Fiktionale Adresse in der Geschichte') && (
+                      <div style={{ flex: 1, minWidth: 180 }}>
+                        <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Fiktionale Adresse</label>
+                        <input
+                          value={editFiktAdresse}
+                          onChange={e => setEditFiktAdresse(e.target.value)}
+                          onBlur={async () => {
+                            const f = felder.find(f => f.name === 'Fiktionale Adresse in der Geschichte')
+                            if (f) await handleFeldChange(f.id, editFiktAdresse || null, null)
+                          }}
+                          placeholder="z. B. Musterstraße 12, Roseheim"
+                          style={inputStyle}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div style={{ display: 'flex', gap: 8, paddingTop: 4 }}>
@@ -338,10 +363,10 @@ export default function MotivenPage() {
                   </div>
                 </div>
 
-                {/* Custom Felder */}
-                {felder.length > 0 && (
+                {/* Custom Felder (Fiktionale Adresse is shown inline above) */}
+                {felder.some(f => f.name !== 'Fiktionale Adresse in der Geschichte') && (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px 28px', alignItems: 'start' }}>
-                    {felder.map(f => {
+                    {felder.filter(f => f.name !== 'Fiktionale Adresse in der Geschichte').map(f => {
                       const wert = feldwerte.find(v => v.feld_id === f.id)
                       return (
                         <div key={f.id} style={f.typ === 'richtext' ? { gridColumn: '1 / -1' } : {}}>
