@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Upload, X, ChevronRight, Check, AlertCircle, FileText, Loader } from 'lucide-react'
+import { Upload, X, ChevronRight, Check, AlertCircle, FileText, Loader, ChevronDown, ChevronUp, Minus } from 'lucide-react'
 
 interface ParsedRollenprofil {
   name?: string
@@ -65,31 +65,45 @@ const FIELD_ORDER = [
   'wesen', 'cast_anbindung', 'backstory',
 ]
 
+type FileStatus = 'pending' | 'processing' | 'done' | 'error'
+
+interface FileItem {
+  id: string
+  file: File
+  status: FileStatus
+  parsed?: ParsedRollenprofil
+  error?: string
+  selected: boolean
+  expanded: boolean
+  character_id?: string
+}
+
 interface Props {
   staffelId: string
   onClose: () => void
   onSuccess: (characterId: string, name: string) => void
 }
 
+let idCounter = 0
+function nextId() { return String(++idCounter) }
+
 export default function RollenprofilImportModal({ staffelId, onClose, onSuccess }: Props) {
-  const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
+  const [step, setStep] = useState<'upload' | 'review' | 'done'>('upload')
   const [dragging, setDragging] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [parsed, setParsed] = useState<ParsedRollenprofil | null>(null)
+  const [files, setFiles] = useState<FileItem[]>([])
   const [committing, setCommitting] = useState(false)
+  const [commitError, setCommitError] = useState<string | null>(null)
+  const [committedCount, setCommittedCount] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFile = async (file: File) => {
-    if (!file.name.toLowerCase().endsWith('.pdf')) {
-      setError('Nur PDF-Dateien werden unterstützt.')
-      return
-    }
-    setLoading(true)
-    setError(null)
+  const isProcessing = files.some(f => f.status === 'processing')
+  const allDone = files.length > 0 && files.every(f => f.status === 'done' || f.status === 'error')
+  const selectedCount = files.filter(f => f.selected && f.status === 'done').length
+
+  const processFile = async (item: FileItem): Promise<Partial<FileItem>> => {
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', item.file)
       const resp = await fetch('/api/characters/rollenprofil-import/preview', {
         method: 'POST',
         credentials: 'include',
@@ -97,46 +111,108 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Unbekannter Fehler')
-      setParsed(data.parsed || {})
-      setStep('preview')
+      return { status: 'done', parsed: data.parsed || {} }
     } catch (err: any) {
-      setError(err.message || 'Fehler beim Analysieren der PDF')
-    } finally {
-      setLoading(false)
+      return { status: 'error', error: err.message || 'Fehler beim Analysieren' }
+    }
+  }
+
+  const addFiles = async (newFiles: File[]) => {
+    const pdfs = newFiles.filter(f => f.name.toLowerCase().endsWith('.pdf'))
+    if (pdfs.length === 0) return
+
+    const items: FileItem[] = pdfs.map(f => ({
+      id: nextId(),
+      file: f,
+      status: 'pending',
+      selected: true,
+      expanded: false,
+    }))
+
+    setFiles(prev => [...prev, ...items])
+
+    // Process sequentially
+    for (const item of items) {
+      setFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'processing' } : f))
+      const result = await processFile(item)
+      setFiles(prev => prev.map(f => f.id === item.id ? { ...f, ...result } : f))
     }
   }
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFile(file)
+    addFiles(Array.from(e.dataTransfer.files))
   }
 
-  const handleCommit = async () => {
-    if (!parsed?.name) { setError('Name der Figur fehlt.'); return }
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) addFiles(Array.from(e.target.files))
+    e.target.value = ''
+  }
+
+  const updateParsedField = (id: string, key: string, value: string) => {
+    setFiles(prev => prev.map(f =>
+      f.id === id ? { ...f, parsed: { ...f.parsed, [key]: value } } : f
+    ))
+  }
+
+  const toggleSelected = (id: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, selected: !f.selected } : f))
+  }
+
+  const toggleExpanded = (id: string) => {
+    setFiles(prev => prev.map(f => f.id === id ? { ...f, expanded: !f.expanded } : f))
+  }
+
+  const removeFile = (id: string) => {
+    setFiles(prev => prev.filter(f => f.id !== id))
+  }
+
+  const handleCommitAll = async () => {
+    const toCommit = files.filter(f => f.selected && f.status === 'done' && f.parsed?.name)
+    if (toCommit.length === 0) return
     setCommitting(true)
-    setError(null)
-    try {
-      const resp = await fetch('/api/characters/rollenprofil-import/commit', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ staffel_id: staffelId, parsed }),
-      })
-      const data = await resp.json()
-      if (!resp.ok) throw new Error(data.error || 'Fehler beim Anlegen')
+    setCommitError(null)
+    let committed = 0
+    let lastId = ''
+    let lastName = ''
+    for (const item of toCommit) {
+      try {
+        const resp = await fetch('/api/characters/rollenprofil-import/commit', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ staffel_id: staffelId, parsed: item.parsed }),
+        })
+        const data = await resp.json()
+        if (!resp.ok) throw new Error(data.error || 'Fehler')
+        setFiles(prev => prev.map(f => f.id === item.id ? { ...f, character_id: data.character_id } : f))
+        lastId = data.character_id
+        lastName = data.name
+        committed++
+      } catch (err: any) {
+        setFiles(prev => prev.map(f => f.id === item.id ? { ...f, status: 'error', error: err.message } : f))
+      }
+    }
+    setCommittedCount(committed)
+    setCommitting(false)
+    if (committed > 0) {
       setStep('done')
-      setTimeout(() => onSuccess(data.character_id, data.name), 1200)
-    } catch (err: any) {
-      setError(err.message || 'Fehler beim Anlegen der Figur')
-    } finally {
-      setCommitting(false)
+      if (committed === 1) {
+        setTimeout(() => onSuccess(lastId, lastName), 1200)
+      }
     }
   }
 
-  const updateField = (key: string, value: string) => {
-    setParsed(prev => prev ? { ...prev, [key]: value } : prev)
+  const stepLabels = ['Hochladen', 'Prüfen', 'Fertig']
+  const stepKeys = ['upload', 'review', 'done']
+  const currentStepIdx = stepKeys.indexOf(step)
+
+  const statusIcon = (item: FileItem) => {
+    if (item.status === 'processing') return <Loader size={14} style={{ animation: 'spin 1s linear infinite', color: 'var(--sw-info)', flexShrink: 0 }} />
+    if (item.status === 'done') return <Check size={14} style={{ color: '#00C853', flexShrink: 0 }} />
+    if (item.status === 'error') return <AlertCircle size={14} style={{ color: '#FF3B30', flexShrink: 0 }} />
+    return <Minus size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
   }
 
   return createPortal(
@@ -145,7 +221,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{
-        background: 'var(--bg-surface)', borderRadius: 12, width: '100%', maxWidth: 680,
+        background: 'var(--bg-surface)', borderRadius: 12, width: '100%', maxWidth: 720,
         maxHeight: '90vh', display: 'flex', flexDirection: 'column',
         boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
       }}>
@@ -154,9 +230,9 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
           <div>
             <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Rollenprofil importieren</h2>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-              {step === 'upload' && 'PDF hochladen — Mistral KI extrahiert alle Felder automatisch'}
-              {step === 'preview' && 'Extrahierte Daten prüfen und ggf. korrigieren'}
-              {step === 'done' && 'Figur wurde erfolgreich angelegt'}
+              {step === 'upload' && 'Einzelne oder mehrere PDFs hochladen — KI extrahiert alle Felder automatisch'}
+              {step === 'review' && 'Extrahierte Daten prüfen, bearbeiten und auswählen'}
+              {step === 'done' && `${committedCount} ${committedCount === 1 ? 'Figur wurde' : 'Figuren wurden'} erfolgreich angelegt`}
             </p>
           </div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 4 }}>
@@ -166,142 +242,239 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
 
         {/* Steps indicator */}
         <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-          {(['upload', 'preview', 'done'] as const).map((s, i) => (
-            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {stepLabels.map((label, i) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
                 width: 24, height: 24, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600,
-                background: step === s ? 'var(--text-primary)' : s === 'done' && step === 'done' ? '#00C853' : 'var(--bg-subtle)',
-                color: step === s || (s === 'done' && step === 'done') ? '#fff' : 'var(--text-secondary)',
+                background: i === currentStepIdx ? 'var(--text-primary)' : (step === 'done' && i === 2) ? '#00C853' : 'var(--bg-subtle)',
+                color: i === currentStepIdx || (step === 'done' && i === 2) ? '#fff' : 'var(--text-secondary)',
               }}>
-                {s === 'done' && step === 'done' ? <Check size={12} /> : i + 1}
+                {step === 'done' && i === 2 ? <Check size={12} /> : i + 1}
               </div>
-              <span style={{ fontSize: 12, color: step === s ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
-                {s === 'upload' ? 'Hochladen' : s === 'preview' ? 'Prüfen' : 'Fertig'}
-              </span>
+              <span style={{ fontSize: 12, color: i === currentStepIdx ? 'var(--text-primary)' : 'var(--text-secondary)' }}>{label}</span>
               {i < 2 && <ChevronRight size={14} style={{ color: 'var(--border)' }} />}
             </div>
           ))}
+          {files.length > 0 && step === 'upload' && (
+            <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-secondary)' }}>
+              {files.filter(f => f.status === 'done').length}/{files.length} verarbeitet
+            </span>
+          )}
         </div>
 
         {/* Content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-          {/* Step 1: Upload */}
+          {/* ── Step 1: Upload ── */}
           {step === 'upload' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <>
+              {/* Drop zone */}
               <div
                 onDragOver={e => { e.preventDefault(); setDragging(true) }}
                 onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
-                onClick={() => !loading && fileInputRef.current?.click()}
+                onClick={() => !isProcessing && fileInputRef.current?.click()}
                 style={{
                   border: `2px dashed ${dragging ? 'var(--text-primary)' : 'var(--border)'}`,
-                  borderRadius: 12, padding: 48, textAlign: 'center',
-                  cursor: loading ? 'default' : 'pointer',
+                  borderRadius: 12, padding: files.length > 0 ? '20px 24px' : 48, textAlign: 'center',
+                  cursor: isProcessing ? 'default' : 'pointer',
                   background: dragging ? 'var(--bg-subtle)' : 'transparent',
                   transition: 'all 0.15s',
+                  flexShrink: 0,
                 }}
               >
-                {loading ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: 'var(--text-secondary)' }}>
-                    <Loader size={32} style={{ animation: 'spin 1s linear infinite' }} />
-                    <div style={{ fontSize: 14, fontWeight: 500 }}>KI analysiert Rollenprofil…</div>
-                    <div style={{ fontSize: 12 }}>Mistral OCR + Parser — das dauert einige Sekunden</div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}>
+                  <FileText size={files.length > 0 ? 20 : 32} />
+                  <div style={{ fontSize: files.length > 0 ? 13 : 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {files.length > 0 ? 'Weitere PDFs hinzufügen' : 'PDFs hierher ziehen oder klicken'}
                   </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, color: 'var(--text-secondary)' }}>
-                    <FileText size={32} />
-                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>PDF hierher ziehen oder klicken</div>
-                    <div style={{ fontSize: 12 }}>Rollenprofil im PDF-Format — Seite/n werden per KI ausgelesen</div>
-                  </div>
-                )}
+                  {files.length === 0 && (
+                    <div style={{ fontSize: 12 }}>Mehrere Rollenprofile auf einmal — jedes wird per KI verarbeitet</div>
+                  )}
+                </div>
               </div>
               <input
                 ref={fileInputRef}
                 type="file"
                 accept=".pdf,application/pdf"
+                multiple
                 style={{ display: 'none' }}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+                onChange={handleFileInput}
               />
-              {error && (
-                <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: 'rgba(255,59,48,0.1)', borderRadius: 8, color: '#FF3B30', fontSize: 13 }}>
-                  <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                  {error}
+
+              {/* File list */}
+              {files.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {files.map(item => (
+                    <div key={item.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 12px', borderRadius: 8,
+                      background: 'var(--bg-subtle)',
+                      border: item.status === 'error' ? '1px solid rgba(255,59,48,0.3)' : '1px solid transparent',
+                    }}>
+                      {statusIcon(item)}
+                      <span style={{ fontSize: 13, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.file.name}
+                      </span>
+                      {item.status === 'done' && (
+                        <span style={{ fontSize: 12, color: '#00C853', flexShrink: 0 }}>{item.parsed?.name || '–'}</span>
+                      )}
+                      {item.status === 'error' && (
+                        <span style={{ fontSize: 12, color: '#FF3B30', flexShrink: 0, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.error}</span>
+                      )}
+                      {item.status === 'processing' && (
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>wird verarbeitet…</span>
+                      )}
+                      {item.status !== 'processing' && (
+                        <button onClick={() => removeFile(item.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 2, flexShrink: 0 }}>
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
-            </div>
+            </>
           )}
 
-          {/* Step 2: Preview + Edit */}
-          {step === 'preview' && parsed && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* ── Step 2: Review ── */}
+          {step === 'review' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-                Die KI hat folgende Daten extrahiert. Felder können direkt bearbeitet werden.
+                {selectedCount} von {files.filter(f => f.status === 'done').length} Figuren ausgewählt. Zeilen aufklappen zum Bearbeiten.
               </p>
-              {FIELD_ORDER.map(key => {
-                const val = parsed[key] ?? ''
-                if (!val && key !== 'name') return null
-                const isLong = key === 'backstory' || key === 'cast_anbindung' || key === 'charakter' || key === 'dramaturgische_funktion'
-                return (
-                  <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 8, alignItems: 'start' }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', paddingTop: isLong ? 8 : 6 }}>
-                      {FIELD_LABELS[key] || key}
-                      {key === 'name' && <span style={{ color: '#FF3B30' }}> *</span>}
-                    </label>
-                    {isLong ? (
-                      <textarea
-                        value={val}
-                        onChange={e => updateField(key, e.target.value)}
-                        rows={key === 'backstory' ? 6 : 3}
-                        style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }}
-                      />
-                    ) : (
-                      <input
-                        value={val}
-                        onChange={e => updateField(key, e.target.value)}
-                        style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-                      />
+              {files.map(item => (
+                <div key={item.id} style={{
+                  border: `1px solid ${item.status === 'error' ? 'rgba(255,59,48,0.3)' : 'var(--border)'}`,
+                  borderRadius: 10, overflow: 'hidden',
+                  opacity: !item.selected && item.status === 'done' ? 0.5 : 1,
+                }}>
+                  {/* Row header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', cursor: item.status === 'done' ? 'pointer' : 'default' }}
+                    onClick={() => item.status === 'done' && toggleExpanded(item.id)}>
+                    {/* Checkbox */}
+                    {item.status === 'done' && (
+                      <div
+                        onClick={e => { e.stopPropagation(); toggleSelected(item.id) }}
+                        style={{
+                          width: 16, height: 16, borderRadius: 4, border: `2px solid ${item.selected ? 'var(--text-primary)' : 'var(--border)'}`,
+                          background: item.selected ? 'var(--text-primary)' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer',
+                        }}>
+                        {item.selected && <Check size={10} color="var(--bg-surface)" />}
+                      </div>
+                    )}
+                    {item.status !== 'done' && statusIcon(item)}
+                    <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
+                      {item.status === 'done' ? (item.parsed?.name || '(kein Name)') : item.file.name}
+                    </span>
+                    {item.status === 'done' && item.parsed?.kurzbeschreibung && (
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.parsed.kurzbeschreibung}
+                      </span>
+                    )}
+                    {item.status === 'error' && (
+                      <span style={{ fontSize: 12, color: '#FF3B30' }}>{item.error}</span>
+                    )}
+                    {item.status === 'done' && (
+                      item.expanded ? <ChevronUp size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                        : <ChevronDown size={14} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                     )}
                   </div>
-                )
-              })}
-              {error && (
+
+                  {/* Expanded fields */}
+                  {item.expanded && item.parsed && (
+                    <div style={{ padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border)' }}>
+                      {FIELD_ORDER.map(key => {
+                        const val = item.parsed![key] ?? ''
+                        if (!val && key !== 'name') return null
+                        const isLong = key === 'backstory' || key === 'cast_anbindung' || key === 'charakter' || key === 'dramaturgische_funktion'
+                        return (
+                          <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 8, alignItems: 'start' }}>
+                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', paddingTop: isLong ? 8 : 6 }}>
+                              {FIELD_LABELS[key] || key}
+                              {key === 'name' && <span style={{ color: '#FF3B30' }}> *</span>}
+                            </label>
+                            {isLong ? (
+                              <textarea
+                                value={val}
+                                onChange={e => updateParsedField(item.id, key, e.target.value)}
+                                rows={key === 'backstory' ? 5 : 3}
+                                style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }}
+                              />
+                            ) : (
+                              <input
+                                value={val}
+                                onChange={e => updateParsedField(item.id, key, e.target.value)}
+                                style={{ fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+                              />
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {commitError && (
                 <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: 'rgba(255,59,48,0.1)', borderRadius: 8, color: '#FF3B30', fontSize: 13 }}>
                   <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-                  {error}
+                  {commitError}
                 </div>
               )}
             </div>
           )}
 
-          {/* Step 3: Done */}
+          {/* ── Step 3: Done ── */}
           {step === 'done' && (
             <div style={{ textAlign: 'center', padding: '32px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
               <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#00C853', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Check size={28} color="#fff" />
               </div>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 600 }}>{parsed?.name || 'Figur'} wurde angelegt</div>
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Du wirst automatisch weitergeleitet…</div>
+                <div style={{ fontSize: 16, fontWeight: 600 }}>
+                  {committedCount === 1 ? '1 Figur wurde angelegt' : `${committedCount} Figuren wurden angelegt`}
+                </div>
+                {committedCount === 1 && (
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>Du wirst automatisch weitergeleitet…</div>
+                )}
               </div>
+              {committedCount > 1 && (
+                <button onClick={onClose} style={{ fontSize: 13, padding: '8px 20px', background: 'var(--text-primary)', color: 'var(--bg-surface)', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>
+                  Schließen
+                </button>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        {step === 'preview' && (
+        {step === 'upload' && allDone && (
           <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end', flexShrink: 0 }}>
             <button
-              onClick={() => { setStep('upload'); setError(null) }}
+              onClick={() => setStep('review')}
+              style={{ fontSize: 13, padding: '8px 20px', background: 'var(--text-primary)', color: 'var(--bg-surface)', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              Weiter zur Prüfung <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+
+        {step === 'review' && (
+          <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <button
+              onClick={() => setStep('upload')}
               disabled={committing}
               style={{ fontSize: 13, padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
               Zurück
             </button>
             <button
-              onClick={handleCommit}
-              disabled={committing || !parsed?.name}
-              style={{ fontSize: 13, padding: '8px 20px', background: 'var(--text-primary)', color: 'var(--bg-surface)', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, opacity: committing ? 0.7 : 1 }}>
-              {committing ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Anlegen…</> : <><Upload size={13} /> Figur anlegen</>}
+              onClick={handleCommitAll}
+              disabled={committing || selectedCount === 0}
+              style={{ fontSize: 13, padding: '8px 20px', background: 'var(--text-primary)', color: 'var(--bg-surface)', border: 'none', borderRadius: 8, cursor: selectedCount === 0 ? 'not-allowed' : 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, opacity: committing || selectedCount === 0 ? 0.6 : 1 }}>
+              {committing
+                ? <><Loader size={13} style={{ animation: 'spin 1s linear infinite' }} /> Anlegen…</>
+                : <><Upload size={13} /> {selectedCount === 1 ? '1 Figur anlegen' : `${selectedCount} Figuren anlegen`}</>}
             </button>
           </div>
         )}
