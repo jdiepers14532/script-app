@@ -151,7 +151,9 @@ function stripFooterLines(lines: string[]): string[] {
 }
 
 function cleanText(raw: string): string[] {
-  const preprocessed = preprocessPdfText(raw)
+  // Strip form feed characters (pdftotext page breaks) before any processing
+  const noFF = raw.replace(/\f/g, '')
+  const preprocessed = preprocessPdfText(noFF)
   const lines = preprocessed.split(/\r?\n/)
   const stripped = stripFooterLines(lines)
   // Remove margin numbers and blank lines
@@ -606,6 +608,20 @@ export function parseRoteRosen(rawText: string): ImportResult {
 
     const header = parseSceneHeader(lines, i)
     if (!header) { i++; continue }
+
+    // Debug: log scene header details for first few scenes
+    if (szenen.length < 12) {
+      const context = lines.slice(i, Math.min(i + 8, lines.length))
+      console.log(`[RoteRosen] Scene ${header.sceneNr} at line ${i}:`, {
+        context,
+        ort_name: header.ort_name,
+        int_ext: header.int_ext,
+        spieltag: header.spieltag,
+        charaktere: header.charaktere,
+        dauer_sekunden: header.dauer_sekunden,
+        headerEndIdx: header.headerEndIdx,
+      })
+    }
 
     // Find end of scene content (next scene number or EOF)
     let contentEnd = lines.length
