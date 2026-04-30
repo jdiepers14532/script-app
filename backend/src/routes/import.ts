@@ -52,13 +52,18 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
 
-    // Strip watermark before parsing
-    const rawText  = req.file.buffer.toString('utf8')
-    const wmPayload = decodeWatermarkFromText(rawText)
-    const cleanText = stripWatermark(rawText)
-    const cleanBuf  = Buffer.from(cleanText, 'utf8')
+    // Strip watermark before parsing (text formats only — PDFs are binary)
+    const isPdf = req.file.originalname.toLowerCase().endsWith('.pdf')
+    let parseBuffer = req.file.buffer
+    let wmPayload: any = null
+    if (!isPdf) {
+      const rawText  = req.file.buffer.toString('utf8')
+      wmPayload = decodeWatermarkFromText(rawText)
+      const cleanText = stripWatermark(rawText)
+      parseBuffer  = Buffer.from(cleanText, 'utf8')
+    }
 
-    const result   = await parseScript(req.file.originalname, cleanBuf)
+    const result   = await parseScript(req.file.originalname, parseBuffer)
     const fileMeta = extractFileMetadata(req.file.originalname, req.file.buffer)
     const filenameMeta = parseFilename(req.file.originalname)
 
@@ -117,12 +122,16 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       return res.status(400).json({ error: `Ungültiger stage_type: ${stage_type}` })
     }
 
-    // Strip watermark before parsing
-    const rawText   = req.file.buffer.toString('utf8')
-    const cleanText = stripWatermark(rawText)
-    const cleanBuf  = Buffer.from(cleanText, 'utf8')
+    // Strip watermark before parsing (text formats only — PDFs are binary)
+    const isPdf = req.file.originalname.toLowerCase().endsWith('.pdf')
+    let parseBuffer = req.file.buffer
+    if (!isPdf) {
+      const rawText   = req.file.buffer.toString('utf8')
+      const cleanText = stripWatermark(rawText)
+      parseBuffer  = Buffer.from(cleanText, 'utf8')
+    }
 
-    const result    = await parseScript(req.file.originalname, cleanBuf)
+    const result    = await parseScript(req.file.originalname, parseBuffer)
 
     // Auto-detect stage_type from Rote-Rosen metadata if not explicitly set
     if (result.meta.roteRosenMeta && !req.body.stage_type) {
