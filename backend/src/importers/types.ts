@@ -15,6 +15,7 @@ export interface ParsedScene {
   zusammenfassung?: string
   textelemente: Textelement[]
   charaktere: string[]
+  komparsen?: string[]
   spieltag?: number
   dauer_sekunden?: number
 }

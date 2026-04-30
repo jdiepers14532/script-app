@@ -28,14 +28,31 @@ interface PreviewResult {
   total_scenes: number
   total_textelemente: number
   charaktere: string[]
+  komparsen?: string[]
+  motive?: string[]
   warnings: string[]
   szenen: any[]
+  rote_rosen_meta?: {
+    document_type?: string
+    staffel?: number
+    episode?: number
+    [key: string]: any
+  }
+  filename_metadata?: {
+    document_type?: string
+    staffel?: number
+    episode?: number
+    fassungsdatum?: string
+    show?: string
+  }
 }
 
 interface CommitResult {
   stage_id: number
   scenes_imported: number
-  entities_created: number
+  characters_created: number
+  komparsen_created: number
+  motive_created: number
   warnings: string[]
 }
 
@@ -157,6 +174,20 @@ export default function ImportPage() {
       }
       const data = await res.json()
       setPreviewResult(data)
+
+      // Auto-fill stage_type from detected metadata
+      const rrMeta = data.rote_rosen_meta || data.filename_metadata
+      if (rrMeta?.document_type) {
+        if (rrMeta.document_type === 'treatment') setStageType('treatment')
+        else if (rrMeta.document_type === 'drehbuch') setStageType('draft')
+      }
+
+      // Auto-fill folge from detected episode number
+      const detectedEpisode = data.rote_rosen_meta?.episode || data.filename_metadata?.episode
+      if (detectedEpisode && allFolgen.some(f => f.nr === detectedEpisode)) {
+        handleFolgeSelect(detectedEpisode)
+      }
+
       setStep(2)
     } catch (err) {
       setError(String(err))
@@ -356,6 +387,11 @@ export default function ImportPage() {
                   <span style={{ width: 56, flexShrink: 0, fontSize: 11, color: '#aaa' }}>
                     {sz.tageszeit}
                   </span>
+                  {sz.spieltag != null && (
+                    <span style={{ width: 30, flexShrink: 0, fontSize: 10, color: '#bbb', fontWeight: 500 }}>
+                      ST{sz.spieltag}
+                    </span>
+                  )}
                   <span style={{ flex: 1, fontSize: 12, color: '#757575', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {sz.charaktere.join(', ')}
                   </span>
@@ -367,10 +403,32 @@ export default function ImportPage() {
             <div style={{ width: 360, flexShrink: 0 }}>
               <h2 style={{ marginBottom: 20, fontSize: 20, fontWeight: 600 }}>Einstellungen</h2>
 
-              <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 <StatCard label="Szenen" value={previewResult.total_scenes} />
-                <StatCard label="Charaktere" value={previewResult.charaktere.length} />
+                <StatCard label="Rollen" value={previewResult.charaktere.length} />
+                {(previewResult.komparsen?.length ?? 0) > 0 && (
+                  <StatCard label="Komparsen" value={previewResult.komparsen!.length} />
+                )}
+                {(previewResult.motive?.length ?? 0) > 0 && (
+                  <StatCard label="Motive" value={previewResult.motive!.length} />
+                )}
               </div>
+
+              {/* Auto-detected metadata info */}
+              {(previewResult.rote_rosen_meta || previewResult.filename_metadata) && (
+                <div style={{
+                  background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8,
+                  padding: 12, marginBottom: 16, fontSize: 13, color: '#1565c0',
+                }}>
+                  Erkannt: {previewResult.rote_rosen_meta?.document_type === 'treatment' ? 'Treatment' : previewResult.rote_rosen_meta?.document_type === 'drehbuch' ? 'Drehbuch' : previewResult.filename_metadata?.document_type || 'PDF'}
+                  {(previewResult.rote_rosen_meta?.episode || previewResult.filename_metadata?.episode) &&
+                    ` — Episode ${previewResult.rote_rosen_meta?.episode || previewResult.filename_metadata?.episode}`}
+                  {previewResult.filename_metadata?.fassungsdatum &&
+                    ` — Stand ${previewResult.filename_metadata.fassungsdatum}`}
+                  {previewResult.rote_rosen_meta?.regie &&
+                    ` — Regie: ${previewResult.rote_rosen_meta.regie}`}
+                </div>
+              )}
 
               {previewResult.warnings.length > 0 && (
                 <div style={{
@@ -498,7 +556,9 @@ export default function ImportPage() {
             <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Import erfolgreich</h2>
             <p style={{ color: '#757575', fontSize: 14, marginBottom: 24 }}>
               {commitResult.scenes_imported} Szenen importiert
-              {commitResult.entities_created > 0 && `, ${commitResult.entities_created} Charaktere erkannt`}
+              {commitResult.characters_created > 0 && `, ${commitResult.characters_created} Rollen angelegt`}
+              {commitResult.komparsen_created > 0 && `, ${commitResult.komparsen_created} Komparsen angelegt`}
+              {commitResult.motive_created > 0 && `, ${commitResult.motive_created} Motive angelegt`}
             </p>
 
             {commitResult.warnings.length > 0 && (

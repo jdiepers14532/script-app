@@ -21,6 +21,32 @@ export function isRoteRosenFormat(text: string): boolean {
   return TITLE_RE.test(header) && DOC_TYPE_RE.test(header)
 }
 
+// ─── Filename Parser ────────────────────────────────────
+// Pattern: "Treatment - Rote Rosen Staffel 24 - Episode 4402 - 2026-04-30.pdf"
+
+export interface FilenameMeta {
+  document_type?: 'treatment' | 'drehbuch'
+  show?: string
+  staffel?: number
+  episode?: number
+  fassungsdatum?: string
+}
+
+const FILENAME_RE = /^(Treatment|Drehbuch)\s*-\s*(.+?)\s+Staffel\s+(\d+)\s*-\s*Episode\s+(\d+)(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/i
+
+export function parseFilename(filename: string): FilenameMeta {
+  const base = filename.replace(/\.[^.]+$/, '')
+  const m = FILENAME_RE.exec(base)
+  if (!m) return {}
+  return {
+    document_type: m[1].toLowerCase() as 'treatment' | 'drehbuch',
+    show: m[2].trim(),
+    staffel: parseInt(m[3], 10),
+    episode: parseInt(m[4], 10),
+    fassungsdatum: m[5] || undefined,
+  }
+}
+
 // ─── Patterns ───────────────────────────────────────────
 
 const SCENE_NUM_RE = /^(\d{4})\.(\d{1,3})\s*(.*)/
@@ -573,6 +599,7 @@ export function parseRoteRosen(rawText: string): ImportResult {
       zusammenfassung: header.zusammenfassung || undefined,
       textelemente,
       charaktere,
+      komparsen: header.komparsen.length > 0 ? header.komparsen : undefined,
       spieltag: header.spieltag,
       dauer_sekunden: header.dauer_sekunden,
     })
