@@ -325,8 +325,24 @@ interface SceneHeader {
   komparsen: string[]
   hinweise: string[]
   headerEndIdx: number
+  isWechselschnitt: boolean
+  wechselschnittPartner: number[]  // all scene numbers in the crosscut (including self)
+  partnerDurations: Map<number, number>  // sceneNr → seconds for each partner
 }
 
+/**
+ * Parse a single scene header + detect Wechselschnitt (crosscut) pattern.
+ *
+ * Wechselschnitt: multiple scene-number+duration pairs listed back-to-back,
+ * followed by a shared header block (location, characters, I/E code, summary).
+ *
+ * Normal:   4402.2 → Ort → Chars → I/E → Zusammenfassung → Dauer
+ * Crosscut: 4402.8 → Dauer → 4402.9 → Dauer → Ort → Chars → I/E → Zusammenfassung
+ *
+ * Returns the FIRST scene's header. Crosscut partners are listed in
+ * `wechselschnittPartner` with their scene numbers and durations, and the
+ * main parser loop handles creating the partner scenes.
+ */
 function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null {
   const t = lines[startIdx]?.trim()
   if (!t) return null
@@ -347,12 +363,34 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     i++
   }
 
+  // ── Wechselschnitt detection ──
+  // If after scene+duration we see another scene number, it's a crosscut.
+  // Collect all partner scene numbers + durations.
+  const wechselschnittPartner: number[] = []
+  const partnerDurations = new Map<number, number>()  // sceneNr → seconds
+  if (dauer_sekunden > 0) {
+    partnerDurations.set(sceneNr, dauer_sekunden)
+    while (i < lines.length) {
+      const nextLine = lines[i].trim()
+      const partnerM = SCENE_NUM_RE.exec(nextLine)
+      if (!partnerM) break
+      const partnerSceneNr = parseInt(partnerM[2], 10)
+      wechselschnittPartner.push(partnerSceneNr)
+      i++
+      // Read partner's duration
+      if (i < lines.length && DURATION_RE.test(lines[i].trim())) {
+        partnerDurations.set(partnerSceneNr, parseDurationToSeconds(lines[i].trim()))
+        i++
+      }
+    }
+  }
+  const isWechselschnitt = wechselschnittPartner.length > 0
+
   // Location line
   let ort_name = locationOnSameLine
   if (!ort_name && i < lines.length) {
     const candidate = lines[i].trim()
-    // Make sure we don't read another scene number as location
-    if (!SCENE_NUM_RE.test(candidate)) {
+    if (!SCENE_NUM_RE.test(candidate) && !DURATION_RE.test(candidate)) {
       ort_name = candidate
       i++
     }
@@ -421,6 +459,11 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     episodeNr, sceneNr, ort_name, int_ext, tageszeit, spieltag,
     charaktere, zusammenfassung, dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
+    isWechselschnitt,
+    wechselschnittPartner: isWechselschnitt
+      ? [sceneNr, ...wechselschnittPartner]
+      : [],
+    partnerDurations: isWechselschnitt ? partnerDurations : new Map(),
   }
 }
 
@@ -588,6 +631,7 @@ export function parseRoteRosen(rawText: string): ImportResult {
 
   const szenen: ParsedScene[] = []
   const allCharaktere = new Map<string, string>() // UPPER → display name
+  const consumedSceneNrs = new Set<number>()  // skip partner scenes already handled
   let i = scenesStart
 
   while (i < lines.length) {
@@ -595,29 +639,25 @@ export function parseRoteRosen(rawText: string): ImportResult {
     if (!t) { i++; continue }
     if (!SCENE_NUM_RE.test(t)) { i++; continue }
 
+    // Extract scene number to check if already consumed by a crosscut
+    const peekM = SCENE_NUM_RE.exec(t)
+    if (peekM && consumedSceneNrs.has(parseInt(peekM[2], 10))) { i++; continue }
+
     const header = parseSceneHeader(lines, i)
     if (!header) { i++; continue }
 
-    // Debug: log scene header details for first few scenes
-    if (szenen.length < 12) {
-      const context = lines.slice(i, Math.min(i + 8, lines.length))
-      console.log(`[RoteRosen] Scene ${header.sceneNr} at line ${i}:`, {
-        context,
-        ort_name: header.ort_name,
-        int_ext: header.int_ext,
-        spieltag: header.spieltag,
-        charaktere: header.charaktere,
-        dauer_sekunden: header.dauer_sekunden,
-        headerEndIdx: header.headerEndIdx,
-      })
-    }
-
-    // Find end of scene content (next scene number or EOF)
+    // Find end of scene content (next scene number not part of this crosscut, or EOF)
     let contentEnd = lines.length
     for (let j = header.headerEndIdx; j < lines.length; j++) {
-      if (SCENE_NUM_RE.test(lines[j]?.trim() || '')) {
-        contentEnd = j
-        break
+      const lineJ = lines[j]?.trim() || ''
+      if (SCENE_NUM_RE.test(lineJ)) {
+        const jM = SCENE_NUM_RE.exec(lineJ)
+        const jNr = jM ? parseInt(jM[2], 10) : 0
+        // Don't break on partner scene numbers (already consumed)
+        if (!header.wechselschnittPartner.includes(jNr)) {
+          contentEnd = j
+          break
+        }
       }
     }
 
@@ -655,18 +695,41 @@ export function parseRoteRosen(rawText: string): ImportResult {
       finalIntExt = 'EXT'
     }
 
-    szenen.push({
-      nummer: header.sceneNr,
-      int_ext: finalIntExt,
-      tageszeit: header.tageszeit,
-      ort_name: header.ort_name,
-      zusammenfassung: header.zusammenfassung || undefined,
-      textelemente,
-      charaktere,
-      komparsen: header.komparsen.length > 0 ? header.komparsen : undefined,
-      spieltag: header.spieltag,
-      dauer_sekunden: header.dauer_sekunden,
-    })
+    // ── Create scene(s) ──
+    if (header.isWechselschnitt) {
+      // Wechselschnitt: create one scene per partner, all sharing the same header data
+      for (const partnerNr of header.wechselschnittPartner) {
+        consumedSceneNrs.add(partnerNr)
+        const partnerDauer = header.partnerDurations.get(partnerNr) || 0
+        szenen.push({
+          nummer: partnerNr,
+          int_ext: finalIntExt,
+          tageszeit: header.tageszeit,
+          ort_name: header.ort_name,
+          zusammenfassung: header.zusammenfassung || undefined,
+          textelemente: partnerNr === header.sceneNr ? textelemente : [],
+          charaktere,
+          komparsen: header.komparsen.length > 0 ? header.komparsen : undefined,
+          spieltag: header.spieltag,
+          dauer_sekunden: partnerDauer,
+          isWechselschnitt: true,
+          wechselschnittPartner: header.wechselschnittPartner.filter(n => n !== partnerNr),
+        })
+      }
+    } else {
+      szenen.push({
+        nummer: header.sceneNr,
+        int_ext: finalIntExt,
+        tageszeit: header.tageszeit,
+        ort_name: header.ort_name,
+        zusammenfassung: header.zusammenfassung || undefined,
+        textelemente,
+        charaktere,
+        komparsen: header.komparsen.length > 0 ? header.komparsen : undefined,
+        spieltag: header.spieltag,
+        dauer_sekunden: header.dauer_sekunden,
+      })
+    }
 
     i = contentEnd
   }

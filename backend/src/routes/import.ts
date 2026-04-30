@@ -178,10 +178,12 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     const szeneIds: { szeneDbId: number; szeneIdx: number }[] = []
     for (const [idx, szene] of result.szenen.entries()) {
       const dauerMin = szene.dauer_sekunden ? Math.round(szene.dauer_sekunden / 60) : null
+      const dauerSek = szene.dauer_sekunden || null
+      const isWechselschnitt = szene.isWechselschnitt || false
       const inserted = await queryOne(
-        `INSERT INTO szenen (stage_id, scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, sort_order, spieltag, dauer_min)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-        [stage.id, szene.nummer, szene.int_ext, szene.tageszeit, szene.ort_name || null, szene.zusammenfassung || null, JSON.stringify(szene.textelemente), idx, szene.spieltag || null, dauerMin]
+        `INSERT INTO szenen (stage_id, scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, sort_order, spieltag, dauer_min, dauer_sek, is_wechselschnitt)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        [stage.id, szene.nummer, szene.int_ext, szene.tageszeit, szene.ort_name || null, szene.zusammenfassung || null, JSON.stringify(szene.textelemente), idx, szene.spieltag || null, dauerMin, dauerSek, isWechselschnitt]
       )
       if (inserted) szeneIds.push({ szeneDbId: inserted.id, szeneIdx: idx })
       scenesImported++

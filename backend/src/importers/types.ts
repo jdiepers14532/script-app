@@ -18,6 +18,8 @@ export interface ParsedScene {
   komparsen?: string[]
   spieltag?: number
   dauer_sekunden?: number
+  isWechselschnitt?: boolean
+  wechselschnittPartner?: number[]
 }
 
 export interface ImportResult {

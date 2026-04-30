@@ -372,29 +372,45 @@ export default function ImportPage() {
               </div>
               {previewResult.szenen.map((sz: any, i: number) => (
                 <div key={i} style={{
-                  display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '5px 8px', borderBottom: '1px solid #f5f5f5', fontSize: 13,
+                  padding: '6px 8px', borderBottom: '1px solid #f0f0f0', fontSize: 13,
                 }}>
-                  <span style={{ width: 40, flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 11, color: '#bbb', textAlign: 'right' }}>
-                    SZ {sz.nummer}
-                  </span>
-                  <span style={{ width: 52, flexShrink: 0, fontSize: 11, color: '#757575', fontWeight: 500 }}>
-                    {sz.int_ext}
-                  </span>
-                  <span style={{ flex: '0 1 320px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sz.ort_name || '—'}
-                  </span>
-                  <span style={{ width: 56, flexShrink: 0, fontSize: 11, color: '#aaa' }}>
-                    {sz.tageszeit}
-                  </span>
-                  {sz.spieltag != null && (
-                    <span style={{ width: 30, flexShrink: 0, fontSize: 10, color: '#bbb', fontWeight: 500 }}>
-                      ST{sz.spieltag}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 40, flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 11, color: '#bbb', textAlign: 'right' }}>
+                      SZ {sz.nummer}
                     </span>
+                    {sz.isWechselschnitt && (
+                      <span style={{ fontSize: 9, background: '#E3F2FD', color: '#1565C0', padding: '1px 5px', borderRadius: 3, fontWeight: 600, flexShrink: 0 }}>
+                        WS
+                      </span>
+                    )}
+                    <span style={{ width: 36, flexShrink: 0, fontSize: 11, color: sz.int_ext === 'EXT' ? '#00C853' : '#757575', fontWeight: 500 }}>
+                      {sz.int_ext}
+                    </span>
+                    <span style={{ flex: '0 1 250px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sz.ort_name || '—'}
+                    </span>
+                    <span style={{ width: 36, flexShrink: 0, fontSize: 11, color: '#aaa' }}>
+                      {sz.tageszeit}
+                    </span>
+                    {sz.spieltag != null && (
+                      <span style={{ width: 30, flexShrink: 0, fontSize: 10, color: '#bbb', fontWeight: 500 }}>
+                        ST{sz.spieltag}
+                      </span>
+                    )}
+                    {sz.dauer_sekunden > 0 && (
+                      <span style={{ width: 40, flexShrink: 0, fontSize: 11, color: '#007AFF', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
+                        {Math.floor(sz.dauer_sekunden / 60)}:{String(sz.dauer_sekunden % 60).padStart(2, '0')}
+                      </span>
+                    )}
+                    <span style={{ flex: 1, fontSize: 12, color: '#757575', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sz.charaktere.join(', ')}
+                    </span>
+                  </div>
+                  {sz.zusammenfassung && (
+                    <div style={{ marginTop: 2, marginLeft: 48, fontSize: 11, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sz.zusammenfassung}
+                    </div>
                   )}
-                  <span style={{ flex: 1, fontSize: 12, color: '#757575', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {sz.charaktere.join(', ')}
-                  </span>
                 </div>
               ))}
             </div>
