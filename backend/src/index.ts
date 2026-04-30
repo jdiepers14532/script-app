@@ -208,6 +208,7 @@ async function runMigrations() {
     'v32_notizen_richtext.sql',
     'v33_rollenprofil_felder.sql',
     'v34_charakter_feld_links.sql',
+    'v35_stages_meta_json.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
