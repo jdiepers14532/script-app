@@ -67,9 +67,9 @@ function isMarginNumber(line: string): boolean {
   return n > 0 && n <= 100 && n % 5 === 0
 }
 
-// ─── pdf-parse Preprocessor ─────────────────────────────
-// pdf-parse concatenates adjacent PDF text runs and sometimes
-// duplicates them. This function repairs the most common issues.
+// ─── PDF Text Preprocessor ──────────────────────────────
+// Handles both pdf-parse artifacts (concatenation, dedup) and
+// pdftotext output (blank lines, scene+duration on one line).
 
 function preprocessPdfText(text: string): string {
   const lines = text.split(/\r?\n/)
@@ -78,33 +78,35 @@ function preprocessPdfText(text: string): string {
   for (const line of lines) {
     let l = line
 
-    // 1. Footer: "Stand: DD.MM.YYYY HH:MMTreatment - Episode NNNNN von M"
+    // 1. Footer: "Stand: DD.MM.YYYY HH:MMTreatment - Episode NNNNN von M" (pdf-parse)
     l = l.replace(/(Stand:\s+\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2})((?:Treatment|Drehbuch)\s*-\s*Episode)/, '$1\n$2')
     l = l.replace(/((?:Treatment|Drehbuch)\s*-\s*Episode\s*\d{4})(\d+\s+von\s+\d+)/, '$1\n$2')
 
-    // 2. Scene header: "4402.1Außendreh / A. D. GutshofE/T4" or "4402.1Stu. 02 / CarlasI/T4"
+    // 2. Scene header concatenated: "4402.1Außendreh / A. D. GutshofE/T4" (pdf-parse)
     l = l.replace(/^(\d{4}\.\d{1,3})((?:Stu\.|Außendreh).*?)([IE]\/[TNAD]\d+)$/m, '$1\n$2\n$3')
 
-    // 3. Duration dedup: "1:331:33" → "1:33", "0:050:05" → "0:05"
+    // 3. Scene number + duration on same line: "4402.1 1:33" (pdftotext)
+    l = l.replace(/^(\d{4}\.\d{1,3})\s+(\d{1,2}:\d{2})\s*$/m, '$1\n$2')
+
+    // 4. Duration dedup: "1:331:33" → "1:33" (pdf-parse)
     l = l.replace(/(\d{1,2}:\d{2})\1/g, '$1')
 
-    // 4. Duration + trailing content: "1:33Bild aus Block..." or "1:52Wechselschnitt..."
+    // 5. Duration + trailing content: "1:33Bild aus Block..." (pdf-parse)
     l = l.replace(/^(\d{1,2}:\d{2})((?:Bild aus Block|Wechselschnitt|Komparsen).*)$/m, '$1\n$2')
 
-    // 5. Dialog number dedup: "1. 1. DANIELDANIEL" → "1. DANIEL"
-    //    "16. 16. RICHARD (ONE-WAY)RICHARD (ONE-WAY)" → "16. RICHARD (ONE-WAY)"
+    // 6. Dialog number dedup: "1. 1. DANIELDANIEL" → "1. DANIEL" (pdf-parse)
     l = l.replace(/^(\d+\.\s+)\1(.+)\2$/m, '$1$2')
 
-    // 6. Komparsen dedup: "Komparsen: TresenkraftKomparsen: Tresenkraft"
+    // 7. Komparsen dedup (pdf-parse)
     l = l.replace(/(Komparsen:\s*.+?)\1$/i, '$1')
 
-    // 7. "Bild aus Block" dedup: content duplicated after period
+    // 8. "Bild aus Block" dedup (pdf-parse)
     l = l.replace(/(Bild aus Block\b[^.]*\.)\1$/i, '$1')
 
-    // 8. "Wechselschnitt" dedup
+    // 9. "Wechselschnitt" dedup (pdf-parse)
     l = l.replace(/(Wechselschnitt mit Bild \d{4}\.\d+)\1$/i, '$1')
 
-    // 9. "Bitte...Memo" dedup
+    // 10. "Bitte...Memo" dedup (pdf-parse)
     l = l.replace(/(Bitte[^.]*Memo[^.]*\.)\1$/i, '$1')
 
     // Split any newlines introduced by the replacements
@@ -116,10 +118,11 @@ function preprocessPdfText(text: string): string {
 
 // ─── Text Cleaning ──────────────────────────────────────
 
-function stripFooterBlocks(lines: string[]): string[] {
+function stripFooterLines(lines: string[]): string[] {
   const result: string[] = []
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim()
+    // pdf-parse: 3 consecutive footer lines
     if (FOOTER_STAND_RE.test(t) && i + 2 < lines.length) {
       const n1 = lines[i + 1].trim()
       const n2 = lines[i + 2].trim()
@@ -128,16 +131,36 @@ function stripFooterBlocks(lines: string[]): string[] {
         continue
       }
     }
+    // pdftotext: individual footer lines (with blank lines between)
+    if (FOOTER_STAND_RE.test(t)) continue
+    if (FOOTER_PAGE_RE.test(t)) continue
+    // FOOTER_DOC_RE only outside cover page area (after first scene reference)
     result.push(lines[i])
   }
-  return result
+  // Second pass: strip standalone "Treatment/Drehbuch - Episode NNNN" lines
+  // that appear after the cover page (footers from pdftotext)
+  let pastCover = false
+  const final: string[] = []
+  for (const line of result) {
+    const t = line.trim()
+    if (SCENE_NUM_RE.test(t)) pastCover = true
+    if (pastCover && FOOTER_DOC_RE.test(t)) continue
+    final.push(line)
+  }
+  return final
 }
 
 function cleanText(raw: string): string[] {
   const preprocessed = preprocessPdfText(raw)
   const lines = preprocessed.split(/\r?\n/)
-  const stripped = stripFooterBlocks(lines)
-  return stripped.filter(l => !isMarginNumber(l))
+  const stripped = stripFooterLines(lines)
+  // Remove margin numbers and blank lines
+  return stripped.filter(l => {
+    const t = l.trim()
+    if (!t) return false
+    if (isMarginNumber(t)) return false
+    return true
+  })
 }
 
 // ─── Helpers ────────────────────────────────────────────
@@ -340,6 +363,31 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   if (i < lines.length && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
     i++
+  } else if (i < lines.length) {
+    // pdftotext may merge characters + zusammenfassung on one line:
+    // "Lou, Jess, Daniel Lou merkt feinfühlig, dass..."
+    // Try to split: find where a name repeats (start of zusammenfassung)
+    const candidate = lines[i].trim()
+    if (!DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate)) {
+      const commaIdx = candidate.indexOf(',')
+      if (commaIdx > 0 && commaIdx < 30) {
+        // Extract potential names before the text body
+        const firstName = candidate.slice(0, commaIdx).trim()
+        // Check if firstName reappears later (start of zusammenfassung)
+        const restAfterComma = candidate.slice(commaIdx + 1)
+        const nameRepeatIdx = restAfterComma.search(new RegExp(`\\b${firstName}\\b`))
+        if (nameRepeatIdx > 0) {
+          const charPart = candidate.slice(0, commaIdx + 1 + nameRepeatIdx).trim().replace(/\s+$/, '')
+          const textPart = candidate.slice(commaIdx + 1 + nameRepeatIdx).trim()
+          const possibleChars = charPart.split(',').map(c => c.trim()).filter(Boolean)
+          if (possibleChars.length >= 1 && possibleChars.every(p => p.length < 30 && p.split(/\s+/).length <= 4)) {
+            charaktere = possibleChars
+            if (textPart) lines.splice(i, 1, textPart)
+            else i++
+          }
+        }
+      }
+    }
   }
 
   // Zusammenfassung: collect lines until duration (MM:SS)
@@ -536,6 +584,11 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
 export function parseRoteRosen(rawText: string): ImportResult {
   const lines = cleanText(rawText)
   const warnings: string[] = []
+
+  console.log(`[RoteRosen] cleanText produced ${lines.length} lines, first 10:`, lines.slice(0, 10))
+  // Log lines that match scene number pattern
+  const sceneLines = lines.filter(l => SCENE_NUM_RE.test(l.trim()))
+  console.log(`[RoteRosen] Found ${sceneLines.length} lines matching SCENE_NUM_RE:`, sceneLines.slice(0, 5))
 
   const coverMeta = parseCoverMeta(lines)
   const docType = coverMeta.typ
