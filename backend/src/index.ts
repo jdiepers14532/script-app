@@ -219,13 +219,20 @@ async function runMigrations() {
     )
   `)
 
-  // Bootstrap: Wenn szenen-Tabelle bereits existiert, alle Migrations als applied markieren
-  // ohne sie auszuführen (Übergang vom alten trackingfreien System)
+  // Bootstrap: Wenn szenen-Tabelle bereits existiert aber schema_migrations leer ist,
+  // alle bis v34 als applied markieren (Übergang vom alten trackingfreien System)
   const { rows: existingTables } = await pool.query(
     "SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='szenen'"
   )
-  if (existingTables.length > 0) {
-    for (const file of migrationFiles) {
+  const { rows: existingMigrations } = await pool.query(
+    'SELECT COUNT(*) AS cnt FROM schema_migrations'
+  )
+  if (existingTables.length > 0 && parseInt(existingMigrations[0].cnt) === 0) {
+    const bootstrapFiles = migrationFiles.filter(f => {
+      const num = parseInt(f.replace(/^v(\d+).*/, '$1'))
+      return num <= 34
+    })
+    for (const file of bootstrapFiles) {
       await pool.query(
         'INSERT INTO schema_migrations (name) VALUES ($1) ON CONFLICT DO NOTHING',
         [file]
