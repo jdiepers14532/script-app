@@ -15,6 +15,8 @@ export interface ParsedScene {
   zusammenfassung?: string
   textelemente: Textelement[]
   charaktere: string[]
+  spieltag?: number
+  dauer_sekunden?: number
 }
 
 export interface ImportResult {
@@ -26,6 +28,7 @@ export interface ImportResult {
     total_textelemente: number
     charaktere: string[]
     warnings: string[]
+    roteRosenMeta?: Record<string, any>
   }
 }
 

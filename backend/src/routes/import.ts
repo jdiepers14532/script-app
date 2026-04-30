@@ -70,6 +70,7 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       szenen: result.szenen,
       file_metadata: fileMeta,
       watermark_found: wmPayload !== null,
+      rote_rosen_meta: result.meta.roteRosenMeta || null,
     })
   } catch (err) {
     res.status(422).json({ error: String(err) })
@@ -89,7 +90,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       return res.status(400).json({ error: 'staffel_id und folge_nummer erforderlich' })
     }
 
-    const stage_type = req.body.stage_type || 'draft'
+    let stage_type = req.body.stage_type || 'draft'
     const validStageTypes = ['expose', 'treatment', 'draft', 'final']
     if (!validStageTypes.includes(stage_type)) {
       return res.status(400).json({ error: `Ungültiger stage_type: ${stage_type}` })
@@ -101,6 +102,13 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     const cleanBuf  = Buffer.from(cleanText, 'utf8')
 
     const result    = await parseScript(req.file.originalname, cleanBuf)
+
+    // Auto-detect stage_type from Rote-Rosen metadata if not explicitly set
+    if (result.meta.roteRosenMeta && !req.body.stage_type) {
+      const rrDocType = result.meta.roteRosenMeta.document_type
+      if (rrDocType === 'treatment') stage_type = 'treatment'
+      else if (rrDocType === 'drehbuch') stage_type = 'draft'
+    }
     const fileMeta  = extractFileMetadata(req.file.originalname, req.file.buffer)
     const saveMetadata = req.body.save_metadata === 'true'
 
@@ -123,12 +131,20 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     if (!stage) return res.status(500).json({ error: 'Stage konnte nicht angelegt werden' })
 
+    // Merge Rote-Rosen metadata into stage meta_json
+    if (result.meta.roteRosenMeta) {
+      metaJson.rote_rosen = result.meta.roteRosenMeta
+      // Update stage meta_json with enriched metadata
+      await queryOne(`UPDATE stages SET meta_json = $1 WHERE id = $2`, [JSON.stringify(metaJson), stage.id])
+    }
+
     let scenesImported = 0
     for (const [idx, szene] of result.szenen.entries()) {
+      const dauerMin = szene.dauer_sekunden ? Math.round(szene.dauer_sekunden / 60) : null
       await queryOne(
-        `INSERT INTO szenen (stage_id, scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [stage.id, szene.nummer, szene.int_ext, szene.tageszeit, szene.ort_name || null, szene.zusammenfassung || null, JSON.stringify(szene.textelemente), idx]
+        `INSERT INTO szenen (stage_id, scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, sort_order, spieltag, dauer_min)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [stage.id, szene.nummer, szene.int_ext, szene.tageszeit, szene.ort_name || null, szene.zusammenfassung || null, JSON.stringify(szene.textelemente), idx, szene.spieltag || null, dauerMin]
       )
       scenesImported++
     }
