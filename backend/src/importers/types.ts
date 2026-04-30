@@ -20,6 +20,7 @@ export interface ParsedScene {
   dauer_sekunden?: number
   isWechselschnitt?: boolean
   wechselschnittPartner?: number[]
+  szeneninfo?: string
 }
 
 export interface ImportResult {
