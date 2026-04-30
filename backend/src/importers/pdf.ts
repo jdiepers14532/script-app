@@ -7,6 +7,11 @@ export async function parsePdf(buffer: Buffer): Promise<ImportResult> {
   const data = await pdfParse(buffer)
   const text = data.text
 
+  // Debug: log first 500 chars of extracted text
+  console.log('[PDF Import] Extracted text length:', text.length)
+  console.log('[PDF Import] First 500 chars:', JSON.stringify(text.slice(0, 500)))
+  console.log('[PDF Import] isRoteRosenFormat:', isRoteRosenFormat(text))
+
   // Try Rote Rosen format first (structured production PDF)
   if (isRoteRosenFormat(text)) {
     return parseRoteRosen(text)
