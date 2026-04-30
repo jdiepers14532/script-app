@@ -340,14 +340,32 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
 
   let i = startIdx + 1
 
-  // Location line
-  let ort_name = locationOnSameLine
-  if (!ort_name && i < lines.length) {
-    ort_name = lines[i].trim()
+  // Duration can appear right after scene number (before location)
+  let dauer_sekunden = 0
+  if (!locationOnSameLine && i < lines.length && DURATION_RE.test(lines[i].trim())) {
+    dauer_sekunden = parseDurationToSeconds(lines[i].trim())
     i++
   }
 
-  // INT/EXT + Spieltag
+  // Location line
+  let ort_name = locationOnSameLine
+  if (!ort_name && i < lines.length) {
+    const candidate = lines[i].trim()
+    // Make sure we don't read another scene number as location
+    if (!SCENE_NUM_RE.test(candidate)) {
+      ort_name = candidate
+      i++
+    }
+  }
+
+  // Characters line (comma-separated names) — comes BEFORE INT/EXT in Rote Rosen format
+  let charaktere: string[] = []
+  if (i < lines.length && isCharacterLine(lines[i])) {
+    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    i++
+  }
+
+  // INT/EXT + Spieltag (I/T4, E/N2, etc.) — comes AFTER characters
   let int_ext: 'INT' | 'EXT' | 'INT/EXT' = 'INT'
   let tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG' = 'TAG'
   let spieltag = 1
@@ -360,54 +378,25 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     i++
   }
 
-  // Characters line (only if it looks like a character list)
-  let charaktere: string[] = []
-  if (i < lines.length && isCharacterLine(lines[i])) {
-    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
-    i++
-  } else if (i < lines.length) {
-    // pdftotext may merge characters + zusammenfassung on one line:
-    // "Lou, Jess, Daniel Lou merkt feinfühlig, dass..."
-    // Try to split: find where a name repeats (start of zusammenfassung)
-    const candidate = lines[i].trim()
-    if (!DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate)) {
-      const commaIdx = candidate.indexOf(',')
-      if (commaIdx > 0 && commaIdx < 30) {
-        // Extract potential names before the text body
-        const firstName = candidate.slice(0, commaIdx).trim()
-        // Check if firstName reappears later (start of zusammenfassung)
-        const restAfterComma = candidate.slice(commaIdx + 1)
-        const nameRepeatIdx = restAfterComma.search(new RegExp(`\\b${firstName}\\b`))
-        if (nameRepeatIdx > 0) {
-          const charPart = candidate.slice(0, commaIdx + 1 + nameRepeatIdx).trim().replace(/\s+$/, '')
-          const textPart = candidate.slice(commaIdx + 1 + nameRepeatIdx).trim()
-          const possibleChars = charPart.split(',').map(c => c.trim()).filter(Boolean)
-          if (possibleChars.length >= 1 && possibleChars.every(p => p.length < 30 && p.split(/\s+/).length <= 4)) {
-            charaktere = possibleChars
-            if (textPart) lines.splice(i, 1, textPart)
-            else i++
-          }
-        }
-      }
-    }
-  }
-
-  // Zusammenfassung: collect lines until duration (MM:SS)
+  // Zusammenfassung: collect lines until duration, next scene, or post-header metadata
   const zusammenfassungParts: string[] = []
   while (i < lines.length) {
     const line = lines[i].trim()
     if (!line) { i++; continue }
     if (DURATION_RE.test(line)) break
     if (SCENE_NUM_RE.test(line)) break
+    if (KOMPARSEN_RE.test(line)) break
+    if (/^Bild aus Block/i.test(line) || /^Wechselschnitt/i.test(line) || /^Bitte.*Memo/i.test(line)) break
     zusammenfassungParts.push(line)
     i++
   }
   const zusammenfassung = zusammenfassungParts.join(' ')
 
-  // Duration
-  let dauer_sekunden = 0
+  // Duration (can also appear after zusammenfassung)
   if (i < lines.length && DURATION_RE.test(lines[i].trim())) {
-    dauer_sekunden = parseDurationToSeconds(lines[i].trim())
+    if (dauer_sekunden === 0) {
+      dauer_sekunden = parseDurationToSeconds(lines[i].trim())
+    }
     i++
   }
 
@@ -660,9 +649,15 @@ export function parseRoteRosen(rawText: string): ImportResult {
       textelemente.unshift({ id: nextId(), type: 'direction', text: h })
     }
 
+    // Fallback: derive INT/EXT from location name if code wasn't found
+    let finalIntExt = header.int_ext
+    if (header.ort_name && /^Außendreh/i.test(header.ort_name) && finalIntExt === 'INT') {
+      finalIntExt = 'EXT'
+    }
+
     szenen.push({
       nummer: header.sceneNr,
-      int_ext: header.int_ext,
+      int_ext: finalIntExt,
       tageszeit: header.tageszeit,
       ort_name: header.ort_name,
       zusammenfassung: header.zusammenfassung || undefined,
