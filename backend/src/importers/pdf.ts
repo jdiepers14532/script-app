@@ -1,4 +1,4 @@
-import { execFileSync } from 'child_process'
+import { spawnSync } from 'child_process'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -7,17 +7,23 @@ import { parseFountain } from './fountain'
 import { isRoteRosenFormat, parseRoteRosen } from './roteRosen'
 import { ImportResult } from './types'
 
-/** Try pdftotext (poppler) first — much more reliable than pdf-parse */
+/** Try pdftotext (poppler) first — much more reliable than pdf-parse.
+ *  Uses spawnSync instead of execFileSync because pdftotext may exit
+ *  with non-zero code on font warnings while still producing valid text. */
 function extractWithPdftotext(buffer: Buffer): string | null {
   const tmpFile = path.join(os.tmpdir(), `script-import-${Date.now()}.pdf`)
   try {
     fs.writeFileSync(tmpFile, buffer)
-    const text = execFileSync('pdftotext', [tmpFile, '-'], {
+    const result = spawnSync('pdftotext', [tmpFile, '-'], {
       encoding: 'utf8',
       timeout: 30000,
     })
-    return text
-  } catch {
+    const text = result.stdout
+    if (text && text.trim().length > 0) return text
+    console.log(`[PDF Import] pdftotext failed: exit=${result.status}, stderr=${(result.stderr || '').slice(0, 200)}`)
+    return null
+  } catch (err) {
+    console.log(`[PDF Import] pdftotext exception:`, err)
     return null
   } finally {
     try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }
