@@ -411,6 +411,16 @@ export default function ImportPage() {
                       {sz.zusammenfassung}
                     </div>
                   )}
+                  {sz.szeneninfo && (
+                    <div style={{ marginTop: 1, marginLeft: 48, fontSize: 10, color: '#90CAF9', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {sz.szeneninfo}
+                    </div>
+                  )}
+                  {sz.komparsen?.length > 0 && (
+                    <div style={{ marginTop: 1, marginLeft: 48, fontSize: 10, color: '#CE93D8' }}>
+                      Komp: {sz.komparsen.join(', ')}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

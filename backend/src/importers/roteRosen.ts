@@ -836,48 +836,40 @@ export function parseRoteRosen(rawText: string): ImportResult {
 
     // ── Handle crosscut sub-scenes within the block ──
     if (header.isWechselschnitt && crosscutPartnerNrs.size > 0) {
-      // Find "Wechselschnitt mit Bild NNNN.X" markers in the content to split sub-scenes.
-      // Each marker is followed by a new sub-scene header (location, chars, I/E, content).
-      const subSceneSplits: number[] = []  // line indices where sub-scenes start
+      // Find "Wechselschnitt mit Bild NNNN.X" markers in the content.
+      // Each marker means "cut to scene X" — the next section contains scene X's header.
+      const subSceneSplits: { idx: number; targetNr: number }[] = []
       for (let j = header.headerEndIdx; j < blockEnd; j++) {
-        if (WECHSELSCHNITT_RE.test(lines[j]?.trim() || '')) {
-          subSceneSplits.push(j)
+        const wsM = WECHSELSCHNITT_RE.exec(lines[j]?.trim() || '')
+        if (wsM) {
+          subSceneSplits.push({ idx: j, targetNr: parseInt(wsM[2], 10) })
         }
       }
 
       if (subSceneSplits.length > 0) {
-        // Scene 8's content goes from headerEndIdx to first Wechselschnitt marker
-        const scene8ContentEnd = subSceneSplits[0]
-        szenen.push(buildScene(header, header.headerEndIdx, scene8ContentEnd))
+        // Main scene's content goes from headerEndIdx to first Wechselschnitt marker
+        szenen.push(buildScene(header, header.headerEndIdx, subSceneSplits[0].idx))
 
-        // For each Wechselschnitt marker, parse the following sub-scene
+        const processedNrs = new Set<number>([header.sceneNr])
+
         for (let s = 0; s < subSceneSplits.length; s++) {
-          const markerIdx = subSceneSplits[s]
-          const wsLine = lines[markerIdx].trim()
-          const wsM = WECHSELSCHNITT_RE.exec(wsLine)
-          // markerIdx+1 is where the sub-scene's header starts
-          const subStart = markerIdx + 1
-          const subEnd = s + 1 < subSceneSplits.length ? subSceneSplits[s + 1] : blockEnd
+          const { idx: markerIdx, targetNr } = subSceneSplits[s]
 
-          // Parse the sub-scene header (it starts with location, not scene number)
+          // "Wechselschnitt mit Bild 4402.9" → next section is scene 9
+          // Skip if this scene was already created (e.g. "mit Bild 4402.8" = back to main)
+          if (processedNrs.has(targetNr)) continue
+
+          const subStart = markerIdx + 1
+          const subEnd = s + 1 < subSceneSplits.length ? subSceneSplits[s + 1].idx : blockEnd
+
           const subHeader = parseSubSceneHeader(lines, subStart, subEnd, header)
           if (subHeader) {
-            // Find the partner's scene number from the PREVIOUS "Wechselschnitt mit Bild"
-            // or from the crosscut duration entries
-            // The sub-scene number is from the crosscutDurationEntries
-            const usedNrs = new Set(szenen.filter(s => s.isWechselschnitt).map(s => s.nummer))
-            let subNr = 0
-            for (const [nr] of header.crosscutDurationEntries) {
-              if (!usedNrs.has(nr)) { subNr = nr; break }
-            }
-            if (subNr === 0 && wsM) subNr = parseInt(wsM[2], 10) === header.sceneNr
-              ? [...crosscutPartnerNrs][0] : parseInt(wsM[2], 10)
-
-            subHeader.sceneNr = subNr
-            subHeader.dauer_sekunden = header.crosscutDurationEntries.get(subNr) || subHeader.dauer_sekunden
+            subHeader.sceneNr = targetNr
+            subHeader.dauer_sekunden = header.crosscutDurationEntries.get(targetNr) || subHeader.dauer_sekunden
             subHeader.isWechselschnitt = true
             subHeader.wechselschnittPartner = [header.sceneNr]
             szenen.push(buildScene(subHeader, subHeader.headerEndIdx, subEnd))
+            processedNrs.add(targetNr)
           }
         }
       } else {
