@@ -619,10 +619,15 @@ export function parseRoteRosen(rawText: string): ImportResult {
   const lines = cleanText(rawText)
   const warnings: string[] = []
 
-  console.log(`[RoteRosen] cleanText produced ${lines.length} lines, first 10:`, lines.slice(0, 10))
-  // Log lines that match scene number pattern
-  const sceneLines = lines.filter(l => SCENE_NUM_RE.test(l.trim()))
-  console.log(`[RoteRosen] Found ${sceneLines.length} lines matching SCENE_NUM_RE:`, sceneLines.slice(0, 5))
+  console.log(`[RoteRosen] cleanText produced ${lines.length} lines`)
+  // Find scene number lines and dump context around scene 8
+  const sceneLineIdxs = lines.map((l, idx) => SCENE_NUM_RE.test(l.trim()) ? idx : -1).filter(idx => idx >= 0)
+  console.log(`[RoteRosen] Scene line indices:`, sceneLineIdxs)
+  // Dump 30 lines around scene 8 area (line index of 8th scene)
+  if (sceneLineIdxs.length >= 8) {
+    const s8idx = sceneLineIdxs[7]
+    console.log(`[RoteRosen] Raw lines around scene 8 (idx ${s8idx}):`, lines.slice(s8idx, s8idx + 40))
+  }
 
   const coverMeta = parseCoverMeta(lines)
   const docType = coverMeta.typ
