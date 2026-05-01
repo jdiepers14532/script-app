@@ -406,6 +406,11 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => c.name).join(', ') || <em className="sf-empty">—</em>}
             </span>
           </div>
+          {scene.szeneninfo && (
+            <div className="sf-row" style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic' }}>
+              {scene.szeneninfo}
+            </div>
+          )}
           <div className="sf-row">
             <input
               className="sf-input sf-notiz"
@@ -421,6 +426,30 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
           </div>{/* end scene-fields-rows */}
         </div>
       </div>
+
+      {/* Imported content (read-only display of textelemente from import) */}
+      {contentTextelemente.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', maxHeight: 300, overflowY: 'auto', fontSize: 12, lineHeight: 1.6 }}>
+          {contentTextelemente.map((el: any, i: number) => {
+            if (el.type === 'character') return (
+              <div key={i} style={{ fontWeight: 600, textTransform: 'uppercase', fontSize: 11, marginTop: 8, color: 'var(--text-primary)', textAlign: 'center' }}>{el.text}</div>
+            )
+            if (el.type === 'dialogue') return (
+              <div key={i} style={{ marginLeft: 80, marginRight: 80, color: 'var(--text-primary)' }}>{el.text}</div>
+            )
+            if (el.type === 'parenthetical') return (
+              <div key={i} style={{ marginLeft: 60, marginRight: 80, fontStyle: 'italic', color: 'var(--text-secondary)' }}>{el.text}</div>
+            )
+            if (el.type === 'direction') return (
+              <div key={i} style={{ fontStyle: 'italic', color: 'var(--text-secondary)', marginTop: 4 }}>{el.text}</div>
+            )
+            if (el.type === 'shot') return (
+              <div key={i} style={{ fontWeight: 600, fontSize: 11, marginTop: 8, color: '#90CAF9' }}>{el.text}</div>
+            )
+            return <div key={i} style={{ marginTop: 4, color: 'var(--text-primary)' }}>{el.text}</div>
+          })}
+        </div>
+      )}
 
       {/* Annotation panel */}
       {showAnnotations && (

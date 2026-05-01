@@ -766,9 +766,13 @@ export function parseRoteRosen(rawText: string): ImportResult {
 
     const charMap = new Map<string, string>()
     for (const c of header.charaktere) charMap.set(c.toUpperCase(), c)
-    for (const c of sceneChars) {
-      const key = c.toUpperCase()
-      if (!charMap.has(key)) charMap.set(key, c)
+    // For crosscut scenes, only use header characters — the dialog section
+    // contains intercut content with characters from ALL crosscut partners
+    if (!header.isWechselschnitt) {
+      for (const c of sceneChars) {
+        const key = c.toUpperCase()
+        if (!charMap.has(key)) charMap.set(key, c)
+      }
     }
     const charaktere = Array.from(charMap.values())
     for (const c of charaktere) allCharaktere.set(c.toUpperCase(), c)
