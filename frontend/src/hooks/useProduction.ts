@@ -31,7 +31,7 @@ export function useProduction() {
         return r.json()
       }),
       fetch('/api/me/settings', { credentials: 'include' }).then(r => {
-        if (r.status === 401) return {}
+        if (r.status === 401) return {} as any
         return r.json()
       }),
     ])

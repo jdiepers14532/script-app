@@ -7,7 +7,8 @@ import {
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
   Users, UserCheck, MapPin,
 } from 'lucide-react'
-import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext } from '../contexts'
+import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext } from '../contexts'
+import type { TweakState } from '../contexts'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
 import { CompanyInfoModal } from '../sw-ui'
@@ -28,29 +29,7 @@ interface AppShellProps {
   hideProductionSelector?: boolean
 }
 
-type ColorMode = 'full' | 'subtle' | 'off'
-type PanelMode = 'both' | 'treatment' | 'script'
-type Density = 'compact' | 'normal'
-
-export interface TweakState {
-  theme: 'light' | 'dark'
-  colorMode: ColorMode
-  panelMode: PanelMode
-  density: Density
-  breakdown: boolean
-  conn: 'online' | 'offline'
-  lightBgIndex: number
-  darkBgIndex: number
-  lightCustomBg: string
-  darkCustomBg: string
-  interfaceFont: string
-  interfaceFontSize: number
-  scriptFont: string
-  fontSize: number
-  scrollNavDelay: number
-  showPageShadow: boolean
-  showTooltips: boolean
-}
+// TweakState type imported from ../contexts
 
 // ── Wissenschaftlich empfohlene Hintergrundpaletten ──────────────────────────
 // Siegenthaler et al. (2011, Ergonomics): Warme Off-White-Töne reduzieren
@@ -74,7 +53,7 @@ interface BgPalette {
   borderSubtle: string
 }
 
-const LIGHT_PALETTES: BgPalette[] = [
+export const LIGHT_PALETTES: BgPalette[] = [
   { name: 'Standard',     preview: '#FFFFFF', bg: '#FFFFFF', surface: '#FFFFFF', subtle: '#F5F5F5', active: '#F5F5F5', hover: '#EDEDED', border: '#E0E0E0', borderSubtle: '#EEEEEE' },
   { name: 'Naturweiß',    preview: '#FCFCFA', bg: '#FCFCFA', surface: '#FCFCFA', subtle: '#F4F4F2', active: '#EEEEED', hover: '#E8E8E6', border: '#DCDCDA', borderSubtle: '#EBEBEA' },
   { name: 'Warm-Weiß',    preview: '#FAFAF8', bg: '#FAFAF8', surface: '#FAFAF8', subtle: '#F2F1EF', active: '#ECEAE6', hover: '#E5E3DF', border: '#DDDBD7', borderSubtle: '#E9E7E3' },
@@ -85,7 +64,7 @@ const LIGHT_PALETTES: BgPalette[] = [
   { name: 'Warmes Beige', preview: '#F0EBE0', bg: '#F0EBE0', surface: '#F0EBE0', subtle: '#E5E0D5', active: '#DAD4C8', hover: '#CFCABB', border: '#B8B2A5', borderSubtle: '#DDD8CC' },
 ]
 
-const DARK_PALETTES: BgPalette[] = [
+export const DARK_PALETTES: BgPalette[] = [
   { name: 'Near-Black',   preview: '#0D0D0D', bg: '#0D0D0D', surface: '#141414', subtle: '#1A1A1A', active: '#1F1F1F', hover: '#262626', border: '#2A2A2A', borderSubtle: '#1F1F1F' },
   { name: 'Dunkelgrau',   preview: '#1A1A1A', bg: '#1A1A1A', surface: '#202020', subtle: '#272727', active: '#2D2D2D', hover: '#333333', border: '#383838', borderSubtle: '#2A2A2A' },
   { name: 'VS Code',      preview: '#1E1E1E', bg: '#1E1E1E', surface: '#252526', subtle: '#2D2D2D', active: '#37373D', hover: '#3E3E3E', border: '#3F3F3F', borderSubtle: '#2D2D2D' },
@@ -133,25 +112,25 @@ interface FontOption {
   value: string
 }
 
-const INTERFACE_FONTS: FontOption[] = [
+export const INTERFACE_FONTS: FontOption[] = [
   { name: 'Inter (Standard)',      value: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" },
   { name: 'System UI',             value: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" },
   { name: 'Atkinson Hyperlegible', value: "'Atkinson Hyperlegible', sans-serif" },
   { name: 'Nunito',                value: "'Nunito', sans-serif" },
 ]
 
-const SCRIPT_FONTS: FontOption[] = [
+export const SCRIPT_FONTS: FontOption[] = [
   { name: 'Courier Prime (Standard)', value: "'Courier Prime', 'Courier New', Courier, monospace" },
   { name: 'Source Code Pro',          value: "'Source Code Pro', 'Courier New', monospace" },
   { name: 'Inconsolata',              value: "'Inconsolata', 'Courier New', monospace" },
   { name: 'JetBrains Mono',           value: "'JetBrains Mono', 'Courier New', monospace" },
 ]
 
-const FONT_SIZES = [11, 12, 13, 14, 15, 16]
+export const FONT_SIZES = [11, 12, 13, 14, 15, 16]
 
-const CUSTOM_IDX = 99  // sentinel: eigene Farbe gewählt
+export const CUSTOM_IDX = 99  // sentinel: eigene Farbe gewählt
 
-const DEFAULT_TWEAKS: TweakState = {
+export const DEFAULT_TWEAKS: TweakState = {
   theme: 'light',
   colorMode: 'subtle',
   panelMode: 'both',
@@ -182,7 +161,7 @@ function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
     : (DARK_PALETTES[tweaks.darkBgIndex] ?? DARK_PALETTES[0])
 }
 
-const INTERFACE_FONT_SIZES = [11, 12, 13, 14, 15, 16]
+export const INTERFACE_FONT_SIZES = [11, 12, 13, 14, 15, 16]
 
 // ── CSS-Variablen via injiziertem <style>-Tag anwenden ───────────────────────
 // Wirkt auf alle Seiten inkl. EditorPage (.editor-app hat kein data-theme).
@@ -840,11 +819,13 @@ export default function AppShell({
         data-breakdown={tweaks.breakdown ? 'on' : 'off'}
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
-        <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips }}>
-          <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
-            {children}
-          </PanelModeContext.Provider>
-        </UserPrefsContext.Provider>
+        <TweaksContext.Provider value={{ tweaks, set, reset: () => setTweaks(DEFAULT_TWEAKS) }}>
+          <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips }}>
+            <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
+              {children}
+            </PanelModeContext.Provider>
+          </UserPrefsContext.Provider>
+        </TweaksContext.Provider>
       </main>
 
       {/* ── Ansichtsoptionen-Panel ── */}
@@ -1084,7 +1065,8 @@ export default function AppShell({
               { to: '/motive',    label: 'Motive',     icon: <MapPin size={14} /> },
               { to: '/import',    label: 'Import',     icon: <FileUp size={14} /> },
               { to: '/hilfe',     label: 'Handbuch',   icon: <BookOpen size={14} /> },
-              ...(isAdmin ? [{ to: '/admin', label: 'Einstellungen', icon: <Settings2 size={14} /> }] : []),
+              { to: '/einstellungen', label: 'Einstellungen', icon: <Settings2 size={14} /> },
+              ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: <Settings2 size={14} /> }] : []),
             ].map(item => (
               <Link
                 key={item.to}
@@ -1146,10 +1128,15 @@ export default function AppShell({
               </div>
             )}
             <div className="um-divider" />
-            <button className="um-item" onClick={() => { setTweaksOpen(true); setUserMenuOpen(false) }}>
-              <Sun size={14} />
-              Ansicht
-            </button>
+            <Link
+              to="/einstellungen"
+              className="um-item"
+              style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}
+              onClick={() => setUserMenuOpen(false)}
+            >
+              <Settings2 size={14} />
+              Einstellungen
+            </Link>
             <button className="um-item" onClick={() => { setUserMenuOpen(false); openOfflineModal() }}>
               {isOnline ? <Wifi size={14} /> : <WifiOff size={14} style={{ color: 'var(--sw-danger)' }} />}
               Offline-Modus

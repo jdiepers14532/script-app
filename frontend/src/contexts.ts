@@ -49,3 +49,35 @@ export function useAppSettings() { return useContext(AppSettingsContext) }
 interface UserPrefsContextType { scrollNavDelay: number; showPageShadow: boolean; showTooltips: boolean }
 export const UserPrefsContext = createContext<UserPrefsContextType>({ scrollNavDelay: 1000, showPageShadow: true, showTooltips: true })
 export function useUserPrefs() { return useContext(UserPrefsContext) }
+
+// Tweaks Context (user-level view settings, managed by AppShell)
+export interface TweakState {
+  theme: 'light' | 'dark'
+  colorMode: 'full' | 'subtle' | 'off'
+  panelMode: PanelMode
+  density: 'compact' | 'normal'
+  breakdown: boolean
+  conn: 'online' | 'offline'
+  lightBgIndex: number
+  darkBgIndex: number
+  lightCustomBg: string
+  darkCustomBg: string
+  interfaceFont: string
+  interfaceFontSize: number
+  scriptFont: string
+  fontSize: number
+  scrollNavDelay: number
+  showPageShadow: boolean
+  showTooltips: boolean
+}
+interface TweaksContextType {
+  tweaks: TweakState
+  set: <K extends keyof TweakState>(key: K, value: TweakState[K]) => void
+  reset: () => void
+}
+export const TweaksContext = createContext<TweaksContextType | null>(null)
+export function useTweaks() {
+  const ctx = useContext(TweaksContext)
+  if (!ctx) throw new Error('useTweaks must be used within AppShell')
+  return ctx
+}

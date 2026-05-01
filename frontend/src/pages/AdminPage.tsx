@@ -1568,7 +1568,7 @@ export default function AdminPage() {
               ← Zurück
             </button>
             <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
-              Einstellungen
+              Admin-Einstellungen
             </h2>
           </div>
           <div style={{ display: 'flex', gap: 0 }}>
