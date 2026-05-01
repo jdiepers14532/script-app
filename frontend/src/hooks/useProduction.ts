@@ -22,8 +22,18 @@ export function useProduction() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/me/productions', { credentials: 'include' }).then(r => r.json()),
-      fetch('/api/me/settings', { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/me/productions', { credentials: 'include' }).then(r => {
+        if (r.status === 401) {
+          const redirect = encodeURIComponent(window.location.href)
+          window.location.href = `https://auth.serienwerft.studio/?redirect=${redirect}`
+          return []
+        }
+        return r.json()
+      }),
+      fetch('/api/me/settings', { credentials: 'include' }).then(r => {
+        if (r.status === 401) return {}
+        return r.json()
+      }),
     ])
       .then(([prods, settings]) => {
         if (!Array.isArray(prods)) {
