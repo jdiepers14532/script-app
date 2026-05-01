@@ -28,7 +28,7 @@ fassungsSzenenRouter.get('/', async (req, res) => {
        JOIN scene_identities si ON si.id = ds.scene_identity_id
        WHERE ds.fassung_id = $1
        ORDER BY ds.sort_order, ds.scene_nummer`,
-      [req.params.fassungId]
+      [(req.params as any).fassungId]
     )
     res.json(rows)
   } catch (err) {
@@ -40,7 +40,7 @@ fassungsSzenenRouter.get('/', async (req, res) => {
 // POST /api/fassungen/:fassungId/szenen — add a new scene
 // ══════════════════════════════════════════════════════════════════════════════
 fassungsSzenenRouter.post('/', async (req, res) => {
-  const fassungId = req.params.fassungId
+  const fassungId = (req.params as any).fassungId
   const {
     scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung,
     content, dauer_min, dauer_sek, sort_order, after_scene_id,
@@ -133,7 +133,7 @@ fassungsSzenenRouter.patch('/reorder', async (req, res) => {
   const { order } = req.body // UUID[] — dokument_szenen ids in new order
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be array of scene ids' })
 
-  const fassungId = req.params.fassungId
+  const fassungId = (req.params as any).fassungId
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
@@ -162,7 +162,7 @@ fassungsSzenenRouter.patch('/reorder', async (req, res) => {
 // POST /api/fassungen/:fassungId/szenen/renumber — sequential renumbering
 // ══════════════════════════════════════════════════════════════════════════════
 fassungsSzenenRouter.post('/renumber', async (req, res) => {
-  const fassungId = req.params.fassungId
+  const fassungId = (req.params as any).fassungId
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
