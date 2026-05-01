@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { productionLabel, Production } from '../hooks/useProduction'
 
@@ -11,8 +11,10 @@ interface Props {
 export default function ProductionSelector({ onSelect, selectedId, productions }: Props) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [dropPos, setDropPos] = useState<{ top: number; left: number } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const selected = productions.find(p => p.id === selectedId)
   const byProjNrDesc = (a: Production, b: Production) =>
@@ -30,20 +32,33 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
   const filteredInactive = filter(inactive)
   const hasResults = filteredActive.length + filteredInactive.length > 0
 
-  // Schließen bei Klick außerhalb
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    setDropPos({ top: rect.bottom + 4, left: rect.left })
+  }, [])
+
+  // Schliessen bei Klick ausserhalb
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (!containerRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target)) return
+      if (dropdownRef.current?.contains(target)) return
+      setOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  // Input fokussieren wenn geöffnet
+  // Position berechnen + Input fokussieren wenn geoeffnet
   useEffect(() => {
-    if (open) { setQuery(''); setTimeout(() => inputRef.current?.focus(), 50) }
-  }, [open])
+    if (open) {
+      updatePosition()
+      setQuery('')
+      setTimeout(() => inputRef.current?.focus(), 50)
+    }
+  }, [open, updatePosition])
 
   const handleSelect = (id: string) => {
     onSelect(id)
@@ -54,9 +69,10 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
   if (productions.length === 0) return null
 
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
+    <>
       {/* Trigger */}
       <button
+        ref={triggerRef}
         onClick={() => setOpen(o => !o)}
         style={{
           display: 'flex', alignItems: 'center', gap: 6,
@@ -79,22 +95,27 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
                 {selected.projektnummer || productionLabel(selected)}
               </span>
             </>
-          ) : '— Produktion wählen —'}
+          ) : '— Produktion waehlen —'}
         </span>
         <svg width="10" height="6" viewBox="0 0 10 6" style={{ flexShrink: 0, opacity: 0.5, transform: open ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
           <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
         </svg>
       </button>
 
-      {/* Dropdown */}
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0,
-          width: '40vw', maxWidth: 420, minWidth: 220,
-          background: 'var(--bg-surface)', border: '1px solid var(--border)',
-          borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-          zIndex: 9999, overflow: 'hidden',
-        }}>
+      {/* Dropdown — fixed position to escape overflow:hidden ancestors */}
+      {open && dropPos && (
+        <div
+          ref={dropdownRef}
+          style={{
+            position: 'fixed',
+            top: dropPos.top,
+            left: dropPos.left,
+            width: '40vw', maxWidth: 420, minWidth: 220,
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+            zIndex: 9999, overflow: 'hidden',
+          }}
+        >
           {/* Suchfeld */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border-subtle)' }}>
             <Search size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
@@ -143,7 +164,7 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
