@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
-import { query, queryOne } from '../db'
+import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { detectFormat, parseScript } from '../importers'
 import { stripWatermark, decodeWatermarkFromText } from '../utils/watermark'
@@ -189,6 +189,91 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       scenesImported++
     }
 
+    // ── Dual-write: new dokument_szenen system (parallel to stages+szenen) ──
+    // Map stage_type → dokument-typ
+    const stageToDocTyp: Record<string, string> = {
+      treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
+    }
+    const docTyp = stageToDocTyp[stage_type] || 'drehbuch'
+
+    // Ensure folgen_meta exists
+    await queryOne(
+      `INSERT INTO folgen_meta (staffel_id, folge_nummer) VALUES ($1, $2)
+       ON CONFLICT (staffel_id, folge_nummer) DO NOTHING`,
+      [staffel_id, folge_nummer]
+    )
+
+    // Create or find folgen_dokument
+    let dokument = await queryOne(
+      `SELECT id FROM folgen_dokumente WHERE staffel_id = $1 AND folge_nummer = $2 AND typ = $3`,
+      [staffel_id, folge_nummer, docTyp]
+    )
+    if (!dokument) {
+      dokument = await queryOne(
+        `INSERT INTO folgen_dokumente (staffel_id, folge_nummer, typ, erstellt_von)
+         VALUES ($1, $2, $3, $4) RETURNING id`,
+        [staffel_id, folge_nummer, docTyp, req.user!.name || req.user!.user_id]
+      )
+    }
+
+    // Create new fassung
+    const setting = await queryOne(`SELECT value FROM app_settings WHERE key = 'fassungs_nummerierung_modus'`)
+    const modus = setting?.value ?? 'global'
+    let nextFassungNr = 1
+    if (modus === 'global') {
+      const cnt = await queryOne(
+        `SELECT COALESCE(MAX(f.fassung_nummer), 0) AS m
+         FROM folgen_dokument_fassungen f
+         JOIN folgen_dokumente d ON d.id = f.dokument_id
+         WHERE d.staffel_id = $1 AND d.folge_nummer = $2`,
+        [staffel_id, folge_nummer]
+      )
+      nextFassungNr = (cnt?.m ?? 0) + 1
+    } else {
+      const cnt = await queryOne(
+        `SELECT COALESCE(MAX(fassung_nummer), 0) AS m FROM folgen_dokument_fassungen WHERE dokument_id = $1`,
+        [dokument.id]
+      )
+      nextFassungNr = (cnt?.m ?? 0) + 1
+    }
+
+    const fassung = await queryOne(
+      `INSERT INTO folgen_dokument_fassungen
+         (dokument_id, fassung_nummer, fassung_label, sichtbarkeit, erstellt_von)
+       VALUES ($1, $2, $3, 'alle', $4) RETURNING id`,
+      [dokument.id, nextFassungNr, versionLabel, req.user!.name || req.user!.user_id]
+    )
+
+    // Create scene_identities + dokument_szenen for each scene
+    const sceneIdentityIds: { identityId: string; szeneIdx: number }[] = []
+    for (const [idx, szene] of result.szenen.entries()) {
+      const dauerMin = szene.dauer_sekunden ? Math.round(szene.dauer_sekunden / 60) : null
+      const dauerSek = szene.dauer_sekunden || null
+      const isWechselschnitt = szene.isWechselschnitt || false
+
+      const identity = await queryOne(
+        `INSERT INTO scene_identities (staffel_id, created_by) VALUES ($1, $2) RETURNING id`,
+        [staffel_id, req.user!.name || req.user!.user_id]
+      )
+
+      await queryOne(
+        `INSERT INTO dokument_szenen
+           (fassung_id, scene_identity_id, sort_order, scene_nummer,
+            int_ext, tageszeit, ort_name, zusammenfassung, content,
+            spieltag, dauer_min, dauer_sek, is_wechselschnitt, szeneninfo,
+            updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        [
+          fassung.id, identity.id, idx, szene.nummer,
+          szene.int_ext, szene.tageszeit, szene.ort_name || null,
+          szene.zusammenfassung || null, JSON.stringify(szene.textelemente),
+          szene.spieltag || null, dauerMin, dauerSek, isWechselschnitt,
+          szene.szeneninfo || null, req.user!.name || req.user!.user_id,
+        ]
+      )
+      sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
+    }
+
     // ── Characters: use new characters + character_productions system ──
     // Load existing kategorien for this staffel
     const kategorien = await query(
@@ -301,18 +386,25 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     // ── Scene-Characters linking ──
+    // Build szeneIdx → identityId map
+    const idxToIdentity = new Map<number, string>()
+    for (const { identityId, szeneIdx } of sceneIdentityIds) {
+      idxToIdentity.set(szeneIdx, identityId)
+    }
+
     for (const { szeneDbId, szeneIdx } of szeneIds) {
       const szene = result.szenen[szeneIdx]
+      const identityId = idxToIdentity.get(szeneIdx) || null
       // Link Rollen
       for (const charName of szene.charaktere) {
         const charId = charNameToId.get(charName.toUpperCase())
         if (!charId) continue
         try {
           await queryOne(
-            `INSERT INTO scene_characters (szene_id, character_id, kategorie_id)
-             VALUES ($1, $2, $3)
+            `INSERT INTO scene_characters (szene_id, character_id, kategorie_id, scene_identity_id)
+             VALUES ($1, $2, $3, $4)
              ON CONFLICT (szene_id, character_id) DO NOTHING`,
-            [szeneDbId, charId, rolleKatId]
+            [szeneDbId, charId, rolleKatId, identityId]
           )
         } catch { /* ignore */ }
       }
@@ -323,10 +415,10 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           if (!charId) continue
           try {
             await queryOne(
-              `INSERT INTO scene_characters (szene_id, character_id, kategorie_id)
-               VALUES ($1, $2, $3)
+              `INSERT INTO scene_characters (szene_id, character_id, kategorie_id, scene_identity_id)
+               VALUES ($1, $2, $3, $4)
                ON CONFLICT (szene_id, character_id) DO NOTHING`,
-              [szeneDbId, charId, komparseKatId]
+              [szeneDbId, charId, komparseKatId, identityId]
             )
           } catch { /* ignore */ }
         }
@@ -355,6 +447,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     res.json({
       stage_id: stage.id,
+      dokument_id: dokument.id,
+      fassung_id: fassung.id,
       scenes_imported: scenesImported,
       characters_created: charactersCreated,
       komparsen_created: komparsenCreated,
