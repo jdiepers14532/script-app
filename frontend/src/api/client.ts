@@ -128,6 +128,10 @@ export const api = {
   exportFountain: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fountain`, { credentials: 'include' }),
   exportFdx: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fdx`, { credentials: 'include' }),
   exportRevisionSummary: (stageId: number) => request<any>('GET', `/stages/${stageId}/export/revision-summary`),
+  // Fassung-based exports (new system)
+  exportFassungPdf: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/pdf`, { credentials: 'include' }),
+  exportFassungFountain: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/fountain`, { credentials: 'include' }),
+  exportFassungFdx: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/fdx`, { credentials: 'include' }),
 
   // Import with metadata opt-in
   importPreview: (file: File) => {
