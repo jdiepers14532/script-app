@@ -479,6 +479,9 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
       isWechselschnitt = true
       wechselschnittPartner.push(parseInt(wsM[2], 10))
       hinweise.push(line)
+      // In crosscut blocks, DON'T consume the marker — leave it for the
+      // sub-scene splitter in the main loop to find as a split point.
+      if (crosscutDurationEntries.size > 0) break
       i++; continue
     }
     if (/^Bild aus Block/i.test(line) || /^Bitte.*Memo/i.test(line)) {
@@ -739,16 +742,6 @@ export function parseRoteRosen(rawText: string): ImportResult {
   const lines = cleanText(rawText)
   const warnings: string[] = []
 
-  console.log(`[RoteRosen] cleanText produced ${lines.length} lines`)
-  // Find scene number lines and dump context around scene 8
-  const sceneLineIdxs = lines.map((l, idx) => SCENE_NUM_RE.test(l.trim()) ? idx : -1).filter(idx => idx >= 0)
-  console.log(`[RoteRosen] Scene line indices:`, sceneLineIdxs)
-  // Dump 30 lines around scene 8 area (line index of 8th scene)
-  if (sceneLineIdxs.length >= 8) {
-    const s8idx = sceneLineIdxs[7]
-    console.log(`[RoteRosen] Raw lines around scene 8 (idx ${s8idx}):`, lines.slice(s8idx, s8idx + 40))
-  }
-
   const coverMeta = parseCoverMeta(lines)
   const docType = coverMeta.typ
   const contentStart = findContentStart(lines)
@@ -847,31 +840,39 @@ export function parseRoteRosen(rawText: string): ImportResult {
       }
 
       if (subSceneSplits.length > 0) {
-        // Main scene's content goes from headerEndIdx to first Wechselschnitt marker
-        szenen.push(buildScene(header, header.headerEndIdx, subSceneSplits[0].idx))
-
         const processedNrs = new Set<number>([header.sceneNr])
+
+        // Find main scene's dialog content (from "back to main" marker)
+        // and parse sub-scenes from their markers
+        let mainDialogStart = header.headerEndIdx
+        let mainDialogEnd = subSceneSplits[0].idx
+        const subSceneResults: ParsedScene[] = []
 
         for (let s = 0; s < subSceneSplits.length; s++) {
           const { idx: markerIdx, targetNr } = subSceneSplits[s]
+          const sectionEnd = s + 1 < subSceneSplits.length ? subSceneSplits[s + 1].idx : blockEnd
 
-          // "Wechselschnitt mit Bild 4402.9" → next section is scene 9
-          // Skip if this scene was already created (e.g. "mit Bild 4402.8" = back to main)
-          if (processedNrs.has(targetNr)) continue
-
-          const subStart = markerIdx + 1
-          const subEnd = s + 1 < subSceneSplits.length ? subSceneSplits[s + 1].idx : blockEnd
-
-          const subHeader = parseSubSceneHeader(lines, subStart, subEnd, header)
-          if (subHeader) {
-            subHeader.sceneNr = targetNr
-            subHeader.dauer_sekunden = header.crosscutDurationEntries.get(targetNr) || subHeader.dauer_sekunden
-            subHeader.isWechselschnitt = true
-            subHeader.wechselschnittPartner = [header.sceneNr]
-            szenen.push(buildScene(subHeader, subHeader.headerEndIdx, subEnd))
-            processedNrs.add(targetNr)
+          if (targetNr === header.sceneNr) {
+            // "Wechselschnitt mit Bild 4402.8" = back to main scene's dialog
+            mainDialogStart = markerIdx + 1
+            mainDialogEnd = sectionEnd
+          } else if (!processedNrs.has(targetNr)) {
+            // New sub-scene (e.g. scene 9)
+            const subHeader = parseSubSceneHeader(lines, markerIdx + 1, sectionEnd, header)
+            if (subHeader) {
+              subHeader.sceneNr = targetNr
+              subHeader.dauer_sekunden = header.crosscutDurationEntries.get(targetNr) || subHeader.dauer_sekunden
+              subHeader.isWechselschnitt = true
+              subHeader.wechselschnittPartner = [header.sceneNr]
+              subSceneResults.push(buildScene(subHeader, subHeader.headerEndIdx, sectionEnd))
+              processedNrs.add(targetNr)
+            }
           }
         }
+
+        // Push main scene first (dialog from "back to main" section), then sub-scenes
+        szenen.push(buildScene(header, mainDialogStart, mainDialogEnd))
+        szenen.push(...subSceneResults)
       } else {
         // No Wechselschnitt markers found — just create the main scene
         szenen.push(buildScene(header, header.headerEndIdx, blockEnd))
