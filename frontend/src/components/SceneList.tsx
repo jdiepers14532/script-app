@@ -7,14 +7,14 @@ import Tooltip from './Tooltip'
 
 interface SceneListProps {
   szenen: any[]
-  selectedSzeneId: number | null
-  onSelectSzene: (id: number) => void
+  selectedSzeneId: number | string | null
+  onSelectSzene: (id: number | string) => void
   staffelId: string | null
   folgeNummer: number | null
   stageId: number | null
   colorMode?: 'full' | 'subtle' | 'off'
   onSzeneCreated?: (szene: any) => void
-  onSzeneDeleted?: (id: number) => void
+  onSzeneDeleted?: (id: number | string) => void
   onSzenesReordered?: (scenes: any[]) => void
   commentCounts?: Record<number, number>
 }
@@ -37,15 +37,15 @@ export default function SceneList({
   const [lock, setLock] = useState<any | null>(null)
   const [creating, setCreating] = useState(false)
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
-  const [deleting, setDeleting] = useState<number | null>(null)
+  const [deleting, setDeleting] = useState<number | string | null>(null)
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [renumbering, setRenumbering] = useState(false)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
 
   // Drag & drop state
-  const [dragId, setDragId] = useState<number | null>(null)
-  const [dragOverId, setDragOverId] = useState<number | null>(null)
+  const [dragId, setDragId] = useState<number | string | null>(null)
+  const [dragOverId, setDragOverId] = useState<number | string | null>(null)
 
   useEffect(() => {
     if (!staffelId || folgeNummer == null) { setLock(null); return }

@@ -129,6 +129,8 @@ export default function ScriptPage() {
   const [bloecke, setBloecke] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
+  const [activeFassungId, setActiveFassungId] = useState<string | null>(null)
+  const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
 
   // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
   const [deepLink] = useState<{ staffelId?: string; folgeNummer?: number; stageId?: number; szeneId?: number } | null>(() => {
@@ -150,7 +152,7 @@ export default function ScriptPage() {
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
-  const [selectedSzeneId, setSelectedSzeneId] = useState<number | null>(null)
+  const [selectedSzeneId, setSelectedSzeneId] = useState<number | string | null>(null)
 
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({})
 
@@ -235,7 +237,7 @@ export default function ScriptPage() {
 
   // Immediate save navigation position to backend
   const saveNavPosition = useCallback((
-    staffelId: string, folgeNummer: number | null, stageId: number | null, szeneId: number | null
+    staffelId: string, folgeNummer: number | null, stageId: number | null, szeneId: number | string | null
   ) => {
     if (!navRestored.current) return
     api.updateSettings({ ui_settings: {
@@ -433,28 +435,63 @@ export default function ScriptPage() {
     }).catch(() => {})
   }, [selectedStaffelId, selectedFolgeNummer])
 
-  // Load Szenen — restore saved szeneId if available
+  // Load Szenen — try dokument_szenen first, fall back to old szenen
   useEffect(() => {
-    if (!selectedStageId) return
+    if (!selectedStageId || !selectedStaffelId || selectedFolgeNummer == null) return
     setSzenen([])
     setSelectedSzeneId(null)
-    api.getSzenen(selectedStageId).then(async data => {
-      setSzenen(data)
-      if (!data.length) return
-      const savedSzene = pendingNav.current.szeneId
-      const match = savedSzene && data.find((s: any) => s.id === savedSzene)
-      setSelectedSzeneId(match ? match.id : data[0].id)
-      delete pendingNav.current.szeneId
-      navRestored.current = true
-      // Auto-calculate spieltag if any scene is missing it
-      const needsCalc = data.some((s: any) => s.spieltag == null)
-      if (needsCalc) {
-        api.autoSpieltagCalc(selectedStageId)
-          .then(updated => setSzenen(updated))
-          .catch(() => {})
+    setActiveFassungId(null)
+    setUseDokumentSzenen(false)
+
+    // Find matching fassung for this stage
+    const stage = stages.find((s: any) => s.id === selectedStageId)
+    const stageToDocTyp: Record<string, string> = {
+      treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
+    }
+    const docTyp = stageToDocTyp[stage?.stage_type] || 'drehbuch'
+
+    // Try new system: load dokumente for this folge, find matching type
+    api.getDokumente(selectedStaffelId, selectedFolgeNummer).then(async (docs: any[]) => {
+      const matchDoc = docs.find((d: any) => d.typ === docTyp)
+      if (matchDoc?.fassung_id) {
+        // Load dokument_szenen from latest fassung
+        try {
+          const dkSzenen = await api.getFassungsSzenen(matchDoc.fassung_id)
+          if (dkSzenen.length > 0) {
+            setSzenen(dkSzenen)
+            setActiveFassungId(matchDoc.fassung_id)
+            setUseDokumentSzenen(true)
+            const savedSzene = pendingNav.current.szeneId
+            const match = savedSzene && dkSzenen.find((s: any) => s.id === savedSzene)
+            setSelectedSzeneId(match ? match.id : dkSzenen[0].id)
+            delete pendingNav.current.szeneId
+            navRestored.current = true
+            return
+          }
+        } catch { /* fall through to old system */ }
       }
-    }).catch(() => {})
-  }, [selectedStageId])
+      // Fall back to old szenen system
+      loadOldSzenen()
+    }).catch(() => loadOldSzenen())
+
+    function loadOldSzenen() {
+      api.getSzenen(selectedStageId!).then(async data => {
+        setSzenen(data)
+        if (!data.length) return
+        const savedSzene = pendingNav.current.szeneId
+        const match = savedSzene && data.find((s: any) => s.id === savedSzene)
+        setSelectedSzeneId(match ? match.id : data[0].id)
+        delete pendingNav.current.szeneId
+        navRestored.current = true
+        const needsCalc = data.some((s: any) => s.spieltag == null)
+        if (needsCalc) {
+          api.autoSpieltagCalc(selectedStageId!)
+            .then(updated => setSzenen(updated))
+            .catch(() => {})
+        }
+      }).catch(() => {})
+    }
+  }, [selectedStageId, selectedStaffelId, selectedFolgeNummer, stages])
 
   // Poll unread comment counts from Messenger-App every 60s
   useEffect(() => {
@@ -559,6 +596,7 @@ export default function ScriptPage() {
                 stageId={selectedStageId}
                 staffelId={selectedStaffelId}
                 folgeNummer={selectedFolgeNummer}
+                useDokumentSzenen={useDokumentSzenen}
                 onSzeneUpdated={(updated) => {
                   setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
                 }}

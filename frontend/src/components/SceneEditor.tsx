@@ -6,11 +6,12 @@ import { api } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs } from '../contexts'
 
 interface SceneEditorProps {
-  szeneId: number
+  szeneId: number | string
   stageId: number | null
   staffelId?: string | null
   folgeNummer?: number | null
   panelMode?: 'both' | 'treatment' | 'script'
+  useDokumentSzenen?: boolean
   onSzeneUpdated?: (updated: any) => void
   onNavigatePrev?: () => void
   onNavigateNext?: () => void
@@ -39,7 +40,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -68,7 +69,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
   const cycleIntExt = useCallback(async () => {
     const next = scene?.int_ext === 'int' ? 'ext' : 'int'
     try {
-      const updated = await api.updateSzene(szeneId, { int_ext: next })
+      const updated = await saveScene({ int_ext: next })
       setScene(updated); onSzeneUpdated?.(updated)
     } catch {}
   }, [scene, szeneId, onSzeneUpdated])
@@ -78,7 +79,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     const idx = order.indexOf(scene?.tageszeit ?? 'TAG')
     const next = order[(idx + 1) % order.length]
     try {
-      const updated = await api.updateSzene(szeneId, { tageszeit: next })
+      const updated = await saveScene({ tageszeit: next })
       setScene(updated); onSzeneUpdated?.(updated)
     } catch {}
   }, [scene, szeneId, onSzeneUpdated])
@@ -135,7 +136,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
 
   // Load annotations when panel opens or scene changes
   useEffect(() => {
-    if (!showAnnotations) return
+    if (!showAnnotations || typeof szeneId !== 'number') return
     api.getSceneAnnotations(szeneId)
       .then(data => setAnnotations(data))
       .catch(() => setAnnotations([]))
@@ -156,49 +157,72 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     }
   }, [szeneId])
 
+  // Abstraction: use new dokument_szenen API or old szenen API
+  const loadScene = useCallback(() => {
+    if (useDokumentSzenen && typeof szeneId === 'string') {
+      return api.getDokumentSzene(szeneId)
+    }
+    return api.getSzene(szeneId as number)
+  }, [szeneId, useDokumentSzenen])
+
+  const saveScene = useCallback((data: any) => {
+    if (useDokumentSzenen && typeof szeneId === 'string') {
+      return api.updateDokumentSzene(szeneId, data)
+    }
+    return api.updateSzene(szeneId as number, data)
+  }, [szeneId, useDokumentSzenen])
+
   // Load scene when szeneId changes
   useEffect(() => {
     setLoading(true)
     setError(null)
-    api.getSzene(szeneId)
+    loadScene()
       .then(data => {
         setScene(data)
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
 
-    // Load kommentare count
-    api.getKommentare(szeneId)
-      .then(list => setKommentareCount(Array.isArray(list) ? list.length : 0))
-      .catch(() => setKommentareCount(0))
+    // Old-system features (only for numeric szene IDs)
+    if (typeof szeneId === 'number') {
+      // Load kommentare count
+      api.getKommentare(szeneId)
+        .then(list => setKommentareCount(Array.isArray(list) ? list.length : 0))
+        .catch(() => setKommentareCount(0))
 
-    // Load revision deltas for this scene
-    api.getSzeneRevisionen(szeneId, stageId ?? undefined)
-      .then(deltas => {
-        const changed = new Set<number>()
-        deltas.forEach((d: any) => {
-          if (d.field_type === 'content_block' && d.block_index != null) {
-            changed.add(d.block_index)
-          }
+      // Load revision deltas for this scene
+      api.getSzeneRevisionen(szeneId, stageId ?? undefined)
+        .then(deltas => {
+          const changed = new Set<number>()
+          deltas.forEach((d: any) => {
+            if (d.field_type === 'content_block' && d.block_index != null) {
+              changed.add(d.block_index)
+            }
+          })
+          setChangedBlocks(changed)
+          const colorDelta = deltas.find((d: any) => d.revision_color)
+          setRevisionColor(colorDelta?.revision_color ?? null)
         })
-        setChangedBlocks(changed)
-        // Get revision color from first delta that has one
-        const colorDelta = deltas.find((d: any) => d.revision_color)
-        setRevisionColor(colorDelta?.revision_color ?? null)
-      })
-      .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
+        .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
 
-    // Load vorstopp (drehbuch stage)
-    setVorstoppDrehbuch(null)
-    api.getVorstopp(szeneId)
-      .then(data => setVorstoppDrehbuch(data?.latest_per_stage?.drehbuch ?? null))
-      .catch(() => setVorstoppDrehbuch(null))
+      // Load vorstopp (drehbuch stage)
+      setVorstoppDrehbuch(null)
+      api.getVorstopp(szeneId)
+        .then(data => setVorstoppDrehbuch(data?.latest_per_stage?.drehbuch ?? null))
+        .catch(() => setVorstoppDrehbuch(null))
 
-    // Load scene characters
-    setSceneChars([])
-    api.getSceneCharacters(szeneId)
-      .then(data => setSceneChars(Array.isArray(data) ? data : []))
-      .catch(() => setSceneChars([]))
+      // Load scene characters
+      setSceneChars([])
+      api.getSceneCharacters(szeneId)
+        .then(data => setSceneChars(Array.isArray(data) ? data : []))
+        .catch(() => setSceneChars([]))
+    } else {
+      setKommentareCount(0)
+      setChangedBlocks(new Set())
+      setRevisionColor(null)
+      setVorstoppDrehbuch(null)
+      setSceneChars([])
+    }
   }, [szeneId, stageId])
 
   const handleContentChange = useCallback((content: any[]) => {
@@ -213,14 +237,16 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       setSaving(true)
       setSaveMsg(null)
       try {
-        const saved = await api.updateSzene(szeneId, { content })
+        const saved = await saveScene({ content })
         setScene(saved)
         onSzeneUpdated?.(saved)
-        // Create auto-save version
-        await api.createVersion(szeneId, {
-          content_snapshot: content,
-          change_summary: 'Auto-save',
-        }).catch(() => {})
+        // Create auto-save version (old system only)
+        if (typeof szeneId === 'number') {
+          await api.createVersion(szeneId, {
+            content_snapshot: content,
+            change_summary: 'Auto-save',
+          }).catch(() => {})
+        }
         setSaveMsg('Gespeichert')
       } catch {
         setSaveMsg('Fehler beim Speichern')
@@ -282,7 +308,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               const raw = e.target.value.trim()
               const val = raw ? parseFloat(raw) : null
               if (val !== (scene.dauer_min ?? null))
-                api.updateSzene(szeneId, { dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                saveScene({ dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
             }}
           />
 
@@ -309,7 +335,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               onBlur={e => {
                 const val = e.target.value.trim() || null
                 if (val !== (scene.spielzeit ?? null))
-                  api.updateSzene(szeneId, { spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
               }}
             />
             {showSpielzeitInfo && (
@@ -344,7 +370,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
                     const raw = e.target.value.trim()
                     const val = raw ? parseInt(raw, 10) : null
                     if (val !== (scene.spieltag ?? null))
-                      api.updateSzene(szeneId, { spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                      saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                   }}
                 />
               </span>
@@ -358,7 +384,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               onClick={() => {
                 const next = !showAnnotations
                 setShowAnnotations(next)
-                if (!next && kommentareCount > 0) onMarkCommentsRead?.(szeneId)
+                if (!next && kommentareCount > 0 && typeof szeneId === 'number') onMarkCommentsRead?.(szeneId)
               }}
             >
               <MessageSquare size={12} />
@@ -390,7 +416,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               onBlur={e => {
                 const val = e.target.value.trim() || null
                 if (val !== (scene.zusammenfassung ?? null))
-                  api.updateSzene(szeneId, { zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
               }}
             />
           </div>
@@ -419,7 +445,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               onBlur={e => {
                 const val = e.target.value.trim() || null
                 if (val !== (scene.stimmung ?? null))
-                  api.updateSzene(szeneId, { stimmung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  saveScene({ stimmung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
               }}
             />
           </div>
@@ -494,7 +520,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               onKeyDown={e => {
                 if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault()
-                  if (annotationText.trim() && !annotationSending) {
+                  if (annotationText.trim() && !annotationSending && typeof szeneId === 'number') {
                     setAnnotationSending(true)
                     api.createSceneAnnotation(szeneId, annotationText)
                       .then(ann => { setAnnotations(prev => [...prev, ann]); setAnnotationText('') })
@@ -509,7 +535,7 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
               style={{ padding: '6px 10px', flexShrink: 0 }}
               disabled={!annotationText.trim() || annotationSending}
               onClick={() => {
-                if (!annotationText.trim() || annotationSending) return
+                if (!annotationText.trim() || annotationSending || typeof szeneId !== 'number') return
                 setAnnotationSending(true)
                 api.createSceneAnnotation(szeneId, annotationText)
                   .then(ann => { setAnnotations(prev => [...prev, ann]); setAnnotationText('') })

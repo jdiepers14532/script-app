@@ -3,7 +3,7 @@ import { Plus, X, Search, Users } from 'lucide-react'
 import { api } from '../api/client'
 
 interface BreakdownPanelProps {
-  szeneId?: number | null
+  szeneId?: number | string | null
   staffelId?: string | null
 }
 
@@ -17,7 +17,7 @@ export default function BreakdownPanel({ szeneId, staffelId }: BreakdownPanelPro
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    if (!szeneId) { setSceneChars([]); return }
+    if (!szeneId || typeof szeneId !== 'number') { setSceneChars([]); return }
     setLoading(true)
     api.getSceneCharacters(szeneId)
       .then(setSceneChars)
@@ -41,7 +41,7 @@ export default function BreakdownPanel({ szeneId, staffelId }: BreakdownPanelPro
     : allChars.filter(c => !sceneCharIds.has(c.id)).slice(0, 8)
 
   const handleAdd = async (char: any) => {
-    if (!szeneId) return
+    if (!szeneId || typeof szeneId !== 'number') return
     try {
       const sc = await api.addSceneCharacter(szeneId, { character_id: char.id })
       setSceneChars(prev => [...prev, { ...sc, name: char.name, kategorie_name: char.kategorie_name, kategorie_typ: char.kategorie_typ }])
@@ -51,7 +51,7 @@ export default function BreakdownPanel({ szeneId, staffelId }: BreakdownPanelPro
   }
 
   const handleCreateAndAdd = async () => {
-    if (!szeneId || !staffelId || !query.trim()) return
+    if (!szeneId || typeof szeneId !== 'number' || !staffelId || !query.trim()) return
     setCreating(true)
     try {
       const char = await api.createCharacter({ name: query.trim(), staffel_id: staffelId })
@@ -66,7 +66,7 @@ export default function BreakdownPanel({ szeneId, staffelId }: BreakdownPanelPro
   }
 
   const handleRemove = async (characterId: string) => {
-    if (!szeneId) return
+    if (!szeneId || typeof szeneId !== 'number') return
     try {
       await api.removeSceneCharacter(szeneId, characterId)
       setSceneChars(prev => prev.filter(c => c.character_id !== characterId))

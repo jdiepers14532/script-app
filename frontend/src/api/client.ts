@@ -58,6 +58,20 @@ export const api = {
   autoSpieltagCalc: (stageId: number) =>
     request<any[]>('POST', `/stages/${stageId}/szenen/auto-spieltag`),
 
+  // Dokument-Szenen (new scene identity system)
+  getFassungsSzenen: (fassungId: string) =>
+    request<any[]>('GET', `/fassungen/${fassungId}/szenen`),
+  getDokumentSzene: (id: string) => request<any>('GET', `/dokument-szenen/${id}`),
+  updateDokumentSzene: (id: string, data: any) => request<any>('PUT', `/dokument-szenen/${id}`, data),
+  deleteDokumentSzene: (id: string) => request<void>('DELETE', `/dokument-szenen/${id}`),
+  createDokumentSzene: (fassungId: string, data: any) =>
+    request<any>('POST', `/fassungen/${fassungId}/szenen`, data),
+  reorderDokumentSzenen: (fassungId: string, order: string[]) =>
+    request<any[]>('PATCH', `/fassungen/${fassungId}/szenen/reorder`, { order }),
+  renumberDokumentSzenen: (fassungId: string) =>
+    request<{ scenes: any[]; renumbered: boolean }>('POST', `/fassungen/${fassungId}/szenen/renumber`),
+  getSceneIdentityHistory: (id: string) => request<any[]>('GET', `/scene-identities/${id}/history`),
+
   // Locks (keyed by staffelId + folgeNummer)
   getLock: (staffelId: string, folgeNummer: number) =>
     request<any>('GET', `/folgen/${staffelId}/${folgeNummer}/lock`),
