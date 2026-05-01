@@ -47,6 +47,7 @@ import { staffelFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } f
 import { staffelMotiveRouter, motivRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
+import { fassungsSzenenRouter, dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -161,6 +162,13 @@ app.use('/api/dokumente/:dokumentId/annotationen', (req, _res, next) => {
   (req.params as any).dokumentId = req.params.dokumentId
   next()
 }, annotationenRouter)
+// Dokument-Szenen (new scene identity system)
+app.use('/api/fassungen/:fassungId/szenen', (req, _res, next) => {
+  (req.params as any).fassungId = req.params.fassungId; next()
+}, fassungsSzenenRouter)
+app.use('/api/dokument-szenen', dokumentSzenenRouter)
+app.use('/api/scene-identities', sceneIdentitiesRouter)
+
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
 app.use('/api/stages', stagesCommentRouter)

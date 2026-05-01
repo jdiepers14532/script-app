@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { query, queryOne } from '../db'
+import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
 export const fassungenRouter = Router({ mergeParams: true })
@@ -160,6 +160,28 @@ fassungenRouter.post('/', async (req, res) => {
       [dokumentId, fassung.id, user.user_id, user.name]
     )
 
+    // Copy dokument_szenen from previous fassung (same scene_identity_ids)
+    if (latest) {
+      const latestFassung = await queryOne(
+        `SELECT id FROM folgen_dokument_fassungen
+         WHERE dokument_id = $1 AND id != $2 ORDER BY fassung_nummer DESC LIMIT 1`,
+        [dokumentId, fassung.id]
+      )
+      if (latestFassung) {
+        await pool.query(
+          `INSERT INTO dokument_szenen
+             (fassung_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+              ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+              szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
+           SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                  ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+                  szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, $2
+           FROM dokument_szenen WHERE fassung_id = $3`,
+          [fassung.id, user.name || user.user_id, latestFassung.id]
+        )
+      }
+    }
+
     res.status(201).json(fassung)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -291,6 +313,19 @@ fassungenRouter.post('/:fassungId/abgabe', async (req, res) => {
         `INSERT INTO folgen_dokument_audit (dokument_id, fassung_id, user_id, user_name, ereignis)
          VALUES ($1, $2, $3, $4, 'erstellt')`,
         [dokumentId, naechste.id, user.user_id, user.name]
+      )
+
+      // Copy dokument_szenen from frozen fassung
+      await pool.query(
+        `INSERT INTO dokument_szenen
+           (fassung_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+            ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+            szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
+         SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+                szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, $2
+         FROM dokument_szenen WHERE fassung_id = $3`,
+        [naechste.id, user.name || user.user_id, fassungId]
       )
     }
 
