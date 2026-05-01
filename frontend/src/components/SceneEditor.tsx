@@ -179,14 +179,27 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     loadScene()
       .then(data => {
         setScene(data)
-        // For new system: load characters + vorstopp via scene_identity_id
-        if (useDokumentSzenen && data?.scene_identity_id) {
-          api.getSceneIdentityCharacters(data.scene_identity_id)
-            .then(chars => setSceneChars(Array.isArray(chars) ? chars : []))
-            .catch(() => setSceneChars([]))
-          api.getSceneIdentityVorstopp(data.scene_identity_id)
-            .then(v => setVorstoppDrehbuch(v?.latest_per_stage?.drehbuch ?? null))
-            .catch(() => setVorstoppDrehbuch(null))
+        // For new system: load characters, vorstopp, revisions via scene_identity_id / dokument_szene_id
+        if (useDokumentSzenen && typeof szeneId === 'string') {
+          if (data?.scene_identity_id) {
+            api.getSceneIdentityCharacters(data.scene_identity_id)
+              .then(chars => setSceneChars(Array.isArray(chars) ? chars : []))
+              .catch(() => setSceneChars([]))
+            api.getSceneIdentityVorstopp(data.scene_identity_id)
+              .then(v => setVorstoppDrehbuch(v?.latest_per_stage?.drehbuch ?? null))
+              .catch(() => setVorstoppDrehbuch(null))
+          }
+          api.getDokumentSzeneRevisionen(szeneId)
+            .then(deltas => {
+              const changed = new Set<number>()
+              deltas.forEach((d: any) => {
+                if (d.field_type === 'content_block' && d.block_index != null) changed.add(d.block_index)
+              })
+              setChangedBlocks(changed)
+              const colorDelta = deltas.find((d: any) => d.revision_color)
+              setRevisionColor(colorDelta?.revision_color ?? null)
+            })
+            .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
         }
       })
       .catch(e => setError(e.message))
@@ -227,8 +240,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
         .catch(() => setSceneChars([]))
     } else {
       setKommentareCount(0)
-      setChangedBlocks(new Set())
-      setRevisionColor(null)
     }
   }, [szeneId, stageId])
 

@@ -263,6 +263,50 @@ dokumentSzenenRouter.delete('/:id', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/dokument-szenen/:id/revisionen — revision deltas for a dokument_szene
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT sr.*, f.fassung_nummer, f.fassung_label,
+              rc.name AS revision_name, rc.color AS revision_color
+       FROM szenen_revisionen sr
+       LEFT JOIN folgen_dokument_fassungen f ON f.id = sr.fassung_id
+       LEFT JOIN folgen_dokumente d ON d.id = f.dokument_id
+       LEFT JOIN staffeln st ON st.id = d.staffel_id
+       LEFT JOIN revision_colors rc ON rc.staffel_id = st.id AND rc.sort_order = f.fassung_nummer
+       WHERE sr.dokument_szene_id = $1
+       ORDER BY sr.created_at`,
+      [req.params.id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/dokument-szenen/:id/revisionen — record a delta
+dokumentSzenenRouter.post('/:id/revisionen', async (req, res) => {
+  const { fassung_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value } = req.body
+  if (!field_type) return res.status(400).json({ error: 'field_type required' })
+  if (!['header', 'content_block'].includes(field_type)) {
+    return res.status(400).json({ error: 'field_type muss header oder content_block sein' })
+  }
+  try {
+    const row = await queryOne(
+      `INSERT INTO szenen_revisionen
+         (dokument_szene_id, fassung_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [req.params.id, fassung_id ?? null, field_type, field_name ?? null,
+       block_index ?? null, block_type ?? null, speaker ?? null, old_value ?? null, new_value ?? null]
+    )
+    res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GET /api/scene-identities/:id/characters — characters linked to a scene identity
 // ══════════════════════════════════════════════════════════════════════════════
 sceneIdentitiesRouter.get('/:id/characters', async (req, res) => {

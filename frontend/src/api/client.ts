@@ -71,6 +71,8 @@ export const api = {
   renumberDokumentSzenen: (fassungId: string) =>
     request<{ scenes: any[]; renumbered: boolean }>('POST', `/fassungen/${fassungId}/szenen/renumber`),
   getSceneIdentityHistory: (id: string) => request<any[]>('GET', `/scene-identities/${id}/history`),
+  getDokumentSzeneRevisionen: (id: string) => request<any[]>('GET', `/dokument-szenen/${id}/revisionen`),
+  createDokumentSzeneRevision: (id: string, data: any) => request<any>('POST', `/dokument-szenen/${id}/revisionen`, data),
   getSceneIdentityCharacters: (id: string) => request<any[]>('GET', `/scene-identities/${id}/characters`),
   addSceneIdentityCharacter: (id: string, data: any) => request<any>('POST', `/scene-identities/${id}/characters`, data),
   removeSceneIdentityCharacter: (id: string, characterId: string) =>
