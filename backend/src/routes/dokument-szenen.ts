@@ -263,6 +263,107 @@ dokumentSzenenRouter.delete('/:id', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/scene-identities/:id/characters — characters linked to a scene identity
+// ══════════════════════════════════════════════════════════════════════════════
+sceneIdentitiesRouter.get('/:id/characters', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT sc.id, sc.character_id, sc.kategorie_id, sc.anzahl, sc.ist_gruppe,
+              c.name, c.meta_json,
+              cp.rollen_nummer, cp.komparsen_nummer,
+              ck.name AS kategorie_name, ck.typ AS kategorie_typ
+       FROM scene_characters sc
+       JOIN characters c ON c.id = sc.character_id
+       LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+       LEFT JOIN scene_identities si ON si.id = sc.scene_identity_id
+       LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.staffel_id = si.staffel_id
+       WHERE sc.scene_identity_id = $1
+       ORDER BY ck.typ NULLS LAST, c.name`,
+      [req.params.id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/scene-identities/:id/characters — add character to scene identity
+sceneIdentitiesRouter.post('/:id/characters', async (req, res) => {
+  const { character_id, kategorie_id, anzahl, ist_gruppe } = req.body
+  if (!character_id) return res.status(400).json({ error: 'character_id required' })
+  try {
+    const row = await queryOne(
+      `INSERT INTO scene_characters (scene_identity_id, character_id, kategorie_id, anzahl, ist_gruppe)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (scene_identity_id, character_id) WHERE scene_identity_id IS NOT NULL
+       DO UPDATE SET kategorie_id = EXCLUDED.kategorie_id, anzahl = EXCLUDED.anzahl, ist_gruppe = EXCLUDED.ist_gruppe
+       RETURNING *`,
+      [req.params.id, character_id, kategorie_id ?? null, anzahl ?? 1, ist_gruppe ?? false]
+    )
+    res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// DELETE /api/scene-identities/:id/characters/:characterId
+sceneIdentitiesRouter.delete('/:id/characters/:characterId', async (req, res) => {
+  try {
+    const row = await queryOne(
+      'DELETE FROM scene_characters WHERE scene_identity_id = $1 AND character_id = $2 RETURNING id',
+      [req.params.id, req.params.characterId]
+    )
+    if (!row) return res.status(404).json({ error: 'Verknüpfung nicht gefunden' })
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/scene-identities/:id/vorstopp — vorstopp entries for a scene identity
+// ══════════════════════════════════════════════════════════════════════════════
+sceneIdentitiesRouter.get('/:id/vorstopp', async (req, res) => {
+  try {
+    const all = await query(
+      'SELECT * FROM szenen_vorstopp WHERE scene_identity_id = $1 ORDER BY stage, created_at DESC',
+      [req.params.id]
+    )
+    const latest: Record<string, any> = {}
+    for (const row of all) {
+      if (!latest[row.stage]) latest[row.stage] = row
+    }
+    res.json({ all, latest_per_stage: latest })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/scene-identities/:id/vorstopp — add vorstopp entry
+sceneIdentitiesRouter.post('/:id/vorstopp', async (req, res) => {
+  const VALID_STAGES = ['drehbuch', 'vorbereitung', 'dreh', 'schnitt']
+  const { stage, dauer_sekunden, methode, user_name } = req.body
+  const user = req.user!
+  if (!stage || !VALID_STAGES.includes(stage)) {
+    return res.status(400).json({ error: `stage muss einer von ${VALID_STAGES.join(', ')} sein` })
+  }
+  if (typeof dauer_sekunden !== 'number' || dauer_sekunden < 0) {
+    return res.status(400).json({ error: 'dauer_sekunden muss eine nicht-negative Zahl sein' })
+  }
+  try {
+    const row = await queryOne(
+      `INSERT INTO szenen_vorstopp (scene_identity_id, stage, user_id, user_name, dauer_sekunden, methode)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [req.params.id, stage, user?.user_id ?? 'unknown', user_name ?? user?.name ?? null,
+       dauer_sekunden, methode ?? 'manuell']
+    )
+    res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // POST /api/scene-identities — create new identity
 // ══════════════════════════════════════════════════════════════════════════════
 sceneIdentitiesRouter.post('/', async (req, res) => {

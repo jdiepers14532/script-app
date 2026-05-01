@@ -223,6 +223,7 @@ async function runMigrations() {
     'v36_wechselschnitt_dauer.sql',
     'v37_dk_settings.sql',
     'v38_scene_identities.sql',
+    'v39_scene_identity_characters.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

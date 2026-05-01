@@ -614,7 +614,11 @@ export default function ScriptPage() {
           <DockedEditorPanels staffelId={selectedStaffelId} folgeNummer={selectedFolgeNummer} />
         </div>
 
-        {!focus && <BreakdownPanel szeneId={selectedSzeneId} staffelId={selectedStaffelId} />}
+        {!focus && <BreakdownPanel
+          szeneId={selectedSzeneId}
+          staffelId={selectedStaffelId}
+          sceneIdentityId={useDokumentSzenen ? szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null : null}
+        />}
       </div>
     </AppShell>
   )

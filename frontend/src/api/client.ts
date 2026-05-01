@@ -71,6 +71,12 @@ export const api = {
   renumberDokumentSzenen: (fassungId: string) =>
     request<{ scenes: any[]; renumbered: boolean }>('POST', `/fassungen/${fassungId}/szenen/renumber`),
   getSceneIdentityHistory: (id: string) => request<any[]>('GET', `/scene-identities/${id}/history`),
+  getSceneIdentityCharacters: (id: string) => request<any[]>('GET', `/scene-identities/${id}/characters`),
+  addSceneIdentityCharacter: (id: string, data: any) => request<any>('POST', `/scene-identities/${id}/characters`, data),
+  removeSceneIdentityCharacter: (id: string, characterId: string) =>
+    request<void>('DELETE', `/scene-identities/${id}/characters/${characterId}`),
+  getSceneIdentityVorstopp: (id: string) => request<any>('GET', `/scene-identities/${id}/vorstopp`),
+  addSceneIdentityVorstopp: (id: string, data: any) => request<any>('POST', `/scene-identities/${id}/vorstopp`, data),
 
   // Locks (keyed by staffelId + folgeNummer)
   getLock: (staffelId: string, folgeNummer: number) =>

@@ -179,6 +179,15 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
     loadScene()
       .then(data => {
         setScene(data)
+        // For new system: load characters + vorstopp via scene_identity_id
+        if (useDokumentSzenen && data?.scene_identity_id) {
+          api.getSceneIdentityCharacters(data.scene_identity_id)
+            .then(chars => setSceneChars(Array.isArray(chars) ? chars : []))
+            .catch(() => setSceneChars([]))
+          api.getSceneIdentityVorstopp(data.scene_identity_id)
+            .then(v => setVorstoppDrehbuch(v?.latest_per_stage?.drehbuch ?? null))
+            .catch(() => setVorstoppDrehbuch(null))
+        }
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))
@@ -220,8 +229,6 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
       setKommentareCount(0)
       setChangedBlocks(new Set())
       setRevisionColor(null)
-      setVorstoppDrehbuch(null)
-      setSceneChars([])
     }
   }, [szeneId, stageId])
 
