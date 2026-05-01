@@ -263,6 +263,74 @@ dokumentSzenenRouter.delete('/:id', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/fassungen/:id1/diff/:id2 — compare two fassungen side-by-side
+// ══════════════════════════════════════════════════════════════════════════════
+fassungsSzenenRouter.get('/diff/:rightId', async (req, res) => {
+  const leftId = (req.params as any).fassungId
+  const rightId = req.params.rightId
+  try {
+    const [leftFassung, rightFassung] = await Promise.all([
+      queryOne('SELECT f.*, d.typ FROM folgen_dokument_fassungen f JOIN folgen_dokumente d ON d.id = f.dokument_id WHERE f.id = $1', [leftId]),
+      queryOne('SELECT f.*, d.typ FROM folgen_dokument_fassungen f JOIN folgen_dokumente d ON d.id = f.dokument_id WHERE f.id = $1', [rightId]),
+    ])
+    if (!leftFassung) return res.status(404).json({ error: 'Linke Fassung nicht gefunden' })
+    if (!rightFassung) return res.status(404).json({ error: 'Rechte Fassung nicht gefunden' })
+
+    const [leftScenes, rightScenes] = await Promise.all([
+      query('SELECT * FROM dokument_szenen WHERE fassung_id = $1 ORDER BY sort_order, scene_nummer', [leftId]),
+      query('SELECT * FROM dokument_szenen WHERE fassung_id = $1 ORDER BY sort_order, scene_nummer', [rightId]),
+    ])
+
+    // Match scenes by scene_identity_id
+    const leftMap = new Map(leftScenes.map((s: any, i: number) => [s.scene_identity_id, { scene: s, idx: i }]))
+    const rightMap = new Map(rightScenes.map((s: any, i: number) => [s.scene_identity_id, { scene: s, idx: i }]))
+
+    // Collect all unique identity IDs in order
+    const allIdentities = new Set<string>()
+    for (const s of leftScenes) allIdentities.add(s.scene_identity_id)
+    for (const s of rightScenes) allIdentities.add(s.scene_identity_id)
+
+    const matches: any[] = []
+    for (const id of allIdentities) {
+      const left = leftMap.get(id)
+      const right = rightMap.get(id)
+
+      const changes: string[] = []
+      if (!left) {
+        changes.push('neu')
+      } else if (!right) {
+        changes.push('gestrichen')
+      } else {
+        // Compare header fields
+        const fields = ['ort_name', 'int_ext', 'tageszeit', 'zusammenfassung', 'spieltag', 'stimmung', 'spielzeit', 'szeneninfo', 'dauer_min']
+        for (const f of fields) {
+          if (String(left.scene[f] ?? '') !== String(right.scene[f] ?? '')) changes.push(f)
+        }
+        // Compare content
+        const lc = JSON.stringify(left.scene.content || [])
+        const rc = JSON.stringify(right.scene.content || [])
+        if (lc !== rc) changes.push('content')
+      }
+
+      matches.push({
+        scene_identity_id: id,
+        left_idx: left?.idx ?? null,
+        right_idx: right?.idx ?? null,
+        changes,
+      })
+    }
+
+    res.json({
+      left: { fassung: leftFassung, szenen: leftScenes },
+      right: { fassung: rightFassung, szenen: rightScenes },
+      matches,
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GET /api/dokument-szenen/:id/revisionen — revision deltas for a dokument_szene
 // ══════════════════════════════════════════════════════════════════════════════
 dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
