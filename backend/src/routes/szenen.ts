@@ -3,11 +3,18 @@ import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { z } from 'zod'
 
+// DEPRECATED: Use /api/fassungen/:id/szenen and /api/dokument-szenen instead.
+// These routes are kept for backward compatibility with episodes not yet migrated.
 export const szenenRouter = Router()
 export const stagesSzenenRouter = Router()
 
-szenenRouter.use(authMiddleware)
-stagesSzenenRouter.use(authMiddleware)
+const deprecationMiddleware = (_req: any, res: any, next: any) => {
+  res.setHeader('X-Deprecated', 'Use /api/fassungen/:id/szenen and /api/dokument-szenen instead')
+  next()
+}
+
+szenenRouter.use(authMiddleware, deprecationMiddleware)
+stagesSzenenRouter.use(authMiddleware, deprecationMiddleware)
 
 const TextelementSchema = z.object({
   id: z.string(),

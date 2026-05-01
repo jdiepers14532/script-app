@@ -2,8 +2,14 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
+// DEPRECATED: Use folgen_dokument_fassungen + dokument_szenen system instead.
+// These routes are kept for backward compatibility with episodes not yet migrated.
 export const stagesRouter = Router()
 stagesRouter.use(authMiddleware)
+stagesRouter.use((_req, res, next) => {
+  res.setHeader('X-Deprecated', 'Use /api/fassungen and /api/dokument-szenen instead')
+  next()
+})
 
 // GET /api/stages?staffel_id=X&folge_nummer=Y
 stagesRouter.get('/', async (req, res) => {
