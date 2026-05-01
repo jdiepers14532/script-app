@@ -385,4 +385,18 @@ export const api = {
   // ── Charakter aktivieren ──────────────────────────────────────────────────
   aktiviereCharacter: (characterId: string, staffelId: string) =>
     request<any>('POST', `/characters/${characterId}/aktivieren`, { staffel_id: staffelId }),
+
+  // ── DK-Settings (Drehbuchkoordination) ──────────────────────────────────
+  getDkProductions: () =>
+    request<{ global: boolean; production_ids: string[] }>('GET', '/dk-settings/my-productions'),
+  getDkAppSettings: (productionId: string) =>
+    request<Record<string, string>>('GET', `/dk-settings/${encodeURIComponent(productionId)}/app-settings`),
+  updateDkAppSetting: (productionId: string, key: string, value: string) =>
+    request<any>('PUT', `/dk-settings/${encodeURIComponent(productionId)}/app-settings/${encodeURIComponent(key)}`, { value }),
+
+  // ── DK-Zugriffsverwaltung (Admin) ───────────────────────────────────────
+  getDkAccess: (productionId: string) =>
+    request<any[]>('GET', `/admin/dk-access/${encodeURIComponent(productionId)}`),
+  updateDkAccess: (productionId: string, entries: { access_type: string; identifier: string }[]) =>
+    request<any[]>('PUT', `/admin/dk-access/${encodeURIComponent(productionId)}`, { entries }),
 }

@@ -1,11 +1,12 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
-import { authMiddleware, requireRole } from '../auth'
+import { authMiddleware, requireDkAccess, requireAnyDkAccess } from '../auth'
 
 const router = Router()
 router.use(authMiddleware)
 
-const isAdmin = requireRole('superadmin', 'herstellungsleitung')
+const dkByStaffel = requireDkAccess(req => req.params.staffelId)
+const dkAny = requireAnyDkAccess()
 
 // ── Dokument-Typen (per Staffel) ───────────────────────────────────────────────
 
@@ -23,7 +24,7 @@ router.get('/dokument-typen/:staffelId', async (req, res) => {
 })
 
 // POST /api/admin/dokument-typen/:staffelId
-router.post('/dokument-typen/:staffelId', isAdmin, async (req, res) => {
+router.post('/dokument-typen/:staffelId', dkByStaffel,async (req, res) => {
   const { name, editor_modus, sort_order } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   if (editor_modus && !['screenplay', 'richtext'].includes(editor_modus)) {
@@ -43,7 +44,7 @@ router.post('/dokument-typen/:staffelId', isAdmin, async (req, res) => {
 })
 
 // PUT /api/admin/dokument-typen/:staffelId/:id
-router.put('/dokument-typen/:staffelId/:id', isAdmin, async (req, res) => {
+router.put('/dokument-typen/:staffelId/:id', dkByStaffel,async (req, res) => {
   const { name, editor_modus, sort_order } = req.body
   try {
     const row = await queryOne(
@@ -63,7 +64,7 @@ router.put('/dokument-typen/:staffelId/:id', isAdmin, async (req, res) => {
 })
 
 // DELETE /api/admin/dokument-typen/:staffelId/:id
-router.delete('/dokument-typen/:staffelId/:id', isAdmin, async (req, res) => {
+router.delete('/dokument-typen/:staffelId/:id', dkByStaffel,async (req, res) => {
   try {
     const row = await queryOne(
       `DELETE FROM dokument_typ_definitionen WHERE id = $1 AND staffel_id = $2 RETURNING id`,
@@ -96,7 +97,7 @@ router.get('/colab-gruppen/:staffelId', async (req, res) => {
 })
 
 // POST /api/admin/colab-gruppen/:staffelId
-router.post('/colab-gruppen/:staffelId', isAdmin, async (req, res) => {
+router.post('/colab-gruppen/:staffelId', dkByStaffel,async (req, res) => {
   const { name, typ } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   if (typ && !['colab', 'produktion'].includes(typ)) {
@@ -116,7 +117,7 @@ router.post('/colab-gruppen/:staffelId', isAdmin, async (req, res) => {
 })
 
 // PUT /api/admin/colab-gruppen/:staffelId/:id
-router.put('/colab-gruppen/:staffelId/:id', isAdmin, async (req, res) => {
+router.put('/colab-gruppen/:staffelId/:id', dkByStaffel,async (req, res) => {
   const { name, typ } = req.body
   try {
     const row = await queryOne(
@@ -133,7 +134,7 @@ router.put('/colab-gruppen/:staffelId/:id', isAdmin, async (req, res) => {
 })
 
 // DELETE /api/admin/colab-gruppen/:staffelId/:id
-router.delete('/colab-gruppen/:staffelId/:id', isAdmin, async (req, res) => {
+router.delete('/colab-gruppen/:staffelId/:id', dkByStaffel,async (req, res) => {
   try {
     const row = await queryOne(
       `DELETE FROM dokument_colab_gruppen WHERE id = $1 AND staffel_id = $2 RETURNING id`,
@@ -147,7 +148,7 @@ router.delete('/colab-gruppen/:staffelId/:id', isAdmin, async (req, res) => {
 })
 
 // POST /api/admin/colab-gruppen/:id/mitglieder
-router.post('/colab-gruppen/:id/mitglieder', isAdmin, async (req, res) => {
+router.post('/colab-gruppen/:id/mitglieder', dkAny, async (req, res) => {
   const { user_id, user_name } = req.body
   if (!user_id) return res.status(400).json({ error: 'user_id required' })
   try {
@@ -163,7 +164,7 @@ router.post('/colab-gruppen/:id/mitglieder', isAdmin, async (req, res) => {
 })
 
 // DELETE /api/admin/colab-gruppen/:id/mitglieder/:userId
-router.delete('/colab-gruppen/:id/mitglieder/:userId', isAdmin, async (req, res) => {
+router.delete('/colab-gruppen/:id/mitglieder/:userId', dkAny, async (req, res) => {
   try {
     await queryOne(
       `DELETE FROM dokument_colab_gruppe_mitglieder WHERE gruppe_id = $1 AND user_id = $2`,
@@ -195,7 +196,7 @@ router.get('/format-templates', async (_req, res) => {
 })
 
 // POST /api/admin/format-templates
-router.post('/format-templates', isAdmin, async (req, res) => {
+router.post('/format-templates', dkAny, async (req, res) => {
   const { name } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   try {
@@ -211,7 +212,7 @@ router.post('/format-templates', isAdmin, async (req, res) => {
 })
 
 // PUT /api/admin/format-templates/:id/elemente — replace all elements
-router.put('/format-templates/:id/elemente', isAdmin, async (req, res) => {
+router.put('/format-templates/:id/elemente', dkAny, async (req, res) => {
   const { elemente } = req.body
   if (!Array.isArray(elemente)) return res.status(400).json({ error: 'elemente array required' })
   try {
@@ -240,7 +241,7 @@ router.put('/format-templates/:id/elemente', isAdmin, async (req, res) => {
 })
 
 // DELETE /api/admin/format-templates/:id
-router.delete('/format-templates/:id', isAdmin, async (req, res) => {
+router.delete('/format-templates/:id', dkAny, async (req, res) => {
   try {
     const row = await queryOne(
       `DELETE FROM editor_format_templates WHERE id = $1 AND ist_standard = FALSE RETURNING id`,
@@ -269,7 +270,7 @@ router.get('/benachrichtigungen/:staffelId', async (req, res) => {
 })
 
 // PUT /api/admin/benachrichtigungen/:staffelId — upsert
-router.put('/benachrichtigungen/:staffelId', isAdmin, async (req, res) => {
+router.put('/benachrichtigungen/:staffelId', dkByStaffel,async (req, res) => {
   const { ereignis, empfaenger_user_ids, aktiv } = req.body
   if (!ereignis) return res.status(400).json({ error: 'ereignis required' })
   try {
@@ -300,7 +301,7 @@ router.get('/dokument-override-rollen', async (_req, res) => {
 })
 
 // PUT /api/admin/dokument-override-rollen
-router.put('/dokument-override-rollen', isAdmin, async (req, res) => {
+router.put('/dokument-override-rollen', dkAny, async (req, res) => {
   const { rollen } = req.body
   if (!Array.isArray(rollen)) return res.status(400).json({ error: 'rollen array required' })
   try {
@@ -328,7 +329,7 @@ router.get('/fassungs-nummerierung', async (_req, res) => {
 })
 
 // PUT /api/admin/fassungs-nummerierung
-router.put('/fassungs-nummerierung', isAdmin, async (req, res) => {
+router.put('/fassungs-nummerierung', dkAny, async (req, res) => {
   const { modus } = req.body
   if (!['global', 'per_typ'].includes(modus)) {
     return res.status(400).json({ error: 'modus muss global oder per_typ sein' })

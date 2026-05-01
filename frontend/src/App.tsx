@@ -9,7 +9,7 @@ import HilfePage from './pages/HilfePage'
 import RollenPage from './pages/RollenPage'
 import KomparsenPage from './pages/KomparsenPage'
 import MotivenPage from './pages/MotivenPage'
-import EinstellungenPage from './pages/EinstellungenPage'
+import DrehbuchkoordinationPage from './pages/DrehbuchkoordinationPage'
 import { useFocusMode } from './hooks/useFocusMode'
 import { useProduction } from './hooks/useProduction'
 import {
@@ -59,7 +59,7 @@ export default function App() {
               <Route path="/rollen" element={<RollenPage />} />
               <Route path="/komparsen" element={<KomparsenPage />} />
               <Route path="/motive" element={<MotivenPage />} />
-              <Route path="/einstellungen" element={<EinstellungenPage />} />
+              <Route path="/drehbuchkoordination" element={<DrehbuchkoordinationPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>

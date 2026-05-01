@@ -5,7 +5,7 @@ import {
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
-  Users, UserCheck, MapPin,
+  Users, UserCheck, MapPin, ClipboardList, Eye,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext } from '../contexts'
 import type { TweakState } from '../contexts'
@@ -14,6 +14,7 @@ import ProductionSelector from './ProductionSelector'
 import { CompanyInfoModal } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
+import AnsichtsModal from './AnsichtsModal'
 
 interface AppShellProps {
   children: ReactNode
@@ -263,6 +264,8 @@ export default function AppShell({
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [appList, setAppList] = useState<any[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
+  const [hasDkAccess, setHasDkAccess] = useState(false)
+  const [ansichtsModalOpen, setAnsichtsModalOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string } | null>(null)
   const [sendedatum, setSendedatum] = useState<{ datum: string; ist_ki_prognose: boolean } | null>(null)
   const [sunWeather, setSunWeather] = useState<{
@@ -428,6 +431,11 @@ export default function AppShell({
         setCurrentUser(data.user || null)
       })
       .catch(() => {})
+
+    // DK access check
+    api.getDkProductions()
+      .then(d => setHasDkAccess(d.global || d.production_ids.length > 0))
+      .catch(() => setHasDkAccess(false))
   }, [])
 
 
@@ -1038,6 +1046,10 @@ export default function AppShell({
         dark={tweaks.theme === 'dark'}
       />
 
+      {ansichtsModalOpen && (
+        <AnsichtsModal onClose={() => setAnsichtsModalOpen(false)} />
+      )}
+
       {/* ── Print-only Script Nav ── */}
       <div className="script-menu-print">
         {navSections.map(section => (
@@ -1065,7 +1077,7 @@ export default function AppShell({
               { to: '/motive',    label: 'Motive',     icon: <MapPin size={14} /> },
               { to: '/import',    label: 'Import',     icon: <FileUp size={14} /> },
               { to: '/hilfe',     label: 'Handbuch',   icon: <BookOpen size={14} /> },
-              { to: '/einstellungen', label: 'Einstellungen', icon: <Settings2 size={14} /> },
+              ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} /> }] : []),
               ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: <Settings2 size={14} /> }] : []),
             ].map(item => (
               <Link
@@ -1128,15 +1140,13 @@ export default function AppShell({
               </div>
             )}
             <div className="um-divider" />
-            <Link
-              to="/einstellungen"
+            <button
               className="um-item"
-              style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}
-              onClick={() => setUserMenuOpen(false)}
+              onClick={() => { setUserMenuOpen(false); setAnsichtsModalOpen(true) }}
             >
-              <Settings2 size={14} />
-              Einstellungen
-            </Link>
+              <Eye size={14} />
+              Ansicht
+            </button>
             <button className="um-item" onClick={() => { setUserMenuOpen(false); openOfflineModal() }}>
               {isOnline ? <Wifi size={14} /> : <WifiOff size={14} style={{ color: 'var(--sw-danger)' }} />}
               Offline-Modus
@@ -1161,19 +1171,28 @@ export default function AppShell({
               {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
               {tweaks.theme === 'light' ? 'Dunkles Theme' : 'Helles Theme'}
             </button>
+            {(hasDkAccess || isAdmin) && <div className="um-divider" />}
+            {hasDkAccess && (
+              <Link
+                to="/drehbuchkoordination"
+                className="um-item"
+                onClick={() => setUserMenuOpen(false)}
+                style={{ textDecoration: 'none' }}
+              >
+                <ClipboardList size={14} />
+                Drehbuchkoordination
+              </Link>
+            )}
             {isAdmin && (
-              <>
-                <div className="um-divider" />
-                <Link
-                  to="/admin"
-                  className="um-item"
-                  onClick={() => setUserMenuOpen(false)}
-                  style={{ textDecoration: 'none' }}
-                >
-                  <Settings2 size={14} />
-                  Admin-Einstellungen
-                </Link>
-              </>
+              <Link
+                to="/admin"
+                className="um-item"
+                onClick={() => setUserMenuOpen(false)}
+                style={{ textDecoration: 'none' }}
+              >
+                <Settings2 size={14} />
+                Admin-Einstellungen
+              </Link>
             )}
             <div className="um-divider" />
             <button

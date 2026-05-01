@@ -46,6 +46,7 @@ import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbna
 import { staffelFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
 import { staffelMotiveRouter, motivRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
+import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -121,6 +122,8 @@ app.use('/api/weather', weatherRouter)
 app.use('/api/folgen', folgenRouter)
 app.use('/api/admin/watermark', watermarkAdminRouter)
 app.use('/api/admin/app-settings', appSettingsRouter)
+app.use('/api/dk-settings', dkSettingsRouter)
+app.use('/api/admin/dk-access', dkAccessAdminRouter)
 
 // Rollenprofil Import (must be before /api/characters to avoid route conflict)
 app.use('/api/characters/rollenprofil-import', rollenprofilImportRouter)
@@ -210,6 +213,7 @@ async function runMigrations() {
     'v34_charakter_feld_links.sql',
     'v35_stages_meta_json.sql',
     'v36_wechselschnitt_dauer.sql',
+    'v37_dk_settings.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
