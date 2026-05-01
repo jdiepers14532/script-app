@@ -224,6 +224,7 @@ async function runMigrations() {
     'v37_dk_settings.sql',
     'v38_scene_identities.sql',
     'v39_scene_identity_characters.sql',
+    'v40_nullable_szene_id.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
