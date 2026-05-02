@@ -833,6 +833,9 @@ export default function AppShell({
               {children}
             </PanelModeContext.Provider>
           </UserPrefsContext.Provider>
+          {ansichtsModalOpen && (
+            <AnsichtsModal onClose={() => setAnsichtsModalOpen(false)} />
+          )}
         </TweaksContext.Provider>
       </main>
 
@@ -1045,10 +1048,6 @@ export default function AppShell({
         onClose={() => setFirmendatenOpen(false)}
         dark={tweaks.theme === 'dark'}
       />
-
-      {ansichtsModalOpen && (
-        <AnsichtsModal onClose={() => setAnsichtsModalOpen(false)} />
-      )}
 
       {/* ── Print-only Script Nav ── */}
       <div className="script-menu-print">
