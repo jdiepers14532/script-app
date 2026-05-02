@@ -48,6 +48,8 @@ import { staffelMotiveRouter, motivRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
 import { fassungsSzenenRouter, dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
+import { folgenV2Router } from './routes/folgen-v2'
+import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -143,6 +145,16 @@ app.use('/api/staffeln/:staffelId/stage-labels', (req, _res, next) => { (req.par
 app.use('/api/staffeln/:staffelId/revision-colors', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, revisionColorsRouter)
 app.use('/api/staffeln/:staffelId/revision-einstellungen', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, revisionEinstellungenRouter)
 app.use('/api/szenen/:szeneId/revisionen', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenRevisionenRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
+
+// Werkstufen-Modell (v2)
+app.use('/api/v2/folgen', folgenV2Router)
+app.use('/api/v2/folgen/:folgeId/werkstufen', (req, _res, next) => {
+  (req.params as any).folgeId = req.params.folgeId; next()
+}, folgeWerkstufenRouter)
+app.use('/api/werkstufen', werkstufenRouter)
+app.use('/api/werkstufen/:werkId/szenen', (req, _res, next) => {
+  (req.params as any).werkId = req.params.werkId; next()
+}, werkstufenSzenenRouter)
 
 // Dokument-Editor System
 app.use('/api/folgen/:staffelId/:folgeNummer/dokumente', (req, _res, next) => {
