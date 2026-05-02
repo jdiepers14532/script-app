@@ -1,118 +1,71 @@
 import { test, expect } from '@playwright/test'
 
 const BASE = process.env.BASE_URL || 'https://script.serienwerft.studio'
+const API = `${BASE}/api`
 
-test.describe('Phase 9: Cleanup — Legacy Deprecation & Status', () => {
+test.describe('Phase 7: Cleanup — folgen_meta dropped, legacy references removed', () => {
 
-  test('legacy-status endpoint returns summary', async ({ request }) => {
-    const res = await request.get(`${BASE}/api/dokument-szenen/admin/legacy-status`)
+  test('folgen_meta table is gone (query should fail)', async ({ request }) => {
+    // The folgen API used to auto-create folgen_meta rows — now it uses folgen table
+    // We verify indirectly: PUT to folgen endpoint works (uses folgen table, not folgen_meta)
+    const res = await request.put(`${API}/folgen/rote-rosen/9997`, {
+      data: { arbeitstitel: 'Cleanup Test', synopsis: 'Phase 7 test' }
+    })
     expect(res.ok()).toBeTruthy()
     const data = await res.json()
-    expect(data).toHaveProperty('summary')
-    expect(data).toHaveProperty('episodes')
-    expect(data.summary).toHaveProperty('total')
-    expect(data.summary).toHaveProperty('legacy_only')
-    expect(data.summary).toHaveProperty('dual')
-    expect(data.summary).toHaveProperty('new_only')
-    expect(data.summary).toHaveProperty('empty')
-    expect(typeof data.summary.total).toBe('number')
+    expect(data.arbeitstitel).toBe('Cleanup Test')
+    expect(data.synopsis).toBe('Phase 7 test')
   })
 
-  test('legacy-status episodes have required fields', async ({ request }) => {
-    const res = await request.get(`${BASE}/api/dokument-szenen/admin/legacy-status`)
+  test('GET /api/folgen/:staffelId/:folgeNummer returns data from folgen table', async ({ request }) => {
+    const res = await request.get(`${API}/folgen/rote-rosen/9997`)
+    expect(res.ok()).toBeTruthy()
     const data = await res.json()
-    if (data.episodes.length > 0) {
-      const ep = data.episodes[0]
-      expect(ep).toHaveProperty('staffel_id')
-      expect(ep).toHaveProperty('folge_nummer')
-      expect(ep).toHaveProperty('data_status')
-      expect(['legacy_only', 'dual', 'new_only', 'empty']).toContain(ep.data_status)
-    }
+    expect(data.arbeitstitel).toBe('Cleanup Test')
+    expect(data.synopsis).toBe('Phase 7 test')
+    expect(data.staffel_id).toBe('rote-rosen')
+    expect(data.folge_nummer).toBe(9997)
   })
 
-  test('folge 8888 has dual status (dual-write active)', async ({ request }) => {
-    const res = await request.get(`${BASE}/api/dokument-szenen/admin/legacy-status`)
+  test('synopsis endpoint returns data from folgen table', async ({ request }) => {
+    const res = await request.get(`${API}/folgen/rote-rosen/9997/synopsis`)
+    expect(res.ok()).toBeTruthy()
     const data = await res.json()
-    const ep8888 = data.episodes.find((e: any) => e.folge_nummer === 8888)
-    expect(ep8888).toBeTruthy()
-    expect(ep8888.data_status).toBe('dual')
-    expect(ep8888.legacy_szenen_count).toBeGreaterThan(0)
-    expect(ep8888.new_szenen_count).toBeGreaterThan(0)
+    expect(data.arbeitstitel).toBe('Cleanup Test')
+    expect(data.synopsis).toBe('Phase 7 test')
   })
 
-  test('old stages API returns X-Deprecated header', async ({ request }) => {
-    const res = await request.get(`${BASE}/api/stages?staffel_id=rote-rosen&folge_nummer=8888`)
+  test('legacy-status endpoint is gone (404)', async ({ request }) => {
+    const res = await request.get(`${API}/dokument-szenen/admin/legacy-status`)
+    expect(res.status()).toBe(404)
+  })
+
+  test('v_legacy_data_status view is gone (v2 folgen list still works)', async ({ request }) => {
+    const res = await request.get(`${API}/v2/folgen?staffel_id=rote-rosen`)
     expect(res.ok()).toBeTruthy()
-    const deprecated = res.headers()['x-deprecated']
-    expect(deprecated).toBeTruthy()
-    expect(deprecated).toContain('fassungen')
+    const data = await res.json()
+    expect(Array.isArray(data)).toBeTruthy()
   })
 
-  test('old szenen API returns X-Deprecated header', async ({ request }) => {
-    // First get a stage_id
-    const stagesRes = await request.get(`${BASE}/api/stages?staffel_id=rote-rosen&folge_nummer=8888`)
-    const stages = await stagesRes.json()
-    expect(stages.length).toBeGreaterThan(0)
-    const stageId = stages[0].id
-
-    const res = await request.get(`${BASE}/api/stages/${stageId}/szenen`)
+  test('stages API still works (kept for frontend compat)', async ({ request }) => {
+    const res = await request.get(`${API}/stages?staffel_id=rote-rosen&folge_nummer=8888`)
     expect(res.ok()).toBeTruthy()
-    const deprecated = res.headers()['x-deprecated']
-    expect(deprecated).toBeTruthy()
-    expect(deprecated).toContain('dokument-szenen')
+    const data = await res.json()
+    expect(Array.isArray(data)).toBeTruthy()
   })
 
-  test('new dokument-szenen API does NOT have deprecation header', async ({ request }) => {
-    const dokRes = await request.get(`${BASE}/api/folgen/rote-rosen/8888/dokumente`)
-    const docs = await dokRes.json()
-    const fassungId = docs[0].fassung_id
-
-    const res = await request.get(`${BASE}/api/fassungen/${fassungId}/szenen`)
+  test('folgen dokumente endpoint works without folgen_meta', async ({ request }) => {
+    const res = await request.get(`${API}/folgen/rote-rosen/8888/dokumente`)
     expect(res.ok()).toBeTruthy()
-    const deprecated = res.headers()['x-deprecated']
-    expect(deprecated).toBeFalsy()
+    const data = await res.json()
+    expect(Array.isArray(data)).toBeTruthy()
   })
 
-  test('dual-write consistency: same scene count in old and new system', async ({ request }) => {
-    // Old system
-    const stagesRes = await request.get(`${BASE}/api/stages?staffel_id=rote-rosen&folge_nummer=8888`)
-    const stages = await stagesRes.json()
-    const stageId = stages[0].id
-    const oldSzenen = await (await request.get(`${BASE}/api/stages/${stageId}/szenen`)).json()
-
-    // New system
-    const dokRes = await request.get(`${BASE}/api/folgen/rote-rosen/8888/dokumente`)
-    const docs = await dokRes.json()
-    const fassungId = docs[0].fassung_id
-    const newSzenen = await (await request.get(`${BASE}/api/fassungen/${fassungId}/szenen`)).json()
-
-    // Dual-write should produce same count
-    expect(newSzenen.length).toBe(oldSzenen.length)
-  })
-
-  test('dual-write consistency: scene headers match', async ({ request }) => {
-    // Old system
-    const stagesRes = await request.get(`${BASE}/api/stages?staffel_id=rote-rosen&folge_nummer=8888`)
-    const stages = await stagesRes.json()
-    const stageId = stages[0].id
-    const oldSzenen = await (await request.get(`${BASE}/api/stages/${stageId}/szenen`)).json()
-
-    // New system
-    const dokRes = await request.get(`${BASE}/api/folgen/rote-rosen/8888/dokumente`)
-    const docs = await dokRes.json()
-    const fassungId = docs[0].fassung_id
-    const newSzenen = await (await request.get(`${BASE}/api/fassungen/${fassungId}/szenen`)).json()
-
-    // Compare scene headers (sorted by scene_nummer)
-    const sortByNum = (a: any, b: any) => a.scene_nummer - b.scene_nummer
-    const oldSorted = [...oldSzenen].sort(sortByNum)
-    const newSorted = [...newSzenen].sort(sortByNum)
-
-    for (let i = 0; i < Math.min(oldSorted.length, newSorted.length); i++) {
-      expect(newSorted[i].scene_nummer).toBe(oldSorted[i].scene_nummer)
-      expect(newSorted[i].ort_name).toBe(oldSorted[i].ort_name)
-      expect(newSorted[i].int_ext).toBe(oldSorted[i].int_ext)
-      expect(newSorted[i].tageszeit).toBe(oldSorted[i].tageszeit)
-    }
+  test('cleanup: reset test folge 9997 metadata', async ({ request }) => {
+    // Clear test data by setting fields to null
+    const res = await request.put(`${API}/folgen/rote-rosen/9997`, {
+      data: { arbeitstitel: null, synopsis: null }
+    })
+    expect(res.ok()).toBeTruthy()
   })
 })
