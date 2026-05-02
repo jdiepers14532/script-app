@@ -93,6 +93,55 @@ export function useFassung(dokumentId: string | null) {
   return { fassungen, loading, reload: load }
 }
 
+// ── Werkstufen-Modell (v2) ──────────────────────────────────────────────────
+
+export interface WerkstufeMeta {
+  id: string
+  folge_id: number
+  typ: string
+  version_nummer: number
+  label: string | null
+  bearbeitung_status: string
+  erstellt_von: string | null
+  erstellt_am: string
+  szenen_count: number
+  staffel_id?: string
+  folge_nummer?: number
+}
+
+export function useWerkstufe(folgeId: number | null) {
+  const [werkstufen, setWerkstufen] = useState<WerkstufeMeta[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!folgeId) { setWerkstufen([]); return }
+    setLoading(true)
+    try {
+      const rows = await api.getWerkstufen(folgeId)
+      setWerkstufen(rows)
+    } catch { setWerkstufen([]) }
+    finally { setLoading(false) }
+  }, [folgeId])
+
+  useEffect(() => { load() }, [load])
+
+  const createWerkstufe = useCallback(async (typ: string, label?: string) => {
+    if (!folgeId) return null
+    const result = await api.createWerkstufe(folgeId, { typ, label })
+    await load()
+    return result
+  }, [folgeId, load])
+
+  return { werkstufen, loading, reload: load, createWerkstufe }
+}
+
+export function formatStoppzeit(sek: number | null | undefined): string {
+  if (!sek && sek !== 0) return ''
+  const m = Math.floor(sek / 60)
+  const s = sek % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 export function useFassungContent(dokumentId: string | null, fassungId: string | null) {
   const [fassung, setFassung] = useState<FassungWithInhalt | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')

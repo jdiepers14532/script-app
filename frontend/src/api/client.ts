@@ -427,4 +427,41 @@ export const api = {
     request<any[]>('GET', `/admin/dk-access/${encodeURIComponent(productionId)}`),
   updateDkAccess: (productionId: string, entries: { access_type: string; identifier: string }[]) =>
     request<any[]>('PUT', `/admin/dk-access/${encodeURIComponent(productionId)}`, { entries }),
+
+  // ── Werkstufen-Modell (v2) ────────────────────────────────────────────────
+
+  // Folgen v2 (merged table)
+  getFolgenV2: (staffelId: string) =>
+    request<any[]>('GET', `/v2/folgen?staffel_id=${encodeURIComponent(staffelId)}`),
+  getFolgeV2: (id: number) => request<any>('GET', `/v2/folgen/${id}`),
+  createFolgeV2: (data: { staffel_id: string; folge_nummer: number; folgen_titel?: string }) =>
+    request<any>('POST', '/v2/folgen', data),
+  updateFolgeV2: (id: number, data: { folgen_titel?: string }) =>
+    request<any>('PUT', `/v2/folgen/${id}`, data),
+
+  // Werkstufen
+  getWerkstufen: (folgeId: number) =>
+    request<any[]>('GET', `/v2/folgen/${folgeId}/werkstufen`),
+  getWerkstufe: (id: string) => request<any>('GET', `/werkstufen/${id}`),
+  createWerkstufe: (folgeId: number, data: { typ: string; label?: string }) =>
+    request<any>('POST', `/v2/folgen/${folgeId}/werkstufen`, data),
+  updateWerkstufe: (id: string, data: { label?: string; bearbeitung_status?: string }) =>
+    request<any>('PUT', `/werkstufen/${id}`, data),
+  deleteWerkstufe: (id: string) => request<void>('DELETE', `/werkstufen/${id}`),
+
+  // Werkstufen-Szenen
+  getWerkstufenSzenen: (werkId: string) =>
+    request<any[]>('GET', `/werkstufen/${werkId}/szenen`),
+  createWerkstufeSzene: (werkId: string, data: any) =>
+    request<any>('POST', `/werkstufen/${werkId}/szenen`, data),
+  diffWerkstufen: (leftId: string, rightId: string) =>
+    request<any>('GET', `/werkstufen/${leftId}/szenen/diff/${rightId}`),
+
+  // Werkstufe-based exports
+  exportWerkstufePdf: (werkId: string) =>
+    fetch(`${BASE}/stages/werkstufe/${werkId}/export/pdf`, { credentials: 'include' }),
+  exportWerkstufeFountain: (werkId: string) =>
+    fetch(`${BASE}/stages/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
+  exportWerkstufeFdx: (werkId: string) =>
+    fetch(`${BASE}/stages/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
 }

@@ -130,6 +130,7 @@ export default function ScriptPage() {
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
   const [activeFassungId, setActiveFassungId] = useState<string | null>(null)
+  const [activeWerkId, setActiveWerkId] = useState<string | null>(null)
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
 
   // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
@@ -435,12 +436,13 @@ export default function ScriptPage() {
     }).catch(() => {})
   }, [selectedStaffelId, selectedFolgeNummer])
 
-  // Load Szenen — try dokument_szenen first, fall back to old szenen
+  // Load Szenen — try werkstufen first, then dokument_szenen/fassungen, fall back to old szenen
   useEffect(() => {
     if (!selectedStageId || !selectedStaffelId || selectedFolgeNummer == null) return
     setSzenen([])
     setSelectedSzeneId(null)
     setActiveFassungId(null)
+    setActiveWerkId(null)
     setUseDokumentSzenen(false)
 
     // Find matching fassung for this stage
@@ -450,12 +452,41 @@ export default function ScriptPage() {
     }
     const docTyp = stageToDocTyp[stage?.stage_type] || 'drehbuch'
 
-    // Try new system: load dokumente for this folge, find matching type
-    api.getDokumente(selectedStaffelId, selectedFolgeNummer).then(async (docs: any[]) => {
-      const matchDoc = docs.find((d: any) => d.typ === docTyp)
-      if (matchDoc?.fassung_id) {
-        // Load dokument_szenen from latest fassung
-        try {
+    // Try werkstufen first (v2 model)
+    tryWerkstufen().catch(() => tryFassungen())
+
+    async function tryWerkstufen() {
+      const folgen = await api.getFolgenV2(selectedStaffelId)
+      const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
+      if (!folge) { await tryFassungen(); return }
+      const werkstufen = await api.getWerkstufen(folge.id)
+      // Find latest werkstufe of matching type
+      const matching = werkstufen
+        .filter((w: any) => w.typ === docTyp)
+        .sort((a: any, b: any) => b.version_nummer - a.version_nummer)
+      const werk = matching[0]
+      if (!werk) { await tryFassungen(); return }
+      const werkSzenen = await api.getWerkstufenSzenen(werk.id)
+      if (werkSzenen.length > 0) {
+        setSzenen(werkSzenen)
+        setActiveWerkId(werk.id)
+        setUseDokumentSzenen(true)
+        const savedSzene = pendingNav.current.szeneId
+        const match = savedSzene && werkSzenen.find((s: any) => s.id === savedSzene)
+        setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
+        delete pendingNav.current.szeneId
+        navRestored.current = true
+        return
+      }
+      // Werkstufe exists but has no scenes — fall through
+      await tryFassungen()
+    }
+
+    async function tryFassungen() {
+      try {
+        const docs = await api.getDokumente(selectedStaffelId, selectedFolgeNummer!)
+        const matchDoc = docs.find((d: any) => d.typ === docTyp)
+        if (matchDoc?.fassung_id) {
           const dkSzenen = await api.getFassungsSzenen(matchDoc.fassung_id)
           if (dkSzenen.length > 0) {
             setSzenen(dkSzenen)
@@ -468,11 +499,10 @@ export default function ScriptPage() {
             navRestored.current = true
             return
           }
-        } catch { /* fall through to old system */ }
-      }
-      // Fall back to old szenen system
+        }
+      } catch { /* fall through */ }
       loadOldSzenen()
-    }).catch(() => loadOldSzenen())
+    }
 
     function loadOldSzenen() {
       api.getSzenen(selectedStageId!).then(async data => {

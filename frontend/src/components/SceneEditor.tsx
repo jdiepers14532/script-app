@@ -313,22 +313,46 @@ export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, 
             <span className="scene-big">SZ{scene.scene_nummer}</span>
           </span>
 
-          {/* Stoppzeit — einfaches Eingabefeld zwischen SZ und Motiv */}
-          <input
-            key={`stopp-${szeneId}`}
-            className="spielzeit-inp stopp-inp"
-            defaultValue={scene.dauer_min != null ? String(scene.dauer_min) : ''}
-            placeholder="0'"
-            title="Geplante Dauer (Minuten)"
-            type="number"
-            min={0}
-            onBlur={e => {
-              const raw = e.target.value.trim()
-              const val = raw ? parseFloat(raw) : null
-              if (val !== (scene.dauer_min ?? null))
-                saveScene({ dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-            }}
-          />
+          {/* Stoppzeit — mm:ss for werkstufen (stoppzeit_sek), minutes for legacy */}
+          {scene.stoppzeit_sek != null || (useDokumentSzenen && typeof szeneId === 'string') ? (
+            <input
+              key={`stopp-${szeneId}`}
+              className="spielzeit-inp stopp-inp"
+              defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
+              placeholder="0:00"
+              title="Stoppzeit (mm:ss)"
+              onBlur={e => {
+                const raw = e.target.value.trim()
+                if (!raw) {
+                  if (scene.stoppzeit_sek != null)
+                    saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  return
+                }
+                const parts = raw.split(':')
+                const mins = parseInt(parts[0] || '0', 10) || 0
+                const secs = parseInt(parts[1] || '0', 10) || 0
+                const total = mins * 60 + secs
+                if (total !== (scene.stoppzeit_sek ?? null))
+                  saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+              }}
+            />
+          ) : (
+            <input
+              key={`stopp-${szeneId}`}
+              className="spielzeit-inp stopp-inp"
+              defaultValue={scene.dauer_min != null ? String(scene.dauer_min) : ''}
+              placeholder="0'"
+              title="Geplante Dauer (Minuten)"
+              type="number"
+              min={0}
+              onBlur={e => {
+                const raw = e.target.value.trim()
+                const val = raw ? parseFloat(raw) : null
+                if (val !== (scene.dauer_min ?? null))
+                  saveScene({ dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+              }}
+            />
+          )}
 
           {/* Motiv — wächst und füllt */}
           <span className="sf-motiv">{scene.ort_name}</span>
