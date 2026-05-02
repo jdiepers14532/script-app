@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowLeft, Columns, Square, Settings, Eye, EyeOff } from 'lucide-react'
-import { useDokument } from '../hooks/useDokument'
+import { useWerkstufe } from '../hooks/useDokument'
 import { useEditorPrefs } from '../hooks/useEditorPrefs'
 import { useAppSettings } from '../contexts'
 import EditorPanel from '../components/editor/EditorPanel'
@@ -43,33 +43,37 @@ export default function DokumentEditorPage() {
     window.addEventListener('mouseup', onUp)
   }, [])
 
-  // Document data
-  const { dokumente, loading, createDokument, reload: reloadDokumente } = useDokument(
-    staffelId || null,
-    folgeNummer || null
-  )
+  // Resolve folge_id from staffel + nummer
+  const [folgeId, setFolgeId] = useState<number | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!staffelId || !folgeNummer) { setFolgeId(null); return }
+    setLoading(true)
+    api.getFolgenV2(staffelId)
+      .then(folgen => {
+        const match = folgen.find((f: any) => f.folge_nummer === folgeNummer)
+        setFolgeId(match?.id ?? null)
+      })
+      .catch(() => setFolgeId(null))
+      .finally(() => setLoading(false))
+  }, [staffelId, folgeNummer])
+
+  // Load werkstufen
+  const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
 
   // Format templates from backend
   const [formatElements, setFormatElements] = useState<any[]>([])
-  const [customTypen, setCustomTypen] = useState<{ name: string; editor_modus: string }[]>([])
 
   useEffect(() => {
-    // Load format template
     api.getFormatTemplates().then(templates => {
       const standard = templates.find(t => t.ist_standard)
       if (standard?.elemente) setFormatElements(standard.elemente)
     }).catch(() => {})
+  }, [])
 
-    // Load custom types
-    if (staffelId) {
-      api.getDokumentTypen(staffelId).then(typen => {
-        setCustomTypen(typen.map(t => ({ name: t.name, editor_modus: t.editor_modus })))
-      }).catch(() => {})
-    }
-  }, [staffelId])
-
-  const handleCreateDokument = async (typ: string) => {
-    await createDokument(typ)
+  const handleCreate = async (typ: string) => {
+    await createWerkstufe(typ)
   }
 
   if (!staffelId || !folgeNummer) {
@@ -79,6 +83,16 @@ export default function DokumentEditorPage() {
         <Link to="/" style={{ fontSize: 13, color: 'var(--sw-info)' }}>← Zurück zur Übersicht</Link>
       </div>
     )
+  }
+
+  const panelProps = {
+    staffelId,
+    folgeNummer,
+    folgeId,
+    werkstufen,
+    formatElements,
+    onCreateWerkstufe: handleCreate,
+    onReloadWerkstufen: reloadWerkstufen,
   }
 
   return (
@@ -105,7 +119,6 @@ export default function DokumentEditorPage() {
 
         <div style={{ flex: 1 }} />
 
-        {/* Side-by-side Toggle */}
         <Tooltip text={sideMode === 'split' ? 'Einzelansicht' : 'Side-by-Side'}>
           <button
             onClick={() => setSideMode(m => m === 'single' ? 'split' : 'single')}
@@ -120,7 +133,6 @@ export default function DokumentEditorPage() {
           </button>
         </Tooltip>
 
-        {/* Shadow Toggle */}
         <Tooltip text={prefs.showShadow ? 'Seitenschatten aus' : 'Seitenschatten ein'}>
           <button
             onClick={() => updatePrefs({ showShadow: !prefs.showShadow })}
@@ -134,7 +146,6 @@ export default function DokumentEditorPage() {
           </button>
         </Tooltip>
 
-        {/* Seitenformat Toggle */}
         <Tooltip text={`Seitenformat: ${prefs.seitenformat === 'a4' ? 'A4' : 'Letter'} — klicken zum Wechseln`}>
           <button
             onClick={() => updatePrefs({ seitenformat: prefs.seitenformat === 'a4' ? 'letter' : 'a4' })}
@@ -159,35 +170,17 @@ export default function DokumentEditorPage() {
       <div ref={containerRef} style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {sideMode === 'single' ? (
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <EditorPanel
-              staffelId={staffelId}
-              folgeNummer={folgeNummer}
-              allDokumente={dokumente}
-              customTypen={customTypen}
-              formatElements={formatElements}
-              onCreateDokument={handleCreateDokument}
-              onReloadDokumente={reloadDokumente}
-            />
+            <EditorPanel {...panelProps} />
           </div>
         ) : (
           <>
-            {/* Left panel */}
             <div style={{
               width: `${splitRatio * 100}%`, overflow: 'hidden', flexShrink: 0,
               pointerEvents: isDragging ? 'none' : 'auto',
             }}>
-              <EditorPanel
-                staffelId={staffelId}
-                folgeNummer={folgeNummer}
-                allDokumente={dokumente}
-                customTypen={customTypen}
-                formatElements={formatElements}
-                onCreateDokument={handleCreateDokument}
-                onReloadDokumente={reloadDokumente}
-              />
+              <EditorPanel {...panelProps} />
             </div>
 
-            {/* Drag handle */}
             <div
               onMouseDown={onDragStart}
               onDoubleClick={() => setSplitRatio(0.5)}
@@ -206,20 +199,11 @@ export default function DokumentEditorPage() {
               }} />
             </div>
 
-            {/* Right panel */}
             <div style={{
               flex: 1, overflow: 'hidden',
               pointerEvents: isDragging ? 'none' : 'auto',
             }}>
-              <EditorPanel
-                staffelId={staffelId}
-                folgeNummer={folgeNummer}
-                allDokumente={dokumente}
-                customTypen={customTypen}
-                formatElements={formatElements}
-                onCreateDokument={handleCreateDokument}
-                onReloadDokumente={reloadDokumente}
-              />
+              <EditorPanel {...panelProps} />
             </div>
           </>
         )}

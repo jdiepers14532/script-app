@@ -1,9 +1,7 @@
-import { useState, useEffect, useRef, lazy, Suspense } from 'react'
-import { useFassung, useFassungContent } from '../../hooks/useDokument'
-import type { DokumentMeta, FassungMeta } from '../../hooks/useDokument'
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
+import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
-import LastEditedRow from './LastEditedRow'
 import CollaborationPresence from './CollaborationPresence'
 const ScreenplayEditor = lazy(() => import('./ScreenplayEditor'))
 const RichTextEditor = lazy(() => import('./RichTextEditor'))
@@ -11,7 +9,7 @@ import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs } from '../../contexts'
 
-// Editor modus per document type
+// Editor modus per werkstufe type
 const EDITOR_MODUS: Record<string, 'screenplay' | 'richtext'> = {
   drehbuch: 'screenplay',
   storyline: 'richtext',
@@ -22,110 +20,166 @@ const EDITOR_MODUS: Record<string, 'screenplay' | 'richtext'> = {
 interface Props {
   staffelId: string
   folgeNummer: number
-  allDokumente: DokumentMeta[]
-  customTypen?: { name: string; editor_modus: string }[]
+  folgeId: number | null
+  werkstufen: WerkstufeMeta[]
   formatElements?: any[]
   defaultTyp?: string
-  onCreateDokument: (typ: string) => void
-  onReloadDokumente: () => void
+  onCreateWerkstufe: (typ: string) => void
+  onReloadWerkstufen: () => void
 }
 
 export default function EditorPanel({
-  staffelId, folgeNummer, allDokumente, customTypen = [], formatElements = [],
-  defaultTyp, onCreateDokument, onReloadDokumente,
+  staffelId, folgeNummer, folgeId, werkstufen, formatElements = [],
+  defaultTyp, onCreateWerkstufe, onReloadWerkstufen,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
 
-  // Panel state: which document and fassung are selected
-  const [selectedDokumentId, setSelectedDokumentId] = useState<string | null>(null)
-  const initialTypApplied = useRef(false)
+  // Panel state: which werkstufe is selected
+  const [selectedWerkId, setSelectedWerkId] = useState<string | null>(null)
+  const initialApplied = useRef(false)
 
-  // Auto-select preferred document type once on first load
+  // Auto-select preferred werkstufe type once on first load
   useEffect(() => {
-    if (initialTypApplied.current || allDokumente.length === 0) return
-    initialTypApplied.current = true
-    const preferred = defaultTyp ? allDokumente.find(d => d.typ === defaultTyp) : null
-    setSelectedDokumentId(preferred?.id ?? allDokumente[0]?.id ?? null)
-  }, [allDokumente]) // eslint-disable-line react-hooks/exhaustive-deps
-  const [selectedFassungId, setSelectedFassungId] = useState<string | null>(null)
+    if (initialApplied.current || werkstufen.length === 0) return
+    initialApplied.current = true
+    const preferred = defaultTyp
+      ? werkstufen.filter(w => w.typ === defaultTyp).sort((a, b) => b.version_nummer - a.version_nummer)[0]
+      : null
+    setSelectedWerkId(preferred?.id ?? werkstufen[0]?.id ?? null)
+  }, [werkstufen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const selectedDokument = allDokumente.find(d => d.id === selectedDokumentId) ?? null
-  const { fassungen, reload: reloadFassungen } = useFassung(selectedDokumentId)
-  const { fassung, loading: contentLoading, saveStatus, scheduleSave } = useFassungContent(selectedDokumentId, selectedFassungId)
+  const selectedWerk = werkstufen.find(w => w.id === selectedWerkId) ?? null
 
-  // Auto-select latest fassung when document changes
+  // Load scenes for selected werkstufe
+  const [szenen, setSzenen] = useState<any[]>([])
+  const [composedContent, setComposedContent] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
-    if (fassungen.length > 0 && !selectedFassungId) {
-      const latest = fassungen[fassungen.length - 1]
-      setSelectedFassungId(latest.id)
-    }
-  }, [fassungen, selectedFassungId])
+    if (!selectedWerkId) { setSzenen([]); setComposedContent(null); return }
+    setLoading(true)
+    api.getWerkstufenSzenen(selectedWerkId)
+      .then(scenes => {
+        setSzenen(scenes)
+        // Compose all scenes' content into one ProseMirror doc
+        const nodes: any[] = []
+        for (const sz of scenes) {
+          if (!sz.content) continue
+          // content can be an array (raw nodes) or a doc object
+          const contentNodes = Array.isArray(sz.content)
+            ? sz.content
+            : (sz.content?.content ?? [])
+          for (const node of contentNodes) {
+            nodes.push(node)
+          }
+        }
+        setComposedContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
+      })
+      .catch(() => { setSzenen([]); setComposedContent(null) })
+      .finally(() => setLoading(false))
+  }, [selectedWerkId])
 
-  // Reset fassung selection when document changes
-  const handleSelectDokument = (dokumentId: string) => {
-    setSelectedDokumentId(dokumentId)
-    setSelectedFassungId(null)
-  }
+  // Cleanup save timer
+  useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
 
-  const handleCreateFassung = async () => {
-    if (!selectedDokumentId) return
-    try {
-      await api.createFassung(selectedDokumentId, {})
-      await reloadFassungen()
-    } catch (e: any) {
-      alert('Fehler beim Erstellen der Fassung: ' + e.message)
-    }
-  }
+  // Save: distribute editor content back to individual dokument_szenen
+  const scheduleSave = useCallback((editorContent: any) => {
+    if (!editorContent || szenen.length === 0) return
+    setSaveStatus('saving')
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
 
-  const handleFassungUpdated = (updated: Partial<FassungMeta>) => {
-    reloadFassungen()
-  }
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        const allNodes: any[] = editorContent?.content ?? []
+        // Split nodes by scene_heading boundaries (for screenplay) or distribute evenly
+        const chunks: any[][] = []
+        let current: any[] = []
+
+        for (const node of allNodes) {
+          // screenplay_element with scene_heading starts a new scene
+          if (node.type === 'screenplay_element' && node.attrs?.element_type === 'scene_heading') {
+            if (current.length > 0) chunks.push(current)
+            current = [node]
+          } else {
+            current.push(node)
+          }
+        }
+        if (current.length > 0) chunks.push(current)
+
+        // If no scene headings found (e.g. storyline), treat whole content as one chunk
+        if (chunks.length === 0 && allNodes.length > 0) {
+          chunks.push(allNodes)
+        }
+
+        // Map chunks back to szenen by index
+        for (let i = 0; i < Math.min(chunks.length, szenen.length); i++) {
+          await api.updateDokumentSzene(szenen[i].id, {
+            content: chunks[i],
+          })
+        }
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 1500)
+  }, [szenen])
 
   // Determine editor mode
-  const editorModus = (() => {
-    if (!selectedDokument) return 'richtext' as const
-    const custom = customTypen.find(t => t.name === selectedDokument.typ)
-    if (custom) return custom.editor_modus as 'screenplay' | 'richtext'
-    return EDITOR_MODUS[selectedDokument.typ] ?? 'richtext'
-  })()
+  const editorModus = selectedWerk
+    ? (EDITOR_MODUS[selectedWerk.typ] ?? 'richtext')
+    : 'richtext'
 
-  const isReadOnly = fassung?._access === 'r' || fassung?._access === 'review' || fassung?.abgegeben
+  const isReadOnly = selectedWerk?.bearbeitung_status === 'gesperrt' || selectedWerk?.abgegeben
 
-  // Collaboration: only for colab sichtbarkeit and rw access
-  const collabEnabled = fassung?.sichtbarkeit === 'colab' && fassung?._access === 'rw'
+  // Collaboration
+  const collabEnabled = selectedWerk?.sichtbarkeit === 'colab' && !isReadOnly
   const { ydoc, provider, status: collabStatus, users: collabUsers } = useCollaboration({
-    fassungId: collabEnabled ? selectedFassungId : null,
+    fassungId: collabEnabled ? selectedWerkId : null,
     enabled: collabEnabled,
   })
+
+  // Find latest edit info from szenen
+  const latestSzene = szenen.reduce<any>((best, s) => {
+    if (!best) return s
+    return (s.updated_at ?? '') > (best.updated_at ?? '') ? s : best
+  }, null)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <EditorPanelHeader
-        dokument={selectedDokument}
-        allDokumente={allDokumente}
-        fassungen={fassungen}
-        selectedFassungId={selectedFassungId}
+        selectedWerk={selectedWerk}
+        werkstufen={werkstufen}
         staffelId={staffelId}
         folgeNummer={folgeNummer}
-        customTypen={customTypen}
-        onSelectDokument={handleSelectDokument}
-        onSelectFassung={setSelectedFassungId}
-        onCreateDokument={onCreateDokument}
-        onCreateFassung={handleCreateFassung}
-        onFassungUpdated={handleFassungUpdated}
+        folgeId={folgeId}
+        onSelectWerkstufe={setSelectedWerkId}
+        onCreateWerkstufe={onCreateWerkstufe}
+        onReloadWerkstufen={onReloadWerkstufen}
       />
 
-      {fassung && (
+      {selectedWerk && latestSzene && (
         <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
           <div style={{ flex: 1 }}>
-            <LastEditedRow
-              dokumentId={selectedDokumentId!}
-              fassungId={selectedFassungId!}
-              zuletzt_geaendert_von={fassung.zuletzt_geaendert_von}
-              zuletzt_geaendert_am={fassung.zuletzt_geaendert_am}
-              saveStatus={saveStatus}
-            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-subtle)' }}>
+              {latestSzene.updated_by && (
+                <span>
+                  {latestSzene.updated_by}
+                  {latestSzene.updated_at && `, ${new Date(latestSzene.updated_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}`}
+                </span>
+              )}
+              <div style={{ flex: 1 }} />
+              {saveStatus !== 'idle' && (
+                <span style={{
+                  color: saveStatus === 'saved' ? 'var(--sw-green)' : saveStatus === 'error' ? 'var(--sw-danger)' : 'var(--text-muted)',
+                  fontWeight: saveStatus === 'saved' ? 500 : 400,
+                }}>
+                  {saveStatus === 'saving' ? 'Speichert…' : saveStatus === 'saved' ? '● Gespeichert' : '● Fehler'}
+                </span>
+              )}
+            </div>
           </div>
           {collabEnabled && (
             <div style={{ padding: '0 10px' }}>
@@ -136,19 +190,19 @@ export default function EditorPanel({
       )}
 
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        {contentLoading ? (
+        {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 13 }}>
             Lädt…
           </div>
-        ) : !selectedDokument || !fassung ? (
+        ) : !selectedWerk ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 12 }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-              {!selectedDokument ? 'Dokument-Typ auswählen' : 'Keine Fassung geladen'}
+              {werkstufen.length === 0 ? 'Keine Werkstufen vorhanden' : 'Werkstufe auswählen'}
             </p>
-            {!selectedDokument && allDokumente.length === 0 && (
+            {werkstufen.length === 0 && folgeId && (
               <div style={{ display: 'flex', gap: 8 }}>
-                {['drehbuch', 'storyline', 'notiz'].map(typ => (
-                  <button key={typ} onClick={() => onCreateDokument(typ)}
+                {['drehbuch', 'storyline'].map(typ => (
+                  <button key={typ} onClick={() => onCreateWerkstufe(typ)}
                     style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
                     {typ}
                   </button>
@@ -156,13 +210,17 @@ export default function EditorPanel({
               </div>
             )}
           </div>
+        ) : !composedContent && szenen.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 13 }}>
+            Keine Szenen
+          </div>
         ) : editorModus === 'screenplay' ? (
           <Suspense fallback={null}>
             <ScreenplayEditor
-              initialContent={fassung.inhalt}
+              initialContent={composedContent}
               onSave={isReadOnly ? undefined : scheduleSave}
               readOnly={!!isReadOnly}
-              seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
+              seitenformat={prefs.seitenformat}
               showShadow={showPageShadow}
               formatElements={formatElements}
               ydoc={ydoc}
@@ -173,10 +231,10 @@ export default function EditorPanel({
         ) : (
           <Suspense fallback={null}>
             <RichTextEditor
-              initialContent={fassung.inhalt}
+              initialContent={composedContent}
               onSave={isReadOnly ? undefined : scheduleSave}
               readOnly={!!isReadOnly}
-              seitenformat={(fassung.seitenformat as 'a4' | 'letter') ?? prefs.seitenformat}
+              seitenformat={prefs.seitenformat}
               showShadow={showPageShadow}
               ydoc={ydoc}
               provider={provider}

@@ -7,15 +7,36 @@ import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
 import { useFocus, useSelectedProduction, PanelModeContext } from '../contexts'
-import { useDokument } from '../hooks/useDokument'
+import { useWerkstufe } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
-// Rendered inside AppShell children → has access to PanelModeContext
+// Uses Werkstufen-Modell: folgen → werkstufen → dokument_szenen
 function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; folgeNummer: number | null }) {
   const { panelMode } = useContext(PanelModeContext)
-  const { dokumente, createDokument, reload } = useDokument(staffelId || null, folgeNummer)
-  const [customTypen, setCustomTypen] = useState<{ name: string; editor_modus: string }[]>([])
+  const [folgeId, setFolgeId] = useState<number | null>(null)
   const [formatElements, setFormatElements] = useState<any[]>([])
+
+  // Resolve staffelId + folgeNummer → folge_id
+  useEffect(() => {
+    if (!staffelId || !folgeNummer) { setFolgeId(null); return }
+    api.getFolgenV2(staffelId)
+      .then(folgen => {
+        const match = folgen.find((f: any) => f.folge_nummer === folgeNummer)
+        setFolgeId(match?.id ?? null)
+      })
+      .catch(() => setFolgeId(null))
+  }, [staffelId, folgeNummer])
+
+  // Load werkstufen for this folge
+  const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
+
+  // Load format elements
+  useEffect(() => {
+    api.getFormatTemplates().then((templates: any[]) => {
+      const standard = templates.find((t: any) => t.ist_standard)
+      if (standard?.elemente) setFormatElements(standard.elemente)
+    }).catch(() => {})
+  }, [])
 
   // Resizable split
   const [splitRatio, setSplitRatio] = useState(0.5)
@@ -40,23 +61,15 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
     window.addEventListener('mouseup', onUp)
   }, [])
 
-  useEffect(() => {
-    api.getFormatTemplates().then((templates: any[]) => {
-      const standard = templates.find((t: any) => t.ist_standard)
-      if (standard?.elemente) setFormatElements(standard.elemente)
-    }).catch(() => {})
-    if (staffelId) {
-      api.getDokumentTypen(staffelId).then((typen: any[]) => {
-        setCustomTypen(typen.map((t: any) => ({ name: t.name, editor_modus: t.editor_modus })))
-      }).catch(() => {})
-    }
-  }, [staffelId])
-
   if (!staffelId || !folgeNummer) return null
 
   const showLeft = panelMode !== 'script'
   const showRight = panelMode !== 'treatment'
   const showBoth = showLeft && showRight
+
+  const handleCreate = async (typ: string) => {
+    await createWerkstufe(typ)
+  }
 
   return (
     <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -71,12 +84,12 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
             key={`${staffelId}-${folgeNummer}-left`}
             staffelId={staffelId}
             folgeNummer={folgeNummer}
-            allDokumente={dokumente}
-            customTypen={customTypen}
+            folgeId={folgeId}
+            werkstufen={werkstufen}
             formatElements={formatElements}
             defaultTyp="storyline"
-            onCreateDokument={createDokument}
-            onReloadDokumente={reload}
+            onCreateWerkstufe={handleCreate}
+            onReloadWerkstufen={reloadWerkstufen}
           />
         </div>
       )}
@@ -91,7 +104,6 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
           }}
           title="Ziehen zum Ändern der Breite · Doppelklick = 50/50"
         >
-          {/* Invisible wider hit area */}
           <div style={{
             position: 'absolute', top: 0, bottom: 0, left: -4, width: 9,
             cursor: 'col-resize',
@@ -107,12 +119,12 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
             key={`${staffelId}-${folgeNummer}-right`}
             staffelId={staffelId}
             folgeNummer={folgeNummer}
-            allDokumente={dokumente}
-            customTypen={customTypen}
+            folgeId={folgeId}
+            werkstufen={werkstufen}
             formatElements={formatElements}
             defaultTyp="drehbuch"
-            onCreateDokument={createDokument}
-            onReloadDokumente={reload}
+            onCreateWerkstufe={handleCreate}
+            onReloadWerkstufen={reloadWerkstufen}
           />
         </div>
       )}

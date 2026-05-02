@@ -101,6 +101,8 @@ export interface WerkstufeMeta {
   typ: string
   version_nummer: number
   label: string | null
+  sichtbarkeit: string
+  abgegeben: boolean
   bearbeitung_status: string
   erstellt_von: string | null
   erstellt_am: string
