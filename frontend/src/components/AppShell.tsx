@@ -832,10 +832,10 @@ export default function AppShell({
             <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
               {children}
             </PanelModeContext.Provider>
+            {ansichtsModalOpen && (
+              <AnsichtsModal onClose={() => setAnsichtsModalOpen(false)} />
+            )}
           </UserPrefsContext.Provider>
-          {ansichtsModalOpen && (
-            <AnsichtsModal onClose={() => setAnsichtsModalOpen(false)} />
-          )}
         </TweaksContext.Provider>
       </main>
 

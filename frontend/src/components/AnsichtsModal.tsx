@@ -7,6 +7,7 @@ import {
   FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX, DEFAULT_TWEAKS,
 } from './AppShell'
 import { useTweaks, useAppSettings } from '../contexts'
+import Tooltip from './Tooltip'
 
 export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
   const { tweaks, set, reset } = useTweaks()
@@ -97,31 +98,32 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
               <span style={labelStyle}>Hintergrundfarbe</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 {palettes.map((p, i) => (
-                  <button
-                    key={i}
-                    style={{
-                      width: 26, height: 26, borderRadius: 6,
-                      border: activeIdx === i ? '2px solid var(--text-primary)' : '1px solid var(--border)',
-                      background: p.preview, cursor: 'pointer', padding: 0,
-                    }}
-                    title={p.name}
-                    onClick={() => isDark ? set('darkBgIndex', i) : set('lightBgIndex', i)}
-                  />
+                  <Tooltip key={i} text={p.name}>
+                    <button
+                      style={{
+                        width: 26, height: 26, borderRadius: 6,
+                        border: activeIdx === i ? '2px solid var(--text-primary)' : '1px solid var(--border)',
+                        background: p.preview, cursor: 'pointer', padding: 0,
+                      }}
+                      onClick={() => isDark ? set('darkBgIndex', i) : set('lightBgIndex', i)}
+                    />
+                  </Tooltip>
                 ))}
                 <div style={{ position: 'relative' }}>
-                  <button
-                    style={{
-                      width: 26, height: 26, borderRadius: 6,
-                      border: activeIdx === CUSTOM_IDX ? '2px solid var(--text-primary)' : '1px solid var(--border)',
-                      background: activeIdx === CUSTOM_IDX ? customColor : 'linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff)',
-                      cursor: 'pointer', padding: 0,
-                    }}
-                    title="Eigene Farbe"
-                    onClick={() => {
-                      if (isDark) { set('darkBgIndex', CUSTOM_IDX); darkColorRef.current?.click() }
-                      else        { set('lightBgIndex', CUSTOM_IDX); lightColorRef.current?.click() }
-                    }}
-                  />
+                  <Tooltip text="Eigene Farbe">
+                    <button
+                      style={{
+                        width: 26, height: 26, borderRadius: 6,
+                        border: activeIdx === CUSTOM_IDX ? '2px solid var(--text-primary)' : '1px solid var(--border)',
+                        background: activeIdx === CUSTOM_IDX ? customColor : 'linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff)',
+                        cursor: 'pointer', padding: 0,
+                      }}
+                      onClick={() => {
+                        if (isDark) { set('darkBgIndex', CUSTOM_IDX); darkColorRef.current?.click() }
+                        else        { set('lightBgIndex', CUSTOM_IDX); lightColorRef.current?.click() }
+                      }}
+                    />
+                  </Tooltip>
                   <input
                     ref={isDark ? darkColorRef : lightColorRef}
                     type="color"
@@ -210,17 +212,17 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             <div style={rowStyle}>
               <span style={labelStyle}>Panelmodus</span>
               <div className="seg">
-                <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')} title="Beide Panels"><Columns2 size={13} /></button>
-                <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')} title={`Nur ${treatmentLabel}`}><PanelLeft size={13} /></button>
-                <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')} title="Nur Drehbuch"><PanelRight size={13} /></button>
+                <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={13} /></button></Tooltip>
+                <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={13} /></button></Tooltip>
+                <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={13} /></button></Tooltip>
               </div>
             </div>
 
             <div style={rowStyle}>
               <span style={labelStyle}>Editor-Ansicht</span>
               <div className="seg">
-                <button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)} title="Blatt mit Schatten"><BookOpen size={13} /></button>
-                <button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)} title="Fliesstext"><AlignLeft size={13} /></button>
+                <Tooltip text="Blatt mit Schatten"><button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)}><BookOpen size={13} /></button></Tooltip>
+                <Tooltip text="Fliesstext"><button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)}><AlignLeft size={13} /></button></Tooltip>
               </div>
             </div>
 
