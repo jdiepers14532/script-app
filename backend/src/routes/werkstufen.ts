@@ -84,10 +84,10 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
     if (predecessorId) {
       const copyRes = await client.query(
         `INSERT INTO dokument_szenen
-           (werkstufe_id, fassung_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+           (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
             format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
             szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
-         SELECT $1, $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+         SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
                 format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
                 szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, $2
          FROM dokument_szenen
@@ -246,10 +246,10 @@ werkstufenSzenenRouter.post('/', async (req, res) => {
 
     const row = await queryOne(
       `INSERT INTO dokument_szenen
-         (werkstufe_id, fassung_id, scene_identity_id, sort_order, scene_nummer,
+         (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
           format, int_ext, tageszeit, ort_name, zusammenfassung, content,
           stoppzeit_sek, updated_by)
-       VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
       [
         werkId, identityId, finalSortOrder, finalSceneNummer,
         format || ws.typ || 'drehbuch',

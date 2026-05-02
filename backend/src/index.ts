@@ -240,6 +240,7 @@ async function runMigrations() {
     'v41_revision_dokument_szene.sql',
     'v42_deprecate_legacy_tables.sql',
     'v43_werkstufen_modell.sql',
+    'v43_1_fassung_nullable.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
