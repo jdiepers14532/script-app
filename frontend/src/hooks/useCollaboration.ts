@@ -21,11 +21,12 @@ function colorForId(clientId: number): string {
 }
 
 interface UseCollaborationOptions {
-  fassungId: string | null
+  fassungId?: string | null
+  szeneId?: string | null
   enabled: boolean
 }
 
-export function useCollaboration({ fassungId, enabled }: UseCollaborationOptions) {
+export function useCollaboration({ fassungId, szeneId, enabled }: UseCollaborationOptions) {
   const providerRef = useRef<HocuspocusProvider | null>(null)
   const ydocRef = useRef<Y.Doc | null>(null)
   const [status, setStatus] = useState<CollabStatus>('disconnected')
@@ -39,8 +40,12 @@ export function useCollaboration({ fassungId, enabled }: UseCollaborationOptions
     setUsers([])
   }, [])
 
+  // Derive room name from props
+  const roomId = szeneId ?? fassungId
+  const roomPrefix = szeneId ? 'szene' : 'fassung'
+
   useEffect(() => {
-    if (!fassungId || !enabled) {
+    if (!roomId || !enabled) {
       destroy()
       return
     }
@@ -60,7 +65,7 @@ export function useCollaboration({ fassungId, enabled }: UseCollaborationOptions
 
     const provider = new HocuspocusProvider({
       url: wsUrl,
-      name: `fassung-${fassungId}`,
+      name: `${roomPrefix}-${roomId}`,
       document: ydoc,
       token,
       onStatus({ status: s }) {
@@ -111,7 +116,7 @@ export function useCollaboration({ fassungId, enabled }: UseCollaborationOptions
       window.removeEventListener('online', handleOnline)
       destroy()
     }
-  }, [fassungId, enabled, destroy])
+  }, [roomId, roomPrefix, enabled, destroy])
 
   return {
     ydoc: ydocRef.current,
