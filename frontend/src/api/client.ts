@@ -323,7 +323,11 @@ export const api = {
   autocompleteLocations: (staffelId: string, q: string) =>
     request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/locations?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(q)}`),
 
-  // Scene comments: stage-based methods removed in Phase 7 Cleanup
+  // Scene comment read-state (Messenger-App annotation badge) (legacy)
+  getSceneCommentCounts: (stageId: number) =>
+    request<Record<number, number>>('GET', `/stages/${stageId}/szenen-comment-counts`),
+  markSceneCommentsRead: (szeneId: number) =>
+    request<{ ok: boolean }>('POST', `/szenen/${szeneId}/mark-comments-read`),
 
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {
