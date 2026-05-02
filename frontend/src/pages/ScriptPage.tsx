@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
-import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
 import { useFocus, useSelectedProduction, PanelModeContext } from '../contexts'
@@ -141,8 +140,6 @@ export default function ScriptPage() {
   const [bloecke, setBloecke] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
-  const [activeFassungId, setActiveFassungId] = useState<string | null>(null)
-  const [activeWerkId, setActiveWerkId] = useState<string | null>(null)
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
 
   // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
@@ -453,8 +450,6 @@ export default function ScriptPage() {
     if (!selectedStageId || !selectedStaffelId || selectedFolgeNummer == null) return
     setSzenen([])
     setSelectedSzeneId(null)
-    setActiveFassungId(null)
-    setActiveWerkId(null)
     setUseDokumentSzenen(false)
 
     // Find matching fassung for this stage
@@ -481,7 +476,6 @@ export default function ScriptPage() {
       const werkSzenen = await api.getWerkstufenSzenen(werk.id)
       if (werkSzenen.length > 0) {
         setSzenen(werkSzenen)
-        setActiveWerkId(werk.id)
         setUseDokumentSzenen(true)
         const savedSzene = pendingNav.current.szeneId
         const match = savedSzene && werkSzenen.find((s: any) => s.id === savedSzene)
@@ -502,7 +496,6 @@ export default function ScriptPage() {
           const dkSzenen = await api.getFassungsSzenen(matchDoc.fassung_id)
           if (dkSzenen.length > 0) {
             setSzenen(dkSzenen)
-            setActiveFassungId(matchDoc.fassung_id)
             setUseDokumentSzenen(true)
             const savedSzene = pendingNav.current.szeneId
             const match = savedSzene && dkSzenen.find((s: any) => s.id === savedSzene)
@@ -548,11 +541,6 @@ export default function ScriptPage() {
     const interval = setInterval(load, 60_000)
     return () => { cancelled = true; clearInterval(interval) }
   }, [selectedStageId])
-
-  const handleMarkCommentsRead = useCallback((szeneId: number) => {
-    setCommentCounts(prev => ({ ...prev, [szeneId]: 0 }))
-    api.markSceneCommentsRead(szeneId).catch(() => {})
-  }, [])
 
   // Save navigation position when selections change
   useEffect(() => {
@@ -629,30 +617,8 @@ export default function ScriptPage() {
           </button>
         </div>
 
-        {/* Editor area — vertical split: SceneEditor (top) + DockedEditorPanels (bottom) */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flexShrink: 0, overflow: 'hidden', display: 'flex' }}>
-            {selectedSzeneId && (
-              <SceneEditor
-                szeneId={selectedSzeneId}
-                stageId={selectedStageId}
-                staffelId={selectedStaffelId}
-                folgeNummer={selectedFolgeNummer}
-                useDokumentSzenen={useDokumentSzenen}
-                onSzeneUpdated={(updated) => {
-                  setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
-                }}
-                onNavigatePrev={() => navigateSzene(-1)}
-                onNavigateNext={() => navigateSzene(1)}
-                onMarkCommentsRead={handleMarkCommentsRead}
-              />
-            )}
-            {!selectedSzeneId && (
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-                Keine Szene ausgewählt
-              </div>
-            )}
-          </div>
+        {/* Editor area — Werkstufen-based EditorPanels */}
+        <div style={{ flex: 1, overflow: 'hidden' }}>
           <DockedEditorPanels staffelId={selectedStaffelId} folgeNummer={selectedFolgeNummer} />
         </div>
 
