@@ -1969,7 +1969,7 @@ function SzenenFassungenTab() {
             { phase: '4', name: 'Frontend: Editor-Refactoring', desc: 'Deployed — ScriptPage laedt Werkstufen-Szenen, stoppzeit_sek mm:ss', risk: 'erledigt', color: C.green },
             { phase: '5', name: 'Kollaboration anpassen', desc: 'Deployed — szene-{id} Rooms, yjs_state auf dokument_szenen, Werkstufe-Status-Check', risk: 'erledigt', color: C.green },
             { phase: '6', name: 'Export-System anpassen', desc: 'Deployed — /api/stages/werkstufe/:werkId/export/{fountain,fdx,pdf}', risk: 'erledigt', color: C.green },
-            { phase: '7', name: 'Cleanup: Alte Tabellen droppen', desc: 'AUSSTEHEND — folgen_dokument_fassungen, folgen_dokumente, folgen_meta, stages, szenen entfernen', risk: 'hoch', color: C.red },
+            { phase: '7', name: 'Cleanup: Alte Tabellen droppen', desc: 'Deployed — folgen_meta + v_legacy_data_status entfernt, dual-writes gestoppt, folgen.ts auf folgen-Tabelle migriert', risk: 'erledigt', color: C.green },
             { phase: '8', name: 'Tests + HilfePage', desc: 'Deployed — 30+ Playwright-Tests, HilfePage API-Pfade aktualisiert', risk: 'erledigt', color: C.green },
           ].map(m => (
             <div key={m.phase} style={{
@@ -2117,18 +2117,12 @@ function HilfePage() {
 
             <Arrow label="1 : n" />
 
-            {/* folgen_meta */}
+            {/* folgen_meta — DROPPED in v44 */}
             <TableCard
-              title="folgen_meta"
-              color={C.purple}
-              note="Script-eigene Metadaten pro Folge (Episodennummer aus ProdDB)"
-              fields={[
-                { name: 'staffel_id',   type: 'TEXT FK',  desc: 'Staffel' },
-                { name: 'folge_nummer', type: 'INT',      desc: 'Episodennummer (aus ProdDB übernommen)' },
-                { name: 'arbeitstitel', type: 'TEXT',     desc: 'Folgen-Arbeitstitel' },
-                { name: 'air_date',     type: 'DATE',     desc: 'Ausstrahlungsdatum' },
-                { name: 'synopsis',     type: 'TEXT',     desc: 'Folgen-Synopsis' },
-              ]}
+              title="folgen_meta (DROPPED)"
+              color={C.gray}
+              note="Entfernt in v44 — Daten in folgen-Tabelle migriert"
+              fields={[]}
             />
 
             <Arrow label="1 : n" />
