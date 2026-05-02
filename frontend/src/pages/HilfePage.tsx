@@ -1919,8 +1919,8 @@ function SzenenFassungenTab() {
               { m: 'GET',    p: '/api/v2/folgen?staffel_id=X',             d: 'Alle Folgen einer Staffel' },
               { m: 'POST',   p: '/api/v2/folgen',                          d: 'Folge erstellen' },
               { m: 'PUT',    p: '/api/v2/folgen/:id',                      d: 'Folge aktualisieren (Titel)' },
-              { m: 'GET',    p: '/api/folgen/:id/werkstufen',              d: 'Alle Werkstufen einer Folge' },
-              { m: 'POST',   p: '/api/folgen/:id/werkstufen',              d: 'Neue Werkstufe (kopiert Vorgaenger)' },
+              { m: 'GET',    p: '/api/v2/folgen/:folgeId/werkstufen',       d: 'Alle Werkstufen einer Folge' },
+              { m: 'POST',   p: '/api/v2/folgen/:folgeId/werkstufen',      d: 'Neue Werkstufe (kopiert Vorgaenger)' },
               { m: 'GET',    p: '/api/werkstufen/:id',                     d: 'Einzelne Werkstufe' },
               { m: 'PUT',    p: '/api/werkstufen/:id',                     d: 'Status/Sichtbarkeit aendern' },
               { m: 'GET',    p: '/api/werkstufen/:id/szenen',              d: 'Alle Szenen einer Werkstufe' },
@@ -1936,9 +1936,9 @@ function SzenenFassungenTab() {
               { m: 'GET',    p: '/api/scene-identities/:id/vorstopp',      d: 'Vorstopp-Zeiten laden' },
               { m: 'POST',   p: '/api/scene-identities/:id/vorstopp',      d: 'Vorstopp-Eintrag hinzufuegen' },
               { m: 'GET',    p: '/api/scene-identities/:id/history',       d: 'Szene ueber alle Werkstufen' },
-              { m: 'GET',    p: '/api/werkstufen/:id/export/fountain',     d: 'Export Fountain' },
-              { m: 'GET',    p: '/api/werkstufen/:id/export/fdx',          d: 'Export Final Draft XML' },
-              { m: 'GET',    p: '/api/werkstufen/:id/export/pdf',          d: 'Export HTML (druckbar)' },
+              { m: 'GET',    p: '/api/stages/werkstufe/:werkId/export/fountain', d: 'Export Fountain' },
+              { m: 'GET',    p: '/api/stages/werkstufe/:werkId/export/fdx',     d: 'Export Final Draft XML' },
+              { m: 'GET',    p: '/api/stages/werkstufe/:werkId/export/pdf',     d: 'Export HTML (druckbar)' },
             ].map((r, i) => (
               <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
                 <td style={{ padding: '6px 10px' }}>
@@ -1963,14 +1963,14 @@ function SzenenFassungenTab() {
       <Section title="9. Migrations-Roadmap (8 Phasen)">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
-            { phase: '1', name: 'Migration: Neue Tabellen + Datenmigration', desc: 'folgen, werkstufen erstellen, Daten aus folgen_dokumente + fassungen migrieren', risk: 'gering', color: C.green },
-            { phase: '2', name: 'Backend: Neue Routen (parallel)', desc: '/api/v2/folgen, /api/werkstufen, /api/werkstufen/:id/szenen — alte Routen bleiben', risk: 'gering', color: C.green },
-            { phase: '3', name: 'Import-System umbauen', desc: 'Import schreibt in folgen + werkstufen statt folgen_dokumente + fassungen', risk: 'mittel', color: C.orange },
-            { phase: '4', name: 'Frontend: Editor-Refactoring', desc: 'EditorPanel liest dokument_szenen.content, Werkstufen-Selector, Format-Switch', risk: 'hoch', color: C.red },
-            { phase: '5', name: 'Kollaboration anpassen', desc: 'Hocuspocus/Yjs Room-Naming, onLoad/onStore auf dokument_szenen', risk: 'mittel', color: C.orange },
-            { phase: '6', name: 'Export-System anpassen', desc: 'Fountain/FDX/PDF lesen aus werkstufen + dokument_szenen', risk: 'gering', color: C.green },
-            { phase: '7', name: 'Cleanup: Alte Tabellen droppen', desc: 'folgen_dokument_fassungen, folgen_dokumente, folgen_meta, stages, szenen entfernen', risk: 'hoch', color: C.red },
-            { phase: '8', name: 'Tests + HilfePage', desc: 'Playwright-Tests fuer alle Phasen, HilfePage aktualisieren', risk: 'gering', color: C.green },
+            { phase: '1', name: 'Migration: Neue Tabellen + Datenmigration', desc: 'v43 deployed — folgen, werkstufen, scene_identities.folge_id, dokument_szenen.werkstufe_id', risk: 'erledigt', color: C.green },
+            { phase: '2', name: 'Backend: Neue Routen (parallel)', desc: 'Deployed — /api/v2/folgen, /api/v2/folgen/:id/werkstufen, /api/werkstufen/:id/szenen', risk: 'erledigt', color: C.green },
+            { phase: '3', name: 'Import-System umbauen', desc: 'Deployed — Import schreibt Dual-Write in folgen + werkstufen', risk: 'erledigt', color: C.green },
+            { phase: '4', name: 'Frontend: Editor-Refactoring', desc: 'Deployed — ScriptPage laedt Werkstufen-Szenen, stoppzeit_sek mm:ss', risk: 'erledigt', color: C.green },
+            { phase: '5', name: 'Kollaboration anpassen', desc: 'Deployed — szene-{id} Rooms, yjs_state auf dokument_szenen, Werkstufe-Status-Check', risk: 'erledigt', color: C.green },
+            { phase: '6', name: 'Export-System anpassen', desc: 'Deployed — /api/stages/werkstufe/:werkId/export/{fountain,fdx,pdf}', risk: 'erledigt', color: C.green },
+            { phase: '7', name: 'Cleanup: Alte Tabellen droppen', desc: 'AUSSTEHEND — folgen_dokument_fassungen, folgen_dokumente, folgen_meta, stages, szenen entfernen', risk: 'hoch', color: C.red },
+            { phase: '8', name: 'Tests + HilfePage', desc: 'Deployed — 30+ Playwright-Tests, HilfePage API-Pfade aktualisiert', risk: 'erledigt', color: C.green },
           ].map(m => (
             <div key={m.phase} style={{
               display: 'flex', alignItems: 'baseline', gap: 12,
