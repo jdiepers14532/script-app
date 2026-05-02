@@ -1358,7 +1358,7 @@ function InfoBox({ title, children, color = C.blue }: { title: string; children:
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Szenen-Fassungen Tab (neues Scene Identity System)
+// Szenen & Werkstufen Tab (Werkstufen-Modell v2, revidiert 2026-05-02)
 // ══════════════════════════════════════════════════════════════════════════════
 function SzenenFassungenTab() {
   return (
@@ -1372,19 +1372,20 @@ function SzenenFassungenTab() {
         padding: '24px 28px',
         marginBottom: 36,
       }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Szenen-Fassungen-System</div>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Werkstufen-Modell (v2)</div>
         <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
-          Das neue Datenmodell trennt die <strong>Identitaet</strong> einer Szene (stabile UUID) von ihren
-          {' '}<strong>Auspraegungen</strong> pro Fassung (Szenenkoepfe in <code>dokument_szenen</code>).
-          Damit koennen Szenen ueber beliebig viele Fassungen hinweg verglichen, verknuepft und
-          nachverfolgt werden — waehrend jede Fassung eigene Szenennummern und Reihenfolgen hat.
+          5 Kerntabellen: <code>staffeln</code> → <code>folgen</code> → <code>scene_identities</code> +{' '}
+          <code>werkstufen</code> → <code>dokument_szenen</code>. Content lebt ausschliesslich in{' '}
+          <code>dokument_szenen.content</code> — kein separates <code>inhalt</code>-Feld.
+          Die <strong>Scene Identity</strong> (UUID) bleibt stabil ueber alle Werkstufen hinweg,
+          auch wenn Szenennummer, Position oder Motiv sich aendern.
         </div>
         <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
           {[
-            { label: 'Scene Identity', desc: 'Stabile UUID', color: C.blue },
-            { label: 'Dokument-Szene', desc: 'Kopf pro Fassung', color: C.green },
-            { label: 'Diff-Ansicht', desc: 'Side-by-Side', color: C.orange },
-            { label: 'Dual-Write', desc: 'Alt + Neu parallel', color: C.purple },
+            { label: 'Scene Identity', desc: 'Stabile UUID pro Szene', color: C.blue },
+            { label: 'Werkstufe', desc: 'Storyline V1, Drehbuch V2...', color: C.orange },
+            { label: 'Dokument-Szene', desc: 'Content + Header (N:M)', color: C.green },
+            { label: 'Soft-Delete', desc: 'geloescht=true fuer Diff', color: C.purple },
           ].map(b => (
             <div key={b.label} style={{
               flex: '1 1 160px',
@@ -1401,15 +1402,14 @@ function SzenenFassungenTab() {
       </div>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 1. ER-Diagramm — Gesamtuebersicht */}
+      {/* 1. ER-Diagramm — Werkstufen-Modell */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="1. Datenmodell — ER-Uebersicht">
+      <Section title="1. Datenmodell — ER-Uebersicht (5 Kerntabellen)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>
-          Die Hierarchie: Staffel → Folgen-Dokument → Fassung → Dokument-Szene. Parallel dazu
-          die <strong>scene_identities</strong> als fassungsuebergreifende Klammer.
+          Die Hierarchie: <strong>Staffel → Folge → Scene Identity + Werkstufe → Dokument-Szene</strong>.{' '}
+          <code>dokument_szenen</code> ist die N:M-Kreuzungstabelle zwischen Szenen und Werkstufen.
         </p>
 
-        {/* ── Visuelles ER-Diagramm ── */}
         <div style={{
           background: C.surface,
           border: `1px solid ${C.border}`,
@@ -1417,10 +1417,8 @@ function SzenenFassungenTab() {
           padding: 24,
           overflowX: 'auto',
         }}>
-          {/* Top row: staffeln → folgen_dokumente */}
+          {/* Top row: staffeln → folgen */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-
-            {/* staffeln */}
             <div style={{ minWidth: 180, flexShrink: 0 }}>
               <TableCard title="staffeln" color={C.blue}
                 note="Produktion (z.B. Rote Rosen)"
@@ -1436,101 +1434,93 @@ function SzenenFassungenTab() {
               <Connector direction="right" label="1 : n" />
             </div>
 
-            {/* folgen_dokumente */}
-            <div style={{ minWidth: 240, flexShrink: 0 }}>
-              <TableCard title="folgen_dokumente" color={C.purple}
-                note="Ein Dokument pro Typ pro Folge"
+            <div style={{ minWidth: 280, flexShrink: 0 }}>
+              <TableCard title="folgen" color={C.purple}
+                note="Eine Episode (merged aus folgen_dokumente + folgen_meta)"
                 fields={[
-                  { name: 'id', type: 'UUID', desc: 'PK' },
+                  { name: 'id', type: 'SERIAL', desc: 'PK' },
                   { name: 'staffel_id', type: 'TEXT FK', desc: '→ staffeln.id' },
                   { name: 'folge_nummer', type: 'INT', desc: 'Episodennummer' },
-                  { name: 'typ', type: 'TEXT', desc: 'drehbuch | storyline | ...' },
+                  { name: 'folgen_titel', type: 'TEXT', desc: 'Episodentitel' },
+                  { name: 'produktion_db_id', type: 'UUID', desc: 'Ext. Folgen-UUID (nullable)' },
                   { name: 'erstellt_von', type: 'TEXT', desc: 'user_id' },
-                ]}
-              />
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', flexShrink: 0 }}>
-              <Connector direction="right" label="1 : n" />
-            </div>
-
-            {/* folgen_dokument_fassungen */}
-            <div style={{ minWidth: 280, flexShrink: 0 }}>
-              <TableCard title="folgen_dokument_fassungen" color={C.orange}
-                note="Version eines Dokuments (Fassung 1, 2, 3...)"
-                fields={[
-                  { name: 'id', type: 'UUID', desc: 'PK' },
-                  { name: 'dokument_id', type: 'UUID FK', desc: '→ folgen_dokumente.id' },
-                  { name: 'fassung_nummer', type: 'INT', desc: 'Laufende Nummer' },
-                  { name: 'fassung_label', type: 'TEXT', desc: 'z.B. "Drehfassung"' },
-                  { name: 'sichtbarkeit', type: 'TEXT', desc: 'privat | colab | review | ...' },
-                  { name: 'abgegeben', type: 'BOOL', desc: 'Eingefroren?' },
-                  { name: 'inhalt', type: 'JSONB', desc: 'Rich-Text-Inhalt' },
+                  { name: 'erstellt_am', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
                 ]}
               />
             </div>
           </div>
 
-          {/* Arrow down from fassungen */}
-          <div style={{ marginLeft: 520, width: 280 }}>
-            <Arrow label="1 : n" />
+          {/* Arrows down from folgen */}
+          <div style={{ display: 'flex', gap: 16, marginLeft: 230 }}>
+            <div style={{ width: 200 }}><Arrow label="1 : n" /></div>
+            <div style={{ width: 200 }}><Arrow label="1 : n" /></div>
           </div>
 
-          {/* Middle row: dokument_szenen + scene_identities */}
+          {/* Middle row: scene_identities + werkstufen */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-
-            {/* scene_identities (links, eigenstaendig) */}
-            <div style={{ minWidth: 200, flexShrink: 0 }}>
+            <div style={{ minWidth: 220, flexShrink: 0 }}>
               <TableCard title="scene_identities" color={C.blue}
-                note="Stabile UUID — existiert ueber alle Fassungen"
+                note="Stabile UUID — existiert ueber alle Werkstufen"
                 fields={[
                   { name: 'id', type: 'UUID', desc: 'PK (global stabil!)' },
-                  { name: 'staffel_id', type: 'TEXT FK', desc: '→ staffeln.id' },
-                  { name: 'created_by', type: 'TEXT', desc: 'Ersteller user_id' },
+                  { name: 'folge_id', type: 'INT FK', desc: '→ folgen.id' },
+                  { name: 'created_by', type: 'TEXT', desc: 'Ersteller' },
                   { name: 'created_at', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
                 ]}
               />
-              <InfoBox title="Kernprinzip" color={C.blue}>
-                Eine <code>scene_identity</code> ist die <strong>unveraenderliche Seele</strong> einer Szene.
-                Szenennummern, Orte, Zeiten — alles kann sich aendern. Die UUID bleibt.
-                Dadurch koennen Characters, Vorstopp und Revisionen an der Identity statt
-                an einer einzelnen Fassung haengen.
-              </InfoBox>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', flexShrink: 0, paddingTop: 40 }}>
-              <Connector direction="left-right" label="n : 1" />
-            </div>
-
-            {/* dokument_szenen */}
-            <div style={{ minWidth: 360, flexShrink: 0 }}>
-              <TableCard title="dokument_szenen" color={C.green}
-                note="Szenenkopf pro Fassung (ersetzt alte szenen-Tabelle)"
+            <div style={{ minWidth: 300, flexShrink: 0 }}>
+              <TableCard title="werkstufen" color={C.orange}
+                note="Version auf Folgen-Ebene (ersetzt fassungen)"
                 fields={[
                   { name: 'id', type: 'UUID', desc: 'PK' },
-                  { name: 'fassung_id', type: 'UUID FK', desc: '→ fassungen.id' },
-                  { name: 'scene_identity_id', type: 'UUID FK', desc: '→ scene_identities.id' },
-                  { name: 'sort_order', type: 'INT', desc: 'Reihenfolge in dieser Fassung' },
-                  { name: 'scene_nummer', type: 'INT', desc: 'Angezeigte Szenennummer' },
-                  { name: 'scene_nummer_suffix', type: 'VARCHAR(5)', desc: 'z.B. "a", "b" (Nachtragsszene)' },
-                  { name: 'ort_name', type: 'TEXT', desc: 'Motivname (z.B. Kueche)' },
-                  { name: 'int_ext', type: 'TEXT', desc: 'INT | EXT | INT/EXT' },
-                  { name: 'tageszeit', type: 'TEXT', desc: 'TAG | NACHT | ABEND | ...' },
-                  { name: 'zusammenfassung', type: 'TEXT', desc: 'Kurzbeschreibung' },
-                  { name: 'content', type: 'JSONB', desc: 'Szenentext (Textelement-Array)' },
-                  { name: 'spieltag', type: 'INT', desc: 'Drehtag-Index' },
-                  { name: 'spielzeit', type: 'TEXT', desc: 'Freitext Spielzeit' },
-                  { name: 'stimmung', type: 'TEXT', desc: 'Stimmung der Szene' },
-                  { name: 'seiten', type: 'TEXT', desc: 'Seitenangabe (z.B. "2 5/8")' },
-                  { name: 'szeneninfo', type: 'TEXT', desc: 'Notizen / Logging-Eintraege' },
-                  { name: 'dauer_min', type: 'INT', desc: 'Spieldauer Minuten' },
-                  { name: 'dauer_sek', type: 'INT', desc: 'Spieldauer Sekunden (feiner)' },
-                  { name: 'is_wechselschnitt', type: 'BOOL', desc: 'Wechselschnitt-Szene' },
-                  { name: 'updated_at', type: 'TSTZ', desc: 'Letzte Aenderung' },
-                  { name: 'updated_by', type: 'TEXT', desc: 'Wer hat geaendert' },
+                  { name: 'folge_id', type: 'INT FK', desc: '→ folgen.id' },
+                  { name: 'typ', type: 'TEXT', desc: 'storyline | drehbuch | treatment | notiz' },
+                  { name: 'version_nummer', type: 'INT', desc: 'Version (1, 2, 3...)' },
+                  { name: 'label', type: 'TEXT', desc: 'z.B. "Blau", "Drehfassung"' },
+                  { name: 'sichtbarkeit', type: 'TEXT', desc: 'team | privat | colab | review | alle' },
+                  { name: 'abgegeben', type: 'BOOL', desc: 'Eingefroren?' },
+                  { name: 'bearbeitung_status', type: 'TEXT', desc: 'entwurf | in_arbeit | abgeschlossen' },
+                  { name: 'erstellt_von', type: 'TEXT', desc: 'user_id' },
+                  { name: 'erstellt_am', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
                 ]}
               />
             </div>
+          </div>
+
+          {/* Arrows converging to dokument_szenen */}
+          <div style={{ display: 'flex', gap: 16, marginLeft: 80 }}>
+            <div style={{ width: 200 }}><Arrow label="N : 1" /></div>
+            <div style={{ width: 200 }}><Arrow label="N : 1" /></div>
+          </div>
+
+          {/* Bottom: dokument_szenen (Kreuzungstabelle) */}
+          <div style={{ maxWidth: 540 }}>
+            <TableCard title="dokument_szenen" color={C.green}
+              note="Kreuzungstabelle: Content + Header pro Szene pro Werkstufe"
+              fields={[
+                { name: 'id', type: 'UUID', desc: 'PK' },
+                { name: 'scene_identity_id', type: 'UUID FK', desc: '→ scene_identities.id' },
+                { name: 'werkstufe_id', type: 'UUID FK', desc: '→ werkstufen.id' },
+                { name: 'format', type: 'TEXT', desc: 'drehbuch | storyline | notiz (bestimmt Editor)' },
+                { name: 'scene_nummer', type: 'INT', desc: 'Angezeigte Szenennummer' },
+                { name: 'sort_order', type: 'INT', desc: 'Reihenfolge in dieser Werkstufe' },
+                { name: 'ort_name', type: 'TEXT', desc: 'Motivname (z.B. Kueche)' },
+                { name: 'int_ext', type: 'TEXT', desc: 'INT | EXT | INT/EXT' },
+                { name: 'tageszeit', type: 'TEXT', desc: 'TAG | NACHT | ABEND | ...' },
+                { name: 'zusammenfassung', type: 'TEXT', desc: 'Kurzbeschreibung' },
+                { name: 'content', type: 'JSONB', desc: 'Szenentext (einzige Content-Quelle!)' },
+                { name: 'stoppzeit_sek', type: 'INT', desc: 'Spieldauer in Sekunden (Frontend: mm:ss)' },
+                { name: 'spieltag', type: 'INT', desc: 'Drehtag-Index' },
+                { name: 'stimmung', type: 'TEXT', desc: 'Stimmung der Szene' },
+                { name: 'szeneninfo', type: 'TEXT', desc: 'Notizen / Logging' },
+                { name: 'geloescht', type: 'BOOL', desc: 'Soft-Delete (bleibt fuer Diff)' },
+                { name: 'is_wechselschnitt', type: 'BOOL', desc: 'Wechselschnitt-Szene' },
+                { name: 'bearbeitet_von', type: 'TEXT', desc: 'Wer hat zuletzt geaendert' },
+                { name: 'bearbeitet_am', type: 'TSTZ', desc: 'Letzte Aenderung' },
+              ]}
+            />
           </div>
 
           {/* UNIQUE Constraint Hinweis */}
@@ -1543,30 +1533,181 @@ function SzenenFassungenTab() {
             fontSize: 11,
             color: C.muted,
           }}>
-            <strong>UNIQUE(fassung_id, scene_identity_id)</strong> — Jede Szene kann pro Fassung nur einmal vorkommen.
-            Gleichzeitig kann eine Identity in beliebig vielen Fassungen existieren (1:n Beziehung umgekehrt).
+            <strong>UNIQUE(scene_identity_id, werkstufe_id)</strong> — Pro Szene und Werkstufe genau ein Eintrag.
+            Eine Szene existiert in mehreren Werkstufen (N:M-Beziehung aufgeloest durch dokument_szenen).
+          </div>
+        </div>
+
+        <InfoBox title="Kernprinzip: Scene Identity" color={C.blue}>
+          Eine <code>scene_identity</code> ist die <strong>unveraenderliche Seele</strong> einer Szene.
+          Szenennummern, Positionen, Motive — alles kann sich zwischen Werkstufen aendern. Die UUID bleibt.
+          Damit sind Characters, Vorstopp, Kommentare und Revisionen stabil verknuepft.
+          <div style={{ fontFamily: 'monospace', fontSize: 10, marginTop: 8, padding: 8, background: C.subtle, borderRadius: 6 }}>
+            Szene abc-123: Storyline V1 → Nr.5 Cafe | Drehbuch V1 → Nr.8 Restaurant | Drehbuch V2 → Nr.3 Restaurant
+          </div>
+        </InfoBox>
+      </Section>
+
+      {/* ══════════════════════════════════════════════════════════════════════════ */}
+      {/* 2. Werkstufe vs. Fassung — was hat sich geaendert */}
+      {/* ══════════════════════════════════════════════════════════════════════════ */}
+      <Section title="2. Werkstufe (ersetzt Fassung)">
+        <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+          Eine <strong>Werkstufe</strong> definiert Typ + Version auf Folgen-Ebene.
+          Status-Felder gelten fuer <strong>alle</strong> dokument_szenen dieser Werkstufe.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+          {/* Alt */}
+          <div style={{
+            border: `2px dashed ${C.red}44`,
+            borderRadius: 10,
+            padding: 16,
+            background: C.red + '06',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 12 }}>
+              Altes Modell (wird ersetzt)
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+              <FieldBox name="folgen_dokumente" type="Typ pro Folge" deprecated />
+              <FieldBox name="folgen_dokument_fassungen" type="Version + inhalt JSONB" deprecated />
+              <FieldBox name="fassungen.inhalt" type="Ganzes Dokument als Blob" deprecated />
+            </div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
+              Problem: Content doppelt (inhalt + dokument_szenen.content)
+            </div>
+          </div>
+
+          {/* Neu */}
+          <div style={{
+            border: `2px solid ${C.green}`,
+            borderRadius: 10,
+            padding: 16,
+            background: C.green + '08',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 12, color: C.green, marginBottom: 12 }}>
+              Neues Modell (Werkstufen)
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+              <FieldBox name="folgen" type="Merged: 1 Tabelle pro Episode" />
+              <FieldBox name="werkstufen" type="Typ + Version + Status" />
+              <FieldBox name="dokument_szenen.content" type="Einzige Content-Quelle" />
+            </div>
+            <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
+              Kein inhalt-Blob, keine Redundanz
+            </div>
+          </div>
+        </div>
+
+        {/* Neue Werkstufe Flow */}
+        <div style={{
+          border: `1px solid ${C.border}`,
+          borderRadius: 12,
+          overflow: 'hidden',
+          marginBottom: 16,
+        }}>
+          <div style={{
+            background: C.subtle, padding: '10px 16px', fontWeight: 700, fontSize: 12,
+            borderBottom: `1px solid ${C.border}`,
+          }}>Neue Werkstufe erstellen (Flow)</div>
+          <div style={{ padding: '16px 20px', fontSize: 12, color: C.muted, lineHeight: 1.8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                'Neue Werkstufe anlegen (typ, version)',
+                'Alle dokument_szenen kopieren (geloescht=false)',
+                'Gleiche scene_identity_ids beibehalten',
+                'Neue UUIDs fuer dokument_szenen',
+                'Alle scene_identities der Folge verknuepft',
+              ].map((s, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {i > 0 && <span style={{ color: C.muted, fontSize: 16 }}>→</span>}
+                  <span style={{
+                    padding: '4px 10px', borderRadius: 6,
+                    background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                    fontSize: 11,
+                  }}>{`${i + 1}. ${s}`}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 2. Verknuepfte Tabellen */}
+      {/* 3. Format & Stoppzeit */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="2. Verknuepfte Tabellen (Characters, Vorstopp, Revision)">
+      <Section title="3. Format, Stoppzeit & Soft-Delete">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+
+          <div style={{
+            border: `1px solid ${C.blue}33`,
+            borderRadius: 10, padding: 16, background: C.blue + '06',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: C.blue, marginBottom: 8 }}>Format (Editor-Typ)</div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+              <code>dokument_szenen.format</code> bestimmt den Editor:
+              <ul style={{ margin: '8px 0', paddingLeft: 16 }}>
+                <li><code>drehbuch</code> → Screenplay-Editor (7 Elementtypen)</li>
+                <li><code>storyline</code> → Rich-Text-Editor</li>
+                <li><code>notiz</code> → Leichtgewichtiger Editor</li>
+              </ul>
+              Normalerweise = <code>werkstufe.typ</code>, aber Ausnahmen moeglich
+              (z.B. Notiz-Seite innerhalb eines Drehbuchs).
+            </div>
+          </div>
+
+          <div style={{
+            border: `1px solid ${C.green}33`,
+            borderRadius: 10, padding: 16, background: C.green + '06',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: C.green, marginBottom: 8 }}>Stoppzeit</div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+              <code>stoppzeit_sek INT</code> — Sekunden, kein String.
+              <div style={{ fontFamily: 'monospace', fontSize: 10, marginTop: 8, padding: 6, background: C.subtle, borderRadius: 4 }}>
+                270 → "04:30" (Frontend-Formatierung)<br />
+                Gesamt = SUM(stoppzeit_sek)<br />
+                WHERE werkstufe_id=X<br />
+                AND geloescht=false
+              </div>
+              <div style={{ marginTop: 8 }}>
+                Ersetzt die alten Felder <code>dauer_min</code> + <code>dauer_sek</code>.
+              </div>
+            </div>
+          </div>
+
+          <div style={{
+            border: `1px solid ${C.purple}33`,
+            borderRadius: 10, padding: 16, background: C.purple + '06',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: C.purple, marginBottom: 8 }}>Soft-Delete</div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+              <code>geloescht BOOLEAN</code> — kein echtes Loeschen.
+              <ul style={{ margin: '8px 0', paddingLeft: 16 }}>
+                <li>Im Editor/Navigator: ausgeblendet</li>
+                <li>Neue Werkstufe: nicht mitkopiert</li>
+                <li>Diff-Ansicht: sichtbar als "gestrichen"</li>
+                <li>DB: Datensatz bleibt erhalten</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* ══════════════════════════════════════════════════════════════════════════ */}
+      {/* 4. Verknuepfte Tabellen */}
+      {/* ══════════════════════════════════════════════════════════════════════════ */}
+      <Section title="4. Verknuepfte Tabellen (Characters, Vorstopp, Revision)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Diese Tabellen haengen an der <code>scene_identity_id</code>, nicht an einer einzelnen Fassung.
-          Dadurch sind Characters und Vorstopp-Zeiten fassungsuebergreifend sichtbar.
+          Characters und Vorstopp haengen an <code>scene_identity_id</code> (werkstufenuebergreifend stabil).
+          Revisionen haengen an <code>dokument_szene_id</code> (pro Werkstufe-Auspraegung).
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-
-          {/* scene_characters */}
           <TableCard title="scene_characters" color={C.orange}
             note="Welche Charaktere spielen in dieser Szene?"
             fields={[
               { name: 'id', type: 'SERIAL', desc: 'PK' },
-              { name: 'szene_id', type: 'INT FK', desc: '→ szenen.id (alt, NULL erlaubt)', ok: false },
-              { name: 'scene_identity_id', type: 'UUID FK', desc: '→ scene_identities.id (neu)', ok: true },
+              { name: 'scene_identity_id', type: 'UUID FK', desc: '→ scene_identities.id (stabil!)' },
               { name: 'character_id', type: 'UUID FK', desc: '→ characters.id' },
               { name: 'kategorie_id', type: 'INT FK', desc: '→ character_kategorien.id' },
               { name: 'anzahl', type: 'INT', desc: 'Anzahl (bei Komparsen-Gruppen)' },
@@ -1574,57 +1715,36 @@ function SzenenFassungenTab() {
             ]}
           />
 
-          {/* szenen_vorstopp */}
           <TableCard title="szenen_vorstopp" color="#00C853"
-            note="Vorstopp-Zeiten pro Phase (drehbuch/vorbereitung/dreh/schnitt)"
+            note="Vorstopp-Zeiten pro Phase"
             fields={[
               { name: 'id', type: 'SERIAL', desc: 'PK' },
-              { name: 'szene_id', type: 'INT FK', desc: '→ szenen.id (alt, NULL erlaubt)', ok: false },
-              { name: 'scene_identity_id', type: 'UUID FK', desc: '→ scene_identities.id (neu)', ok: true },
+              { name: 'scene_identity_id', type: 'UUID FK', desc: '→ scene_identities.id (stabil!)' },
               { name: 'stage', type: 'TEXT', desc: 'drehbuch | vorbereitung | dreh | schnitt' },
               { name: 'user_id', type: 'TEXT', desc: 'Wer hat gemessen' },
-              { name: 'user_name', type: 'TEXT', desc: 'Anzeigename' },
               { name: 'dauer_sekunden', type: 'INT', desc: 'Gemessene Zeit in Sekunden' },
-              { name: 'methode', type: 'TEXT', desc: 'manuell | auto_seiten | auto_zeichen | auto_woerter' },
+              { name: 'methode', type: 'TEXT', desc: 'manuell | auto_seiten | auto_woerter' },
             ]}
           />
         </div>
 
-        {/* szenen_revisionen */}
         <TableCard title="szenen_revisionen" color={C.red}
-          note="Delta-Tracking: Was hat sich geaendert? (Header-Felder + Content-Bloecke)"
+          note="Delta-Tracking: Was hat sich geaendert?"
           fields={[
             { name: 'id', type: 'SERIAL', desc: 'PK' },
-            { name: 'szene_id', type: 'INT FK', desc: '→ szenen.id (alt, NULL erlaubt)', ok: false },
-            { name: 'stage_id', type: 'INT FK', desc: '→ stages.id (alt, NULL erlaubt)', ok: false },
-            { name: 'dokument_szene_id', type: 'UUID FK', desc: '→ dokument_szenen.id (neu)', ok: true },
-            { name: 'fassung_id', type: 'UUID FK', desc: '→ fassungen.id (neu)', ok: true },
+            { name: 'dokument_szene_id', type: 'UUID FK', desc: '→ dokument_szenen.id (pro Werkstufe)' },
             { name: 'field_type', type: 'TEXT', desc: 'header | content_block' },
-            { name: 'field_name', type: 'TEXT', desc: 'Bei header: ort_name, spieltag, etc.' },
-            { name: 'block_index', type: 'INT', desc: 'Bei content_block: Index im Array' },
-            { name: 'block_type', type: 'TEXT', desc: 'dialog | action | heading | ...' },
-            { name: 'speaker', type: 'TEXT', desc: 'Bei Dialog-Bloecken: Sprechername' },
+            { name: 'field_name', type: 'TEXT', desc: 'ort_name, spieltag, etc.' },
             { name: 'old_value', type: 'TEXT', desc: 'Vorheriger Wert' },
             { name: 'new_value', type: 'TEXT', desc: 'Neuer Wert' },
           ]}
         />
-
-        <WarnBox title="CHECK-Constraints auf szene_id / scene_identity_id">
-          <code>scene_characters</code> und <code>szenen_vorstopp</code> haben einen
-          {' '}<code>CHECK (szene_id IS NOT NULL OR scene_identity_id IS NOT NULL)</code>.
-          Mindestens eine Referenz muss gesetzt sein.
-          Bei <code>szenen_revisionen</code> gilt: <code>CHECK (szene_id IS NOT NULL OR dokument_szene_id IS NOT NULL)</code>.
-          <br /><br />
-          <strong>Dual-FK-Pattern:</strong> Alte Eintraege haben nur <code>szene_id</code>,
-          neue Eintraege haben nur <code>scene_identity_id</code> bzw. <code>dokument_szene_id</code>.
-          Die Constraints stellen sicher, dass nie beide NULL sind.
-        </WarnBox>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 3. Character-System */}
+      {/* 5. Character-System */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="3. Character-Referenztabellen">
+      <Section title="5. Character-Referenztabellen">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
           Charaktere sind globale Entitaeten (produktionsuebergreifend). Pro Staffel gibt es
           Produktions-Nummern und Kategorien.
@@ -1643,8 +1763,8 @@ function SzenenFassungenTab() {
             fields={[
               { name: 'character_id', type: 'UUID FK', desc: '→ characters.id' },
               { name: 'staffel_id', type: 'TEXT FK', desc: '→ staffeln.id' },
-              { name: 'rollen_nummer', type: 'INT', desc: 'Rollenblatt-Nr. (unique/staffel)' },
-              { name: 'komparsen_nummer', type: 'INT', desc: 'Komparsen-Nr. (unique/staffel)' },
+              { name: 'rollen_nummer', type: 'INT', desc: 'Rollenblatt-Nr.' },
+              { name: 'komparsen_nummer', type: 'INT', desc: 'Komparsen-Nr.' },
               { name: 'kategorie_id', type: 'INT FK', desc: '→ character_kategorien.id' },
             ]}
           />
@@ -1653,20 +1773,20 @@ function SzenenFassungenTab() {
             fields={[
               { name: 'id', type: 'SERIAL', desc: 'PK' },
               { name: 'staffel_id', type: 'TEXT FK', desc: '→ staffeln.id' },
-              { name: 'name', type: 'TEXT', desc: 'z.B. Hauptrolle, Kleines Fach' },
+              { name: 'name', type: 'TEXT', desc: 'z.B. Hauptrolle' },
               { name: 'typ', type: 'TEXT', desc: 'rolle | komparse' },
-              { name: 'sort_order', type: 'INT', desc: 'Sortierung' },
             ]}
           />
         </div>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 4. Fassungsvergleich (Diff) */}
+      {/* 6. Diff-Ansicht */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="4. Fassungsvergleich (Diff-Ansicht)">
+      <Section title="6. Werkstufen-Vergleich (Diff-Ansicht)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Der Diff-Endpunkt vergleicht zwei Fassungen und matcht Szenen ueber ihre <code>scene_identity_id</code>.
+          Zwei Werkstufen werden verglichen. Szenen werden ueber <code>scene_identity_id</code> gematcht —
+          auch bei unterschiedlicher Nummer oder Position.
         </p>
 
         <div style={{
@@ -1675,18 +1795,16 @@ function SzenenFassungenTab() {
           overflow: 'hidden',
           marginBottom: 16,
         }}>
-          {/* Diff Header */}
           <div style={{
             display: 'grid', gridTemplateColumns: '1fr 60px 1fr',
             background: C.subtle, padding: '10px 16px', fontWeight: 700, fontSize: 12,
             borderBottom: `1px solid ${C.border}`,
           }}>
-            <span>Fassung A (links)</span>
+            <span>Werkstufe A (links)</span>
             <span style={{ textAlign: 'center', color: C.muted }}>Match</span>
-            <span>Fassung B (rechts)</span>
+            <span>Werkstufe B (rechts)</span>
           </div>
 
-          {/* Beispielzeilen */}
           {[
             { left: '1. INT. Kueche - TAG', right: '1. INT. Kueche - TAG', status: 'gleich', bg: 'transparent' },
             { left: '2. EXT. Garten - TAG', right: '2. EXT. Garten - ABEND', status: 'geaendert', bg: '#fef3c7' },
@@ -1715,12 +1833,11 @@ function SzenenFassungenTab() {
           ))}
         </div>
 
-        {/* Legende */}
         <div style={{ display: 'flex', gap: 16, fontSize: 11, flexWrap: 'wrap' }}>
           {[
             { color: '#fef3c7', border: '#f59e0b', label: 'Geaendert', desc: 'Felder unterscheiden sich' },
-            { color: '#d1fae5', border: '#10b981', label: 'Neu', desc: 'Nur in rechter Fassung' },
-            { color: '#fee2e2', border: '#ef4444', label: 'Gestrichen', desc: 'Nur in linker Fassung' },
+            { color: '#d1fae5', border: '#10b981', label: 'Neu', desc: 'Nur in rechter Werkstufe' },
+            { color: '#fee2e2', border: '#ef4444', label: 'Gestrichen', desc: 'geloescht=true oder nicht kopiert' },
           ].map(l => (
             <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 14, height: 14, borderRadius: 3, background: l.color, border: `1px solid ${l.border}`, display: 'inline-block' }} />
@@ -1729,233 +1846,66 @@ function SzenenFassungenTab() {
             </div>
           ))}
         </div>
-
-        <InfoBox title="API-Endpunkt" color={C.green}>
-          <code>GET /api/fassungen/:leftId/szenen/diff/:rightId</code><br />
-          Response: <code>{'{ left: { fassung, szenen }, right: { fassung, szenen }, matches[] }'}</code><br />
-          Jeder Match hat: <code>scene_identity_id</code>, <code>left_idx</code>, <code>right_idx</code>, <code>changes[]</code><br />
-          Verglichene Felder: <code>ort_name, int_ext, tageszeit, zusammenfassung, spieltag, stimmung, spielzeit, szeneninfo, dauer_min, content</code>
-        </InfoBox>
-      </Section>
-
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 5. Export-System */}
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="5. Export-System (Fassung-basiert)">
-        <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Drei Export-Formate lesen aus <code>dokument_szenen</code>. Jeder Export wird in
-          {' '}<code>export_logs</code> protokolliert und mit einem ZWC-Wasserzeichen versehen.
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          {[
-            {
-              format: 'Fountain', icon: '📜', endpoint: '/api/stages/fassung/:id/export/fountain',
-              mime: 'text/plain', desc: 'Fountain-Textformat, Wasserzeichen als Zero-Width Characters im Text.',
-            },
-            {
-              format: 'FDX', icon: '📄', endpoint: '/api/stages/fassung/:id/export/fdx',
-              mime: 'application/xml', desc: 'Final Draft XML. Wasserzeichen als XML-Kommentar eingebettet.',
-            },
-            {
-              format: 'PDF (HTML)', icon: '🖨️', endpoint: '/api/stages/fassung/:id/export/pdf',
-              mime: 'text/html', desc: 'Druckbares HTML mit Courier-Font. Wasserzeichen in Meta-Tag.',
-            },
-          ].map(e => (
-            <div key={e.format} style={{
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              padding: 16,
-              background: C.surface,
-            }}>
-              <div style={{ fontSize: 24, marginBottom: 6 }}>{e.icon}</div>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{e.format}</div>
-              <code style={{ fontSize: 10, color: C.green, display: 'block', marginBottom: 8, wordBreak: 'break-all' }}>{e.endpoint}</code>
-              <div style={{ fontSize: 11, color: C.muted }}>{e.desc}</div>
-              <div style={{ marginTop: 6, fontSize: 10, color: C.gray }}>Content-Type: <code>{e.mime}</code></div>
-            </div>
-          ))}
-        </div>
-
-        <WarnBox title="Wasserzeichen-Forensik">
-          Jeder Export enthaelt ein unsichtbares Wasserzeichen mit <code>user_id</code> und <code>export_id</code>.
-          Im Admin-Panel unter <strong>Wasserzeichen-Decoder</strong> kann ein exportierter Text eingefuegt
-          werden, um den Exporteur zu identifizieren. Das Wasserzeichen ueberlebt Copy-Paste.
-        </WarnBox>
-      </Section>
-
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 6. Dual-Write & Legacy-Status */}
-      {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="6. Dual-Write & Migration (Alt → Neu)">
-        <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Der Import schreibt parallel in beide Systeme. Alte Tabellen werden schrittweise abgeloest.
-        </p>
-
-        {/* Dual-Write Diagramm */}
-        <div style={{
-          border: `1px solid ${C.border}`,
-          borderRadius: 12,
-          overflow: 'hidden',
-          marginBottom: 16,
-        }}>
-          <div style={{
-            background: C.subtle,
-            padding: '10px 16px',
-            fontWeight: 700,
-            fontSize: 12,
-            borderBottom: `1px solid ${C.border}`,
-          }}>Import-Flow (Dual-Write)</div>
-
-          <div style={{ padding: 20 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-              <div style={{ padding: '8px 16px', borderRadius: 8, background: C.blue + '15', border: `1px solid ${C.blue}`, fontWeight: 600, fontSize: 12 }}>
-                Import (Fountain / FDX / DOCX / ...)
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 40px 1fr', gap: 8 }}>
-              {/* Alt */}
-              <div style={{
-                border: `2px dashed ${C.red}44`,
-                borderRadius: 10,
-                padding: 16,
-                background: C.red + '06',
-              }}>
-                <div style={{ fontWeight: 700, fontSize: 12, color: C.red, marginBottom: 8 }}>
-                  Altes System (DEPRECATED)
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <FieldBox name="stages" type="SERIAL" deprecated />
-                  <FieldBox name="szenen" type="SERIAL" deprecated />
-                </div>
-                <div style={{ fontSize: 10, color: C.muted, marginTop: 8 }}>
-                  HTTP-Header: <code>X-Deprecated</code> auf allen Routen
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 24, color: C.muted }}>+</span>
-              </div>
-
-              {/* Neu */}
-              <div style={{
-                border: `2px solid ${C.green}`,
-                borderRadius: 10,
-                padding: 16,
-                background: C.green + '08',
-              }}>
-                <div style={{ fontWeight: 700, fontSize: 12, color: C.green, marginBottom: 8 }}>
-                  Neues System (AKTIV)
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <FieldBox name="folgen_dokumente" type="UUID" />
-                  <FieldBox name="folgen_dokument_fassungen" type="UUID" />
-                  <FieldBox name="dokument_szenen" type="UUID" />
-                  <FieldBox name="scene_identities" type="UUID" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Status-Uebersicht */}
-        <div style={{ marginBottom: 12 }}>
-          <strong style={{ fontSize: 12 }}>Migrations-Status pro Episode:</strong>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-            {[
-              { status: 'dual',        color: C.green,  desc: 'Alt + Neu synchron (Dual-Write aktiv)' },
-              { status: 'new_only',    color: C.blue,   desc: 'Nur im neuen System' },
-              { status: 'legacy_only', color: C.orange,  desc: 'Nur im alten System — noch nicht migriert' },
-              { status: 'empty',       color: C.gray,   desc: 'Keine Szenen' },
-            ].map(s => (
-              <span key={s.status} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                border: `1px solid ${s.color}`, borderRadius: 6, padding: '4px 10px', fontSize: 11,
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
-                <code style={{ color: s.color }}>{s.status}</code>
-                <span style={{ color: C.muted }}>→ {s.desc}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-
-        <InfoBox title="Admin-Endpunkt" color={C.purple}>
-          <code>GET /api/dokument-szenen/admin/legacy-status</code><br />
-          Zeigt fuer jede Episode den aktuellen Migrationsstatus mit Zaehlung der Szenen in beiden Systemen.
-          Basiert auf der DB-View <code>v_legacy_data_status</code>.
-        </InfoBox>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       {/* 7. Kritische Punkte */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="7. Kritische Punkte & Hinweise">
+      <Section title="7. Kritische Punkte & Regeln">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          <WarnBox title="1. UUID vs. Integer — Typ-Sicherheit im Frontend">
-            Das alte System nutzt <code>number</code> (SERIAL) fuer IDs, das neue <code>string</code> (UUID).
-            Im Frontend werden viele IDs als <code>number | string</code> typisiert.
-            Alte API-Aufrufe sind mit <code>typeof szeneId === 'number'</code> geschuetzt —
-            so wird verhindert, dass UUIDs an Integer-Endpoints gesendet werden.
-            <br /><br />
-            <strong>Regel:</strong> Alte szenen-APIs (GET /api/szenen/:id) akzeptieren nur Integers.
-            Neue dokument-szenen-APIs (GET /api/dokument-szenen/:id) akzeptieren nur UUIDs.
+          <WarnBox title="1. Content lebt NUR in dokument_szenen.content">
+            Es gibt kein separates <code>inhalt</code>-Feld auf Werkstufe/Fassung.
+            Der Editor laedt und speichert ausschliesslich ueber <code>dokument_szenen</code>.
+            Dies eliminiert die fruehre Redundanz zwischen <code>fassungen.inhalt</code> und{' '}
+            <code>dokument_szenen.content</code>.
           </WarnBox>
 
-          <WarnBox title="2. Scene Identity darf nie geloescht werden">
-            Eine <code>scene_identity</code> ist die Klammer ueber alle Fassungen.
-            Wird sie geloescht, verlieren <strong>alle</strong> zugehoerigen <code>dokument_szenen</code>,
-            {' '}<code>scene_characters</code> und <code>szenen_vorstopp</code>-Eintraege ihre Referenz
-            (CASCADE DELETE). Dies sollte nur beim Loeschen einer ganzen Staffel geschehen.
+          <WarnBox title="2. Version lebt NUR in werkstufen">
+            <code>dokument_szenen</code> hat keine eigene Versionsnummer.
+            Die Version wird ueber <code>werkstufe.version_nummer</code> + <code>werkstufe.typ</code> bestimmt.
+            Eine Werkstufe IST die Version.
           </WarnBox>
 
-          <WarnBox title="3. Dual-Write-Konsistenz pruefen">
-            Solange beide Systeme parallel laufen, muessen Import-Aenderungen <strong>immer</strong> in
-            beide Systeme geschrieben werden. Ein einseitiger Schreibvorgang fuehrt zu Dateninkonsistenz.
-            Der Admin-Endpunkt <code>/api/dokument-szenen/admin/legacy-status</code> zeigt den aktuellen Stand.
-            <br /><br />
-            <strong>Ziel:</strong> Sobald alle Episoden den Status <code>dual</code> oder <code>new_only</code> haben,
-            koennen die alten Tabellen entfernt werden.
+          <WarnBox title="3. Scene Identity darf nie geloescht werden">
+            Eine <code>scene_identity</code> ist die Klammer ueber alle Werkstufen.
+            CASCADE DELETE wuerde alle <code>dokument_szenen</code>,{' '}
+            <code>scene_characters</code> und <code>szenen_vorstopp</code> mitloeschen.
+            Nur beim Loeschen einer ganzen Folge zulaessig.
           </WarnBox>
 
-          <WarnBox title="4. Abgegeben-Flag blockiert Schreibzugriffe">
-            Wenn <code>fassungen.abgegeben = true</code>, ist die Fassung eingefroren.
-            PUT-Requests auf <code>dokument_szenen</code> dieser Fassung werden mit HTTP 409 abgelehnt.
-            Eine neue Fassung muss erstellt werden, um weiterzuarbeiten.
+          <WarnBox title="4. Abgegeben-Flag blockiert alle Szenen">
+            Wenn <code>werkstufe.abgegeben = true</code>, sind <strong>alle</strong> dokument_szenen
+            dieser Werkstufe eingefroren. PUT-Requests werden mit HTTP 409 abgelehnt.
+            Eine neue Werkstufe muss erstellt werden.
           </WarnBox>
 
-          <WarnBox title="5. sort_order kann Luecken haben">
-            Nach Reorder-Operationen werden <code>sort_order</code>-Werte sequentiell re-indexiert.
-            Aber waehrend eines Inserts nach <code>after_scene_id</code> wird zunaechst ein fraktionaler
-            Wert (.5) verwendet und danach re-indexiert. Bei einem Absturz zwischen diesen Schritten
-            koennen nicht-ganzzahlige sort_order-Werte verbleiben. Die Sortierung funktioniert trotzdem korrekt.
+          <WarnBox title="5. Kollaboration pro Werkstufe">
+            Bearbeitung_status-Aenderungen (z.B. auf "collab") gelten fuer alle dokument_szenen
+            einer Werkstufe. Jede dokument_szene hat ihren eigenen Yjs-Room, aber der Status
+            wird zentral auf der Werkstufe gesteuert.
           </WarnBox>
 
-          <InfoBox title="6. Vorstopp: Mehrere Eintraege pro Stage" color={C.green}>
-            Pro <code>stage</code> (drehbuch/vorbereitung/dreh/schnitt) koennen mehrere Vorstopp-Eintraege
-            existieren. Der <strong>aktuellste</strong> (neuester <code>created_at</code>) zaehlt fuer die Uebersicht.
-            Aeltere Eintraege bleiben als Historie erhalten. Die API liefert beides:
-            {' '}<code>all</code> (alle Eintraege) und <code>latest_per_stage</code> (nur aktuellster pro Stage).
-          </InfoBox>
-
-          <InfoBox title="7. Content-JSONB Struktur" color={C.blue}>
+          <InfoBox title="6. Content-JSONB Struktur" color={C.blue}>
             <code>dokument_szenen.content</code> ist ein Array von Textelementen:
             <div style={{ fontFamily: 'monospace', fontSize: 10, marginTop: 6, padding: 8, background: C.subtle, borderRadius: 6 }}>
               {'[{ id, type, text, character? }]'}<br />
               type: action | dialogue | parenthetical | character | transition | shot | heading
             </div>
-            Beim Speichern wird das Array gegen ein Zod-Schema validiert (PUT /api/szenen/:id).
-            In <code>dokument_szenen</code> wird es direkt als JSONB gespeichert ohne separate Validierung —
-            die Validierung erfolgt im Frontend-Editor.
+          </InfoBox>
+
+          <InfoBox title="7. Stoppzeit-Berechnung" color={C.green}>
+            <code>SUM(stoppzeit_sek) WHERE werkstufe_id = X AND geloescht = false</code><br />
+            Frontend formatiert: <code>270</code> → <code>"04:30"</code>.
+            Addierbar fuer Gesamtlaenge des Buches.
           </InfoBox>
         </div>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 8. API-Endpunkte Uebersicht */}
+      {/* 8. API-Endpunkte */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="8. API-Endpunkte (neues System)">
+      <Section title="8. API-Endpunkte (Werkstufen-System)">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
           <thead>
             <tr style={{ background: C.subtle, borderBottom: `2px solid ${C.border}` }}>
@@ -1966,27 +1916,29 @@ function SzenenFassungenTab() {
           </thead>
           <tbody>
             {[
-              { m: 'GET',    p: '/api/fassungen/:id/szenen',              d: 'Alle Szenen einer Fassung' },
-              { m: 'POST',   p: '/api/fassungen/:id/szenen',              d: 'Neue Szene hinzufuegen' },
-              { m: 'PATCH',  p: '/api/fassungen/:id/szenen/reorder',      d: 'Szenen-Reihenfolge aendern' },
-              { m: 'POST',   p: '/api/fassungen/:id/szenen/renumber',     d: 'Sequentiell umnummerieren' },
-              { m: 'GET',    p: '/api/fassungen/:a/szenen/diff/:b',       d: 'Fassungsvergleich (Diff)' },
-              { m: 'GET',    p: '/api/dokument-szenen/:id',               d: 'Einzelne Szene laden' },
-              { m: 'PUT',    p: '/api/dokument-szenen/:id',               d: 'Szenenkopf aktualisieren' },
-              { m: 'DELETE', p: '/api/dokument-szenen/:id',               d: 'Szene loeschen' },
-              { m: 'GET',    p: '/api/dokument-szenen/:id/revisionen',    d: 'Revisions-Deltas laden' },
-              { m: 'POST',   p: '/api/dokument-szenen/:id/revisionen',    d: 'Delta aufzeichnen' },
-              { m: 'GET',    p: '/api/scene-identities/:id/characters',   d: 'Charaktere einer Szene' },
-              { m: 'POST',   p: '/api/scene-identities/:id/characters',   d: 'Charakter hinzufuegen (Upsert)' },
-              { m: 'DELETE', p: '/api/scene-identities/:id/characters/:cid', d: 'Charakter entfernen' },
-              { m: 'GET',    p: '/api/scene-identities/:id/vorstopp',     d: 'Vorstopp-Zeiten laden' },
-              { m: 'POST',   p: '/api/scene-identities/:id/vorstopp',     d: 'Vorstopp-Eintrag hinzufuegen' },
-              { m: 'GET',    p: '/api/scene-identities/:id/history',      d: 'Alle Fassungen dieser Szene' },
-              { m: 'POST',   p: '/api/scene-identities',                  d: 'Neue Scene Identity erstellen' },
-              { m: 'GET',    p: '/api/stages/fassung/:id/export/fountain',d: 'Export Fountain' },
-              { m: 'GET',    p: '/api/stages/fassung/:id/export/fdx',     d: 'Export Final Draft XML' },
-              { m: 'GET',    p: '/api/stages/fassung/:id/export/pdf',     d: 'Export HTML (druckbar)' },
-              { m: 'GET',    p: '/api/dokument-szenen/admin/legacy-status',d: 'Migrations-Status aller Episoden' },
+              { m: 'GET',    p: '/api/v2/folgen?staffel_id=X',             d: 'Alle Folgen einer Staffel' },
+              { m: 'POST',   p: '/api/v2/folgen',                          d: 'Folge erstellen' },
+              { m: 'PUT',    p: '/api/v2/folgen/:id',                      d: 'Folge aktualisieren (Titel)' },
+              { m: 'GET',    p: '/api/folgen/:id/werkstufen',              d: 'Alle Werkstufen einer Folge' },
+              { m: 'POST',   p: '/api/folgen/:id/werkstufen',              d: 'Neue Werkstufe (kopiert Vorgaenger)' },
+              { m: 'GET',    p: '/api/werkstufen/:id',                     d: 'Einzelne Werkstufe' },
+              { m: 'PUT',    p: '/api/werkstufen/:id',                     d: 'Status/Sichtbarkeit aendern' },
+              { m: 'GET',    p: '/api/werkstufen/:id/szenen',              d: 'Alle Szenen einer Werkstufe' },
+              { m: 'POST',   p: '/api/werkstufen/:id/szenen',              d: 'Neue Szene hinzufuegen' },
+              { m: 'PATCH',  p: '/api/werkstufen/:id/szenen/reorder',      d: 'Szenen-Reihenfolge aendern' },
+              { m: 'POST',   p: '/api/werkstufen/:id/szenen/renumber',     d: 'Sequentiell umnummerieren' },
+              { m: 'GET',    p: '/api/werkstufen/:a/szenen/diff/:b',       d: 'Werkstufen-Vergleich (Diff)' },
+              { m: 'GET',    p: '/api/dokument-szenen/:id',                d: 'Einzelne Szene laden' },
+              { m: 'PUT',    p: '/api/dokument-szenen/:id',                d: 'Szenenkopf aktualisieren' },
+              { m: 'DELETE', p: '/api/dokument-szenen/:id',                d: 'Soft-Delete (geloescht=true)' },
+              { m: 'GET',    p: '/api/scene-identities/:id/characters',    d: 'Charaktere einer Szene' },
+              { m: 'POST',   p: '/api/scene-identities/:id/characters',    d: 'Charakter hinzufuegen' },
+              { m: 'GET',    p: '/api/scene-identities/:id/vorstopp',      d: 'Vorstopp-Zeiten laden' },
+              { m: 'POST',   p: '/api/scene-identities/:id/vorstopp',      d: 'Vorstopp-Eintrag hinzufuegen' },
+              { m: 'GET',    p: '/api/scene-identities/:id/history',       d: 'Szene ueber alle Werkstufen' },
+              { m: 'GET',    p: '/api/werkstufen/:id/export/fountain',     d: 'Export Fountain' },
+              { m: 'GET',    p: '/api/werkstufen/:id/export/fdx',          d: 'Export Final Draft XML' },
+              { m: 'GET',    p: '/api/werkstufen/:id/export/pdf',          d: 'Export HTML (druckbar)' },
             ].map((r, i) => (
               <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
                 <td style={{ padding: '6px 10px' }}>
@@ -2006,31 +1958,38 @@ function SzenenFassungenTab() {
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 9. Migrationen */}
+      {/* 9. Migrations-Roadmap */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="9. Datenbank-Migrationen">
+      <Section title="9. Migrations-Roadmap (8 Phasen)">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
-            { v: 'v38', name: 'scene_identities + dokument_szenen', desc: 'Kerntabellen, Indizes, FK auf scene_characters/szenen_vorstopp' },
-            { v: 'v39', name: 'Unique Index scene_characters', desc: 'Partial Unique Index (scene_identity_id, character_id) fuer ON CONFLICT Upsert' },
-            { v: 'v40', name: 'Nullable szene_id', desc: 'szene_id DROP NOT NULL auf scene_characters + szenen_vorstopp, CHECK-Constraints' },
-            { v: 'v41', name: 'Revision dokument_szene_id', desc: 'dokument_szene_id + fassung_id Spalten auf szenen_revisionen, CHECK-Constraint' },
-            { v: 'v42', name: 'Deprecate Legacy', desc: 'COMMENT ON TABLE, View v_legacy_data_status fuer Migrations-Monitoring' },
+            { phase: '1', name: 'Migration: Neue Tabellen + Datenmigration', desc: 'folgen, werkstufen erstellen, Daten aus folgen_dokumente + fassungen migrieren', risk: 'gering', color: C.green },
+            { phase: '2', name: 'Backend: Neue Routen (parallel)', desc: '/api/v2/folgen, /api/werkstufen, /api/werkstufen/:id/szenen — alte Routen bleiben', risk: 'gering', color: C.green },
+            { phase: '3', name: 'Import-System umbauen', desc: 'Import schreibt in folgen + werkstufen statt folgen_dokumente + fassungen', risk: 'mittel', color: C.orange },
+            { phase: '4', name: 'Frontend: Editor-Refactoring', desc: 'EditorPanel liest dokument_szenen.content, Werkstufen-Selector, Format-Switch', risk: 'hoch', color: C.red },
+            { phase: '5', name: 'Kollaboration anpassen', desc: 'Hocuspocus/Yjs Room-Naming, onLoad/onStore auf dokument_szenen', risk: 'mittel', color: C.orange },
+            { phase: '6', name: 'Export-System anpassen', desc: 'Fountain/FDX/PDF lesen aus werkstufen + dokument_szenen', risk: 'gering', color: C.green },
+            { phase: '7', name: 'Cleanup: Alte Tabellen droppen', desc: 'folgen_dokument_fassungen, folgen_dokumente, folgen_meta, stages, szenen entfernen', risk: 'hoch', color: C.red },
+            { phase: '8', name: 'Tests + HilfePage', desc: 'Playwright-Tests fuer alle Phasen, HilfePage aktualisieren', risk: 'gering', color: C.green },
           ].map(m => (
-            <div key={m.v} style={{
+            <div key={m.phase} style={{
               display: 'flex', alignItems: 'baseline', gap: 12,
               padding: '8px 12px', borderRadius: 6,
               background: C.subtle,
-              borderLeft: `3px solid ${C.green}`,
+              borderLeft: `3px solid ${m.color}`,
             }}>
-              <Badge color={C.green}>{m.v}</Badge>
-              <div>
+              <Badge color={C.blue}>Phase {m.phase}</Badge>
+              <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: 12 }}>{m.name}</strong>
                 <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{m.desc}</div>
               </div>
+              <Badge color={m.color}>{m.risk}</Badge>
             </div>
           ))}
         </div>
+        <InfoBox title="Empfohlene Reihenfolge" color={C.blue}>
+          1 → 2 → 3 + 6 (parallel) → 4 → 5 → 8 → 7 (Cleanup ganz am Ende)
+        </InfoBox>
       </Section>
 
     </div>
