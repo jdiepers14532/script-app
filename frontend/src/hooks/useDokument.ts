@@ -142,6 +142,30 @@ export function formatStoppzeit(sek: number | null | undefined): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+function isInhaltEmpty(inhalt: any): boolean {
+  if (!inhalt) return true
+  if (typeof inhalt === 'object' && Object.keys(inhalt).length === 0) return true
+  if (inhalt.type === 'doc' && Array.isArray(inhalt.content)) {
+    return inhalt.content.every((n: any) =>
+      n.type === 'paragraph' && (!n.content || n.content.length === 0)
+    )
+  }
+  return false
+}
+
+function composeSzenenToDoc(szenen: any[], editorType: 'screenplay' | 'richtext'): any {
+  const nodes: any[] = []
+  for (const sz of szenen) {
+    if (!sz.content) continue
+    const content = Array.isArray(sz.content) ? sz.content : (sz.content?.content ?? [])
+    for (const node of content) {
+      nodes.push(node)
+    }
+  }
+  if (nodes.length === 0) return null
+  return { type: 'doc', content: nodes }
+}
+
 export function useFassungContent(dokumentId: string | null, fassungId: string | null) {
   const [fassung, setFassung] = useState<FassungWithInhalt | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
@@ -152,7 +176,21 @@ export function useFassungContent(dokumentId: string | null, fassungId: string |
     if (!dokumentId || !fassungId) { setFassung(null); return }
     setLoading(true)
     api.getFassung(dokumentId, fassungId)
-      .then(setFassung)
+      .then(async (data) => {
+        // If inhalt is empty, compose from dokument_szenen content
+        if (isInhaltEmpty(data.inhalt)) {
+          try {
+            const szenen = await api.getFassungsSzenen(fassungId)
+            if (szenen.length > 0) {
+              const composed = composeSzenenToDoc(szenen, 'screenplay')
+              if (composed) {
+                data = { ...data, inhalt: composed }
+              }
+            }
+          } catch { /* ignore, show empty */ }
+        }
+        setFassung(data)
+      })
       .catch(() => setFassung(null))
       .finally(() => setLoading(false))
   }, [dokumentId, fassungId])
