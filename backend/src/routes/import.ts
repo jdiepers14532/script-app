@@ -165,43 +165,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       versionLabel = `Import ${filenameMeta.fassungsdatum}`
     }
 
-    const stage = await queryOne(
-      `INSERT INTO stages (staffel_id, folge_nummer, proddb_block_id, stage_type, version_label, erstellt_von, meta_json)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [staffel_id, folge_nummer, proddb_block_id, stage_type, versionLabel, req.user!.name || req.user!.user_id, JSON.stringify(metaJson)]
-    )
-
-    if (!stage) return res.status(500).json({ error: 'Stage konnte nicht angelegt werden' })
-
-    // ── Insert scenes + collect IDs for scene_characters linking ──
     let scenesImported = 0
-    const szeneIds: { szeneDbId: number; szeneIdx: number }[] = []
-    for (const [idx, szene] of result.szenen.entries()) {
-      const dauerMin = szene.dauer_sekunden ? Math.round(szene.dauer_sekunden / 60) : null
-      const dauerSek = szene.dauer_sekunden || null
-      const isWechselschnitt = szene.isWechselschnitt || false
-      const inserted = await queryOne(
-        `INSERT INTO szenen (stage_id, scene_nummer, int_ext, tageszeit, ort_name, zusammenfassung, content, sort_order, spieltag, dauer_min, dauer_sek, is_wechselschnitt, szeneninfo)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-        [stage.id, szene.nummer, szene.int_ext, szene.tageszeit, szene.ort_name || null, szene.zusammenfassung || null, JSON.stringify(szene.textelemente), idx, szene.spieltag || null, dauerMin, dauerSek, isWechselschnitt, szene.szeneninfo || null]
-      )
-      if (inserted) szeneIds.push({ szeneDbId: inserted.id, szeneIdx: idx })
-      scenesImported++
-    }
 
-    // ── Dual-write: new dokument_szenen system (parallel to stages+szenen) ──
+    // ── Dokument_szenen system ──
     // Map stage_type → dokument-typ
     const stageToDocTyp: Record<string, string> = {
       treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
     }
     const docTyp = stageToDocTyp[stage_type] || 'drehbuch'
-
-    // Ensure folgen_meta exists
-    await queryOne(
-      `INSERT INTO folgen_meta (staffel_id, folge_nummer) VALUES ($1, $2)
-       ON CONFLICT (staffel_id, folge_nummer) DO NOTHING`,
-      [staffel_id, folge_nummer]
-    )
 
     // Create or find folgen_dokument
     let dokument = await queryOne(
@@ -430,26 +401,19 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       } catch { /* ignore constraint violations */ }
     }
 
-    // ── Scene-Characters linking ──
-    // Build szeneIdx → identityId map
-    const idxToIdentity = new Map<number, string>()
+    // ── Scene-Characters linking (via scene_identity_id) ──
     for (const { identityId, szeneIdx } of sceneIdentityIds) {
-      idxToIdentity.set(szeneIdx, identityId)
-    }
-
-    for (const { szeneDbId, szeneIdx } of szeneIds) {
       const szene = result.szenen[szeneIdx]
-      const identityId = idxToIdentity.get(szeneIdx) || null
       // Link Rollen
       for (const charName of szene.charaktere) {
         const charId = charNameToId.get(charName.toUpperCase())
         if (!charId) continue
         try {
           await queryOne(
-            `INSERT INTO scene_characters (szene_id, character_id, kategorie_id, scene_identity_id)
-             VALUES ($1, $2, $3, $4)
-             ON CONFLICT (szene_id, character_id) DO NOTHING`,
-            [szeneDbId, charId, rolleKatId, identityId]
+            `INSERT INTO scene_characters (scene_identity_id, character_id, kategorie_id)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (scene_identity_id, character_id) WHERE scene_identity_id IS NOT NULL DO NOTHING`,
+            [identityId, charId, rolleKatId]
           )
         } catch { /* ignore */ }
       }
@@ -460,10 +424,10 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           if (!charId) continue
           try {
             await queryOne(
-              `INSERT INTO scene_characters (szene_id, character_id, kategorie_id, scene_identity_id)
-               VALUES ($1, $2, $3, $4)
-               ON CONFLICT (szene_id, character_id) DO NOTHING`,
-              [szeneDbId, charId, komparseKatId, identityId]
+              `INSERT INTO scene_characters (scene_identity_id, character_id, kategorie_id)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (scene_identity_id, character_id) WHERE scene_identity_id IS NOT NULL DO NOTHING`,
+              [identityId, charId, komparseKatId]
             )
           } catch { /* ignore */ }
         }
@@ -491,7 +455,6 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     res.json({
-      stage_id: stage.id,
       dokument_id: dokument.id,
       fassung_id: fassung.id,
       folge_id: folge.id,

@@ -242,6 +242,7 @@ async function runMigrations() {
     'v43_werkstufen_modell.sql',
     'v43_1_fassung_nullable.sql',
     'v43_2_szene_yjs_state.sql',
+    'v44_cleanup_legacy.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

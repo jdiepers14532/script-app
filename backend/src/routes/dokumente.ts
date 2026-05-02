@@ -11,13 +11,6 @@ folgenDokumenteRouter.use(authMiddleware)
 folgenDokumenteRouter.get('/', async (req, res) => {
   const { staffelId, folgeNummer } = req.params as any
   try {
-    // Ensure folgen_meta row exists (auto-create if needed for convenience)
-    await queryOne(
-      `INSERT INTO folgen_meta (staffel_id, folge_nummer) VALUES ($1, $2)
-       ON CONFLICT (staffel_id, folge_nummer) DO NOTHING`,
-      [staffelId, parseInt(folgeNummer)]
-    )
-
     const rows = await query(
       `SELECT
         d.id, d.typ, d.erstellt_von, d.erstellt_am,
@@ -49,13 +42,6 @@ folgenDokumenteRouter.post('/', async (req, res) => {
 
   const user = req.user!
   try {
-    // Ensure folgen_meta row exists
-    await queryOne(
-      `INSERT INTO folgen_meta (staffel_id, folge_nummer) VALUES ($1, $2)
-       ON CONFLICT (staffel_id, folge_nummer) DO NOTHING`,
-      [staffelId, parseInt(folgeNummer)]
-    )
-
     const dok = await queryOne(
       `INSERT INTO folgen_dokumente (staffel_id, folge_nummer, typ, erstellt_von)
        VALUES ($1, $2, $3, $4) RETURNING *`,

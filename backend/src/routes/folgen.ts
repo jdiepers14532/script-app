@@ -11,7 +11,8 @@ folgenRouter.get('/:staffelId/:folgeNummer', async (req, res) => {
   try {
     const { staffelId, folgeNummer } = req.params
     const row = await queryOne(
-      'SELECT * FROM folgen_meta WHERE staffel_id = $1 AND folge_nummer = $2',
+      `SELECT id, staffel_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json
+       FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2`,
       [staffelId, parseInt(folgeNummer)]
     )
     res.json(row || { staffel_id: staffelId, folge_nummer: parseInt(folgeNummer) })
@@ -26,14 +27,13 @@ folgenRouter.put('/:staffelId/:folgeNummer', async (req, res) => {
     const { staffelId, folgeNummer } = req.params
     const { arbeitstitel, air_date, synopsis } = req.body
     const row = await queryOne(
-      `INSERT INTO folgen_meta (staffel_id, folge_nummer, arbeitstitel, air_date, synopsis, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
+      `INSERT INTO folgen (staffel_id, folge_nummer, folgen_titel, air_date, synopsis)
+       VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (staffel_id, folge_nummer) DO UPDATE
-       SET arbeitstitel = COALESCE($3, folgen_meta.arbeitstitel),
-           air_date = COALESCE($4, folgen_meta.air_date),
-           synopsis = COALESCE($5, folgen_meta.synopsis),
-           updated_at = NOW()
-       RETURNING *`,
+       SET folgen_titel = COALESCE($3, folgen.folgen_titel),
+           air_date = COALESCE($4, folgen.air_date),
+           synopsis = COALESCE($5, folgen.synopsis)
+       RETURNING id, staffel_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json`,
       [staffelId, parseInt(folgeNummer), arbeitstitel || null, air_date || null, synopsis || null]
     )
     res.json(row)
@@ -99,7 +99,7 @@ folgenRouter.get('/:staffelId/:folgeNummer/synopsis', async (req, res) => {
   try {
     const { staffelId, folgeNummer } = req.params
     const row = await queryOne(
-      'SELECT * FROM folgen_meta WHERE staffel_id = $1 AND folge_nummer = $2',
+      `SELECT folgen_titel AS arbeitstitel, synopsis FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2`,
       [staffelId, parseInt(folgeNummer)]
     )
     res.json({

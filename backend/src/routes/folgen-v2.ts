@@ -73,14 +73,6 @@ folgenV2Router.post('/', async (req, res) => {
       return res.json(existing)
     }
 
-    // Also create folgen_meta for backward compat
-    await queryOne(
-      `INSERT INTO folgen_meta (staffel_id, folge_nummer, arbeitstitel)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (staffel_id, folge_nummer) DO NOTHING`,
-      [staffel_id, folge_nummer, folgen_titel ?? null]
-    )
-
     res.status(201).json(row)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -102,17 +94,6 @@ folgenV2Router.put('/:id', async (req, res) => {
       [folgen_titel, air_date, synopsis, req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
-
-    // Sync back to folgen_meta for backward compat
-    await queryOne(
-      `UPDATE folgen_meta SET
-        arbeitstitel = COALESCE($1, arbeitstitel),
-        air_date = COALESCE($2, air_date),
-        synopsis = COALESCE($3, synopsis),
-        updated_at = NOW()
-       WHERE staffel_id = $4 AND folge_nummer = $5`,
-      [folgen_titel, air_date, synopsis, row.staffel_id, row.folge_nummer]
-    )
 
     res.json(row)
   } catch (err) {

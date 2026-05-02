@@ -35,7 +35,7 @@ export const api = {
   getSendedatum: (staffelId: string, folgeNummer: number) =>
     request<{ datum: string; ist_ki_prognose: boolean } | null>('GET', `/folgen/${staffelId}/${folgeNummer}/sendedatum`),
 
-  // Stages
+  // Stages (legacy — will be removed when frontend fully migrates to werkstufen)
   getStages: (staffelId: string, folgeNummer: number) =>
     request<any[]>('GET', `/stages?staffel_id=${encodeURIComponent(staffelId)}&folge_nummer=${folgeNummer}`),
   getStage: (id: number) => request<any>('GET', `/stages/${id}`),
@@ -43,7 +43,7 @@ export const api = {
     request<any>('POST', '/stages', { staffel_id: staffelId, folge_nummer: folgeNummer, proddb_block_id: proddbBlockId, ...data }),
   updateStage: (id: number, data: any) => request<any>('PUT', `/stages/${id}`, data),
 
-  // Szenen
+  // Szenen (legacy — will be removed when frontend fully migrates to werkstufen)
   getSzenen: (stageId: number) => request<any[]>('GET', `/stages/${stageId}/szenen`),
   getSzene: (id: number) => request<any>('GET', `/szenen/${id}`),
   createSzene: (stageId: number, data: any) => request<any>('POST', `/stages/${stageId}/szenen`, data),
@@ -92,7 +92,7 @@ export const api = {
   takeoverLock: (staffelId: string, folgeNummer: number) =>
     request<any>('POST', `/folgen/${staffelId}/${folgeNummer}/lock/takeover`, {}),
 
-  // Szenen Versionen
+  // Szenen Versionen (legacy)
   getVersionen: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/versionen`),
   createVersion: (szeneId: number, data: any) => request<any>('POST', `/szenen/${szeneId}/versionen`, data),
   restoreVersion: (szeneId: number, versionId: number) =>
@@ -114,7 +114,7 @@ export const api = {
   kiStyleCheck: (data: any) => request<any>('POST', '/ki/style-check', data),
   kiSynopsis: (data: any) => request<any>('POST', '/ki/synopsis', data),
 
-  // Kommentare
+  // Kommentare (legacy)
   getKommentare: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/kommentare`),
   createKommentar: (szeneId: number, data: any) => request<any>('POST', `/szenen/${szeneId}/kommentare`, data),
   resolveKommentar: (id: number) => request<any>('PATCH', `/kommentare/${id}/resolve`, {}),
@@ -125,12 +125,12 @@ export const api = {
   updateSettings: (data: { selected_production_id?: string | null; ui_settings?: Record<string, any> }) =>
     request<any>('PUT', '/me/settings', data),
 
-  // Export
+  // Export (legacy stage-based)
   exportPdf: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/pdf`, { credentials: 'include' }),
   exportFountain: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fountain`, { credentials: 'include' }),
   exportFdx: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fdx`, { credentials: 'include' }),
   exportRevisionSummary: (stageId: number) => request<any>('GET', `/stages/${stageId}/export/revision-summary`),
-  // Fassung-based exports (new system)
+  // Fassung-based exports
   exportFassungPdf: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/pdf`, { credentials: 'include' }),
   exportFassungFountain: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/fountain`, { credentials: 'include' }),
   exportFassungFdx: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/fdx`, { credentials: 'include' }),
@@ -194,6 +194,7 @@ export const api = {
     request<void>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/${katId}`),
   reorderCharKategorien: (staffelId: string, order: {id: number, sort_order: number}[]) =>
     request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/reorder`, { order }),
+  // Scene characters (legacy szene-based)
   getSceneCharacters: (szeneId: number) =>
     request<any[]>('GET', `/szenen/${szeneId}/characters`),
   addSceneCharacter: (szeneId: number, data: any) =>
@@ -205,7 +206,7 @@ export const api = {
   linkCharacterToProduction: (characterId: string, data: any) =>
     request<any>('POST', `/characters/${characterId}/productions`, data),
 
-  // Revisionen
+  // Revisionen (legacy szene-based)
   getSzeneRevisionen: (szeneId: number, stageId?: number) => {
     const qs = stageId ? `?stage_id=${stageId}` : ''
     return request<any[]>('GET', `/szenen/${szeneId}/revisionen${qs}`)
@@ -213,7 +214,7 @@ export const api = {
   createSzeneRevision: (szeneId: number, data: any) =>
     request<any>('POST', `/szenen/${szeneId}/revisionen`, data),
 
-  // Vorstopp
+  // Vorstopp (legacy szene-based)
   getVorstopp: (szeneId: number) =>
     request<any>('GET', `/szenen/${szeneId}/vorstopp`),
   addVorstopp: (szeneId: number, data: { stage: string; dauer_sekunden: number; methode?: string; user_name?: string }) =>
@@ -322,15 +323,7 @@ export const api = {
   autocompleteLocations: (staffelId: string, q: string) =>
     request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/locations?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(q)}`),
 
-  // Scene comment read-state (Messenger-App annotation badge)
-  getSceneCommentCounts: (stageId: number) =>
-    request<Record<number, number>>('GET', `/stages/${stageId}/szenen-comment-counts`),
-  markSceneCommentsRead: (szeneId: number) =>
-    request<{ ok: boolean }>('POST', `/szenen/${szeneId}/mark-comments-read`),
-  getSceneAnnotations: (szeneId: number) =>
-    request<any[]>('GET', `/szenen/${szeneId}/messenger-annotations`),
-  createSceneAnnotation: (szeneId: number, text: string) =>
-    request<any>('POST', `/szenen/${szeneId}/messenger-annotations`, { text }),
+  // Scene comments: stage-based methods removed in Phase 7 Cleanup
 
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {

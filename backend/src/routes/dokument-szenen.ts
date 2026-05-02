@@ -496,25 +496,6 @@ sceneIdentitiesRouter.post('/', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// GET /api/dokument-szenen/admin/legacy-status — migration status overview
-// ══════════════════════════════════════════════════════════════════════════════
-dokumentSzenenRouter.get('/admin/legacy-status', async (_req, res) => {
-  try {
-    const rows = await query('SELECT * FROM v_legacy_data_status', [])
-    const summary = {
-      total: rows.length,
-      legacy_only: rows.filter((r: any) => r.data_status === 'legacy_only').length,
-      dual: rows.filter((r: any) => r.data_status === 'dual').length,
-      new_only: rows.filter((r: any) => r.data_status === 'new_only').length,
-      empty: rows.filter((r: any) => r.data_status === 'empty').length,
-    }
-    res.json({ summary, episodes: rows })
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
-
-// ══════════════════════════════════════════════════════════════════════════════
 // GET /api/scene-identities/:id/history — all fassungen/dokumente for a scene
 // ══════════════════════════════════════════════════════════════════════════════
 sceneIdentitiesRouter.get('/:id/history', async (req, res) => {
