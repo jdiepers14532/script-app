@@ -274,6 +274,51 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
     }
 
+    // ── Dual-write: folgen + werkstufen (v43 Werkstufen-Modell) ──
+    // Ensure folgen row exists
+    let folge = await queryOne(
+      `SELECT id FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2`,
+      [staffel_id, folge_nummer]
+    )
+    if (!folge) {
+      folge = await queryOne(
+        `INSERT INTO folgen (staffel_id, folge_nummer, erstellt_von)
+         VALUES ($1, $2, $3) RETURNING id`,
+        [staffel_id, folge_nummer, req.user!.name || req.user!.user_id]
+      )
+    }
+
+    // Create werkstufe linked to folge
+    const werkstufenTyp = docTyp  // same mapping: storyline/drehbuch/notiz
+    const nextWerkVer = await queryOne(
+      `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
+      [folge.id, werkstufenTyp]
+    )
+    const werkstufe = await queryOne(
+      `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von)
+       VALUES ($1, $2, $3, $4, 'team', $5) RETURNING id`,
+      [folge.id, werkstufenTyp, (nextWerkVer?.m ?? 0) + 1, versionLabel, req.user!.name || req.user!.user_id]
+    )
+
+    // Update scene_identities with folge_id
+    for (const { identityId } of sceneIdentityIds) {
+      await pool.query(
+        `UPDATE scene_identities SET folge_id = $1 WHERE id = $2 AND folge_id IS NULL`,
+        [folge.id, identityId]
+      )
+    }
+
+    // Update dokument_szenen with werkstufe_id, format, stoppzeit_sek
+    await pool.query(
+      `UPDATE dokument_szenen SET
+        werkstufe_id = $1,
+        format = $2,
+        stoppzeit_sek = COALESCE(dauer_min, 0) * 60 + COALESCE(dauer_sek, 0),
+        geloescht = false
+       WHERE fassung_id = $3 AND werkstufe_id IS NULL`,
+      [werkstufe.id, werkstufenTyp, fassung.id]
+    )
+
     // ── Characters: use new characters + character_productions system ──
     // Load existing kategorien for this staffel
     const kategorien = await query(
@@ -449,6 +494,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       stage_id: stage.id,
       dokument_id: dokument.id,
       fassung_id: fassung.id,
+      folge_id: folge.id,
+      werkstufe_id: werkstufe.id,
       scenes_imported: scenesImported,
       characters_created: charactersCreated,
       komparsen_created: komparsenCreated,
