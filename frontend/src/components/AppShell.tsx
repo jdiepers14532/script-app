@@ -55,14 +55,19 @@ interface BgPalette {
 }
 
 export const LIGHT_PALETTES: BgPalette[] = [
-  { name: 'Standard',     preview: '#FFFFFF', bg: '#FFFFFF', surface: '#FFFFFF', subtle: '#F5F5F5', active: '#F5F5F5', hover: '#EDEDED', border: '#E0E0E0', borderSubtle: '#EEEEEE' },
-  { name: 'Naturweiß',    preview: '#FCFCFA', bg: '#FCFCFA', surface: '#FCFCFA', subtle: '#F4F4F2', active: '#EEEEED', hover: '#E8E8E6', border: '#DCDCDA', borderSubtle: '#EBEBEA' },
-  { name: 'Warm-Weiß',    preview: '#FAFAF8', bg: '#FAFAF8', surface: '#FAFAF8', subtle: '#F2F1EF', active: '#ECEAE6', hover: '#E5E3DF', border: '#DDDBD7', borderSubtle: '#E9E7E3' },
-  { name: 'Elfenbein',    preview: '#FEFCE8', bg: '#FEFCE8', surface: '#FEFCE8', subtle: '#F5F0D8', active: '#EDE8CE', hover: '#E8E3CA', border: '#D6D0BC', borderSubtle: '#EDE9D5' },
-  { name: 'Solarized',    preview: '#FDF6E3', bg: '#FDF6E3', surface: '#FDF6E3', subtle: '#EEE8D5', active: '#E8E2CE', hover: '#DDD8C6', border: '#CEC9B8', borderSubtle: '#E5E0CF' },
-  { name: 'Leinen',       preview: '#FAF0E6', bg: '#FAF0E6', surface: '#FAF0E6', subtle: '#F0E6DC', active: '#E6DACE', hover: '#DDD2C4', border: '#C8BEB4', borderSubtle: '#E8DFDA' },
-  { name: 'Pergament',    preview: '#F5F0E8', bg: '#F5F0E8', surface: '#F5F0E8', subtle: '#ECE7DF', active: '#E0DAD0', hover: '#D5CFC5', border: '#C0BAAE', borderSubtle: '#E5E0D8' },
-  { name: 'Warmes Beige', preview: '#F0EBE0', bg: '#F0EBE0', surface: '#F0EBE0', subtle: '#E5E0D5', active: '#DAD4C8', hover: '#CFCABB', border: '#B8B2A5', borderSubtle: '#DDD8CC' },
+  { name: 'Standard',        preview: '#FFFFFF', bg: '#FFFFFF', surface: '#FFFFFF', subtle: '#F5F5F5', active: '#F5F5F5', hover: '#EDEDED', border: '#E0E0E0', borderSubtle: '#EEEEEE' },
+  { name: 'Cold Steel 2',    preview: '#FFFAFA', bg: '#FFFAFA', surface: '#FFFAFA', subtle: '#F5F0F0', active: '#EDE9E9', hover: '#F2EEEE', border: '#DEDADA', borderSubtle: '#F0EBEB' },
+  { name: 'Ivory',           preview: '#FFFFF0', bg: '#FFFFF0', surface: '#FFFFF0', subtle: '#F5F5E6', active: '#EDEDDF', hover: '#F2F2E4', border: '#DEDED1', borderSubtle: '#F0F0E2' },
+  { name: 'Pearl',           preview: '#FCFCF7', bg: '#FCFCF7', surface: '#FCFCF7', subtle: '#F2F2ED', active: '#EAEAE6', hover: '#EFEFEB', border: '#DBDBD7', borderSubtle: '#EDEDE8' },
+  { name: 'Naturweiß',       preview: '#FCFCFA', bg: '#FCFCFA', surface: '#FCFCFA', subtle: '#F4F4F2', active: '#EEEEED', hover: '#E8E8E6', border: '#DCDCDA', borderSubtle: '#EBEBEA' },
+  { name: 'Warm-Weiß',       preview: '#FAFAF8', bg: '#FAFAF8', surface: '#FAFAF8', subtle: '#F2F1EF', active: '#ECEAE6', hover: '#E5E3DF', border: '#DDDBD7', borderSubtle: '#E9E7E3' },
+  { name: 'Cold Steel',      preview: '#F8F7F4', bg: '#F8F7F4', surface: '#F8F7F4', subtle: '#EEEDEA', active: '#E7E6E3', hover: '#ECEBE8', border: '#D8D7D4', borderSubtle: '#E9E8E5' },
+  { name: 'Marble',          preview: '#F2F8FC', bg: '#F2F8FC', surface: '#F2F8FC', subtle: '#E8EEF2', active: '#E1E7EA', hover: '#E6ECEF', border: '#D3D8DB', borderSubtle: '#E4E9ED' },
+  { name: 'Lavender',        preview: '#F4F1F8', bg: '#F4F1F8', surface: '#F4F1F8', subtle: '#EAE7EE', active: '#E3E0E7', hover: '#E8E5EC', border: '#D4D2D8', borderSubtle: '#E5E3E9' },
+  { name: 'Kreidefels-Weiß', preview: '#F2EFED', bg: '#F2EFED', surface: '#F2EFED', subtle: '#E8E5E4', active: '#E1DEDC', hover: '#E6E3E1', border: '#D3D0CE', borderSubtle: '#E4E1DF' },
+  { name: 'Leinen',          preview: '#FAF0E6', bg: '#FAF0E6', surface: '#FAF0E6', subtle: '#F0E6DC', active: '#E6DACE', hover: '#DDD2C4', border: '#C8BEB4', borderSubtle: '#E8DFDA' },
+  { name: 'Pergament',       preview: '#F5F0E8', bg: '#F5F0E8', surface: '#F5F0E8', subtle: '#ECE7DF', active: '#E0DAD0', hover: '#D5CFC5', border: '#C0BAAE', borderSubtle: '#E5E0D8' },
+  { name: 'Warmes Beige',    preview: '#F0EBE0', bg: '#F0EBE0', surface: '#F0EBE0', subtle: '#E5E0D5', active: '#DAD4C8', hover: '#CFCABB', border: '#B8B2A5', borderSubtle: '#DDD8CC' },
 ]
 
 export const DARK_PALETTES: BgPalette[] = [
