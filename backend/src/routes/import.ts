@@ -429,10 +429,11 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         try {
           await queryOne(
             `INSERT INTO scene_characters
-              (scene_identity_id, character_id, kategorie_id, spiel_typ, repliken_anzahl)
-             VALUES ($1, $2, $3, $4, $5)
-             ON CONFLICT (scene_identity_id, character_id) WHERE scene_identity_id IS NOT NULL DO NOTHING`,
-            [identityId, charId, rolleKatId, spiel_typ, analysis.repliken]
+              (scene_identity_id, character_id, kategorie_id, spiel_typ, repliken_anzahl, werkstufe_id)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             ON CONFLICT (werkstufe_id, scene_identity_id, character_id)
+               WHERE werkstufe_id IS NOT NULL AND scene_identity_id IS NOT NULL DO NOTHING`,
+            [identityId, charId, rolleKatId, spiel_typ, analysis.repliken, werkstufe.id]
           )
         } catch { /* ignore */ }
       }
@@ -456,12 +457,12 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
             await queryOne(
               `INSERT INTO scene_characters
                 (scene_identity_id, character_id, kategorie_id, anzahl,
-                 spiel_typ, repliken_anzahl, header_o_t)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
-               ON CONFLICT (scene_identity_id, character_id)
-                 WHERE scene_identity_id IS NOT NULL DO NOTHING`,
+                 spiel_typ, repliken_anzahl, header_o_t, werkstufe_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               ON CONFLICT (werkstufe_id, scene_identity_id, character_id)
+                 WHERE werkstufe_id IS NOT NULL AND scene_identity_id IS NOT NULL DO NOTHING`,
               [identityId, charId, komparseKatId, anzahl,
-               spiel_typ, analysis.repliken, headerOT]
+               spiel_typ, analysis.repliken, headerOT, werkstufe.id]
             )
           } catch { /* ignore */ }
         }

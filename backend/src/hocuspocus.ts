@@ -2,6 +2,7 @@ import { Server } from '@hocuspocus/server'
 import { Database } from '@hocuspocus/extension-database'
 import { pool } from './db'
 import fetch from 'node-fetch'
+import { recalcSceneStats } from './utils/recalcRepliken'
 
 /**
  * Document name formats:
@@ -191,6 +192,18 @@ export function createHocuspocusServer() {
                WHERE id = $3`,
               [Buffer.from(state), context?.user_id ?? null, parsed.id]
             )
+
+            // Recalc repliken/spiel_typ after Yjs content persist
+            try {
+              const dsRow = await pool.query(
+                `SELECT werkstufe_id, scene_identity_id, content FROM dokument_szenen WHERE id = $1`,
+                [parsed.id]
+              )
+              const ds = dsRow.rows[0]
+              if (ds?.werkstufe_id && ds?.scene_identity_id && ds?.content) {
+                recalcSceneStats(ds.werkstufe_id, ds.scene_identity_id, ds.content).catch(() => {})
+              }
+            } catch { /* non-critical */ }
           }
         },
       }),

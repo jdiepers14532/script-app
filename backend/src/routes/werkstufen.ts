@@ -95,6 +95,18 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
         [werkstufe.id, user.name || user.user_id, predecessorId]
       )
       copiedCount = copyRes.rowCount ?? 0
+
+      // Copy scene_characters from predecessor with new werkstufe_id
+      await client.query(
+        `INSERT INTO scene_characters
+           (werkstufe_id, scene_identity_id, character_id, kategorie_id,
+            anzahl, spiel_typ, repliken_anzahl, header_o_t)
+         SELECT $1, scene_identity_id, character_id, kategorie_id,
+                anzahl, spiel_typ, repliken_anzahl, header_o_t
+         FROM scene_characters
+         WHERE werkstufe_id = $2`,
+        [werkstufe.id, predecessorId]
+      )
     }
 
     await client.query('COMMIT')
