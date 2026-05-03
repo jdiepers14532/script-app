@@ -445,11 +445,12 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
           // Content analysis: can upgrade o.t. → spiel → text
           const analysis = analyzeKomparseInContent(szene.textelemente, kompCleanName)
-          // Header says o.T. → start at o.t., content can override upward
-          // Header says nothing → start at spiel (assumed), content can override
+          // Header o.T. → start at o.t.; content can always upgrade to 'text' (Dialog found)
+          // but action-mention alone doesn't override an explicit o.T. header
+          // Header without o.T. → start at spiel; content can upgrade to 'text'
           let spiel_typ: string = headerOT ? 'o.t.' : 'spiel'
           if (analysis.spiel_typ === 'text') spiel_typ = 'text'
-          else if (analysis.spiel_typ === 'spiel' && spiel_typ === 'o.t.') spiel_typ = 'spiel'
+          else if (analysis.spiel_typ === 'spiel' && !headerOT) spiel_typ = 'spiel'
 
           try {
             await queryOne(
