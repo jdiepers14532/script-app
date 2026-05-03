@@ -314,11 +314,54 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     // Process Komparsen
-    // Parse "4x PatientInnen o.T." → { name: "PatientInnen o.T.", anzahl: 4 }
-    function parseKomparseEntry(raw: string): { name: string; anzahl: number } {
-      const m = raw.match(/^(\d+)x\s+(.+)$/)
-      if (m) return { name: m[2].trim(), anzahl: parseInt(m[1], 10) }
-      return { name: raw.trim(), anzahl: 1 }
+    // Parse "4x PatientInnen o.T." → { name: "PatientInnen", anzahl: 4, headerOT: true }
+    function parseKomparseEntry(raw: string): { name: string; anzahl: number; headerOT: boolean } {
+      let rest = raw.trim()
+      // Extract "Nx" prefix
+      let anzahl = 1
+      const countM = rest.match(/^(\d+)x\s+(.+)$/)
+      if (countM) { anzahl = parseInt(countM[1], 10); rest = countM[2].trim() }
+      // Strip "o.T." suffix
+      const headerOT = /\bo\.T\.?\s*$/i.test(rest)
+      if (headerOT) rest = rest.replace(/\s*\bo\.T\.?\s*$/i, '').trim()
+      return { name: rest, anzahl, headerOT }
+    }
+
+    // Analyze scene content to detect spiel_typ for a komparse
+    function analyzeKomparseInContent(
+      textelemente: any[], kompName: string
+    ): { spiel_typ: 'o.t.' | 'spiel' | 'text'; repliken: number } {
+      const nameUpper = kompName.toUpperCase()
+      // Build stem for fuzzy matching (first 4+ chars, strip plural suffixes)
+      const stem = nameUpper
+        .replace(/(INNEN|INNEN|EN|ER|E)$/, '')
+        .slice(0, Math.max(4, nameUpper.length - 3))
+
+      let repliken = 0
+      let mentionedInAction = false
+
+      for (const te of textelemente) {
+        if (!te.text) continue
+        const textUpper = te.text.toUpperCase()
+
+        if (te.type === 'character') {
+          // Exact match on character field or text
+          const charField = (te.character || te.text || '').toUpperCase()
+          if (charField === nameUpper || charField.includes(nameUpper) ||
+              (stem.length >= 4 && charField.includes(stem))) {
+            repliken++
+          }
+        } else if (te.type === 'action') {
+          if (textUpper.includes(nameUpper) ||
+              (stem.length >= 4 && textUpper.includes(stem))) {
+            mentionedInAction = true
+          }
+        }
+      }
+
+      if (repliken > 0) return { spiel_typ: 'text', repliken }
+      if (mentionedInAction) return { spiel_typ: 'spiel', repliken: 0 }
+      return { spiel_typ: 'o.t.', repliken: 0 }
     }
 
     const allKomparsenNames = new Set<string>()
@@ -376,31 +419,48 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     // ── Scene-Characters linking (via scene_identity_id) ──
     for (const { identityId, szeneIdx } of sceneIdentityIds) {
       const szene = result.szenen[szeneIdx]
-      // Link Rollen
+      // Link Rollen (with content analysis for spiel_typ + repliken)
       for (const charName of szene.charaktere) {
         const charId = charNameToId.get(charName.toUpperCase())
         if (!charId) continue
+        const analysis = analyzeKomparseInContent(szene.textelemente, charName)
+        // Named roles are at minimum 'spiel'
+        const spiel_typ = analysis.spiel_typ === 'text' ? 'text' : 'spiel'
         try {
           await queryOne(
-            `INSERT INTO scene_characters (scene_identity_id, character_id, kategorie_id)
-             VALUES ($1, $2, $3)
+            `INSERT INTO scene_characters
+              (scene_identity_id, character_id, kategorie_id, spiel_typ, repliken_anzahl)
+             VALUES ($1, $2, $3, $4, $5)
              ON CONFLICT (scene_identity_id, character_id) WHERE scene_identity_id IS NOT NULL DO NOTHING`,
-            [identityId, charId, rolleKatId]
+            [identityId, charId, rolleKatId, spiel_typ, analysis.repliken]
           )
         } catch { /* ignore */ }
       }
-      // Link Komparsen (with anzahl from "4x Name" prefix)
+      // Link Komparsen (anzahl, spiel_typ from content analysis, header_o_t flag)
       if (szene.komparsen) {
         for (const kompRaw of szene.komparsen) {
-          const { name: kompCleanName, anzahl } = parseKomparseEntry(kompRaw)
+          const { name: kompCleanName, anzahl, headerOT } = parseKomparseEntry(kompRaw)
           const charId = charNameToId.get(kompCleanName.toUpperCase())
           if (!charId) continue
+
+          // Content analysis: can upgrade o.t. → spiel → text
+          const analysis = analyzeKomparseInContent(szene.textelemente, kompCleanName)
+          // Header says o.T. → start at o.t., content can override upward
+          // Header says nothing → start at spiel (assumed), content can override
+          let spiel_typ: string = headerOT ? 'o.t.' : 'spiel'
+          if (analysis.spiel_typ === 'text') spiel_typ = 'text'
+          else if (analysis.spiel_typ === 'spiel' && spiel_typ === 'o.t.') spiel_typ = 'spiel'
+
           try {
             await queryOne(
-              `INSERT INTO scene_characters (scene_identity_id, character_id, kategorie_id, anzahl)
-               VALUES ($1, $2, $3, $4)
-               ON CONFLICT (scene_identity_id, character_id) WHERE scene_identity_id IS NOT NULL DO NOTHING`,
-              [identityId, charId, komparseKatId, anzahl]
+              `INSERT INTO scene_characters
+                (scene_identity_id, character_id, kategorie_id, anzahl,
+                 spiel_typ, repliken_anzahl, header_o_t)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (scene_identity_id, character_id)
+                 WHERE scene_identity_id IS NOT NULL DO NOTHING`,
+              [identityId, charId, komparseKatId, anzahl,
+               spiel_typ, analysis.repliken, headerOT]
             )
           } catch { /* ignore */ }
         }

@@ -243,6 +243,7 @@ async function runMigrations() {
     'v43_1_fassung_nullable.sql',
     'v43_2_szene_yjs_state.sql',
     'v44_cleanup_legacy.sql',
+    'v45_komparsen_spiel.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
