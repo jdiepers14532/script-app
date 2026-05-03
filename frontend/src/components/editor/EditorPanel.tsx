@@ -28,11 +28,14 @@ interface Props {
   useDokumentSzenen?: boolean
   onCreateWerkstufe: (typ: string) => void
   onReloadWerkstufen: () => void
+  onNavigateNext?: () => void
+  onNavigatePrev?: () => void
 }
 
 export default function EditorPanel({
   produktionId, folgeNummer, folgeId, werkstufen, formatElements = [],
   defaultTyp, selectedSzeneId, useDokumentSzenen, onCreateWerkstufe, onReloadWerkstufen,
+  onNavigateNext, onNavigatePrev,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
@@ -211,6 +214,8 @@ export default function EditorPanel({
               ydoc={ydoc}
               provider={provider}
               produktionId={produktionId}
+              onNavigateNext={onNavigateNext}
+              onNavigatePrev={onNavigatePrev}
             />
           </Suspense>
         ) : (
@@ -224,6 +229,8 @@ export default function EditorPanel({
               showShadow={showPageShadow}
               ydoc={ydoc}
               provider={provider}
+              onNavigateNext={onNavigateNext}
+              onNavigatePrev={onNavigatePrev}
             />
           </Suspense>
         )}

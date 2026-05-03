@@ -2,7 +2,7 @@ import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback, type WheelEvent } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
@@ -27,6 +27,8 @@ interface RichTextEditorProps {
   seitenformat?: 'a4' | 'letter'
   showShadow?: boolean
   placeholder?: string
+  onNavigateNext?: () => void
+  onNavigatePrev?: () => void
 }
 
 function ToolbarBtn({
@@ -59,6 +61,8 @@ export default function RichTextEditor({
   placeholder = 'Text eingeben…',
   ydoc,
   provider,
+  onNavigateNext,
+  onNavigatePrev,
 }: RichTextEditorProps) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
@@ -102,6 +106,27 @@ export default function RichTextEditor({
   useEffect(() => () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
   }, [])
+
+  // Overscroll navigation
+  const overscrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (overscrollTimer.current) clearTimeout(overscrollTimer.current) }, [])
+
+  const handleScrollWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2
+    const atTop = el.scrollTop <= 0
+    if (e.deltaY > 0 && atBottom && onNavigateNext) {
+      if (!overscrollTimer.current) {
+        overscrollTimer.current = setTimeout(() => { overscrollTimer.current = null; onNavigateNext() }, 300)
+      }
+    } else if (e.deltaY < 0 && atTop && onNavigatePrev) {
+      if (!overscrollTimer.current) {
+        overscrollTimer.current = setTimeout(() => { overscrollTimer.current = null; onNavigatePrev() }, 300)
+      }
+    } else if (overscrollTimer.current) {
+      clearTimeout(overscrollTimer.current); overscrollTimer.current = null
+    }
+  }, [onNavigateNext, onNavigatePrev])
 
   if (!editor) return null
 
@@ -160,7 +185,7 @@ export default function RichTextEditor({
       )}
 
       {/* Page area */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div style={{ flex: 1, overflow: 'auto' }} onWheel={handleScrollWheel}>
         <PageWrapper seitenformat={seitenformat} showShadow={showShadow}>
           <EditorContent
             editor={editor}

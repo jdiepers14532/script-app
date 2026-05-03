@@ -11,8 +11,9 @@ import { useWerkstufe } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
-function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDokumentSzenen }: {
+function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDokumentSzenen, onNavigateNext, onNavigatePrev }: {
   produktionId: string; folgeNummer: number | null; selectedSzeneId: number | string | null; useDokumentSzenen: boolean
+  onNavigateNext?: () => void; onNavigatePrev?: () => void
 }) {
   const { panelMode } = useContext(PanelModeContext)
   const [folgeId, setFolgeId] = useState<number | null>(null)
@@ -94,6 +95,8 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             useDokumentSzenen={useDokumentSzenen}
             onCreateWerkstufe={handleCreate}
             onReloadWerkstufen={reloadWerkstufen}
+            onNavigateNext={onNavigateNext}
+            onNavigatePrev={onNavigatePrev}
           />
         </div>
       )}
@@ -131,6 +134,8 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             useDokumentSzenen={useDokumentSzenen}
             onCreateWerkstufe={handleCreate}
             onReloadWerkstufen={reloadWerkstufen}
+            onNavigateNext={onNavigateNext}
+            onNavigatePrev={onNavigatePrev}
           />
         </div>
       )}
@@ -672,6 +677,8 @@ export default function ScriptPage() {
             folgeNummer={selectedFolgeNummer}
             selectedSzeneId={selectedSzeneId}
             useDokumentSzenen={useDokumentSzenen}
+            onNavigateNext={() => navigateSzene(1)}
+            onNavigatePrev={() => navigateSzene(-1)}
           />
         </div>
 
