@@ -1996,433 +1996,668 @@ function SzenenFassungenTab() {
   )
 }
 
+// ── Datenmodell Tab (komplett, Stand v44) ────────────────────────────────────
+
+function DatenmodellTab() {
+  const [expandedGroup, setExpandedGroup] = useState<string | null>('core')
+
+  const toggle = (id: string) => setExpandedGroup(expandedGroup === id ? null : id)
+
+  const GroupHeader = ({ id, title, count, color }: { id: string; title: string; count: number; color: string }) => (
+    <button
+      onClick={() => toggle(id)}
+      style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+        padding: '12px 16px', border: `1px solid ${color}44`, borderRadius: 10,
+        background: expandedGroup === id ? color + '12' : C.surface,
+        cursor: 'pointer', textAlign: 'left', marginBottom: expandedGroup === id ? 0 : 8,
+        borderBottomLeftRadius: expandedGroup === id ? 0 : 10,
+        borderBottomRightRadius: expandedGroup === id ? 0 : 10,
+      }}
+    >
+      <span style={{ fontSize: 16, transition: 'transform 0.15s', transform: expandedGroup === id ? 'rotate(90deg)' : 'rotate(0)' }}>&#9654;</span>
+      <span style={{ fontWeight: 700, fontSize: 13, color: C.text, flex: 1 }}>{title}</span>
+      <Badge color={color}>{count} Tabellen</Badge>
+    </button>
+  )
+
+  const GroupBody = ({ id, children }: { id: string; children: React.ReactNode }) => {
+    if (expandedGroup !== id) return null
+    return (
+      <div style={{
+        border: `1px solid ${C.border}`, borderTop: 'none',
+        borderRadius: '0 0 10px 10px', padding: 20,
+        marginBottom: 8, background: C.surface,
+      }}>
+        {children}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px 0' }}>Datenmodell — Script-App</h2>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 16px 0' }}>
+          PostgreSQL <code>script_db</code> — 44 Migrationen (v1–v44), ~39 aktive Tabellen in 8 Gruppen.
+        </p>
+
+        {/* ER Overview Diagram */}
+        <div style={{
+          background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
+          padding: 20, overflowX: 'auto', marginBottom: 24,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 12, letterSpacing: 0.5 }}>
+            ER-UEBERSICHT — KERNTABELLEN
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 700 }}>
+            {/* staffeln */}
+            <div style={{ border: `2px solid ${C.blue}`, borderRadius: 8, padding: '8px 12px', background: C.blue + '0a', minWidth: 100, textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: 11, color: C.blue }}>staffeln</div>
+              <div style={{ fontSize: 9, color: C.muted }}>Produktion</div>
+            </div>
+            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11, lineHeight: 1 }}>1:n →</div>
+            {/* folgen */}
+            <div style={{ border: `2px solid ${C.purple}`, borderRadius: 8, padding: '8px 12px', background: C.purple + '0a', minWidth: 80, textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: 11, color: C.purple }}>folgen</div>
+              <div style={{ fontSize: 9, color: C.muted }}>Episode</div>
+            </div>
+            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11 }}>1:n →</div>
+            {/* werkstufen + scene_identities */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ border: `2px solid ${C.orange}`, borderRadius: 8, padding: '6px 10px', background: C.orange + '0a', textAlign: 'center' }}>
+                <div style={{ fontWeight: 700, fontSize: 11, color: C.orange }}>werkstufen</div>
+                <div style={{ fontSize: 9, color: C.muted }}>Typ + Version</div>
+              </div>
+              <div style={{ border: `2px solid ${C.blue}`, borderRadius: 8, padding: '6px 10px', background: C.blue + '0a', textAlign: 'center' }}>
+                <div style={{ fontWeight: 700, fontSize: 11, color: C.blue }}>scene_identities</div>
+                <div style={{ fontSize: 9, color: C.muted }}>Stabile UUID</div>
+              </div>
+            </div>
+            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11 }}>N:M →</div>
+            {/* dokument_szenen */}
+            <div style={{ border: `2px solid ${C.green}`, borderRadius: 8, padding: '8px 12px', background: C.green + '0a', minWidth: 110, textAlign: 'center' }}>
+              <div style={{ fontWeight: 700, fontSize: 11, color: C.green }}>dokument_szenen</div>
+              <div style={{ fontSize: 9, color: C.muted }}>Content (N:M)</div>
+            </div>
+          </div>
+
+          {/* Satellite tables */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16, paddingTop: 12, borderTop: `1px dashed ${C.border}` }}>
+            {[
+              { name: 'characters', color: C.orange, via: 'scene_identities' },
+              { name: 'motive', color: '#00C853', via: 'staffeln' },
+              { name: 'szenen_vorstopp', color: '#00C853', via: 'scene_identities' },
+              { name: 'szenen_revisionen', color: C.red, via: 'dokument_szenen' },
+              { name: 'ki_settings', color: C.purple, via: 'global' },
+              { name: 'app_settings', color: C.gray, via: 'global' },
+              { name: 'episode_locks', color: C.red, via: 'staffel+folge' },
+              { name: 'export_logs', color: C.gray, via: 'audit' },
+            ].map(t => (
+              <span key={t.name} style={{
+                fontSize: 10, padding: '3px 8px', borderRadius: 4,
+                border: `1px solid ${t.color}44`, background: t.color + '0a',
+                color: t.color, fontFamily: 'monospace',
+              }}>{t.name}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Gruppe 1: Kern ── */}
+      <GroupHeader id="core" title="1. Kern — Produktion, Folgen, Werkstufen, Szenen" count={5} color={C.blue} />
+      <GroupBody id="core">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <TableCard title="staffeln" color={C.blue} note="Produktion (z.B. Rote Rosen)" fields={[
+            { name: 'id', type: 'TEXT PK', desc: 'Slug (z.B. rote-rosen)' },
+            { name: 'titel', type: 'TEXT', desc: 'Anzeigename' },
+            { name: 'show_type', type: 'TEXT', desc: "daily_soap | weekly | movie (default: daily_soap)" },
+            { name: 'produktion_db_id', type: 'UUID', desc: 'FK zur Produktionsdatenbank' },
+            { name: 'meta_json', type: 'JSONB', desc: 'Erweiterbare Metadaten' },
+          ]} />
+          <TableCard title="folgen" color={C.purple} note="Episode (v43 Merge aus folgen_dokumente + folgen_meta)" fields={[
+            { name: 'id', type: 'SERIAL PK', desc: 'Interner Episoden-Key' },
+            { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+            { name: 'folge_nummer', type: 'INT', desc: 'Episodennummer (UNIQUE mit staffel_id)' },
+            { name: 'folgen_titel', type: 'TEXT', desc: 'Arbeitstitel' },
+            { name: 'air_date', type: 'DATE', desc: 'Sendedatum' },
+            { name: 'synopsis', type: 'TEXT', desc: 'Episoden-Synopsis' },
+            { name: 'produktion_db_id', type: 'UUID', desc: 'Direkter Link zur Produktionsdatenbank' },
+            { name: 'meta_json', type: 'JSONB', desc: 'Flexible Metadaten' },
+            { name: 'erstellt_von', type: 'TEXT', desc: 'user_id' },
+            { name: 'erstellt_am', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
+          ]} />
+          <TableCard title="scene_identities" color={C.blue} note="Stabile Szenen-UUID ueber alle Werkstufen hinweg" fields={[
+            { name: 'id', type: 'UUID PK', desc: 'Global stabile Szenen-ID' },
+            { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+            { name: 'folge_id', type: 'INT FK', desc: '-> folgen.id (v43)' },
+            { name: 'created_by', type: 'TEXT', desc: 'Ersteller' },
+            { name: 'created_at', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
+          ]} />
+          <TableCard title="werkstufen" color={C.orange} note="Dokument-Version auf Folgen-Ebene (ersetzt folgen_dokument_fassungen)" fields={[
+            { name: 'id', type: 'UUID PK', desc: 'Werkstufen-ID (uebernommen von fassungen)' },
+            { name: 'folge_id', type: 'INT FK', desc: '-> folgen.id' },
+            { name: 'typ', type: 'TEXT', desc: 'drehbuch | storyline | notiz | abstrakt | custom' },
+            { name: 'version_nummer', type: 'INT', desc: 'Versionszaehler (1, 2, 3...)' },
+            { name: 'label', type: 'TEXT', desc: 'z.B. "Blaue Seiten", "Drehfassung"' },
+            { name: 'sichtbarkeit', type: 'TEXT', desc: 'privat | team | alle' },
+            { name: 'abgegeben', type: 'BOOL', desc: 'Eingefroren? (HTTP 409 bei Schreibversuch)' },
+            { name: 'bearbeitung_status', type: 'TEXT', desc: 'entwurf | in_review | approved' },
+            { name: 'seitenformat', type: 'TEXT', desc: 'a4 (default)' },
+            { name: 'plaintext_index', type: 'TEXT', desc: 'Volltextsuche' },
+            { name: 'yjs_state', type: 'BYTEA', desc: 'Yjs Binary State (Echtzeit-Kollaboration)' },
+            { name: 'erstellt_von', type: 'TEXT', desc: 'user_id' },
+            { name: 'erstellt_am', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
+          ]} />
+          <TableCard title="dokument_szenen" color={C.green} note="Kreuzungstabelle: Content pro Szene pro Werkstufe (N:M)" fields={[
+            { name: 'id', type: 'UUID PK', desc: 'Eindeutige Szenen-Instanz' },
+            { name: 'werkstufe_id', type: 'UUID FK', desc: '-> werkstufen.id' },
+            { name: 'scene_identity_id', type: 'UUID FK', desc: '-> scene_identities.id' },
+            { name: 'sort_order', type: 'INT', desc: 'Reihenfolge in dieser Werkstufe' },
+            { name: 'scene_nummer', type: 'INT', desc: 'Angezeigte Szenennummer' },
+            { name: 'scene_nummer_suffix', type: 'VARCHAR(5)', desc: 'z.B. "a", "b" (WGA-Suffix)' },
+            { name: 'ort_name', type: 'TEXT', desc: 'Motivname' },
+            { name: 'int_ext', type: 'TEXT', desc: 'INT | EXT | INT/EXT' },
+            { name: 'tageszeit', type: 'TEXT', desc: 'TAG | NACHT | ABEND | DAEMMERUNG' },
+            { name: 'spieltag', type: 'INT', desc: 'Drehtag-Index' },
+            { name: 'zusammenfassung', type: 'TEXT', desc: 'Kurzbeschreibung' },
+            { name: 'stimmung', type: 'TEXT', desc: 'Stimmung der Szene' },
+            { name: 'szeneninfo', type: 'TEXT', desc: 'Positions-Protokoll + freie Notizen' },
+            { name: 'seiten', type: 'TEXT', desc: 'Seitenzahl (z.B. "2 5/8")' },
+            { name: 'content', type: 'JSONB', desc: 'ProseMirror/Screenplay JSON (einzige Content-Quelle!)' },
+            { name: 'format', type: 'TEXT', desc: 'drehbuch | storyline | notiz (bestimmt Editor-Typ)' },
+            { name: 'stoppzeit_sek', type: 'INT', desc: 'Spieldauer in Sekunden (270 = "04:30")' },
+            { name: 'geloescht', type: 'BOOL', desc: 'Soft-Delete (bleibt fuer Diff)' },
+            { name: 'is_wechselschnitt', type: 'BOOL', desc: 'Wechselschnitt-Szene' },
+            { name: 'yjs_state', type: 'BYTEA', desc: 'Yjs Binary State pro Szene' },
+            { name: 'updated_by_name', type: 'TEXT', desc: 'Letzter Bearbeiter' },
+            { name: 'updated_at', type: 'TSTZ', desc: 'Letzte Aenderung' },
+          ]} />
+          <InfoBox title="UNIQUE(werkstufe_id, scene_identity_id)" color={C.blue}>
+            Pro Szene und Werkstufe genau ein Eintrag. Eine Szene existiert in mehreren Werkstufen — N:M aufgeloest durch <code>dokument_szenen</code>.
+          </InfoBox>
+        </div>
+      </GroupBody>
+
+      {/* ── Gruppe 2: Characters & Motive ── */}
+      <GroupHeader id="characters" title="2. Characters, Motive & Fotos" count={10} color={C.orange} />
+      <GroupBody id="characters">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="characters" color={C.blue} note="Globaler Charakter (produktionsuebergreifend)" fields={[
+              { name: 'id', type: 'UUID PK', desc: 'Globale Charakter-ID' },
+              { name: 'name', type: 'TEXT', desc: 'z.B. "Ben Lohmann"' },
+              { name: 'meta_json', type: 'JSONB', desc: 'Erweiterte Daten' },
+            ]} />
+            <TableCard title="character_productions" color={C.purple} note="Produktionsspezifische Nummer" fields={[
+              { name: 'character_id', type: 'UUID FK', desc: '-> characters.id' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'rollen_nummer', type: 'INT', desc: 'Rollenblatt-Nr. (UNIQUE pro Staffel)' },
+              { name: 'komparsen_nummer', type: 'INT', desc: 'Komparsen-Nr. (UNIQUE pro Staffel)' },
+              { name: 'kategorie_id', type: 'INT FK', desc: '-> character_kategorien.id' },
+              { name: 'is_active', type: 'BOOL', desc: 'Aktiv-Flag' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="character_kategorien" color={C.gray} note="Besetzungs-Kategorie pro Staffel" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'name', type: 'TEXT', desc: 'z.B. Hauptrolle, Episoden-Rolle' },
+              { name: 'typ', type: 'TEXT', desc: 'rolle | komparse' },
+              { name: 'sort_order', type: 'INT', desc: 'Anzeigereihenfolge' },
+            ]} />
+            <TableCard title="scene_characters" color={C.orange} note="Welche Charaktere in welcher Szene" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'scene_identity_id', type: 'UUID FK', desc: '-> scene_identities.id (stabil!)' },
+              { name: 'character_id', type: 'UUID FK', desc: '-> characters.id' },
+              { name: 'kategorie_id', type: 'INT FK', desc: '-> character_kategorien.id' },
+              { name: 'anzahl', type: 'INT', desc: 'Bei Komparsen-Gruppen' },
+              { name: 'ist_gruppe', type: 'BOOL', desc: 'Gruppen-Eintrag?' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="charakter_fotos" color={C.blue} note="Fotos & Videos zu Charakteren" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'character_id', type: 'UUID FK', desc: '-> characters.id' },
+              { name: 'dateiname', type: 'TEXT', desc: 'Dateiname auf Server' },
+              { name: 'ist_primaer', type: 'BOOL', desc: 'Primaerfoto-Flag' },
+              { name: 'media_typ', type: 'TEXT', desc: 'image | video' },
+              { name: 'thumbnail_dateiname', type: 'TEXT', desc: 'Thumbnail-Dateiname' },
+            ]} />
+            <TableCard title="charakter_beziehungen" color={C.purple} note="Beziehungen zwischen Charakteren" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'character_id', type: 'UUID FK', desc: 'Quell-Charakter' },
+              { name: 'related_character_id', type: 'UUID FK', desc: 'Ziel-Charakter' },
+              { name: 'beziehungstyp', type: 'TEXT', desc: 'z.B. parent, spouse, colleague' },
+              { name: 'label', type: 'TEXT', desc: 'Freies Label' },
+            ]} />
+          </div>
+          <TableCard title="charakter_felder_config" color={C.gray} note="Custom-Felder pro Staffel (Admin-konfigurierbar)" fields={[
+            { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+            { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+            { name: 'name', type: 'TEXT', desc: 'Feldname (z.B. "Alter", "Charakter")' },
+            { name: 'typ', type: 'TEXT', desc: 'text | richtext | character_ref | select' },
+            { name: 'optionen', type: 'JSONB', desc: 'Select-Optionen (bei typ=select)' },
+            { name: 'gilt_fuer', type: 'TEXT', desc: 'alle | rolle | komparse | motiv' },
+          ]} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="charakter_feldwerte" color={C.blue} note="Feldwerte (Characters oder Motive)" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'character_id', type: 'UUID FK', desc: '-> characters.id (oder NULL)' },
+              { name: 'motiv_id', type: 'UUID FK', desc: '-> motive.id (oder NULL)' },
+              { name: 'feld_id', type: 'INT FK', desc: '-> charakter_felder_config.id' },
+              { name: 'wert_text', type: 'TEXT', desc: 'Text-Wert' },
+              { name: 'wert_json', type: 'JSONB', desc: 'Rich-Text oder strukturierter Wert' },
+            ]} />
+            <TableCard title="charakter_feld_links" color={C.purple} note="Feld-Referenzen zu anderen Charakteren" fields={[
+              { name: 'source_character_id', type: 'UUID FK', desc: '-> characters.id' },
+              { name: 'feld_id', type: 'INT FK', desc: '-> charakter_felder_config.id' },
+              { name: 'linked_character_id', type: 'UUID FK', desc: '-> characters.id (Ziel)' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="motive" color={'#00C853'} note="Drehorte / Sets" fields={[
+              { name: 'id', type: 'UUID PK', desc: 'Motiv-ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'motiv_nummer', type: 'TEXT', desc: 'z.B. "M01"' },
+              { name: 'name', type: 'TEXT', desc: 'Motivname' },
+              { name: 'typ', type: 'TEXT', desc: 'interior | exterior' },
+              { name: 'meta_json', type: 'JSONB', desc: 'Flexible Metadaten' },
+            ]} />
+            <TableCard title="motiv_fotos" color={'#00C853'} note="Fotos zu Motiven" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'motiv_id', type: 'UUID FK', desc: '-> motive.id' },
+              { name: 'dateiname', type: 'TEXT', desc: 'Dateiname' },
+              { name: 'ist_primaer', type: 'BOOL', desc: 'Primaerfoto-Flag' },
+              { name: 'media_typ', type: 'TEXT', desc: 'image | video' },
+            ]} />
+          </div>
+        </div>
+      </GroupBody>
+
+      {/* ── Gruppe 3: Versionen & Revision ── */}
+      <GroupHeader id="versions" title="3. Versionen, Revision & Vorstopp" count={6} color={C.red} />
+      <GroupBody id="versions">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="szenen_versionen" color={C.gray} note="Content-Snapshots (Versionshistorie)" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'szene_id', type: 'INT FK', desc: '-> szenen.id (Legacy)' },
+              { name: 'user_id', type: 'TEXT', desc: 'Bearbeiter' },
+              { name: 'content_snapshot', type: 'JSONB', desc: 'Vollstaendiger Szenentext' },
+              { name: 'change_summary', type: 'TEXT', desc: 'Aenderungsbeschreibung' },
+            ]} />
+            <TableCard title="szenen_revisionen" color={C.red} note="Delta-Tracking: Was hat sich geaendert?" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'dokument_szene_id', type: 'UUID FK', desc: '-> dokument_szenen.id (pro Werkstufe)' },
+              { name: 'field_type', type: 'TEXT', desc: 'header | content_block' },
+              { name: 'field_name', type: 'TEXT', desc: 'ort_name, spieltag, etc.' },
+              { name: 'block_index', type: 'INT', desc: 'Content-Block-Index' },
+              { name: 'old_value', type: 'TEXT', desc: 'Vorheriger Wert' },
+              { name: 'new_value', type: 'TEXT', desc: 'Neuer Wert' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="szenen_vorstopp" color={'#00C853'} note="Performance-Zeiten pro Phase" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'scene_identity_id', type: 'UUID FK', desc: '-> scene_identities.id (stabil!)' },
+              { name: 'stage', type: 'TEXT', desc: 'drehbuch | vorbereitung | dreh | schnitt' },
+              { name: 'user_id', type: 'TEXT', desc: 'Wer hat gemessen' },
+              { name: 'dauer_sekunden', type: 'INT', desc: 'Gemessene Zeit in Sekunden' },
+              { name: 'methode', type: 'TEXT', desc: 'manuell | auto_seiten | auto_zeichen | auto_woerter' },
+            ]} />
+            <TableCard title="vorstopp_einstellungen" color={'#00C853'} note="Kalkulations-Parameter pro Staffel" fields={[
+              { name: 'staffel_id', type: 'TEXT PK/FK', desc: '-> staffeln.id' },
+              { name: 'methode', type: 'TEXT', desc: 'seiten | zeichen | woerter' },
+              { name: 'menge', type: 'NUMERIC', desc: 'Einheiten pro Dauer (z.B. 0.125)' },
+              { name: 'dauer_sekunden', type: 'INT', desc: 'Sekunden pro Mengeneinheit' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="stage_labels" color={C.orange} note="Fassungs-Labels pro Staffel (z.B. Abstrakt, Endfassung)" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'name', type: 'TEXT', desc: 'Label-Name' },
+              { name: 'is_produktionsfassung', type: 'BOOL', desc: 'Produktionsfassung-Flag' },
+            ]} />
+            <TableCard title="revision_colors" color={C.orange} note="WGA-Standard Revisionsfarben" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'name', type: 'TEXT', desc: 'z.B. Blaue Seiten, Gelbe Seiten' },
+              { name: 'color', type: 'TEXT', desc: 'Hex-Farbe (z.B. #4A90D9)' },
+            ]} />
+          </div>
+          <TableCard title="revision_export_einstellungen" color={C.gray} note="Revision-Export Konfiguration" fields={[
+            { name: 'staffel_id', type: 'TEXT PK/FK', desc: '-> staffeln.id' },
+            { name: 'memo_schwellwert_zeichen', type: 'INT', desc: 'Zeichenschwelle fuer Memo-Seiten (default: 100)' },
+          ]} />
+        </div>
+      </GroupBody>
+
+      {/* ── Gruppe 4: Kollaboration ── */}
+      <GroupHeader id="collab" title="4. Kollaboration & Dokument-System" count={6} color={C.purple} />
+      <GroupBody id="collab">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="dokument_colab_gruppen" color={C.purple} note="Kollaborationsgruppen" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'name', type: 'TEXT', desc: 'Gruppenname' },
+              { name: 'typ', type: 'TEXT', desc: 'colab | produktion' },
+            ]} />
+            <TableCard title="dokument_colab_gruppe_mitglieder" color={C.purple} note="Gruppen-Mitgliedschaft" fields={[
+              { name: 'gruppe_id', type: 'INT FK', desc: '-> dokument_colab_gruppen.id' },
+              { name: 'user_id', type: 'TEXT', desc: 'Benutzer-ID' },
+              { name: 'user_name', type: 'TEXT', desc: 'Anzeigename' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="folgen_dokument_autoren" color={C.blue} note="Autoren & Reviewer pro Fassung" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id' },
+              { name: 'user_id', type: 'TEXT', desc: 'Benutzer-ID' },
+              { name: 'rolle', type: 'TEXT', desc: 'autor | reviewer' },
+              { name: 'cursor_farbe', type: 'TEXT', desc: 'Echtzeit-Cursor-Farbe (#007AFF)' },
+            ]} />
+            <TableCard title="dokument_benachrichtigungen" color={C.blue} note="Benachrichtigungs-Routing pro Staffel" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'ereignis', type: 'TEXT', desc: 'version_submitted | approved | ...' },
+              { name: 'empfaenger_user_ids', type: 'TEXT[]', desc: 'Empfaenger-Liste' },
+              { name: 'aktiv', type: 'BOOL', desc: 'An/Aus' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="dokument_typ_definitionen" color={C.gray} note="Custom-Dokumenttypen pro Staffel" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'name', type: 'TEXT', desc: 'z.B. Drehbuch, Notizen' },
+              { name: 'editor_modus', type: 'TEXT', desc: 'screenplay | richtext' },
+            ]} />
+            <TableCard title="editor_format_templates" color={C.gray} note="Screenplay-Format-Templates" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'name', type: 'TEXT', desc: 'z.B. Final Draft Standard' },
+              { name: 'ist_standard', type: 'BOOL', desc: 'Default-Template?' },
+            ]} />
+          </div>
+          <TableCard title="editor_format_elemente" color={C.gray} note="Format-Regeln pro Element-Typ (7 Typen)" fields={[
+            { name: 'template_id', type: 'INT FK', desc: '-> editor_format_templates.id' },
+            { name: 'element_typ', type: 'TEXT', desc: 'scene_heading | action | character | dialogue | parenthetical | transition | shot' },
+            { name: 'einrueckung_links/rechts', type: 'INT', desc: 'Zeicheneinrueckung' },
+            { name: 'grossbuchstaben', type: 'BOOL', desc: 'Uppercase-Regel' },
+            { name: 'tab_folge_element', type: 'TEXT', desc: 'Naechstes Element bei Tab' },
+            { name: 'enter_folge_element', type: 'TEXT', desc: 'Naechstes Element bei Enter' },
+          ]} />
+        </div>
+      </GroupBody>
+
+      {/* ── Gruppe 5: Annotationen & Kommentare ── */}
+      <GroupHeader id="comments" title="5. Annotationen & Kommentare" count={4} color={'#FFCC00'} />
+      <GroupBody id="comments">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="folgen_dokument_annotationen" color={C.orange} note="Wort-Annotationen in Dokumenten" fields={[
+              { name: 'id', type: 'UUID PK', desc: 'Annotations-ID' },
+              { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id' },
+              { name: 'von_pos / bis_pos', type: 'INT', desc: 'Start/End-Position im Plaintext' },
+              { name: 'text', type: 'TEXT', desc: 'Annotationstext' },
+              { name: 'typ', type: 'TEXT', desc: 'kommentar | frage | vorschlag' },
+              { name: 'erstellt_von', type: 'TEXT', desc: 'Autor user_id' },
+            ]} />
+            <TableCard title="kommentare" color={C.gray} note="Szenen-Kommentare (Legacy)" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'szene_id', type: 'INT FK', desc: '-> szenen.id' },
+              { name: 'user_id', type: 'TEXT', desc: 'Autor' },
+              { name: 'text', type: 'TEXT', desc: 'Kommentartext' },
+              { name: 'line_ref', type: 'TEXT', desc: 'Zeilen-Referenz im content-Array' },
+              { name: 'resolved', type: 'BOOL', desc: 'Erledigt-Flag' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="scene_comment_read_state" color={C.blue} note="Gelesen-Status (Messenger-Integration)" fields={[
+              { name: 'scene_id', type: 'INT', desc: 'Szenen-ID (PK mit user_id)' },
+              { name: 'user_id', type: 'TEXT', desc: 'Benutzer-ID' },
+              { name: 'last_read_at', type: 'TSTZ', desc: 'Letzter Lesezeitpunkt' },
+            ]} />
+            <TableCard title="scene_comment_events" color={C.blue} note="Messenger-Annotation Projektion" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'scene_id', type: 'INT', desc: 'Szenen-ID' },
+              { name: 'messenger_annotation_id', type: 'TEXT UNIQUE', desc: 'Messenger-Annotation UUID' },
+              { name: 'deleted_at', type: 'TSTZ', desc: 'Soft-Delete' },
+            ]} />
+          </div>
+        </div>
+      </GroupBody>
+
+      {/* ── Gruppe 6: Locking & Entities ── */}
+      <GroupHeader id="lock" title="6. Locking, Entities & Export" count={3} color={C.red} />
+      <GroupBody id="lock">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="episode_locks" color={C.red} note="Folgen-Sperre (alle Werkstufen betroffen)" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'folge_nummer', type: 'INT', desc: 'Gesperrte Folge' },
+              { name: 'user_id', type: 'TEXT', desc: 'Wer hat gesperrt' },
+              { name: 'lock_type', type: 'TEXT', desc: 'exclusive | contract' },
+              { name: 'expires_at', type: 'TSTZ', desc: 'Ablaufzeitpunkt' },
+              { name: 'contract_ref', type: 'TEXT', desc: 'Vertragsreferenz (bei contract-lock)' },
+            ]} />
+            <TableCard title="entities" color={C.purple} note="Generische Entitaeten (Props, Fahrzeuge, etc.)" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'entity_type', type: 'TEXT', desc: 'charakter | prop | location | kostuem | fahrzeug' },
+              { name: 'external_id', type: 'TEXT', desc: 'ID in externer App' },
+              { name: 'external_app', type: 'TEXT', desc: 'Quell-App (z.B. kostuem-app)' },
+              { name: 'name', type: 'TEXT', desc: 'Anzeigename' },
+              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+            ]} />
+          </div>
+          <TableCard title="export_logs" color={C.gray} note="Export-Protokoll (Wasserzeichen-Audit)" fields={[
+            { name: 'id', type: 'UUID PK', desc: 'Export-ID' },
+            { name: 'user_id', type: 'TEXT', desc: 'Exportierer' },
+            { name: 'user_name', type: 'TEXT', desc: 'Anzeigename' },
+            { name: 'stage_id', type: 'INT FK', desc: '-> stages.id' },
+            { name: 'format', type: 'TEXT', desc: 'fountain | fdx | pdf' },
+            { name: 'exported_at', type: 'TSTZ', desc: 'Exportzeitpunkt' },
+          ]} />
+        </div>
+      </GroupBody>
+
+      {/* ── Gruppe 7: KI & Einstellungen ── */}
+      <GroupHeader id="settings" title="7. KI, Einstellungen & Zugriff" count={6} color={C.green} />
+      <GroupBody id="settings">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <TableCard title="ki_settings" color={C.purple} note="KI-Funktions-Konfiguration" fields={[
+              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+              { name: 'funktion', type: 'TEXT UNIQUE', desc: 'scene_summary | entity_detect | style_check | ...' },
+              { name: 'provider', type: 'TEXT', desc: 'ollama | mistral | openai | claude' },
+              { name: 'model_name', type: 'TEXT', desc: 'z.B. llama3.2, mistral-large-latest' },
+              { name: 'enabled', type: 'BOOL', desc: 'An/Aus' },
+            ]} />
+            <TableCard title="ki_providers" color={C.purple} note="Zentralisierte Provider-Verwaltung (v31)" fields={[
+              { name: 'provider', type: 'TEXT PK', desc: 'ollama | mistral | openai | claude' },
+              { name: 'api_key', type: 'TEXT', desc: 'API-Schluessel (oder ENV-Var)' },
+              { name: 'is_active', type: 'BOOL', desc: 'Provider aktiv?' },
+              { name: 'dsgvo_level', type: 'TEXT', desc: 'gruen | orange | rot' },
+              { name: 'tokens_in / tokens_out', type: 'BIGINT', desc: 'Verbrauchte Tokens' },
+              { name: 'cost_eur', type: 'NUMERIC', desc: 'Kumulative Kosten in EUR' },
+            ]} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <TableCard title="app_settings" color={C.gray} note="Globale Einstellungen" fields={[
+              { name: 'key', type: 'TEXT PK', desc: 'Einstellungs-Key' },
+              { name: 'value', type: 'TEXT', desc: 'Wert' },
+            ]} />
+            <TableCard title="user_settings" color={C.gray} note="Pro-User Praeferenzen" fields={[
+              { name: 'user_id', type: 'TEXT PK', desc: 'Benutzer-ID' },
+              { name: 'selected_production_id', type: 'UUID', desc: 'Letzte Produktion' },
+              { name: 'ui_settings', type: 'JSONB', desc: 'Theme, Sidebar-State, ...' },
+            ]} />
+            <TableCard title="production_app_settings" color={C.gray} note="Pro-Produktion Overrides" fields={[
+              { name: 'production_id', type: 'TEXT', desc: 'Staffel-ID' },
+              { name: 'key', type: 'TEXT', desc: 'Einstellungs-Key' },
+              { name: 'value', type: 'TEXT', desc: 'Wert' },
+            ]} />
+          </div>
+          <TableCard title="dk_settings_access" color={C.orange} note="Drehbuchkoordinator-Zugriff" fields={[
+            { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+            { name: 'production_id', type: 'TEXT', desc: 'Staffel-ID' },
+            { name: 'access_type', type: 'TEXT', desc: 'rolle | user' },
+            { name: 'identifier', type: 'TEXT', desc: 'Rollenname oder user_id' },
+          ]} />
+        </div>
+      </GroupBody>
+
+      {/* ── Gruppe 8: Audit ── */}
+      <GroupHeader id="audit" title="8. Audit & Legacy" count={4} color={C.gray} />
+      <GroupBody id="audit">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <TableCard title="folgen_dokument_audit" color={C.gray} note="Audit-Log (DSGVO-konform, kein Content)" fields={[
+            { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+            { name: 'dokument_id', type: 'UUID FK', desc: '-> folgen_dokumente.id' },
+            { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id' },
+            { name: 'user_id', type: 'TEXT', desc: 'Akteur' },
+            { name: 'ereignis', type: 'TEXT', desc: 'Event-Typ (z.B. created, submitted, approved)' },
+            { name: 'details', type: 'JSONB', desc: 'Metadaten (nicht sensibel)' },
+            { name: 'ereignis_am', type: 'TSTZ', desc: 'Zeitpunkt' },
+          ]} />
+
+          <WarnBox title="Legacy-Tabellen (DEPRECATED, nicht loeschen)">
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+              {[
+                { name: 'stages', note: 'Ersetzt durch werkstufen' },
+                { name: 'szenen', note: 'Ersetzt durch dokument_szenen' },
+                { name: 'folgen_dokumente', note: 'Ersetzt durch folgen + werkstufen' },
+                { name: 'folgen_dokument_fassungen', note: 'IDs in werkstufen uebernommen' },
+              ].map(t => (
+                <div key={t.name} style={{
+                  padding: '4px 10px', borderRadius: 6,
+                  background: C.red + '10', border: `1px solid ${C.red}33`,
+                  fontSize: 11,
+                }}>
+                  <code style={{ color: C.red, fontWeight: 600 }}>{t.name}</code>
+                  <span style={{ color: C.muted, marginLeft: 6 }}>{t.note}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11 }}>
+              <code>folgen_meta</code> wurde in v44 komplett gedropt. Die anderen Legacy-Tabellen bleiben vorerst
+              fuer Backward-Compatibility erhalten, werden aber nicht mehr beschrieben.
+            </div>
+          </WarnBox>
+        </div>
+      </GroupBody>
+
+      {/* ── Externe Verknuepfungen ── */}
+      <Section title="Externe Verknuepfungen">
+        <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { from: 'staffeln.produktion_db_id', to: 'Produktionsdatenbank productions.id (UUID)', desc: 'Staffel ↔ Produktion', color: C.blue },
+            { from: 'folgen.produktion_db_id', to: 'Produktionsdatenbank episodes.id (UUID)', desc: 'Folge ↔ Episode', color: C.purple },
+            { from: 'entities.external_id + external_app', to: 'z.B. kostuem-app, Vertragsdatenbank', desc: 'Generische Cross-App-Referenzen', color: C.orange },
+            { from: 'scene_comment_events.messenger_annotation_id', to: 'messenger.app annotations.id', desc: 'Kommentar-Integration via Messenger', color: C.green },
+          ].map(r => (
+            <div key={r.from} style={{
+              border: `1px solid ${r.color}44`, borderLeft: `3px solid ${r.color}`,
+              borderRadius: 6, padding: '8px 12px', background: r.color + '08',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <code style={{ fontSize: 11, color: r.color }}>{r.from}</code>
+                <span style={{ color: C.muted }}>→</span>
+                <code style={{ fontSize: 11, color: C.muted }}>{r.to}</code>
+              </div>
+              <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{r.desc}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </div>
+  )
+}
+
 function HilfePage() {
-  const [activeTab, setActiveTab] = useState<'offline' | 'datenmodell' | 'nummerierung' | 'dokument-editor' | 'kommentare' | 'szenen-fassungen'>('offline')
+  const [activeSection, setActiveSection] = useState<string>('offline')
   const navigate = useNavigate()
+
+  const NAV_ITEMS = [
+    { id: 'offline',           label: 'Offline-Modus',         icon: '📶' },
+    { id: 'nummerierung',      label: 'Szenen & Nummerierung',  icon: '🔢' },
+    { id: 'dokument-editor',   label: 'Dokument-Editor',        icon: '📝' },
+    { id: 'kommentare',        label: 'Kommentare',             icon: '💬' },
+    { id: 'szenen-fassungen',  label: 'Szenen & Fassungen',     icon: '🔀' },
+    { id: 'datenmodell',       label: 'Datenmodell',            icon: '🗄️' },
+  ] as const
 
   return (
     <AppShell hideProductionSelector>
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: '32px 40px',
-        maxWidth: 900,
-        margin: '0 auto',
-        width: '100%',
-        boxSizing: 'border-box',
-      }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
-        {/* Page header */}
-        <div style={{ marginBottom: 28 }}>
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: C.muted, fontSize: 13, padding: '0 0 12px 0',
-            }}
-          >
-            ← Zurück
-          </button>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 6px 0' }}>Handbuch</h1>
-          <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>
-            Dokumentation und Anleitungen zur Script-App.
-          </p>
-        </div>
-
-        {/* Tab navigation */}
-        <div style={{
-          display: 'flex',
-          gap: 2,
-          marginBottom: 32,
-          borderBottom: `2px solid ${C.border}`,
+        {/* ── Side Navigation ── */}
+        <nav style={{
+          width: 220, flexShrink: 0,
+          borderRight: `1px solid ${C.border}`,
+          background: C.surface,
+          overflowY: 'auto',
+          display: 'flex', flexDirection: 'column',
         }}>
-          {([
-            { id: 'offline',      label: 'Offline-Modus',        icon: '📶' },
-            { id: 'nummerierung', label: 'Szenen & Nummerierung', icon: '🔢' },
-            { id: 'datenmodell',  label: 'Datenmodell',           icon: '🗄️' },
-            { id: 'dokument-editor', label: 'Dokument-Editor',      icon: '📝' },
-            { id: 'kommentare',   label: 'Kommentare',            icon: '💬' },
-            { id: 'szenen-fassungen', label: 'Szenen & Fassungen',  icon: '🔀' },
-          ] as const).map(tab => (
+          <div style={{ padding: '20px 16px 12px' }}>
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => navigate(-1)}
               style={{
-                padding: '8px 18px',
-                border: 'none',
-                background: 'transparent',
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: activeTab === tab.id ? 700 : 400,
-                color: activeTab === tab.id ? C.text : C.muted,
-                borderBottom: activeTab === tab.id ? `2px solid ${C.blue}` : '2px solid transparent',
-                marginBottom: -2,
-                borderRadius: '4px 4px 0 0',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 7,
-                transition: 'color 0.15s',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: C.muted, fontSize: 12, padding: '0 0 12px 0',
               }}
             >
-              <span style={{ fontSize: 15 }}>{tab.icon}</span>
-              {tab.label}
+              ← Zurueck
             </button>
-          ))}
+            <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>Handbuch</h1>
+            <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 0' }}>Script-App Dokumentation</p>
+          </div>
+
+          <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {NAV_ITEMS.map(item => (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '9px 12px',
+                  border: 'none', borderRadius: 8,
+                  background: activeSection === item.id ? C.blue + '15' : 'transparent',
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: activeSection === item.id ? 700 : 400,
+                  color: activeSection === item.id ? C.text : C.muted,
+                  textAlign: 'left',
+                  width: '100%',
+                  transition: 'background 0.15s, color 0.15s',
+                  borderLeft: activeSection === item.id ? `3px solid ${C.blue}` : '3px solid transparent',
+                }}
+              >
+                <span style={{ fontSize: 14, flexShrink: 0, width: 20, textAlign: 'center' }}>{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </nav>
+
+        {/* ── Content Area ── */}
+        <div style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '32px 40px',
+          maxWidth: 880,
+          boxSizing: 'border-box',
+        }}>
+          {activeSection === 'offline' && <OfflineTab />}
+          {activeSection === 'nummerierung' && <NummerierungTab />}
+          {activeSection === 'dokument-editor' && <DokumentEditorHilfeTab />}
+          {activeSection === 'kommentare' && <KommentareTab />}
+          {activeSection === 'szenen-fassungen' && <SzenenFassungenTab />}
+          {activeSection === 'datenmodell' && <DatenmodellTab />}
         </div>
-
-        {/* Tab content */}
-        {activeTab === 'offline' && <OfflineTab />}
-
-        {activeTab === 'nummerierung' && <NummerierungTab />}
-
-        {activeTab === 'dokument-editor' && <DokumentEditorHilfeTab />}
-
-        {activeTab === 'kommentare' && <KommentareTab />}
-
-        {activeTab === 'szenen-fassungen' && <SzenenFassungenTab />}
-
-        {activeTab === 'datenmodell' && (
-          <div>
-            <div style={{ marginBottom: 32 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px 0' }}>Datenmodell — Script-App</h2>
-              <p style={{ color: C.muted, fontSize: 13, margin: 0 }}>
-                Wie Drehbuchdaten in der PostgreSQL-Datenbank <code>script_db</code> strukturiert sind.
-              </p>
-            </div>
-
-        {/* ── 1. Hierarchie ── */}
-        <Section title="1. Hierarchie">
-          <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-            Jede Produktion ist eine <strong>Staffel</strong>. Eine Staffel hat beliebig viele <strong>Fassungen</strong> (Stages) —
-            z.B. Treatment v6 und Drehbuch v6. Eine Fassung enthält die <strong>Szenen</strong> dieser Folge.
-            Block- und Folgen-Metadaten kommen direkt aus der Produktionsdatenbank.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', maxWidth: 560 }}>
-
-            {/* Staffel */}
-            <TableCard
-              title="staffeln"
-              color={C.blue}
-              note="Eine Produktion / Serie (z.B. Rote Rosen)"
-              fields={[
-                { name: 'id',              type: 'TEXT PK',   desc: 'Slug, z.B. rote-rosen' },
-                { name: 'titel',           type: 'TEXT',      desc: 'Anzeigename' },
-                { name: 'show_type',       type: 'TEXT',      desc: "daily_soap | weekly | movie" },
-                { name: 'produktion_db_id',type: 'UUID',      desc: 'Verknüpfung zur Produktionsdatenbank' },
-                { name: 'meta_json',       type: 'JSONB',     desc: 'Erweiterbare Metadaten' },
-              ]}
-            />
-
-            <Arrow label="1 : n" />
-
-            {/* folgen_meta — DROPPED in v44 */}
-            <TableCard
-              title="folgen_meta (DROPPED)"
-              color={C.gray}
-              note="Entfernt in v44 — Daten in folgen-Tabelle migriert"
-              fields={[]}
-            />
-
-            <Arrow label="1 : n" />
-
-            {/* stages */}
-            <TableCard
-              title="stages"
-              color={C.orange}
-              note="Eine Fassung einer Folge — z.B. Treatment v6 | Drehbuch v6"
-              fields={[
-                { name: 'id',             type: 'SERIAL PK', desc: 'Interne ID' },
-                { name: 'staffel_id',     type: 'TEXT FK',   desc: 'Staffel' },
-                { name: 'folge_nummer',   type: 'INT',       desc: 'Zu welcher Folge gehört diese Fassung' },
-                { name: 'proddb_block_id',type: 'UUID',      desc: 'Block-ID aus der Produktionsdatenbank' },
-                { name: 'stage_type',     type: 'TEXT',      desc: "expose | treatment | draft | final" },
-                { name: 'version_nummer', type: 'INT',       desc: 'Versionszähler (v1, v2 …)' },
-                { name: 'version_label',  type: 'TEXT',      desc: 'Freier Label (z.B. Drehfassung, Endfassung)' },
-                { name: 'status',         type: 'TEXT',      desc: 'in_arbeit | review | freigegeben | archiviert' },
-                { name: 'erstellt_von',   type: 'TEXT',      desc: 'user_id des Erstellers' },
-                { name: 'is_locked',      type: 'BOOLEAN',   desc: 'Gesperrt für Bearbeitung' },
-              ]}
-            />
-
-            <Arrow label="1 : n" />
-
-            {/* szenen */}
-            <TableCard
-              title="szenen"
-              color={C.green}
-              note="Eine einzelne Szene innerhalb einer Fassung"
-              fields={[
-                { name: 'id',            type: 'SERIAL PK', desc: 'Interne ID' },
-                { name: 'stage_id',      type: 'INT FK',    desc: 'Fassung' },
-                { name: 'scene_nummer',  type: 'INT',       desc: 'Szenennummer (im Kopf: Nummer)' },
-                { name: 'int_ext',       type: 'TEXT',      desc: "INT | EXT | INT/EXT (im Kopf: Int/Ext)" },
-                { name: 'tageszeit',     type: 'TEXT',      desc: "TAG | NACHT | ABEND | DÄMMERUNG (Tag/Nacht)" },
-                { name: 'ort_name',      type: 'TEXT',      desc: 'Motivname, z.B. Gartenhaus / Küche' },
-                { name: 'zusammenfassung',type: 'TEXT',     desc: 'Kurzbeschreibung (Beschreibungs-Zeile)' },
-                { name: 'content',       type: 'JSONB []',  desc: 'Szenentext als Textelement-Array — siehe Abschnitt 3' },
-                { name: 'dauer_min',     type: 'INT',       desc: 'Spieldauer in Minuten (Integer)' },
-                { name: 'sort_order',    type: 'INT',       desc: 'Reihenfolge innerhalb der Fassung' },
-                { name: 'meta_json',     type: 'JSONB',     desc: 'Erweiterungsfelder — siehe Abschnitt 2' },
-              ]}
-            />
-          </div>
-        </Section>
-
-        {/* ── 2. Szenenkopf-Mapping ── */}
-        <Section title="2. Szenenkopf — Feld-Mapping">
-          <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-            Nicht alle Felder aus dem Szenenkopf haben eigene Datenbankspalten. Felder in <code>meta_json</code> sind
-            flexibel, aber nicht indexierbar. Eine spätere Migration kann sie zu eigenen Spalten promoten.
-          </p>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr style={{ background: C.subtle }}>
-                <th style={{ textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}` }}>Szenenkopf-Feld</th>
-                <th style={{ textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}` }}>Tabelle</th>
-                <th style={{ textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}` }}>DB-Feldname</th>
-                <th style={{ textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}` }}>Typ</th>
-                <th style={{ textAlign: 'center', padding: '7px 10px', border: `1px solid ${C.border}`, width: 60 }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { field: 'Nummer',       table: 'szenen', col: 'scene_nummer',            type: 'INT',     ok: true,  note: '' },
-                { field: 'Int/Ext',      table: 'szenen', col: 'int_ext',                 type: 'TEXT',    ok: true,  note: '' },
-                { field: 'Motiv',        table: 'szenen', col: 'ort_name',                type: 'TEXT',    ok: true,  note: '' },
-                { field: 'Tag/Nacht',    table: 'szenen', col: 'tageszeit',               type: 'TEXT',    ok: true,  note: '' },
-                { field: 'Beschreibung', table: 'szenen', col: 'zusammenfassung',         type: 'TEXT',    ok: true,  note: '' },
-                { field: 'Episode',      table: 'stages', col: 'folge_nummer',            type: 'INT',     ok: true,  note: 'liegt auf Stage, wird in Szene aus Kontext gefüllt' },
-                { field: 'Block',        table: 'stages', col: 'proddb_block_id',         type: 'UUID',    ok: true,  note: 'kommt aus Produktionsdatenbank' },
-                { field: 'Seiten',       table: 'szenen', col: "meta_json->>'seiten'",    type: 'TEXT',    ok: false, note: 'z.B. "2 5/8" — dauer_min ist ungeeignet (INT)' },
-                { field: 'Spieltag',     table: 'szenen', col: "meta_json->>'spieltag'",  type: 'INT',     ok: false, note: 'Drehtag-Index' },
-                { field: 'Storyline',    table: 'szenen', col: "meta_json->>'storyline'", type: 'TEXT',    ok: false, note: '' },
-                { field: 'Stimmung',     table: 'szenen', col: "meta_json->>'stimmung'",  type: 'TEXT',    ok: false, note: '' },
-                { field: 'Casttyp',      table: 'szenen', col: "meta_json->>'casttyp'",   type: 'TEXT',    ok: false, note: '' },
-                { field: 'Rollen',       table: 'entities', col: 'entity_type=charakter', type: 'JOIN',   ok: false, note: 'Szene↔Entity-Verknüpfungstabelle fehlt noch' },
-                { field: 'Komparsen',    table: 'entities', col: 'entity_type=komparsen', type: 'JOIN',   ok: false, note: 'entity_type "komparsen" noch nicht definiert' },
-              ].map(r => (
-                <tr key={r.field}>
-                  <td style={{ padding: '6px 10px', border: `1px solid ${C.border}`, fontWeight: 600 }}>{r.field}</td>
-                  <td style={{ padding: '6px 10px', border: `1px solid ${C.border}` }}>
-                    <Badge color={r.table === 'szenen' ? C.green : r.table === 'stages' ? C.orange : C.purple}>
-                      {r.table}
-                    </Badge>
-                  </td>
-                  <td style={{ padding: '6px 10px', border: `1px solid ${C.border}` }}>
-                    <code style={{ fontSize: 11 }}>{r.col}</code>
-                  </td>
-                  <td style={{ padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted, fontFamily: 'monospace', fontSize: 11 }}>{r.type}</td>
-                  <td style={{ padding: '6px 10px', border: `1px solid ${C.border}`, textAlign: 'center' }}>
-                    {r.ok
-                      ? <span style={{ color: C.green, fontSize: 13, fontWeight: 700 }}>✓</span>
-                      : <span title={r.note} style={{ color: C.orange, fontSize: 13, fontWeight: 700, cursor: 'help' }}>⚠</span>
-                    }
-                    {r.note && !r.ok && <div style={{ fontSize: 10, color: C.muted, marginTop: 2, maxWidth: 220 }}>{r.note}</div>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p style={{ fontSize: 11, color: C.muted, marginTop: 10 }}>
-            <strong>✓</strong> eigene Spalte &nbsp;·&nbsp;
-            <strong>⚠</strong> in <code>meta_json</code> oder fehlt noch — geplant für spätere Migration
-          </p>
-        </Section>
-
-        {/* ── 3. Fassungen ── */}
-        <Section title="3. Fassungen (Stages)">
-          <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-            Eine Folge kann mehrere Fassungen gleichzeitig haben (z.B. Treatment und Drehbuch in Bearbeitung).
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            {[
-              { type: 'expose',    label: 'Exposé',      color: C.gray,   desc: 'Erste Ideenskizze, kurz' },
-              { type: 'treatment', label: 'Treatment',   color: C.blue,   desc: 'Ausgearbeitete Handlung (konfigurierbar: Storylines / Outline)' },
-              { type: 'draft',     label: 'Drehbuch',    color: C.orange, desc: 'Szenen mit Dialog (Arbeitsfassung → Drehfassung → …)' },
-              { type: 'final',     label: 'Endfassung',  color: C.green,  desc: 'Freigegebene Produktionsfassung' },
-            ].map(s => (
-              <div key={s.type} style={{
-                border: `1px solid ${s.color}`,
-                borderRadius: 8,
-                padding: 12,
-                background: s.color + '0d',
-              }}>
-                <div style={{ fontWeight: 700, color: s.color, fontSize: 12, marginBottom: 4 }}>
-                  stage_type = <code>'{s.type}'</code>
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{s.label}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{s.desc}</div>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 20, fontSize: 12 }}>
-            <strong>Status-Werte</strong> (<code>stages.status</code>):
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
-              {[
-                { v: 'in_arbeit',   label: 'In Bearbeitung', color: C.blue },
-                { v: 'review',      label: 'In Review',      color: C.orange },
-                { v: 'freigegeben', label: 'Freigegeben',    color: C.green },
-                { v: 'archiviert',  label: 'Archiviert',     color: C.gray },
-              ].map(s => (
-                <span key={s.v} style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                  border: `1px solid ${s.color}`,
-                  borderRadius: 6, padding: '4px 10px',
-                  fontSize: 11,
-                }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, display: 'inline-block' }} />
-                  <code style={{ color: s.color }}>{s.v}</code>
-                  <span style={{ color: C.muted }}>→ {s.label}</span>
-                </span>
-              ))}
-            </div>
-            <p style={{ marginTop: 12, color: C.orange, fontSize: 11 }}>
-              <strong>Fehlt noch:</strong> Farb-Markierung der Fassung (z.B. "Gelb") — geplant als <code>stages.meta_json-&gt;&gt;'farbe'</code>
-            </p>
-          </div>
-        </Section>
-
-        {/* ── 4. content JSONB ── */}
-        <Section title="4. Szenentext — content JSONB">
-          <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-            <code>szenen.content</code> ist ein Array von Textelementen. Jedes Textelement hat mindestens <code>type</code> und <code>text</code>.
-          </p>
-          <div style={{ background: C.subtle, borderRadius: 8, padding: 16, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.7, overflowX: 'auto' }}>
-            <pre style={{ margin: 0 }}>{`[
-  { "type": "heading",  "text": "INT. GARTENHAUS / KÜCHE – TAG" },
-  { "type": "action",   "text": "Lou und Jess sind überrascht, als Daniel…" },
-  { "type": "dialog",   "speaker": "LOU",  "text": "Das kann nicht sein." },
-  { "type": "dialog",   "speaker": "JESS", "text": "Doch. Glaub mir." },
-  { "type": "parenthetical", "text": "(leise)" },
-  { "type": "transition", "text": "SCHNITT AUF:" }
-]`}</pre>
-          </div>
-          <div style={{ marginTop: 12 }}>
-            <strong style={{ fontSize: 12 }}>Textelement-Typen:</strong>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-              {['heading', 'action', 'dialog', 'parenthetical', 'transition'].map(t => (
-                <Badge key={t} color={C.blue}>{t}</Badge>
-              ))}
-            </div>
-          </div>
-          <div style={{ marginTop: 16 }}>
-            <strong style={{ fontSize: 12 }}>Versionshistorie:</strong>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
-              Bei jedem Speichern wird ein Snapshot in <code>szenen_versionen.content_snapshot</code> geschrieben.
-              Felder: <code>szene_id</code> · <code>user_id</code> · <code>user_name</code> · <code>content_snapshot</code> · <code>change_summary</code> · <code>created_at</code>
-            </div>
-          </div>
-        </Section>
-
-        {/* ── 5. Entities ── */}
-        <Section title="5. Entities (Charaktere, Motive, Props …)">
-          <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-            Wiederverwendbare Objekte einer Staffel — aktuell staffelweit, nicht pro Szene verknüpft.
-          </p>
-          <TableCard
-            title="entities"
-            color={C.purple}
-            note="Staffelweite Entitäten für Breakdown"
-            fields={[
-              { name: 'id',          type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'entity_type', type: 'TEXT',      desc: "charakter | prop | location | kostuem | fahrzeug" },
-              { name: 'name',        type: 'TEXT',      desc: 'Anzeigename' },
-              { name: 'external_id', type: 'TEXT',      desc: 'ID in externer App (z.B. Vertragsdatenbank)' },
-              { name: 'external_app',type: 'TEXT',      desc: 'Quell-App (z.B. vertraege)' },
-              { name: 'staffel_id',  type: 'TEXT FK',   desc: 'Staffel' },
-              { name: 'meta_json',   type: 'JSONB',     desc: 'Beliebige Metadaten' },
-            ]}
-          />
-          <p style={{ fontSize: 11, color: C.orange, marginTop: 10 }}>
-            <strong>Fehlt noch:</strong> Verknüpfungstabelle <code>szene_entities (szene_id, entity_id, rolle)</code> —
-            ohne diese können Rollen/Komparsen nicht pro Szene gespeichert werden.
-            Geplant: entity_type <code>'komparsen'</code> ergänzen.
-          </p>
-        </Section>
-
-        {/* ── 6. Locking ── */}
-        <Section title="6. Locking & Kommentare">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            <TableCard
-              title="episode_locks"
-              color={C.red}
-              note="Sperrt eine Folge (alle Stages) für Bearbeitung"
-              fields={[
-                { name: 'staffel_id',   type: 'TEXT FK', desc: 'Staffel' },
-                { name: 'folge_nummer', type: 'INT',     desc: 'Gesperrte Folge' },
-                { name: 'locked_by',    type: 'TEXT',    desc: 'user_id' },
-                { name: 'reason',       type: 'TEXT',    desc: 'Grund der Sperre' },
-                { name: 'locked_at',    type: 'TSTZ',    desc: 'Zeitpunkt' },
-              ]}
-            />
-            <TableCard
-              title="kommentare"
-              color={C.gray}
-              note="Inline-Kommentare zu einer Szene"
-              fields={[
-                { name: 'szene_id',    type: 'INT FK', desc: 'Szene' },
-                { name: 'user_id',     type: 'TEXT',   desc: 'Autor' },
-                { name: 'text',        type: 'TEXT',   desc: 'Kommentartext' },
-                { name: 'line_ref',    type: 'TEXT',   desc: 'Textelement-Referenz im content-Array' },
-                { name: 'resolved',    type: 'BOOL',   desc: 'Erledigt-Flag' },
-                { name: 'resolved_by', type: 'TEXT',   desc: 'Wer hat erledigt' },
-              ]}
-            />
-          </div>
-        </Section>
-
-        {/* ── 7. Externe Verknüpfungen ── */}
-        <Section title="7. Externe Verknüpfungen">
-          <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              {
-                from: 'staffeln.produktion_db_id',
-                to: 'Produktionsdatenbank · productions.id (UUID)',
-                desc: 'Verknüpft die Staffel mit der Produktionsdatenbank für Block/Folgen-Daten',
-                color: C.blue,
-              },
-              {
-                from: 'stages.proddb_block_id',
-                to: 'Produktionsdatenbank · blocks.id (UUID)',
-                desc: 'Direkter Block-Bezug ohne lokale Sync-Tabellen (ab v10)',
-                color: C.orange,
-              },
-              {
-                from: 'entities.external_id + external_app',
-                to: 'z.B. Vertragsdatenbank · personen.id',
-                desc: 'Charakter in Vertragsdatenbank als externe Referenz',
-                color: C.purple,
-              },
-              {
-                from: 'kommentare → messenger.app',
-                to: 'geplant: messenger.app Annotations',
-                desc: 'Inline-Kommentare könnten künftig als messenger.app Annotations gespeichert werden',
-                color: C.gray,
-              },
-            ].map(r => (
-              <div key={r.from} style={{
-                border: `1px solid ${r.color}44`,
-                borderLeft: `3px solid ${r.color}`,
-                borderRadius: 6,
-                padding: '8px 12px',
-                background: r.color + '08',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <code style={{ fontSize: 11, color: r.color }}>{r.from}</code>
-                  <span style={{ color: C.muted, fontSize: 12 }}>→</span>
-                  <code style={{ fontSize: 11, color: C.muted }}>{r.to}</code>
-                </div>
-                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>{r.desc}</div>
-              </div>
-            ))}
-          </div>
-        </Section>
-          </div>
-        )}
-
       </div>
     </AppShell>
   )
