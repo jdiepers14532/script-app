@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
-import { BarChart3, Users, GitCompare, MapPin, UserCheck, ChevronDown, ChevronUp, Table, BarChart2 } from 'lucide-react'
+import { BarChart3, Users, GitCompare, MapPin, UserCheck, ChevronDown, ChevronUp, Table, BarChart2, Printer } from 'lucide-react'
 
 type TabId = 'overview' | 'repliken' | 'pairs' | 'motiv' | 'komparsen' | 'compare'
 
@@ -91,10 +91,18 @@ export default function StatistikPage() {
               ))}
             </select>
           )}
+
+          <button
+            onClick={() => window.print()}
+            className="stat-no-print"
+            style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <Printer size={14} /> Drucken / PDF
+          </button>
         </div>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 16px', gap: 0, overflowX: 'auto' }}>
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 16px', gap: 0, overflowX: 'auto' }} className="stat-tabs">
           {TABS.map(t => {
             const Icon = t.icon
             return (
