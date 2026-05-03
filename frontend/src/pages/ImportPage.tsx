@@ -430,6 +430,52 @@ export default function ImportPage() {
             <div style={{ width: 360, flexShrink: 0 }}>
               <h2 style={{ marginBottom: 20, fontSize: 20, fontWeight: 600 }}>Einstellungen</h2>
 
+              {/* Auto-detected metadata info */}
+              {(() => {
+                const rr = previewResult.rote_rosen_meta
+                const fm = previewResult.filename_metadata
+                if (!rr && !fm) return null
+                const docType = rr?.document_type === 'treatment' ? 'Treatment' : rr?.document_type === 'drehbuch' ? 'Drehbuch' : fm?.document_type || 'PDF'
+                const episode = rr?.episode || fm?.episode
+                const metaRows: { label: string; value: string }[] = []
+                if (episode) metaRows.push({ label: 'Episode', value: String(episode) })
+                if (rr?.block) metaRows.push({ label: 'Block', value: String(rr.block) })
+                if (rr?.autor) metaRows.push({ label: 'Autor', value: rr.autor })
+                if (rr?.dialogautor) metaRows.push({ label: 'Dialogautor', value: rr.dialogautor })
+                if (rr?.regie) metaRows.push({ label: 'Regie', value: rr.regie })
+                if (rr?.writer_producer) metaRows.push({ label: 'Writer Producer', value: rr.writer_producer })
+                if (rr?.head_of_story) metaRows.push({ label: 'Head of Story', value: rr.head_of_story })
+                if (rr?.storyliner) metaRows.push({ label: 'Storyliner', value: rr.storyliner })
+                if (rr?.story_edit) metaRows.push({ label: 'Story Edit', value: rr.story_edit })
+                if (rr?.script_edit) metaRows.push({ label: 'Script Edit', value: rr.script_edit })
+                if (rr?.dialog_edit) metaRows.push({ label: 'Dialog Edit', value: rr.dialog_edit })
+                if (rr?.drehtermin) metaRows.push({ label: 'Drehtermin', value: rr.drehtermin })
+                if (rr?.sendetermin) metaRows.push({ label: 'Sendetermin', value: rr.sendetermin })
+                if (rr?.gesamtlaenge) metaRows.push({ label: 'Gesamtlänge', value: rr.gesamtlaenge })
+                if (fm?.fassungsdatum) metaRows.push({ label: 'Stand', value: fm.fassungsdatum })
+
+                return (
+                  <div style={{
+                    background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8,
+                    padding: 12, marginBottom: 16, fontSize: 12, color: '#1565c0',
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: metaRows.length > 0 ? 6 : 0, fontSize: 13 }}>
+                      {docType}{episode ? ` — Episode ${episode}` : ''}
+                    </div>
+                    {metaRows.length > 0 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 12px' }}>
+                        {metaRows.map(({ label, value }) => (
+                          <div key={label} style={{ display: 'contents' }}>
+                            <span style={{ color: '#64b5f6', fontSize: 11 }}>{label}</span>
+                            <span>{value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
                 <StatCard label="Szenen" value={previewResult.total_scenes} />
                 <StatCard label="Rollen" value={previewResult.charaktere.length} />
@@ -439,23 +485,15 @@ export default function ImportPage() {
                 {(previewResult.motive?.length ?? 0) > 0 && (
                   <StatCard label="Motive" value={previewResult.motive!.length} />
                 )}
+                {(() => {
+                  const totalSec = previewResult.szenen.reduce((sum: number, s: any) => sum + (s.dauer_sekunden || 0), 0)
+                  if (totalSec === 0) return null
+                  const mm = Math.floor(totalSec / 60)
+                  const ss = totalSec % 60
+                  return <StatCard label="Gesamtlänge" value={`${mm}:${String(ss).padStart(2, '0')}`} />
+                })()}
+                <StatCard label="Textelemente" value={previewResult.total_textelemente} />
               </div>
-
-              {/* Auto-detected metadata info */}
-              {(previewResult.rote_rosen_meta || previewResult.filename_metadata) && (
-                <div style={{
-                  background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8,
-                  padding: 12, marginBottom: 16, fontSize: 13, color: '#1565c0',
-                }}>
-                  Erkannt: {previewResult.rote_rosen_meta?.document_type === 'treatment' ? 'Treatment' : previewResult.rote_rosen_meta?.document_type === 'drehbuch' ? 'Drehbuch' : previewResult.filename_metadata?.document_type || 'PDF'}
-                  {(previewResult.rote_rosen_meta?.episode || previewResult.filename_metadata?.episode) &&
-                    ` — Episode ${previewResult.rote_rosen_meta?.episode || previewResult.filename_metadata?.episode}`}
-                  {previewResult.filename_metadata?.fassungsdatum &&
-                    ` — Stand ${previewResult.filename_metadata.fassungsdatum}`}
-                  {previewResult.rote_rosen_meta?.regie &&
-                    ` — Regie: ${previewResult.rote_rosen_meta.regie}`}
-                </div>
-              )}
 
               {previewResult.warnings.length > 0 && (
                 <div style={{
@@ -629,7 +667,7 @@ export default function ImportPage() {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div style={{
       flex: 1, border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 16px', textAlign: 'center',
