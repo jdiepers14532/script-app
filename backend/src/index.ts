@@ -49,6 +49,7 @@ import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
 import { fassungsSzenenRouter, dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
 import { folgenV2Router } from './routes/folgen-v2'
+import { statistikRouter } from './routes/statistik'
 import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
 
 // Load .env from project root or backend dir
@@ -181,6 +182,7 @@ app.use('/api/fassungen/:fassungId/szenen', (req, _res, next) => {
 app.use('/api/dokument-szenen', dokumentSzenenRouter)
 app.use('/api/scene-identities', sceneIdentitiesRouter)
 
+app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
 app.use('/api/stages', stagesCommentRouter)
