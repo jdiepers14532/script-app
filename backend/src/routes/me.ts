@@ -4,6 +4,17 @@ import { authMiddleware } from '../auth.js'
 
 const router = Router()
 
+// GET /api/me/whoami — same-origin user info (no cross-origin dependency)
+router.get('/whoami', authMiddleware, (req: any, res) => {
+  res.json({
+    user_id: req.user.user_id,
+    name: req.user.name,
+    email: req.user.email,
+    role: req.user.role,
+    roles: req.user.roles,
+  })
+})
+
 const INTERNAL_KEY = process.env.INTERNAL_SECRET || 'prod-internal-2026'
 const PROD_DB_URL = 'http://127.0.0.1:3005'
 const AUTH_URL = 'http://127.0.0.1:3002'

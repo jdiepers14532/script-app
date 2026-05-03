@@ -425,15 +425,29 @@ export default function AppShell({
       .catch(() => {})
   }, [])
 
-  // ── App-Liste + User-Info von auth.app laden ──────────────────────────────
+  // ── User-Info same-origin laden (zuverlässig nach Refresh) ──────────────
   useEffect(() => {
+    fetch('/api/me/whoami', { credentials: 'include' })
+      .then(r => {
+        if (r.status === 401) {
+          const redirect = encodeURIComponent(window.location.href)
+          window.location.href = `https://auth.serienwerft.studio/?redirect=${redirect}`
+          return null
+        }
+        return r.ok ? r.json() : null
+      })
+      .then((data: any) => {
+        if (data) setCurrentUser({ username: data.name, email: data.email })
+      })
+      .catch(() => {})
+
+    // App-Liste + Admin-Flag von auth.app (non-critical, nur für App-Switcher)
     fetch('https://auth.serienwerft.studio/api/auth/my-apps', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
         if (!data) return
         setAppList(data.apps || [])
         setIsAdmin(data.is_admin || false)
-        setCurrentUser(data.user || null)
       })
       .catch(() => {})
 
