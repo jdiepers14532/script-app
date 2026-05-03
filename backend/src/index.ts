@@ -44,7 +44,7 @@ import autocompleteRouter from './routes/autocomplete'
 import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from './routes/scene-comments'
 import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
 import { produktionFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
-import { produktionMotiveRouter, motivRouter } from './routes/motive'
+import { produktionMotiveRouter, motivRouter, produktionDrehorteRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
 import { fassungsSzenenRouter, dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
@@ -199,9 +199,10 @@ app.use('/api/produktionen/:produktionId/charakter-felder', (req, _res, next) =>
 app.use('/api/characters/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFeldwerteRouter)
 app.use('/api/motive/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFeldwerteRouter)
 
-// Motive
+// Motive + Drehorte
 app.use('/api/produktionen/:produktionId/motive', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, produktionMotiveRouter)
 app.use('/api/motive/:id', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivRouter)
+app.use('/api/produktionen/:produktionId/drehorte', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, produktionDrehorteRouter)
 
 // Cron: Clean up expired locks every 5 minutes
 setInterval(async () => {
@@ -251,6 +252,7 @@ async function runMigrations() {
     'v48_werkstufe_stand_datum.sql',
     'v48_statistik_report.sql',
     'v49_drop_stimmung.sql',
+    'v50_drehorte_motive.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

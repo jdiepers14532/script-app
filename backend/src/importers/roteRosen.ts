@@ -97,7 +97,10 @@ function preprocessPdfText(text: string): string {
     // 6. Dialog number dedup: "1. 1. DANIELDANIEL" → "1. DANIEL" (pdf-parse)
     l = l.replace(/^(\d+\.\s+)\1(.+)\2$/m, '$1$2')
 
-    // 7. Komparsen dedup (pdf-parse)
+    // 7. Split mid-line "Komparsen:" (pdftotext: "Bild aus Block... Komparsen: ...")
+    l = l.replace(/^(.+\S)\s+(Komparsen:\s*.*)$/im, '$1\n$2')
+
+    // 7b. Komparsen dedup (pdf-parse)
     l = l.replace(/(Komparsen:\s*.+?)\1$/i, '$1')
 
     // 8. "Bild aus Block" dedup (pdf-parse)

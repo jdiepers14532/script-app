@@ -488,22 +488,106 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       }
     }
 
-    // ── Motive: auto-create from ort_name ──
+    // ── Motive: parse ort_name → drehort / motiv / untermotiv ──
+    // Normalize "A.D." and "A. D." prefixes to "Außendreh"
+    function normalizeOrtName(raw: string): string {
+      return raw.replace(/^A\.\s*D\.\s*/i, 'Außendreh / ').replace(/\s*\/\s*/g, ' / ')
+    }
+
+    function parseOrtName(raw: string): { drehortLabel: string | null; motivName: string; untermotivName: string | null } {
+      const normalized = normalizeOrtName(raw)
+      const parts = normalized.split(' / ').map(p => p.trim()).filter(Boolean)
+      if (parts.length >= 3) {
+        return { drehortLabel: parts[0], motivName: parts[1], untermotivName: parts.slice(2).join(' / ') }
+      }
+      if (parts.length === 2) {
+        // Check if first part looks like a Drehort label (Stu., Außendreh, etc.)
+        const isDrehort = /^(Stu\.|Studio|Außendreh|Innendreh)/i.test(parts[0])
+        if (isDrehort) return { drehortLabel: parts[0], motivName: parts[1], untermotivName: null }
+        // Otherwise treat as motiv / untermotiv
+        return { drehortLabel: null, motivName: parts[0], untermotivName: parts[1] }
+      }
+      return { drehortLabel: null, motivName: parts[0] || raw, untermotivName: null }
+    }
+
+    // Cache drehort IDs
+    const drehortCache = new Map<string, string>()
+    async function getOrCreateDrehort(label: string): Promise<string> {
+      const key = label.toUpperCase()
+      if (drehortCache.has(key)) return drehortCache.get(key)!
+      let row = await queryOne(
+        `SELECT id FROM drehorte WHERE produktion_id = $1 AND UPPER(label) = UPPER($2)`,
+        [produktion_id, label]
+      )
+      if (!row) {
+        row = await queryOne(
+          `INSERT INTO drehorte (produktion_id, label) VALUES ($1, $2)
+           ON CONFLICT (produktion_id, label) DO UPDATE SET label = EXCLUDED.label RETURNING id`,
+          [produktion_id, label]
+        )
+      }
+      drehortCache.set(key, row.id)
+      return row.id
+    }
+
+    // Cache motiv IDs (key = parentId|name)
+    const motivCache = new Map<string, string>()
     let motiveCreated = 0
+
     for (const szene of result.szenen) {
       if (!szene.ort_name) continue
       try {
-        const existing = await queryOne(
-          `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2)`,
-          [produktion_id, szene.ort_name]
-        )
-        if (!existing) {
-          const motivTyp = szene.int_ext === 'EXT' ? 'exterior' : 'interior'
-          await queryOne(
-            `INSERT INTO motive (produktion_id, name, typ, meta_json) VALUES ($1, $2, $3, $4)`,
-            [produktion_id, szene.ort_name, motivTyp, JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+        const { drehortLabel, motivName, untermotivName } = parseOrtName(szene.ort_name)
+        const drehortId = drehortLabel ? await getOrCreateDrehort(drehortLabel) : null
+        const motivTyp = szene.int_ext === 'EXT' ? 'exterior' : 'interior'
+
+        // Get or create main motiv
+        const motivKey = `|${motivName.toUpperCase()}`
+        let motivId: string
+        if (motivCache.has(motivKey)) {
+          motivId = motivCache.get(motivKey)!
+        } else {
+          let existing = await queryOne(
+            `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2) AND parent_id IS NULL`,
+            [produktion_id, motivName]
           )
-          motiveCreated++
+          if (!existing) {
+            existing = await queryOne(
+              `INSERT INTO motive (produktion_id, name, typ, drehort_id, meta_json)
+               VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+              [produktion_id, motivName, motivTyp, untermotivName ? null : drehortId,
+               JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+            )
+            motiveCreated++
+          } else if (drehortId && !untermotivName) {
+            // Update drehort if not yet set
+            await query(`UPDATE motive SET drehort_id = COALESCE(drehort_id, $1) WHERE id = $2`, [drehortId, existing.id])
+          }
+          motivId = existing.id
+          motivCache.set(motivKey, motivId)
+        }
+
+        // Get or create untermotiv if present
+        if (untermotivName) {
+          const unterKey = `${motivId}|${untermotivName.toUpperCase()}`
+          if (!motivCache.has(unterKey)) {
+            let existing = await queryOne(
+              `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2) AND parent_id = $3`,
+              [produktion_id, untermotivName, motivId]
+            )
+            if (!existing) {
+              existing = await queryOne(
+                `INSERT INTO motive (produktion_id, name, typ, parent_id, drehort_id, meta_json)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                [produktion_id, untermotivName, motivTyp, motivId, drehortId,
+                 JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+              )
+              motiveCreated++
+            } else if (drehortId) {
+              await query(`UPDATE motive SET drehort_id = COALESCE(drehort_id, $1) WHERE id = $2`, [drehortId, existing.id])
+            }
+            motivCache.set(unterKey, existing.id)
+          }
         }
       } catch { /* ignore constraint violations */ }
     }

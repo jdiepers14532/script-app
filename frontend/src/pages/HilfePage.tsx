@@ -2252,11 +2252,19 @@ function DatenmodellTab() {
             ]} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="motive" color={'#00C853'} note="Drehorte / Sets" fields={[
+            <TableCard title="drehorte" color={'#00C853'} note="Physische Drehorte (Stu. 01, Außendreh, ...)" fields={[
+              { name: 'id', type: 'UUID PK', desc: 'Drehort-ID' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
+              { name: 'label', type: 'TEXT', desc: 'z.B. "Stu. 01", "Außendreh"' },
+              { name: 'sort_order', type: 'INT', desc: 'Reihenfolge' },
+            ]} />
+            <TableCard title="motive" color={'#00C853'} note="Konzeptionelle Motive mit Hierarchie" fields={[
               { name: 'id', type: 'UUID PK', desc: 'Motiv-ID' },
               { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
+              { name: 'drehort_id', type: 'UUID FK', desc: '-> drehorte.id (physischer Ort)' },
+              { name: 'parent_id', type: 'UUID FK', desc: '-> motive.id (Hauptmotiv)' },
               { name: 'motiv_nummer', type: 'TEXT', desc: 'z.B. "M01"' },
-              { name: 'name', type: 'TEXT', desc: 'Motivname' },
+              { name: 'name', type: 'TEXT', desc: 'Motivname (ohne Drehort-Prefix)' },
               { name: 'typ', type: 'TEXT', desc: 'interior | exterior' },
               { name: 'meta_json', type: 'JSONB', desc: 'Flexible Metadaten' },
             ]} />
