@@ -371,59 +371,87 @@ export default function ImportPage() {
               <div style={{ fontSize: 11, fontWeight: 600, color: '#757575', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
                 {previewResult.total_scenes} Szenen
               </div>
-              {previewResult.szenen.map((sz: any, i: number) => (
-                <div key={i} style={{
-                  padding: '6px 8px', borderBottom: '1px solid #f0f0f0', fontSize: 13,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 40, flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 11, color: '#bbb', textAlign: 'right' }}>
-                      SZ {sz.nummer}
-                    </span>
-                    {sz.isWechselschnitt && (
-                      <span style={{ fontSize: 9, background: '#E3F2FD', color: '#1565C0', padding: '1px 5px', borderRadius: 3, fontWeight: 600, flexShrink: 0 }}>
-                        WS
+              {previewResult.szenen.map((sz: any, i: number) => {
+                const durMin = sz.dauer_sekunden > 0 ? Math.floor(sz.dauer_sekunden / 60) : 0
+                const durSec = sz.dauer_sekunden > 0 ? sz.dauer_sekunden % 60 : 0
+                return (
+                  <div key={i} style={{
+                    padding: '8px 10px', borderBottom: '1px solid #f0f0f0',
+                    background: i % 2 === 0 ? '#fff' : '#fafafa',
+                  }}>
+                    {/* Row 1: SZ-Nummer, Motiv, INT/EXT, Tageszeit */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                      <span style={{
+                        fontSize: 12, fontWeight: 700, color: '#000',
+                        fontVariantNumeric: 'tabular-nums', minWidth: 44,
+                      }}>
+                        SZ {sz.nummer}
                       </span>
-                    )}
-                    <span style={{ width: 36, flexShrink: 0, fontSize: 11, color: sz.int_ext === 'EXT' ? '#00C853' : '#757575', fontWeight: 500 }}>
-                      {sz.int_ext}
-                    </span>
-                    <span style={{ flex: '0 1 250px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {sz.ort_name || '—'}
-                    </span>
-                    <span style={{ width: 36, flexShrink: 0, fontSize: 11, color: '#aaa' }}>
-                      {sz.tageszeit}
-                    </span>
-                    {sz.spieltag != null && (
-                      <span style={{ width: 30, flexShrink: 0, fontSize: 10, color: '#bbb', fontWeight: 500 }}>
-                        ST{sz.spieltag}
+                      <span style={{
+                        fontSize: 12, fontWeight: 600, color: '#000',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                      }}>
+                        {sz.ort_name || '—'}
                       </span>
-                    )}
-                    {sz.dauer_sekunden > 0 && (
-                      <span style={{ width: 40, flexShrink: 0, fontSize: 11, color: '#007AFF', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-                        {Math.floor(sz.dauer_sekunden / 60)}:{String(sz.dauer_sekunden % 60).padStart(2, '0')}
+                      <span style={{
+                        fontSize: 11, fontWeight: 500, flexShrink: 0,
+                        color: sz.int_ext === 'EXT' ? '#00C853' : '#757575',
+                      }}>
+                        {sz.int_ext}
                       </span>
+                      <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>{sz.tageszeit}</span>
+                    </div>
+
+                    {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 3 }}>
+                      {sz.spieltag != null && (
+                        <span style={tagStyle('#E8EAF6', '#3949AB')}>Spieltag {sz.spieltag}</span>
+                      )}
+                      {sz.dauer_sekunden > 0 && (
+                        <span style={tagStyle('#E3F2FD', '#1565C0')}>{durMin}:{String(durSec).padStart(2, '0')}</span>
+                      )}
+                      {sz.isWechselschnitt && (
+                        <span style={tagStyle('#FFF3E0', '#E65100')}>
+                          Wechselschnitt{sz.wechselschnittPartner?.length > 0 ? ` mit SZ ${sz.wechselschnittPartner.join(', ')}` : ''}
+                        </span>
+                      )}
+                      {sz.textelemente?.length > 0 && (
+                        <span style={tagStyle('#F5F5F5', '#757575')}>{sz.textelemente.length} Elemente</span>
+                      )}
+                    </div>
+
+                    {/* Row 3: Rollen */}
+                    {sz.charaktere.length > 0 && (
+                      <div style={{ fontSize: 12, color: '#333', marginBottom: 2 }}>
+                        <span style={{ color: '#999', fontSize: 11 }}>Rollen: </span>
+                        {sz.charaktere.join(', ')}
+                      </div>
                     )}
-                    <span style={{ flex: 1, fontSize: 12, color: '#757575', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {sz.charaktere.join(', ')}
-                    </span>
+
+                    {/* Row 4: Komparsen */}
+                    {sz.komparsen?.length > 0 && (
+                      <div style={{ fontSize: 12, color: '#7B1FA2', marginBottom: 2 }}>
+                        <span style={{ color: '#999', fontSize: 11 }}>Komparsen: </span>
+                        {sz.komparsen.join(', ')}
+                      </div>
+                    )}
+
+                    {/* Row 5: Zusammenfassung */}
+                    {sz.zusammenfassung && (
+                      <div style={{ fontSize: 11, color: '#666', fontStyle: 'italic', marginBottom: 1 }}>
+                        {sz.zusammenfassung}
+                      </div>
+                    )}
+
+                    {/* Row 6: Szeneninfo */}
+                    {sz.szeneninfo && (
+                      <div style={{ fontSize: 11, color: '#1565C0', fontStyle: 'italic' }}>
+                        {sz.szeneninfo}
+                      </div>
+                    )}
                   </div>
-                  {sz.zusammenfassung && (
-                    <div style={{ marginTop: 2, marginLeft: 48, fontSize: 11, color: '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {sz.zusammenfassung}
-                    </div>
-                  )}
-                  {sz.szeneninfo && (
-                    <div style={{ marginTop: 1, marginLeft: 48, fontSize: 10, color: '#90CAF9', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {sz.szeneninfo}
-                    </div>
-                  )}
-                  {sz.komparsen?.length > 0 && (
-                    <div style={{ marginTop: 1, marginLeft: 48, fontSize: 10, color: '#CE93D8' }}>
-                      Komp: {sz.komparsen.join(', ')}
-                    </div>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
 
             {/* Right: Einstellungen */}
@@ -676,6 +704,13 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
       <div style={{ fontSize: 12, color: '#757575' }}>{label}</div>
     </div>
   )
+}
+
+function tagStyle(bg: string, color: string): React.CSSProperties {
+  return {
+    fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 4,
+    background: bg, color, whiteSpace: 'nowrap',
+  }
 }
 
 const selectStyle: React.CSSProperties = {
