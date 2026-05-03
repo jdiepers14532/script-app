@@ -13,7 +13,7 @@ import { Textelement, ImportResult, ParsedScene, nextId } from './types'
 
 // ─── Detection ──────────────────────────────────────────
 
-const TITLE_RE = /(?:Rote Rosen|Sturm der Liebe)\s+Produktion\s+(\d+)/
+const TITLE_RE = /(?:Rote Rosen|Sturm der Liebe)\s+(?:Produktion|Staffel)\s+(\d+)/
 const DOC_TYPE_RE = /(Treatment|Drehbuch)\s+-\s+Episode\s+(\d+)/
 
 export function isRoteRosenFormat(text: string): boolean {
@@ -32,7 +32,7 @@ export interface FilenameMeta {
   fassungsdatum?: string
 }
 
-const FILENAME_RE = /^(Treatment|Drehbuch)\s*-\s*(.+?)\s+Produktion\s+(\d+)\s*-\s*Episode\s+(\d+)(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/i
+const FILENAME_RE = /^(Treatment|Drehbuch)\s*-\s*(.+?)\s+(?:Produktion|Staffel)\s+(\d+)\s*-\s*Episode\s+(\d+)(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/i
 
 export function parseFilename(filename: string): FilenameMeta {
   const base = filename.replace(/\.[^.]+$/, '')
