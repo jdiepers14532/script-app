@@ -425,6 +425,15 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     i++
   }
 
+  // Duration can appear between characters and I/T4 when pdftotext puts
+  // location on the same line as scene number (e.g. "4402.22 Stu. 02 / ...")
+  if (i < lines.length && DURATION_RE.test(lines[i].trim())) {
+    if (dauer_sekunden === 0) {
+      dauer_sekunden = parseDurationToSeconds(lines[i].trim())
+    }
+    i++
+  }
+
   // INT/EXT + Spieltag (I/T4, E/N2, etc.) — comes AFTER characters
   let int_ext: 'INT' | 'EXT' | 'INT/EXT' = 'INT'
   let tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG' = 'TAG'
@@ -471,8 +480,27 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     if (!line) { i++; continue }
     const kompM = KOMPARSEN_RE.exec(line)
     if (kompM) {
-      komparsen.push(...kompM[1].split(',').map(k => k.trim()).filter(Boolean))
-      i++; continue
+      let kompText = kompM[1]
+      i++
+      // Multi-line komparsen: if last entry looks incomplete (e.g. "4x"),
+      // read continuation lines until a recognized metadata pattern
+      while (i < lines.length) {
+        const nextLine = lines[i].trim()
+        if (!nextLine) { i++; continue }
+        const lastEntry = kompText.split(',').pop()?.trim() || ''
+        if (/^\d+x$/.test(lastEntry) || kompText.trimEnd().endsWith(',')) {
+          if (SCENE_NUM_RE.test(nextLine) || DURATION_RE.test(nextLine) ||
+              KOMPARSEN_RE.test(nextLine) || WECHSELSCHNITT_RE.test(nextLine) ||
+              /^Bild aus Block/i.test(nextLine) || /^Bitte.*Memo/i.test(nextLine) ||
+              DIALOG_NUM_RE.test(nextLine)) break
+          kompText += ' ' + nextLine
+          i++
+        } else {
+          break
+        }
+      }
+      komparsen.push(...kompText.split(',').map(k => k.trim()).filter(Boolean))
+      continue
     }
     const wsM = WECHSELSCHNITT_RE.exec(line)
     if (wsM) {
@@ -572,7 +600,26 @@ function parseSubSceneHeader(
     const line = lines[i]?.trim() || ''
     if (!line) { i++; continue }
     const kompM = KOMPARSEN_RE.exec(line)
-    if (kompM) { komparsen.push(...kompM[1].split(',').map(k => k.trim()).filter(Boolean)); i++; continue }
+    if (kompM) {
+      let kompText = kompM[1]
+      i++
+      while (i < endIdx) {
+        const nextLine = lines[i]?.trim() || ''
+        if (!nextLine) { i++; continue }
+        const lastEntry = kompText.split(',').pop()?.trim() || ''
+        if (/^\d+x$/.test(lastEntry) || kompText.trimEnd().endsWith(',')) {
+          if (SCENE_NUM_RE.test(nextLine) || DURATION_RE.test(nextLine) ||
+              KOMPARSEN_RE.test(nextLine) || WECHSELSCHNITT_RE.test(nextLine) ||
+              /^Bild aus Block/i.test(nextLine) || /^Bitte.*Memo/i.test(nextLine)) break
+          kompText += ' ' + nextLine
+          i++
+        } else {
+          break
+        }
+      }
+      komparsen.push(...kompText.split(',').map(k => k.trim()).filter(Boolean))
+      continue
+    }
     if (WECHSELSCHNITT_RE.test(line)) { hinweise.push(line); i++; continue }
     if (/^Bild aus Block/i.test(line) || /^Bitte.*Memo/i.test(line)) { hinweise.push(line); i++; continue }
     break
@@ -868,6 +915,8 @@ export function parseRoteRosen(rawText: string): ImportResult {
               subHeader.dauer_sekunden = header.crosscutDurationEntries.get(targetNr) || subHeader.dauer_sekunden
               subHeader.isWechselschnitt = true
               subHeader.wechselschnittPartner = [header.sceneNr]
+              // Auto-generate szeneninfo for crosscut partner
+              subHeader.hinweise.push(`Wechselschnitt mit Bild ${header.episodeNr}.${header.sceneNr}`)
               subSceneResults.push(buildScene(subHeader, subHeader.headerEndIdx, sectionEnd))
               processedNrs.add(targetNr)
             }
