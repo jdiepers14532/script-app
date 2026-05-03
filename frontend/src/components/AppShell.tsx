@@ -69,14 +69,13 @@ export const LIGHT_PALETTES: BgPalette[] = [
 ]
 
 export const DARK_PALETTES: BgPalette[] = [
-  { name: 'Near-Black',   preview: '#0D0D0D', bg: '#0D0D0D', surface: '#141414', subtle: '#1A1A1A', active: '#1F1F1F', hover: '#262626', border: '#2A2A2A', borderSubtle: '#1F1F1F' },
-  { name: 'Dunkelgrau',   preview: '#1A1A1A', bg: '#1A1A1A', surface: '#202020', subtle: '#272727', active: '#2D2D2D', hover: '#333333', border: '#383838', borderSubtle: '#2A2A2A' },
-  { name: 'VS Code',      preview: '#1E1E1E', bg: '#1E1E1E', surface: '#252526', subtle: '#2D2D2D', active: '#37373D', hover: '#3E3E3E', border: '#3F3F3F', borderSubtle: '#2D2D2D' },
-  { name: 'Warm Dark',    preview: '#1C1A17', bg: '#1C1A17', surface: '#242018', subtle: '#2C281F', active: '#333026', hover: '#3A3628', border: '#3D3929', borderSubtle: '#28241C' },
-  { name: 'Mittelgrau',   preview: '#242424', bg: '#242424', surface: '#2A2A2A', subtle: '#313131', active: '#383838', hover: '#3E3E3E', border: '#454545', borderSubtle: '#323232' },
-  { name: 'One Dark',     preview: '#21252B', bg: '#21252B', surface: '#282C34', subtle: '#2C313C', active: '#323842', hover: '#393F4A', border: '#3E4451', borderSubtle: '#2C313C' },
-  { name: 'Hellgrau',     preview: '#2E2E2E', bg: '#2E2E2E', surface: '#353535', subtle: '#3C3C3C', active: '#424242', hover: '#454545', border: '#505050', borderSubtle: '#3D3D3D' },
-  { name: 'Silbergrau',   preview: '#3C3C3C', bg: '#3C3C3C', surface: '#444444', subtle: '#4C4C4C', active: '#535353', hover: '#555555', border: '#626262', borderSubtle: '#4E4E4E' },
+  { name: 'Near-Black',      preview: '#0D0D0D', bg: '#0D0D0D', surface: '#141414', subtle: '#1A1A1A', active: '#1F1F1F', hover: '#262626', border: '#2A2A2A', borderSubtle: '#1F1F1F' },
+  { name: 'VS Code',         preview: '#1E1E1E', bg: '#1E1E1E', surface: '#252526', subtle: '#2D2D2D', active: '#37373D', hover: '#3E3E3E', border: '#3F3F3F', borderSubtle: '#2D2D2D' },
+  { name: 'Slides',          preview: '#222022', bg: '#222022', surface: '#2A282A', subtle: '#323032', active: '#383638', hover: '#3C3A3C', border: '#454345', borderSubtle: '#343234' },
+  { name: 'Charcoal Stone',  preview: '#2F2F33', bg: '#2F2F33', surface: '#37373B', subtle: '#3F3F43', active: '#454549', hover: '#49494D', border: '#525256', borderSubtle: '#414145' },
+  { name: 'Deep Charcoal',   preview: '#2D3436', bg: '#2D3436', surface: '#353C3E', subtle: '#3D4446', active: '#434A4C', hover: '#474E50', border: '#505759', borderSubtle: '#3F4648' },
+  { name: 'Silbergrau',      preview: '#3C3C3C', bg: '#3C3C3C', surface: '#444444', subtle: '#4C4C4C', active: '#535353', hover: '#555555', border: '#626262', borderSubtle: '#4E4E4E' },
+  { name: 'Slate Grey',      preview: '#4A4A4A', bg: '#4A4A4A', surface: '#525252', subtle: '#5A5A5A', active: '#606060', hover: '#646464', border: '#6D6D6D', borderSubtle: '#5C5C5C' },
 ]
 
 // ── Eigene Farbe ableiten (HSL-basiert) ──────────────────────────────────────
