@@ -48,7 +48,8 @@ interface PreviewResult {
 }
 
 interface CommitResult {
-  stage_id: number
+  folge_id: number
+  werkstufe_id: string
   scenes_imported: number
   characters_created: number
   komparsen_created: number

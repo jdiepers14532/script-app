@@ -165,87 +165,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       versionLabel = `Import ${filenameMeta.fassungsdatum}`
     }
 
-    let scenesImported = 0
-
-    // ── Dokument_szenen system ──
-    // Map stage_type → dokument-typ
+    // Map stage_type → werkstufen-typ
     const stageToDocTyp: Record<string, string> = {
       treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
     }
     const docTyp = stageToDocTyp[stage_type] || 'drehbuch'
 
-    // Create or find folgen_dokument
-    let dokument = await queryOne(
-      `SELECT id FROM folgen_dokumente WHERE staffel_id = $1 AND folge_nummer = $2 AND typ = $3`,
-      [staffel_id, folge_nummer, docTyp]
-    )
-    if (!dokument) {
-      dokument = await queryOne(
-        `INSERT INTO folgen_dokumente (staffel_id, folge_nummer, typ, erstellt_von)
-         VALUES ($1, $2, $3, $4) RETURNING id`,
-        [staffel_id, folge_nummer, docTyp, req.user!.name || req.user!.user_id]
-      )
-    }
+    // ── Werkstufen-Modell: folgen → werkstufen → dokument_szenen ──
 
-    // Create new fassung
-    const setting = await queryOne(`SELECT value FROM app_settings WHERE key = 'fassungs_nummerierung_modus'`)
-    const modus = setting?.value ?? 'global'
-    let nextFassungNr = 1
-    if (modus === 'global') {
-      const cnt = await queryOne(
-        `SELECT COALESCE(MAX(f.fassung_nummer), 0) AS m
-         FROM folgen_dokument_fassungen f
-         JOIN folgen_dokumente d ON d.id = f.dokument_id
-         WHERE d.staffel_id = $1 AND d.folge_nummer = $2`,
-        [staffel_id, folge_nummer]
-      )
-      nextFassungNr = (cnt?.m ?? 0) + 1
-    } else {
-      const cnt = await queryOne(
-        `SELECT COALESCE(MAX(fassung_nummer), 0) AS m FROM folgen_dokument_fassungen WHERE dokument_id = $1`,
-        [dokument.id]
-      )
-      nextFassungNr = (cnt?.m ?? 0) + 1
-    }
-
-    const fassung = await queryOne(
-      `INSERT INTO folgen_dokument_fassungen
-         (dokument_id, fassung_nummer, fassung_label, sichtbarkeit, erstellt_von)
-       VALUES ($1, $2, $3, 'alle', $4) RETURNING id`,
-      [dokument.id, nextFassungNr, versionLabel, req.user!.name || req.user!.user_id]
-    )
-
-    // Create scene_identities + dokument_szenen for each scene
-    const sceneIdentityIds: { identityId: string; szeneIdx: number }[] = []
-    for (const [idx, szene] of result.szenen.entries()) {
-      const dauerMin = szene.dauer_sekunden ? Math.round(szene.dauer_sekunden / 60) : null
-      const dauerSek = szene.dauer_sekunden || null
-      const isWechselschnitt = szene.isWechselschnitt || false
-
-      const identity = await queryOne(
-        `INSERT INTO scene_identities (staffel_id, created_by) VALUES ($1, $2) RETURNING id`,
-        [staffel_id, req.user!.name || req.user!.user_id]
-      )
-
-      await queryOne(
-        `INSERT INTO dokument_szenen
-           (fassung_id, scene_identity_id, sort_order, scene_nummer,
-            int_ext, tageszeit, ort_name, zusammenfassung, content,
-            spieltag, dauer_min, dauer_sek, is_wechselschnitt, szeneninfo,
-            updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
-        [
-          fassung.id, identity.id, idx, szene.nummer,
-          szene.int_ext, szene.tageszeit, szene.ort_name || null,
-          szene.zusammenfassung || null, JSON.stringify(szene.textelemente),
-          szene.spieltag || null, dauerMin, dauerSek, isWechselschnitt,
-          szene.szeneninfo || null, req.user!.name || req.user!.user_id,
-        ]
-      )
-      sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
-    }
-
-    // ── Dual-write: folgen + werkstufen (v43 Werkstufen-Modell) ──
     // Ensure folgen row exists
     let folge = await queryOne(
       `SELECT id FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2`,
@@ -259,36 +186,71 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       )
     }
 
-    // Create werkstufe linked to folge
-    const werkstufenTyp = docTyp  // same mapping: storyline/drehbuch/notiz
+    // Create werkstufe
     const nextWerkVer = await queryOne(
       `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
-      [folge.id, werkstufenTyp]
+      [folge.id, docTyp]
     )
     const werkstufe = await queryOne(
       `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von)
        VALUES ($1, $2, $3, $4, 'team', $5) RETURNING id`,
-      [folge.id, werkstufenTyp, (nextWerkVer?.m ?? 0) + 1, versionLabel, req.user!.name || req.user!.user_id]
+      [folge.id, docTyp, (nextWerkVer?.m ?? 0) + 1, versionLabel, req.user!.name || req.user!.user_id]
     )
 
-    // Update scene_identities with folge_id
-    for (const { identityId } of sceneIdentityIds) {
-      await pool.query(
-        `UPDATE scene_identities SET folge_id = $1 WHERE id = $2 AND folge_id IS NULL`,
-        [folge.id, identityId]
+    // Create scene_identities + dokument_szenen for each scene
+    const sceneIdentityIds: { identityId: string; szeneIdx: number }[] = []
+    for (const [idx, szene] of result.szenen.entries()) {
+      const stoppzeitSek = szene.dauer_sekunden || null
+      const isWechselschnitt = szene.isWechselschnitt || false
+
+      const identity = await queryOne(
+        `INSERT INTO scene_identities (staffel_id, folge_id, created_by) VALUES ($1, $2, $3) RETURNING id`,
+        [staffel_id, folge.id, req.user!.name || req.user!.user_id]
       )
+
+      // Convert textelemente to ProseMirror format (screenplay_element nodes)
+      const pmNodes: any[] = []
+
+      // Scene heading node
+      const headingParts = [szene.int_ext, szene.ort_name].filter(Boolean)
+      if (szene.tageszeit) headingParts.push(`- ${szene.tageszeit}`)
+      const headingText = headingParts.join('. ').replace(/\.\s*-/, ' -') || `SZ ${szene.nummer}`
+      pmNodes.push({
+        type: 'screenplay_element',
+        attrs: { element_type: 'scene_heading' },
+        content: [{ type: 'text', text: headingText }],
+      })
+
+      // Content nodes
+      for (const te of szene.textelemente) {
+        const pmType = (['action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot'].includes(te.type))
+          ? te.type : 'action'
+        pmNodes.push({
+          type: 'screenplay_element',
+          attrs: { element_type: pmType },
+          content: te.text ? [{ type: 'text', text: te.text }] : undefined,
+        })
+      }
+
+      await queryOne(
+        `INSERT INTO dokument_szenen
+           (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
+            int_ext, tageszeit, ort_name, zusammenfassung, content,
+            spieltag, stoppzeit_sek, is_wechselschnitt, szeneninfo,
+            format, geloescht, updated_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15)`,
+        [
+          werkstufe.id, identity.id, idx, szene.nummer,
+          szene.int_ext, szene.tageszeit, szene.ort_name || null,
+          szene.zusammenfassung || null, JSON.stringify(pmNodes),
+          szene.spieltag || null, stoppzeitSek, isWechselschnitt,
+          szene.szeneninfo || null, docTyp, req.user!.name || req.user!.user_id,
+        ]
+      )
+      sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
     }
 
-    // Update dokument_szenen with werkstufe_id, format, stoppzeit_sek
-    await pool.query(
-      `UPDATE dokument_szenen SET
-        werkstufe_id = $1,
-        format = $2,
-        stoppzeit_sek = COALESCE(dauer_min, 0) * 60 + COALESCE(dauer_sek, 0),
-        geloescht = false
-       WHERE fassung_id = $3 AND werkstufe_id IS NULL`,
-      [werkstufe.id, werkstufenTyp, fassung.id]
-    )
+    const scenesImported = sceneIdentityIds.length
 
     // ── Characters: use new characters + character_productions system ──
     // Load existing kategorien for this staffel
@@ -455,8 +417,6 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     res.json({
-      dokument_id: dokument.id,
-      fassung_id: fassung.id,
       folge_id: folge.id,
       werkstufe_id: werkstufe.id,
       scenes_imported: scenesImported,
