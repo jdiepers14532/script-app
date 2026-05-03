@@ -447,32 +447,43 @@ export default function ScriptPage() {
 
   // Load Szenen — try werkstufen first, then dokument_szenen/fassungen, fall back to old szenen
   useEffect(() => {
-    if (!selectedStageId || !selectedStaffelId || selectedFolgeNummer == null) return
+    if (!selectedStaffelId || selectedFolgeNummer == null) return
     setSzenen([])
     setSelectedSzeneId(null)
     setUseDokumentSzenen(false)
 
-    // Find matching fassung for this stage
-    const stage = stages.find((s: any) => s.id === selectedStageId)
+    // Find matching fassung for this stage (may be null if no stages exist)
+    const stage = selectedStageId ? stages.find((s: any) => s.id === selectedStageId) : null
     const stageToDocTyp: Record<string, string> = {
       treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
     }
-    const docTyp = stageToDocTyp[stage?.stage_type] || 'drehbuch'
+    const docTyp = stage ? (stageToDocTyp[stage.stage_type] || 'drehbuch') : null
 
     // Try werkstufen first (v2 model)
-    tryWerkstufen().catch(() => tryFassungen())
+    tryWerkstufen().catch(() => { if (selectedStageId) tryFassungen(); else finalize() })
 
     async function tryWerkstufen() {
       const folgen = await api.getFolgenV2(selectedStaffelId)
       const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
-      if (!folge) { await tryFassungen(); return }
+      if (!folge) { if (selectedStageId) await tryFassungen(); else finalize(); return }
       const werkstufen = await api.getWerkstufen(folge.id)
-      // Find latest werkstufe of matching type
-      const matching = werkstufen
-        .filter((w: any) => w.typ === docTyp)
-        .sort((a: any, b: any) => b.version_nummer - a.version_nummer)
+      // Find latest werkstufe of matching type; if no stage, try all types (prefer drehbuch)
+      let matching: any[]
+      if (docTyp) {
+        matching = werkstufen.filter((w: any) => w.typ === docTyp)
+      } else {
+        // No stage selected — prefer drehbuch > storyline > notiz
+        const prio = ['drehbuch', 'storyline', 'notiz']
+        matching = []
+        for (const typ of prio) {
+          matching = werkstufen.filter((w: any) => w.typ === typ)
+          if (matching.length > 0) break
+        }
+        if (matching.length === 0) matching = werkstufen
+      }
+      matching.sort((a: any, b: any) => b.version_nummer - a.version_nummer)
       const werk = matching[0]
-      if (!werk) { await tryFassungen(); return }
+      if (!werk) { if (selectedStageId) await tryFassungen(); else finalize(); return }
       const werkSzenen = await api.getWerkstufenSzenen(werk.id)
       if (werkSzenen.length > 0) {
         setSzenen(werkSzenen)
@@ -485,13 +496,13 @@ export default function ScriptPage() {
         return
       }
       // Werkstufe exists but has no scenes — fall through
-      await tryFassungen()
+      if (selectedStageId) await tryFassungen(); else finalize()
     }
 
     async function tryFassungen() {
       try {
         const docs = await api.getDokumente(selectedStaffelId, selectedFolgeNummer!)
-        const matchDoc = docs.find((d: any) => d.typ === docTyp)
+        const matchDoc = docs.find((d: any) => d.typ === (docTyp || 'drehbuch'))
         if (matchDoc?.fassung_id) {
           const dkSzenen = await api.getFassungsSzenen(matchDoc.fassung_id)
           if (dkSzenen.length > 0) {
@@ -510,7 +521,8 @@ export default function ScriptPage() {
     }
 
     function loadOldSzenen() {
-      api.getSzenen(selectedStageId!).then(async data => {
+      if (!selectedStageId) { finalize(); return }
+      api.getSzenen(selectedStageId).then(async data => {
         setSzenen(data)
         if (!data.length) return
         const savedSzene = pendingNav.current.szeneId
@@ -520,11 +532,17 @@ export default function ScriptPage() {
         navRestored.current = true
         const needsCalc = data.some((s: any) => s.spieltag == null)
         if (needsCalc) {
-          api.autoSpieltagCalc(selectedStageId!)
+          api.autoSpieltagCalc(selectedStageId)
             .then(updated => setSzenen(updated))
             .catch(() => {})
         }
       }).catch(() => {})
+    }
+
+    function finalize() {
+      // No scenes found in any model — clear nav state
+      delete pendingNav.current.szeneId
+      navRestored.current = true
     }
   }, [selectedStageId, selectedStaffelId, selectedFolgeNummer, stages])
 

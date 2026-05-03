@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { recalcSceneStats } from '../utils/recalcRepliken'
 
 // ── Fassungs-Szenen Router ───────────────────────────────────────────────────
 // Mounted at /api/fassungen/:fassungId/szenen
@@ -246,6 +247,12 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
+
+    // Recalc repliken stats if content was updated
+    if (content && row.werkstufe_id && row.scene_identity_id) {
+      recalcSceneStats(row.werkstufe_id, row.scene_identity_id, content).catch(() => {})
+    }
+
     res.json(row)
   } catch (err) {
     res.status(500).json({ error: String(err) })
