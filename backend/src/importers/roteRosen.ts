@@ -13,7 +13,7 @@ import { Textelement, ImportResult, ParsedScene, nextId } from './types'
 
 // ─── Detection ──────────────────────────────────────────
 
-const TITLE_RE = /(?:Rote Rosen|Sturm der Liebe)\s+Staffel\s+(\d+)/
+const TITLE_RE = /(?:Rote Rosen|Sturm der Liebe)\s+Produktion\s+(\d+)/
 const DOC_TYPE_RE = /(Treatment|Drehbuch)\s+-\s+Episode\s+(\d+)/
 
 export function isRoteRosenFormat(text: string): boolean {
@@ -22,7 +22,7 @@ export function isRoteRosenFormat(text: string): boolean {
 }
 
 // ─── Filename Parser ────────────────────────────────────
-// Pattern: "Treatment - Rote Rosen Staffel 24 - Episode 4402 - 2026-04-30.pdf"
+// Pattern: "Treatment - Rote Rosen Produktion 24 - Episode 4402 - 2026-04-30.pdf"
 
 export interface FilenameMeta {
   document_type?: 'treatment' | 'drehbuch'
@@ -32,7 +32,7 @@ export interface FilenameMeta {
   fassungsdatum?: string
 }
 
-const FILENAME_RE = /^(Treatment|Drehbuch)\s*-\s*(.+?)\s+Staffel\s+(\d+)\s*-\s*Episode\s+(\d+)(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/i
+const FILENAME_RE = /^(Treatment|Drehbuch)\s*-\s*(.+?)\s+Produktion\s+(\d+)\s*-\s*Episode\s+(\d+)(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?/i
 
 export function parseFilename(filename: string): FilenameMeta {
   const base = filename.replace(/\.[^.]+$/, '')

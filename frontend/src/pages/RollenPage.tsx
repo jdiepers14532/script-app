@@ -56,7 +56,7 @@ function RollenprofilAnzeige({ data }: { data: Record<string, string> }) {
 export default function RollenPage() {
   const { selectedProduction } = useSelectedProduction()
   const { figurenLabel } = useAppSettings()
-  const staffelId = selectedProduction?.id ?? null
+  const produktionId = selectedProduction?.id ?? null
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [characters, setCharacters] = useState<any[]>([])
@@ -78,25 +78,25 @@ export default function RollenPage() {
   const [showImportModal, setShowImportModal] = useState(false)
 
   const loadCharacters = useCallback(async () => {
-    if (!staffelId) return
+    if (!produktionId) return
     setLoading(true)
     try {
-      const all = await api.getCharacters(staffelId)
+      const all = await api.getCharacters(produktionId)
       setCharacters(all.filter((c: any) => c.kategorie_typ === 'rolle' || c.kategorie_typ === null))
     } finally {
       setLoading(false)
     }
-  }, [staffelId])
+  }, [produktionId])
 
   useEffect(() => { loadCharacters() }, [loadCharacters])
 
   useEffect(() => {
-    if (!staffelId) return
-    api.getCharakterFelder(staffelId).catch(() => {})
-    api.getCharakterFelder(staffelId)
+    if (!produktionId) return
+    api.getCharakterFelder(produktionId).catch(() => {})
+    api.getCharakterFelder(produktionId)
       .then(f => setFelder(f.filter((x: any) => x.gilt_fuer === 'alle' || x.gilt_fuer === 'rolle')))
       .catch(() => {})
-  }, [staffelId])
+  }, [produktionId])
 
   useEffect(() => {
     if (!selectedId) { setFotos([]); setFeldwerte([]); setBeziehungen([]); return }
@@ -123,10 +123,10 @@ export default function RollenPage() {
   }
 
   const handleCreate = async () => {
-    if (!newName.trim() || !staffelId) return
+    if (!newName.trim() || !produktionId) return
     setCreating(true)
     try {
-      const char = await api.createCharacter({ name: newName.trim(), staffel_id: staffelId })
+      const char = await api.createCharacter({ name: newName.trim(), produktion_id: produktionId })
       await loadCharacters()
       setSelectedId(char.id)
       setNewName('')
@@ -137,8 +137,8 @@ export default function RollenPage() {
   }
 
   const handleAktivieren = async (id: string) => {
-    if (!staffelId) return
-    await api.aktiviereCharacter(id, staffelId)
+    if (!produktionId) return
+    await api.aktiviereCharacter(id, produktionId)
     await loadCharacters()
   }
 
@@ -203,8 +203,8 @@ export default function RollenPage() {
   }
 
   const handleCharacterSearch = async (q: string) => {
-    if (!staffelId) return []
-    const all = await api.getCharacters(staffelId)
+    if (!produktionId) return []
+    const all = await api.getCharacters(produktionId)
     return all.filter((c: any) => c.name.toLowerCase().includes(q.toLowerCase()) && c.id !== selectedId)
       .map((c: any) => ({ id: c.id, name: c.name }))
   }
@@ -239,11 +239,11 @@ export default function RollenPage() {
 
         {/* Main content */}
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-          {!staffelId && (
+          {!produktionId && (
             <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Bitte eine Produktion auswählen.</div>
           )}
 
-          {staffelId && !selected && !showNewForm && (
+          {produktionId && !selected && !showNewForm && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
                 {figurenLabel} aus der Liste auswählen oder <button onClick={handleNew} style={{ border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 14, padding: 0, textDecoration: 'underline' }}>neue anlegen</button>.
@@ -387,9 +387,9 @@ export default function RollenPage() {
           )}
         </div>
       </div>
-      {showImportModal && staffelId && (
+      {showImportModal && produktionId && (
         <RollenprofilImportModal
-          staffelId={staffelId}
+          produktionId={produktionId}
           onClose={() => setShowImportModal(false)}
           onSuccess={handleImportSuccess}
         />

@@ -12,7 +12,7 @@ import { pool } from './db'
 import { createHocuspocusServer } from './hocuspocus'
 
 import healthRouter from './routes/health'
-import staffelnRouter from './routes/staffeln'
+import produktionenRouter from './routes/produktionen'
 import { stagesRouter } from './routes/stages'
 import { szenenRouter, stagesSzenenRouter } from './routes/szenen'
 import { locksRouter, contractLocksRouter } from './routes/locks'
@@ -43,8 +43,8 @@ import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
 import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from './routes/scene-comments'
 import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
-import { staffelFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
-import { staffelMotiveRouter, motivRouter } from './routes/motive'
+import { produktionFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
+import { produktionMotiveRouter, motivRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
 import { fassungsSzenenRouter, dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
@@ -102,11 +102,11 @@ app.use(generalLimiter)
 
 // Routes
 app.use('/api', healthRouter)
-app.use('/api/staffeln', staffelnRouter)
+app.use('/api/produktionen', produktionenRouter)
 app.use('/api/stages', stagesRouter)
 app.use('/api/szenen', szenenRouter)
 app.use('/api/stages', stagesSzenenRouter)
-app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:staffelId/:folgeNummer/lock
+app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
 app.use('/api/szenen', versionenRouter)
 app.use('/api/stages', exportsRouter)
@@ -135,17 +135,17 @@ app.use('/api/characters/rollenprofil-import', rollenprofilImportRouter)
 // Characters
 app.use('/api/characters', charactersRouter)
 app.use('/api/szenen/:szeneId/characters', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, sceneCharactersRouter)
-app.use('/api/staffeln/:staffelId/character-kategorien', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, charKategorienRouter)
+app.use('/api/produktionen/:produktionId/character-kategorien', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, charKategorienRouter)
 
 // Vorstopp
 app.use('/api/szenen/:szeneId/vorstopp', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenVorstoppRouter)
-app.use('/api/staffeln/:staffelId/vorstopp-einstellungen', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, vorstoppEinstellungenRouter)
+app.use('/api/produktionen/:produktionId/vorstopp-einstellungen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, vorstoppEinstellungenRouter)
 
 // Stage Labels + Revision
-app.use('/api/staffeln/:staffelId/stage-labels', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, stageLabelsRouter)
-app.use('/api/staffeln/:staffelId/revision-colors', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, revisionColorsRouter)
-app.use('/api/staffeln/:staffelId/revision-einstellungen', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, revisionEinstellungenRouter)
-app.use('/api/szenen/:szeneId/revisionen', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenRevisionenRouter)       // GET/PUT /:staffelId/:folgeNummer + besetzung/synopsis
+app.use('/api/produktionen/:produktionId/stage-labels', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, stageLabelsRouter)
+app.use('/api/produktionen/:produktionId/revision-colors', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, revisionColorsRouter)
+app.use('/api/produktionen/:produktionId/revision-einstellungen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, revisionEinstellungenRouter)
+app.use('/api/szenen/:szeneId/revisionen', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenRevisionenRouter)       // GET/PUT /:produktionId/:folgeNummer + besetzung/synopsis
 
 // Werkstufen-Modell (v2)
 app.use('/api/v2/folgen', folgenV2Router)
@@ -158,12 +158,12 @@ app.use('/api/werkstufen/:werkId/szenen', (req, _res, next) => {
 }, werkstufenSzenenRouter)
 
 // Dokument-Editor System
-app.use('/api/folgen/:staffelId/:folgeNummer/dokumente', (req, _res, next) => {
-  (req.params as any).staffelId = req.params.staffelId
+app.use('/api/folgen/:produktionId/:folgeNummer/dokumente', (req, _res, next) => {
+  (req.params as any).produktionId = req.params.produktionId
   ;(req.params as any).folgeNummer = req.params.folgeNummer
   next()
 }, folgenDokumenteRouter)
-app.use('/api/folgen/:staffelId/:folgeNummer/dokumente/:dokumentId', (req, _res, next) => {
+app.use('/api/folgen/:produktionId/:folgeNummer/dokumente/:dokumentId', (req, _res, next) => {
   (req.params as any).dokumentId = req.params.dokumentId
   next()
 }, dokumentRouter)
@@ -195,12 +195,12 @@ app.use('/uploads/script-fotos/thumbnails', fotosThumbnailRouter)
 app.use('/uploads/script-fotos', fotosStaticRouter)
 
 // Charakter-Felder + Feldwerte
-app.use('/api/staffeln/:staffelId/charakter-felder', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelFelderRouter)
+app.use('/api/produktionen/:produktionId/charakter-felder', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, produktionFelderRouter)
 app.use('/api/characters/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFeldwerteRouter)
 app.use('/api/motive/:id/feldwerte', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivFeldwerteRouter)
 
 // Motive
-app.use('/api/staffeln/:staffelId/motive', (req, _res, next) => { (req.params as any).staffelId = req.params.staffelId; next() }, staffelMotiveRouter)
+app.use('/api/produktionen/:produktionId/motive', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, produktionMotiveRouter)
 app.use('/api/motive/:id', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, motivRouter)
 
 // Cron: Clean up expired locks every 5 minutes
@@ -247,6 +247,7 @@ async function runMigrations() {
     'v44_cleanup_legacy.sql',
     'v45_komparsen_spiel.sql',
     'v46_statistik.sql',
+    'v47_rename_produktionen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

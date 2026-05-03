@@ -2,11 +2,11 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
-export const staffelFelderRouter = Router({ mergeParams: true })
+export const produktionFelderRouter = Router({ mergeParams: true })
 export const characterFeldwerteRouter = Router({ mergeParams: true })
 export const motivFeldwerteRouter = Router({ mergeParams: true })
 
-staffelFelderRouter.use(authMiddleware)
+produktionFelderRouter.use(authMiddleware)
 characterFeldwerteRouter.use(authMiddleware)
 motivFeldwerteRouter.use(authMiddleware)
 
@@ -37,43 +37,43 @@ export const ROLLENPROFIL_FELDER = [
   { name: 'Wesen',                          typ: 'richtext', optionen: [], sort_order: 27, gilt_fuer: 'rolle' },
 ]
 
-async function autoInitFelder(staffelId: string) {
+async function autoInitFelder(produktionId: string) {
   // Always try to insert defaults — ON CONFLICT DO NOTHING handles duplicates
   for (const f of DEFAULT_FELDER) {
     await queryOne(
-      `INSERT INTO charakter_felder_config (staffel_id, name, typ, optionen, sort_order, gilt_fuer)
+      `INSERT INTO charakter_felder_config (produktion_id, name, typ, optionen, sort_order, gilt_fuer)
        VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
-      [staffelId, f.name, f.typ, JSON.stringify(f.optionen), f.sort_order, f.gilt_fuer]
+      [produktionId, f.name, f.typ, JSON.stringify(f.optionen), f.sort_order, f.gilt_fuer]
     )
   }
 }
 
-// GET /api/staffeln/:staffelId/charakter-felder
-staffelFelderRouter.get('/', async (req, res) => {
-  const { staffelId } = req.params as any
+// GET /api/produktionen/:produktionId/charakter-felder
+produktionFelderRouter.get('/', async (req, res) => {
+  const { produktionId } = req.params as any
   try {
-    await autoInitFelder(staffelId)
+    await autoInitFelder(produktionId)
     const rows = await query(
-      'SELECT * FROM charakter_felder_config WHERE staffel_id = $1 ORDER BY gilt_fuer, sort_order, id',
-      [staffelId]
+      'SELECT * FROM charakter_felder_config WHERE produktion_id = $1 ORDER BY gilt_fuer, sort_order, id',
+      [produktionId]
     )
     res.json(rows)
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
-// POST /api/staffeln/:staffelId/charakter-felder
-staffelFelderRouter.post('/', async (req, res) => {
-  const { staffelId } = req.params as any
+// POST /api/produktionen/:produktionId/charakter-felder
+produktionFelderRouter.post('/', async (req, res) => {
+  const { produktionId } = req.params as any
   const { name, typ, optionen, sort_order, gilt_fuer } = req.body
   if (!name || !typ) return res.status(400).json({ error: 'name und typ required' })
   const validTypen = ['text', 'richtext', 'select', 'link', 'date', 'number', 'character_ref']
   if (!validTypen.includes(typ)) return res.status(400).json({ error: 'Ungültiger Feldtyp' })
   try {
-    const maxOrder = await queryOne('SELECT COALESCE(MAX(sort_order), 0) AS m FROM charakter_felder_config WHERE staffel_id = $1', [staffelId])
+    const maxOrder = await queryOne('SELECT COALESCE(MAX(sort_order), 0) AS m FROM charakter_felder_config WHERE produktion_id = $1', [produktionId])
     const row = await queryOne(
-      `INSERT INTO charakter_felder_config (staffel_id, name, typ, optionen, sort_order, gilt_fuer)
+      `INSERT INTO charakter_felder_config (produktion_id, name, typ, optionen, sort_order, gilt_fuer)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [staffelId, name, typ, JSON.stringify(optionen ?? []), sort_order ?? maxOrder.m + 1, gilt_fuer ?? 'alle']
+      [produktionId, name, typ, JSON.stringify(optionen ?? []), sort_order ?? maxOrder.m + 1, gilt_fuer ?? 'alle']
     )
     res.status(201).json(row)
   } catch (err: any) {
@@ -82,39 +82,39 @@ staffelFelderRouter.post('/', async (req, res) => {
   }
 })
 
-// PATCH /api/staffeln/:staffelId/charakter-felder/reorder
-staffelFelderRouter.patch('/reorder', async (req, res) => {
-  const { staffelId } = req.params as any
+// PATCH /api/produktionen/:produktionId/charakter-felder/reorder
+produktionFelderRouter.patch('/reorder', async (req, res) => {
+  const { produktionId } = req.params as any
   const { order } = req.body
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' })
   try {
     for (const { id, sort_order } of order) {
-      await queryOne('UPDATE charakter_felder_config SET sort_order = $1 WHERE id = $2 AND staffel_id = $3', [sort_order, id, staffelId])
+      await queryOne('UPDATE charakter_felder_config SET sort_order = $1 WHERE id = $2 AND produktion_id = $3', [sort_order, id, produktionId])
     }
-    const rows = await query('SELECT * FROM charakter_felder_config WHERE staffel_id = $1 ORDER BY gilt_fuer, sort_order, id', [staffelId])
+    const rows = await query('SELECT * FROM charakter_felder_config WHERE produktion_id = $1 ORDER BY gilt_fuer, sort_order, id', [produktionId])
     res.json(rows)
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
-// POST /api/staffeln/:staffelId/charakter-felder/rollenprofil-preset
-staffelFelderRouter.post('/rollenprofil-preset', async (req, res) => {
-  const { staffelId } = req.params as any
+// POST /api/produktionen/:produktionId/charakter-felder/rollenprofil-preset
+produktionFelderRouter.post('/rollenprofil-preset', async (req, res) => {
+  const { produktionId } = req.params as any
   try {
     for (const f of ROLLENPROFIL_FELDER) {
       await queryOne(
-        `INSERT INTO charakter_felder_config (staffel_id, name, typ, optionen, sort_order, gilt_fuer)
+        `INSERT INTO charakter_felder_config (produktion_id, name, typ, optionen, sort_order, gilt_fuer)
          VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING`,
-        [staffelId, f.name, f.typ, JSON.stringify(f.optionen), f.sort_order, f.gilt_fuer]
+        [produktionId, f.name, f.typ, JSON.stringify(f.optionen), f.sort_order, f.gilt_fuer]
       )
     }
-    const rows = await query('SELECT * FROM charakter_felder_config WHERE staffel_id = $1 ORDER BY gilt_fuer, sort_order, id', [staffelId])
+    const rows = await query('SELECT * FROM charakter_felder_config WHERE produktion_id = $1 ORDER BY gilt_fuer, sort_order, id', [produktionId])
     res.json(rows)
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
-// PUT /api/staffeln/:staffelId/charakter-felder/:feldId
-staffelFelderRouter.put('/:feldId', async (req, res) => {
-  const { staffelId, feldId } = req.params as any
+// PUT /api/produktionen/:produktionId/charakter-felder/:feldId
+produktionFelderRouter.put('/:feldId', async (req, res) => {
+  const { produktionId, feldId } = req.params as any
   const { name, typ, optionen, sort_order, gilt_fuer } = req.body
   try {
     const row = await queryOne(
@@ -124,9 +124,9 @@ staffelFelderRouter.put('/:feldId', async (req, res) => {
          optionen = COALESCE($3, optionen),
          sort_order = COALESCE($4, sort_order),
          gilt_fuer = COALESCE($5, gilt_fuer)
-       WHERE id = $6 AND staffel_id = $7 RETURNING *`,
+       WHERE id = $6 AND produktion_id = $7 RETURNING *`,
       [name ?? null, typ ?? null, optionen ? JSON.stringify(optionen) : null,
-       sort_order ?? null, gilt_fuer ?? null, feldId, staffelId]
+       sort_order ?? null, gilt_fuer ?? null, feldId, produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Feld nicht gefunden' })
     res.json(row)
@@ -136,11 +136,11 @@ staffelFelderRouter.put('/:feldId', async (req, res) => {
   }
 })
 
-// DELETE /api/staffeln/:staffelId/charakter-felder/:feldId
-staffelFelderRouter.delete('/:feldId', async (req, res) => {
-  const { staffelId, feldId } = req.params as any
+// DELETE /api/produktionen/:produktionId/charakter-felder/:feldId
+produktionFelderRouter.delete('/:feldId', async (req, res) => {
+  const { produktionId, feldId } = req.params as any
   try {
-    const row = await queryOne('DELETE FROM charakter_felder_config WHERE id = $1 AND staffel_id = $2 RETURNING id', [feldId, staffelId])
+    const row = await queryOne('DELETE FROM charakter_felder_config WHERE id = $1 AND produktion_id = $2 RETURNING id', [feldId, produktionId])
     if (!row) return res.status(404).json({ error: 'Feld nicht gefunden' })
     res.json({ ok: true })
   } catch (err) { res.status(500).json({ error: String(err) }) }
@@ -192,8 +192,8 @@ characterFeldwerteRouter.get('/:feldId/links', async (req, res) => {
       `SELECT fl.id, fl.linked_character_id, c.name AS linked_character_name,
               (SELECT STRING_AGG(DISTINCT s.name, ', ')
                FROM character_productions cp
-               JOIN staffeln s ON s.id = cp.staffel_id
-               WHERE cp.character_id = fl.linked_character_id) AS staffeln
+               JOIN produktionen s ON s.id = cp.produktion_id
+               WHERE cp.character_id = fl.linked_character_id) AS produktionen
        FROM charakter_feld_links fl
        JOIN characters c ON c.id = fl.linked_character_id
        WHERE fl.source_character_id = $1 AND fl.feld_id = $2

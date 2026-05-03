@@ -128,7 +128,7 @@ werkstufenRouter.get('/:id', async (req, res) => {
       `SELECT w.*,
               (SELECT COUNT(*)::int FROM dokument_szenen ds
                WHERE ds.werkstufe_id = w.id AND ds.geloescht = false) AS szenen_count,
-              f.staffel_id, f.folge_nummer, f.folgen_titel
+              f.produktion_id, f.folge_nummer, f.folgen_titel
        FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id
        WHERE w.id = $1`,
@@ -214,7 +214,7 @@ werkstufenSzenenRouter.post('/', async (req, res) => {
   try {
     // Get Werkstufe to determine folge
     const ws = await queryOne(
-      `SELECT w.id, w.typ, f.staffel_id, w.folge_id FROM werkstufen w
+      `SELECT w.id, w.typ, f.produktion_id, w.folge_id FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
       [werkId]
     )
@@ -224,8 +224,8 @@ werkstufenSzenenRouter.post('/', async (req, res) => {
     let identityId = scene_identity_id
     if (!identityId) {
       const identity = await queryOne(
-        `INSERT INTO scene_identities (staffel_id, folge_id, created_by) VALUES ($1, $2, $3) RETURNING id`,
-        [ws.staffel_id, ws.folge_id, user.user_id]
+        `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
+        [ws.folge_id, user.user_id]
       )
       identityId = identity.id
     }

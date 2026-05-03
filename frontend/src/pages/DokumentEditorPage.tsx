@@ -10,7 +10,7 @@ import Tooltip from '../components/Tooltip'
 
 export default function DokumentEditorPage() {
   const [searchParams] = useSearchParams()
-  const staffelId = searchParams.get('staffel') ?? ''
+  const produktionId = searchParams.get('produktion') ?? searchParams.get('staffel') ?? ''
   const folgeNummer = parseInt(searchParams.get('folge') ?? '0', 10)
 
   const { treatmentLabel } = useAppSettings()
@@ -43,21 +43,21 @@ export default function DokumentEditorPage() {
     window.addEventListener('mouseup', onUp)
   }, [])
 
-  // Resolve folge_id from staffel + nummer
+  // Resolve folge_id from produktion + nummer
   const [folgeId, setFolgeId] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!staffelId || !folgeNummer) { setFolgeId(null); return }
+    if (!produktionId || !folgeNummer) { setFolgeId(null); return }
     setLoading(true)
-    api.getFolgenV2(staffelId)
+    api.getFolgenV2(produktionId)
       .then(folgen => {
         const match = folgen.find((f: any) => f.folge_nummer === folgeNummer)
         setFolgeId(match?.id ?? null)
       })
       .catch(() => setFolgeId(null))
       .finally(() => setLoading(false))
-  }, [staffelId, folgeNummer])
+  }, [produktionId, folgeNummer])
 
   // Load werkstufen
   const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
@@ -76,7 +76,7 @@ export default function DokumentEditorPage() {
     await createWerkstufe(typ)
   }
 
-  if (!staffelId || !folgeNummer) {
+  if (!produktionId || !folgeNummer) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 12 }}>
         <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Keine Staffel / Folge angegeben</p>
@@ -86,7 +86,7 @@ export default function DokumentEditorPage() {
   }
 
   const panelProps = {
-    staffelId,
+    produktionId,
     folgeNummer,
     folgeId,
     werkstufen,
@@ -110,7 +110,7 @@ export default function DokumentEditorPage() {
         <div style={{ width: 1, height: 20, background: 'var(--border)' }} />
 
         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{staffelId}</span>
+          <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{produktionId}</span>
           <span style={{ margin: '0 6px' }}>·</span>
           <span>Folge {folgeNummer}</span>
         </div>

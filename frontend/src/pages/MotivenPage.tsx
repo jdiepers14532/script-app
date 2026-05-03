@@ -25,7 +25,7 @@ const THUMB_BASE = '/uploads/script-fotos/thumbnails/'
 
 export default function MotivenPage() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? null
+  const produktionId = selectedProduction?.id ?? null
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [motive, setMotive] = useState<any[]>([])
@@ -51,23 +51,23 @@ export default function MotivenPage() {
   const [saving, setSaving] = useState(false)
 
   const loadMotive = useCallback(async () => {
-    if (!staffelId) return
+    if (!produktionId) return
     setLoading(true)
     try {
-      setMotive(await api.getMotive(staffelId))
+      setMotive(await api.getMotive(produktionId))
     } finally {
       setLoading(false)
     }
-  }, [staffelId])
+  }, [produktionId])
 
   useEffect(() => { loadMotive() }, [loadMotive])
 
   useEffect(() => {
-    if (!staffelId) return
-    api.getCharakterFelder(staffelId)
+    if (!produktionId) return
+    api.getCharakterFelder(produktionId)
       .then(f => setFelder(f.filter((x: any) => x.gilt_fuer === 'alle' || x.gilt_fuer === 'motiv')))
       .catch(() => {})
-  }, [staffelId])
+  }, [produktionId])
 
   useEffect(() => {
     if (!selectedId) { setFotos([]); setFeldwerte([]); setEditFiktAdresse(''); return }
@@ -101,10 +101,10 @@ export default function MotivenPage() {
   }
 
   const handleCreate = async () => {
-    if (!newName.trim() || !staffelId) return
+    if (!newName.trim() || !produktionId) return
     setCreating(true)
     try {
-      const m = await api.createMotiv(staffelId, { name: newName.trim() })
+      const m = await api.createMotiv(produktionId, { name: newName.trim() })
       await loadMotive()
       setSelectedId(m.id)
       setSearchParams({ id: m.id })
@@ -224,11 +224,11 @@ export default function MotivenPage() {
         />
 
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-          {!staffelId && (
+          {!produktionId && (
             <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Bitte eine Produktion auswählen.</div>
           )}
 
-          {staffelId && !selected && !showNewForm && (
+          {produktionId && !selected && !showNewForm && (
             <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
               Motiv aus der Liste auswählen oder{' '}
               <button

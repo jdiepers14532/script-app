@@ -397,7 +397,7 @@ function CharacterRefFeld({ feld, wert, onChange, characterId }: Pick<FeldEditor
             }}>
               <Link2 size={10} color="#00C853" />
               <span>{link.linked_character_name}</span>
-              {link.staffeln && <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>({link.staffeln})</span>}
+              {link.produktionen && <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>({link.produktionen})</span>}
               <button onClick={() => unlinkChar(link.linked_character_id)}
                 style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, padding: 0, lineHeight: 1, marginLeft: 1 }}>×</button>
             </span>
@@ -410,7 +410,7 @@ function CharacterRefFeld({ feld, wert, onChange, characterId }: Pick<FeldEditor
             }}>
               <Link2Off size={10} />
               <span>{s.name}</span>
-              {s.staffeln && <span style={{ fontSize: 10 }}>({s.staffeln})</span>}
+              {s.produktionen && <span style={{ fontSize: 10 }}>({s.produktionen})</span>}
               <button onClick={() => linkChar(s)}
                 style={{ border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', color: 'var(--text)', fontSize: 10, padding: '1px 6px', borderRadius: 4, marginLeft: 2 }}>
                 Verknüpfen

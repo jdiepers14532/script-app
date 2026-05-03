@@ -4,18 +4,18 @@ import * as fs from 'fs'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
-export const staffelMotiveRouter = Router({ mergeParams: true })
+export const produktionMotiveRouter = Router({ mergeParams: true })
 export const motivRouter = Router({ mergeParams: true })
 
-staffelMotiveRouter.use(authMiddleware)
+produktionMotiveRouter.use(authMiddleware)
 motivRouter.use(authMiddleware)
 
 const UPLOAD_DIR = process.env.FOTO_UPLOAD_DIR || path.join(process.cwd(), 'uploads', 'fotos')
 const THUMB_DIR  = path.join(UPLOAD_DIR, 'thumbnails')
 
-// GET /api/staffeln/:staffelId/motive
-staffelMotiveRouter.get('/', async (req, res) => {
-  const { staffelId } = req.params as any
+// GET /api/produktionen/:produktionId/motive
+produktionMotiveRouter.get('/', async (req, res) => {
+  const { produktionId } = req.params as any
   try {
     const rows = await query(
       `SELECT m.*,
@@ -24,24 +24,24 @@ staffelMotiveRouter.get('/', async (req, res) => {
          f.media_typ              AS primaer_media_typ
        FROM motive m
        LEFT JOIN motiv_fotos f ON f.motiv_id = m.id AND f.ist_primaer = TRUE
-       WHERE m.staffel_id = $1
+       WHERE m.produktion_id = $1
        ORDER BY m.motiv_nummer NULLS LAST, m.name`,
-      [staffelId]
+      [produktionId]
     )
     res.json(rows)
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
-// POST /api/staffeln/:staffelId/motive
-staffelMotiveRouter.post('/', async (req, res) => {
-  const { staffelId } = req.params as any
+// POST /api/produktionen/:produktionId/motive
+produktionMotiveRouter.post('/', async (req, res) => {
+  const { produktionId } = req.params as any
   const { name, typ, motiv_nummer } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   try {
     const row = await queryOne(
-      `INSERT INTO motive (staffel_id, name, typ, motiv_nummer)
+      `INSERT INTO motive (produktion_id, name, typ, motiv_nummer)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [staffelId, name.trim(), typ ?? 'interior', motiv_nummer ?? null]
+      [produktionId, name.trim(), typ ?? 'interior', motiv_nummer ?? null]
     )
     res.status(201).json(row)
   } catch (err) { res.status(500).json({ error: String(err) }) }

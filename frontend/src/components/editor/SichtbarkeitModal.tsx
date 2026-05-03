@@ -8,7 +8,7 @@ type SichtbarkeitState = 'privat' | 'colab' | 'review' | 'produktion' | 'alle'
 interface Props {
   dokumentId: string
   fassungId: string
-  staffelId: string
+  produktionId: string
   currentSichtbarkeit: string
   currentColabGruppeId?: number | null
   abgegeben?: boolean
@@ -32,7 +32,7 @@ export const SICHTBARKEIT_COLORS: Record<string, string> = {
   alle:       '#00C853',
 }
 
-export default function SichtbarkeitModal({ dokumentId, fassungId, staffelId, currentSichtbarkeit, currentColabGruppeId, abgegeben, onDone, onClose }: Props) {
+export default function SichtbarkeitModal({ dokumentId, fassungId, produktionId, currentSichtbarkeit, currentColabGruppeId, abgegeben, onDone, onClose }: Props) {
   const [selected, setSelected] = useState<SichtbarkeitState>(currentSichtbarkeit as SichtbarkeitState)
   const [colabGruppeId, setColabGruppeId] = useState<number | null>(currentColabGruppeId ?? null)
   const [gruppen, setGruppen] = useState<any[]>([])
@@ -40,8 +40,8 @@ export default function SichtbarkeitModal({ dokumentId, fassungId, staffelId, cu
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.getColabGruppen(staffelId).then(setGruppen).catch(() => {})
-  }, [staffelId])
+    api.getColabGruppen(produktionId).then(setGruppen).catch(() => {})
+  }, [produktionId])
 
   const handleSave = async () => {
     setLoading(true)

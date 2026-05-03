@@ -103,7 +103,7 @@ interface FileItem {
 }
 
 interface Props {
-  staffelId: string
+  produktionId: string
   onClose: () => void
   onSuccess: (characterId: string, name: string) => void
 }
@@ -111,7 +111,7 @@ interface Props {
 let idCounter = 0
 function nextId() { return String(++idCounter) }
 
-export default function RollenprofilImportModal({ staffelId, onClose, onSuccess }: Props) {
+export default function RollenprofilImportModal({ produktionId, onClose, onSuccess }: Props) {
   const [step, setStep] = useState<'upload' | 'review' | 'done'>('upload')
   const [dragging, setDragging] = useState(false)
   const [files, setFiles] = useState<FileItem[]>([])
@@ -207,7 +207,7 @@ export default function RollenprofilImportModal({ staffelId, onClose, onSuccess 
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ staffel_id: staffelId, parsed: item.parsed }),
+          body: JSON.stringify({ produktion_id: produktionId, parsed: item.parsed }),
         })
         const data = await resp.json()
         if (!resp.ok) throw new Error(data.error || 'Fehler')

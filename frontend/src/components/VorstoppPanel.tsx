@@ -20,10 +20,10 @@ function fmtSek(sek: number | null | undefined): string {
 
 interface Props {
   szeneId: number
-  staffelId?: string | null
+  produktionId?: string | null
 }
 
-export default function VorstoppPanel({ szeneId, staffelId: _staffelId }: Props) {
+export default function VorstoppPanel({ szeneId, produktionId: _produktionId }: Props) {
   const [latest, setLatest] = useState<Partial<Record<StageKey, any>>>({})
   const [loading, setLoading] = useState(true)
   const [autoLoading, setAutoLoading] = useState(false)

@@ -245,7 +245,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 
 function FigurenTab() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? null
+  const produktionId = selectedProduction?.id ?? null
 
   const [figurenLabel, setFigurenLabel] = useState<'Rollen' | 'Figuren' | 'Charaktere'>('Rollen')
   const [felder, setFelder] = useState<any[]>([])
@@ -264,9 +264,9 @@ function FigurenTab() {
   }, [])
 
   useEffect(() => {
-    if (!staffelId) return
-    api.getCharakterFelder(staffelId).then(setFelder).catch(() => {})
-  }, [staffelId])
+    if (!produktionId) return
+    api.getCharakterFelder(produktionId).then(setFelder).catch(() => {})
+  }, [produktionId])
 
   const saveFigurenLabel = async (val: 'Rollen' | 'Figuren' | 'Charaktere') => {
     setFigurenLabel(val)
@@ -281,30 +281,30 @@ function FigurenTab() {
   }
 
   const handleCreateFeld = async () => {
-    if (!newFeld || !staffelId || !newFeld.name.trim()) return
+    if (!newFeld || !produktionId || !newFeld.name.trim()) return
     setFeldSaving(true)
     try {
       const optionen = newFeld.typ === 'select'
         ? newFeld.optionen.split(',').map(s => s.trim()).filter(Boolean)
         : []
-      const f = await api.createCharakterFeld(staffelId, { name: newFeld.name.trim(), typ: newFeld.typ, optionen, gilt_fuer: newFeld.gilt_fuer })
+      const f = await api.createCharakterFeld(produktionId, { name: newFeld.name.trim(), typ: newFeld.typ, optionen, gilt_fuer: newFeld.gilt_fuer })
       setFelder(prev => [...prev, f])
       setNewFeld(null)
     } finally { setFeldSaving(false) }
   }
 
   const handleDeleteFeld = async (id: number) => {
-    if (!staffelId) return
-    await api.deleteCharakterFeld(staffelId, id)
+    if (!produktionId) return
+    await api.deleteCharakterFeld(produktionId, id)
     setFelder(prev => prev.filter(f => f.id !== id))
     setDeleteConfirm(null)
   }
 
   const handleRollenprofilPreset = async () => {
-    if (!staffelId) return
+    if (!produktionId) return
     setPresetLoading(true)
     try {
-      const rows = await api.rollenprofilFelderPreset(staffelId)
+      const rows = await api.rollenprofilFelderPreset(produktionId)
       setFelder(rows)
       setPresetDone(true)
       setTimeout(() => setPresetDone(false), 3000)
@@ -331,11 +331,11 @@ function FigurenTab() {
         {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
       </section>
 
-      {!staffelId && (
+      {!produktionId && (
         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bitte eine Produktion auswaehlen, um Felder zu konfigurieren.</p>
       )}
 
-      {staffelId && (
+      {produktionId && (
         <>
           <section>
             <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {figurenLabel} & Komparsen</h3>
@@ -411,7 +411,7 @@ function FigurenTab() {
 
 function ProduktionTab() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? ''
+  const produktionId = selectedProduction?.id ?? ''
 
   const [kategorien, setKategorien] = useState<any[]>([])
   const [labels, setLabels] = useState<any[]>([])
@@ -428,17 +428,17 @@ function ProduktionTab() {
   const [newColor, setNewColor] = useState({ name: '', color: '#4A90D9' })
 
   useEffect(() => {
-    if (!staffelId) return
-    api.getCharKategorien(staffelId).then(setKategorien).catch(() => setKategorien([]))
-    api.getStageLabels(staffelId).then(setLabels).catch(() => setLabels([]))
-    api.getRevisionColors(staffelId).then(setColors).catch(() => setColors([]))
-    api.getRevisionEinstellungen(staffelId).then(e => setMemoSchwelle(e.memo_schwellwert_zeichen ?? 100)).catch(() => {})
-    api.getVorstoppEinstellungen(staffelId).then(e => setVorstoppEin({
+    if (!produktionId) return
+    api.getCharKategorien(produktionId).then(setKategorien).catch(() => setKategorien([]))
+    api.getStageLabels(produktionId).then(setLabels).catch(() => setLabels([]))
+    api.getRevisionColors(produktionId).then(setColors).catch(() => setColors([]))
+    api.getRevisionEinstellungen(produktionId).then(e => setMemoSchwelle(e.memo_schwellwert_zeichen ?? 100)).catch(() => {})
+    api.getVorstoppEinstellungen(produktionId).then(e => setVorstoppEin({
       methode: e.methode ?? 'seiten',
       menge: e.menge ?? 54,
       dauer_sekunden: e.dauer_sekunden ?? 60,
     })).catch(() => {})
-  }, [staffelId])
+  }, [produktionId])
 
   const busy = (key: string) => saving[key]
   const set = (key: string, v: boolean) => setSaving(s => ({ ...s, [key]: v }))
@@ -448,18 +448,18 @@ function ProduktionTab() {
     if (!newKat.name.trim()) return
     set('kat', true)
     try {
-      const r = await api.createCharKategorie(staffelId, newKat)
+      const r = await api.createCharKategorie(produktionId, newKat)
       setKategorien(prev => [...prev, r])
       setNewKat({ name: '', typ: 'rolle' })
     } catch {} finally { set('kat', false) }
   }
   const delKat = async (id: number) => {
-    try { await api.deleteCharKategorie(staffelId, id); setKategorien(prev => prev.filter(k => k.id !== id)) } catch {}
+    try { await api.deleteCharKategorie(produktionId, id); setKategorien(prev => prev.filter(k => k.id !== id)) } catch {}
   }
   const reorderKat = async (ordered: any[]) => {
     setKategorien(ordered)
     const order = ordered.map((k, i) => ({ id: k.id, sort_order: i + 1 }))
-    try { const r = await api.reorderCharKategorien(staffelId, order); setKategorien(r) } catch {}
+    try { const r = await api.reorderCharKategorien(produktionId, order); setKategorien(r) } catch {}
   }
 
   // ── Stage Labels ──
@@ -467,24 +467,24 @@ function ProduktionTab() {
     if (!newLabel.name.trim()) return
     set('lbl', true)
     try {
-      const r = await api.createStageLabel(staffelId, newLabel)
+      const r = await api.createStageLabel(produktionId, newLabel)
       setLabels(prev => [...prev, r])
       setNewLabel({ name: '', is_produktionsfassung: false })
     } catch {} finally { set('lbl', false) }
   }
   const delLabel = async (id: number) => {
-    try { await api.deleteStageLabel(staffelId, id); setLabels(prev => prev.filter(l => l.id !== id)) } catch {}
+    try { await api.deleteStageLabel(produktionId, id); setLabels(prev => prev.filter(l => l.id !== id)) } catch {}
   }
   const toggleProd = async (id: number, current: boolean) => {
     try {
-      const r = await api.updateStageLabel(staffelId, id, { is_produktionsfassung: !current })
+      const r = await api.updateStageLabel(produktionId, id, { is_produktionsfassung: !current })
       setLabels(prev => prev.map(l => l.id === id ? r : l))
     } catch {}
   }
   const reorderLabels = async (ordered: any[]) => {
     setLabels(ordered)
     const order = ordered.map((l, i) => ({ id: l.id, sort_order: i + 1 }))
-    try { const r = await api.reorderStageLabels(staffelId, order); setLabels(r) } catch {}
+    try { const r = await api.reorderStageLabels(produktionId, order); setLabels(r) } catch {}
   }
 
   // ── Revision Colors ──
@@ -492,27 +492,27 @@ function ProduktionTab() {
     if (!newColor.name.trim()) return
     set('col', true)
     try {
-      const r = await api.createRevisionColor(staffelId, newColor)
+      const r = await api.createRevisionColor(produktionId, newColor)
       setColors(prev => [...prev, r])
       setNewColor({ name: '', color: '#4A90D9' })
     } catch {} finally { set('col', false) }
   }
   const delColor = async (id: number) => {
-    try { await api.deleteRevisionColor(staffelId, id); setColors(prev => prev.filter(c => c.id !== id)) } catch {}
+    try { await api.deleteRevisionColor(produktionId, id); setColors(prev => prev.filter(c => c.id !== id)) } catch {}
   }
   const reorderColors = async (ordered: any[]) => {
     setColors(ordered)
     const order = ordered.map((c, i) => ({ id: c.id, sort_order: i + 1 }))
-    try { const r = await api.reorderRevisionColors(staffelId, order); setColors(r) } catch {}
+    try { const r = await api.reorderRevisionColors(produktionId, order); setColors(r) } catch {}
   }
   const saveMemo = async () => {
     set('memo', true)
-    try { await api.updateRevisionEinstellungen(staffelId, { memo_schwellwert_zeichen: memoSchwelle }) }
+    try { await api.updateRevisionEinstellungen(produktionId, { memo_schwellwert_zeichen: memoSchwelle }) }
     catch {} finally { set('memo', false) }
   }
   const saveVorstopp = async () => {
     set('vs', true)
-    try { await api.updateVorstoppEinstellungen(staffelId, vorstoppEin) }
+    try { await api.updateVorstoppEinstellungen(produktionId, vorstoppEin) }
     catch {} finally { set('vs', false) }
   }
 
@@ -736,7 +736,7 @@ function ProduktionTab() {
 
 function DokumentTypenTab() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? ''
+  const produktionId = selectedProduction?.id ?? ''
   const [typen, setTypen] = useState<any[]>([])
   const [name, setName] = useState('')
   const [modus, setModus] = useState<'richtext' | 'screenplay'>('richtext')
@@ -744,30 +744,30 @@ function DokumentTypenTab() {
   const [msg, setMsg] = useState<string | null>(null)
 
   const load = async () => {
-    if (!staffelId) return
-    try { setTypen(await api.getDokumentTypen(staffelId)) } catch {}
+    if (!produktionId) return
+    try { setTypen(await api.getDokumentTypen(produktionId)) } catch {}
   }
 
-  useEffect(() => { load() }, [staffelId])
+  useEffect(() => { load() }, [produktionId])
 
   const handleAdd = async () => {
-    if (!name.trim() || !staffelId) return
+    if (!name.trim() || !produktionId) return
     setLoading(true); setMsg(null)
     try {
-      await api.createDokumentTyp(staffelId, { name: name.trim(), editor_modus: modus })
+      await api.createDokumentTyp(produktionId, { name: name.trim(), editor_modus: modus })
       setName(''); await load(); setMsg('Typ erstellt.')
     } catch (e: any) { setMsg(e.message ?? 'Fehler') } finally { setLoading(false) }
   }
 
   const handleDelete = async (typName: string, typId: number) => {
     if (!confirm(`Typ "${typName}" loeschen?`)) return
-    try { await api.deleteDokumentTyp(staffelId, typId); await load() } catch (e: any) { setMsg(e.message) }
+    try { await api.deleteDokumentTyp(produktionId, typId); await load() } catch (e: any) { setMsg(e.message) }
   }
 
   return (
     <div>
-      {!staffelId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
-      {staffelId && (
+      {!produktionId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
+      {produktionId && (
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' }}>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Typ-Name (z.B. Expose)"
@@ -813,7 +813,7 @@ function DokumentTypenTab() {
 
 function ColabGruppenTab() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? ''
+  const produktionId = selectedProduction?.id ?? ''
   const [gruppen, setGruppen] = useState<any[]>([])
   const [name, setName] = useState('')
   const [typ, setTyp] = useState<'colab' | 'produktion'>('colab')
@@ -824,11 +824,11 @@ function ColabGruppenTab() {
   const [msg, setMsg] = useState<string | null>(null)
 
   const load = async () => {
-    if (!staffelId) return
-    try { setGruppen(await api.getColabGruppen(staffelId)) } catch {}
+    if (!produktionId) return
+    try { setGruppen(await api.getColabGruppen(produktionId)) } catch {}
   }
 
-  useEffect(() => { load() }, [staffelId])
+  useEffect(() => { load() }, [produktionId])
 
   const loadMitglieder = async (gruppeId: number) => {
     try {
@@ -839,16 +839,16 @@ function ColabGruppenTab() {
   }
 
   const handleCreate = async () => {
-    if (!name.trim() || !staffelId) return
+    if (!name.trim() || !produktionId) return
     try {
-      await api.createColabGruppe(staffelId, { name: name.trim(), typ })
+      await api.createColabGruppe(produktionId, { name: name.trim(), typ })
       setName(''); await load(); setMsg('Gruppe erstellt.')
     } catch (e: any) { setMsg(e.message) }
   }
 
   const handleDelete = async (gruppeId: number) => {
     if (!confirm('Gruppe loeschen?')) return
-    try { await api.deleteColabGruppe(staffelId, gruppeId); await load() } catch (e: any) { setMsg(e.message) }
+    try { await api.deleteColabGruppe(produktionId, gruppeId); await load() } catch (e: any) { setMsg(e.message) }
   }
 
   const handleAddMitglied = async (gruppeId: number) => {
@@ -872,8 +872,8 @@ function ColabGruppenTab() {
 
   return (
     <div>
-      {!staffelId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
-      {staffelId && (
+      {!produktionId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
+      {produktionId && (
         <>
           <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="Gruppenname"
@@ -1023,13 +1023,13 @@ function FormatTemplatesTab() {
 
 function BenachrichtigungenTab() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? ''
+  const produktionId = selectedProduction?.id ?? ''
   const [settings, setSettings] = useState<Record<string, { empfaenger: string; aktiv: boolean }>>({})
   const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!staffelId) return
-    fetch(`/api/admin/benachrichtigungen/${staffelId}`, { credentials: 'include' })
+    if (!produktionId) return
+    fetch(`/api/admin/benachrichtigungen/${produktionId}`, { credentials: 'include' })
       .then(r => r.json())
       .then((data: any[]) => {
         const map: Record<string, { empfaenger: string; aktiv: boolean }> = {}
@@ -1039,17 +1039,17 @@ function BenachrichtigungenTab() {
         })
         setSettings(map)
       }).catch(() => {})
-  }, [staffelId])
+  }, [produktionId])
 
   const handleSave = async () => {
-    if (!staffelId) return
+    if (!produktionId) return
     try {
       const body = Object.entries(settings).map(([ereignis, v]) => ({
         ereignis,
         empfaenger_user_ids: v.empfaenger.split(',').map(s => s.trim()).filter(Boolean),
         aktiv: v.aktiv,
       }))
-      await fetch(`/api/admin/benachrichtigungen/${staffelId}`, {
+      await fetch(`/api/admin/benachrichtigungen/${produktionId}`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -1063,8 +1063,8 @@ function BenachrichtigungenTab() {
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20, marginTop: 0 }}>
         User-IDs (kommagetrennt) die bei diesen Ereignissen eine Benachrichtigung erhalten.
       </p>
-      {!staffelId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
-      {staffelId && (
+      {!produktionId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
+      {produktionId && (
         <>
           {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 12 }}>{msg}</p>}
           {Object.entries(EREIGNIS_LABELS).map(([k, label]) => (
@@ -1173,7 +1173,7 @@ function DokumentEinstellungenTab() {
 
 // ── Copy Settings Section (sidebar bottom) ───────────────────────────────────────
 
-function CopySection({ staffelId, onCopied }: { staffelId: string; onCopied: () => void }) {
+function CopySection({ produktionId, onCopied }: { produktionId: string; onCopied: () => void }) {
   const { selectedProduction, productions } = useSelectedProduction()
 
   const [copySearch, setCopySearch] = useState('')
@@ -1192,15 +1192,15 @@ function CopySection({ staffelId, onCopied }: { staffelId: string; onCopied: () 
   }
   const copySourceProd = productions.find(p => p.id === copySourceId)
   const copySourceName = copySourceProd ? prodLabel(copySourceProd) : ''
-  const othersActive   = productions.filter(p => p.id !== staffelId && p.is_active   && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
-  const othersInactive = productions.filter(p => p.id !== staffelId && !p.is_active  && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
+  const othersActive   = productions.filter(p => p.id !== produktionId && p.is_active   && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
+  const othersInactive = productions.filter(p => p.id !== produktionId && !p.is_active  && (!copySearch || prodLabel(p).toLowerCase().includes(copySearch.toLowerCase())))
   const filteredProductions = [...othersActive, ...othersInactive]
 
   const executeCopy = async () => {
     if (!copySourceId || !copySections.length) return
     setCopying(true)
     try {
-      await api.copySettings(staffelId, { source_staffel_id: copySourceId, sections: copySections })
+      await api.copySettings(produktionId, { source_produktion_id: copySourceId, sections: copySections })
       onCopied()
       setCopyConfirm(false)
       setCopySourceId('')
@@ -1339,7 +1339,7 @@ export default function DrehbuchkoordinationPage() {
   const navigate = useNavigate()
   const { selectedProduction, productions } = useSelectedProduction()
 
-  const staffelId = selectedProduction?.id ?? ''
+  const produktionId = selectedProduction?.id ?? ''
 
   // Check DK access on mount
   useEffect(() => {
@@ -1353,7 +1353,7 @@ export default function DrehbuchkoordinationPage() {
         // If user has access to at least one production, allow
         if (Array.isArray(data) && data.length > 0) {
           // Check if the selected production is in the list
-          const hasForSelected = !staffelId || data.some((p: any) => p.id === staffelId || p.staffel_id === staffelId)
+          const hasForSelected = !produktionId || data.some((p: any) => p.id === produktionId || p.produktion_id === produktionId)
           setHasAccess(hasForSelected)
         } else if (data.global || data.has_access) {
           setHasAccess(true)
@@ -1362,7 +1362,7 @@ export default function DrehbuchkoordinationPage() {
         }
       })
       .catch(() => setHasAccess(false))
-  }, [staffelId])
+  }, [produktionId])
 
   const prodLabel = selectedProduction
     ? [
@@ -1390,7 +1390,7 @@ export default function DrehbuchkoordinationPage() {
 
     switch (activeTab) {
       case 'allgemein':
-        return staffelId ? <AllgemeinTab productionId={staffelId} /> : <NoProduction />
+        return produktionId ? <AllgemeinTab productionId={produktionId} /> : <NoProduction />
       case 'figuren':
         return <FigurenTab />
       case 'produktion':
@@ -1523,15 +1523,15 @@ export default function DrehbuchkoordinationPage() {
                 <span>&#8595; Von Produktion kopieren</span>
                 <span style={{ fontSize: 10 }}>{copyOpen ? '&#9650;' : '&#9660;'}</span>
               </button>
-              {copyOpen && staffelId && (
-                <CopySection staffelId={staffelId} onCopied={() => {
+              {copyOpen && produktionId && (
+                <CopySection produktionId={produktionId} onCopied={() => {
                   // Force re-render of active tab by toggling
                   const cur = activeTab
                   setActiveTab('')
                   setTimeout(() => setActiveTab(cur), 0)
                 }} />
               )}
-              {copyOpen && !staffelId && (
+              {copyOpen && !produktionId && (
                 <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
                   Keine Produktion ausgewaehlt.
                 </div>

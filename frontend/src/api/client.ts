@@ -21,26 +21,26 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 }
 
 export const api = {
-  // Staffeln
-  getStaffel: (id: string) => request<any>('GET', `/staffeln/${id}`),
+  // Produktionen
+  getProduktion: (id: string) => request<any>('GET', `/produktionen/${id}`),
 
   // Blöcke — live from ProdDB, returns { proddb_id, block_nummer, folge_von, folge_bis, ... }
-  getBloecke: (staffelId: string) => request<any[]>('GET', `/staffeln/${staffelId}/bloecke`),
+  getBloecke: (produktionId: string) => request<any[]>('GET', `/produktionen/${produktionId}/bloecke`),
 
   // Folgen metadata (arbeitstitel, synopsis, air_date)
-  getFolge: (staffelId: string, folgeNummer: number) =>
-    request<any>('GET', `/folgen/${staffelId}/${folgeNummer}`),
-  updateFolge: (staffelId: string, folgeNummer: number, data: any) =>
-    request<any>('PUT', `/folgen/${staffelId}/${folgeNummer}`, data),
-  getSendedatum: (staffelId: string, folgeNummer: number) =>
-    request<{ datum: string; ist_ki_prognose: boolean } | null>('GET', `/folgen/${staffelId}/${folgeNummer}/sendedatum`),
+  getFolge: (produktionId: string, folgeNummer: number) =>
+    request<any>('GET', `/folgen/${produktionId}/${folgeNummer}`),
+  updateFolge: (produktionId: string, folgeNummer: number, data: any) =>
+    request<any>('PUT', `/folgen/${produktionId}/${folgeNummer}`, data),
+  getSendedatum: (produktionId: string, folgeNummer: number) =>
+    request<{ datum: string; ist_ki_prognose: boolean } | null>('GET', `/folgen/${produktionId}/${folgeNummer}/sendedatum`),
 
   // Stages (legacy — will be removed when frontend fully migrates to werkstufen)
-  getStages: (staffelId: string, folgeNummer: number) =>
-    request<any[]>('GET', `/stages?staffel_id=${encodeURIComponent(staffelId)}&folge_nummer=${folgeNummer}`),
+  getStages: (produktionId: string, folgeNummer: number) =>
+    request<any[]>('GET', `/stages?produktion_id=${encodeURIComponent(produktionId)}&folge_nummer=${folgeNummer}`),
   getStage: (id: number) => request<any>('GET', `/stages/${id}`),
-  createStage: (staffelId: string, folgeNummer: number, proddbBlockId: string | null, data: any) =>
-    request<any>('POST', '/stages', { staffel_id: staffelId, folge_nummer: folgeNummer, proddb_block_id: proddbBlockId, ...data }),
+  createStage: (produktionId: string, folgeNummer: number, proddbBlockId: string | null, data: any) =>
+    request<any>('POST', '/stages', { produktion_id: produktionId, folge_nummer: folgeNummer, proddb_block_id: proddbBlockId, ...data }),
   updateStage: (id: number, data: any) => request<any>('PUT', `/stages/${id}`, data),
 
   // Szenen (legacy — will be removed when frontend fully migrates to werkstufen)
@@ -82,15 +82,15 @@ export const api = {
   getSceneIdentityVorstopp: (id: string) => request<any>('GET', `/scene-identities/${id}/vorstopp`),
   addSceneIdentityVorstopp: (id: string, data: any) => request<any>('POST', `/scene-identities/${id}/vorstopp`, data),
 
-  // Locks (keyed by staffelId + folgeNummer)
-  getLock: (staffelId: string, folgeNummer: number) =>
-    request<any>('GET', `/folgen/${staffelId}/${folgeNummer}/lock`),
-  createLock: (staffelId: string, folgeNummer: number) =>
-    request<any>('POST', `/folgen/${staffelId}/${folgeNummer}/lock`, {}),
-  deleteLock: (staffelId: string, folgeNummer: number) =>
-    request<void>('DELETE', `/folgen/${staffelId}/${folgeNummer}/lock`),
-  takeoverLock: (staffelId: string, folgeNummer: number) =>
-    request<any>('POST', `/folgen/${staffelId}/${folgeNummer}/lock/takeover`, {}),
+  // Locks (keyed by produktionId + folgeNummer)
+  getLock: (produktionId: string, folgeNummer: number) =>
+    request<any>('GET', `/folgen/${produktionId}/${folgeNummer}/lock`),
+  createLock: (produktionId: string, folgeNummer: number) =>
+    request<any>('POST', `/folgen/${produktionId}/${folgeNummer}/lock`, {}),
+  deleteLock: (produktionId: string, folgeNummer: number) =>
+    request<void>('DELETE', `/folgen/${produktionId}/${folgeNummer}/lock`),
+  takeoverLock: (produktionId: string, folgeNummer: number) =>
+    request<any>('POST', `/folgen/${produktionId}/${folgeNummer}/lock/takeover`, {}),
 
   // Szenen Versionen (legacy)
   getVersionen: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/versionen`),
@@ -99,7 +99,7 @@ export const api = {
     request<any>('POST', `/szenen/${szeneId}/versionen/${versionId}/restore`, {}),
 
   // Entities
-  getEntities: (params?: { staffel_id?: string; type?: string; q?: string }) => {
+  getEntities: (params?: { produktion_id?: string; type?: string; q?: string }) => {
     const qs = params ? '?' + new URLSearchParams(params as any).toString() : ''
     return request<any[]>('GET', `/entities${qs}`)
   },
@@ -141,7 +141,7 @@ export const api = {
     return fetch(`${BASE}/import/preview`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
   },
   importCommit: (file: File, params: {
-    staffel_id: string; folge_nummer: number
+    produktion_id: string; folge_nummer: number
     proddb_block_id?: string; stage_type?: string; save_metadata?: boolean
   }) => {
     const fd = new FormData(); fd.append('file', file)
@@ -150,50 +150,50 @@ export const api = {
   },
 
   // Stage Labels
-  getStageLabels: (staffelId: string) =>
-    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels`),
-  createStageLabel: (staffelId: string, data: any) =>
-    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels`, data),
-  updateStageLabel: (staffelId: string, labelId: number, data: any) =>
-    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels/${labelId}`, data),
-  deleteStageLabel: (staffelId: string, labelId: number) =>
-    request<void>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels/${labelId}`),
-  reorderStageLabels: (staffelId: string, order: {id: number, sort_order: number}[]) =>
-    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/stage-labels/reorder`, { order }),
+  getStageLabels: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels`),
+  createStageLabel: (produktionId: string, data: any) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels`, data),
+  updateStageLabel: (produktionId: string, labelId: number, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/${labelId}`, data),
+  deleteStageLabel: (produktionId: string, labelId: number) =>
+    request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/${labelId}`),
+  reorderStageLabels: (produktionId: string, order: {id: number, sort_order: number}[]) =>
+    request<any[]>('PATCH', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/reorder`, { order }),
 
   // Revision Colors
-  getRevisionColors: (staffelId: string) =>
-    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors`),
-  createRevisionColor: (staffelId: string, data: any) =>
-    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors`, data),
-  updateRevisionColor: (staffelId: string, colorId: number, data: any) =>
-    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors/${colorId}`, data),
-  deleteRevisionColor: (staffelId: string, colorId: number) =>
-    request<void>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors/${colorId}`),
-  reorderRevisionColors: (staffelId: string, order: {id: number, sort_order: number}[]) =>
-    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/revision-colors/reorder`, { order }),
+  getRevisionColors: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors`),
+  createRevisionColor: (produktionId: string, data: any) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors`, data),
+  updateRevisionColor: (produktionId: string, colorId: number, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors/${colorId}`, data),
+  deleteRevisionColor: (produktionId: string, colorId: number) =>
+    request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors/${colorId}`),
+  reorderRevisionColors: (produktionId: string, order: {id: number, sort_order: number}[]) =>
+    request<any[]>('PATCH', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors/reorder`, { order }),
 
   // Revision Einstellungen
-  getRevisionEinstellungen: (staffelId: string) =>
-    request<any>('GET', `/staffeln/${encodeURIComponent(staffelId)}/revision-einstellungen`),
-  updateRevisionEinstellungen: (staffelId: string, data: any) =>
-    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/revision-einstellungen`, data),
+  getRevisionEinstellungen: (produktionId: string) =>
+    request<any>('GET', `/produktionen/${encodeURIComponent(produktionId)}/revision-einstellungen`),
+  updateRevisionEinstellungen: (produktionId: string, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/revision-einstellungen`, data),
 
   // Characters
-  getCharacters: (staffelId: string) =>
-    request<any[]>('GET', `/characters?staffel_id=${encodeURIComponent(staffelId)}`),
+  getCharacters: (produktionId: string) =>
+    request<any[]>('GET', `/characters?produktion_id=${encodeURIComponent(produktionId)}`),
   createCharacter: (data: any) => request<any>('POST', '/characters', data),
   updateCharacter: (id: string, data: any) => request<any>('PUT', `/characters/${id}`, data),
-  getCharKategorien: (staffelId: string) =>
-    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien`),
-  createCharKategorie: (staffelId: string, data: any) =>
-    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien`, data),
-  updateCharKategorie: (staffelId: string, katId: number, data: any) =>
-    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/${katId}`, data),
-  deleteCharKategorie: (staffelId: string, katId: number) =>
-    request<void>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/${katId}`),
-  reorderCharKategorien: (staffelId: string, order: {id: number, sort_order: number}[]) =>
-    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/character-kategorien/reorder`, { order }),
+  getCharKategorien: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/character-kategorien`),
+  createCharKategorie: (produktionId: string, data: any) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/character-kategorien`, data),
+  updateCharKategorie: (produktionId: string, katId: number, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/character-kategorien/${katId}`, data),
+  deleteCharKategorie: (produktionId: string, katId: number) =>
+    request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/character-kategorien/${katId}`),
+  reorderCharKategorien: (produktionId: string, order: {id: number, sort_order: number}[]) =>
+    request<any[]>('PATCH', `/produktionen/${encodeURIComponent(produktionId)}/character-kategorien/reorder`, { order }),
   // Scene characters (legacy szene-based)
   getSceneCharacters: (szeneId: number) =>
     request<any[]>('GET', `/szenen/${szeneId}/characters`),
@@ -223,26 +223,26 @@ export const api = {
     request<void>('DELETE', `/szenen/${szeneId}/vorstopp/${entryId}`),
   autoVorstopp: (szeneId: number) =>
     request<any>('POST', `/szenen/${szeneId}/vorstopp/auto`, {}),
-  getVorstoppEinstellungen: (staffelId: string) =>
-    request<any>('GET', `/staffeln/${encodeURIComponent(staffelId)}/vorstopp-einstellungen`),
-  updateVorstoppEinstellungen: (staffelId: string, data: any) =>
-    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/vorstopp-einstellungen`, data),
+  getVorstoppEinstellungen: (produktionId: string) =>
+    request<any>('GET', `/produktionen/${encodeURIComponent(produktionId)}/vorstopp-einstellungen`),
+  updateVorstoppEinstellungen: (produktionId: string, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/vorstopp-einstellungen`, data),
 
-  // Copy settings between staffeln
-  copySettings: (staffelId: string, data: { source_staffel_id: string; sections: string[] }) =>
-    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/copy-settings`, data),
+  // Copy settings between produktionen
+  copySettings: (produktionId: string, data: { source_produktion_id: string; sections: string[] }) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/copy-settings`, data),
 
   // ── Dokument-Editor System ────────────────────────────────────────────────
 
   // Dokumente (one per type per Folge)
-  getDokumente: (staffelId: string, folgeNummer: number) =>
-    request<any[]>('GET', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente`),
-  createDokument: (staffelId: string, folgeNummer: number, typ: string) =>
-    request<any>('POST', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente`, { typ }),
-  getDokument: (staffelId: string, folgeNummer: number, dokumentId: string) =>
-    request<any>('GET', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente/${dokumentId}`),
-  deleteDokument: (staffelId: string, folgeNummer: number, dokumentId: string) =>
-    request<void>('DELETE', `/folgen/${encodeURIComponent(staffelId)}/${folgeNummer}/dokumente/${dokumentId}`),
+  getDokumente: (produktionId: string, folgeNummer: number) =>
+    request<any[]>('GET', `/folgen/${encodeURIComponent(produktionId)}/${folgeNummer}/dokumente`),
+  createDokument: (produktionId: string, folgeNummer: number, typ: string) =>
+    request<any>('POST', `/folgen/${encodeURIComponent(produktionId)}/${folgeNummer}/dokumente`, { typ }),
+  getDokument: (produktionId: string, folgeNummer: number, dokumentId: string) =>
+    request<any>('GET', `/folgen/${encodeURIComponent(produktionId)}/${folgeNummer}/dokumente/${dokumentId}`),
+  deleteDokument: (produktionId: string, folgeNummer: number, dokumentId: string) =>
+    request<void>('DELETE', `/folgen/${encodeURIComponent(produktionId)}/${folgeNummer}/dokumente/${dokumentId}`),
 
   // Fassungen
   getFassungen: (dokumentId: string) =>
@@ -281,24 +281,24 @@ export const api = {
     request<any[]>('GET', `/dokumente/${dokumentId}/fassungen/${fassungId}/audit`),
 
   // Admin: Dokument-Typen
-  getDokumentTypen: (staffelId: string) =>
-    request<any[]>('GET', `/admin/dokument-typen/${encodeURIComponent(staffelId)}`),
-  createDokumentTyp: (staffelId: string, data: { name: string; editor_modus?: string }) =>
-    request<any>('POST', `/admin/dokument-typen/${encodeURIComponent(staffelId)}`, data),
-  updateDokumentTyp: (staffelId: string, id: number, data: any) =>
-    request<any>('PUT', `/admin/dokument-typen/${encodeURIComponent(staffelId)}/${id}`, data),
-  deleteDokumentTyp: (staffelId: string, id: number) =>
-    request<void>('DELETE', `/admin/dokument-typen/${encodeURIComponent(staffelId)}/${id}`),
+  getDokumentTypen: (produktionId: string) =>
+    request<any[]>('GET', `/admin/dokument-typen/${encodeURIComponent(produktionId)}`),
+  createDokumentTyp: (produktionId: string, data: { name: string; editor_modus?: string }) =>
+    request<any>('POST', `/admin/dokument-typen/${encodeURIComponent(produktionId)}`, data),
+  updateDokumentTyp: (produktionId: string, id: number, data: any) =>
+    request<any>('PUT', `/admin/dokument-typen/${encodeURIComponent(produktionId)}/${id}`, data),
+  deleteDokumentTyp: (produktionId: string, id: number) =>
+    request<void>('DELETE', `/admin/dokument-typen/${encodeURIComponent(produktionId)}/${id}`),
 
   // Admin: Colab-Gruppen
-  getColabGruppen: (staffelId: string) =>
-    request<any[]>('GET', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}`),
-  createColabGruppe: (staffelId: string, data: { name: string; typ?: string }) =>
-    request<any>('POST', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}`, data),
-  updateColabGruppe: (staffelId: string, id: number, data: any) =>
-    request<any>('PUT', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}/${id}`, data),
-  deleteColabGruppe: (staffelId: string, id: number) =>
-    request<void>('DELETE', `/admin/colab-gruppen/${encodeURIComponent(staffelId)}/${id}`),
+  getColabGruppen: (produktionId: string) =>
+    request<any[]>('GET', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}`),
+  createColabGruppe: (produktionId: string, data: { name: string; typ?: string }) =>
+    request<any>('POST', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}`, data),
+  updateColabGruppe: (produktionId: string, id: number, data: any) =>
+    request<any>('PUT', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}/${id}`, data),
+  deleteColabGruppe: (produktionId: string, id: number) =>
+    request<void>('DELETE', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}/${id}`),
   addColabMitglied: (gruppeId: number, data: { user_id: string; user_name?: string }) =>
     request<any>('POST', `/admin/colab-gruppen/${gruppeId}/mitglieder`, data),
   removeColabMitglied: (gruppeId: number, userId: string) =>
@@ -318,10 +318,10 @@ export const api = {
     request<any>('PUT', '/admin/fassungs-nummerierung', { modus }),
 
   // Autocomplete
-  autocompleteCharacters: (staffelId: string, q: string) =>
-    request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/characters?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(q)}`),
-  autocompleteLocations: (staffelId: string, q: string) =>
-    request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/locations?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(q)}`),
+  autocompleteCharacters: (produktionId: string, q: string) =>
+    request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/characters?produktion_id=${encodeURIComponent(produktionId)}&q=${encodeURIComponent(q)}`),
+  autocompleteLocations: (produktionId: string, q: string) =>
+    request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/locations?produktion_id=${encodeURIComponent(produktionId)}&q=${encodeURIComponent(q)}`),
 
   // Scene comment read-state (Messenger-App annotation badge) (legacy)
   getSceneCommentCounts: (stageId: number) =>
@@ -351,10 +351,10 @@ export const api = {
     request<any[]>('PATCH', `/characters/${characterId}/fotos/reorder`, { order }),
 
   // ── Motive ───────────────────────────────────────────────────────────────────
-  getMotive: (staffelId: string) =>
-    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/motive`),
-  createMotiv: (staffelId: string, data: { name: string; typ?: string; motiv_nummer?: string }) =>
-    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/motive`, data),
+  getMotive: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/motive`),
+  createMotiv: (produktionId: string, data: { name: string; typ?: string; motiv_nummer?: string }) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/motive`, data),
   updateMotiv: (motivId: string, data: { name?: string; typ?: string; motiv_nummer?: string | null }) =>
     request<any>('PUT', `/motive/${motivId}`, data),
   deleteMotiv: (motivId: string) =>
@@ -381,18 +381,18 @@ export const api = {
     request<any>('PUT', `/motive/${motivId}/feldwerte/${feldId}`, data),
 
   // ── Charakter-Felder-Config ───────────────────────────────────────────────
-  getCharakterFelder: (staffelId: string) =>
-    request<any[]>('GET', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder`),
-  createCharakterFeld: (staffelId: string, data: { name: string; typ: string; optionen?: string[]; sort_order?: number; gilt_fuer?: string }) =>
-    request<any>('POST', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder`, data),
-  updateCharakterFeld: (staffelId: string, feldId: number, data: any) =>
-    request<any>('PUT', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/${feldId}`, data),
-  deleteCharakterFeld: (staffelId: string, feldId: number) =>
-    request<any>('DELETE', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/${feldId}`),
-  reorderCharakterFelder: (staffelId: string, order: { id: number; sort_order: number }[]) =>
-    request<any[]>('PATCH', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/reorder`, { order }),
-  rollenprofilFelderPreset: (staffelId: string) =>
-    request<any[]>('POST', `/staffeln/${encodeURIComponent(staffelId)}/charakter-felder/rollenprofil-preset`),
+  getCharakterFelder: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/charakter-felder`),
+  createCharakterFeld: (produktionId: string, data: { name: string; typ: string; optionen?: string[]; sort_order?: number; gilt_fuer?: string }) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/charakter-felder`, data),
+  updateCharakterFeld: (produktionId: string, feldId: number, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/charakter-felder/${feldId}`, data),
+  deleteCharakterFeld: (produktionId: string, feldId: number) =>
+    request<any>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/charakter-felder/${feldId}`),
+  reorderCharakterFelder: (produktionId: string, order: { id: number; sort_order: number }[]) =>
+    request<any[]>('PATCH', `/produktionen/${encodeURIComponent(produktionId)}/charakter-felder/reorder`, { order }),
+  rollenprofilFelderPreset: (produktionId: string) =>
+    request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/charakter-felder/rollenprofil-preset`),
 
   // ── Feldwerte ─────────────────────────────────────────────────────────────
   getCharacterFeldwerte: (characterId: string) =>
@@ -408,8 +408,8 @@ export const api = {
     request<any>('DELETE', `/characters/${characterId}/beziehungen/${relId}`),
 
   // ── Charakter aktivieren ──────────────────────────────────────────────────
-  aktiviereCharacter: (characterId: string, staffelId: string) =>
-    request<any>('POST', `/characters/${characterId}/aktivieren`, { staffel_id: staffelId }),
+  aktiviereCharacter: (characterId: string, produktionId: string) =>
+    request<any>('POST', `/characters/${characterId}/aktivieren`, { produktion_id: produktionId }),
 
   // ── DK-Settings (Drehbuchkoordination) ──────────────────────────────────
   getDkProductions: () =>
@@ -428,10 +428,10 @@ export const api = {
   // ── Werkstufen-Modell (v2) ────────────────────────────────────────────────
 
   // Folgen v2 (merged table)
-  getFolgenV2: (staffelId: string) =>
-    request<any[]>('GET', `/v2/folgen?staffel_id=${encodeURIComponent(staffelId)}`),
+  getFolgenV2: (produktionId: string) =>
+    request<any[]>('GET', `/v2/folgen?produktion_id=${encodeURIComponent(produktionId)}`),
   getFolgeV2: (id: number) => request<any>('GET', `/v2/folgen/${id}`),
-  createFolgeV2: (data: { staffel_id: string; folge_nummer: number; folgen_titel?: string }) =>
+  createFolgeV2: (data: { produktion_id: string; folge_nummer: number; folgen_titel?: string }) =>
     request<any>('POST', '/v2/folgen', data),
   updateFolgeV2: (id: number, data: { folgen_titel?: string }) =>
     request<any>('PUT', `/v2/folgen/${id}`, data),
@@ -469,8 +469,8 @@ export const api = {
     if (motiv) p.set('motiv', motiv)
     return request<any[]>('GET', `/statistik/character-pairs?${p}`)
   },
-  getStatBesetzungsmatrix: (staffelId: string, werkstufTyp?: string) => {
-    const p = new URLSearchParams({ staffel_id: staffelId })
+  getStatBesetzungsmatrix: (produktionId: string, werkstufTyp?: string) => {
+    const p = new URLSearchParams({ produktion_id: produktionId })
     if (werkstufTyp) p.set('werkstufe_typ', werkstufTyp)
     return request<any>('GET', `/statistik/besetzungsmatrix?${p}`)
   },
@@ -484,9 +484,9 @@ export const api = {
     const qs = new URLSearchParams(params).toString()
     return request<any>('GET', `/statistik/komparsen-bedarf?${qs}`)
   },
-  getStatVorlagen: (staffelId: string) =>
-    request<any[]>('GET', `/statistik/vorlagen?staffel_id=${encodeURIComponent(staffelId)}`),
-  createStatVorlage: (data: { staffel_id: string; name: string; abfrage_typ: string; parameter?: any }) =>
+  getStatVorlagen: (produktionId: string) =>
+    request<any[]>('GET', `/statistik/vorlagen?produktion_id=${encodeURIComponent(produktionId)}`),
+  createStatVorlage: (data: { produktion_id: string; name: string; abfrage_typ: string; parameter?: any }) =>
     request<any>('POST', '/statistik/vorlagen', data),
   updateStatVorlage: (id: number, data: any) =>
     request<any>('PUT', `/statistik/vorlagen/${id}`, data),

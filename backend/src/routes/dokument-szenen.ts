@@ -24,7 +24,7 @@ sceneIdentitiesRouter.use(authMiddleware)
 fassungsSzenenRouter.get('/', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT ds.*, si.staffel_id AS identity_staffel_id
+      `SELECT ds.*, si.produktion_id AS identity_produktion_id
        FROM dokument_szenen ds
        JOIN scene_identities si ON si.id = ds.scene_identity_id
        WHERE ds.fassung_id = $1
@@ -50,9 +50,9 @@ fassungsSzenenRouter.post('/', async (req, res) => {
   const user = req.user!
 
   try {
-    // Get fassung to determine staffel_id
+    // Get fassung to determine produktion_id
     const fassung = await queryOne(
-      `SELECT f.id, d.staffel_id FROM folgen_dokument_fassungen f
+      `SELECT f.id, d.produktion_id FROM folgen_dokument_fassungen f
        JOIN folgen_dokumente d ON d.id = f.dokument_id
        WHERE f.id = $1`,
       [fassungId]
@@ -63,8 +63,8 @@ fassungsSzenenRouter.post('/', async (req, res) => {
     let identityId = scene_identity_id
     if (!identityId) {
       const identity = await queryOne(
-        `INSERT INTO scene_identities (staffel_id, created_by) VALUES ($1, $2) RETURNING id`,
-        [fassung.staffel_id, user.user_id]
+        `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
+        [fassung.folge_id, user.user_id]
       )
       identityId = identity.id
     }
@@ -351,8 +351,8 @@ dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
        FROM szenen_revisionen sr
        LEFT JOIN folgen_dokument_fassungen f ON f.id = sr.fassung_id
        LEFT JOIN folgen_dokumente d ON d.id = f.dokument_id
-       LEFT JOIN staffeln st ON st.id = d.staffel_id
-       LEFT JOIN revision_colors rc ON rc.staffel_id = st.id AND rc.sort_order = f.fassung_nummer
+       LEFT JOIN produktionen st ON st.id = d.produktion_id
+       LEFT JOIN revision_colors rc ON rc.produktion_id = st.id AND rc.sort_order = f.fassung_nummer
        WHERE sr.dokument_szene_id = $1
        ORDER BY sr.created_at`,
       [req.params.id]
@@ -398,7 +398,7 @@ sceneIdentitiesRouter.get('/:id/characters', async (req, res) => {
        JOIN characters c ON c.id = sc.character_id
        LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
        LEFT JOIN scene_identities si ON si.id = sc.scene_identity_id
-       LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.staffel_id = si.staffel_id
+       LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.produktion_id = si.produktion_id
        WHERE sc.scene_identity_id = $1
        ORDER BY ck.typ NULLS LAST, c.name`,
       [req.params.id]
@@ -489,12 +489,12 @@ sceneIdentitiesRouter.post('/:id/vorstopp', async (req, res) => {
 // POST /api/scene-identities — create new identity
 // ══════════════════════════════════════════════════════════════════════════════
 sceneIdentitiesRouter.post('/', async (req, res) => {
-  const { staffel_id } = req.body
-  if (!staffel_id) return res.status(400).json({ error: 'staffel_id required' })
+  const { folge_id } = req.body
+  if (!folge_id) return res.status(400).json({ error: 'folge_id required' })
   try {
     const row = await queryOne(
-      `INSERT INTO scene_identities (staffel_id, created_by) VALUES ($1, $2) RETURNING *`,
-      [staffel_id, req.user?.user_id]
+      `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING *`,
+      [folge_id, req.user?.user_id]
     )
     res.status(201).json(row)
   } catch (err) {

@@ -11,23 +11,23 @@ import { useWerkstufe } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
-function DockedEditorPanels({ staffelId, folgeNummer, selectedSzeneId, useDokumentSzenen }: {
-  staffelId: string; folgeNummer: number | null; selectedSzeneId: number | string | null; useDokumentSzenen: boolean
+function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDokumentSzenen }: {
+  produktionId: string; folgeNummer: number | null; selectedSzeneId: number | string | null; useDokumentSzenen: boolean
 }) {
   const { panelMode } = useContext(PanelModeContext)
   const [folgeId, setFolgeId] = useState<number | null>(null)
   const [formatElements, setFormatElements] = useState<any[]>([])
 
-  // Resolve staffelId + folgeNummer → folge_id
+  // Resolve produktionId + folgeNummer → folge_id
   useEffect(() => {
-    if (!staffelId || !folgeNummer) { setFolgeId(null); return }
-    api.getFolgenV2(staffelId)
+    if (!produktionId || !folgeNummer) { setFolgeId(null); return }
+    api.getFolgenV2(produktionId)
       .then(folgen => {
         const match = folgen.find((f: any) => f.folge_nummer === folgeNummer)
         setFolgeId(match?.id ?? null)
       })
       .catch(() => setFolgeId(null))
-  }, [staffelId, folgeNummer])
+  }, [produktionId, folgeNummer])
 
   // Load werkstufen for this folge
   const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
@@ -63,7 +63,7 @@ function DockedEditorPanels({ staffelId, folgeNummer, selectedSzeneId, useDokume
     window.addEventListener('mouseup', onUp)
   }, [])
 
-  if (!staffelId || !folgeNummer) return null
+  if (!produktionId || !folgeNummer) return null
 
   const showLeft = panelMode !== 'script'
   const showRight = panelMode !== 'treatment'
@@ -83,8 +83,8 @@ function DockedEditorPanels({ staffelId, folgeNummer, selectedSzeneId, useDokume
           pointerEvents: isSplitDragging ? 'none' : 'auto',
         }}>
           <EditorPanel
-            key={`${staffelId}-${folgeNummer}-left`}
-            staffelId={staffelId}
+            key={`${produktionId}-${folgeNummer}-left`}
+            produktionId={produktionId}
             folgeNummer={folgeNummer}
             folgeId={folgeId}
             werkstufen={werkstufen}
@@ -120,8 +120,8 @@ function DockedEditorPanels({ staffelId, folgeNummer, selectedSzeneId, useDokume
           pointerEvents: isSplitDragging ? 'none' : 'auto',
         }}>
           <EditorPanel
-            key={`${staffelId}-${folgeNummer}-right`}
-            staffelId={staffelId}
+            key={`${produktionId}-${folgeNummer}-right`}
+            produktionId={produktionId}
             folgeNummer={folgeNummer}
             folgeId={folgeId}
             werkstufen={werkstufen}
@@ -150,22 +150,22 @@ export default function ScriptPage() {
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
 
   // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
-  const [deepLink] = useState<{ staffelId?: string; folgeNummer?: number; stageId?: number; szeneId?: number } | null>(() => {
+  const [deepLink] = useState<{ produktionId?: string; folgeNummer?: number; stageId?: number; szeneId?: number } | null>(() => {
     const params = new URLSearchParams(window.location.search)
     const scene = params.get('scene')
     if (!scene) return null
-    const staffel = params.get('staffel')
+    const produktion = params.get('produktion') || params.get('staffel')
     const folge = params.get('folge')
     const stage = params.get('stage')
     // Clean URL immediately
     window.history.replaceState({}, '', window.location.pathname)
-    if (staffel && folge && stage) {
-      return { staffelId: staffel, folgeNummer: parseInt(folge), stageId: parseInt(stage), szeneId: parseInt(scene) }
+    if (produktion && folge && stage) {
+      return { produktionId: produktion, folgeNummer: parseInt(folge), stageId: parseInt(stage), szeneId: parseInt(scene) }
     }
     return { szeneId: parseInt(scene) }
   })
 
-  const [selectedStaffelId, setSelectedStaffelId] = useState<string>('')
+  const [selectedProduktionId, setSelectedProduktionId] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
@@ -181,7 +181,7 @@ export default function ScriptPage() {
   const dragStartX = useRef(0)
   const dragStartWidth = useRef(0)
   // Holds saved nav values during initial cascading restore; cleared after use
-  const pendingNav = useRef<{ staffelId?: string; folgeNummer?: number; stageId?: number; szeneId?: number }>({})
+  const pendingNav = useRef<{ produktionId?: string; folgeNummer?: number; stageId?: number; szeneId?: number }>({})
   const navRestored = useRef(false)
 
   // Throttle timestamps for keyboard navigation (max 1 navigation per interval)
@@ -201,18 +201,18 @@ export default function ScriptPage() {
   szenenRef.current = szenen
   const selectedSzeneIdRef = useRef(selectedSzeneId)
   selectedSzeneIdRef.current = selectedSzeneId
-  const selectedStaffelIdRef = useRef(selectedStaffelId)
-  selectedStaffelIdRef.current = selectedStaffelId
+  const selectedProduktionIdRef = useRef(selectedProduktionId)
+  selectedProduktionIdRef.current = selectedProduktionId
 
   // Load user settings (sidebar + last navigation position)
   // Deep-link (?scene=...) takes priority over saved settings
   useEffect(() => {
-    if (deepLink && !deepLink.staffelId) {
+    if (deepLink && !deepLink.produktionId) {
       // Minimal deep-link — only scene ID, need to resolve staffel/folge/stage via API
       api.getSzene(deepLink.szeneId!).then(scene =>
         api.getStage(scene.stage_id).then(stage => {
           pendingNav.current = {
-            staffelId: stage.staffel_id,
+            produktionId: stage.produktion_id,
             folgeNummer: stage.folge_nummer,
             stageId: stage.id,
             szeneId: deepLink.szeneId,
@@ -228,12 +228,12 @@ export default function ScriptPage() {
       if (typeof ui.scene_list_collapsed === 'boolean') setSidebarCollapsed(ui.scene_list_collapsed)
       if (deepLink) {
         // Full deep-link (staffel + folge + stage + scene) — override saved nav
-        if (deepLink.staffelId)   pendingNav.current.staffelId   = deepLink.staffelId
+        if (deepLink.produktionId)   pendingNav.current.produktionId   = deepLink.produktionId
         if (deepLink.folgeNummer) pendingNav.current.folgeNummer = deepLink.folgeNummer
         if (deepLink.stageId)     pendingNav.current.stageId     = deepLink.stageId
         if (deepLink.szeneId)     pendingNav.current.szeneId     = deepLink.szeneId
       } else {
-        if (ui.last_staffel_id)    pendingNav.current.staffelId   = ui.last_staffel_id
+        if (ui.last_produktion_id)    pendingNav.current.produktionId   = ui.last_produktion_id
         if (ui.last_folge_nummer)  pendingNav.current.folgeNummer = ui.last_folge_nummer
         if (ui.last_stage_id)      pendingNav.current.stageId     = ui.last_stage_id
         if (ui.last_szene_id)      pendingNav.current.szeneId     = ui.last_szene_id
@@ -254,11 +254,11 @@ export default function ScriptPage() {
 
   // Immediate save navigation position to backend
   const saveNavPosition = useCallback((
-    staffelId: string, folgeNummer: number | null, stageId: number | null, szeneId: number | string | null
+    produktionId: string, folgeNummer: number | null, stageId: number | null, szeneId: number | string | null
   ) => {
     if (!navRestored.current) return
     api.updateSettings({ ui_settings: {
-      last_staffel_id:   staffelId,
+      last_produktion_id:   produktionId,
       last_folge_nummer: folgeNummer,
       last_stage_id:     stageId,
       last_szene_id:     szeneId,
@@ -271,7 +271,7 @@ export default function ScriptPage() {
     const currentSzeneId = selectedSzeneIdRef.current
     const currentFolge = selectedFolgeNummerRef.current
     const currentStageId = selectedStageIdRef.current
-    const staffelId = selectedStaffelIdRef.current
+    const produktionId = selectedProduktionIdRef.current
     if (!currentSzenen.length || currentSzeneId == null) return
     const idx = currentSzenen.findIndex(s => s.id === currentSzeneId)
     if (idx === -1) return
@@ -279,9 +279,9 @@ export default function ScriptPage() {
     if (nextIdx < 0 || nextIdx >= currentSzenen.length) return
     const nextSzene = currentSzenen[nextIdx]
     setSelectedSzeneId(nextSzene.id)
-    if (navRestored.current && staffelId)
+    if (navRestored.current && produktionId)
       api.updateSettings({ ui_settings: {
-        last_staffel_id: staffelId,
+        last_produktion_id: produktionId,
         last_folge_nummer: currentFolge,
         last_stage_id: currentStageId,
         last_szene_id: nextSzene.id,
@@ -302,7 +302,7 @@ export default function ScriptPage() {
       const currentStageId    = selectedStageIdRef.current
       const currentSzenen     = szenenRef.current
       const currentSzeneId    = selectedSzeneIdRef.current
-      const staffelId         = selectedStaffelIdRef.current
+      const produktionId         = selectedProduktionIdRef.current
 
       // ↑↓ — Episode wechseln (block-übergreifend), throttled auf 400ms
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -311,7 +311,7 @@ export default function ScriptPage() {
         if (now - kbFolgeLastFire.current < 400) return
         kbFolgeLastFire.current = now
 
-        if (currentFolge == null || !currentBlock || !staffelId) return
+        if (currentFolge == null || !currentBlock || !produktionId) return
         const dir = e.key === 'ArrowDown' ? 1 : -1
         const nextFolge = currentFolge + dir
         const inBlock = nextFolge >= (currentBlock.folge_von ?? nextFolge)
@@ -321,7 +321,7 @@ export default function ScriptPage() {
           pendingNav.current = {}; navRestored.current = true
           setSelectedFolgeNummer(nextFolge)
           api.updateSettings({ ui_settings: {
-            last_staffel_id: staffelId, last_folge_nummer: nextFolge,
+            last_produktion_id: produktionId, last_folge_nummer: nextFolge,
             last_stage_id: null, last_szene_id: null,
           }}).catch(() => {})
         } else {
@@ -338,7 +338,7 @@ export default function ScriptPage() {
           setSelectedBlock(nextBlock)
           setSelectedFolgeNummer(targetFolge)
           api.updateSettings({ ui_settings: {
-            last_staffel_id: staffelId, last_folge_nummer: targetFolge,
+            last_produktion_id: produktionId, last_folge_nummer: targetFolge,
             last_stage_id: null, last_szene_id: null,
           }}).catch(() => {})
         }
@@ -393,7 +393,7 @@ export default function ScriptPage() {
   // Sync selected production as staffel — wait for settings first to avoid race condition
   useEffect(() => {
     if (!selectedProduction || !settingsLoaded) return
-    fetch('/api/staffeln/sync', {
+    fetch('/api/produktionen/sync', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -405,17 +405,17 @@ export default function ScriptPage() {
       }),
     })
       .then(r => r.json())
-      .then(data => { if (data.staffel_id) setSelectedStaffelId(data.staffel_id) })
+      .then(data => { if (data.produktion_id) setSelectedProduktionId(data.produktion_id) })
       .catch(console.error)
   }, [selectedProduction?.id, settingsLoaded])
 
 
   // Load Blöcke — restore saved folgeNummer by finding the right block
   useEffect(() => {
-    if (!selectedStaffelId) return
+    if (!selectedProduktionId) return
     setBloecke([])
     setSelectedBlock(null)
-    api.getBloecke(selectedStaffelId).then(data => {
+    api.getBloecke(selectedProduktionId).then(data => {
       setBloecke(data)
       if (!data.length) return
       const savedFolge = pendingNav.current.folgeNummer
@@ -424,7 +424,7 @@ export default function ScriptPage() {
       )
       setSelectedBlock(match || data[0])
     }).catch(() => {})
-  }, [selectedStaffelId])
+  }, [selectedProduktionId])
 
   // Set default Folge when Block changes — restore saved folgeNummer if in range
   useEffect(() => {
@@ -439,10 +439,10 @@ export default function ScriptPage() {
 
   // Load Stages — restore saved stageId if available
   useEffect(() => {
-    if (!selectedStaffelId || selectedFolgeNummer == null) return
+    if (!selectedProduktionId || selectedFolgeNummer == null) return
     setStages([])
     setSelectedStageId(null)
-    api.getStages(selectedStaffelId, selectedFolgeNummer).then(data => {
+    api.getStages(selectedProduktionId, selectedFolgeNummer).then(data => {
       setStages(data)
       if (!data.length) return
       const savedStage = pendingNav.current.stageId
@@ -450,11 +450,11 @@ export default function ScriptPage() {
       setSelectedStageId(match ? match.id : data[0].id)
       delete pendingNav.current.stageId
     }).catch(() => {})
-  }, [selectedStaffelId, selectedFolgeNummer])
+  }, [selectedProduktionId, selectedFolgeNummer])
 
   // Load Szenen — try werkstufen first, then dokument_szenen/fassungen, fall back to old szenen
   useEffect(() => {
-    if (!selectedStaffelId || selectedFolgeNummer == null) return
+    if (!selectedProduktionId || selectedFolgeNummer == null) return
     setSzenen([])
     setSelectedSzeneId(null)
     setUseDokumentSzenen(false)
@@ -470,7 +470,7 @@ export default function ScriptPage() {
     tryWerkstufen().catch(() => { if (selectedStageId) tryFassungen(); else finalize() })
 
     async function tryWerkstufen() {
-      const folgen = await api.getFolgenV2(selectedStaffelId)
+      const folgen = await api.getFolgenV2(selectedProduktionId)
       const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
       if (!folge) { if (selectedStageId) await tryFassungen(); else finalize(); return }
       const werkstufen = await api.getWerkstufen(folge.id)
@@ -508,7 +508,7 @@ export default function ScriptPage() {
 
     async function tryFassungen() {
       try {
-        const docs = await api.getDokumente(selectedStaffelId, selectedFolgeNummer!)
+        const docs = await api.getDokumente(selectedProduktionId, selectedFolgeNummer!)
         const matchDoc = docs.find((d: any) => d.typ === (docTyp || 'drehbuch'))
         if (matchDoc?.fassung_id) {
           const dkSzenen = await api.getFassungsSzenen(matchDoc.fassung_id)
@@ -551,7 +551,7 @@ export default function ScriptPage() {
       delete pendingNav.current.szeneId
       navRestored.current = true
     }
-  }, [selectedStageId, selectedStaffelId, selectedFolgeNummer, stages])
+  }, [selectedStageId, selectedProduktionId, selectedFolgeNummer, stages])
 
   // Poll unread comment counts from Messenger-App every 60s
   useEffect(() => {
@@ -569,21 +569,21 @@ export default function ScriptPage() {
 
   // Save navigation position when selections change
   useEffect(() => {
-    if (selectedStaffelId) saveNavPosition(selectedStaffelId, selectedFolgeNummer, selectedStageId, selectedSzeneId)
-  }, [selectedStaffelId, selectedFolgeNummer, selectedStageId, selectedSzeneId, saveNavPosition])
+    if (selectedProduktionId) saveNavPosition(selectedProduktionId, selectedFolgeNummer, selectedStageId, selectedSzeneId)
+  }, [selectedProduktionId, selectedFolgeNummer, selectedStageId, selectedSzeneId, saveNavPosition])
 
   if (loading) return <div style={{ padding: 32, color: 'var(--text-secondary)' }}>Lädt…</div>
   return (
     <AppShell
-      selectedStaffelId={selectedStaffelId}
+      selectedProduktionId={selectedProduktionId}
       bloecke={bloecke}
       selectedBlock={selectedBlock}
       onSelectBlock={b => { pendingNav.current = {}; navRestored.current = true; setSelectedBlock(b) }}
       selectedFolgeNummer={selectedFolgeNummer}
       onSelectFolge={nr => {
         pendingNav.current = {}; navRestored.current = true; setSelectedFolgeNummer(nr)
-        if (selectedStaffelId)
-          api.updateSettings({ ui_settings: { last_staffel_id: selectedStaffelId, last_folge_nummer: nr, last_stage_id: null, last_szene_id: null } }).catch(() => {})
+        if (selectedProduktionId)
+          api.updateSettings({ ui_settings: { last_produktion_id: selectedProduktionId, last_folge_nummer: nr, last_stage_id: null, last_szene_id: null } }).catch(() => {})
       }}
       stages={stages}
       selectedStageId={selectedStageId}
@@ -599,23 +599,23 @@ export default function ScriptPage() {
               selectedSzeneId={selectedSzeneId}
               onSelectSzene={(id) => {
                 setSelectedSzeneId(id)
-                if (navRestored.current && selectedStaffelId)
+                if (navRestored.current && selectedProduktionId)
                   api.updateSettings({ ui_settings: {
-                    last_staffel_id: selectedStaffelId,
+                    last_produktion_id: selectedProduktionId,
                     last_folge_nummer: selectedFolgeNummer,
                     last_stage_id: selectedStageId,
                     last_szene_id: id,
                   } }).catch(() => {})
               }}
-              staffelId={selectedStaffelId}
+              produktionId={selectedProduktionId}
               folgeNummer={selectedFolgeNummer}
               stageId={selectedStageId}
               onSzeneCreated={(newSzene) => {
                 setSzenen(prev => [...prev, newSzene])
                 setSelectedSzeneId(newSzene.id)
-                if (navRestored.current && selectedStaffelId)
+                if (navRestored.current && selectedProduktionId)
                   api.updateSettings({ ui_settings: {
-                    last_staffel_id: selectedStaffelId,
+                    last_produktion_id: selectedProduktionId,
                     last_folge_nummer: selectedFolgeNummer,
                     last_stage_id: selectedStageId,
                     last_szene_id: newSzene.id,
@@ -648,7 +648,7 @@ export default function ScriptPage() {
             <SceneEditor
               szeneId={selectedSzeneId}
               stageId={selectedStageId}
-              staffelId={selectedStaffelId}
+              produktionId={selectedProduktionId}
               folgeNummer={selectedFolgeNummer}
               useDokumentSzenen={useDokumentSzenen}
               onSzeneUpdated={(updated) => {
@@ -668,7 +668,7 @@ export default function ScriptPage() {
             </div>
           )}
           <DockedEditorPanels
-            staffelId={selectedStaffelId}
+            produktionId={selectedProduktionId}
             folgeNummer={selectedFolgeNummer}
             selectedSzeneId={selectedSzeneId}
             useDokumentSzenen={useDokumentSzenen}
@@ -677,7 +677,7 @@ export default function ScriptPage() {
 
         {!focus && <BreakdownPanel
           szeneId={selectedSzeneId}
-          staffelId={selectedStaffelId}
+          produktionId={selectedProduktionId}
           sceneIdentityId={useDokumentSzenen ? szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null : null}
         />}
       </div>

@@ -10,7 +10,7 @@ import { Plus, X } from 'lucide-react'
 
 export default function KomparsenPage() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? null
+  const produktionId = selectedProduction?.id ?? null
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [characters, setCharacters] = useState<any[]>([])
@@ -30,24 +30,24 @@ export default function KomparsenPage() {
   const [showNewForm, setShowNewForm] = useState(false)
 
   const loadCharacters = useCallback(async () => {
-    if (!staffelId) return
+    if (!produktionId) return
     setLoading(true)
     try {
-      const all = await api.getCharacters(staffelId)
+      const all = await api.getCharacters(produktionId)
       setCharacters(all.filter((c: any) => c.kategorie_typ === 'komparse'))
     } finally {
       setLoading(false)
     }
-  }, [staffelId])
+  }, [produktionId])
 
   useEffect(() => { loadCharacters() }, [loadCharacters])
 
   useEffect(() => {
-    if (!staffelId) return
-    api.getCharakterFelder(staffelId)
+    if (!produktionId) return
+    api.getCharakterFelder(produktionId)
       .then(f => setFelder(f.filter((x: any) => x.gilt_fuer === 'alle' || x.gilt_fuer === 'komparse')))
       .catch(() => {})
-  }, [staffelId])
+  }, [produktionId])
 
   useEffect(() => {
     if (!selectedId) { setFotos([]); setFeldwerte([]); return }
@@ -64,10 +64,10 @@ export default function KomparsenPage() {
   }
 
   const handleCreate = async () => {
-    if (!newName.trim() || !staffelId) return
+    if (!newName.trim() || !produktionId) return
     setCreating(true)
     try {
-      const char = await api.createCharacter({ name: newName.trim(), staffel_id: staffelId })
+      const char = await api.createCharacter({ name: newName.trim(), produktion_id: produktionId })
       await loadCharacters()
       setSelectedId(char.id)
       setNewName('')
@@ -78,8 +78,8 @@ export default function KomparsenPage() {
   }
 
   const handleAktivieren = async (id: string) => {
-    if (!staffelId) return
-    await api.aktiviereCharacter(id, staffelId)
+    if (!produktionId) return
+    await api.aktiviereCharacter(id, produktionId)
     await loadCharacters()
   }
 
@@ -150,9 +150,9 @@ export default function KomparsenPage() {
         />
 
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-          {!staffelId && <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Bitte eine Produktion auswählen.</div>}
+          {!produktionId && <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Bitte eine Produktion auswählen.</div>}
 
-          {staffelId && !selected && !showNewForm && (
+          {produktionId && !selected && !showNewForm && (
             <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
               Komparse aus der Liste auswählen oder <button onClick={() => setShowNewForm(true)} style={{ border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 14, padding: 0, textDecoration: 'underline' }}>neuen anlegen</button>.
             </div>

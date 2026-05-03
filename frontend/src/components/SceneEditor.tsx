@@ -8,7 +8,7 @@ import { PanelModeContext, useAppSettings, useUserPrefs } from '../contexts'
 interface SceneEditorProps {
   szeneId: number | string
   stageId: number | null
-  staffelId?: string | null
+  produktionId?: string | null
   folgeNummer?: number | null
   panelMode?: 'both' | 'treatment' | 'script'
   useDokumentSzenen?: boolean
@@ -40,7 +40,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, stageId, staffelId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()

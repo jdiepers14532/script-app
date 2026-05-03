@@ -4,11 +4,11 @@ import { api } from '../api/client'
 
 interface BreakdownPanelProps {
   szeneId?: number | string | null
-  staffelId?: string | null
+  produktionId?: string | null
   sceneIdentityId?: string | null
 }
 
-export default function BreakdownPanel({ szeneId, staffelId, sceneIdentityId }: BreakdownPanelProps) {
+export default function BreakdownPanel({ szeneId, produktionId, sceneIdentityId }: BreakdownPanelProps) {
   const [sceneChars, setSceneChars] = useState<any[]>([])
   const [allChars, setAllChars] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -32,9 +32,9 @@ export default function BreakdownPanel({ szeneId, staffelId, sceneIdentityId }: 
   }, [szeneId, sceneIdentityId])
 
   useEffect(() => {
-    if (!staffelId) { setAllChars([]); return }
-    api.getCharacters(staffelId).then(setAllChars).catch(() => setAllChars([]))
-  }, [staffelId])
+    if (!produktionId) { setAllChars([]); return }
+    api.getCharacters(produktionId).then(setAllChars).catch(() => setAllChars([]))
+  }, [produktionId])
 
   useEffect(() => {
     if (searchOpen) setTimeout(() => searchRef.current?.focus(), 50)
@@ -62,10 +62,10 @@ export default function BreakdownPanel({ szeneId, staffelId, sceneIdentityId }: 
   }
 
   const handleCreateAndAdd = async () => {
-    if (!szeneId || !staffelId || !query.trim()) return
+    if (!szeneId || !produktionId || !query.trim()) return
     setCreating(true)
     try {
-      const char = await api.createCharacter({ name: query.trim(), staffel_id: staffelId })
+      const char = await api.createCharacter({ name: query.trim(), produktion_id: produktionId })
       const sc = sceneIdentityId
         ? await api.addSceneIdentityCharacter(sceneIdentityId, { character_id: char.id })
         : typeof szeneId === 'number'

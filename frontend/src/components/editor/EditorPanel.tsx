@@ -18,7 +18,7 @@ const EDITOR_MODUS: Record<string, 'screenplay' | 'richtext'> = {
 }
 
 interface Props {
-  staffelId: string
+  produktionId: string
   folgeNummer: number
   folgeId: number | null
   werkstufen: WerkstufeMeta[]
@@ -31,7 +31,7 @@ interface Props {
 }
 
 export default function EditorPanel({
-  staffelId, folgeNummer, folgeId, werkstufen, formatElements = [],
+  produktionId, folgeNummer, folgeId, werkstufen, formatElements = [],
   defaultTyp, selectedSzeneId, useDokumentSzenen, onCreateWerkstufe, onReloadWerkstufen,
 }: Props) {
   const { prefs } = useEditorPrefs()
@@ -132,7 +132,7 @@ export default function EditorPanel({
       <EditorPanelHeader
         selectedWerk={selectedWerk}
         werkstufen={werkstufen}
-        staffelId={staffelId}
+        produktionId={produktionId}
         folgeNummer={folgeNummer}
         folgeId={folgeId}
         onSelectWerkstufe={setSelectedWerkId}
@@ -210,7 +210,7 @@ export default function EditorPanel({
               formatElements={formatElements}
               ydoc={ydoc}
               provider={provider}
-              staffelId={staffelId}
+              produktionId={produktionId}
             />
           </Suspense>
         ) : (

@@ -4,7 +4,7 @@ import { api } from '../api/client'
 export interface DokumentMeta {
   id: string
   typ: string
-  staffel_id: string
+  produktion_id: string
   folge_nummer: number
   erstellt_von: string
   erstellt_am: string
@@ -43,33 +43,33 @@ export interface FassungWithInhalt extends FassungMeta {
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
-export function useDokument(staffelId: string | null, folgeNummer: number | null) {
+export function useDokument(produktionId: string | null, folgeNummer: number | null) {
   const [dokumente, setDokumente] = useState<DokumentMeta[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    if (!staffelId || !folgeNummer) return
+    if (!produktionId || !folgeNummer) return
     setLoading(true)
     setError(null)
     try {
-      const rows = await api.getDokumente(staffelId, folgeNummer)
+      const rows = await api.getDokumente(produktionId, folgeNummer)
       setDokumente(rows)
     } catch (e: any) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [staffelId, folgeNummer])
+  }, [produktionId, folgeNummer])
 
   useEffect(() => { load() }, [load])
 
   const createDokument = useCallback(async (typ: string) => {
-    if (!staffelId || !folgeNummer) return null
-    const result = await api.createDokument(staffelId, folgeNummer, typ)
+    if (!produktionId || !folgeNummer) return null
+    const result = await api.createDokument(produktionId, folgeNummer, typ)
     await load()
     return result
-  }, [staffelId, folgeNummer, load])
+  }, [produktionId, folgeNummer, load])
 
   return { dokumente, loading, error, reload: load, createDokument }
 }
@@ -107,7 +107,7 @@ export interface WerkstufeMeta {
   erstellt_von: string | null
   erstellt_am: string
   szenen_count: number
-  staffel_id?: string
+  produktion_id?: string
   folge_nummer?: number
 }
 

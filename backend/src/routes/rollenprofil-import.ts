@@ -104,7 +104,7 @@ function parseRollenprofilDeterministic(ocrText: string): Record<string, string>
   // === Header metadata ===
   result.produktion = 'Rote Rosen'
   const staffelM = ocrText.match(/[Ss]taffel\s+(\d+)/i)
-  if (staffelM) result.staffel = `Staffel ${staffelM[1]}`
+  if (staffelM) result.staffel = `Produktion ${staffelM[1]}`
   const folgenM = ocrText.match(/(\d{3,4})\s*[-–]\s*(\d{3,4})/)
   if (folgenM) result.folgen_range = `${folgenM[1]}-${folgenM[2]}`
 
@@ -273,9 +273,9 @@ const PARSED_TO_FELDNAME: Record<string, string> = {
 
 // POST /api/characters/rollenprofil-import/commit
 rollenprofilImportRouter.post('/commit', async (req, res) => {
-  const { staffel_id, parsed } = req.body
-  if (!staffel_id || !parsed?.name) {
-    return res.status(400).json({ error: 'staffel_id und parsed.name erforderlich' })
+  const { produktion_id, parsed } = req.body
+  if (!produktion_id || !parsed?.name) {
+    return res.status(400).json({ error: 'produktion_id und parsed.name erforderlich' })
   }
 
   try {
@@ -287,15 +287,15 @@ rollenprofilImportRouter.post('/commit', async (req, res) => {
     )
 
     await queryOne(
-      `INSERT INTO character_productions (character_id, staffel_id) VALUES ($1, $2)
-       ON CONFLICT (character_id, staffel_id) DO NOTHING`,
-      [char.id, staffel_id]
+      `INSERT INTO character_productions (character_id, produktion_id) VALUES ($1, $2)
+       ON CONFLICT (character_id, produktion_id) DO NOTHING`,
+      [char.id, produktion_id]
     )
 
     // Load all configured felder for this staffel
     const felder = await query(
-      'SELECT id, name FROM charakter_felder_config WHERE staffel_id = $1',
-      [staffel_id]
+      'SELECT id, name FROM charakter_felder_config WHERE produktion_id = $1',
+      [produktion_id]
     )
     const feldByName = Object.fromEntries(felder.map((f: any) => [f.name, f.id]))
 

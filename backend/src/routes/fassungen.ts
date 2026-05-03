@@ -113,8 +113,8 @@ fassungenRouter.post('/', async (req, res) => {
         `SELECT COALESCE(MAX(f.fassung_nummer), 0) AS m
          FROM folgen_dokument_fassungen f
          JOIN folgen_dokumente d ON d.id = f.dokument_id
-         WHERE d.staffel_id = $1 AND d.folge_nummer = $2`,
-        [dok.staffel_id, dok.folge_nummer]
+         WHERE d.produktion_id = $1 AND d.folge_nummer = $2`,
+        [dok.produktion_id, dok.folge_nummer]
       )
       nextNummer = (cnt?.m ?? 0) + 1
     } else {
@@ -283,8 +283,8 @@ fassungenRouter.post('/:fassungId/abgabe', async (req, res) => {
           `SELECT COALESCE(MAX(f.fassung_nummer), 0) AS m
            FROM folgen_dokument_fassungen f
            JOIN folgen_dokumente d ON d.id = f.dokument_id
-           WHERE d.staffel_id = $1 AND d.folge_nummer = $2`,
-          [dok.staffel_id, dok.folge_nummer]
+           WHERE d.produktion_id = $1 AND d.folge_nummer = $2`,
+          [dok.produktion_id, dok.folge_nummer]
         )
         nextNummer = (cnt?.m ?? 0) + 1
       } else {

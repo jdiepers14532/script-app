@@ -11,7 +11,7 @@ const SPIEL_COLORS: Record<string, string> = {
 
 export default function BesetzungPage() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? null
+  const produktionId = selectedProduction?.id ?? null
 
   const [data, setData] = useState<any>(null)
   const [werkstufTyp, setWerkstufTyp] = useState('drehbuch')
@@ -19,9 +19,9 @@ export default function BesetzungPage() {
   const [kategorieFilter, setKategorieFilter] = useState<string>('')
 
   useEffect(() => {
-    if (!staffelId) return
-    api.getStatBesetzungsmatrix(staffelId, werkstufTyp).then(setData).catch(() => {})
-  }, [staffelId, werkstufTyp])
+    if (!produktionId) return
+    api.getStatBesetzungsmatrix(produktionId, werkstufTyp).then(setData).catch(() => {})
+  }, [produktionId, werkstufTyp])
 
   const matrix = useMemo(() => {
     if (!data) return null
@@ -64,7 +64,7 @@ export default function BesetzungPage() {
     return { folgen, kategorien, characters }
   }, [data, filter, kategorieFilter])
 
-  if (!staffelId) {
+  if (!produktionId) {
     return (
       <AppShell hideProductionSelector={false}>
         <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center' }}>

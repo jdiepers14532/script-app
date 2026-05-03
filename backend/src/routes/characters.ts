@@ -14,11 +14,11 @@ charKategorienRouter.use(authMiddleware)
 
 // ── Global Characters ─────────────────────────────────────────────────────────
 
-// GET /api/characters?staffel_id=xxx
+// GET /api/characters?produktion_id=xxx
 // Returns characters with their production-specific data for a staffel
 charactersRouter.get('/', async (req, res) => {
-  const { staffel_id } = req.query
-  if (!staffel_id) return res.status(400).json({ error: 'staffel_id required' })
+  const { produktion_id } = req.query
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
   try {
     const rows = await query(
       `SELECT c.id, c.name, c.meta_json, c.created_at,
@@ -29,10 +29,10 @@ charactersRouter.get('/', async (req, res) => {
               (SELECT media_typ FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_media_typ,
               (SELECT thumbnail_dateiname FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_thumbnail_dateiname
        FROM characters c
-       JOIN character_productions cp ON cp.character_id = c.id AND cp.staffel_id = $1
+       JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $1
        LEFT JOIN character_kategorien ck ON ck.id = cp.kategorie_id
        ORDER BY ck.typ, cp.rollen_nummer NULLS LAST, cp.komparsen_nummer NULLS LAST, c.name`,
-      [staffel_id]
+      [produktion_id]
     )
     res.json(rows)
   } catch (err) {
@@ -42,18 +42,18 @@ charactersRouter.get('/', async (req, res) => {
 
 // POST /api/characters — create global character + optional production link
 charactersRouter.post('/', async (req, res) => {
-  const { name, meta_json, staffel_id, rollen_nummer, komparsen_nummer, kategorie_id } = req.body
+  const { name, meta_json, produktion_id, rollen_nummer, komparsen_nummer, kategorie_id } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   try {
     const char = await queryOne(
       `INSERT INTO characters (name, meta_json) VALUES ($1, $2) RETURNING *`,
       [name, meta_json ?? {}]
     )
-    if (staffel_id) {
+    if (produktion_id) {
       await queryOne(
-        `INSERT INTO character_productions (character_id, staffel_id, rollen_nummer, komparsen_nummer, kategorie_id)
+        `INSERT INTO character_productions (character_id, produktion_id, rollen_nummer, komparsen_nummer, kategorie_id)
          VALUES ($1, $2, $3, $4, $5)`,
-        [char.id, staffel_id, rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null]
+        [char.id, produktion_id, rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null]
       )
     }
     res.status(201).json(char)
@@ -73,8 +73,8 @@ charactersRouter.get('/search', async (req, res) => {
       `SELECT c.id, c.name,
               (SELECT STRING_AGG(DISTINCT s.name, ', ')
                FROM character_productions cp
-               JOIN staffeln s ON s.id = cp.staffel_id
-               WHERE cp.character_id = c.id) AS staffeln
+               JOIN produktionen s ON s.id = cp.produktion_id
+               WHERE cp.character_id = c.id) AS produktionen
        FROM characters c
        WHERE c.name ILIKE $1
        ORDER BY c.name
@@ -116,19 +116,19 @@ charactersRouter.delete('/:id', async (req, res) => {
 
 // POST /api/characters/:id/productions — link to production
 charactersRouter.post('/:id/productions', async (req, res) => {
-  const { staffel_id, rollen_nummer, komparsen_nummer, kategorie_id } = req.body
-  if (!staffel_id) return res.status(400).json({ error: 'staffel_id required' })
+  const { produktion_id, rollen_nummer, komparsen_nummer, kategorie_id } = req.body
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
   try {
     const row = await queryOne(
-      `INSERT INTO character_productions (character_id, staffel_id, rollen_nummer, komparsen_nummer, kategorie_id)
+      `INSERT INTO character_productions (character_id, produktion_id, rollen_nummer, komparsen_nummer, kategorie_id)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (character_id, staffel_id) DO UPDATE SET
+       ON CONFLICT (character_id, produktion_id) DO UPDATE SET
          rollen_nummer = EXCLUDED.rollen_nummer,
          komparsen_nummer = EXCLUDED.komparsen_nummer,
          kategorie_id = EXCLUDED.kategorie_id,
          updated_at = NOW()
        RETURNING *`,
-      [req.params.id, staffel_id, rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null]
+      [req.params.id, produktion_id, rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null]
     )
     res.json(row)
   } catch (err: any) {
@@ -137,8 +137,8 @@ charactersRouter.post('/:id/productions', async (req, res) => {
   }
 })
 
-// PUT /api/characters/:id/productions/:staffelId
-charactersRouter.put('/:id/productions/:staffelId', async (req, res) => {
+// PUT /api/characters/:id/productions/:produktionId
+charactersRouter.put('/:id/productions/:produktionId', async (req, res) => {
   const { rollen_nummer, komparsen_nummer, kategorie_id } = req.body
   try {
     const row = await queryOne(
@@ -147,8 +147,8 @@ charactersRouter.put('/:id/productions/:staffelId', async (req, res) => {
          komparsen_nummer = COALESCE($2, komparsen_nummer),
          kategorie_id = COALESCE($3, kategorie_id),
          updated_at = NOW()
-       WHERE character_id = $4 AND staffel_id = $5 RETURNING *`,
-      [rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null, req.params.id, req.params.staffelId]
+       WHERE character_id = $4 AND produktion_id = $5 RETURNING *`,
+      [rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null, req.params.id, req.params.produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Produktions-Verknüpfung nicht gefunden' })
     res.json(row)
@@ -158,12 +158,12 @@ charactersRouter.put('/:id/productions/:staffelId', async (req, res) => {
   }
 })
 
-// DELETE /api/characters/:id/productions/:staffelId
-charactersRouter.delete('/:id/productions/:staffelId', async (req, res) => {
+// DELETE /api/characters/:id/productions/:produktionId
+charactersRouter.delete('/:id/productions/:produktionId', async (req, res) => {
   try {
     const row = await queryOne(
-      `DELETE FROM character_productions WHERE character_id = $1 AND staffel_id = $2 RETURNING character_id`,
-      [req.params.id, req.params.staffelId]
+      `DELETE FROM character_productions WHERE character_id = $1 AND produktion_id = $2 RETURNING character_id`,
+      [req.params.id, req.params.produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Produktions-Verknüpfung nicht gefunden' })
     res.json({ ok: true })
@@ -172,15 +172,15 @@ charactersRouter.delete('/:id/productions/:staffelId', async (req, res) => {
   }
 })
 
-// ── Kategorien (per Staffel) ──────────────────────────────────────────────────
+// ── Kategorien (per Produktion) ──────────────────────────────────────────────────
 
-// GET /api/staffeln/:id/character-kategorien
+// GET /api/produktionen/:id/character-kategorien
 charKategorienRouter.get('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const rows = await query(
-      `SELECT * FROM character_kategorien WHERE staffel_id = $1 ORDER BY sort_order, id`,
-      [staffelId]
+      `SELECT * FROM character_kategorien WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktionId]
     )
     res.json(rows)
   } catch (err) {
@@ -188,21 +188,21 @@ charKategorienRouter.get('/', async (req, res) => {
   }
 })
 
-// POST /api/staffeln/:id/character-kategorien
+// POST /api/produktionen/:id/character-kategorien
 charKategorienRouter.post('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { name, typ, sort_order } = req.body
   if (!name || !typ) return res.status(400).json({ error: 'name und typ required' })
   if (!['rolle', 'komparse'].includes(typ)) return res.status(400).json({ error: 'typ muss rolle oder komparse sein' })
   try {
     const maxOrder = await queryOne(
-      `SELECT COALESCE(MAX(sort_order), 0) AS m FROM character_kategorien WHERE staffel_id = $1`,
-      [staffelId]
+      `SELECT COALESCE(MAX(sort_order), 0) AS m FROM character_kategorien WHERE produktion_id = $1`,
+      [produktionId]
     )
     const row = await queryOne(
-      `INSERT INTO character_kategorien (staffel_id, name, typ, sort_order)
+      `INSERT INTO character_kategorien (produktion_id, name, typ, sort_order)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [staffelId, name, typ, sort_order ?? (maxOrder.m + 1)]
+      [produktionId, name, typ, sort_order ?? (maxOrder.m + 1)]
     )
     res.status(201).json(row)
   } catch (err: any) {
@@ -211,21 +211,21 @@ charKategorienRouter.post('/', async (req, res) => {
   }
 })
 
-// PATCH /api/staffeln/:id/character-kategorien/reorder
+// PATCH /api/produktionen/:id/character-kategorien/reorder
 charKategorienRouter.patch('/reorder', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { order } = req.body
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' })
   try {
     for (const { id, sort_order } of order) {
       await queryOne(
-        `UPDATE character_kategorien SET sort_order = $1 WHERE id = $2 AND staffel_id = $3`,
-        [sort_order, id, staffelId]
+        `UPDATE character_kategorien SET sort_order = $1 WHERE id = $2 AND produktion_id = $3`,
+        [sort_order, id, produktionId]
       )
     }
     const rows = await query(
-      `SELECT * FROM character_kategorien WHERE staffel_id = $1 ORDER BY sort_order, id`,
-      [staffelId]
+      `SELECT * FROM character_kategorien WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktionId]
     )
     res.json(rows)
   } catch (err) {
@@ -233,9 +233,9 @@ charKategorienRouter.patch('/reorder', async (req, res) => {
   }
 })
 
-// PUT /api/staffeln/:id/character-kategorien/:katId
+// PUT /api/produktionen/:id/character-kategorien/:katId
 charKategorienRouter.put('/:katId', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { name, typ, sort_order } = req.body
   try {
     const row = await queryOne(
@@ -243,8 +243,8 @@ charKategorienRouter.put('/:katId', async (req, res) => {
          name = COALESCE($1, name),
          typ = COALESCE($2, typ),
          sort_order = COALESCE($3, sort_order)
-       WHERE id = $4 AND staffel_id = $5 RETURNING *`,
-      [name ?? null, typ ?? null, sort_order ?? null, req.params.katId, staffelId]
+       WHERE id = $4 AND produktion_id = $5 RETURNING *`,
+      [name ?? null, typ ?? null, sort_order ?? null, req.params.katId, produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Kategorie nicht gefunden' })
     res.json(row)
@@ -254,13 +254,13 @@ charKategorienRouter.put('/:katId', async (req, res) => {
   }
 })
 
-// DELETE /api/staffeln/:id/character-kategorien/:katId
+// DELETE /api/produktionen/:id/character-kategorien/:katId
 charKategorienRouter.delete('/:katId', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const row = await queryOne(
-      `DELETE FROM character_kategorien WHERE id = $1 AND staffel_id = $2 RETURNING id`,
-      [req.params.katId, staffelId]
+      `DELETE FROM character_kategorien WHERE id = $1 AND produktion_id = $2 RETURNING id`,
+      [req.params.katId, produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Kategorie nicht gefunden' })
     res.json({ ok: true })
@@ -271,13 +271,13 @@ charKategorienRouter.delete('/:katId', async (req, res) => {
 
 // POST /api/characters/:id/aktivieren — set is_active = true in a production
 charactersRouter.post('/:id/aktivieren', async (req, res) => {
-  const { staffel_id } = req.body
-  if (!staffel_id) return res.status(400).json({ error: 'staffel_id required' })
+  const { produktion_id } = req.body
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
   try {
     const row = await queryOne(
       `UPDATE character_productions SET is_active = TRUE
-       WHERE character_id = $1 AND staffel_id = $2 RETURNING *`,
-      [req.params.id, staffel_id]
+       WHERE character_id = $1 AND produktion_id = $2 RETURNING *`,
+      [req.params.id, produktion_id]
     )
     if (!row) return res.status(404).json({ error: 'Verknüpfung nicht gefunden' })
     res.json(row)
@@ -351,7 +351,7 @@ sceneCharactersRouter.get('/', async (req, res) => {
        LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
        LEFT JOIN szenen sz ON sz.id = sc.szene_id
        LEFT JOIN stages st ON st.id = sz.stage_id
-       LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.staffel_id = st.staffel_id
+       LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.produktion_id = st.produktion_id
        WHERE sc.szene_id = $1
        ORDER BY ck.typ NULLS LAST, c.name`,
       [szeneId]

@@ -14,13 +14,13 @@ szenenRevisionenRouter.use(authMiddleware)
 
 // ── Stage Labels ──────────────────────────────────────────────────────────────
 
-// GET /api/staffeln/:staffelId/stage-labels
+// GET /api/produktionen/:produktionId/stage-labels
 stageLabelsRouter.get('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const rows = await query(
-      `SELECT * FROM stage_labels WHERE staffel_id = $1 ORDER BY sort_order, id`,
-      [staffelId]
+      `SELECT * FROM stage_labels WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktionId]
     )
     res.json(rows)
   } catch (err) {
@@ -28,20 +28,20 @@ stageLabelsRouter.get('/', async (req, res) => {
   }
 })
 
-// POST /api/staffeln/:staffelId/stage-labels
+// POST /api/produktionen/:produktionId/stage-labels
 stageLabelsRouter.post('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { name, sort_order, is_produktionsfassung } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   try {
     const maxOrder = await queryOne(
-      `SELECT COALESCE(MAX(sort_order), 0) AS m FROM stage_labels WHERE staffel_id = $1`,
-      [staffelId]
+      `SELECT COALESCE(MAX(sort_order), 0) AS m FROM stage_labels WHERE produktion_id = $1`,
+      [produktionId]
     )
     const row = await queryOne(
-      `INSERT INTO stage_labels (staffel_id, name, sort_order, is_produktionsfassung)
+      `INSERT INTO stage_labels (produktion_id, name, sort_order, is_produktionsfassung)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [staffelId, name, sort_order ?? (maxOrder.m + 1), is_produktionsfassung ?? false]
+      [produktionId, name, sort_order ?? (maxOrder.m + 1), is_produktionsfassung ?? false]
     )
     res.status(201).json(row)
   } catch (err: any) {
@@ -50,9 +50,9 @@ stageLabelsRouter.post('/', async (req, res) => {
   }
 })
 
-// PUT /api/staffeln/:staffelId/stage-labels/:labelId
+// PUT /api/produktionen/:produktionId/stage-labels/:labelId
 stageLabelsRouter.put('/:labelId', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { name, sort_order, is_produktionsfassung } = req.body
   try {
     const row = await queryOne(
@@ -60,9 +60,9 @@ stageLabelsRouter.put('/:labelId', async (req, res) => {
          name = COALESCE($1, name),
          sort_order = COALESCE($2, sort_order),
          is_produktionsfassung = COALESCE($3, is_produktionsfassung)
-       WHERE id = $4 AND staffel_id = $5 RETURNING *`,
+       WHERE id = $4 AND produktion_id = $5 RETURNING *`,
       [name ?? null, sort_order ?? null, is_produktionsfassung ?? null,
-       req.params.labelId, staffelId]
+       req.params.labelId, produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Stage-Label nicht gefunden' })
     res.json(row)
@@ -72,13 +72,13 @@ stageLabelsRouter.put('/:labelId', async (req, res) => {
   }
 })
 
-// DELETE /api/staffeln/:staffelId/stage-labels/:labelId
+// DELETE /api/produktionen/:produktionId/stage-labels/:labelId
 stageLabelsRouter.delete('/:labelId', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const row = await queryOne(
-      `DELETE FROM stage_labels WHERE id = $1 AND staffel_id = $2 RETURNING id`,
-      [req.params.labelId, staffelId]
+      `DELETE FROM stage_labels WHERE id = $1 AND produktion_id = $2 RETURNING id`,
+      [req.params.labelId, produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Stage-Label nicht gefunden' })
     res.json({ ok: true })
@@ -87,21 +87,21 @@ stageLabelsRouter.delete('/:labelId', async (req, res) => {
   }
 })
 
-// PATCH /api/staffeln/:staffelId/stage-labels/reorder — bulk sort_order update
+// PATCH /api/produktionen/:produktionId/stage-labels/reorder — bulk sort_order update
 stageLabelsRouter.patch('/reorder', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { order } = req.body // [{ id, sort_order }]
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' })
   try {
     for (const { id, sort_order } of order) {
       await queryOne(
-        `UPDATE stage_labels SET sort_order = $1 WHERE id = $2 AND staffel_id = $3`,
-        [sort_order, id, staffelId]
+        `UPDATE stage_labels SET sort_order = $1 WHERE id = $2 AND produktion_id = $3`,
+        [sort_order, id, produktionId]
       )
     }
     const rows = await query(
-      `SELECT * FROM stage_labels WHERE staffel_id = $1 ORDER BY sort_order, id`,
-      [staffelId]
+      `SELECT * FROM stage_labels WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktionId]
     )
     res.json(rows)
   } catch (err) {
@@ -111,13 +111,13 @@ stageLabelsRouter.patch('/reorder', async (req, res) => {
 
 // ── Revision Colors ───────────────────────────────────────────────────────────
 
-// GET /api/staffeln/:staffelId/revision-colors
+// GET /api/produktionen/:produktionId/revision-colors
 revisionColorsRouter.get('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const rows = await query(
-      `SELECT * FROM revision_colors WHERE staffel_id = $1 ORDER BY sort_order, id`,
-      [staffelId]
+      `SELECT * FROM revision_colors WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktionId]
     )
     res.json(rows)
   } catch (err) {
@@ -125,20 +125,20 @@ revisionColorsRouter.get('/', async (req, res) => {
   }
 })
 
-// POST /api/staffeln/:staffelId/revision-colors
+// POST /api/produktionen/:produktionId/revision-colors
 revisionColorsRouter.post('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { name, color, sort_order } = req.body
   if (!name || !color) return res.status(400).json({ error: 'name und color required' })
   try {
     const maxOrder = await queryOne(
-      `SELECT COALESCE(MAX(sort_order), 0) AS m FROM revision_colors WHERE staffel_id = $1`,
-      [staffelId]
+      `SELECT COALESCE(MAX(sort_order), 0) AS m FROM revision_colors WHERE produktion_id = $1`,
+      [produktionId]
     )
     const row = await queryOne(
-      `INSERT INTO revision_colors (staffel_id, name, color, sort_order)
+      `INSERT INTO revision_colors (produktion_id, name, color, sort_order)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [staffelId, name, color, sort_order ?? (maxOrder.m + 1)]
+      [produktionId, name, color, sort_order ?? (maxOrder.m + 1)]
     )
     res.status(201).json(row)
   } catch (err: any) {
@@ -147,9 +147,9 @@ revisionColorsRouter.post('/', async (req, res) => {
   }
 })
 
-// PUT /api/staffeln/:staffelId/revision-colors/:colorId
+// PUT /api/produktionen/:produktionId/revision-colors/:colorId
 revisionColorsRouter.put('/:colorId', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { name, color, sort_order } = req.body
   try {
     const row = await queryOne(
@@ -157,8 +157,8 @@ revisionColorsRouter.put('/:colorId', async (req, res) => {
          name = COALESCE($1, name),
          color = COALESCE($2, color),
          sort_order = COALESCE($3, sort_order)
-       WHERE id = $4 AND staffel_id = $5 RETURNING *`,
-      [name ?? null, color ?? null, sort_order ?? null, req.params.colorId, staffelId]
+       WHERE id = $4 AND produktion_id = $5 RETURNING *`,
+      [name ?? null, color ?? null, sort_order ?? null, req.params.colorId, produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Revisions-Farbe nicht gefunden' })
     res.json(row)
@@ -168,13 +168,13 @@ revisionColorsRouter.put('/:colorId', async (req, res) => {
   }
 })
 
-// DELETE /api/staffeln/:staffelId/revision-colors/:colorId
+// DELETE /api/produktionen/:produktionId/revision-colors/:colorId
 revisionColorsRouter.delete('/:colorId', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const row = await queryOne(
-      `DELETE FROM revision_colors WHERE id = $1 AND staffel_id = $2 RETURNING id`,
-      [req.params.colorId, staffelId]
+      `DELETE FROM revision_colors WHERE id = $1 AND produktion_id = $2 RETURNING id`,
+      [req.params.colorId, produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Revisions-Farbe nicht gefunden' })
     res.json({ ok: true })
@@ -183,21 +183,21 @@ revisionColorsRouter.delete('/:colorId', async (req, res) => {
   }
 })
 
-// PATCH /api/staffeln/:staffelId/revision-colors/reorder
+// PATCH /api/produktionen/:produktionId/revision-colors/reorder
 revisionColorsRouter.patch('/reorder', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { order } = req.body
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' })
   try {
     for (const { id, sort_order } of order) {
       await queryOne(
-        `UPDATE revision_colors SET sort_order = $1 WHERE id = $2 AND staffel_id = $3`,
-        [sort_order, id, staffelId]
+        `UPDATE revision_colors SET sort_order = $1 WHERE id = $2 AND produktion_id = $3`,
+        [sort_order, id, produktionId]
       )
     }
     const rows = await query(
-      `SELECT * FROM revision_colors WHERE staffel_id = $1 ORDER BY sort_order, id`,
-      [staffelId]
+      `SELECT * FROM revision_colors WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktionId]
     )
     res.json(rows)
   } catch (err) {
@@ -207,36 +207,36 @@ revisionColorsRouter.patch('/reorder', async (req, res) => {
 
 // ── Revision Export Einstellungen ─────────────────────────────────────────────
 
-// GET /api/staffeln/:staffelId/revision-einstellungen
+// GET /api/produktionen/:produktionId/revision-einstellungen
 revisionEinstellungenRouter.get('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const row = await queryOne(
-      `SELECT * FROM revision_export_einstellungen WHERE staffel_id = $1`,
-      [staffelId]
+      `SELECT * FROM revision_export_einstellungen WHERE produktion_id = $1`,
+      [produktionId]
     )
-    res.json(row ?? { staffel_id: staffelId, memo_schwellwert_zeichen: 100 })
+    res.json(row ?? { produktion_id: produktionId, memo_schwellwert_zeichen: 100 })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
 
-// PUT /api/staffeln/:staffelId/revision-einstellungen
+// PUT /api/produktionen/:produktionId/revision-einstellungen
 revisionEinstellungenRouter.put('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { memo_schwellwert_zeichen } = req.body
   if (typeof memo_schwellwert_zeichen !== 'number' || memo_schwellwert_zeichen < 0) {
     return res.status(400).json({ error: 'memo_schwellwert_zeichen muss eine nicht-negative Zahl sein' })
   }
   try {
     const row = await queryOne(
-      `INSERT INTO revision_export_einstellungen (staffel_id, memo_schwellwert_zeichen)
+      `INSERT INTO revision_export_einstellungen (produktion_id, memo_schwellwert_zeichen)
        VALUES ($1, $2)
-       ON CONFLICT (staffel_id) DO UPDATE SET
+       ON CONFLICT (produktion_id) DO UPDATE SET
          memo_schwellwert_zeichen = EXCLUDED.memo_schwellwert_zeichen,
          updated_at = NOW()
        RETURNING *`,
-      [staffelId, memo_schwellwert_zeichen]
+      [produktionId, memo_schwellwert_zeichen]
     )
     res.json(row)
   } catch (err) {

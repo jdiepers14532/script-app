@@ -46,7 +46,7 @@ const ELEMENT_TYPE_SHORTCUTS: Record<ScreenplayElementType, string> = {
 interface ScreenplayEditorProps {
   ydoc?: Y.Doc | null
   provider?: HocuspocusProvider | null
-  staffelId?: string
+  produktionId?: string
   initialContent?: any  // ProseMirror JSON
   onSave?: (content: any) => void
   autoSaveMs?: number
@@ -68,7 +68,7 @@ export default function ScreenplayEditor({
   placeholder = 'INT. ORT - TAG',
   ydoc,
   provider,
-  staffelId,
+  produktionId,
 }: ScreenplayEditorProps) {
   injectScreenplayCSS()
 
@@ -84,22 +84,22 @@ export default function ScreenplayEditor({
 
   const triggerAutocomplete = useCallback((query: string, domRect: DOMRect | null) => {
     setAcQuery(query)
-    if (!query || !staffelId || !domRect) { setAcSuggestions([]); setAcPos(null); return }
+    if (!query || !produktionId || !domRect) { setAcSuggestions([]); setAcPos(null); return }
     if (acTimer.current) clearTimeout(acTimer.current)
     acTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/autocomplete/characters?staffel_id=${encodeURIComponent(staffelId)}&q=${encodeURIComponent(query)}`, { credentials: 'include' })
+        const res = await fetch(`/api/autocomplete/characters?produktion_id=${encodeURIComponent(produktionId)}&q=${encodeURIComponent(query)}`, { credentials: 'include' })
         const data = await res.json()
         const names = [
           ...(data.own ?? []).map((c: any) => c.name),
-          ...(data.cross ?? []).map((c: any) => `${c.name} • ${c.staffel_id}`),
+          ...(data.cross ?? []).map((c: any) => `${c.name} • ${c.produktion_id}`),
         ].slice(0, 8)
         setAcSuggestions(names)
         if (names.length > 0) setAcPos({ x: domRect.left, y: domRect.bottom + 4 })
         else setAcPos(null)
       } catch { setAcSuggestions([]); setAcPos(null) }
     }, 250)
-  }, [staffelId])
+  }, [produktionId])
 
   const applyAutocomplete = useCallback((suggestion: string, ed: any) => {
     const name = suggestion.split(' • ')[0]

@@ -9,7 +9,7 @@ interface SceneListProps {
   szenen: any[]
   selectedSzeneId: number | string | null
   onSelectSzene: (id: number | string) => void
-  staffelId: string | null
+  produktionId: string | null
   folgeNummer: number | null
   stageId: number | null
   colorMode?: 'full' | 'subtle' | 'off'
@@ -23,7 +23,7 @@ export default function SceneList({
   szenen,
   selectedSzeneId,
   onSelectSzene,
-  staffelId,
+  produktionId,
   folgeNummer,
   stageId,
   colorMode = 'subtle',
@@ -48,11 +48,11 @@ export default function SceneList({
   const [dragOverId, setDragOverId] = useState<number | string | null>(null)
 
   useEffect(() => {
-    if (!staffelId || folgeNummer == null) { setLock(null); return }
-    api.getLock(staffelId, folgeNummer)
+    if (!produktionId || folgeNummer == null) { setLock(null); return }
+    api.getLock(produktionId, folgeNummer)
       .then(setLock)
       .catch(() => setLock(null))
-  }, [staffelId, folgeNummer])
+  }, [produktionId, folgeNummer])
 
   const sorted = [...szenen].sort((a, b) => {
     const so = (a.sort_order ?? 0) - (b.sort_order ?? 0)

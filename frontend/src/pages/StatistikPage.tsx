@@ -23,7 +23,7 @@ function formatTime(sek: number) {
 
 export default function StatistikPage() {
   const { selectedProduction } = useSelectedProduction()
-  const staffelId = selectedProduction?.id ?? null
+  const produktionId = selectedProduction?.id ?? null
 
   const [folgen, setFolgen] = useState<any[]>([])
   const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(null)
@@ -33,9 +33,9 @@ export default function StatistikPage() {
 
   // Load Folgen
   useEffect(() => {
-    if (!staffelId) return
-    api.getFolgenV2(staffelId).then(setFolgen).catch(() => {})
-  }, [staffelId])
+    if (!produktionId) return
+    api.getFolgenV2(produktionId).then(setFolgen).catch(() => {})
+  }, [produktionId])
 
   // Load Werkstufen for selected Folge
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function StatistikPage() {
     }
   }, [folgen, selectedFolgeId])
 
-  if (!staffelId) {
+  if (!produktionId) {
     return (
       <AppShell hideProductionSelector={false}>
         <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center' }}>
@@ -135,7 +135,7 @@ export default function StatistikPage() {
               {tab === 'overview' && <OverviewTab werkId={selectedWerkId} />}
               {tab === 'repliken' && <ReplikenTab werkId={selectedWerkId} />}
               {tab === 'pairs' && <PairsTab werkId={selectedWerkId} />}
-              {tab === 'motiv' && <MotivTab werkId={selectedWerkId} staffelId={staffelId} />}
+              {tab === 'motiv' && <MotivTab werkId={selectedWerkId} produktionId={produktionId} />}
               {tab === 'komparsen' && <KomparsenTab werkId={selectedWerkId} />}
               {tab === 'compare' && <CompareTab werkId={selectedWerkId} werkstufen={werkstufen} />}
             </>
@@ -306,16 +306,16 @@ function PairsTab({ werkId }: { werkId: string }) {
 }
 
 // ── Motiv Tab ──────────────────────────────────────────────────────────
-function MotivTab({ werkId, staffelId }: { werkId: string; staffelId: string }) {
+function MotivTab({ werkId, produktionId }: { werkId: string; produktionId: string }) {
   const [data, setData] = useState<any[]>([])
   const [mode, setMode] = useState<'werkstufe' | 'staffel'>('werkstufe')
 
   useEffect(() => {
     const params: Record<string, string> = mode === 'werkstufe'
       ? { werkstufe_id: werkId }
-      : { staffel_id: staffelId }
+      : { produktion_id: produktionId }
     api.getStatMotivAuslastung(params).then(setData).catch(() => {})
-  }, [werkId, staffelId, mode])
+  }, [werkId, produktionId, mode])
 
   return (
     <div>

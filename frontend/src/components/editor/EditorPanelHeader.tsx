@@ -28,7 +28,7 @@ const TYP_LABELS: Record<string, string> = {
 interface Props {
   selectedWerk: WerkstufeMeta | null
   werkstufen: WerkstufeMeta[]
-  staffelId: string
+  produktionId: string
   folgeNummer: number
   folgeId: number | null
   onSelectWerkstufe: (id: string) => void
@@ -37,7 +37,7 @@ interface Props {
 }
 
 export default function EditorPanelHeader({
-  selectedWerk, werkstufen, staffelId, folgeNummer, folgeId,
+  selectedWerk, werkstufen, produktionId, folgeNummer, folgeId,
   onSelectWerkstufe, onCreateWerkstufe, onReloadWerkstufen,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)

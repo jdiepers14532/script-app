@@ -8,20 +8,20 @@ export const folgenV2Router = Router()
 folgenV2Router.use(authMiddleware)
 
 // ══════════════════════════════════════════════════════════════════════════════
-// GET /api/v2/folgen?staffel_id=X — all Folgen of a Staffel
+// GET /api/v2/folgen?produktion_id=X — all Folgen of a Produktion
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.get('/', async (req, res) => {
   try {
-    const { staffel_id } = req.query
-    if (!staffel_id) return res.status(400).json({ error: 'staffel_id required' })
+    const { produktion_id } = req.query
+    if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
 
     const rows = await query(
       `SELECT f.*,
               (SELECT COUNT(*)::int FROM werkstufen w WHERE w.folge_id = f.id) AS werkstufen_count
        FROM folgen f
-       WHERE f.staffel_id = $1
+       WHERE f.produktion_id = $1
        ORDER BY f.folge_nummer`,
-      [staffel_id]
+      [produktion_id]
     )
     res.json(rows)
   } catch (err) {
@@ -52,23 +52,23 @@ folgenV2Router.get('/:id', async (req, res) => {
 // POST /api/v2/folgen — create Folge
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.post('/', async (req, res) => {
-  const { staffel_id, folge_nummer, folgen_titel } = req.body
+  const { produktion_id, folge_nummer, folgen_titel } = req.body
   const user = req.user!
-  if (!staffel_id || !folge_nummer) return res.status(400).json({ error: 'staffel_id und folge_nummer required' })
+  if (!produktion_id || !folge_nummer) return res.status(400).json({ error: 'produktion_id und folge_nummer required' })
 
   try {
     const row = await queryOne(
-      `INSERT INTO folgen (staffel_id, folge_nummer, folgen_titel, erstellt_von)
+      `INSERT INTO folgen (produktion_id, folge_nummer, folgen_titel, erstellt_von)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (staffel_id, folge_nummer) DO NOTHING
+       ON CONFLICT (produktion_id, folge_nummer) DO NOTHING
        RETURNING *`,
-      [staffel_id, folge_nummer, folgen_titel ?? null, user.user_id]
+      [produktion_id, folge_nummer, folgen_titel ?? null, user.user_id]
     )
     if (!row) {
       // Already exists — return existing
       const existing = await queryOne(
-        'SELECT * FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2',
-        [staffel_id, folge_nummer]
+        'SELECT * FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2',
+        [produktion_id, folge_nummer]
       )
       return res.json(existing)
     }

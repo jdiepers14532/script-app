@@ -18,7 +18,7 @@ import AnsichtsModal from './AnsichtsModal'
 
 interface AppShellProps {
   children: ReactNode
-  selectedStaffelId?: string
+  selectedProduktionId?: string
   bloecke?: any[]
   selectedBlock?: any | null
   onSelectBlock?: (block: any) => void
@@ -239,7 +239,7 @@ const selectStyle: React.CSSProperties = {
 
 export default function AppShell({
   children,
-  selectedStaffelId = '',
+  selectedProduktionId = '',
   bloecke = [],
   selectedBlock = null,
   onSelectBlock,
@@ -301,7 +301,7 @@ export default function AppShell({
   const [importFile, setImportFile]               = useState<File | null>(null)
   const [importPreview, setImportPreview]         = useState<any>(null)
   const [importPreviewLoading, setImportPreviewLoading] = useState(false)
-  const [importStaffelId, setImportStaffelId]     = useState('')
+  const [importProduktionId, setImportProduktionId]     = useState('')
   const [importFolge, setImportFolge]             = useState('')
   const [importStageType, setImportStageType]     = useState('draft')
   const [importSaveMeta, setImportSaveMeta]       = useState(false)
@@ -324,8 +324,8 @@ export default function AppShell({
   const openImportView = useCallback(() => {
     setOfflineView('import')
     setImportFile(null); setImportPreview(null); setImportResult(null)
-    if (!importStaffelId && productions.length > 0) setImportStaffelId(productions[0].id)
-  }, [importStaffelId, productions])
+    if (!importProduktionId && productions.length > 0) setImportProduktionId(productions[0].id)
+  }, [importProduktionId, productions])
 
   const handleImportFile = useCallback(async (file: File) => {
     setImportFile(file)
@@ -340,11 +340,11 @@ export default function AppShell({
   }, [])
 
   const handleImportCommit = useCallback(async () => {
-    if (!importFile || !importStaffelId || !importFolge) return
+    if (!importFile || !importProduktionId || !importFolge) return
     setImportLoading(true)
     try {
       const result = await api.importCommit(importFile, {
-        staffel_id: importStaffelId,
+        produktion_id: importProduktionId,
         folge_nummer: parseInt(importFolge),
         stage_type: importStageType,
         save_metadata: importSaveMeta,
@@ -353,7 +353,7 @@ export default function AppShell({
     } catch (e: any) {
       setImportResult({ error: e.message })
     } finally { setImportLoading(false) }
-  }, [importFile, importStaffelId, importFolge, importStageType, importSaveMeta])
+  }, [importFile, importProduktionId, importFolge, importStageType, importSaveMeta])
 
   const handleExportDownload = useCallback(async () => {
     const stageId = exportStageId ?? (stages.length > 0 ? stages[0].id : null)
@@ -383,7 +383,7 @@ export default function AppShell({
     try {
       const keys = await caches.keys()
       const LABELS: Record<string, string> = {
-        'api-staffeln': 'Staffeln (NetworkFirst)',
+        'api-produktionen': 'Staffeln (NetworkFirst)',
         'api-episoden': 'Episoden (NetworkFirst)',
         'api-szenen': 'Szenen (Stale-While-Revalidate)',
         'workbox-precache-v2-https://script.serienwerft.studio/': 'App-Shell (CacheFirst)',
@@ -504,11 +504,11 @@ export default function AppShell({
 
   // ── Sendedatum live aus ProdDB ────────────────────────────────────────────
   useEffect(() => {
-    if (!selectedStaffelId || selectedFolgeNummer == null) { setSendedatum(null); return }
-    api.getSendedatum(selectedStaffelId, selectedFolgeNummer)
+    if (!selectedProduktionId || selectedFolgeNummer == null) { setSendedatum(null); return }
+    api.getSendedatum(selectedProduktionId, selectedFolgeNummer)
       .then(d => setSendedatum(d))
       .catch(() => setSendedatum(null))
-  }, [selectedStaffelId, selectedFolgeNummer])
+  }, [selectedProduktionId, selectedFolgeNummer])
 
   // ── Sonnenauf/-untergang + Wetter (via Backend-Proxy → Open-Meteo) + Zeitumstellung ──────────
   useEffect(() => {
@@ -642,14 +642,14 @@ export default function AppShell({
     onSelectFolge?.(nr)
   }
 
-  const selectedStaffel = productions.find(p => p.id === selectedStaffelId)
+  const selectedProduktion = productions.find(p => p.id === selectedProduktionId)
   const selectedStage = stages.find(s => s.id === selectedStageId)
-  const crumbStaffel = selectedStaffel
+  const crumbProduktion = selectedProduktion
     ? (() => {
-        const title = selectedStaffel.staffelnummer ? `${selectedStaffel.title} Staffel ${selectedStaffel.staffelnummer}` : selectedStaffel.title
-        return selectedStaffel.projektnummer ? `${selectedStaffel.projektnummer} · ${title}` : title
+        const title = selectedProduktion.staffelnummer ? `${selectedProduktion.title} Staffel ${selectedProduktion.staffelnummer}` : selectedProduktion.title
+        return selectedProduktion.projektnummer ? `${selectedProduktion.projektnummer} · ${title}` : title
       })()
-    : selectedStaffelId ?? 'Script'
+    : selectedProduktionId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
   // Print-only nav (screen: hidden, print: visible)
@@ -715,7 +715,7 @@ export default function AppShell({
           {!hideProductionSelector && productions.length > 0 ? (
             <ProductionSelector productions={productions} selectedId={selectedProdId} onSelect={selectProduction} />
           ) : (
-            <span>{crumbStaffel}</span>
+            <span>{crumbProduktion}</span>
           )}
 
           {bloecke.length > 0 && onSelectBlock && (
@@ -1402,7 +1402,7 @@ export default function AppShell({
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
                       <div>
                         <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Staffel</div>
-                        <select value={importStaffelId} onChange={e => setImportStaffelId(e.target.value)}
+                        <select value={importProduktionId} onChange={e => setImportProduktionId(e.target.value)}
                           style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
                           {productions.filter(p => p.is_active).length > 0 && (
                             <optgroup label="Aktive Produktionen">
@@ -1441,12 +1441,12 @@ export default function AppShell({
 
                     <button
                       onClick={handleImportCommit}
-                      disabled={importLoading || !importStaffelId || !importFolge}
+                      disabled={importLoading || !importProduktionId || !importFolge}
                       style={{
                         padding: '11px', borderRadius: 8, border: 'none',
-                        background: importStaffelId && importFolge ? 'var(--sw-green)' : 'var(--bg-subtle)',
-                        color: importStaffelId && importFolge ? '#fff' : 'var(--text-secondary)',
-                        fontWeight: 700, fontSize: 13, cursor: importStaffelId && importFolge ? 'pointer' : 'not-allowed',
+                        background: importProduktionId && importFolge ? 'var(--sw-green)' : 'var(--bg-subtle)',
+                        color: importProduktionId && importFolge ? '#fff' : 'var(--text-secondary)',
+                        fontWeight: 700, fontSize: 13, cursor: importProduktionId && importFolge ? 'pointer' : 'not-allowed',
                       }}
                     >
                       {importLoading ? 'Importiere…' : 'Als neue Fassung importieren'}

@@ -108,12 +108,12 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
 
-    const staffel_id = req.body.staffel_id
+    const produktion_id = req.body.produktion_id
     const folge_nummer = parseInt(req.body.folge_nummer)
     const proddb_block_id = req.body.proddb_block_id || null
 
-    if (!staffel_id || isNaN(folge_nummer)) {
-      return res.status(400).json({ error: 'staffel_id und folge_nummer erforderlich' })
+    if (!produktion_id || isNaN(folge_nummer)) {
+      return res.status(400).json({ error: 'produktion_id und folge_nummer erforderlich' })
     }
 
     let stage_type = req.body.stage_type || 'draft'
@@ -175,14 +175,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     // Ensure folgen row exists
     let folge = await queryOne(
-      `SELECT id FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2`,
-      [staffel_id, folge_nummer]
+      `SELECT id FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
+      [produktion_id, folge_nummer]
     )
     if (!folge) {
       folge = await queryOne(
-        `INSERT INTO folgen (staffel_id, folge_nummer, erstellt_von)
+        `INSERT INTO folgen (produktion_id, folge_nummer, erstellt_von)
          VALUES ($1, $2, $3) RETURNING id`,
-        [staffel_id, folge_nummer, req.user!.name || req.user!.user_id]
+        [produktion_id, folge_nummer, req.user!.name || req.user!.user_id]
       )
     }
 
@@ -201,14 +201,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     // Create legacy stage for navigation compatibility
     const nextStageVer = await queryOne(
       `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM stages
-       WHERE staffel_id = $1 AND folge_nummer = $2 AND stage_type = $3`,
-      [staffel_id, folge_nummer, stage_type]
+       WHERE produktion_id = $1 AND folge_nummer = $2 AND stage_type = $3`,
+      [produktion_id, folge_nummer, stage_type]
     )
     const stage = await queryOne(
-      `INSERT INTO stages (staffel_id, folge_nummer, proddb_block_id, stage_type,
+      `INSERT INTO stages (produktion_id, folge_nummer, proddb_block_id, stage_type,
         version_nummer, version_label, status, erstellt_von, meta_json)
        VALUES ($1, $2, $3, $4, $5, $6, 'in_arbeit', $7, $8) RETURNING id`,
-      [staffel_id, folge_nummer, proddb_block_id, stage_type,
+      [produktion_id, folge_nummer, proddb_block_id, stage_type,
        (nextStageVer?.m ?? 0) + 1, versionLabel,
        req.user!.name || req.user!.user_id, JSON.stringify(metaJson)]
     )
@@ -220,8 +220,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const isWechselschnitt = szene.isWechselschnitt || false
 
       const identity = await queryOne(
-        `INSERT INTO scene_identities (staffel_id, folge_id, created_by) VALUES ($1, $2, $3) RETURNING id`,
-        [staffel_id, folge.id, req.user!.name || req.user!.user_id]
+        `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
+        [folge.id, req.user!.name || req.user!.user_id]
       )
 
       // Convert textelemente to ProseMirror format (screenplay_element nodes)
@@ -271,8 +271,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     // ── Characters: use new characters + character_productions system ──
     // Load existing kategorien for this staffel
     const kategorien = await query(
-      `SELECT id, name, typ FROM character_kategorien WHERE staffel_id = $1`,
-      [staffel_id]
+      `SELECT id, name, typ FROM character_kategorien WHERE produktion_id = $1`,
+      [produktion_id]
     )
     const rolleKatId = kategorien.find((k: any) => k.name === 'Episoden-Rolle')?.id
       || kategorien.find((k: any) => k.typ === 'rolle')?.id || null
@@ -290,9 +290,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         // Check if character already exists (case-insensitive)
         let existing = await queryOne(
           `SELECT c.id FROM characters c
-           JOIN character_productions cp ON cp.character_id = c.id AND cp.staffel_id = $2
+           JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $2
            WHERE UPPER(c.name) = UPPER($1)`,
-          [charName, staffel_id]
+          [charName, produktion_id]
         )
         if (existing) {
           charNameToId.set(charName.toUpperCase(), existing.id)
@@ -320,10 +320,10 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
         // Link to staffel (upsert)
         await queryOne(
-          `INSERT INTO character_productions (character_id, staffel_id, kategorie_id)
+          `INSERT INTO character_productions (character_id, produktion_id, kategorie_id)
            VALUES ($1, $2, $3)
-           ON CONFLICT (character_id, staffel_id) DO NOTHING`,
-          [charId, staffel_id, rolleKatId]
+           ON CONFLICT (character_id, produktion_id) DO NOTHING`,
+          [charId, produktion_id, rolleKatId]
         )
         charNameToId.set(charName.toUpperCase(), charId)
       } catch { /* ignore constraint violations */ }
@@ -396,9 +396,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       try {
         let existing = await queryOne(
           `SELECT c.id FROM characters c
-           JOIN character_productions cp ON cp.character_id = c.id AND cp.staffel_id = $2
+           JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $2
            WHERE UPPER(c.name) = UPPER($1)`,
-          [kompCleanName, staffel_id]
+          [kompCleanName, produktion_id]
         )
         if (existing) {
           charNameToId.set(kompCleanName.toUpperCase(), existing.id)
@@ -423,10 +423,10 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         }
 
         await queryOne(
-          `INSERT INTO character_productions (character_id, staffel_id, kategorie_id)
+          `INSERT INTO character_productions (character_id, produktion_id, kategorie_id)
            VALUES ($1, $2, $3)
-           ON CONFLICT (character_id, staffel_id) DO NOTHING`,
-          [charId, staffel_id, komparseKatId]
+           ON CONFLICT (character_id, produktion_id) DO NOTHING`,
+          [charId, produktion_id, komparseKatId]
         )
         charNameToId.set(kompCleanName.toUpperCase(), charId)
       } catch { /* ignore constraint violations */ }
@@ -491,14 +491,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       if (!szene.ort_name) continue
       try {
         const existing = await queryOne(
-          `SELECT id FROM motive WHERE staffel_id = $1 AND UPPER(name) = UPPER($2)`,
-          [staffel_id, szene.ort_name]
+          `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2)`,
+          [produktion_id, szene.ort_name]
         )
         if (!existing) {
           const motivTyp = szene.int_ext === 'EXT' ? 'exterior' : 'interior'
           await queryOne(
-            `INSERT INTO motive (staffel_id, name, typ, meta_json) VALUES ($1, $2, $3, $4)`,
-            [staffel_id, szene.ort_name, motivTyp, JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+            `INSERT INTO motive (produktion_id, name, typ, meta_json) VALUES ($1, $2, $3, $4)`,
+            [produktion_id, szene.ort_name, motivTyp, JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
           )
           motiveCreated++
         }

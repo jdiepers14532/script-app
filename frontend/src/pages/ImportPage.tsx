@@ -78,7 +78,7 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Step 2 settings
-  const [selectedStaffelId, setSelectedStaffelId] = useState('')
+  const [selectedProduktionId, setSelectedProduktionId] = useState('')
   const [bloecke, setBloecke] = useState<any[]>([])
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
@@ -102,19 +102,19 @@ export default function ImportPage() {
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
 
-  // Set selectedStaffelId from context
+  // Set selectedProduktionId from context
   useEffect(() => {
     if (selectedProduction) {
-      setSelectedStaffelId(selectedProduction.id)
+      setSelectedProduktionId(selectedProduction.id)
     } else if (productions.length > 0) {
-      setSelectedStaffelId(productions[0].id)
+      setSelectedProduktionId(productions[0].id)
     }
   }, [selectedProduction?.id, productions.length])
 
   // Load Blöcke from ProdDB (live, no sync)
   useEffect(() => {
-    if (!selectedStaffelId) return
-    fetch(`/api/staffeln/${selectedStaffelId}/bloecke`, { credentials: 'include' })
+    if (!selectedProduktionId) return
+    fetch(`/api/produktionen/${selectedProduktionId}/bloecke`, { credentials: 'include' })
       .then(r => r.json())
       .then(data => {
         setBloecke(data)
@@ -123,7 +123,7 @@ export default function ImportPage() {
         setSelectedFolgeNummer(first?.folge_von ?? null)
       })
       .catch(() => {})
-  }, [selectedStaffelId])
+  }, [selectedProduktionId])
 
   // When block changes, reset folge to first of that block
   useEffect(() => {
@@ -198,13 +198,13 @@ export default function ImportPage() {
   }
 
   const handleCommit = async () => {
-    if (!file || !selectedStaffelId || selectedFolgeNummer == null) return
+    if (!file || !selectedProduktionId || selectedFolgeNummer == null) return
     setLoading(true)
     setError(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('staffel_id', selectedStaffelId)
+      fd.append('produktion_id', selectedProduktionId)
       fd.append('folge_nummer', String(selectedFolgeNummer))
       if (selectedBlock?.proddb_id) fd.append('proddb_block_id', selectedBlock.proddb_id)
       fd.append('stage_type', stageType)
@@ -473,7 +473,7 @@ export default function ImportPage() {
 
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Staffel</label>
-                <select value={selectedStaffelId} onChange={e => setSelectedStaffelId(e.target.value)} style={selectStyle}>
+                <select value={selectedProduktionId} onChange={e => setSelectedProduktionId(e.target.value)} style={selectStyle}>
                   {productions.filter(p => p.is_active).length > 0 && (
                     <optgroup label="Aktive Produktionen">
                       {productions.filter(p => p.is_active).map(p => {

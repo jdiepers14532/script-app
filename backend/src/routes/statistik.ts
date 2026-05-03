@@ -154,12 +154,12 @@ statistikRouter.get('/character-pairs', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/statistik/besetzungsmatrix
 // Character × Episode grid: which characters appear in which episodes
-// Query: staffel_id (required), werkstufe_typ (optional, default 'drehbuch')
+// Query: produktion_id (required), werkstufe_typ (optional, default 'drehbuch')
 // ══════════════════════════════════════════════════════════════════════════════
 statistikRouter.get('/besetzungsmatrix', async (req, res) => {
   try {
-    const { staffel_id, werkstufe_typ } = req.query
-    if (!staffel_id) return res.status(400).json({ error: 'staffel_id erforderlich' })
+    const { produktion_id, werkstufe_typ } = req.query
+    if (!produktion_id) return res.status(400).json({ error: 'produktion_id erforderlich' })
 
     const typ = werkstufe_typ || 'drehbuch'
 
@@ -173,13 +173,13 @@ statistikRouter.get('/besetzungsmatrix', async (req, res) => {
               SUM(sc.repliken_anzahl) AS total_repliken,
               STRING_AGG(DISTINCT sc.spiel_typ, ',' ORDER BY sc.spiel_typ) AS spiel_typen
        FROM characters c
-       JOIN character_productions cp ON cp.character_id = c.id AND cp.staffel_id = $1
+       JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $1
        JOIN scene_characters sc ON sc.character_id = c.id AND sc.werkstufe_id IS NOT NULL
        JOIN werkstufen w ON w.id = sc.werkstufe_id AND w.typ = $2
-       JOIN folgen f ON f.id = w.folge_id AND f.staffel_id = $1
+       JOIN folgen f ON f.id = w.folge_id AND f.produktion_id = $1
        GROUP BY c.id, c.name, cp.kategorie_id, f.id, f.folge_nummer, w.id, w.typ
        ORDER BY c.name, f.folge_nummer`,
-      [staffel_id, typ]
+      [produktion_id, typ]
     )
 
     // Get episodes for columns
@@ -187,15 +187,15 @@ statistikRouter.get('/besetzungsmatrix', async (req, res) => {
       `SELECT DISTINCT f.id, f.folge_nummer, f.folgen_titel
        FROM folgen f
        JOIN werkstufen w ON w.folge_id = f.id AND w.typ = $2
-       WHERE f.staffel_id = $1
+       WHERE f.produktion_id = $1
        ORDER BY f.folge_nummer`,
-      [staffel_id, typ]
+      [produktion_id, typ]
     )
 
     // Get character categories
     const kategorien = await query(
-      `SELECT id, name FROM character_kategorien WHERE staffel_id = $1 ORDER BY sort_order, name`,
-      [staffel_id]
+      `SELECT id, name FROM character_kategorien WHERE produktion_id = $1 ORDER BY sort_order, name`,
+      [produktion_id]
     )
 
     res.json({ cells: rows, folgen, kategorien })
@@ -291,14 +291,14 @@ statistikRouter.get('/version-compare', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/statistik/motiv-auslastung
 // How often each motiv (location) is used across scenes
-// Query: werkstufe_id OR staffel_id (required)
+// Query: werkstufe_id OR produktion_id (required)
 // ══════════════════════════════════════════════════════════════════════════════
 statistikRouter.get('/motiv-auslastung', async (req, res) => {
   try {
-    const { werkstufe_id, staffel_id, werkstufe_typ } = req.query
+    const { werkstufe_id, produktion_id, werkstufe_typ } = req.query
 
-    if (!werkstufe_id && !staffel_id) {
-      return res.status(400).json({ error: 'werkstufe_id oder staffel_id erforderlich' })
+    if (!werkstufe_id && !produktion_id) {
+      return res.status(400).json({ error: 'werkstufe_id oder produktion_id erforderlich' })
     }
 
     let whereClause: string
@@ -312,9 +312,9 @@ statistikRouter.get('/motiv-auslastung', async (req, res) => {
       whereClause = `ds.werkstufe_id IN (
         SELECT w.id FROM werkstufen w
         JOIN folgen f ON f.id = w.folge_id
-        WHERE f.staffel_id = $1 AND w.typ = $2
+        WHERE f.produktion_id = $1 AND w.typ = $2
       )`
-      params.push(staffel_id, typ)
+      params.push(produktion_id, typ)
     }
 
     const rows = await query(
@@ -343,14 +343,14 @@ statistikRouter.get('/motiv-auslastung', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/statistik/komparsen-bedarf
 // Komparsen usage per scene/episode with headcount
-// Query: werkstufe_id OR staffel_id (required)
+// Query: werkstufe_id OR produktion_id (required)
 // ══════════════════════════════════════════════════════════════════════════════
 statistikRouter.get('/komparsen-bedarf', async (req, res) => {
   try {
-    const { werkstufe_id, staffel_id, werkstufe_typ } = req.query
+    const { werkstufe_id, produktion_id, werkstufe_typ } = req.query
 
-    if (!werkstufe_id && !staffel_id) {
-      return res.status(400).json({ error: 'werkstufe_id oder staffel_id erforderlich' })
+    if (!werkstufe_id && !produktion_id) {
+      return res.status(400).json({ error: 'werkstufe_id oder produktion_id erforderlich' })
     }
 
     let whereClause: string
@@ -364,9 +364,9 @@ statistikRouter.get('/komparsen-bedarf', async (req, res) => {
       whereClause = `sc.werkstufe_id IN (
         SELECT w.id FROM werkstufen w
         JOIN folgen f ON f.id = w.folge_id
-        WHERE f.staffel_id = $1 AND w.typ = $2
+        WHERE f.produktion_id = $1 AND w.typ = $2
       )`
-      params.push(staffel_id, typ)
+      params.push(produktion_id, typ)
     }
 
     // Get komparsen category id
@@ -475,12 +475,12 @@ statistikRouter.get('/overview', async (req, res) => {
 
 statistikRouter.get('/vorlagen', async (req, res) => {
   try {
-    const { staffel_id } = req.query
-    if (!staffel_id) return res.status(400).json({ error: 'staffel_id erforderlich' })
+    const { produktion_id } = req.query
+    if (!produktion_id) return res.status(400).json({ error: 'produktion_id erforderlich' })
 
     const rows = await query(
-      `SELECT * FROM statistik_vorlagen WHERE staffel_id = $1 ORDER BY sortierung, erstellt_am`,
-      [staffel_id]
+      `SELECT * FROM statistik_vorlagen WHERE produktion_id = $1 ORDER BY sortierung, erstellt_am`,
+      [produktion_id]
     )
     res.json(rows)
   } catch (err) {
@@ -490,15 +490,15 @@ statistikRouter.get('/vorlagen', async (req, res) => {
 
 statistikRouter.post('/vorlagen', async (req, res) => {
   try {
-    const { staffel_id, name, abfrage_typ, parameter, sortierung } = req.body
-    if (!staffel_id || !name || !abfrage_typ) {
-      return res.status(400).json({ error: 'staffel_id, name, abfrage_typ erforderlich' })
+    const { produktion_id, name, abfrage_typ, parameter, sortierung } = req.body
+    if (!produktion_id || !name || !abfrage_typ) {
+      return res.status(400).json({ error: 'produktion_id, name, abfrage_typ erforderlich' })
     }
 
     const row = await queryOne(
-      `INSERT INTO statistik_vorlagen (staffel_id, name, abfrage_typ, parameter, erstellt_von, sortierung)
+      `INSERT INTO statistik_vorlagen (produktion_id, name, abfrage_typ, parameter, erstellt_von, sortierung)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [staffel_id, name, abfrage_typ, JSON.stringify(parameter || {}), req.user?.user_id, sortierung ?? 0]
+      [produktion_id, name, abfrage_typ, JSON.stringify(parameter || {}), req.user?.user_id, sortierung ?? 0]
     )
     res.status(201).json(row)
   } catch (err) {

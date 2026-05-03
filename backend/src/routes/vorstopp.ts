@@ -71,19 +71,19 @@ szenenVorstoppRouter.delete('/:id', async (req, res) => {
   }
 })
 
-// ── Einstellungen (pro Staffel) ───────────────────────────────────────────────
+// ── Einstellungen (pro Produktion) ───────────────────────────────────────────────
 
-// GET /api/staffeln/:staffelId/vorstopp-einstellungen
+// GET /api/produktionen/:produktionId/vorstopp-einstellungen
 vorstoppEinstellungenRouter.get('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   try {
     const row = await queryOne(
-      `SELECT staffel_id, methode, menge::float8 AS menge, dauer_sekunden, updated_at FROM vorstopp_einstellungen WHERE staffel_id = $1`,
-      [staffelId]
+      `SELECT produktion_id, methode, menge::float8 AS menge, dauer_sekunden, updated_at FROM vorstopp_einstellungen WHERE produktion_id = $1`,
+      [produktionId]
     )
     // Return defaults if not configured yet
     res.json(row ?? {
-      staffel_id: staffelId,
+      produktion_id: produktionId,
       methode: 'seiten',
       menge: 0.125,
       dauer_sekunden: 60,
@@ -93,24 +93,24 @@ vorstoppEinstellungenRouter.get('/', async (req, res) => {
   }
 })
 
-// PUT /api/staffeln/:staffelId/vorstopp-einstellungen
+// PUT /api/produktionen/:produktionId/vorstopp-einstellungen
 vorstoppEinstellungenRouter.put('/', async (req, res) => {
-  const { staffelId } = req.params as any
+  const { produktionId } = req.params as any
   const { methode, menge, dauer_sekunden } = req.body
   if (methode && !['seiten', 'zeichen', 'woerter'].includes(methode)) {
     return res.status(400).json({ error: 'methode muss seiten, zeichen oder woerter sein' })
   }
   try {
     const row = await queryOne(
-      `INSERT INTO vorstopp_einstellungen (staffel_id, methode, menge, dauer_sekunden)
+      `INSERT INTO vorstopp_einstellungen (produktion_id, methode, menge, dauer_sekunden)
        VALUES ($1, $2, $3, $4)
-       ON CONFLICT (staffel_id) DO UPDATE SET
+       ON CONFLICT (produktion_id) DO UPDATE SET
          methode = EXCLUDED.methode,
          menge = EXCLUDED.menge,
          dauer_sekunden = EXCLUDED.dauer_sekunden,
          updated_at = NOW()
-       RETURNING staffel_id, methode, menge::float8 AS menge, dauer_sekunden, updated_at`,
-      [staffelId, methode ?? 'seiten', menge ?? 0.125, dauer_sekunden ?? 60]
+       RETURNING produktion_id, methode, menge::float8 AS menge, dauer_sekunden, updated_at`,
+      [produktionId, methode ?? 'seiten', menge ?? 0.125, dauer_sekunden ?? 60]
     )
     res.json(row)
   } catch (err) {
@@ -126,7 +126,7 @@ szenenVorstoppRouter.post('/auto', async (req, res) => {
   const { szeneId } = req.params as any
   try {
     const szene = await queryOne(
-      `SELECT sz.seiten, sz.content, sz.stage_id, st.staffel_id
+      `SELECT sz.seiten, sz.content, sz.stage_id, st.produktion_id
        FROM szenen sz JOIN stages st ON st.id = sz.stage_id
        WHERE sz.id = $1`,
       [szeneId]
@@ -134,8 +134,8 @@ szenenVorstoppRouter.post('/auto', async (req, res) => {
     if (!szene) return res.status(404).json({ error: 'Szene nicht gefunden' })
 
     const einst = await queryOne(
-      `SELECT * FROM vorstopp_einstellungen WHERE staffel_id = $1`,
-      [szene.staffel_id]
+      `SELECT * FROM vorstopp_einstellungen WHERE produktion_id = $1`,
+      [szene.produktion_id]
     )
     if (!einst) return res.status(400).json({ error: 'Keine Vorstopp-Einstellungen für diese Produktion konfiguriert' })
 

@@ -638,7 +638,7 @@ function OfflineTab() {
               <strong style={{ color: C.text }}>Service Worker (VitePWA + Workbox)</strong> — <code>registerType: 'autoUpdate'</code>
             </div>
             <div style={{ background: C.subtle, borderRadius: 6, padding: 12, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.8 }}>
-              <div><Badge color={C.purple}>NetworkFirst</Badge> <code style={{ color: C.muted }}>/api/staffeln</code> — 10s Timeout → Cache Fallback</div>
+              <div><Badge color={C.purple}>NetworkFirst</Badge> <code style={{ color: C.muted }}>/api/produktionen</code> — 10s Timeout → Cache Fallback</div>
               <div><Badge color={C.purple}>NetworkFirst</Badge> <code style={{ color: C.muted }}>/api/episoden</code> — 10s Timeout → Cache Fallback</div>
               <div><Badge color={C.orange}>StaleWhileRevalidate</Badge> <code style={{ color: C.muted }}>/api/szenen</code> — Cache sofort, Update im BG</div>
               <div><Badge color={C.blue}>CacheFirst</Badge> <code style={{ color: C.muted }}>*.js *.css *.html *.woff2</code> — App Shell immer lokal</div>
@@ -1374,7 +1374,7 @@ function SzenenFassungenTab() {
       }}>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Werkstufen-Modell (v2)</div>
         <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
-          5 Kerntabellen: <code>staffeln</code> → <code>folgen</code> → <code>scene_identities</code> +{' '}
+          5 Kerntabellen: <code>produktionen</code> → <code>folgen</code> → <code>scene_identities</code> +{' '}
           <code>werkstufen</code> → <code>dokument_szenen</code>. Content lebt ausschliesslich in{' '}
           <code>dokument_szenen.content</code> — kein separates <code>inhalt</code>-Feld.
           Die <strong>Scene Identity</strong> (UUID) bleibt stabil ueber alle Werkstufen hinweg,
@@ -1406,7 +1406,7 @@ function SzenenFassungenTab() {
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       <Section title="1. Datenmodell — ER-Uebersicht (5 Kerntabellen)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>
-          Die Hierarchie: <strong>Staffel → Folge → Scene Identity + Werkstufe → Dokument-Szene</strong>.{' '}
+          Die Hierarchie: <strong>Produktion → Folge → Scene Identity + Werkstufe → Dokument-Szene</strong>.{' '}
           <code>dokument_szenen</code> ist die N:M-Kreuzungstabelle zwischen Szenen und Werkstufen.
         </p>
 
@@ -1417,10 +1417,10 @@ function SzenenFassungenTab() {
           padding: 24,
           overflowX: 'auto',
         }}>
-          {/* Top row: staffeln → folgen */}
+          {/* Top row: produktionen → folgen */}
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ minWidth: 180, flexShrink: 0 }}>
-              <TableCard title="staffeln" color={C.blue}
+              <TableCard title="produktionen" color={C.blue}
                 note="Produktion (z.B. Rote Rosen)"
                 fields={[
                   { name: 'id', type: 'TEXT', desc: 'Slug (PK)' },
@@ -1439,7 +1439,7 @@ function SzenenFassungenTab() {
                 note="Eine Episode (merged aus folgen_dokumente + folgen_meta)"
                 fields={[
                   { name: 'id', type: 'SERIAL', desc: 'PK' },
-                  { name: 'staffel_id', type: 'TEXT FK', desc: '→ staffeln.id' },
+                  { name: 'produktion_id', type: 'TEXT FK', desc: '→ produktionen.id' },
                   { name: 'folge_nummer', type: 'INT', desc: 'Episodennummer' },
                   { name: 'folgen_titel', type: 'TEXT', desc: 'Episodentitel' },
                   { name: 'produktion_db_id', type: 'UUID', desc: 'Ext. Folgen-UUID (nullable)' },
@@ -1762,7 +1762,7 @@ function SzenenFassungenTab() {
             note="Produktionsspezifische Nummer"
             fields={[
               { name: 'character_id', type: 'UUID FK', desc: '→ characters.id' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '→ staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '→ produktionen.id' },
               { name: 'rollen_nummer', type: 'INT', desc: 'Rollenblatt-Nr.' },
               { name: 'komparsen_nummer', type: 'INT', desc: 'Komparsen-Nr.' },
               { name: 'kategorie_id', type: 'INT FK', desc: '→ character_kategorien.id' },
@@ -1772,7 +1772,7 @@ function SzenenFassungenTab() {
             note="Besetzungs-Kategorie pro Staffel"
             fields={[
               { name: 'id', type: 'SERIAL', desc: 'PK' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '→ staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '→ produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'z.B. Hauptrolle' },
               { name: 'typ', type: 'TEXT', desc: 'rolle | komparse' },
             ]}
@@ -1916,7 +1916,7 @@ function SzenenFassungenTab() {
           </thead>
           <tbody>
             {[
-              { m: 'GET',    p: '/api/v2/folgen?staffel_id=X',             d: 'Alle Folgen einer Staffel' },
+              { m: 'GET',    p: '/api/v2/folgen?produktion_id=X',             d: 'Alle Folgen einer Staffel' },
               { m: 'POST',   p: '/api/v2/folgen',                          d: 'Folge erstellen' },
               { m: 'PUT',    p: '/api/v2/folgen/:id',                      d: 'Folge aktualisieren (Titel)' },
               { m: 'GET',    p: '/api/v2/folgen/:folgeId/werkstufen',       d: 'Alle Werkstufen einer Folge' },
@@ -2039,7 +2039,7 @@ function DatenmodellTab() {
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px 0' }}>Datenmodell — Script-App</h2>
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 16px 0' }}>
-          PostgreSQL <code>script_db</code> — 44 Migrationen (v1–v44), ~39 aktive Tabellen in 8 Gruppen.
+          PostgreSQL <code>script_db</code> — 47 Migrationen (v1–v47), ~39 aktive Tabellen in 8 Gruppen.
         </p>
 
         {/* ER Overview Diagram */}
@@ -2051,9 +2051,9 @@ function DatenmodellTab() {
             ER-UEBERSICHT — KERNTABELLEN
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 700 }}>
-            {/* staffeln */}
+            {/* produktionen */}
             <div style={{ border: `2px solid ${C.blue}`, borderRadius: 8, padding: '8px 12px', background: C.blue + '0a', minWidth: 100, textAlign: 'center' }}>
-              <div style={{ fontWeight: 700, fontSize: 11, color: C.blue }}>staffeln</div>
+              <div style={{ fontWeight: 700, fontSize: 11, color: C.blue }}>produktionen</div>
               <div style={{ fontSize: 9, color: C.muted }}>Produktion</div>
             </div>
             <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11, lineHeight: 1 }}>1:n →</div>
@@ -2086,12 +2086,12 @@ function DatenmodellTab() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16, paddingTop: 12, borderTop: `1px dashed ${C.border}` }}>
             {[
               { name: 'characters', color: C.orange, via: 'scene_identities' },
-              { name: 'motive', color: '#00C853', via: 'staffeln' },
+              { name: 'motive', color: '#00C853', via: 'produktionen' },
               { name: 'szenen_vorstopp', color: '#00C853', via: 'scene_identities' },
               { name: 'szenen_revisionen', color: C.red, via: 'dokument_szenen' },
               { name: 'ki_settings', color: C.purple, via: 'global' },
               { name: 'app_settings', color: C.gray, via: 'global' },
-              { name: 'episode_locks', color: C.red, via: 'staffel+folge' },
+              { name: 'episode_locks', color: C.red, via: 'produktion+folge' },
               { name: 'export_logs', color: C.gray, via: 'audit' },
             ].map(t => (
               <span key={t.name} style={{
@@ -2108,29 +2108,27 @@ function DatenmodellTab() {
       <GroupHeader id="core" title="1. Kern — Produktion, Folgen, Werkstufen, Szenen" count={5} color={C.blue} />
       <GroupBody id="core">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <TableCard title="staffeln" color={C.blue} note="Produktion (z.B. Rote Rosen)" fields={[
-            { name: 'id', type: 'TEXT PK', desc: 'Slug (z.B. rote-rosen)' },
-            { name: 'titel', type: 'TEXT', desc: 'Anzeigename' },
-            { name: 'show_type', type: 'TEXT', desc: "daily_soap | weekly | movie (default: daily_soap)" },
+          <TableCard title="produktionen" color={C.blue} note="Produktion (v47: umbenannt von staffeln)" fields={[
+            { name: 'id', type: 'TEXT PK', desc: 'UUID aus Produktionsdatenbank' },
+            { name: 'titel', type: 'TEXT', desc: 'Anzeigename (z.B. "Rote Rosen Staffel 25")' },
             { name: 'produktion_db_id', type: 'UUID', desc: 'FK zur Produktionsdatenbank' },
-            { name: 'meta_json', type: 'JSONB', desc: 'Erweiterbare Metadaten' },
+            { name: 'seitenformat', type: 'TEXT', desc: 'a4 (default) — globale Seitenformat-Einstellung' },
+            { name: 'meta_json', type: 'JSONB', desc: 'Erweiterbare Metadaten (staffelnummer, projektnummer)' },
           ]} />
-          <TableCard title="folgen" color={C.purple} note="Episode (v43 Merge aus folgen_dokumente + folgen_meta)" fields={[
+          <TableCard title="folgen" color={C.purple} note="Episode (v43 Merge, v47: meta_json entfernt)" fields={[
             { name: 'id', type: 'SERIAL PK', desc: 'Interner Episoden-Key' },
-            { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
-            { name: 'folge_nummer', type: 'INT', desc: 'Episodennummer (UNIQUE mit staffel_id)' },
+            { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
+            { name: 'folge_nummer', type: 'INT', desc: 'Episodennummer (UNIQUE mit produktion_id)' },
             { name: 'folgen_titel', type: 'TEXT', desc: 'Arbeitstitel' },
             { name: 'air_date', type: 'DATE', desc: 'Sendedatum' },
             { name: 'synopsis', type: 'TEXT', desc: 'Episoden-Synopsis' },
             { name: 'produktion_db_id', type: 'UUID', desc: 'Direkter Link zur Produktionsdatenbank' },
-            { name: 'meta_json', type: 'JSONB', desc: 'Flexible Metadaten' },
             { name: 'erstellt_von', type: 'TEXT', desc: 'user_id' },
             { name: 'erstellt_am', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
           ]} />
-          <TableCard title="scene_identities" color={C.blue} note="Stabile Szenen-UUID ueber alle Werkstufen hinweg" fields={[
+          <TableCard title="scene_identities" color={C.blue} note="Stabile Szenen-UUID (v47: produktion_id entfernt — via folge_id ableitbar)" fields={[
             { name: 'id', type: 'UUID PK', desc: 'Global stabile Szenen-ID' },
-            { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
-            { name: 'folge_id', type: 'INT FK', desc: '-> folgen.id (v43)' },
+            { name: 'folge_id', type: 'INT FK', desc: '-> folgen.id' },
             { name: 'created_by', type: 'TEXT', desc: 'Ersteller' },
             { name: 'created_at', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
           ]} />
@@ -2191,7 +2189,7 @@ function DatenmodellTab() {
             ]} />
             <TableCard title="character_productions" color={C.purple} note="Produktionsspezifische Nummer" fields={[
               { name: 'character_id', type: 'UUID FK', desc: '-> characters.id' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'rollen_nummer', type: 'INT', desc: 'Rollenblatt-Nr. (UNIQUE pro Staffel)' },
               { name: 'komparsen_nummer', type: 'INT', desc: 'Komparsen-Nr. (UNIQUE pro Staffel)' },
               { name: 'kategorie_id', type: 'INT FK', desc: '-> character_kategorien.id' },
@@ -2201,7 +2199,7 @@ function DatenmodellTab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="character_kategorien" color={C.gray} note="Besetzungs-Kategorie pro Staffel" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'z.B. Hauptrolle, Episoden-Rolle' },
               { name: 'typ', type: 'TEXT', desc: 'rolle | komparse' },
               { name: 'sort_order', type: 'INT', desc: 'Anzeigereihenfolge' },
@@ -2234,7 +2232,7 @@ function DatenmodellTab() {
           </div>
           <TableCard title="charakter_felder_config" color={C.gray} note="Custom-Felder pro Staffel (Admin-konfigurierbar)" fields={[
             { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-            { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+            { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
             { name: 'name', type: 'TEXT', desc: 'Feldname (z.B. "Alter", "Charakter")' },
             { name: 'typ', type: 'TEXT', desc: 'text | richtext | character_ref | select' },
             { name: 'optionen', type: 'JSONB', desc: 'Select-Optionen (bei typ=select)' },
@@ -2258,7 +2256,7 @@ function DatenmodellTab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="motive" color={'#00C853'} note="Drehorte / Sets" fields={[
               { name: 'id', type: 'UUID PK', desc: 'Motiv-ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'motiv_nummer', type: 'TEXT', desc: 'z.B. "M01"' },
               { name: 'name', type: 'TEXT', desc: 'Motivname' },
               { name: 'typ', type: 'TEXT', desc: 'interior | exterior' },
@@ -2307,7 +2305,7 @@ function DatenmodellTab() {
               { name: 'methode', type: 'TEXT', desc: 'manuell | auto_seiten | auto_zeichen | auto_woerter' },
             ]} />
             <TableCard title="vorstopp_einstellungen" color={'#00C853'} note="Kalkulations-Parameter pro Staffel" fields={[
-              { name: 'staffel_id', type: 'TEXT PK/FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT PK/FK', desc: '-> produktionen.id' },
               { name: 'methode', type: 'TEXT', desc: 'seiten | zeichen | woerter' },
               { name: 'menge', type: 'NUMERIC', desc: 'Einheiten pro Dauer (z.B. 0.125)' },
               { name: 'dauer_sekunden', type: 'INT', desc: 'Sekunden pro Mengeneinheit' },
@@ -2316,19 +2314,19 @@ function DatenmodellTab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="stage_labels" color={C.orange} note="Fassungs-Labels pro Staffel (z.B. Abstrakt, Endfassung)" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'Label-Name' },
               { name: 'is_produktionsfassung', type: 'BOOL', desc: 'Produktionsfassung-Flag' },
             ]} />
             <TableCard title="revision_colors" color={C.orange} note="WGA-Standard Revisionsfarben" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'z.B. Blaue Seiten, Gelbe Seiten' },
               { name: 'color', type: 'TEXT', desc: 'Hex-Farbe (z.B. #4A90D9)' },
             ]} />
           </div>
           <TableCard title="revision_export_einstellungen" color={C.gray} note="Revision-Export Konfiguration" fields={[
-            { name: 'staffel_id', type: 'TEXT PK/FK', desc: '-> staffeln.id' },
+            { name: 'produktion_id', type: 'TEXT PK/FK', desc: '-> produktionen.id' },
             { name: 'memo_schwellwert_zeichen', type: 'INT', desc: 'Zeichenschwelle fuer Memo-Seiten (default: 100)' },
           ]} />
         </div>
@@ -2341,7 +2339,7 @@ function DatenmodellTab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="dokument_colab_gruppen" color={C.purple} note="Kollaborationsgruppen" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'Gruppenname' },
               { name: 'typ', type: 'TEXT', desc: 'colab | produktion' },
             ]} />
@@ -2361,7 +2359,7 @@ function DatenmodellTab() {
             ]} />
             <TableCard title="dokument_benachrichtigungen" color={C.blue} note="Benachrichtigungs-Routing pro Staffel" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'ereignis', type: 'TEXT', desc: 'version_submitted | approved | ...' },
               { name: 'empfaenger_user_ids', type: 'TEXT[]', desc: 'Empfaenger-Liste' },
               { name: 'aktiv', type: 'BOOL', desc: 'An/Aus' },
@@ -2370,7 +2368,7 @@ function DatenmodellTab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="dokument_typ_definitionen" color={C.gray} note="Custom-Dokumenttypen pro Staffel" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'z.B. Drehbuch, Notizen' },
               { name: 'editor_modus', type: 'TEXT', desc: 'screenplay | richtext' },
             ]} />
@@ -2436,7 +2434,7 @@ function DatenmodellTab() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="episode_locks" color={C.red} note="Folgen-Sperre (alle Werkstufen betroffen)" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'folge_nummer', type: 'INT', desc: 'Gesperrte Folge' },
               { name: 'user_id', type: 'TEXT', desc: 'Wer hat gesperrt' },
               { name: 'lock_type', type: 'TEXT', desc: 'exclusive | contract' },
@@ -2449,7 +2447,7 @@ function DatenmodellTab() {
               { name: 'external_id', type: 'TEXT', desc: 'ID in externer App' },
               { name: 'external_app', type: 'TEXT', desc: 'Quell-App (z.B. kostuem-app)' },
               { name: 'name', type: 'TEXT', desc: 'Anzeigename' },
-              { name: 'staffel_id', type: 'TEXT FK', desc: '-> staffeln.id' },
+              { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
             ]} />
           </div>
           <TableCard title="export_logs" color={C.gray} note="Export-Protokoll (Wasserzeichen-Audit)" fields={[
@@ -2553,7 +2551,7 @@ function DatenmodellTab() {
       <Section title="Externe Verknuepfungen">
         <div style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[
-            { from: 'staffeln.produktion_db_id', to: 'Produktionsdatenbank productions.id (UUID)', desc: 'Staffel ↔ Produktion', color: C.blue },
+            { from: 'produktionen.produktion_db_id', to: 'Produktionsdatenbank productions.id (UUID)', desc: 'Staffel ↔ Produktion', color: C.blue },
             { from: 'folgen.produktion_db_id', to: 'Produktionsdatenbank episodes.id (UUID)', desc: 'Folge ↔ Episode', color: C.purple },
             { from: 'entities.external_id + external_app', to: 'z.B. kostuem-app, Vertragsdatenbank', desc: 'Generische Cross-App-Referenzen', color: C.orange },
             { from: 'scene_comment_events.messenger_annotation_id', to: 'messenger.app annotations.id', desc: 'Kommentar-Integration via Messenger', color: C.green },

@@ -8,9 +8,9 @@ router.use(authMiddleware)
 
 async function logExport(userId: string, userName: string, stage: any, format: string): Promise<string> {
   const result = await queryOne(
-    `INSERT INTO export_logs (user_id, user_name, stage_id, stage_label, staffel_id, format)
+    `INSERT INTO export_logs (user_id, user_name, stage_id, stage_label, produktion_id, format)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [userId, userName, stage.id, stage.version_label || stage.stage_type, stage.staffel_id, format]
+    [userId, userName, stage.id, stage.version_label || stage.stage_type, stage.produktion_id, format]
   )
   return result?.id as string
 }
@@ -158,8 +158,8 @@ router.get('/:stageId/export/pdf', async (req, res) => {
 
 async function logFassungExport(userId: string, userName: string, fassungId: string, format: string): Promise<string> {
   const result = await queryOne(
-    `INSERT INTO export_logs (user_id, user_name, stage_label, staffel_id, format)
-     SELECT $1, $2, COALESCE(f.fassung_label, 'Fassung ' || f.fassung_nummer), d.staffel_id, $3
+    `INSERT INTO export_logs (user_id, user_name, stage_label, produktion_id, format)
+     SELECT $1, $2, COALESCE(f.fassung_label, 'Fassung ' || f.fassung_nummer), d.produktion_id, $3
      FROM folgen_dokument_fassungen f JOIN folgen_dokumente d ON d.id = f.dokument_id
      WHERE f.id = $4
      RETURNING id`,
@@ -172,7 +172,7 @@ async function logFassungExport(userId: string, userName: string, fassungId: str
 router.get('/fassung/:fassungId/export/fountain', async (req, res) => {
   try {
     const fassung = await queryOne(
-      `SELECT f.*, d.typ, d.staffel_id FROM folgen_dokument_fassungen f
+      `SELECT f.*, d.typ, d.produktion_id FROM folgen_dokument_fassungen f
        JOIN folgen_dokumente d ON d.id = f.dokument_id WHERE f.id = $1`,
       [req.params.fassungId]
     )
@@ -288,8 +288,8 @@ router.get('/fassung/:fassungId/export/pdf', async (req, res) => {
 
 async function logWerkstufenExport(userId: string, userName: string, werkId: string, format: string): Promise<string> {
   const result = await queryOne(
-    `INSERT INTO export_logs (user_id, user_name, stage_label, staffel_id, format)
-     SELECT $1, $2, COALESCE(w.label, w.typ || ' V' || w.version_nummer), f.staffel_id, $3
+    `INSERT INTO export_logs (user_id, user_name, stage_label, produktion_id, format)
+     SELECT $1, $2, COALESCE(w.label, w.typ || ' V' || w.version_nummer), f.produktion_id, $3
      FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
      WHERE w.id = $4
      RETURNING id`,
@@ -309,7 +309,7 @@ function formatStoppzeit(sek: number | null): string {
 router.get('/werkstufe/:werkId/export/fountain', async (req, res) => {
   try {
     const ws = await queryOne(
-      `SELECT w.*, f.staffel_id, f.folge_nummer FROM werkstufen w
+      `SELECT w.*, f.produktion_id, f.folge_nummer FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
       [req.params.werkId]
     )
@@ -337,7 +337,7 @@ router.get('/werkstufe/:werkId/export/fountain', async (req, res) => {
 router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
   try {
     const ws = await queryOne(
-      `SELECT w.*, f.staffel_id FROM werkstufen w
+      `SELECT w.*, f.produktion_id FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
       [req.params.werkId]
     )
@@ -367,7 +367,7 @@ router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
 router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
   try {
     const ws = await queryOne(
-      `SELECT w.*, f.staffel_id FROM werkstufen w
+      `SELECT w.*, f.produktion_id FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
       [req.params.werkId]
     )
@@ -443,7 +443,7 @@ router.get('/:stageId/export/revision-summary', async (req, res) => {
     const stage = await queryOne(
       `SELECT s.*, rc.name AS revision_name, rc.color AS revision_color, re.memo_schwellwert_zeichen
        FROM stages s LEFT JOIN revision_colors rc ON rc.id = s.revision_color_id
-       LEFT JOIN revision_export_einstellungen re ON re.staffel_id = s.staffel_id
+       LEFT JOIN revision_export_einstellungen re ON re.produktion_id = s.produktion_id
        WHERE s.id = $1`, [req.params.stageId])
     if (!stage) return res.status(404).json({ error: 'Stage nicht gefunden' })
     const deltas = await query(

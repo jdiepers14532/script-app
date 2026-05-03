@@ -32,7 +32,7 @@ router.post('/decode',
         `SELECT el.*, s.stage_type, s.version_label, s.folge_nummer, st.titel AS staffel_titel
          FROM export_logs el
          LEFT JOIN stages s ON s.id = el.stage_id
-         LEFT JOIN staffeln st ON st.id = el.staffel_id
+         LEFT JOIN produktionen st ON st.id = el.produktion_id
          WHERE el.id = $1`,
         [parsed.exportId]
       )
@@ -56,7 +56,7 @@ router.get('/logs',
         `SELECT el.*, s.stage_type, s.version_label, s.folge_nummer, st.titel AS staffel_titel
          FROM export_logs el
          LEFT JOIN stages s  ON s.id  = el.stage_id
-         LEFT JOIN staffeln st ON st.id = el.staffel_id
+         LEFT JOIN produktionen st ON st.id = el.produktion_id
          ORDER BY el.exported_at DESC
          LIMIT $1 OFFSET $2`,
         [limit, offset]

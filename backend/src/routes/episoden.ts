@@ -46,7 +46,7 @@ bloeckeRouter.get('/:blockId/episoden', async (req, res) => {
   try {
     const block = await queryOne(
       `SELECT b.*, s.produktion_db_id FROM bloecke b
-       JOIN staffeln s ON s.id = b.staffel_id
+       JOIN produktionen s ON s.id = b.produktion_id
        WHERE b.id = $1`,
       [req.params.blockId]
     )

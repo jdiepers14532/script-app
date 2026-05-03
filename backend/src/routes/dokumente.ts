@@ -2,14 +2,14 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
-// GET/POST /api/folgen/:staffelId/:folgeNummer/dokumente
+// GET/POST /api/folgen/:produktionId/:folgeNummer/dokumente
 export const folgenDokumenteRouter = Router({ mergeParams: true })
 folgenDokumenteRouter.use(authMiddleware)
 
-// GET /api/folgen/:staffelId/:folgeNummer/dokumente
+// GET /api/folgen/:produktionId/:folgeNummer/dokumente
 // Returns all document types with latest fassung metadata for this Folge
 folgenDokumenteRouter.get('/', async (req, res) => {
-  const { staffelId, folgeNummer } = req.params as any
+  const { produktionId, folgeNummer } = req.params as any
   try {
     const rows = await query(
       `SELECT
@@ -23,9 +23,9 @@ folgenDokumenteRouter.get('/', async (req, res) => {
          WHERE dokument_id = d.id
          ORDER BY fassung_nummer DESC LIMIT 1
        ) f ON TRUE
-       WHERE d.staffel_id = $1 AND d.folge_nummer = $2
+       WHERE d.produktion_id = $1 AND d.folge_nummer = $2
        ORDER BY d.typ`,
-      [staffelId, parseInt(folgeNummer)]
+      [produktionId, parseInt(folgeNummer)]
     )
     res.json(rows)
   } catch (err) {
@@ -33,19 +33,19 @@ folgenDokumenteRouter.get('/', async (req, res) => {
   }
 })
 
-// POST /api/folgen/:staffelId/:folgeNummer/dokumente
+// POST /api/folgen/:produktionId/:folgeNummer/dokumente
 // Create a new document (and initial fassung)
 folgenDokumenteRouter.post('/', async (req, res) => {
-  const { staffelId, folgeNummer } = req.params as any
+  const { produktionId, folgeNummer } = req.params as any
   const { typ } = req.body
   if (!typ) return res.status(400).json({ error: 'typ required' })
 
   const user = req.user!
   try {
     const dok = await queryOne(
-      `INSERT INTO folgen_dokumente (staffel_id, folge_nummer, typ, erstellt_von)
+      `INSERT INTO folgen_dokumente (produktion_id, folge_nummer, typ, erstellt_von)
        VALUES ($1, $2, $3, $4) RETURNING *`,
-      [staffelId, parseInt(folgeNummer), typ, user.user_id]
+      [produktionId, parseInt(folgeNummer), typ, user.user_id]
     )
 
     // Determine fassung_nummer based on fassungs_nummerierung_modus
@@ -59,8 +59,8 @@ folgenDokumenteRouter.post('/', async (req, res) => {
         `SELECT COALESCE(MAX(f.fassung_nummer), 0) AS m
          FROM folgen_dokument_fassungen f
          JOIN folgen_dokumente d ON d.id = f.dokument_id
-         WHERE d.staffel_id = $1 AND d.folge_nummer = $2`,
-        [staffelId, parseInt(folgeNummer)]
+         WHERE d.produktion_id = $1 AND d.folge_nummer = $2`,
+        [produktionId, parseInt(folgeNummer)]
       )
       fassungsNummer = (cnt?.m ?? 0) + 1
     }
@@ -97,7 +97,7 @@ folgenDokumenteRouter.post('/', async (req, res) => {
   }
 })
 
-// GET /api/folgen/:staffelId/:folgeNummer/dokumente/:dokumentId
+// GET /api/folgen/:produktionId/:folgeNummer/dokumente/:dokumentId
 export const dokumentRouter = Router({ mergeParams: true })
 dokumentRouter.use(authMiddleware)
 
@@ -112,7 +112,7 @@ dokumentRouter.get('/', async (req, res) => {
   }
 })
 
-// DELETE /api/folgen/:staffelId/:folgeNummer/dokumente/:dokumentId — admin only
+// DELETE /api/folgen/:produktionId/:folgeNummer/dokumente/:dokumentId — admin only
 dokumentRouter.delete('/', async (req, res) => {
   const { dokumentId } = req.params as any
   const user = req.user!

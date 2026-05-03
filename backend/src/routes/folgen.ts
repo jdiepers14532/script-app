@@ -6,35 +6,35 @@ import { prodQueryOne } from '../prodDb'
 export const folgenRouter = Router()
 folgenRouter.use(authMiddleware)
 
-// GET /api/folgen/:staffelId/:folgeNummer — folge metadata
-folgenRouter.get('/:staffelId/:folgeNummer', async (req, res) => {
+// GET /api/folgen/:produktionId/:folgeNummer — folge metadata
+folgenRouter.get('/:produktionId/:folgeNummer', async (req, res) => {
   try {
-    const { staffelId, folgeNummer } = req.params
+    const { produktionId, folgeNummer } = req.params
     const row = await queryOne(
-      `SELECT id, staffel_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json
-       FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2`,
-      [staffelId, parseInt(folgeNummer)]
+      `SELECT id, produktion_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json
+       FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
+      [produktionId, parseInt(folgeNummer)]
     )
-    res.json(row || { staffel_id: staffelId, folge_nummer: parseInt(folgeNummer) })
+    res.json(row || { produktion_id: produktionId, folge_nummer: parseInt(folgeNummer) })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
 
-// PUT /api/folgen/:staffelId/:folgeNummer — upsert folge metadata
-folgenRouter.put('/:staffelId/:folgeNummer', async (req, res) => {
+// PUT /api/folgen/:produktionId/:folgeNummer — upsert folge metadata
+folgenRouter.put('/:produktionId/:folgeNummer', async (req, res) => {
   try {
-    const { staffelId, folgeNummer } = req.params
+    const { produktionId, folgeNummer } = req.params
     const { arbeitstitel, air_date, synopsis } = req.body
     const row = await queryOne(
-      `INSERT INTO folgen (staffel_id, folge_nummer, folgen_titel, air_date, synopsis)
+      `INSERT INTO folgen (produktion_id, folge_nummer, folgen_titel, air_date, synopsis)
        VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (staffel_id, folge_nummer) DO UPDATE
+       ON CONFLICT (produktion_id, folge_nummer) DO UPDATE
        SET folgen_titel = COALESCE($3, folgen.folgen_titel),
            air_date = COALESCE($4, folgen.air_date),
            synopsis = COALESCE($5, folgen.synopsis)
-       RETURNING id, staffel_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json`,
-      [staffelId, parseInt(folgeNummer), arbeitstitel || null, air_date || null, synopsis || null]
+       RETURNING id, produktion_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json`,
+      [produktionId, parseInt(folgeNummer), arbeitstitel || null, air_date || null, synopsis || null]
     )
     res.json(row)
   } catch (err) {
@@ -42,11 +42,11 @@ folgenRouter.put('/:staffelId/:folgeNummer', async (req, res) => {
   }
 })
 
-// GET /api/folgen/:staffelId/:folgeNummer/sendedatum — live from ProdDB broadcast_events
-folgenRouter.get('/:staffelId/:folgeNummer/sendedatum', async (req, res) => {
+// GET /api/folgen/:produktionId/:folgeNummer/sendedatum — live from ProdDB broadcast_events
+folgenRouter.get('/:produktionId/:folgeNummer/sendedatum', async (req, res) => {
   try {
-    const { staffelId, folgeNummer } = req.params
-    const staffel = await queryOne('SELECT produktion_db_id FROM staffeln WHERE id = $1', [staffelId])
+    const { produktionId, folgeNummer } = req.params
+    const staffel = await queryOne('SELECT produktion_db_id FROM produktionen WHERE id = $1', [produktionId])
     if (!staffel?.produktion_db_id) return res.json(null)
 
     const prod = await prodQueryOne(
@@ -70,16 +70,16 @@ folgenRouter.get('/:staffelId/:folgeNummer/sendedatum', async (req, res) => {
   }
 })
 
-// GET /api/folgen/:staffelId/:folgeNummer/besetzung — characters for Vertragsdatenbank
-folgenRouter.get('/:staffelId/:folgeNummer/besetzung', async (req, res) => {
+// GET /api/folgen/:produktionId/:folgeNummer/besetzung — characters for Vertragsdatenbank
+folgenRouter.get('/:produktionId/:folgeNummer/besetzung', async (req, res) => {
   try {
-    const { staffelId, folgeNummer } = req.params
+    const { produktionId, folgeNummer } = req.params
     const szenen = await query(
       `SELECT s.content FROM stages st
        JOIN szenen s ON s.stage_id = st.id
-       WHERE st.staffel_id = $1 AND st.folge_nummer = $2
+       WHERE st.produktion_id = $1 AND st.folge_nummer = $2
        ORDER BY s.sort_order`,
-      [staffelId, parseInt(folgeNummer)]
+      [produktionId, parseInt(folgeNummer)]
     )
     const charaktere: Set<string> = new Set()
     for (const szene of szenen) {
@@ -88,22 +88,22 @@ folgenRouter.get('/:staffelId/:folgeNummer/besetzung', async (req, res) => {
         if (te.type === 'character' && te.text) charaktere.add(te.text)
       }
     }
-    res.json({ staffel_id: staffelId, folge_nummer: parseInt(folgeNummer), charaktere: Array.from(charaktere) })
+    res.json({ produktion_id: produktionId, folge_nummer: parseInt(folgeNummer), charaktere: Array.from(charaktere) })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
 
-// GET /api/folgen/:staffelId/:folgeNummer/synopsis — synopsis for Marketing-App
-folgenRouter.get('/:staffelId/:folgeNummer/synopsis', async (req, res) => {
+// GET /api/folgen/:produktionId/:folgeNummer/synopsis — synopsis for Marketing-App
+folgenRouter.get('/:produktionId/:folgeNummer/synopsis', async (req, res) => {
   try {
-    const { staffelId, folgeNummer } = req.params
+    const { produktionId, folgeNummer } = req.params
     const row = await queryOne(
-      `SELECT folgen_titel AS arbeitstitel, synopsis FROM folgen WHERE staffel_id = $1 AND folge_nummer = $2`,
-      [staffelId, parseInt(folgeNummer)]
+      `SELECT folgen_titel AS arbeitstitel, synopsis FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
+      [produktionId, parseInt(folgeNummer)]
     )
     res.json({
-      staffel_id: staffelId,
+      produktion_id: produktionId,
       folge_nummer: parseInt(folgeNummer),
       arbeitstitel: row?.arbeitstitel || null,
       synopsis: row?.synopsis || null,
