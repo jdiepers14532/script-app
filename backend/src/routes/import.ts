@@ -165,6 +165,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       versionLabel = `Import ${filenameMeta.fassungsdatum}`
     }
 
+    // Stand-Datum: prefer filename date, fallback to rote-rosen cover date
+    const standDatum = filenameMeta.fassungsdatum || null
+
     // Map stage_type → werkstufen-typ
     const stageToDocTyp: Record<string, string> = {
       treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
@@ -193,9 +196,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     )
     const werkVersionNummer = (nextWerkVer?.m ?? 0) + 1
     const werkstufe = await queryOne(
-      `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von)
-       VALUES ($1, $2, $3, $4, 'team', $5) RETURNING id`,
-      [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id]
+      `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum)
+       VALUES ($1, $2, $3, $4, 'team', $5, $6) RETURNING id`,
+      [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id, standDatum]
     )
 
     // Create legacy stage for navigation compatibility

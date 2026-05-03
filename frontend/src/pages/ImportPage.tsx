@@ -465,41 +465,16 @@ export default function ImportPage() {
                 if (!rr && !fm) return null
                 const docType = rr?.document_type === 'treatment' ? 'Treatment' : rr?.document_type === 'drehbuch' ? 'Drehbuch' : fm?.document_type || 'PDF'
                 const episode = rr?.episode || fm?.episode
-                const metaRows: { label: string; value: string }[] = []
-                if (episode) metaRows.push({ label: 'Episode', value: String(episode) })
-                if (rr?.block) metaRows.push({ label: 'Block', value: String(rr.block) })
-                if (rr?.autor) metaRows.push({ label: 'Autor', value: rr.autor })
-                if (rr?.dialogautor) metaRows.push({ label: 'Dialogautor', value: rr.dialogautor })
-                if (rr?.regie) metaRows.push({ label: 'Regie', value: rr.regie })
-                if (rr?.writer_producer) metaRows.push({ label: 'Writer Producer', value: rr.writer_producer })
-                if (rr?.head_of_story) metaRows.push({ label: 'Head of Story', value: rr.head_of_story })
-                if (rr?.storyliner) metaRows.push({ label: 'Storyliner', value: rr.storyliner })
-                if (rr?.story_edit) metaRows.push({ label: 'Story Edit', value: rr.story_edit })
-                if (rr?.script_edit) metaRows.push({ label: 'Script Edit', value: rr.script_edit })
-                if (rr?.dialog_edit) metaRows.push({ label: 'Dialog Edit', value: rr.dialog_edit })
-                if (rr?.drehtermin) metaRows.push({ label: 'Drehtermin', value: rr.drehtermin })
-                if (rr?.sendetermin) metaRows.push({ label: 'Sendetermin', value: rr.sendetermin })
-                if (rr?.gesamtlaenge) metaRows.push({ label: 'Gesamtlänge', value: rr.gesamtlaenge })
-                if (fm?.fassungsdatum) metaRows.push({ label: 'Stand', value: fm.fassungsdatum })
+                const stand = fm?.fassungsdatum || null
 
                 return (
                   <div style={{
                     background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8,
-                    padding: 12, marginBottom: 16, fontSize: 12, color: '#1565c0',
+                    padding: 12, marginBottom: 16, fontSize: 13, color: '#1565c0',
                   }}>
-                    <div style={{ fontWeight: 600, marginBottom: metaRows.length > 0 ? 6 : 0, fontSize: 13 }}>
-                      {docType}{episode ? ` — Episode ${episode}` : ''}
-                    </div>
-                    {metaRows.length > 0 && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '2px 12px' }}>
-                        {metaRows.map(({ label, value }) => (
-                          <div key={label} style={{ display: 'contents' }}>
-                            <span style={{ color: '#64b5f6', fontSize: 11 }}>{label}</span>
-                            <span>{value}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <span style={{ fontWeight: 600 }}>{docType}</span>
+                    {episode ? ` — Episode ${episode}` : ''}
+                    {stand ? ` — Stand ${stand}` : ''}
                   </div>
                 )
               })()}
