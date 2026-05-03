@@ -484,6 +484,14 @@ export const api = {
     const qs = new URLSearchParams(params).toString()
     return request<any>('GET', `/statistik/komparsen-bedarf?${qs}`)
   },
+  getStatReport: (produktionId: string, folgeIds: number[], werkstufTyp?: string) => {
+    const p = new URLSearchParams({
+      produktion_id: produktionId,
+      folge_ids: folgeIds.join(','),
+    })
+    if (werkstufTyp) p.set('werkstufe_typ', werkstufTyp)
+    return request<any>('GET', `/statistik/report?${p}`)
+  },
   getStatVorlagen: (produktionId: string) =>
     request<any[]>('GET', `/statistik/vorlagen?produktion_id=${encodeURIComponent(produktionId)}`),
   createStatVorlage: (data: { produktion_id: string; name: string; abfrage_typ: string; parameter?: any }) =>

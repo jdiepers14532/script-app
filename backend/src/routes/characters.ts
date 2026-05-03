@@ -22,8 +22,8 @@ charactersRouter.get('/', async (req, res) => {
   try {
     const rows = await query(
       `SELECT c.id, c.name, c.meta_json, c.created_at,
-              cp.rollen_nummer, cp.komparsen_nummer, cp.kategorie_id, cp.updated_at AS prod_updated_at,
-              cp.is_active,
+              cp.rollen_nummer, cp.komparsen_nummer, cp.kategorie_id, cp.darsteller_name,
+              cp.updated_at AS prod_updated_at, cp.is_active,
               ck.name AS kategorie_name, ck.typ AS kategorie_typ,
               (SELECT dateiname FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_foto_dateiname,
               (SELECT media_typ FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_media_typ,
@@ -139,16 +139,17 @@ charactersRouter.post('/:id/productions', async (req, res) => {
 
 // PUT /api/characters/:id/productions/:produktionId
 charactersRouter.put('/:id/productions/:produktionId', async (req, res) => {
-  const { rollen_nummer, komparsen_nummer, kategorie_id } = req.body
+  const { rollen_nummer, komparsen_nummer, kategorie_id, darsteller_name } = req.body
   try {
     const row = await queryOne(
       `UPDATE character_productions SET
          rollen_nummer = COALESCE($1, rollen_nummer),
          komparsen_nummer = COALESCE($2, komparsen_nummer),
          kategorie_id = COALESCE($3, kategorie_id),
+         darsteller_name = COALESCE($4, darsteller_name),
          updated_at = NOW()
-       WHERE character_id = $4 AND produktion_id = $5 RETURNING *`,
-      [rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null, req.params.id, req.params.produktionId]
+       WHERE character_id = $5 AND produktion_id = $6 RETURNING *`,
+      [rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null, darsteller_name ?? null, req.params.id, req.params.produktionId]
     )
     if (!row) return res.status(404).json({ error: 'Produktions-Verknüpfung nicht gefunden' })
     res.json(row)

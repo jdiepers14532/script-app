@@ -470,6 +470,205 @@ statistikRouter.get('/overview', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/statistik/report
+// Block- or Folge-level aggregated report (text-based, printable)
+// Query: produktion_id (required), folge_ids (comma-separated folge IDs, required),
+//        werkstufe_typ (optional, default 'drehbuch')
+// ══════════════════════════════════════════════════════════════════════════════
+statistikRouter.get('/report', async (req, res) => {
+  try {
+    const { produktion_id, folge_ids, werkstufe_typ } = req.query
+    if (!produktion_id || !folge_ids) {
+      return res.status(400).json({ error: 'produktion_id und folge_ids erforderlich' })
+    }
+
+    const typ = String(werkstufe_typ || 'drehbuch')
+    const ids = String(folge_ids).split(',').map(Number).filter(n => !isNaN(n))
+    if (ids.length === 0) return res.status(400).json({ error: 'Keine gültigen folge_ids' })
+
+    // Get latest werkstufe per folge for given typ
+    const wsRows = await query(
+      `SELECT DISTINCT ON (w.folge_id) w.id, w.folge_id, f.folge_nummer
+       FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE f.id = ANY($1::int[]) AND w.typ = $2 AND f.produktion_id = $3
+       ORDER BY w.folge_id, w.version_nummer DESC`,
+      [ids, typ, produktion_id]
+    )
+
+    const wsIds = wsRows.map((r: any) => r.id)
+    if (wsIds.length === 0) {
+      return res.json({
+        bilder_insgesamt: 0, drehbuchseiten: 0, drehbuchseiten_display: '0',
+        vorstopp_sek: 0, rollen_pro_bild: [], rollen: [], motive: [], drehorte: [], folgen: [],
+      })
+    }
+
+    // All scenes across selected werkstufen
+    const scenes = await query(
+      `SELECT ds.scene_identity_id, ds.scene_nummer, ds.ort_name, ds.int_ext,
+              ds.seiten, ds.stoppzeit_sek, ds.werkstufe_id,
+              f.folge_nummer, w.folge_id
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.werkstufe_id = ANY($1::uuid[]) AND ds.geloescht = false
+       ORDER BY f.folge_nummer, ds.scene_nummer`,
+      [wsIds]
+    )
+
+    // All characters in these scenes
+    const chars = await query(
+      `SELECT sc.scene_identity_id, sc.werkstufe_id, sc.character_id, sc.spiel_typ,
+              sc.repliken_anzahl, sc.anzahl,
+              c.name AS character_name,
+              cp.darsteller_name,
+              ck.name AS kategorie_name, ck.typ AS kategorie_typ,
+              ds.scene_nummer, f.folge_nummer
+       FROM scene_characters sc
+       JOIN characters c ON c.id = sc.character_id
+       LEFT JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $2
+       JOIN dokument_szenen ds ON ds.scene_identity_id = sc.scene_identity_id
+                               AND ds.werkstufe_id = sc.werkstufe_id
+                               AND ds.geloescht = false
+       JOIN werkstufen w ON w.id = sc.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       LEFT JOIN character_kategorien ck ON ck.id = COALESCE(cp.kategorie_id, sc.kategorie_id)
+       WHERE sc.werkstufe_id = ANY($1::uuid[])
+       ORDER BY c.name, f.folge_nummer, ds.scene_nummer`,
+      [wsIds, produktion_id]
+    )
+
+    // ── Parse seiten: "1 2/8" → 1.25, "0 4/8" → 0.5 ──
+    function parseSeiten(s: string | null): number {
+      if (!s) return 0
+      const t = s.trim()
+      const m = t.match(/^(\d+)\s+(\d+)\/(\d+)$/)
+      if (m) return parseInt(m[1]) + parseInt(m[2]) / parseInt(m[3])
+      const n = parseFloat(t)
+      return isNaN(n) ? 0 : n
+    }
+
+    // Format seiten total as "X Y/8"
+    function formatSeiten(total: number): string {
+      const whole = Math.floor(total)
+      const frac = total - whole
+      const eighths = Math.round(frac * 8)
+      if (eighths === 0 || eighths === 8) return String(whole + (eighths === 8 ? 1 : 0))
+      return `${whole} ${eighths}/8`
+    }
+
+    // ── Summary ──
+    const bilder_insgesamt = scenes.length
+    const seitenTotal = scenes.reduce((sum: number, s: any) => sum + parseSeiten(s.seiten), 0)
+    const vorstopp_sek = scenes.reduce((sum: number, s: any) => sum + (Number(s.stoppzeit_sek) || 0), 0)
+
+    // ── Rollen pro Bild (histogram) ──
+    const sceneCharCounts = new Map<string, number>()
+    for (const s of scenes) {
+      sceneCharCounts.set(`${s.werkstufe_id}:${s.scene_identity_id}`, 0)
+    }
+    for (const ch of chars) {
+      const key = `${ch.werkstufe_id}:${ch.scene_identity_id}`
+      sceneCharCounts.set(key, (sceneCharCounts.get(key) || 0) + 1)
+    }
+    const histogram = new Map<number, number>()
+    for (const count of sceneCharCounts.values()) {
+      histogram.set(count, (histogram.get(count) || 0) + 1)
+    }
+    const rollen_pro_bild = [...histogram.entries()]
+      .filter(([c]) => c > 0)
+      .sort((a, b) => a[0] - b[0])
+      .map(([rollen_count, bilder_count]) => ({ rollen_count, bilder_count }))
+
+    // ── Rollen (character list with scene references) ──
+    const rollenMap = new Map<string, {
+      character_name: string; darsteller_name: string | null
+      kategorie_name: string | null; kategorie_typ: string | null
+      scene_count: number; scenes: string[]
+    }>()
+    for (const ch of chars) {
+      if (!rollenMap.has(ch.character_id)) {
+        rollenMap.set(ch.character_id, {
+          character_name: ch.character_name,
+          darsteller_name: ch.darsteller_name || null,
+          kategorie_name: ch.kategorie_name || null,
+          kategorie_typ: ch.kategorie_typ || null,
+          scene_count: 0, scenes: [],
+        })
+      }
+      const r = rollenMap.get(ch.character_id)!
+      r.scene_count++
+      r.scenes.push(`${ch.folge_nummer}.${ch.scene_nummer}`)
+    }
+    const rollen = [...rollenMap.values()].sort((a, b) => b.scene_count - a.scene_count)
+
+    // ── Motive ──
+    function parseOrt(ort: string | null): { drehort: string; motiv: string } {
+      if (!ort) return { drehort: 'Unbekannt', motiv: 'Unbekannt' }
+      const idx = ort.indexOf(' / ')
+      if (idx >= 0) return { drehort: ort.slice(0, idx).trim(), motiv: ort.slice(idx + 3).trim() }
+      return { drehort: ort.trim(), motiv: ort.trim() }
+    }
+
+    const motivMap = new Map<string, { ort_name: string; drehort: string; motiv: string; scene_count: number; scenes: string[] }>()
+    for (const s of scenes) {
+      const key = s.ort_name || 'Unbekannt'
+      if (!motivMap.has(key)) {
+        const p = parseOrt(s.ort_name)
+        motivMap.set(key, { ort_name: key, drehort: p.drehort, motiv: p.motiv, scene_count: 0, scenes: [] })
+      }
+      const m = motivMap.get(key)!
+      m.scene_count++
+      m.scenes.push(`${s.folge_nummer}.${s.scene_nummer}`)
+    }
+    const motive = [...motivMap.values()]
+      .sort((a, b) => b.scene_count - a.scene_count)
+      .map(({ ort_name, drehort, motiv, scene_count, scenes }) => ({ name: motiv, drehort, scene_count, scenes }))
+
+    // ── Drehorte (aggregated by drehort) ──
+    const drehortMap = new Map<string, number>()
+    for (const s of scenes) {
+      const { drehort } = parseOrt(s.ort_name)
+      drehortMap.set(drehort, (drehortMap.get(drehort) || 0) + 1)
+    }
+    const drehorte = [...drehortMap.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, scene_count]) => ({ name, scene_count }))
+
+    // ── Per-Folge breakdown ──
+    const folgenBreakdown: { folge_nummer: number; bilder: number; seiten: number; seiten_display: string; vorstopp_sek: number }[] = []
+    for (const ws of wsRows) {
+      const folgeScenes = scenes.filter((s: any) => s.folge_nummer === ws.folge_nummer)
+      const s = folgeScenes.reduce((sum: number, sc: any) => sum + parseSeiten(sc.seiten), 0)
+      folgenBreakdown.push({
+        folge_nummer: ws.folge_nummer,
+        bilder: folgeScenes.length,
+        seiten: s,
+        seiten_display: formatSeiten(s),
+        vorstopp_sek: folgeScenes.reduce((sum: number, sc: any) => sum + (Number(sc.stoppzeit_sek) || 0), 0),
+      })
+    }
+    folgenBreakdown.sort((a, b) => a.folge_nummer - b.folge_nummer)
+
+    res.json({
+      bilder_insgesamt,
+      drehbuchseiten: seitenTotal,
+      drehbuchseiten_display: formatSeiten(seitenTotal),
+      vorstopp_sek,
+      rollen_pro_bild,
+      rollen,
+      motive,
+      drehorte,
+      folgen: folgenBreakdown,
+    })
+  } catch (err) {
+    console.error('statistik/report error:', err)
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Vorlagen CRUD — saved statistic templates per staffel
 // ══════════════════════════════════════════════════════════════════════════════
 

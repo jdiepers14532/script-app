@@ -1,21 +1,12 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
-import { BarChart3, Users, GitCompare, MapPin, UserCheck, ChevronDown, ChevronUp, Table, BarChart2, Printer } from 'lucide-react'
+import { Printer } from 'lucide-react'
 
-type TabId = 'overview' | 'repliken' | 'pairs' | 'motiv' | 'komparsen' | 'compare'
+type ViewMode = 'block' | 'folge'
 
-const TABS: { id: TabId; label: string; icon: any }[] = [
-  { id: 'overview', label: 'Übersicht', icon: BarChart3 },
-  { id: 'repliken', label: 'Repliken', icon: Users },
-  { id: 'pairs', label: 'Figurenpaare', icon: Users },
-  { id: 'motiv', label: 'Motive', icon: MapPin },
-  { id: 'komparsen', label: 'Komparsen', icon: UserCheck },
-  { id: 'compare', label: 'Versionsvergleich', icon: GitCompare },
-]
-
-function formatTime(sek: number) {
+function formatTime(sek: number): string {
   const m = Math.floor(sek / 60)
   const s = sek % 60
   return `${m}:${String(s).padStart(2, '0')}`
@@ -26,33 +17,67 @@ export default function StatistikPage() {
   const produktionId = selectedProduction?.id ?? null
 
   const [folgen, setFolgen] = useState<any[]>([])
+  const [bloecke, setBloecke] = useState<any[]>([])
+  const [mode, setMode] = useState<ViewMode>('block')
+  const [selectedBlockIdx, setSelectedBlockIdx] = useState<number>(-1)
   const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(null)
-  const [werkstufen, setWerkstufen] = useState<any[]>([])
-  const [selectedWerkId, setSelectedWerkId] = useState<string | null>(null)
-  const [tab, setTab] = useState<TabId>('overview')
+  const [werkstufTyp, setWerkstufTyp] = useState('drehbuch')
+  const [report, setReport] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
 
-  // Load Folgen
+  // Load folgen + bloecke
   useEffect(() => {
     if (!produktionId) return
     api.getFolgenV2(produktionId).then(setFolgen).catch(() => {})
+    api.getBloecke(produktionId).then(b => {
+      setBloecke(b || [])
+      if (b?.length > 0) setSelectedBlockIdx(0)
+    }).catch(() => setBloecke([]))
   }, [produktionId])
 
-  // Load Werkstufen for selected Folge
+  // Auto-select first folge when in folge mode
   useEffect(() => {
-    if (!selectedFolgeId) { setWerkstufen([]); setSelectedWerkId(null); return }
-    api.getWerkstufen(selectedFolgeId).then(ws => {
-      setWerkstufen(ws)
-      if (ws.length > 0) setSelectedWerkId(ws[0].id)
-      else setSelectedWerkId(null)
-    }).catch(() => {})
-  }, [selectedFolgeId])
-
-  // Auto-select first folge
-  useEffect(() => {
-    if (folgen.length > 0 && !selectedFolgeId) {
+    if (mode === 'folge' && folgen.length > 0 && !selectedFolgeId) {
       setSelectedFolgeId(folgen[0].id)
     }
-  }, [folgen, selectedFolgeId])
+  }, [mode, folgen, selectedFolgeId])
+
+  // Determine which folge_ids to query
+  const selectedFolgeIds = useMemo(() => {
+    if (mode === 'block' && selectedBlockIdx >= 0 && bloecke[selectedBlockIdx]) {
+      const block = bloecke[selectedBlockIdx]
+      return folgen
+        .filter(f => f.folge_nummer >= block.folge_von && f.folge_nummer <= block.folge_bis)
+        .map(f => f.id)
+    }
+    if (mode === 'folge' && selectedFolgeId) {
+      return [selectedFolgeId]
+    }
+    return []
+  }, [mode, selectedBlockIdx, bloecke, selectedFolgeId, folgen])
+
+  // Load report
+  useEffect(() => {
+    if (!produktionId || selectedFolgeIds.length === 0) { setReport(null); return }
+    setLoading(true)
+    api.getStatReport(produktionId, selectedFolgeIds, werkstufTyp)
+      .then(setReport)
+      .catch(() => setReport(null))
+      .finally(() => setLoading(false))
+  }, [produktionId, selectedFolgeIds, werkstufTyp])
+
+  // Title for the report header
+  const reportTitle = useMemo(() => {
+    if (mode === 'block' && selectedBlockIdx >= 0 && bloecke[selectedBlockIdx]) {
+      const b = bloecke[selectedBlockIdx]
+      return `Block ${b.block_nummer} (Folgen ${b.folge_von}–${b.folge_bis})`
+    }
+    if (mode === 'folge' && selectedFolgeId) {
+      const f = folgen.find(f => f.id === selectedFolgeId)
+      if (f) return `Folge ${f.folge_nummer}${f.folgen_titel ? ` — ${f.folgen_titel}` : ''}`
+    }
+    return ''
+  }, [mode, selectedBlockIdx, bloecke, selectedFolgeId, folgen])
 
   if (!produktionId) {
     return (
@@ -68,77 +93,83 @@ export default function StatistikPage() {
     <AppShell hideProductionSelector={false}>
       <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
         {/* Toolbar */}
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select
-            value={selectedFolgeId ?? ''}
-            onChange={e => setSelectedFolgeId(Number(e.target.value) || null)}
-            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13 }}
-          >
-            <option value="">Folge wählen...</option>
-            {folgen.map(f => (
-              <option key={f.id} value={f.id}>Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}</option>
-            ))}
-          </select>
+        <div className="stat-no-print" style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Mode toggle */}
+          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
+            <button
+              onClick={() => setMode('block')}
+              style={{
+                padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 13,
+                background: mode === 'block' ? 'var(--text)' : 'var(--bg)',
+                color: mode === 'block' ? 'var(--bg)' : 'var(--text)',
+              }}
+            >Block</button>
+            <button
+              onClick={() => setMode('folge')}
+              style={{
+                padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 13,
+                borderLeft: '1px solid var(--border)',
+                background: mode === 'folge' ? 'var(--text)' : 'var(--bg)',
+                color: mode === 'folge' ? 'var(--bg)' : 'var(--text)',
+              }}
+            >Folge</button>
+          </div>
 
-          {werkstufen.length > 0 && (
+          {/* Block selector */}
+          {mode === 'block' && bloecke.length > 0 && (
             <select
-              value={selectedWerkId ?? ''}
-              onChange={e => setSelectedWerkId(e.target.value || null)}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13 }}
+              value={selectedBlockIdx}
+              onChange={e => setSelectedBlockIdx(Number(e.target.value))}
+              style={selStyle}
             >
-              {werkstufen.map(w => (
-                <option key={w.id} value={w.id}>{w.typ} v{w.version_nummer}{w.label ? ` (${w.label})` : ''}</option>
+              {bloecke.map((b, i) => (
+                <option key={i} value={i}>Block {b.block_nummer} ({b.folge_von}–{b.folge_bis})</option>
+              ))}
+            </select>
+          )}
+          {mode === 'block' && bloecke.length === 0 && (
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Keine Blöcke in ProdDB</span>
+          )}
+
+          {/* Folge selector */}
+          {mode === 'folge' && (
+            <select
+              value={selectedFolgeId ?? ''}
+              onChange={e => setSelectedFolgeId(Number(e.target.value) || null)}
+              style={selStyle}
+            >
+              <option value="">Folge wählen...</option>
+              {folgen.map(f => (
+                <option key={f.id} value={f.id}>Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}</option>
               ))}
             </select>
           )}
 
+          {/* Werkstufe type */}
+          <select value={werkstufTyp} onChange={e => setWerkstufTyp(e.target.value)} style={selStyle}>
+            <option value="drehbuch">Drehbuch</option>
+            <option value="treatment">Treatment</option>
+            <option value="storyline">Storyline</option>
+          </select>
+
           <button
             onClick={() => window.print()}
-            className="stat-no-print"
             style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text)', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
           >
             <Printer size={14} /> Drucken / PDF
           </button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 16px', gap: 0, overflowX: 'auto' }} className="stat-tabs">
-          {TABS.map(t => {
-            const Icon = t.icon
-            return (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                style={{
-                  padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
-                  borderBottom: tab === t.id ? '2px solid var(--text)' : '2px solid transparent',
-                  color: tab === t.id ? 'var(--text)' : 'var(--text-secondary)',
-                  fontSize: 13, fontWeight: tab === t.id ? 600 : 400,
-                  display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
-                }}
-              >
-                <Icon size={14} />
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-          {!selectedWerkId ? (
-            <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: 32 }}>
-              Keine Werkstufe vorhanden
+        {/* Report */}
+        <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 48 }}>Laden...</div>
+          ) : !report ? (
+            <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 48 }}>
+              {selectedFolgeIds.length === 0 ? 'Bitte Block oder Folge wählen' : 'Keine Daten'}
             </div>
           ) : (
-            <>
-              {tab === 'overview' && <OverviewTab werkId={selectedWerkId} />}
-              {tab === 'repliken' && <ReplikenTab werkId={selectedWerkId} />}
-              {tab === 'pairs' && <PairsTab werkId={selectedWerkId} />}
-              {tab === 'motiv' && <MotivTab werkId={selectedWerkId} produktionId={produktionId} />}
-              {tab === 'komparsen' && <KomparsenTab werkId={selectedWerkId} />}
-              {tab === 'compare' && <CompareTab werkId={selectedWerkId} werkstufen={werkstufen} />}
-            </>
+            <ReportView report={report} title={reportTitle} />
           )}
         </div>
       </div>
@@ -146,445 +177,180 @@ export default function StatistikPage() {
   )
 }
 
-// ── Overview Tab ──────────────────────────────────────────────────────────
-function OverviewTab({ werkId }: { werkId: string }) {
-  const [data, setData] = useState<any>(null)
-  useEffect(() => {
-    api.getStatOverview(werkId).then(setData).catch(() => {})
-  }, [werkId])
-
-  if (!data) return <div style={{ color: 'var(--text-secondary)' }}>Laden...</div>
-
-  const cards = [
-    { label: 'Szenen', value: data.scenes.total, sub: data.scenes.wechselschnitt > 0 ? `davon ${data.scenes.wechselschnitt} Wechselschnitt` : undefined },
-    { label: 'Figuren gesamt', value: data.characters.total },
-    { label: 'Mit Text', value: data.characters.with_text, color: '#00C853' },
-    { label: 'Mit Spiel', value: data.characters.with_spiel, color: '#007AFF' },
-    { label: 'O.T.', value: data.characters.ot_only, color: '#757575' },
-    { label: 'Repliken gesamt', value: data.repliken },
-    { label: 'Stoppzeit', value: formatTime(data.stoppzeit_sek) },
-  ]
-
+// ── Report View ────────────────────────────────────────────────────────────
+function ReportView({ report, title }: { report: any; title: string }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12 }}>
-      {cards.map(c => (
-        <div key={c.label} style={{ padding: '16px 14px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-surface)' }}>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{c.label}</div>
-          <div style={{ fontSize: 24, fontWeight: 700, color: c.color || 'var(--text)' }}>{c.value}</div>
-          {c.sub && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{c.sub}</div>}
-        </div>
-      ))}
-    </div>
-  )
-}
+    <div style={{ maxWidth: 900, margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Statistiken</h1>
+      {title && <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24 }}>{title}</div>}
 
-// ── Repliken Tab ──────────────────────────────────────────────────────────
-function ReplikenTab({ werkId }: { werkId: string }) {
-  const [data, setData] = useState<any[]>([])
-  const [sortCol, setSortCol] = useState<string>('total_repliken')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-  const [view, setView] = useState<'table' | 'chart'>('table')
+      {/* Summary */}
+      <Section>
+        <SummaryRow label="Bilder insgesamt" value={report.bilder_insgesamt} />
+        <SummaryRow label="Anzahl Drehbuchseiten" value={report.drehbuchseiten_display || '0'} />
+        <SummaryRow label="Vorstopp (mm:ss)" value={formatTime(report.vorstopp_sek || 0)} />
+      </Section>
 
-  useEffect(() => {
-    api.getStatCharacterRepliken(werkId).then(setData).catch(() => {})
-  }, [werkId])
-
-  const sorted = useMemo(() => {
-    return [...data].sort((a, b) => {
-      const av = Number(a[sortCol]) || 0, bv = Number(b[sortCol]) || 0
-      return sortDir === 'desc' ? bv - av : av - bv
-    })
-  }, [data, sortCol, sortDir])
-
-  const toggleSort = (col: string) => {
-    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortCol(col); setSortDir('desc') }
-  }
-
-  const SortIcon = ({ col }: { col: string }) =>
-    sortCol === col ? (sortDir === 'desc' ? <ChevronDown size={12} /> : <ChevronUp size={12} />) : null
-
-  const maxRepliken = Math.max(1, ...data.map(d => Number(d.total_repliken) || 0))
-
-  return (
-    <div>
-      <div style={{ marginBottom: 12, display: 'flex', gap: 4 }}>
-        <button onClick={() => setView('table')} style={{ ...iconBtn, background: view === 'table' ? 'var(--bg-subtle)' : 'none' }}><Table size={14} /></button>
-        <button onClick={() => setView('chart')} style={{ ...iconBtn, background: view === 'chart' ? 'var(--bg-subtle)' : 'none' }}><BarChart2 size={14} /></button>
-      </div>
-
-      {view === 'chart' ? (
-        <HBarChart
-          items={sorted.slice(0, 30).map(r => ({
-            label: r.character_name,
-            value: Number(r.total_repliken),
-            segments: [
-              { value: Number(r.scenes_with_text), color: '#00C853', label: 'Text' },
-              { value: Number(r.scenes_with_spiel), color: '#007AFF', label: 'Spiel' },
-              { value: Number(r.scenes_ot), color: '#BDBDBD', label: 'O.T.' },
-            ],
-          }))}
-          valueLabel="Repliken"
-          segmentLabel="Szenen nach Typ"
-        />
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid var(--border)' }}>
-              <th style={thStyle}>Figur</th>
-              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('total_repliken')}>Repliken <SortIcon col="total_repliken" /></th>
-              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scene_count')}>Szenen <SortIcon col="scene_count" /></th>
-              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_with_text')}>Text <SortIcon col="scenes_with_text" /></th>
-              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_with_spiel')}>Spiel <SortIcon col="scenes_with_spiel" /></th>
-              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_ot')}>O.T. <SortIcon col="scenes_ot" /></th>
-              <th style={{ ...thStyle, width: 200 }}>Verteilung</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map(r => (
-              <tr key={r.character_id} style={{ borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
-                <td style={tdStyle}>{r.character_name}</td>
-                <td style={{ ...tdStyle, fontWeight: 600 }}>{r.total_repliken}</td>
-                <td style={tdStyle}>{r.scene_count}</td>
-                <td style={tdStyle}><SpielBadge typ="text" count={r.scenes_with_text} /></td>
-                <td style={tdStyle}><SpielBadge typ="spiel" count={r.scenes_with_spiel} /></td>
-                <td style={tdStyle}><SpielBadge typ="o.t." count={r.scenes_ot} /></td>
-                <td style={tdStyle}>
-                  <div style={{ width: '100%', height: 12, background: 'var(--bg-subtle)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${(Number(r.total_repliken) / maxRepliken) * 100}%`, height: '100%', background: '#00C853', borderRadius: 4, transition: 'width 0.3s' }} />
-                  </div>
-                </td>
+      {/* Per-Folge breakdown (only for blocks with multiple folgen) */}
+      {report.folgen?.length > 1 && (
+        <Section title="Pro Folge">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Folge</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Bilder</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Seiten</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Vorstopp</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.folgen.map((f: any) => (
+                <tr key={f.folge_nummer}>
+                  <td style={tdStyle}>{f.folge_nummer}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{f.bilder}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{f.seiten_display}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{formatTime(f.vorstopp_sek)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
       )}
-      {data.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-secondary)' }}>Keine Daten</div>}
-    </div>
-  )
-}
 
-// ── Pairs Tab ──────────────────────────────────────────────────────────
-function PairsTab({ werkId }: { werkId: string }) {
-  const [data, setData] = useState<any[]>([])
-
-  useEffect(() => {
-    api.getStatCharacterPairs(werkId).then(setData).catch(() => {})
-  }, [werkId])
-
-  const maxShared = Math.max(1, ...data.map(d => Number(d.shared_scenes) || 0))
-
-  return (
-    <div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid var(--border)' }}>
-            <th style={thStyle}>Figur A</th>
-            <th style={thStyle}>Figur B</th>
-            <th style={thStyle}>Gemeinsame Szenen</th>
-            <th style={{ ...thStyle, width: 200 }}>Häufigkeit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((r, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
-              <td style={tdStyle}>{r.character_a}</td>
-              <td style={tdStyle}>{r.character_b}</td>
-              <td style={{ ...tdStyle, fontWeight: 600 }}>{r.shared_scenes}</td>
-              <td style={tdStyle}>
-                <div style={{ width: '100%', height: 12, background: 'var(--bg-subtle)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ width: `${(Number(r.shared_scenes) / maxShared) * 100}%`, height: '100%', background: '#007AFF', borderRadius: 4 }} />
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {data.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-secondary)' }}>Keine Daten</div>}
-    </div>
-  )
-}
-
-// ── Motiv Tab ──────────────────────────────────────────────────────────
-function MotivTab({ werkId, produktionId }: { werkId: string; produktionId: string }) {
-  const [data, setData] = useState<any[]>([])
-  const [mode, setMode] = useState<'werkstufe' | 'staffel'>('werkstufe')
-
-  useEffect(() => {
-    const params: Record<string, string> = mode === 'werkstufe'
-      ? { werkstufe_id: werkId }
-      : { produktion_id: produktionId }
-    api.getStatMotivAuslastung(params).then(setData).catch(() => {})
-  }, [werkId, produktionId, mode])
-
-  return (
-    <div>
-      <div style={{ marginBottom: 12, display: 'flex', gap: 8 }}>
-        <button onClick={() => setMode('werkstufe')} style={mode === 'werkstufe' ? pillActive : pill}>Diese Werkstufe</button>
-        <button onClick={() => setMode('staffel')} style={mode === 'staffel' ? pillActive : pill}>Ganze Staffel</button>
-      </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid var(--border)' }}>
-            <th style={thStyle}>Motiv</th>
-            <th style={thStyle}>I/E</th>
-            <th style={thStyle}>Szenen</th>
-            <th style={thStyle}>Stoppzeit</th>
-            <th style={thStyle}>Figuren</th>
-            {mode === 'staffel' && <th style={thStyle}>Folgen</th>}
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((r, i) => (
-            <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
-              <td style={tdStyle}>{r.ort_name}</td>
-              <td style={tdStyle}>{r.int_ext}</td>
-              <td style={{ ...tdStyle, fontWeight: 600 }}>{r.scene_count}</td>
-              <td style={tdStyle}>{r.total_stoppzeit_sek ? formatTime(Number(r.total_stoppzeit_sek)) : '—'}</td>
-              <td style={tdStyle}>{r.unique_characters}</td>
-              {mode === 'staffel' && <td style={tdStyle}>{r.folgen_nummern?.join(', ')}</td>}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {data.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-secondary)' }}>Keine Daten</div>}
-    </div>
-  )
-}
-
-// ── Komparsen Tab ──────────────────────────────────────────────────────────
-function KomparsenTab({ werkId }: { werkId: string }) {
-  const [data, setData] = useState<any>(null)
-
-  useEffect(() => {
-    api.getStatKomparsenBedarf({ werkstufe_id: werkId }).then(setData).catch(() => {})
-  }, [werkId])
-
-  if (!data) return <div style={{ color: 'var(--text-secondary)' }}>Laden...</div>
-
-  return (
-    <div>
-      {data.summary?.length > 0 && (
-        <div style={{ marginBottom: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
-          {data.summary.map((s: any) => (
-            <div key={s.folge_nummer} style={{ padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 8 }}>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Folge {s.folge_nummer}</div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{s.total_headcount} Köpfe</div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.unique_komparsen} Typen · {s.scenes_with_komparsen} Szenen</div>
+      {/* Rollen pro Bild */}
+      {report.rollen_pro_bild?.length > 0 && (
+        <Section title="Rollen pro Bild">
+          {report.rollen_pro_bild.map((r: any) => (
+            <div key={r.rollen_count} style={listRow}>
+              <span style={countBadge}>{r.bilder_count}x</span>
+              <span>Bilder mit {r.rollen_count} {r.rollen_count === 1 ? 'Rolle' : 'Rollen'}</span>
             </div>
           ))}
-        </div>
+        </Section>
       )}
 
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid var(--border)' }}>
-            <th style={thStyle}>Komparse</th>
-            <th style={thStyle}>Anzahl</th>
-            <th style={thStyle}>Szene</th>
-            <th style={thStyle}>Motiv</th>
-            <th style={thStyle}>Spiel</th>
-            <th style={thStyle}>Repliken</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.details?.map((r: any, i: number) => (
-            <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
-              <td style={tdStyle}>{r.komparse_name}</td>
-              <td style={tdStyle}>{r.anzahl}</td>
-              <td style={tdStyle}>{r.scene_nummer}</td>
-              <td style={tdStyle}>{r.ort_name || '—'}</td>
-              <td style={tdStyle}><SpielBadge typ={r.spiel_typ} /></td>
-              <td style={tdStyle}>{r.repliken_anzahl || '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {(!data.details || data.details.length === 0) && (
-        <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-secondary)' }}>Keine Komparsen</div>
-      )}
-    </div>
-  )
-}
-
-// ── Compare Tab ──────────────────────────────────────────────────────────
-function CompareTab({ werkId, werkstufen }: { werkId: string; werkstufen: any[] }) {
-  const [rightId, setRightId] = useState<string>('')
-  const [data, setData] = useState<any>(null)
-
-  const others = werkstufen.filter(w => w.id !== werkId)
-
-  useEffect(() => {
-    if (!werkId || !rightId) { setData(null); return }
-    api.getStatVersionCompare(werkId, rightId).then(setData).catch(() => {})
-  }, [werkId, rightId])
-
-  return (
-    <div>
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Vergleich mit:</span>
-        <select
-          value={rightId}
-          onChange={e => setRightId(e.target.value)}
-          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 13 }}
-        >
-          <option value="">Werkstufe wählen...</option>
-          {others.map(w => (
-            <option key={w.id} value={w.id}>{w.typ} v{w.version_nummer}{w.label ? ` (${w.label})` : ''}</option>
-          ))}
-        </select>
-      </div>
-
-      {data?.comparison && (
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid var(--border)' }}>
-              <th style={thStyle}>Figur</th>
-              <th style={thStyle}>Szenen (links)</th>
-              <th style={thStyle}>Szenen (rechts)</th>
-              <th style={thStyle}>Δ Szenen</th>
-              <th style={thStyle}>Repliken (links)</th>
-              <th style={thStyle}>Repliken (rechts)</th>
-              <th style={thStyle}>Δ Repliken</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.comparison.map((r: any) => (
-              <tr key={r.character_id} style={{ borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
-                <td style={tdStyle}>{r.character_name}</td>
-                <td style={tdStyle}>{r.left.scenes}</td>
-                <td style={tdStyle}>{r.right.scenes}</td>
-                <td style={{ ...tdStyle, fontWeight: 600, color: r.diff_scenes > 0 ? '#00C853' : r.diff_scenes < 0 ? '#FF3B30' : 'var(--text-secondary)' }}>
-                  {r.diff_scenes > 0 ? `+${r.diff_scenes}` : r.diff_scenes}
-                </td>
-                <td style={tdStyle}>{r.left.repliken}</td>
-                <td style={tdStyle}>{r.right.repliken}</td>
-                <td style={{ ...tdStyle, fontWeight: 600, color: r.diff_repliken > 0 ? '#00C853' : r.diff_repliken < 0 ? '#FF3B30' : 'var(--text-secondary)' }}>
-                  {r.diff_repliken > 0 ? `+${r.diff_repliken}` : r.diff_repliken}
-                </td>
+      {/* Rollen */}
+      {report.rollen?.length > 0 && (
+        <Section title="Rollen">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, width: 50 }}>#</th>
+                <th style={thStyle}>Rolle</th>
+                <th style={thStyle}>Darsteller:in</th>
+                <th style={thStyle}>Bilder</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {report.rollen.map((r: any, i: number) => (
+                <tr key={i}>
+                  <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{r.scene_count}x</td>
+                  <td style={{ ...tdStyle, fontWeight: 500 }}>{r.character_name}</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{r.darsteller_name || '—'}</td>
+                  <td style={{ ...tdStyle, fontSize: 11, color: 'var(--text-secondary)', maxWidth: 300 }}>
+                    <SceneRefs scenes={r.scenes} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
       )}
 
-      {!data && rightId && <div style={{ color: 'var(--text-secondary)' }}>Laden...</div>}
-      {!rightId && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-secondary)' }}>Zweite Werkstufe zum Vergleich wählen</div>}
-    </div>
-  )
-}
+      {/* Motive */}
+      {report.motive?.length > 0 && (
+        <Section title="Motive">
+          <table style={tableStyle}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, width: 50 }}>#</th>
+                <th style={thStyle}>Motiv</th>
+                <th style={thStyle}>Drehort</th>
+                <th style={thStyle}>Bilder</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.motive.map((m: any, i: number) => (
+                <tr key={i}>
+                  <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{m.scene_count}x</td>
+                  <td style={{ ...tdStyle, fontWeight: 500 }}>{m.name}</td>
+                  <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{m.drehort}</td>
+                  <td style={{ ...tdStyle, fontSize: 11, color: 'var(--text-secondary)', maxWidth: 300 }}>
+                    <SceneRefs scenes={m.scenes} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
-function SpielBadge({ typ, count }: { typ: string; count?: number | string }) {
-  const colors: Record<string, { bg: string; text: string }> = {
-    'text': { bg: '#E8F5E9', text: '#2E7D32' },
-    'spiel': { bg: '#E3F2FD', text: '#1565C0' },
-    'o.t.': { bg: '#F5F5F5', text: '#757575' },
-  }
-  const c = colors[typ] || colors['o.t.']
-  const label = count != null ? `${count}` : typ
-  return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-      fontSize: 11, fontWeight: 600, background: c.bg, color: c.text,
-    }}>
-      {label}
-    </span>
-  )
-}
-
-// ── HBarChart — SVG horizontal bar chart ──────────────────────────────
-function HBarChart({ items, valueLabel, segmentLabel }: {
-  items: { label: string; value: number; segments?: { value: number; color: string; label: string }[] }[]
-  valueLabel?: string
-  segmentLabel?: string
-}) {
-  const barH = 24
-  const gap = 6
-  const labelW = 140
-  const valueW = 50
-  const segW = 120
-  const chartW = 400
-  const totalW = labelW + valueW + chartW + segW + 40
-  const totalH = items.length * (barH + gap) + 30
-  const maxVal = Math.max(1, ...items.map(i => i.value))
-
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <svg width={totalW} height={totalH} style={{ display: 'block' }}>
-        {/* Header */}
-        <text x={labelW + valueW + chartW / 2} y={14} textAnchor="middle" fontSize={11} fill="var(--text-secondary)">{valueLabel || 'Wert'}</text>
-        {segmentLabel && <text x={labelW + valueW + chartW + 20 + segW / 2} y={14} textAnchor="middle" fontSize={11} fill="var(--text-secondary)">{segmentLabel}</text>}
-
-        {items.map((item, idx) => {
-          const y = 24 + idx * (barH + gap)
-          const w = (item.value / maxVal) * chartW
-
-          // Stacked segments
-          const segs = item.segments || []
-          const segTotal = segs.reduce((s, seg) => s + seg.value, 0) || 1
-          let segX = labelW + valueW + chartW + 20
-
-          return (
-            <g key={idx}>
-              {/* Label */}
-              <text x={labelW - 8} y={y + barH / 2 + 4} textAnchor="end" fontSize={12} fill="var(--text)" style={{ overflow: 'hidden' }}>
-                {item.label.length > 18 ? item.label.slice(0, 16) + '...' : item.label}
-              </text>
-              {/* Value bar */}
-              <rect x={labelW + valueW} y={y} width={w} height={barH} rx={4} fill="#00C853" opacity={0.85} />
-              {/* Value label */}
-              <text x={labelW + valueW - 6} y={y + barH / 2 + 4} textAnchor="end" fontSize={12} fontWeight={700} fill="var(--text)">{item.value}</text>
-              {/* Segment stacked bar */}
-              {segs.map((seg, si) => {
-                const segWidth = (seg.value / segTotal) * segW
-                const sx = segX
-                segX += segWidth
-                return (
-                  <g key={si}>
-                    <rect x={sx} y={y + 2} width={Math.max(0, segWidth - 1)} height={barH - 4} rx={3} fill={seg.color} opacity={0.85} />
-                    {segWidth > 18 && (
-                      <text x={sx + segWidth / 2} y={y + barH / 2 + 3} textAnchor="middle" fontSize={9} fontWeight={600} fill="#fff">{seg.value}</text>
-                    )}
-                  </g>
-                )
-              })}
-            </g>
-          )
-        })}
-      </svg>
-      {/* Legend */}
-      {items[0]?.segments && (
-        <div style={{ display: 'flex', gap: 12, marginTop: 8, paddingLeft: labelW + valueW }}>
-          {items[0].segments.map((s, i) => (
-            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, display: 'inline-block' }} />
-              {s.label}
-            </span>
+      {/* Drehorte */}
+      {report.drehorte?.length > 0 && (
+        <Section title="Drehorte">
+          {report.drehorte.map((d: any, i: number) => (
+            <div key={i} style={{ ...listRow, justifyContent: 'space-between' }}>
+              <span><span style={countBadge}>{d.scene_count}x</span> {d.name}</span>
+            </div>
           ))}
-        </div>
+        </Section>
       )}
     </div>
   )
 }
 
-const iconBtn: React.CSSProperties = {
-  padding: 6, border: '1px solid var(--border)', borderRadius: 6,
-  cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center',
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function Section({ title, children }: { title?: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 28 }}>
+      {title && <h2 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-secondary)', marginBottom: 10, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>{title}</h2>}
+      {children}
+    </div>
+  )
+}
+
+function SummaryRow({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
+      <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{label}</span>
+      <span style={{ fontWeight: 600, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
+    </div>
+  )
+}
+
+function SceneRefs({ scenes }: { scenes: string[] }) {
+  if (!scenes || scenes.length === 0) return <span>—</span>
+  const display = scenes.length > 12 ? scenes.slice(0, 12).join(', ') + ', ...' : scenes.join(', ')
+  return <span title={scenes.join(', ')} style={{ wordBreak: 'break-all' }}>{display}</span>
+}
+
+// ── Styles ──────────────────────────────────────────────────────────────────
+
+const selStyle: React.CSSProperties = {
+  padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
+  background: 'var(--bg)', color: 'var(--text)', fontSize: 13,
+}
+
+const tableStyle: React.CSSProperties = {
+  width: '100%', borderCollapse: 'collapse', fontSize: 13,
 }
 
 const thStyle: React.CSSProperties = {
-  textAlign: 'left', padding: '8px 10px', fontSize: 11, fontWeight: 600,
-  color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px',
-  whiteSpace: 'nowrap',
+  textAlign: 'left', padding: '6px 10px', fontSize: 11, fontWeight: 600,
+  color: 'var(--text-secondary)', borderBottom: '2px solid var(--border)', whiteSpace: 'nowrap',
 }
-const tdStyle: React.CSSProperties = { padding: '8px 10px', verticalAlign: 'middle' }
 
-const pill: React.CSSProperties = {
-  padding: '5px 12px', borderRadius: 16, border: '1px solid var(--border)',
-  background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
+const tdStyle: React.CSSProperties = {
+  padding: '6px 10px', verticalAlign: 'top',
+  borderBottom: '1px solid var(--border-subtle, var(--border))',
 }
-const pillActive: React.CSSProperties = {
-  ...pill, background: 'var(--text)', color: 'var(--bg)', borderColor: 'var(--text)',
+
+const listRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', fontSize: 14,
+}
+
+const countBadge: React.CSSProperties = {
+  display: 'inline-block', minWidth: 36, textAlign: 'right', fontWeight: 600,
+  fontVariantNumeric: 'tabular-nums', marginRight: 4,
 }

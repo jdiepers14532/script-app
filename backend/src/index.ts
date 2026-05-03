@@ -248,6 +248,7 @@ async function runMigrations() {
     'v45_komparsen_spiel.sql',
     'v46_statistik.sql',
     'v47_rename_produktionen.sql',
+    'v48_statistik_report.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
