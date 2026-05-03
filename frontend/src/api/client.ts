@@ -454,6 +454,45 @@ export const api = {
   diffWerkstufen: (leftId: string, rightId: string) =>
     request<any>('GET', `/werkstufen/${leftId}/szenen/diff/${rightId}`),
 
+  // ── Statistik ──────────────────────────────────────────────────────────────
+  getStatOverview: (werkId: string) =>
+    request<any>('GET', `/statistik/overview?werkstufe_id=${werkId}`),
+  getStatCharacterScenes: (params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString()
+    return request<any[]>('GET', `/statistik/character-scenes?${qs}`)
+  },
+  getStatCharacterRepliken: (werkId: string) =>
+    request<any[]>('GET', `/statistik/character-repliken?werkstufe_id=${werkId}`),
+  getStatCharacterPairs: (werkId: string, characterId?: string, motiv?: string) => {
+    const p = new URLSearchParams({ werkstufe_id: werkId })
+    if (characterId) p.set('character_id', characterId)
+    if (motiv) p.set('motiv', motiv)
+    return request<any[]>('GET', `/statistik/character-pairs?${p}`)
+  },
+  getStatBesetzungsmatrix: (staffelId: string, werkstufTyp?: string) => {
+    const p = new URLSearchParams({ staffel_id: staffelId })
+    if (werkstufTyp) p.set('werkstufe_typ', werkstufTyp)
+    return request<any>('GET', `/statistik/besetzungsmatrix?${p}`)
+  },
+  getStatVersionCompare: (leftId: string, rightId: string) =>
+    request<any>('GET', `/statistik/version-compare?left_id=${leftId}&right_id=${rightId}`),
+  getStatMotivAuslastung: (params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString()
+    return request<any[]>('GET', `/statistik/motiv-auslastung?${qs}`)
+  },
+  getStatKomparsenBedarf: (params: Record<string, string>) => {
+    const qs = new URLSearchParams(params).toString()
+    return request<any>('GET', `/statistik/komparsen-bedarf?${qs}`)
+  },
+  getStatVorlagen: (staffelId: string) =>
+    request<any[]>('GET', `/statistik/vorlagen?staffel_id=${encodeURIComponent(staffelId)}`),
+  createStatVorlage: (data: { staffel_id: string; name: string; abfrage_typ: string; parameter?: any }) =>
+    request<any>('POST', '/statistik/vorlagen', data),
+  updateStatVorlage: (id: number, data: any) =>
+    request<any>('PUT', `/statistik/vorlagen/${id}`, data),
+  deleteStatVorlage: (id: number) =>
+    request<void>('DELETE', `/statistik/vorlagen/${id}`),
+
   // Werkstufe-based exports
   exportWerkstufePdf: (werkId: string) =>
     fetch(`${BASE}/stages/werkstufe/${werkId}/export/pdf`, { credentials: 'include' }),

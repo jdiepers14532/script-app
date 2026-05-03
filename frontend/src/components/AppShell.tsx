@@ -5,7 +5,7 @@ import {
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
-  Users, UserCheck, MapPin, ClipboardList, Eye,
+  Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext } from '../contexts'
 import type { TweakState } from '../contexts'
@@ -1091,6 +1091,8 @@ export default function AppShell({
               { to: '/rollen',    label: figurenLabel, icon: <Users size={14} /> },
               { to: '/komparsen', label: 'Komparsen',  icon: <UserCheck size={14} /> },
               { to: '/motive',    label: 'Motive',     icon: <MapPin size={14} /> },
+              { to: '/statistik',  label: 'Statistik',  icon: <BarChart3 size={14} /> },
+              { to: '/besetzung', label: 'Besetzung',  icon: <Grid3x3 size={14} /> },
               { to: '/import',    label: 'Import',     icon: <FileUp size={14} /> },
               { to: '/hilfe',     label: 'Handbuch',   icon: <BookOpen size={14} /> },
               ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} /> }] : []),
