@@ -3,14 +3,17 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
+import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
 import { useFocus, useSelectedProduction, PanelModeContext } from '../contexts'
 import { useWerkstufe } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
-// Uses Werkstufen-Modell: folgen → werkstufen → dokument_szenen
-function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; folgeNummer: number | null }) {
+// Per-scene editing: each editor shows only the currently selected scene's content
+function DockedEditorPanels({ staffelId, folgeNummer, selectedSzeneId, useDokumentSzenen }: {
+  staffelId: string; folgeNummer: number | null; selectedSzeneId: number | string | null; useDokumentSzenen: boolean
+}) {
   const { panelMode } = useContext(PanelModeContext)
   const [folgeId, setFolgeId] = useState<number | null>(null)
   const [formatElements, setFormatElements] = useState<any[]>([])
@@ -87,6 +90,8 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
             werkstufen={werkstufen}
             formatElements={formatElements}
             defaultTyp="storyline"
+            selectedSzeneId={selectedSzeneId}
+            useDokumentSzenen={useDokumentSzenen}
             onCreateWerkstufe={handleCreate}
             onReloadWerkstufen={reloadWerkstufen}
           />
@@ -122,6 +127,8 @@ function DockedEditorPanels({ staffelId, folgeNummer }: { staffelId: string; fol
             werkstufen={werkstufen}
             formatElements={formatElements}
             defaultTyp="drehbuch"
+            selectedSzeneId={selectedSzeneId}
+            useDokumentSzenen={useDokumentSzenen}
             onCreateWerkstufe={handleCreate}
             onReloadWerkstufen={reloadWerkstufen}
           />
@@ -635,9 +642,37 @@ export default function ScriptPage() {
           </button>
         </div>
 
-        {/* Editor area — Werkstufen-based EditorPanels */}
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <DockedEditorPanels staffelId={selectedStaffelId} folgeNummer={selectedFolgeNummer} />
+        {/* Editor area — SceneEditor (header) + per-scene DockedEditorPanels */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {selectedSzeneId && (
+            <SceneEditor
+              szeneId={selectedSzeneId}
+              stageId={selectedStageId}
+              staffelId={selectedStaffelId}
+              folgeNummer={selectedFolgeNummer}
+              useDokumentSzenen={useDokumentSzenen}
+              onSzeneUpdated={(updated) => {
+                setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
+              }}
+              onNavigatePrev={() => navigateSzene(-1)}
+              onNavigateNext={() => navigateSzene(1)}
+              onMarkCommentsRead={(szeneId) => {
+                setCommentCounts(prev => ({ ...prev, [szeneId]: 0 }))
+                api.markSceneCommentsRead(szeneId).catch(() => {})
+              }}
+            />
+          )}
+          {!selectedSzeneId && (
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>
+              Keine Szene ausgewählt
+            </div>
+          )}
+          <DockedEditorPanels
+            staffelId={selectedStaffelId}
+            folgeNummer={selectedFolgeNummer}
+            selectedSzeneId={selectedSzeneId}
+            useDokumentSzenen={useDokumentSzenen}
+          />
         </div>
 
         {!focus && <BreakdownPanel
