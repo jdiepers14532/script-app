@@ -314,31 +314,41 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     // Process Komparsen
-    const allKomparsen = new Set<string>()
+    // Parse "4x PatientInnen o.T." → { name: "PatientInnen o.T.", anzahl: 4 }
+    function parseKomparseEntry(raw: string): { name: string; anzahl: number } {
+      const m = raw.match(/^(\d+)x\s+(.+)$/)
+      if (m) return { name: m[2].trim(), anzahl: parseInt(m[1], 10) }
+      return { name: raw.trim(), anzahl: 1 }
+    }
+
+    const allKomparsenNames = new Set<string>()
     for (const szene of result.szenen) {
       if (szene.komparsen) {
-        for (const k of szene.komparsen) allKomparsen.add(k)
+        for (const k of szene.komparsen) {
+          const { name } = parseKomparseEntry(k)
+          if (name) allKomparsenNames.add(name)
+        }
       }
     }
 
     let komparsenCreated = 0
-    for (const kompName of allKomparsen) {
-      if (!kompName.trim()) continue
+    for (const kompCleanName of allKomparsenNames) {
+      if (!kompCleanName) continue
       try {
         let existing = await queryOne(
           `SELECT c.id FROM characters c
            JOIN character_productions cp ON cp.character_id = c.id AND cp.staffel_id = $2
            WHERE UPPER(c.name) = UPPER($1)`,
-          [kompName, staffel_id]
+          [kompCleanName, staffel_id]
         )
         if (existing) {
-          charNameToId.set(kompName.toUpperCase(), existing.id)
+          charNameToId.set(kompCleanName.toUpperCase(), existing.id)
           continue
         }
 
         existing = await queryOne(
           `SELECT id FROM characters WHERE UPPER(name) = UPPER($1)`,
-          [kompName]
+          [kompCleanName]
         )
 
         let charId: string
@@ -347,7 +357,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         } else {
           const newChar = await queryOne(
             `INSERT INTO characters (name, meta_json) VALUES ($1, $2) RETURNING id`,
-            [kompName, JSON.stringify({ import_auto_created: true, is_komparse: true, import_source: req.file!.originalname })]
+            [kompCleanName, JSON.stringify({ import_auto_created: true, is_komparse: true, import_source: req.file!.originalname })]
           )
           charId = newChar.id
           komparsenCreated++
@@ -359,7 +369,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
            ON CONFLICT (character_id, staffel_id) DO NOTHING`,
           [charId, staffel_id, komparseKatId]
         )
-        charNameToId.set(kompName.toUpperCase(), charId)
+        charNameToId.set(kompCleanName.toUpperCase(), charId)
       } catch { /* ignore constraint violations */ }
     }
 
@@ -379,17 +389,18 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           )
         } catch { /* ignore */ }
       }
-      // Link Komparsen
+      // Link Komparsen (with anzahl from "4x Name" prefix)
       if (szene.komparsen) {
-        for (const kompName of szene.komparsen) {
-          const charId = charNameToId.get(kompName.toUpperCase())
+        for (const kompRaw of szene.komparsen) {
+          const { name: kompCleanName, anzahl } = parseKomparseEntry(kompRaw)
+          const charId = charNameToId.get(kompCleanName.toUpperCase())
           if (!charId) continue
           try {
             await queryOne(
-              `INSERT INTO scene_characters (scene_identity_id, character_id, kategorie_id)
-               VALUES ($1, $2, $3)
+              `INSERT INTO scene_characters (scene_identity_id, character_id, kategorie_id, anzahl)
+               VALUES ($1, $2, $3, $4)
                ON CONFLICT (scene_identity_id, character_id) WHERE scene_identity_id IS NOT NULL DO NOTHING`,
-              [identityId, charId, komparseKatId]
+              [identityId, charId, komparseKatId, anzahl]
             )
           } catch { /* ignore */ }
         }
