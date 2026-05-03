@@ -191,10 +191,26 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
       [folge.id, docTyp]
     )
+    const werkVersionNummer = (nextWerkVer?.m ?? 0) + 1
     const werkstufe = await queryOne(
       `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von)
        VALUES ($1, $2, $3, $4, 'team', $5) RETURNING id`,
-      [folge.id, docTyp, (nextWerkVer?.m ?? 0) + 1, versionLabel, req.user!.name || req.user!.user_id]
+      [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id]
+    )
+
+    // Create legacy stage for navigation compatibility
+    const nextStageVer = await queryOne(
+      `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM stages
+       WHERE staffel_id = $1 AND folge_nummer = $2 AND stage_type = $3`,
+      [staffel_id, folge_nummer, stage_type]
+    )
+    const stage = await queryOne(
+      `INSERT INTO stages (staffel_id, folge_nummer, proddb_block_id, stage_type,
+        version_nummer, version_label, status, erstellt_von, meta_json)
+       VALUES ($1, $2, $3, $4, $5, $6, 'in_arbeit', $7, $8) RETURNING id`,
+      [staffel_id, folge_nummer, proddb_block_id, stage_type,
+       (nextStageVer?.m ?? 0) + 1, versionLabel,
+       req.user!.name || req.user!.user_id, JSON.stringify(metaJson)]
     )
 
     // Create scene_identities + dokument_szenen for each scene
@@ -492,6 +508,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     res.json({
       folge_id: folge.id,
       werkstufe_id: werkstufe.id,
+      stage_id: stage.id,
       scenes_imported: scenesImported,
       characters_created: charactersCreated,
       komparsen_created: komparsenCreated,
