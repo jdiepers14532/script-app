@@ -85,10 +85,10 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
       const copyRes = await client.query(
         `INSERT INTO dokument_szenen
            (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-            format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+            format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
             szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
          SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-                format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+                format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
                 szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, $2
          FROM dokument_szenen
          WHERE werkstufe_id = $3 AND geloescht = false`,
@@ -384,7 +384,7 @@ werkstufenSzenenRouter.get('/diff/:rightId', async (req, res) => {
       } else if (!right) {
         changes.push('gestrichen')
       } else {
-        const fields = ['ort_name', 'int_ext', 'tageszeit', 'zusammenfassung', 'spieltag', 'stimmung', 'spielzeit', 'szeneninfo', 'stoppzeit_sek']
+        const fields = ['ort_name', 'int_ext', 'tageszeit', 'zusammenfassung', 'spieltag', 'spielzeit', 'szeneninfo', 'stoppzeit_sek']
         for (const f of fields) {
           if (String(left.scene[f] ?? '') !== String(right.scene[f] ?? '')) changes.push(f)
         }

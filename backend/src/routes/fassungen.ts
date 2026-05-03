@@ -171,10 +171,10 @@ fassungenRouter.post('/', async (req, res) => {
         await pool.query(
           `INSERT INTO dokument_szenen
              (fassung_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-              ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+              ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
               szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
            SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-                  ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+                  ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
                   szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, $2
            FROM dokument_szenen WHERE fassung_id = $3`,
           [fassung.id, user.name || user.user_id, latestFassung.id]
@@ -319,10 +319,10 @@ fassungenRouter.post('/:fassungId/abgabe', async (req, res) => {
       await pool.query(
         `INSERT INTO dokument_szenen
            (fassung_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-            ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+            ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
             szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
          SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-                ort_name, int_ext, tageszeit, spieltag, zusammenfassung, stimmung, spielzeit,
+                ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
                 szeneninfo, seiten, dauer_min, dauer_sek, is_wechselschnitt, content, $2
          FROM dokument_szenen WHERE fassung_id = $3`,
         [naechste.id, user.name || user.user_id, fassungId]

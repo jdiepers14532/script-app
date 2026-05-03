@@ -211,7 +211,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
   try {
     const {
       int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, dauer_sek,
-      sort_order, seiten, spieltag, stimmung, spielzeit, szeneninfo, content,
+      sort_order, seiten, spieltag, spielzeit, szeneninfo, content,
       is_wechselschnitt, stoppzeit_sek,
     } = req.body
 
@@ -227,19 +227,18 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         sort_order = COALESCE($8, sort_order),
         seiten = COALESCE($9, seiten),
         spieltag = COALESCE($10, spieltag),
-        stimmung = COALESCE($11, stimmung),
-        spielzeit = COALESCE($12, spielzeit),
-        szeneninfo = COALESCE($13, szeneninfo),
-        is_wechselschnitt = COALESCE($14, is_wechselschnitt),
-        stoppzeit_sek = COALESCE($16, stoppzeit_sek),
+        spielzeit = COALESCE($11, spielzeit),
+        szeneninfo = COALESCE($12, szeneninfo),
+        is_wechselschnitt = COALESCE($13, is_wechselschnitt),
+        stoppzeit_sek = COALESCE($15, stoppzeit_sek),
         updated_at = NOW(),
-        updated_by = $15
-       WHERE id = $17 RETURNING *`,
+        updated_by = $14
+       WHERE id = $16 RETURNING *`,
       [
         int_ext, tageszeit, ort_name, zusammenfassung,
         content ? JSON.stringify(content) : null,
         dauer_min, dauer_sek, sort_order,
-        seiten ?? null, spieltag ?? null, stimmung ?? null,
+        seiten ?? null, spieltag ?? null,
         spielzeit ?? null, szeneninfo ?? null, is_wechselschnitt ?? null,
         req.user?.name ?? null,
         stoppzeit_sek !== undefined ? stoppzeit_sek : null,
@@ -312,7 +311,7 @@ fassungsSzenenRouter.get('/diff/:rightId', async (req, res) => {
         changes.push('gestrichen')
       } else {
         // Compare header fields
-        const fields = ['ort_name', 'int_ext', 'tageszeit', 'zusammenfassung', 'spieltag', 'stimmung', 'spielzeit', 'szeneninfo', 'dauer_min']
+        const fields = ['ort_name', 'int_ext', 'tageszeit', 'zusammenfassung', 'spieltag', 'spielzeit', 'szeneninfo', 'dauer_min']
         for (const f of fields) {
           if (String(left.scene[f] ?? '') !== String(right.scene[f] ?? '')) changes.push(f)
         }

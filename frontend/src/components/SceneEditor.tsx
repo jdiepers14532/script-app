@@ -479,18 +479,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               {scene.szeneninfo}
             </div>
           )}
-          <div className="sf-row">
-            <input
-              className="sf-input sf-notiz"
-              defaultValue={scene.stimmung ?? ''}
-              placeholder="Notiz…"
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.stimmung ?? null))
-                  saveScene({ stimmung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
-          </div>
           </div>{/* end scene-fields-rows */}
         </div>
       </div>

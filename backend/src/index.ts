@@ -250,6 +250,7 @@ async function runMigrations() {
     'v47_rename_produktionen.sql',
     'v48_werkstufe_stand_datum.sql',
     'v48_statistik_report.sql',
+    'v49_drop_stimmung.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
