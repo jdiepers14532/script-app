@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
-import { BarChart3, Users, GitCompare, MapPin, UserCheck, ChevronDown, ChevronUp } from 'lucide-react'
+import { BarChart3, Users, GitCompare, MapPin, UserCheck, ChevronDown, ChevronUp, Table, BarChart2 } from 'lucide-react'
 
 type TabId = 'overview' | 'repliken' | 'pairs' | 'motiv' | 'komparsen' | 'compare'
 
@@ -175,6 +175,7 @@ function ReplikenTab({ werkId }: { werkId: string }) {
   const [data, setData] = useState<any[]>([])
   const [sortCol, setSortCol] = useState<string>('total_repliken')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [view, setView] = useState<'table' | 'chart'>('table')
 
   useEffect(() => {
     api.getStatCharacterRepliken(werkId).then(setData).catch(() => {})
@@ -199,36 +200,57 @@ function ReplikenTab({ werkId }: { werkId: string }) {
 
   return (
     <div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid var(--border)' }}>
-            <th style={thStyle}>Figur</th>
-            <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('total_repliken')}>Repliken <SortIcon col="total_repliken" /></th>
-            <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scene_count')}>Szenen <SortIcon col="scene_count" /></th>
-            <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_with_text')}>Text <SortIcon col="scenes_with_text" /></th>
-            <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_with_spiel')}>Spiel <SortIcon col="scenes_with_spiel" /></th>
-            <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_ot')}>O.T. <SortIcon col="scenes_ot" /></th>
-            <th style={{ ...thStyle, width: 200 }}>Verteilung</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map(r => (
-            <tr key={r.character_id} style={{ borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
-              <td style={tdStyle}>{r.character_name}</td>
-              <td style={{ ...tdStyle, fontWeight: 600 }}>{r.total_repliken}</td>
-              <td style={tdStyle}>{r.scene_count}</td>
-              <td style={tdStyle}><SpielBadge typ="text" count={r.scenes_with_text} /></td>
-              <td style={tdStyle}><SpielBadge typ="spiel" count={r.scenes_with_spiel} /></td>
-              <td style={tdStyle}><SpielBadge typ="o.t." count={r.scenes_ot} /></td>
-              <td style={tdStyle}>
-                <div style={{ width: '100%', height: 12, background: 'var(--bg-subtle)', borderRadius: 4, overflow: 'hidden' }}>
-                  <div style={{ width: `${(Number(r.total_repliken) / maxRepliken) * 100}%`, height: '100%', background: '#00C853', borderRadius: 4, transition: 'width 0.3s' }} />
-                </div>
-              </td>
+      <div style={{ marginBottom: 12, display: 'flex', gap: 4 }}>
+        <button onClick={() => setView('table')} style={{ ...iconBtn, background: view === 'table' ? 'var(--bg-subtle)' : 'none' }}><Table size={14} /></button>
+        <button onClick={() => setView('chart')} style={{ ...iconBtn, background: view === 'chart' ? 'var(--bg-subtle)' : 'none' }}><BarChart2 size={14} /></button>
+      </div>
+
+      {view === 'chart' ? (
+        <HBarChart
+          items={sorted.slice(0, 30).map(r => ({
+            label: r.character_name,
+            value: Number(r.total_repliken),
+            segments: [
+              { value: Number(r.scenes_with_text), color: '#00C853', label: 'Text' },
+              { value: Number(r.scenes_with_spiel), color: '#007AFF', label: 'Spiel' },
+              { value: Number(r.scenes_ot), color: '#BDBDBD', label: 'O.T.' },
+            ],
+          }))}
+          valueLabel="Repliken"
+          segmentLabel="Szenen nach Typ"
+        />
+      ) : (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid var(--border)' }}>
+              <th style={thStyle}>Figur</th>
+              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('total_repliken')}>Repliken <SortIcon col="total_repliken" /></th>
+              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scene_count')}>Szenen <SortIcon col="scene_count" /></th>
+              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_with_text')}>Text <SortIcon col="scenes_with_text" /></th>
+              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_with_spiel')}>Spiel <SortIcon col="scenes_with_spiel" /></th>
+              <th style={{ ...thStyle, cursor: 'pointer' }} onClick={() => toggleSort('scenes_ot')}>O.T. <SortIcon col="scenes_ot" /></th>
+              <th style={{ ...thStyle, width: 200 }}>Verteilung</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sorted.map(r => (
+              <tr key={r.character_id} style={{ borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
+                <td style={tdStyle}>{r.character_name}</td>
+                <td style={{ ...tdStyle, fontWeight: 600 }}>{r.total_repliken}</td>
+                <td style={tdStyle}>{r.scene_count}</td>
+                <td style={tdStyle}><SpielBadge typ="text" count={r.scenes_with_text} /></td>
+                <td style={tdStyle}><SpielBadge typ="spiel" count={r.scenes_with_spiel} /></td>
+                <td style={tdStyle}><SpielBadge typ="o.t." count={r.scenes_ot} /></td>
+                <td style={tdStyle}>
+                  <div style={{ width: '100%', height: 12, background: 'var(--bg-subtle)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ width: `${(Number(r.total_repliken) / maxRepliken) * 100}%`, height: '100%', background: '#00C853', borderRadius: 4, transition: 'width 0.3s' }} />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
       {data.length === 0 && <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-secondary)' }}>Keine Daten</div>}
     </div>
   )
@@ -462,6 +484,86 @@ function SpielBadge({ typ, count }: { typ: string; count?: number | string }) {
       {label}
     </span>
   )
+}
+
+// ── HBarChart — SVG horizontal bar chart ──────────────────────────────
+function HBarChart({ items, valueLabel, segmentLabel }: {
+  items: { label: string; value: number; segments?: { value: number; color: string; label: string }[] }[]
+  valueLabel?: string
+  segmentLabel?: string
+}) {
+  const barH = 24
+  const gap = 6
+  const labelW = 140
+  const valueW = 50
+  const segW = 120
+  const chartW = 400
+  const totalW = labelW + valueW + chartW + segW + 40
+  const totalH = items.length * (barH + gap) + 30
+  const maxVal = Math.max(1, ...items.map(i => i.value))
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <svg width={totalW} height={totalH} style={{ display: 'block' }}>
+        {/* Header */}
+        <text x={labelW + valueW + chartW / 2} y={14} textAnchor="middle" fontSize={11} fill="var(--text-secondary)">{valueLabel || 'Wert'}</text>
+        {segmentLabel && <text x={labelW + valueW + chartW + 20 + segW / 2} y={14} textAnchor="middle" fontSize={11} fill="var(--text-secondary)">{segmentLabel}</text>}
+
+        {items.map((item, idx) => {
+          const y = 24 + idx * (barH + gap)
+          const w = (item.value / maxVal) * chartW
+
+          // Stacked segments
+          const segs = item.segments || []
+          const segTotal = segs.reduce((s, seg) => s + seg.value, 0) || 1
+          let segX = labelW + valueW + chartW + 20
+
+          return (
+            <g key={idx}>
+              {/* Label */}
+              <text x={labelW - 8} y={y + barH / 2 + 4} textAnchor="end" fontSize={12} fill="var(--text)" style={{ overflow: 'hidden' }}>
+                {item.label.length > 18 ? item.label.slice(0, 16) + '...' : item.label}
+              </text>
+              {/* Value bar */}
+              <rect x={labelW + valueW} y={y} width={w} height={barH} rx={4} fill="#00C853" opacity={0.85} />
+              {/* Value label */}
+              <text x={labelW + valueW - 6} y={y + barH / 2 + 4} textAnchor="end" fontSize={12} fontWeight={700} fill="var(--text)">{item.value}</text>
+              {/* Segment stacked bar */}
+              {segs.map((seg, si) => {
+                const segWidth = (seg.value / segTotal) * segW
+                const sx = segX
+                segX += segWidth
+                return (
+                  <g key={si}>
+                    <rect x={sx} y={y + 2} width={Math.max(0, segWidth - 1)} height={barH - 4} rx={3} fill={seg.color} opacity={0.85} />
+                    {segWidth > 18 && (
+                      <text x={sx + segWidth / 2} y={y + barH / 2 + 3} textAnchor="middle" fontSize={9} fontWeight={600} fill="#fff">{seg.value}</text>
+                    )}
+                  </g>
+                )
+              })}
+            </g>
+          )
+        })}
+      </svg>
+      {/* Legend */}
+      {items[0]?.segments && (
+        <div style={{ display: 'flex', gap: 12, marginTop: 8, paddingLeft: labelW + valueW }}>
+          {items[0].segments.map((s, i) => (
+            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: s.color, display: 'inline-block' }} />
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const iconBtn: React.CSSProperties = {
+  padding: 6, border: '1px solid var(--border)', borderRadius: 6,
+  cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center',
 }
 
 const thStyle: React.CSSProperties = {
