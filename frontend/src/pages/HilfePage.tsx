@@ -3159,10 +3159,13 @@ function ImportKomparsenTab() {
   ]
 
   const importSteps = [
-    { num: 1, title: 'PDF wird geparst',       text: 'Der Parser erkennt im Szenenkopf jeden Komparsen-Eintrag, z.B. „Komparsen: 2x Krankenpflegerin o.T., 4x PatientInnen o.T."' },
-    { num: 2, title: 'Name wird normalisiert',  text: 'Aus „4x PatientInnen o.T." werden drei Informationen extrahiert: Anzahl (4), Name (PatientInnen), Header-Flag (o.T.). Der Character wird einmalig unter dem sauberen Namen angelegt — keine Duplikate durch unterschiedliche Anzahlen oder o.T.-Marker.' },
-    { num: 3, title: 'Content-Analyse',         text: 'Nach dem Parsen analysiert der Import den Szeneninhalt (Dialog + Regieanweisungen). Wird der Komparse in einer Regieanweisung namentlich erwaehnt, wird er als „Hat Spiel" klassifiziert. Hat er nummerierte Repliken, wird er als „Hat Text" hochgestuft.' },
-    { num: 4, title: 'Header-Flag bleibt erhalten', text: 'Wenn der Szenenkopf „o.T." sagt, aber die Content-Analyse Dialog findet, wird der Spiel-Typ auf „Hat Text" gesetzt — das header_o_t-Flag bleibt aber bestehen. So erkennt die Produktion Diskrepanzen auf einen Blick.' },
+    { num: 1, title: 'Upload & Format-Erkennung',  text: 'Die Datei wird hochgeladen und das Format automatisch erkannt (PDF, Final Draft, Fountain, Word, Celtx, WriterDuet). Das erkannte Format wird im Step 2 als Badge angezeigt.' },
+    { num: 2, title: 'Dokument-Vorschau',           text: 'Links wird das Original-Dokument angezeigt (PDF im integrierten Viewer, Textformate als formatierter Text). Rechts die geparste Szenen-Übersicht — so kann man Original und Ergebnis direkt vergleichen.' },
+    { num: 3, title: 'Szenen-Parsing',              text: 'Jede Szene wird mit Nummer, Motiv, INT/EXT, Tageszeit, Spieltag, Stoppzeit, Rollen und Komparsen extrahiert. Motive werden in Drehort-Gruppe (z.B. Stu. 02), Motiv (z.B. Gartenhaus) und Untermotiv (z.B. Küche) aufgesplittet und farblich getrennt dargestellt.' },
+    { num: 4, title: 'Repliken-Zählung',            text: 'Für jede Rolle wird die Anzahl der Dialog-Repliken in der Szene gezählt. In der Vorschau erscheint hinter dem Namen ein blauer Tag „N Repl." — so sieht man sofort, welche Figur wie viel spricht.' },
+    { num: 5, title: 'Komparsen-Erkennung',          text: 'Der Parser erkennt im Szenenkopf Einträge wie „2x Krankenpflegerin o.T., 4x PatientInnen o.T." und extrahiert Anzahl, Name und Header-o.T.-Flag.' },
+    { num: 6, title: 'Content-Analyse (Spiel-Typ)',  text: 'Nach dem Parsen analysiert der Import den Szeneninhalt. Wird ein Komparse in Regieanweisungen erwähnt → Spiel (orange Tag). Hat er Dialog → Text:N (lila Tag). Sonst → o.T. (grau).' },
+    { num: 7, title: 'Header-Flag bleibt erhalten', text: 'Wenn der Szenenkopf „o.T." sagt, aber die Content-Analyse Dialog findet, wird der Spiel-Typ auf „Hat Text" gesetzt — das header_o_t-Flag bleibt aber bestehen.' },
   ]
 
   const examples = [
@@ -3180,11 +3183,72 @@ function ImportKomparsenTab() {
 
   const spielColor = (typ: string) => typ === 'text' ? C.green : typ === 'spiel' ? C.orange : C.gray
 
+  const tag = (bg: string, color: string, text: string) => (
+    <span style={{ fontSize: 10, fontWeight: 600, padding: '0px 5px', borderRadius: 3, background: bg, color, whiteSpace: 'nowrap', marginLeft: 2 }}>{text}</span>
+  )
+
   return (
     <div style={{ padding: '28px 0' }}>
-      <Section title="Import & Komparsen-Erkennung">
+      <Section title="Import-Vorschau (Step 2)">
         <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 24 }}>
-          Beim Import eines Rote-Rosen-Drehbuch-PDFs werden Komparsen automatisch aus dem Szenenkopf
+          Nach dem Upload zeigt Step 2 eine Side-by-Side-Ansicht: links das Original-Dokument (PDF im Viewer,
+          Text als formatierter Code), rechts die geparste Szenen-Übersicht mit allen erkannten Informationen.
+        </p>
+
+        <div style={{ marginBottom: 28 }}>
+          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: C.text }}>Was in der Vorschau angezeigt wird</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ padding: '10px 14px', border: `1px solid ${C.border}`, borderRadius: 8, background: C.subtle }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Format-Badge + Metadaten</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+                Oben rechts: Das erkannte Dateiformat als schwarzes Badge (z.B. <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 3, background: '#000', color: '#fff' }}>FINAL DRAFT (.FDX)</span>),
+                dahinter automatisch erkannte Metadaten (Dokumenttyp, Episode, Stand-Datum) und Statistiken (Szenen, Rollen, Komparsen, Motive, Gesamtlänge).
+              </div>
+            </div>
+            <div style={{ padding: '10px 14px', border: `1px solid ${C.border}`, borderRadius: 8, background: C.subtle }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Motiv-Erkennung (farblich aufgeteilt)</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 6 }}>
+                Der Ort-Name wird in seine Bestandteile geparst und farblich getrennt dargestellt:
+              </div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '0px 5px', borderRadius: 3, background: '#E0E0E0', color: '#616161' }}>Stu. 02</span>
+                <span style={{ fontWeight: 600, color: '#1B5E20' }}>Gartenhaus</span>
+                <span style={{ color: '#ccc' }}>/</span>
+                <span style={{ fontWeight: 500, color: '#2E7D32' }}>Küche</span>
+                <span style={{ color: C.muted, marginLeft: 8, fontSize: 11 }}>= Drehort-Gruppe · Motiv · Untermotiv</span>
+              </div>
+            </div>
+            <div style={{ padding: '10px 14px', border: `1px solid ${C.border}`, borderRadius: 8, background: C.subtle }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Rollen mit Repliken</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 6 }}>
+                Hinter jeder Rolle zeigt ein Tag die Anzahl der Dialog-Repliken in dieser Szene:
+              </div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+                <span style={{ color: '#999', fontSize: 11 }}>Rollen: </span>
+                <span>Lou</span>{tag('#E3F2FD', '#1565C0', '3 Repl.')}
+                <span>, Jess</span>{tag('#E3F2FD', '#1565C0', '2 Repl.')}
+                <span>, Daniel</span>
+              </div>
+            </div>
+            <div style={{ padding: '10px 14px', border: `1px solid ${C.border}`, borderRadius: 8, background: C.subtle }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Komparsen mit Spiel-Typ-Tags</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6, marginBottom: 6 }}>
+                Jeder Komparse zeigt Anzahl, Name und einen farbigen Tag für den Spiel-Typ:
+              </div>
+              <div style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12, color: '#7B1FA2' }}>
+                <span style={{ color: '#999', fontSize: 11 }}>Komparsen: </span>
+                <span style={{ fontWeight: 600 }}>4×</span> PatientInnen{tag('#F5F5F5', '#9E9E9E', 'o.T.')}
+                <span>, Tresenkraft</span>{tag('#FFF3E0', '#E65100', 'Spiel')}
+                <span>, Gast</span>{tag('#F3E5F5', '#7B1FA2', 'Text:2')}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Komparsen-Erkennung">
+        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 24 }}>
+          Beim Import eines Drehbuch-PDFs werden Komparsen automatisch aus dem Szenenkopf
           extrahiert, normalisiert und anhand des Szeneninhalts klassifiziert. Jeder Komparse wird
           <strong> einmal</strong> als Character angelegt und pro Szene mit Anzahl, Spiel-Typ und
           Repliken-Anzahl verknuepft.
