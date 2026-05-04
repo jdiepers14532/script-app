@@ -2518,6 +2518,234 @@ function SzenenFassungenTab() {
 
 // ── Datenmodell Tab (komplett, Stand v50) ────────────────────────────────────
 
+function NetzplanDiagram() {
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [zoom, setZoom] = useState(0.85)
+  const [dragging, setDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+
+  // Table positions (hand-laid-out for clarity)
+  const nodes: { id: string; x: number; y: number; group: string; label?: string }[] = [
+    // Core (center)
+    { id: 'produktionen', x: 500, y: 300, group: 'core' },
+    { id: 'folgen', x: 500, y: 460, group: 'core' },
+    { id: 'werkstufen', x: 380, y: 600, group: 'core' },
+    { id: 'scene_identities', x: 620, y: 600, group: 'core' },
+    { id: 'dokument_szenen', x: 500, y: 740, group: 'core' },
+    // Characters (left)
+    { id: 'characters', x: 140, y: 400, group: 'char' },
+    { id: 'character_productions', x: 140, y: 540, group: 'char' },
+    { id: 'character_kategorien', x: 140, y: 680, group: 'char' },
+    { id: 'scene_characters', x: 320, y: 820, group: 'char' },
+    { id: 'charakter_beziehungen', x: 20, y: 300, group: 'char' },
+    { id: 'charakter_fotos', x: 20, y: 480, group: 'char' },
+    { id: 'charakter_felder_config', x: 20, y: 600, group: 'char' },
+    { id: 'charakter_feldwerte', x: 20, y: 720, group: 'char' },
+    { id: 'charakter_feld_links', x: 20, y: 840, group: 'char' },
+    // Motive (right)
+    { id: 'drehorte', x: 840, y: 380, group: 'motiv' },
+    { id: 'motive', x: 840, y: 520, group: 'motiv' },
+    { id: 'motiv_fotos', x: 980, y: 520, group: 'motiv' },
+    // Revision (bottom-right)
+    { id: 'szenen_revisionen', x: 680, y: 860, group: 'rev' },
+    { id: 'szenen_vorstopp', x: 780, y: 700, group: 'rev' },
+    { id: 'vorstopp_einstellungen', x: 780, y: 820, group: 'rev' },
+    { id: 'stage_labels', x: 700, y: 180, group: 'rev' },
+    { id: 'revision_colors', x: 840, y: 240, group: 'rev' },
+    { id: 'revision_export_einstellungen', x: 840, y: 150, group: 'rev', label: 'rev_export_einst.' },
+    // Collab (top-left)
+    { id: 'dokument_colab_gruppen', x: 240, y: 180, group: 'collab' },
+    { id: 'dokument_colab_gruppe_mitglieder', x: 80, y: 140, group: 'collab', label: 'colab_mitglieder' },
+    { id: 'dokument_benachrichtigungen', x: 240, y: 80, group: 'collab', label: 'benachrichtigungen' },
+    { id: 'dokument_typ_definitionen', x: 420, y: 120, group: 'collab', label: 'typ_definitionen' },
+    // Editor format
+    { id: 'editor_format_templates', x: 580, y: 60, group: 'editor' },
+    { id: 'editor_format_elemente', x: 720, y: 60, group: 'editor' },
+    // Settings (top-right)
+    { id: 'app_settings', x: 960, y: 60, group: 'settings' },
+    { id: 'user_settings', x: 960, y: 150, group: 'settings' },
+    { id: 'production_app_settings', x: 960, y: 240, group: 'settings', label: 'prod_app_settings' },
+    { id: 'ki_settings', x: 960, y: 330, group: 'settings' },
+    { id: 'ki_providers', x: 960, y: 420, group: 'settings' },
+    { id: 'dk_settings_access', x: 960, y: 690, group: 'settings', label: 'dk_settings_access' },
+    // Locks & Entities
+    { id: 'episode_locks', x: 350, y: 340, group: 'lock' },
+    { id: 'entities', x: 700, y: 340, group: 'lock' },
+    { id: 'export_logs', x: 240, y: 740, group: 'lock' },
+    // Statistik
+    { id: 'statistik_vorlagen', x: 350, y: 180, group: 'stat' },
+    // Comments
+    { id: 'scene_comment_events', x: 680, y: 960, group: 'comment' },
+    { id: 'scene_comment_read_state', x: 500, y: 960, group: 'comment' },
+    // System
+    { id: 'schema_migrations', x: 960, y: 960, group: 'system' },
+  ]
+
+  // FK edges: [from_table, to_table]
+  const edges: [string, string][] = [
+    ['folgen', 'produktionen'],
+    ['werkstufen', 'folgen'],
+    ['scene_identities', 'folgen'],
+    ['dokument_szenen', 'scene_identities'],
+    ['dokument_szenen', 'werkstufen'],
+    ['character_productions', 'characters'],
+    ['character_productions', 'produktionen'],
+    ['character_productions', 'character_kategorien'],
+    ['character_kategorien', 'produktionen'],
+    ['scene_characters', 'characters'],
+    ['scene_characters', 'scene_identities'],
+    ['scene_characters', 'werkstufen'],
+    ['scene_characters', 'character_kategorien'],
+    ['charakter_beziehungen', 'characters'],
+    ['charakter_fotos', 'characters'],
+    ['charakter_felder_config', 'produktionen'],
+    ['charakter_feldwerte', 'characters'],
+    ['charakter_feldwerte', 'motive'],
+    ['charakter_feldwerte', 'charakter_felder_config'],
+    ['charakter_feld_links', 'characters'],
+    ['charakter_feld_links', 'charakter_felder_config'],
+    ['drehorte', 'produktionen'],
+    ['motive', 'produktionen'],
+    ['motive', 'drehorte'],
+    ['motiv_fotos', 'motive'],
+    ['szenen_revisionen', 'dokument_szenen'],
+    ['szenen_vorstopp', 'scene_identities'],
+    ['vorstopp_einstellungen', 'produktionen'],
+    ['stage_labels', 'produktionen'],
+    ['revision_colors', 'produktionen'],
+    ['revision_export_einstellungen', 'produktionen'],
+    ['dokument_colab_gruppen', 'produktionen'],
+    ['dokument_colab_gruppe_mitglieder', 'dokument_colab_gruppen'],
+    ['dokument_benachrichtigungen', 'produktionen'],
+    ['dokument_typ_definitionen', 'produktionen'],
+    ['editor_format_elemente', 'editor_format_templates'],
+    ['entities', 'produktionen'],
+    ['episode_locks', 'produktionen'],
+    ['export_logs', 'werkstufen'],
+    ['statistik_vorlagen', 'produktionen'],
+  ]
+
+  const groupColors: Record<string, string> = {
+    core: '#007AFF', char: '#FF9500', motiv: '#00C853', rev: '#FF3B30',
+    collab: '#AF52DE', editor: '#757575', settings: '#757575', lock: '#FF3B30',
+    stat: '#FF9500', comment: '#FFCC00', system: '#757575',
+  }
+
+  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]))
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.08 : 0.08
+    setZoom(z => Math.min(2.5, Math.max(0.3, z + delta)))
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 0) {
+      setDragging(true)
+      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (dragging) {
+      setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
+    }
+  }
+
+  const handleMouseUp = () => setDragging(false)
+
+  return (
+    <div style={{ marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 0.5 }}>
+          NETZPLAN — ALLE TABELLEN & VERKNUEPFUNGEN
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <button onClick={() => setZoom(z => Math.min(2.5, z + 0.2))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>+</button>
+          <span style={{ fontSize: 10, color: C.muted, minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.max(0.3, z - 0.2))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>-</button>
+          <button onClick={() => { setPan({ x: 0, y: 0 }); setZoom(0.85) }} style={{ height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 10, padding: '0 8px' }}>Reset</button>
+        </div>
+      </div>
+      <div
+        style={{
+          width: '100%', height: 540, overflow: 'hidden',
+          border: `1px solid ${C.border}`, borderRadius: 12, background: '#fafafa',
+          cursor: dragging ? 'grabbing' : 'grab', position: 'relative', userSelect: 'none',
+        }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+      >
+        <svg
+          width="100%" height="100%"
+          style={{ display: 'block' }}
+          viewBox={`${-pan.x / zoom} ${-pan.y / zoom} ${1100 / zoom} ${540 / zoom}`}
+        >
+          {/* Edges */}
+          {edges.map(([from, to], i) => {
+            const a = nodeMap[from]
+            const b = nodeMap[to]
+            if (!a || !b) return null
+            return <line key={i} x1={a.x + 60} y1={a.y + 14} x2={b.x + 60} y2={b.y + 14} stroke="#ccc" strokeWidth={1.2} markerEnd="url(#arrowhead)" />
+          })}
+          {/* Arrow marker */}
+          <defs>
+            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="#aaa" />
+            </marker>
+          </defs>
+          {/* Nodes */}
+          {nodes.map(n => {
+            const color = groupColors[n.group] || '#757575'
+            const label = n.label || n.id
+            return (
+              <g key={n.id}
+                onMouseEnter={(e) => setTooltip({ text: n.id, x: e.clientX, y: e.clientY })}
+                onMouseLeave={() => setTooltip(null)}
+              >
+                <rect x={n.x} y={n.y} width={120} height={28} rx={6} fill={color + '18'} stroke={color} strokeWidth={1.5} />
+                <text x={n.x + 60} y={n.y + 18} textAnchor="middle" fontSize={9} fontWeight={600} fontFamily="monospace" fill={color}>
+                  {label.length > 18 ? label.slice(0, 17) + '...' : label}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
+        {tooltip && (
+          <div style={{
+            position: 'absolute', top: 8, left: 8, background: '#111', color: '#fff',
+            fontSize: 11, padding: '4px 8px', borderRadius: 4, pointerEvents: 'none',
+          }}>{tooltip.text}</div>
+        )}
+        <div style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 9, color: C.muted }}>
+          Scrollen = Zoom, Ziehen = Verschieben
+        </div>
+      </div>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+        {[
+          { label: 'Kern', color: '#007AFF' },
+          { label: 'Characters', color: '#FF9500' },
+          { label: 'Motive', color: '#00C853' },
+          { label: 'Revision', color: '#FF3B30' },
+          { label: 'Kollaboration', color: '#AF52DE' },
+          { label: 'Settings/System', color: '#757575' },
+          { label: 'Kommentare', color: '#FFCC00' },
+        ].map(l => (
+          <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: 3, background: l.color + '30', border: `1px solid ${l.color}` }} />
+            <span style={{ color: C.muted }}>{l.label}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function DatenmodellTab() {
   const [expandedGroup, setExpandedGroup] = useState<string | null>('core')
 
@@ -2559,36 +2787,37 @@ function DatenmodellTab() {
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px 0' }}>Datenmodell — Script-App</h2>
         <p style={{ color: C.muted, fontSize: 13, margin: '0 0 4px 0' }}>
-          PostgreSQL <code>script_db</code> — 50 Migrationen (v1–v50), ~42 aktive Tabellen in 8 Gruppen.
+          PostgreSQL <code>script_db</code> — 51 Migrationen (v1–v51), 42 aktive Tabellen in 7 Gruppen.
         </p>
         <p style={{ color: C.muted, fontSize: 12, margin: '0 0 16px 0', lineHeight: 1.6 }}>
-          <strong style={{ color: C.text }}>Strukturwandel v42–v50:</strong> Das urspruengliche Modell (staffeln → bloecke → episoden → stages → szenen)
-          wurde durch ein schlankes 5-Tabellen-Modell ersetzt: <code>produktionen → folgen → werkstufen + scene_identities → dokument_szenen</code>.
-          Die alten Tabellen existieren noch physisch (leer, Daten via v47 TRUNCATE entfernt), werden aber nicht mehr beschrieben.
+          <strong style={{ color: C.text }}>v51 (2026-05-04):</strong> Alle Legacy-Tabellen (szenen, stages, folgen_dokumente, folgen_dokument_fassungen,
+          szenen_versionen, kommentare, annotationen, autoren, audit) wurden endgueltig <code>DROP TABLE</code> entfernt.
+          Das Datenmodell besteht jetzt ausschliesslich aus dem neuen 5-Tabellen-Kern:
+          <code> produktionen → folgen → werkstufen + scene_identities → dokument_szenen</code>.
         </p>
 
-        {/* ER Overview Diagram */}
+        {/* Interactive Network Diagram */}
+        <NetzplanDiagram />
+
+        {/* ER Overview Diagram (compact) */}
         <div style={{
           background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12,
           padding: 20, overflowX: 'auto', marginBottom: 24,
         }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, marginBottom: 12, letterSpacing: 0.5 }}>
-            ER-UEBERSICHT — KERNTABELLEN
+            ER-UEBERSICHT — KERNBEZIEHUNGEN
           </div>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 700 }}>
-            {/* produktionen */}
             <div style={{ border: `2px solid ${C.blue}`, borderRadius: 8, padding: '8px 12px', background: C.blue + '0a', minWidth: 100, textAlign: 'center' }}>
               <div style={{ fontWeight: 700, fontSize: 11, color: C.blue }}>produktionen</div>
-              <div style={{ fontSize: 9, color: C.muted }}>Produktion</div>
+              <div style={{ fontSize: 9, color: C.muted }}>Produktion (Hub)</div>
             </div>
-            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11, lineHeight: 1 }}>1:n →</div>
-            {/* folgen */}
+            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11, lineHeight: 1 }}>1:n</div>
             <div style={{ border: `2px solid ${C.purple}`, borderRadius: 8, padding: '8px 12px', background: C.purple + '0a', minWidth: 80, textAlign: 'center' }}>
               <div style={{ fontWeight: 700, fontSize: 11, color: C.purple }}>folgen</div>
               <div style={{ fontSize: 9, color: C.muted }}>Episode</div>
             </div>
-            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11 }}>1:n →</div>
-            {/* werkstufen + scene_identities */}
+            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11 }}>1:n</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               <div style={{ border: `2px solid ${C.orange}`, borderRadius: 8, padding: '6px 10px', background: C.orange + '0a', textAlign: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: 11, color: C.orange }}>werkstufen</div>
@@ -2599,34 +2828,14 @@ function DatenmodellTab() {
                 <div style={{ fontSize: 9, color: C.muted }}>Stabile UUID</div>
               </div>
             </div>
-            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11 }}>N:M →</div>
-            {/* dokument_szenen */}
+            <div style={{ alignSelf: 'center', color: C.muted, fontSize: 11 }}>N:M</div>
             <div style={{ border: `2px solid ${C.green}`, borderRadius: 8, padding: '8px 12px', background: C.green + '0a', minWidth: 110, textAlign: 'center' }}>
               <div style={{ fontWeight: 700, fontSize: 11, color: C.green }}>dokument_szenen</div>
               <div style={{ fontSize: 9, color: C.muted }}>Content (N:M)</div>
             </div>
           </div>
-
-          {/* Satellite tables */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16, paddingTop: 12, borderTop: `1px dashed ${C.border}` }}>
-            {[
-              { name: 'characters', color: C.orange, via: 'scene_identities' },
-              { name: 'drehorte', color: '#00C853', via: 'produktionen' },
-              { name: 'motive', color: '#00C853', via: 'produktionen + drehorte' },
-              { name: 'statistik_vorlagen', color: C.orange, via: 'produktionen' },
-              { name: 'szenen_vorstopp', color: '#00C853', via: 'scene_identities' },
-              { name: 'szenen_revisionen', color: C.red, via: 'dokument_szenen' },
-              { name: 'ki_settings', color: C.purple, via: 'global' },
-              { name: 'app_settings', color: C.gray, via: 'global' },
-              { name: 'episode_locks', color: C.red, via: 'produktion+folge' },
-              { name: 'export_logs', color: C.gray, via: 'audit' },
-            ].map(t => (
-              <span key={t.name} style={{
-                fontSize: 10, padding: '3px 8px', borderRadius: 4,
-                border: `1px solid ${t.color}44`, background: t.color + '0a',
-                color: t.color, fontFamily: 'monospace',
-              }}>{t.name}</span>
-            ))}
+            <span style={{ fontSize: 10, color: C.muted }}>42 Tabellen, 43 FK-Beziehungen, 0 Legacy-Tabellen</span>
           </div>
         </div>
       </div>
@@ -2660,7 +2869,7 @@ function DatenmodellTab() {
             { name: 'created_at', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
           ]} />
           <TableCard title="werkstufen" color={C.orange} note="Dokument-Version auf Folgen-Ebene (ersetzt folgen_dokument_fassungen)" fields={[
-            { name: 'id', type: 'UUID PK', desc: 'Werkstufen-ID (uebernommen von fassungen)' },
+            { name: 'id', type: 'UUID PK', desc: 'Werkstufen-ID' },
             { name: 'folge_id', type: 'INT FK', desc: '-> folgen.id' },
             { name: 'typ', type: 'TEXT', desc: 'drehbuch | storyline | notiz | abstrakt | custom' },
             { name: 'version_nummer', type: 'INT', desc: 'Versionszaehler (1, 2, 3...)' },
@@ -2668,10 +2877,7 @@ function DatenmodellTab() {
             { name: 'sichtbarkeit', type: 'TEXT', desc: 'privat | team | alle' },
             { name: 'abgegeben', type: 'BOOL', desc: 'Eingefroren? (HTTP 409 bei Schreibversuch)' },
             { name: 'bearbeitung_status', type: 'TEXT', desc: 'entwurf | in_review | approved' },
-            { name: 'stand_datum', type: 'DATE', desc: '"Stand"-Datum vom PDF-Cover (v48)' },
-            { name: 'seitenformat', type: 'TEXT', desc: 'a4 (default)' },
-            { name: 'plaintext_index', type: 'TEXT', desc: 'Volltextsuche' },
-            { name: 'yjs_state', type: 'BYTEA', desc: 'Yjs Binary State (Echtzeit-Kollaboration)' },
+            { name: 'stand_datum', type: 'DATE', desc: '"Stand"-Datum vom PDF-Cover' },
             { name: 'erstellt_von', type: 'TEXT', desc: 'user_id' },
             { name: 'erstellt_am', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
           ]} />
@@ -2681,21 +2887,24 @@ function DatenmodellTab() {
             { name: 'scene_identity_id', type: 'UUID FK', desc: '-> scene_identities.id' },
             { name: 'sort_order', type: 'INT', desc: 'Reihenfolge in dieser Werkstufe' },
             { name: 'scene_nummer', type: 'INT', desc: 'Angezeigte Szenennummer' },
-            { name: 'scene_nummer_suffix', type: 'VARCHAR(5)', desc: 'z.B. "a", "b" (WGA-Suffix)' },
+            { name: 'scene_nummer_suffix', type: 'VARCHAR', desc: 'z.B. "a", "b" (WGA-Suffix)' },
             { name: 'ort_name', type: 'TEXT', desc: 'Motivname' },
             { name: 'int_ext', type: 'TEXT', desc: 'INT | EXT | INT/EXT' },
             { name: 'tageszeit', type: 'TEXT', desc: 'TAG | NACHT | ABEND | DAEMMERUNG' },
             { name: 'spieltag', type: 'INT', desc: 'Drehtag-Index' },
+            { name: 'spielzeit', type: 'TEXT', desc: 'Spielzeit-Info (z.B. "Morgens")' },
             { name: 'zusammenfassung', type: 'TEXT', desc: 'Kurzbeschreibung' },
             { name: 'szeneninfo', type: 'TEXT', desc: 'Redaktionelle Hinweise (z.B. Block-Zuordnung)' },
             { name: 'seiten', type: 'TEXT', desc: 'Seitenzahl (z.B. "2 5/8")' },
+            { name: 'dauer_min', type: 'INT', desc: 'Dauer Minuten (Legacy-Feld)' },
+            { name: 'dauer_sek', type: 'INT', desc: 'Dauer Sekunden (Legacy-Feld)' },
             { name: 'content', type: 'JSONB', desc: 'ProseMirror/Screenplay JSON (einzige Content-Quelle!)' },
             { name: 'format', type: 'TEXT', desc: 'drehbuch | storyline | notiz (bestimmt Editor-Typ)' },
             { name: 'stoppzeit_sek', type: 'INT', desc: 'Spieldauer in Sekunden (270 = "04:30")' },
             { name: 'geloescht', type: 'BOOL', desc: 'Soft-Delete (bleibt fuer Diff)' },
             { name: 'is_wechselschnitt', type: 'BOOL', desc: 'Wechselschnitt-Szene' },
-            { name: 'yjs_state', type: 'BYTEA', desc: 'Yjs Binary State pro Szene' },
-            { name: 'updated_by_name', type: 'TEXT', desc: 'Letzter Bearbeiter' },
+            { name: 'yjs_state', type: 'BYTEA', desc: 'Yjs Binary State (Echtzeit-Kollaboration)' },
+            { name: 'updated_by', type: 'TEXT', desc: 'Letzter Bearbeiter (user_id)' },
             { name: 'updated_at', type: 'TSTZ', desc: 'Letzte Aenderung' },
           ]} />
           <InfoBox title="UNIQUE(werkstufe_id, scene_identity_id)" color={C.blue}>
@@ -2823,27 +3032,21 @@ function DatenmodellTab() {
       </GroupBody>
 
       {/* ── Gruppe 3: Versionen & Revision ── */}
-      <GroupHeader id="versions" title="3. Versionen, Revision & Vorstopp" count={6} color={C.red} />
+      <GroupHeader id="versions" title="3. Revision, Vorstopp & Fassungs-Labels" count={5} color={C.red} />
       <GroupBody id="versions">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="szenen_versionen" color={C.gray} note="LEGACY — Content-Snapshots (v47: leer, ersetzt durch szenen_revisionen)" fields={[
-              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'szene_id', type: 'INT FK', desc: '-> szenen.id (Legacy)' },
-              { name: 'user_id', type: 'TEXT', desc: 'Bearbeiter' },
-              { name: 'content_snapshot', type: 'JSONB', desc: 'Vollstaendiger Szenentext' },
-              { name: 'change_summary', type: 'TEXT', desc: 'Aenderungsbeschreibung' },
-            ]} />
-            <TableCard title="szenen_revisionen" color={C.red} note="Delta-Tracking: Was hat sich geaendert?" fields={[
-              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'dokument_szene_id', type: 'UUID FK', desc: '-> dokument_szenen.id (pro Werkstufe)' },
-              { name: 'field_type', type: 'TEXT', desc: 'header | content_block' },
-              { name: 'field_name', type: 'TEXT', desc: 'ort_name, spieltag, etc.' },
-              { name: 'block_index', type: 'INT', desc: 'Content-Block-Index' },
-              { name: 'old_value', type: 'TEXT', desc: 'Vorheriger Wert' },
-              { name: 'new_value', type: 'TEXT', desc: 'Neuer Wert' },
-            ]} />
-          </div>
+          <TableCard title="szenen_revisionen" color={C.red} note="Delta-Tracking: Was hat sich geaendert? (NOT NULL dokument_szene_id seit v51)" fields={[
+            { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+            { name: 'dokument_szene_id', type: 'UUID FK NOT NULL', desc: '-> dokument_szenen.id (pro Werkstufe)' },
+            { name: 'field_type', type: 'TEXT', desc: 'header | content_block' },
+            { name: 'field_name', type: 'TEXT', desc: 'ort_name, spieltag, etc.' },
+            { name: 'block_index', type: 'INT', desc: 'Content-Block-Index' },
+            { name: 'block_type', type: 'TEXT', desc: 'action | dialogue | character | ...' },
+            { name: 'speaker', type: 'TEXT', desc: 'Sprecher (bei Dialog-Bloecken)' },
+            { name: 'old_value', type: 'TEXT', desc: 'Vorheriger Wert' },
+            { name: 'new_value', type: 'TEXT', desc: 'Neuer Wert' },
+            { name: 'created_at', type: 'TSTZ', desc: 'Aenderungszeitpunkt' },
+          ]} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="szenen_vorstopp" color={'#00C853'} note="Performance-Zeiten pro Phase" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
@@ -2882,7 +3085,7 @@ function DatenmodellTab() {
       </GroupBody>
 
       {/* ── Gruppe 4: Kollaboration ── */}
-      <GroupHeader id="collab" title="4. Kollaboration & Dokument-System" count={6} color={C.purple} />
+      <GroupHeader id="collab" title="4. Kollaboration & Dokument-System" count={5} color={C.purple} />
       <GroupBody id="collab">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -2891,6 +3094,8 @@ function DatenmodellTab() {
               { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'Gruppenname' },
               { name: 'typ', type: 'TEXT', desc: 'colab | produktion' },
+              { name: 'erstellt_von', type: 'TEXT', desc: 'Ersteller user_id' },
+              { name: 'erstellt_am', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
             ]} />
             <TableCard title="dokument_colab_gruppe_mitglieder" color={C.purple} note="Gruppen-Mitgliedschaft" fields={[
               { name: 'gruppe_id', type: 'INT FK', desc: '-> dokument_colab_gruppen.id' },
@@ -2899,77 +3104,56 @@ function DatenmodellTab() {
             ]} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="folgen_dokument_autoren" color={C.blue} note="Autoren & Reviewer pro Fassung (FK noch auf legacy fassungen)" fields={[
-              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id (= werkstufen.id)' },
-              { name: 'user_id', type: 'TEXT', desc: 'Benutzer-ID' },
-              { name: 'rolle', type: 'TEXT', desc: 'autor | reviewer' },
-              { name: 'cursor_farbe', type: 'TEXT', desc: 'Echtzeit-Cursor-Farbe (#007AFF)' },
-            ]} />
-            <TableCard title="dokument_benachrichtigungen" color={C.blue} note="Benachrichtigungs-Routing pro Staffel" fields={[
+            <TableCard title="dokument_benachrichtigungen" color={C.blue} note="Benachrichtigungs-Routing pro Produktion" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'ereignis', type: 'TEXT', desc: 'version_submitted | approved | ...' },
               { name: 'empfaenger_user_ids', type: 'TEXT[]', desc: 'Empfaenger-Liste' },
               { name: 'aktiv', type: 'BOOL', desc: 'An/Aus' },
             ]} />
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="dokument_typ_definitionen" color={C.gray} note="Custom-Dokumenttypen pro Staffel" fields={[
+            <TableCard title="dokument_typ_definitionen" color={C.gray} note="Custom-Dokumenttypen pro Produktion" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'name', type: 'TEXT', desc: 'z.B. Drehbuch, Notizen' },
               { name: 'editor_modus', type: 'TEXT', desc: 'screenplay | richtext' },
-            ]} />
-            <TableCard title="editor_format_templates" color={C.gray} note="Screenplay-Format-Templates" fields={[
-              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'name', type: 'TEXT', desc: 'z.B. Final Draft Standard' },
-              { name: 'ist_standard', type: 'BOOL', desc: 'Default-Template?' },
+              { name: 'sort_order', type: 'INT', desc: 'Anzeigereihenfolge' },
             ]} />
           </div>
-          <TableCard title="editor_format_elemente" color={C.gray} note="Format-Regeln pro Element-Typ (7 Typen)" fields={[
-            { name: 'template_id', type: 'INT FK', desc: '-> editor_format_templates.id' },
-            { name: 'element_typ', type: 'TEXT', desc: 'scene_heading | action | character | dialogue | parenthetical | transition | shot' },
-            { name: 'einrueckung_links/rechts', type: 'INT', desc: 'Zeicheneinrueckung' },
-            { name: 'grossbuchstaben', type: 'BOOL', desc: 'Uppercase-Regel' },
-            { name: 'tab_folge_element', type: 'TEXT', desc: 'Naechstes Element bei Tab' },
-            { name: 'enter_folge_element', type: 'TEXT', desc: 'Naechstes Element bei Enter' },
+          <TableCard title="editor_format_templates + editor_format_elemente" color={C.gray} note="Screenplay-Format-Templates + Regeln pro Element-Typ (7 Typen)" fields={[
+            { name: 'templates.id', type: 'SERIAL PK', desc: 'Template-ID' },
+            { name: 'templates.name', type: 'TEXT', desc: 'z.B. Final Draft Standard' },
+            { name: 'templates.ist_standard', type: 'BOOL', desc: 'Default-Template?' },
+            { name: 'elemente.template_id', type: 'INT FK', desc: '-> editor_format_templates.id' },
+            { name: 'elemente.element_typ', type: 'TEXT', desc: 'scene_heading | action | character | dialogue | parenthetical | transition | shot' },
+            { name: 'elemente.einrueckung_l/r', type: 'INT', desc: 'Zeicheneinrueckung links/rechts' },
+            { name: 'elemente.grossbuchstaben', type: 'BOOL', desc: 'Uppercase-Regel' },
+            { name: 'elemente.tab_folge', type: 'TEXT', desc: 'Naechstes Element bei Tab' },
+            { name: 'elemente.enter_folge', type: 'TEXT', desc: 'Naechstes Element bei Enter' },
           ]} />
         </div>
       </GroupBody>
 
-      {/* ── Gruppe 5: Annotationen & Kommentare ── */}
-      <GroupHeader id="comments" title="5. Annotationen & Kommentare" count={4} color={'#FFCC00'} />
+      {/* ── Gruppe 5: Kommentare (Messenger-Integration) ── */}
+      <GroupHeader id="comments" title="5. Kommentare (Messenger-Integration)" count={2} color={'#FFCC00'} />
       <GroupBody id="comments">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="folgen_dokument_annotationen" color={C.orange} note="Wort-Annotationen in Dokumenten" fields={[
-              { name: 'id', type: 'UUID PK', desc: 'Annotations-ID' },
-              { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id' },
-              { name: 'von_pos / bis_pos', type: 'INT', desc: 'Start/End-Position im Plaintext' },
-              { name: 'text', type: 'TEXT', desc: 'Annotationstext' },
-              { name: 'typ', type: 'TEXT', desc: 'kommentar | frage | vorschlag' },
-              { name: 'erstellt_von', type: 'TEXT', desc: 'Autor user_id' },
-            ]} />
-            <TableCard title="kommentare" color={C.gray} note="Szenen-Kommentare (Legacy)" fields={[
-              { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'szene_id', type: 'INT FK', desc: '-> szenen.id' },
-              { name: 'user_id', type: 'TEXT', desc: 'Autor' },
-              { name: 'text', type: 'TEXT', desc: 'Kommentartext' },
-              { name: 'line_ref', type: 'TEXT', desc: 'Zeilen-Referenz im content-Array' },
-              { name: 'resolved', type: 'BOOL', desc: 'Erledigt-Flag' },
-            ]} />
-          </div>
+          <InfoBox title="Kommentare laufen ueber messenger.app" color={C.blue}>
+            <div style={{ fontSize: 11, lineHeight: 1.7 }}>
+              Seit v51 gibt es keine lokale Kommentar-Tabelle mehr. Annotationen und Kommentare werden ueber die
+              messenger.app verwaltet. Die Script-App speichert nur den Read-State und empfaengt Events via Webhook.
+            </div>
+          </InfoBox>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="scene_comment_read_state" color={C.blue} note="Gelesen-Status (Messenger-Integration)" fields={[
-              { name: 'scene_id', type: 'INT', desc: 'Szenen-ID (PK mit user_id)' },
-              { name: 'user_id', type: 'TEXT', desc: 'Benutzer-ID' },
+              { name: 'scene_id', type: 'INT PK', desc: 'Szenen-ID (Composite PK mit user_id)' },
+              { name: 'user_id', type: 'TEXT PK', desc: 'Benutzer-ID' },
               { name: 'last_read_at', type: 'TSTZ', desc: 'Letzter Lesezeitpunkt' },
             ]} />
-            <TableCard title="scene_comment_events" color={C.blue} note="Messenger-Annotation Projektion" fields={[
+            <TableCard title="scene_comment_events" color={C.blue} note="Messenger-Annotation Projektion (Webhook-Empfang)" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'scene_id', type: 'INT', desc: 'Szenen-ID' },
               { name: 'messenger_annotation_id', type: 'TEXT UNIQUE', desc: 'Messenger-Annotation UUID' },
+              { name: 'created_at', type: 'TSTZ', desc: 'Erstellungszeitpunkt' },
               { name: 'deleted_at', type: 'TSTZ', desc: 'Soft-Delete' },
             ]} />
           </div>
@@ -2999,11 +3183,13 @@ function DatenmodellTab() {
               { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
             ]} />
           </div>
-          <TableCard title="export_logs" color={C.gray} note="Export-Protokoll (Wasserzeichen-Audit)" fields={[
+          <TableCard title="export_logs" color={C.gray} note="Export-Protokoll (Wasserzeichen-Audit, v51: werkstufe_id statt stage_id)" fields={[
             { name: 'id', type: 'UUID PK', desc: 'Export-ID' },
             { name: 'user_id', type: 'TEXT', desc: 'Exportierer' },
             { name: 'user_name', type: 'TEXT', desc: 'Anzeigename' },
-            { name: 'stage_id', type: 'INT FK', desc: '-> stages.id' },
+            { name: 'stage_label', type: 'TEXT', desc: 'Fassungs-Label (z.B. "Drehbuch V2")' },
+            { name: 'staffel_id', type: 'TEXT', desc: 'Produktions-ID (Legacy-Feld)' },
+            { name: 'werkstufe_id', type: 'UUID FK', desc: '-> werkstufen.id (v51)' },
             { name: 'format', type: 'TEXT', desc: 'fountain | fdx | pdf' },
             { name: 'exported_at', type: 'TSTZ', desc: 'Exportzeitpunkt' },
           ]} />
@@ -3056,65 +3242,52 @@ function DatenmodellTab() {
         </div>
       </GroupBody>
 
-      {/* ── Gruppe 8: Audit & Legacy ── */}
-      <GroupHeader id="audit" title="8. Audit & Legacy-Tabellen" count={9} color={C.gray} />
-      <GroupBody id="audit">
+      {/* ── Gruppe 7: Migrationshistorie ── */}
+      <GroupHeader id="history" title="7. Migrationshistorie & Strukturwandel" count={1} color={C.gray} />
+      <GroupBody id="history">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <TableCard title="folgen_dokument_audit" color={C.gray} note="Audit-Log (DSGVO-konform, kein Content)" fields={[
-            { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-            { name: 'dokument_id', type: 'UUID FK', desc: '-> folgen_dokumente.id' },
-            { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id' },
-            { name: 'user_id', type: 'TEXT', desc: 'Akteur' },
-            { name: 'ereignis', type: 'TEXT', desc: 'Event-Typ (z.B. created, submitted, approved)' },
-            { name: 'details', type: 'JSONB', desc: 'Metadaten (nicht sensibel)' },
-            { name: 'ereignis_am', type: 'TSTZ', desc: 'Zeitpunkt' },
+          <TableCard title="schema_migrations" color={C.gray} note="Migrations-Tracking (automatisch beim Backend-Start)" fields={[
+            { name: 'name', type: 'TEXT PK', desc: 'Migrations-Dateiname (z.B. v51_drop_legacy_tables.sql)' },
+            { name: 'applied_at', type: 'TSTZ', desc: 'Ausfuehrungszeitpunkt' },
           ]} />
 
-          <InfoBox title="Strukturwandel v42–v50: Was sich geaendert hat" color={C.blue}>
+          <InfoBox title="Strukturwandel v42–v51: Komplette Migration abgeschlossen" color={C.green}>
             <div style={{ fontSize: 11, lineHeight: 1.7 }}>
               <p style={{ margin: '0 0 8px 0' }}>
                 <strong>Altes Modell (v1–v41):</strong> staffeln → bloecke → episoden → stages → szenen.
-                Jede Szene gehoerte genau einer Stage (= Fassung). Keine stabile Szenen-Identitaet ueber Fassungen hinweg.
+                Jede Szene gehoerte genau einer Stage. Keine stabile Szenen-Identitaet ueber Fassungen hinweg.
               </p>
               <p style={{ margin: '0 0 8px 0' }}>
                 <strong>Neues Modell (v43+):</strong> produktionen → folgen → werkstufen + scene_identities → dokument_szenen.
-                Eine Szene hat eine stabile UUID (<code>scene_identities</code>) und existiert in mehreren Werkstufen (N:M via <code>dokument_szenen</code>).
+                Eine Szene hat eine stabile UUID und existiert in mehreren Werkstufen (N:M via dokument_szenen).
+              </p>
+              <p style={{ margin: '0 0 8px 0' }}>
+                <strong>v47:</strong> TRUNCATE CASCADE + Rename staffeln → produktionen. Alle Daten neu importiert.
               </p>
               <p style={{ margin: 0 }}>
-                <strong>v47 Clean-Start:</strong> Alle Daten wurden per TRUNCATE CASCADE entfernt und mit dem neuen Modell neu importiert.
-                Die alten Tabellen bleiben physisch erhalten (leere Huellen), damit Legacy-Routes nicht crashen.
+                <strong>v51 (2026-05-04):</strong> Alle Legacy-Tabellen endgueltig per DROP TABLE entfernt.
+                Es gibt keine Altlasten mehr — das Datenmodell ist vollstaendig bereinigt.
               </p>
             </div>
           </InfoBox>
 
-          <WarnBox title="Legacy-Tabellen (DEPRECATED — leer, nicht loeschen)">
+          <WarnBox title="Gedroppte Tabellen (v51 — existieren NICHT mehr in der DB)">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
               {[
-                { name: 'bloecke', note: 'Entfaellt — Folgen direkt unter Produktion' },
-                { name: 'episoden', note: 'Entfaellt — ersetzt durch folgen' },
-                { name: 'stages', note: 'Ersetzt durch werkstufen' },
-                { name: 'szenen', note: 'Ersetzt durch dokument_szenen' },
-                { name: 'folgen_dokumente', note: 'Ersetzt durch folgen + werkstufen' },
-                { name: 'folgen_dokument_fassungen', note: 'IDs in werkstufen uebernommen' },
-                { name: 'szenen_versionen', note: 'Ersetzt durch szenen_revisionen (Delta)' },
-                { name: 'folgen_dokument_annotationen', note: 'Wird durch Messenger-Integration ersetzt' },
+                'szenen', 'stages', 'folgen_dokumente', 'folgen_dokument_fassungen',
+                'szenen_versionen', 'kommentare', 'folgen_dokument_annotationen',
+                'folgen_dokument_autoren', 'folgen_dokument_audit',
               ].map(t => (
-                <div key={t.name} style={{
-                  padding: '4px 10px', borderRadius: 6,
+                <span key={t} style={{
+                  padding: '3px 8px', borderRadius: 4, textDecoration: 'line-through',
                   background: C.red + '10', border: `1px solid ${C.red}33`,
-                  fontSize: 11,
-                }}>
-                  <code style={{ color: C.red, fontWeight: 600 }}>{t.name}</code>
-                  <span style={{ color: C.muted, marginLeft: 6 }}>{t.note}</span>
-                </div>
+                  fontSize: 10, fontFamily: 'monospace', color: C.red,
+                }}>{t}</span>
               ))}
             </div>
-            <div style={{ marginTop: 10, fontSize: 11, lineHeight: 1.6 }}>
-              <strong>Gedropt (existiert nicht mehr):</strong> <code>folgen_meta</code> (v44 DROP TABLE).
-            </div>
-            <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.6 }}>
-              <strong>Noch referenziert:</strong> <code>folgen_dokument_autoren</code> + <code>folgen_dokument_audit</code> verweisen
-              noch auf <code>folgen_dokument_fassungen</code>. Werden bei Bedarf auf <code>werkstufen</code> umgestellt.
+            <div style={{ marginTop: 10, fontSize: 11, lineHeight: 1.6, color: C.muted }}>
+              Auch entfernt: <code>bloecke</code>, <code>episoden</code>, <code>folgen_meta</code> (fruehere Migrationen).
+              Alle FK-Spalten zu diesen Tabellen (fassung_id, szene_id, stage_id) wurden ebenfalls gedropt.
             </div>
           </WarnBox>
         </div>
