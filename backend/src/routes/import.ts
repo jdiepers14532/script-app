@@ -270,9 +270,22 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id, standDatum]
     )
 
+    // Parse frontend scene overrides (field corrections)
+    let sceneOverrides: Record<number, Record<string, any>> = {}
+    if (req.body.scene_overrides) {
+      try { sceneOverrides = JSON.parse(req.body.scene_overrides) } catch {}
+    }
+
     // Create scene_identities + dokument_szenen for each scene
     const sceneIdentityIds: { identityId: string; szeneIdx: number }[] = []
     for (const [idx, szene] of result.szenen.entries()) {
+      const ov = sceneOverrides[idx] || {}
+      const intExt = ov.int_ext ?? szene.int_ext
+      const tageszeit = ov.tageszeit ?? szene.tageszeit
+      const ortName = ov.ort_name ?? szene.ort_name
+      const spieltag = ov.spieltag ?? szene.spieltag
+      const zusammenfassung = ov.zusammenfassung ?? szene.zusammenfassung
+      const szeneninfo = ov.szeneninfo ?? szene.szeneninfo
       const stoppzeitSek = szene.dauer_sekunden || null
       const isWechselschnitt = szene.isWechselschnitt || false
 
@@ -285,8 +298,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const pmNodes: any[] = []
 
       // Scene heading node
-      const headingParts = [szene.int_ext, szene.ort_name].filter(Boolean)
-      if (szene.tageszeit) headingParts.push(`- ${szene.tageszeit}`)
+      const headingParts = [intExt, ortName].filter(Boolean)
+      if (tageszeit) headingParts.push(`- ${tageszeit}`)
       const headingText = headingParts.join('. ').replace(/\.\s*-/, ' -') || `SZ ${szene.nummer}`
       pmNodes.push({
         type: 'screenplay_element',
@@ -314,10 +327,10 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15)`,
         [
           werkstufe.id, identity.id, idx, szene.nummer,
-          szene.int_ext, szene.tageszeit, szene.ort_name || null,
-          szene.zusammenfassung || null, JSON.stringify(pmNodes),
-          szene.spieltag || null, stoppzeitSek, isWechselschnitt,
-          szene.szeneninfo || null, docTyp, req.user!.name || req.user!.user_id,
+          intExt, tageszeit, ortName || null,
+          zusammenfassung || null, JSON.stringify(pmNodes),
+          spieltag || null, stoppzeitSek, isWechselschnitt,
+          szeneninfo || null, docTyp, req.user!.name || req.user!.user_id,
         ]
       )
       sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
