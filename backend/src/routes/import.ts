@@ -29,6 +29,52 @@ function extractFileMetadata(filename: string, buffer: Buffer): Record<string, s
   return meta
 }
 
+// Parse "4x PatientInnen o.T." → { name, anzahl, headerOT }
+function parseKomparseEntry(raw: string): { name: string; anzahl: number; headerOT: boolean } {
+  let rest = raw.trim()
+  let anzahl = 1
+  const countM = rest.match(/^(\d+)x\s+(.+)$/)
+  if (countM) { anzahl = parseInt(countM[1], 10); rest = countM[2].trim() }
+  const headerOT = /\bo\.T\.?\s*$/i.test(rest)
+  if (headerOT) rest = rest.replace(/\s*\bo\.T\.?\s*$/i, '').trim()
+  return { name: rest, anzahl, headerOT }
+}
+
+// Analyze scene textelemente for a character/komparse: spiel_typ + repliken count
+function analyzeInContent(
+  textelemente: any[], charName: string
+): { spiel_typ: 'o.t.' | 'spiel' | 'text'; repliken: number } {
+  const nameUpper = charName.toUpperCase()
+  const stem = nameUpper
+    .replace(/(INNEN|INNEN|EN|ER|E)$/, '')
+    .slice(0, Math.max(4, nameUpper.length - 3))
+
+  let repliken = 0
+  let mentionedInAction = false
+
+  for (const te of textelemente) {
+    if (!te.text) continue
+    const textUpper = te.text.toUpperCase()
+
+    if (te.type === 'character') {
+      const charField = (te.character || te.text || '').toUpperCase()
+      if (charField === nameUpper || charField.includes(nameUpper) ||
+          (stem.length >= 4 && charField.includes(stem))) {
+        repliken++
+      }
+    } else if (te.type === 'action') {
+      if (textUpper.includes(nameUpper) ||
+          (stem.length >= 4 && textUpper.includes(stem))) {
+        mentionedInAction = true
+      }
+    }
+  }
+
+  if (repliken > 0) return { spiel_typ: 'text', repliken }
+  if (mentionedInAction) return { spiel_typ: 'spiel', repliken: 0 }
+  return { spiel_typ: 'o.t.', repliken: 0 }
+}
+
 export const importRouter = Router()
 
 const upload = multer({
@@ -83,6 +129,29 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       if (sz.ort_name && !allMotive.includes(sz.ort_name)) allMotive.push(sz.ort_name)
     }
 
+    // Enrich szenen with repliken counts + komparsen detail
+    const enrichedSzenen = result.szenen.map((sz: any) => {
+      // Rollen: count repliken per character
+      const charaktere_detail = (sz.charaktere || []).map((name: string) => {
+        const analysis = analyzeInContent(sz.textelemente || [], name)
+        return { name, repliken: analysis.repliken }
+      })
+
+      // Komparsen: parse entry + analyze content
+      const komparsen_detail = (sz.komparsen || []).map((raw: string) => {
+        const { name, anzahl, headerOT } = parseKomparseEntry(raw)
+        const analysis = analyzeInContent(sz.textelemente || [], name)
+        let hat_spiel = false
+        let hat_text = false
+        if (analysis.spiel_typ === 'text') { hat_text = true; hat_spiel = true }
+        else if (analysis.spiel_typ === 'spiel') { hat_spiel = true }
+        else if (!headerOT) { hat_spiel = true } // no o.T. in header → assume spiel
+        return { name, anzahl, hat_spiel, hat_text, repliken: analysis.repliken }
+      })
+
+      return { ...sz, charaktere_detail, komparsen_detail }
+    })
+
     res.json({
       format: result.meta.format,
       version: result.meta.version,
@@ -92,7 +161,7 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       komparsen: allKomparsen,
       motive: allMotive,
       warnings: result.meta.warnings,
-      szenen: result.szenen,
+      szenen: enrichedSzenen,
       file_metadata: fileMeta,
       filename_metadata: filenameMeta,
       watermark_found: wmPayload !== null,
@@ -332,57 +401,6 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       } catch { /* ignore constraint violations */ }
     }
 
-    // Process Komparsen
-    // Parse "4x PatientInnen o.T." → { name: "PatientInnen", anzahl: 4, headerOT: true }
-    function parseKomparseEntry(raw: string): { name: string; anzahl: number; headerOT: boolean } {
-      let rest = raw.trim()
-      // Extract "Nx" prefix
-      let anzahl = 1
-      const countM = rest.match(/^(\d+)x\s+(.+)$/)
-      if (countM) { anzahl = parseInt(countM[1], 10); rest = countM[2].trim() }
-      // Strip "o.T." suffix
-      const headerOT = /\bo\.T\.?\s*$/i.test(rest)
-      if (headerOT) rest = rest.replace(/\s*\bo\.T\.?\s*$/i, '').trim()
-      return { name: rest, anzahl, headerOT }
-    }
-
-    // Analyze scene content to detect spiel_typ for a komparse
-    function analyzeKomparseInContent(
-      textelemente: any[], kompName: string
-    ): { spiel_typ: 'o.t.' | 'spiel' | 'text'; repliken: number } {
-      const nameUpper = kompName.toUpperCase()
-      // Build stem for fuzzy matching (first 4+ chars, strip plural suffixes)
-      const stem = nameUpper
-        .replace(/(INNEN|INNEN|EN|ER|E)$/, '')
-        .slice(0, Math.max(4, nameUpper.length - 3))
-
-      let repliken = 0
-      let mentionedInAction = false
-
-      for (const te of textelemente) {
-        if (!te.text) continue
-        const textUpper = te.text.toUpperCase()
-
-        if (te.type === 'character') {
-          // Exact match on character field or text
-          const charField = (te.character || te.text || '').toUpperCase()
-          if (charField === nameUpper || charField.includes(nameUpper) ||
-              (stem.length >= 4 && charField.includes(stem))) {
-            repliken++
-          }
-        } else if (te.type === 'action') {
-          if (textUpper.includes(nameUpper) ||
-              (stem.length >= 4 && textUpper.includes(stem))) {
-            mentionedInAction = true
-          }
-        }
-      }
-
-      if (repliken > 0) return { spiel_typ: 'text', repliken }
-      if (mentionedInAction) return { spiel_typ: 'spiel', repliken: 0 }
-      return { spiel_typ: 'o.t.', repliken: 0 }
-    }
-
     const allKomparsenNames = new Set<string>()
     for (const szene of result.szenen) {
       if (szene.komparsen) {
@@ -442,7 +460,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       for (const charName of szene.charaktere) {
         const charId = charNameToId.get(charName.toUpperCase())
         if (!charId) continue
-        const analysis = analyzeKomparseInContent(szene.textelemente, charName)
+        const analysis = analyzeInContent(szene.textelemente, charName)
         // Named roles are at minimum 'spiel'
         const spiel_typ = analysis.spiel_typ === 'text' ? 'text' : 'spiel'
         try {
@@ -464,7 +482,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           if (!charId) continue
 
           // Content analysis: can upgrade o.t. → spiel → text
-          const analysis = analyzeKomparseInContent(szene.textelemente, kompCleanName)
+          const analysis = analyzeInContent(szene.textelemente, kompCleanName)
           // Header o.T. → start at o.t.; content can always upgrade to 'text' (Dialog found)
           // but action-mention alone doesn't override an explicit o.T. header
           // Header without o.T. → start at spiel; content can upgrade to 'text'

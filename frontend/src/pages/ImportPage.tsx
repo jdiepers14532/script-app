@@ -421,19 +421,39 @@ export default function ImportPage() {
                       )}
                     </div>
 
-                    {/* Row 3: Rollen */}
+                    {/* Row 3: Rollen with repliken count */}
                     {sz.charaktere.length > 0 && (
                       <div style={{ fontSize: 12, color: '#333', marginBottom: 2 }}>
                         <span style={{ color: '#999', fontSize: 11 }}>Rollen: </span>
-                        {sz.charaktere.join(', ')}
+                        {(sz.charaktere_detail || sz.charaktere.map((n: string) => ({ name: n, repliken: 0 }))).map((c: any, ci: number) => (
+                          <span key={ci}>
+                            {ci > 0 && ', '}
+                            {c.name}
+                            {c.repliken > 0 && <span style={{ color: '#757575', fontSize: 11 }}> ({c.repliken})</span>}
+                          </span>
+                        ))}
                       </div>
                     )}
 
-                    {/* Row 4: Komparsen */}
+                    {/* Row 4: Komparsen with details */}
                     {sz.komparsen?.length > 0 && (
                       <div style={{ fontSize: 12, color: '#7B1FA2', marginBottom: 2 }}>
                         <span style={{ color: '#999', fontSize: 11 }}>Komparsen: </span>
-                        {sz.komparsen.join(', ')}
+                        {(sz.komparsen_detail || sz.komparsen.map((n: string) => ({ name: n, anzahl: 1, hat_spiel: false, hat_text: false, repliken: 0 }))).map((k: any, ki: number) => (
+                          <span key={ki}>
+                            {ki > 0 && ', '}
+                            {k.anzahl > 1 && <span style={{ fontWeight: 600 }}>{k.anzahl}x </span>}
+                            {k.name}
+                            {(k.hat_text || k.hat_spiel) && (
+                              <span style={{ color: '#9C27B0', fontSize: 11 }}>
+                                {k.hat_text ? ` Text:${k.repliken}` : ' Spiel'}
+                              </span>
+                            )}
+                            {!k.hat_text && !k.hat_spiel && (
+                              <span style={{ color: '#BDBDBD', fontSize: 11 }}> o.T.</span>
+                            )}
+                          </span>
+                        ))}
                       </div>
                     )}
 
