@@ -115,8 +115,9 @@ export default function ImportPage() {
   useEffect(() => {
     if (!selectedProduktionId) return
     fetch(`/api/produktionen/${selectedProduktionId}/bloecke`, { credentials: 'include' })
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() })
       .then(data => {
+        if (!Array.isArray(data)) return
         setBloecke(data)
         const first = data.length > 0 ? data[0] : null
         setSelectedBlock(first)
