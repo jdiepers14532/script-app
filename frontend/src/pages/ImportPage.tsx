@@ -791,8 +791,9 @@ export default function ImportPage() {
                           <option value="INT/EXT">INT/EXT</option>
                         </select>
                         <select value={getSceneVal(sz, i, 'tageszeit') || 'TAG'} onChange={e => updateScene(i, 'tageszeit', e.target.value)} style={{
-                          fontSize: 10, color: '#999', flexShrink: 0, border: '1px solid transparent',
-                          background: 'transparent', cursor: 'pointer', padding: '0px 2px', appearance: 'none' as any,
+                          fontSize: 10, fontWeight: 600, flexShrink: 0, padding: '0px 4px', borderRadius: 3,
+                          background: '#FFF8E1', color: '#F57F17', border: '1px solid transparent',
+                          cursor: 'pointer',
                         }}>
                           <option value="TAG">TAG</option>
                           <option value="NACHT">NACHT</option>
@@ -810,13 +811,12 @@ export default function ImportPage() {
 
                       {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 2 }}>
-                        {(getSceneVal(sz, i, 'spieltag') != null || sz.spieltag != null) && (
-                          <span style={{ ...tagStyle('#E8EAF6', '#3949AB'), display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                            Spieltag
-                            <input type="number" value={getSceneVal(sz, i, 'spieltag') ?? ''} onChange={e => updateScene(i, 'spieltag', e.target.value ? Number(e.target.value) : null)}
-                              style={{ width: 28, fontSize: 10, fontWeight: 600, color: '#3949AB', border: 'none', background: 'transparent', padding: 0, textAlign: 'center' }} />
-                          </span>
-                        )}
+                        <span style={{ ...tagStyle('#E8EAF6', '#3949AB'), display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                          Spieltag
+                          <input type="number" value={getSceneVal(sz, i, 'spieltag') ?? ''} onChange={e => updateScene(i, 'spieltag', e.target.value ? Number(e.target.value) : null)}
+                            placeholder="–"
+                            style={{ width: 28, fontSize: 10, fontWeight: 600, color: '#3949AB', border: 'none', background: 'transparent', padding: 0, textAlign: 'center' }} />
+                        </span>
                         {sz.dauer_sekunden > 0 && (
                           <span style={tagStyle('#E3F2FD', '#1565C0')}>{durMin}:{String(durSec).padStart(2, '0')}</span>
                         )}
@@ -870,22 +870,20 @@ export default function ImportPage() {
                       )}
 
                       {/* Row 5: Zusammenfassung (editable) */}
-                      {(getSceneVal(sz, i, 'zusammenfassung') || sz.zusammenfassung) && (
-                        <input type="text" value={getSceneVal(sz, i, 'zusammenfassung') || ''} onChange={e => updateScene(i, 'zusammenfassung', e.target.value)}
-                          style={{ width: '100%', fontSize: 10, color: '#666', fontStyle: 'italic', border: '1px solid transparent', background: 'transparent', padding: '1px 0' }}
-                          onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
-                          onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
-                        />
-                      )}
+                      <input type="text" value={getSceneVal(sz, i, 'zusammenfassung') || ''} onChange={e => updateScene(i, 'zusammenfassung', e.target.value)}
+                        placeholder="Zusammenfassung…"
+                        style={{ width: '100%', fontSize: 10, color: '#666', fontStyle: 'italic', border: '1px solid transparent', background: 'transparent', padding: '1px 4px', borderRadius: 3 }}
+                        onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
+                        onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
+                      />
 
                       {/* Row 6: Szeneninfo (editable) */}
-                      {(getSceneVal(sz, i, 'szeneninfo') || sz.szeneninfo) && (
-                        <input type="text" value={getSceneVal(sz, i, 'szeneninfo') || ''} onChange={e => updateScene(i, 'szeneninfo', e.target.value)}
-                          style={{ width: '100%', fontSize: 10, color: '#1565C0', fontStyle: 'italic', border: '1px solid transparent', background: 'transparent', padding: '1px 0' }}
-                          onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
-                          onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
-                        />
-                      )}
+                      <input type="text" value={getSceneVal(sz, i, 'szeneninfo') || ''} onChange={e => updateScene(i, 'szeneninfo', e.target.value)}
+                        placeholder="Szeneninfo…"
+                        style={{ width: '100%', fontSize: 10, color: '#1565C0', fontStyle: 'italic', border: '1px solid transparent', background: 'transparent', padding: '1px 4px', borderRadius: 3 }}
+                        onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
+                        onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
+                      />
                     </div>
                   )
                 })}
