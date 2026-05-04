@@ -286,7 +286,10 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const spieltag = ov.spieltag ?? szene.spieltag
       const zusammenfassung = ov.zusammenfassung ?? szene.zusammenfassung
       const szeneninfo = ov.szeneninfo ?? szene.szeneninfo
-      const stoppzeitSek = szene.dauer_sekunden || null
+      const stoppzeitSek = ov.dauer_sekunden ?? szene.dauer_sekunden ?? null
+      // Override charaktere/komparsen lists if provided
+      if (ov.charaktere && Array.isArray(ov.charaktere)) szene.charaktere = ov.charaktere
+      if (ov.komparsen && Array.isArray(ov.komparsen)) szene.komparsen = ov.komparsen
       const isWechselschnitt = szene.isWechselschnitt || false
 
       const identity = await queryOne(

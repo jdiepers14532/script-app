@@ -7,17 +7,7 @@ import { api } from '../api/client'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 
-/** Parse "Stu. 02 / Gartenhaus / Küche" → { drehort, motiv, untermotiv } */
-function parseOrtDisplay(raw: string): { drehort: string | null; motiv: string; untermotiv: string | null } {
-  const normalized = raw.replace(/^A\.\s*D\.\s*/i, 'Außendreh / ').replace(/\s*\/\s*/g, ' / ')
-  const parts = normalized.split(' / ').map(p => p.trim()).filter(Boolean)
-  if (parts.length >= 3) return { drehort: parts[0], motiv: parts[1], untermotiv: parts.slice(2).join(' / ') }
-  if (parts.length === 2) {
-    if (/^(Stu\.|Studio|Außendreh|Innendreh)/i.test(parts[0])) return { drehort: parts[0], motiv: parts[1], untermotiv: null }
-    return { drehort: null, motiv: parts[0], untermotiv: parts[1] }
-  }
-  return { drehort: null, motiv: parts[0] || raw, untermotiv: null }
-}
+
 const FORMAT_LABELS: Record<string, string> = {
   fdx: 'Final Draft (.fdx)',
   fountain: 'Fountain (.fountain)',
@@ -732,8 +722,6 @@ export default function ImportPage() {
                   </div>
                 )}
                 {previewResult.szenen.map((sz: any, i: number) => {
-                  const durMin = sz.dauer_sekunden > 0 ? Math.floor(sz.dauer_sekunden / 60) : 0
-                  const durSec = sz.dauer_sekunden > 0 ? sz.dauer_sekunden % 60 : 0
                   return (
                     <div key={i} style={{
                       padding: '6px 12px', borderBottom: '1px solid #f0f0f0',
@@ -747,39 +735,18 @@ export default function ImportPage() {
                         }}>
                           SZ {sz.nummer}
                         </span>
-                        {(() => {
-                          if (!sz.ort_name) return <span style={{ fontSize: 12, color: '#999', flex: 1 }}>—</span>
-                          const { drehort, motiv, untermotiv } = parseOrtDisplay(sz.ort_name)
-                          return (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                              {drehort && (
-                                <span style={{
-                                  fontSize: 10, fontWeight: 600, padding: '0px 5px', borderRadius: 3,
-                                  background: '#E0E0E0', color: '#616161', whiteSpace: 'nowrap', flexShrink: 0,
-                                }}>
-                                  {drehort}
-                                </span>
-                              )}
-                              <span style={{
-                                fontSize: 12, fontWeight: 600, color: '#1B5E20',
-                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                              }}>
-                                {motiv}
-                              </span>
-                              {untermotiv && (
-                                <>
-                                  <span style={{ color: '#ccc', fontSize: 10, flexShrink: 0 }}>/</span>
-                                  <span style={{
-                                    fontSize: 11, fontWeight: 500, color: '#2E7D32',
-                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                                  }}>
-                                    {untermotiv}
-                                  </span>
-                                </>
-                              )}
-                            </span>
-                          )
-                        })()}
+                        <input type="text"
+                          value={getSceneVal(sz, i, 'ort_name') || ''}
+                          onChange={e => updateScene(i, 'ort_name', e.target.value)}
+                          placeholder="Motiv…"
+                          style={{
+                            flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#1B5E20',
+                            border: '1px solid transparent', background: 'transparent',
+                            padding: '0px 4px', borderRadius: 3,
+                          }}
+                          onFocus={e => { e.target.style.borderColor = '#c8e6c9'; e.target.style.background = '#fff' }}
+                          onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
+                        />
                         <select value={getSceneVal(sz, i, 'int_ext') || 'INT'} onChange={e => updateScene(i, 'int_ext', e.target.value)} style={{
                           fontSize: 10, fontWeight: 600, flexShrink: 0, padding: '0px 2px', borderRadius: 3,
                           background: getSceneVal(sz, i, 'int_ext') === 'EXT' ? '#E8F5E9' : '#ECEFF1',
@@ -817,9 +784,29 @@ export default function ImportPage() {
                             placeholder="–"
                             style={{ width: 28, fontSize: 10, fontWeight: 600, color: '#3949AB', border: 'none', background: 'transparent', padding: 0, textAlign: 'center' }} />
                         </span>
-                        {sz.dauer_sekunden > 0 && (
-                          <span style={tagStyle('#E3F2FD', '#1565C0')}>{durMin}:{String(durSec).padStart(2, '0')}</span>
-                        )}
+                        <span style={{ ...tagStyle('#E3F2FD', '#1565C0'), display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                          Stopp
+                          <input type="text"
+                            value={(() => {
+                              const sek = getSceneVal(sz, i, 'dauer_sekunden') ?? sz.dauer_sekunden ?? 0
+                              if (!sek) return ''
+                              return `${Math.floor(sek / 60)}:${String(sek % 60).padStart(2, '0')}`
+                            })()}
+                            onChange={e => {
+                              const v = e.target.value
+                              const m = v.match(/^(\d{1,3}):(\d{0,2})$/)
+                              if (m) {
+                                updateScene(i, 'dauer_sekunden', parseInt(m[1]) * 60 + (parseInt(m[2]) || 0))
+                              } else if (/^\d+$/.test(v)) {
+                                updateScene(i, 'dauer_sekunden', parseInt(v))
+                              } else if (v === '') {
+                                updateScene(i, 'dauer_sekunden', 0)
+                              }
+                            }}
+                            placeholder="0:00"
+                            style={{ width: 36, fontSize: 10, fontWeight: 600, color: '#1565C0', border: 'none', background: 'transparent', padding: 0, textAlign: 'center' }}
+                          />
+                        </span>
                         {sz.isWechselschnitt && (
                           <span style={tagStyle('#FFF3E0', '#E65100')}>
                             Wechselschnitt{sz.wechselschnittPartner?.length > 0 ? ` mit SZ ${sz.wechselschnittPartner.join(', ')}` : ''}
@@ -830,44 +817,45 @@ export default function ImportPage() {
                         )}
                       </div>
 
-                      {/* Row 3: Rollen with repliken count */}
-                      {sz.charaktere.length > 0 && (
-                        <div style={{ fontSize: 11, color: '#333', marginBottom: 1, display: 'flex', flexWrap: 'wrap', gap: '1px 0', alignItems: 'center' }}>
-                          <span style={{ color: '#999', marginRight: 4 }}>Rollen: </span>
-                          {(sz.charaktere_detail || sz.charaktere.map((n: string) => ({ name: n, repliken: 0 }))).map((c: any, ci: number) => (
-                            <span key={ci} style={{ display: 'inline-flex', alignItems: 'center' }}>
-                              {ci > 0 && <span style={{ marginRight: 3 }}>, </span>}
-                              {c.name}
-                              {c.repliken > 0 && (
-                                <span style={tagStyle('#E3F2FD', '#1565C0')}>{c.repliken} Repl.</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {/* Row 3: Rollen (editable) */}
+                      <div style={{ fontSize: 11, color: '#333', marginBottom: 1, display: 'flex', alignItems: 'center' }}>
+                        <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>Rollen: </span>
+                        <input type="text"
+                          value={getSceneVal(sz, i, 'charaktere') != null
+                            ? (getSceneVal(sz, i, 'charaktere') as string[]).join(', ')
+                            : (sz.charaktere_detail || sz.charaktere.map((n: string) => ({ name: n, repliken: 0 })))
+                                .map((c: any) => c.name + (c.repliken > 0 ? ` (${c.repliken})` : '')).join(', ')
+                          }
+                          onChange={e => updateScene(i, 'charaktere', e.target.value.split(',').map((s: string) => s.replace(/\s*\(\d+\)/, '').trim()).filter(Boolean))}
+                          placeholder="Rollen kommagetrennt…"
+                          style={{
+                            flex: 1, fontSize: 11, color: '#333', border: '1px solid transparent',
+                            background: 'transparent', padding: '1px 4px', borderRadius: 3,
+                          }}
+                          onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
+                          onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
+                        />
+                      </div>
 
-                      {/* Row 4: Komparsen with details */}
-                      {sz.komparsen?.length > 0 && (
-                        <div style={{ fontSize: 11, color: '#7B1FA2', marginBottom: 1, display: 'flex', flexWrap: 'wrap', gap: '1px 0', alignItems: 'center' }}>
-                          <span style={{ color: '#999', marginRight: 4 }}>Komparsen: </span>
-                          {(sz.komparsen_detail || sz.komparsen.map((n: string) => ({ name: n, anzahl: 1, hat_spiel: false, hat_text: false, repliken: 0 }))).map((k: any, ki: number) => (
-                            <span key={ki} style={{ display: 'inline-flex', alignItems: 'center' }}>
-                              {ki > 0 && <span style={{ marginRight: 3 }}>, </span>}
-                              {k.anzahl > 1 && <span style={{ fontWeight: 600 }}>{k.anzahl}× </span>}
-                              {k.name}
-                              {k.hat_text && (
-                                <span style={tagStyle('#F3E5F5', '#7B1FA2')}>Text:{k.repliken}</span>
-                              )}
-                              {!k.hat_text && k.hat_spiel && (
-                                <span style={tagStyle('#FFF3E0', '#E65100')}>Spiel</span>
-                              )}
-                              {!k.hat_text && !k.hat_spiel && (
-                                <span style={tagStyle('#F5F5F5', '#9E9E9E')}>o.T.</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                      {/* Row 4: Komparsen (editable) */}
+                      <div style={{ fontSize: 11, color: '#7B1FA2', marginBottom: 1, display: 'flex', alignItems: 'center' }}>
+                        <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>Komparsen: </span>
+                        <input type="text"
+                          value={getSceneVal(sz, i, 'komparsen') != null
+                            ? (getSceneVal(sz, i, 'komparsen') as string[]).join(', ')
+                            : (sz.komparsen_detail || sz.komparsen?.map((n: string) => ({ name: n, anzahl: 1 })) || [])
+                                .map((k: any) => (k.anzahl > 1 ? `${k.anzahl}× ` : '') + k.name).join(', ')
+                          }
+                          onChange={e => updateScene(i, 'komparsen', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                          placeholder="Komparsen kommagetrennt…"
+                          style={{
+                            flex: 1, fontSize: 11, color: '#7B1FA2', border: '1px solid transparent',
+                            background: 'transparent', padding: '1px 4px', borderRadius: 3,
+                          }}
+                          onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
+                          onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
+                        />
+                      </div>
 
                       {/* Row 5: Zusammenfassung (editable) */}
                       <input type="text" value={getSceneVal(sz, i, 'zusammenfassung') || ''} onChange={e => updateScene(i, 'zusammenfassung', e.target.value)}
