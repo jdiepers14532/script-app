@@ -1995,7 +1995,7 @@ function SzenenFassungenTab() {
   )
 }
 
-// ── Datenmodell Tab (komplett, Stand v44) ────────────────────────────────────
+// ── Datenmodell Tab (komplett, Stand v50) ────────────────────────────────────
 
 function DatenmodellTab() {
   const [expandedGroup, setExpandedGroup] = useState<string | null>('core')
@@ -2037,8 +2037,13 @@ function DatenmodellTab() {
     <div>
       <div style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 6px 0' }}>Datenmodell — Script-App</h2>
-        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 16px 0' }}>
-          PostgreSQL <code>script_db</code> — 47 Migrationen (v1–v47), ~39 aktive Tabellen in 8 Gruppen.
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 4px 0' }}>
+          PostgreSQL <code>script_db</code> — 50 Migrationen (v1–v50), ~42 aktive Tabellen in 8 Gruppen.
+        </p>
+        <p style={{ color: C.muted, fontSize: 12, margin: '0 0 16px 0', lineHeight: 1.6 }}>
+          <strong style={{ color: C.text }}>Strukturwandel v42–v50:</strong> Das urspruengliche Modell (staffeln → bloecke → episoden → stages → szenen)
+          wurde durch ein schlankes 5-Tabellen-Modell ersetzt: <code>produktionen → folgen → werkstufen + scene_identities → dokument_szenen</code>.
+          Die alten Tabellen existieren noch physisch (leer, Daten via v47 TRUNCATE entfernt), werden aber nicht mehr beschrieben.
         </p>
 
         {/* ER Overview Diagram */}
@@ -2085,7 +2090,9 @@ function DatenmodellTab() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 16, paddingTop: 12, borderTop: `1px dashed ${C.border}` }}>
             {[
               { name: 'characters', color: C.orange, via: 'scene_identities' },
-              { name: 'motive', color: '#00C853', via: 'produktionen' },
+              { name: 'drehorte', color: '#00C853', via: 'produktionen' },
+              { name: 'motive', color: '#00C853', via: 'produktionen + drehorte' },
+              { name: 'statistik_vorlagen', color: C.orange, via: 'produktionen' },
               { name: 'szenen_vorstopp', color: '#00C853', via: 'scene_identities' },
               { name: 'szenen_revisionen', color: C.red, via: 'dokument_szenen' },
               { name: 'ki_settings', color: C.purple, via: 'global' },
@@ -2140,6 +2147,7 @@ function DatenmodellTab() {
             { name: 'sichtbarkeit', type: 'TEXT', desc: 'privat | team | alle' },
             { name: 'abgegeben', type: 'BOOL', desc: 'Eingefroren? (HTTP 409 bei Schreibversuch)' },
             { name: 'bearbeitung_status', type: 'TEXT', desc: 'entwurf | in_review | approved' },
+            { name: 'stand_datum', type: 'DATE', desc: '"Stand"-Datum vom PDF-Cover (v48)' },
             { name: 'seitenformat', type: 'TEXT', desc: 'a4 (default)' },
             { name: 'plaintext_index', type: 'TEXT', desc: 'Volltextsuche' },
             { name: 'yjs_state', type: 'BYTEA', desc: 'Yjs Binary State (Echtzeit-Kollaboration)' },
@@ -2176,7 +2184,7 @@ function DatenmodellTab() {
       </GroupBody>
 
       {/* ── Gruppe 2: Characters & Motive ── */}
-      <GroupHeader id="characters" title="2. Characters, Motive & Fotos" count={10} color={C.orange} />
+      <GroupHeader id="characters" title="2. Characters, Motive, Statistik & Fotos" count={11} color={C.orange} />
       <GroupBody id="characters">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -2185,12 +2193,13 @@ function DatenmodellTab() {
               { name: 'name', type: 'TEXT', desc: 'z.B. "Ben Lohmann"' },
               { name: 'meta_json', type: 'JSONB', desc: 'Erweiterte Daten' },
             ]} />
-            <TableCard title="character_productions" color={C.purple} note="Produktionsspezifische Nummer" fields={[
+            <TableCard title="character_productions" color={C.purple} note="Produktionsspezifische Nummer + Darsteller" fields={[
               { name: 'character_id', type: 'UUID FK', desc: '-> characters.id' },
               { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'rollen_nummer', type: 'INT', desc: 'Rollenblatt-Nr. (UNIQUE pro Staffel)' },
               { name: 'komparsen_nummer', type: 'INT', desc: 'Komparsen-Nr. (UNIQUE pro Staffel)' },
               { name: 'kategorie_id', type: 'INT FK', desc: '-> character_kategorien.id' },
+              { name: 'darsteller_name', type: 'TEXT', desc: 'Schauspieler-Name (v48, fuer Statistik-Reports)' },
               { name: 'is_active', type: 'BOOL', desc: 'Aktiv-Flag' },
             ]} />
           </div>
@@ -2202,13 +2211,17 @@ function DatenmodellTab() {
               { name: 'typ', type: 'TEXT', desc: 'rolle | komparse' },
               { name: 'sort_order', type: 'INT', desc: 'Anzeigereihenfolge' },
             ]} />
-            <TableCard title="scene_characters" color={C.orange} note="Welche Charaktere in welcher Szene" fields={[
+            <TableCard title="scene_characters" color={C.orange} note="Welche Charaktere in welcher Szene (v45: Komparsen-Spiel, v46: werkstufe_id)" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'scene_identity_id', type: 'UUID FK', desc: '-> scene_identities.id (stabil!)' },
+              { name: 'werkstufe_id', type: 'UUID FK', desc: '-> werkstufen.id (v46, fuer Versionsvergleich)' },
               { name: 'character_id', type: 'UUID FK', desc: '-> characters.id' },
               { name: 'kategorie_id', type: 'INT FK', desc: '-> character_kategorien.id' },
               { name: 'anzahl', type: 'INT', desc: 'Bei Komparsen-Gruppen' },
               { name: 'ist_gruppe', type: 'BOOL', desc: 'Gruppen-Eintrag?' },
+              { name: 'spiel_typ', type: 'TEXT', desc: 'o.t. | spiel | text (v45, Komparsen-Klassifikation)' },
+              { name: 'repliken_anzahl', type: 'INT', desc: 'Anzahl Repliken (v45, auto-gezaehlt)' },
+              { name: 'header_o_t', type: 'BOOL', desc: 'Im Szenenkopf als o.T. markiert (v45)' },
             ]} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -2276,6 +2289,15 @@ function DatenmodellTab() {
               { name: 'media_typ', type: 'TEXT', desc: 'image | video' },
             ]} />
           </div>
+          <TableCard title="statistik_vorlagen" color={C.orange} note="Gespeicherte Statistik-Abfragen (v46)" fields={[
+            { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
+            { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
+            { name: 'name', type: 'TEXT', desc: 'Vorlagen-Name (z.B. "Hauptrollen Block 28")' },
+            { name: 'abfrage_typ', type: 'TEXT', desc: 'character-repliken | motiv-auslastung | ...' },
+            { name: 'parameter', type: 'JSONB', desc: 'Gespeicherte Filter-Parameter' },
+            { name: 'erstellt_von', type: 'TEXT', desc: 'user_id' },
+            { name: 'sortierung', type: 'INT', desc: 'Anzeigereihenfolge' },
+          ]} />
         </div>
       </GroupBody>
 
@@ -2284,7 +2306,7 @@ function DatenmodellTab() {
       <GroupBody id="versions">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="szenen_versionen" color={C.gray} note="Content-Snapshots (Versionshistorie)" fields={[
+            <TableCard title="szenen_versionen" color={C.gray} note="LEGACY — Content-Snapshots (v47: leer, ersetzt durch szenen_revisionen)" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'szene_id', type: 'INT FK', desc: '-> szenen.id (Legacy)' },
               { name: 'user_id', type: 'TEXT', desc: 'Bearbeiter' },
@@ -2356,9 +2378,9 @@ function DatenmodellTab() {
             ]} />
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="folgen_dokument_autoren" color={C.blue} note="Autoren & Reviewer pro Fassung" fields={[
+            <TableCard title="folgen_dokument_autoren" color={C.blue} note="Autoren & Reviewer pro Fassung (FK noch auf legacy fassungen)" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
-              { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id' },
+              { name: 'fassung_id', type: 'UUID FK', desc: '-> folgen_dokument_fassungen.id (= werkstufen.id)' },
               { name: 'user_id', type: 'TEXT', desc: 'Benutzer-ID' },
               { name: 'rolle', type: 'TEXT', desc: 'autor | reviewer' },
               { name: 'cursor_farbe', type: 'TEXT', desc: 'Echtzeit-Cursor-Farbe (#007AFF)' },
@@ -2513,8 +2535,8 @@ function DatenmodellTab() {
         </div>
       </GroupBody>
 
-      {/* ── Gruppe 8: Audit ── */}
-      <GroupHeader id="audit" title="8. Audit & Legacy" count={4} color={C.gray} />
+      {/* ── Gruppe 8: Audit & Legacy ── */}
+      <GroupHeader id="audit" title="8. Audit & Legacy-Tabellen" count={9} color={C.gray} />
       <GroupBody id="audit">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <TableCard title="folgen_dokument_audit" color={C.gray} note="Audit-Log (DSGVO-konform, kein Content)" fields={[
@@ -2527,13 +2549,34 @@ function DatenmodellTab() {
             { name: 'ereignis_am', type: 'TSTZ', desc: 'Zeitpunkt' },
           ]} />
 
-          <WarnBox title="Legacy-Tabellen (DEPRECATED, nicht loeschen)">
+          <InfoBox title="Strukturwandel v42–v50: Was sich geaendert hat" color={C.blue}>
+            <div style={{ fontSize: 11, lineHeight: 1.7 }}>
+              <p style={{ margin: '0 0 8px 0' }}>
+                <strong>Altes Modell (v1–v41):</strong> staffeln → bloecke → episoden → stages → szenen.
+                Jede Szene gehoerte genau einer Stage (= Fassung). Keine stabile Szenen-Identitaet ueber Fassungen hinweg.
+              </p>
+              <p style={{ margin: '0 0 8px 0' }}>
+                <strong>Neues Modell (v43+):</strong> produktionen → folgen → werkstufen + scene_identities → dokument_szenen.
+                Eine Szene hat eine stabile UUID (<code>scene_identities</code>) und existiert in mehreren Werkstufen (N:M via <code>dokument_szenen</code>).
+              </p>
+              <p style={{ margin: 0 }}>
+                <strong>v47 Clean-Start:</strong> Alle Daten wurden per TRUNCATE CASCADE entfernt und mit dem neuen Modell neu importiert.
+                Die alten Tabellen bleiben physisch erhalten (leere Huellen), damit Legacy-Routes nicht crashen.
+              </p>
+            </div>
+          </InfoBox>
+
+          <WarnBox title="Legacy-Tabellen (DEPRECATED — leer, nicht loeschen)">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
               {[
+                { name: 'bloecke', note: 'Entfaellt — Folgen direkt unter Produktion' },
+                { name: 'episoden', note: 'Entfaellt — ersetzt durch folgen' },
                 { name: 'stages', note: 'Ersetzt durch werkstufen' },
                 { name: 'szenen', note: 'Ersetzt durch dokument_szenen' },
                 { name: 'folgen_dokumente', note: 'Ersetzt durch folgen + werkstufen' },
                 { name: 'folgen_dokument_fassungen', note: 'IDs in werkstufen uebernommen' },
+                { name: 'szenen_versionen', note: 'Ersetzt durch szenen_revisionen (Delta)' },
+                { name: 'folgen_dokument_annotationen', note: 'Wird durch Messenger-Integration ersetzt' },
               ].map(t => (
                 <div key={t.name} style={{
                   padding: '4px 10px', borderRadius: 6,
@@ -2545,9 +2588,12 @@ function DatenmodellTab() {
                 </div>
               ))}
             </div>
-            <div style={{ marginTop: 8, fontSize: 11 }}>
-              <code>folgen_meta</code> wurde in v44 komplett gedropt. Die anderen Legacy-Tabellen bleiben vorerst
-              fuer Backward-Compatibility erhalten, werden aber nicht mehr beschrieben.
+            <div style={{ marginTop: 10, fontSize: 11, lineHeight: 1.6 }}>
+              <strong>Gedropt (existiert nicht mehr):</strong> <code>folgen_meta</code> (v44 DROP TABLE).
+            </div>
+            <div style={{ marginTop: 6, fontSize: 11, lineHeight: 1.6 }}>
+              <strong>Noch referenziert:</strong> <code>folgen_dokument_autoren</code> + <code>folgen_dokument_audit</code> verweisen
+              noch auf <code>folgen_dokument_fassungen</code>. Werden bei Bedarf auf <code>werkstufen</code> umgestellt.
             </div>
           </WarnBox>
         </div>
