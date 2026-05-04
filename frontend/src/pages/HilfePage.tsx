@@ -2622,20 +2622,43 @@ function NetzplanDiagram() {
     })
   }
 
-  // Manhattan routing: H → V → H
-  function route(sx: number, sy: number, tx: number, ty: number, fromId: string, toId: string): string {
+  // Channel-Offset-Spreading: group edges by column pair, assign spread index
+  const SPREAD = 6
+  const edgeChannelKey = (e: typeof fkEdges[0]) => `${Math.round(e.sx)}-${Math.round(e.tx)}`
+  const edgesByChannel = new Map<string, typeof fkEdges>()
+  for (const e of fkEdges) {
+    const key = edgeChannelKey(e)
+    if (!edgesByChannel.has(key)) edgesByChannel.set(key, [])
+    edgesByChannel.get(key)!.push(e)
+  }
+  const edgeSpreadIdx = new Map<typeof fkEdges[0], number>()
+  const edgeSpreadCount = new Map<typeof fkEdges[0], number>()
+  for (const [, group] of edgesByChannel) {
+    group.forEach((e, i) => {
+      edgeSpreadIdx.set(e, i)
+      edgeSpreadCount.set(e, group.length)
+    })
+  }
+
+  // Manhattan routing: H → V → H with channel spreading
+  function route(e: typeof fkEdges[0]): string {
+    const { sx, sy, tx, ty, fromId, toId } = e
+    const idx = edgeSpreadIdx.get(e) ?? 0
+    const count = edgeSpreadCount.get(e) ?? 1
+    const offset = (idx - (count - 1) / 2) * SPREAD
+
     const sameCol = Math.abs(sx - tx) < TW
     if (sameCol && fromId === toId) {
       // Self-reference (e.g. motive → motive)
-      const ox = Math.max(sx, tx) + 30
+      const ox = Math.max(sx, tx) + 30 + offset
       return `M ${sx},${sy} H ${ox} V ${ty} H ${tx}`
     }
     if (Math.abs(sx - tx) < 5) {
       // Same X edge — offset through side
-      const ox = sx + (sx > 1000 ? 25 : -25)
+      const ox = sx + (sx > 1000 ? 25 : -25) + offset
       return `M ${sx},${sy} H ${ox} V ${ty} H ${tx}`
     }
-    const midX = sx + (tx - sx) * 0.5
+    const midX = sx + (tx - sx) * 0.5 + offset
     return `M ${sx},${sy} H ${midX} V ${ty} H ${tx}`
   }
 
@@ -2698,9 +2721,15 @@ function NetzplanDiagram() {
           {/* FK Connection Lines */}
           {fkEdges.map((e, i) => {
             const isHighlight = hovered === e.fromId || hovered === e.toId
-            return <path key={`e${i}`} d={route(e.sx, e.sy, e.tx, e.ty, e.fromId, e.toId)}
-              fill="none" stroke={isHighlight ? '#007AFF' : '#ccc'} strokeWidth={isHighlight ? 1.8 : 1}
-              markerEnd="url(#fk-arrow)" style={{ transition: 'stroke 0.15s, stroke-width 0.15s' }} />
+            const dimmed = hovered != null && !isHighlight
+            const gColor = groupColors[tMap.get(e.fromId)?.g ?? ''] || '#999'
+            return <path key={`e${i}`} d={route(e)}
+              fill="none"
+              stroke={isHighlight ? '#007AFF' : gColor}
+              strokeWidth={isHighlight ? 2 : 1}
+              opacity={dimmed ? 0.08 : isHighlight ? 1 : 0.45}
+              markerEnd="url(#fk-arrow)"
+              style={{ transition: 'stroke 0.15s, opacity 0.15s, stroke-width 0.15s' }} />
           })}
 
           {/* Table Cards */}
