@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
+import { api } from '../api/client'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 
@@ -148,30 +149,27 @@ export default function ImportPage() {
   // Non-scene elements (Deckblatt, Synopsis, Memo, etc.)
   const [nonSceneElements, setNonSceneElements] = useState<Array<{ type: string; label: string; content: string }>>([])
 
-  // Load Blöcke from ProdDB (live, no sync)
+  // Load Blöcke from ProdDB (same as ScriptPage: api.getBloecke)
   useEffect(() => {
     if (!selectedId) return
-    fetch(`/api/produktionen/${selectedId}/bloecke`, { credentials: 'include' })
-      .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() })
-      .then(data => {
-        if (!Array.isArray(data)) return
-        setBloecke(data)
-        // Auto-select from pending detected episode
-        const ep = pendingAutoEpisode.current
-        if (ep != null) {
-          const match = data.find((b: any) => b.folge_von != null && b.folge_bis != null && ep >= b.folge_von && ep <= b.folge_bis)
-          if (match) {
-            setSelectedBlock(match)
-            setSelectedFolgeNummer(ep)
-            pendingAutoEpisode.current = null
-            return
-          }
+    api.getBloecke(selectedId).then(data => {
+      if (!Array.isArray(data)) return
+      setBloecke(data)
+      // Auto-select from pending detected episode
+      const ep = pendingAutoEpisode.current
+      if (ep != null) {
+        const match = data.find((b: any) => b.folge_von != null && b.folge_bis != null && ep >= b.folge_von && ep <= b.folge_bis)
+        if (match) {
+          setSelectedBlock(match)
+          setSelectedFolgeNummer(ep)
+          pendingAutoEpisode.current = null
+          return
         }
-        const first = data.length > 0 ? data[0] : null
-        setSelectedBlock(first)
-        setSelectedFolgeNummer(first?.folge_von ?? null)
-      })
-      .catch(() => {})
+      }
+      const first = data.length > 0 ? data[0] : null
+      setSelectedBlock(first)
+      setSelectedFolgeNummer(first?.folge_von ?? null)
+    }).catch(() => {})
   }, [selectedId])
 
   const handleFile = useCallback(async (f: File) => {
@@ -281,10 +279,10 @@ export default function ImportPage() {
         elems.push({ type: 'cover', label: 'Deckblatt', content: coverParts })
         if (rrm.synopsis) elems.push({ type: 'synopsis', label: 'Synopsis', content: rrm.synopsis })
         if (rrm.recaps?.length > 0) {
-          for (const r of rrm.recaps) elems.push({ type: 'memo', label: 'Recap', content: r })
+          elems.push({ type: 'memo', label: 'Recaps', content: rrm.recaps.join('\n') })
         }
         if (rrm.precaps?.length > 0) {
-          for (const p of rrm.precaps) elems.push({ type: 'memo', label: 'Precap', content: p })
+          elems.push({ type: 'memo', label: 'Precaps', content: rrm.precaps.join('\n') })
         }
       }
       setNonSceneElements(elems)
@@ -554,41 +552,31 @@ export default function ImportPage() {
                     </button>
                   )}
 
-                  {/* Auto-detected metadata (editable) */}
+                  {/* Metadata fields (always editable) */}
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                    {editDocType && (
-                      <select value={editDocType} onChange={e => {
-                        setEditDocType(e.target.value)
-                        setStageType(e.target.value === 'Treatment' ? 'treatment' : 'draft')
-                      }} style={{ ...compactSelectStyle, color: '#1565C0', fontWeight: 600 }}>
-                        <option value="Drehbuch">Drehbuch</option>
-                        <option value="Treatment">Treatment</option>
-                      </select>
-                    )}
-                    {editEpisode != null && (
-                      <>
-                        <span style={{ color: '#999' }}>—</span>
-                        <select value={editEpisode ?? ''} onChange={e => {
-                          const ep = e.target.value ? Number(e.target.value) : null
-                          setEditEpisode(ep)
-                          if (ep) handleFolgeSelect(ep)
-                        }} style={{ ...compactSelectStyle, color: '#1565C0' }}>
-                          <option value="">—</option>
-                          {allFolgen.map(({ nr, block }) => (
-                            <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
-                              Ep. {nr}
-                            </option>
-                          ))}
-                        </select>
-                      </>
-                    )}
-                    {(standDatum || editDocType) && (
-                      <>
-                        <span style={{ color: '#999' }}>—</span>
-                        <input type="text" value={standDatum} onChange={e => setStandDatum(e.target.value)}
-                          placeholder="Stand-Datum" style={{ ...compactSelectStyle, width: 90, color: '#1565C0' }} />
-                      </>
-                    )}
+                    <select value={editDocType || (stageType === 'treatment' ? 'Treatment' : 'Drehbuch')} onChange={e => {
+                      setEditDocType(e.target.value)
+                      setStageType(e.target.value === 'Treatment' ? 'treatment' : 'draft')
+                    }} style={{ ...compactSelectStyle, color: '#1565C0', fontWeight: 600 }}>
+                      <option value="Drehbuch">Drehbuch</option>
+                      <option value="Treatment">Treatment</option>
+                    </select>
+                    <span style={{ color: '#999' }}>—</span>
+                    <select value={editEpisode ?? selectedFolgeNummer ?? ''} onChange={e => {
+                      const ep = e.target.value ? Number(e.target.value) : null
+                      setEditEpisode(ep)
+                      if (ep) handleFolgeSelect(ep)
+                    }} style={{ ...compactSelectStyle, color: '#1565C0' }}>
+                      <option value="">Ep. —</option>
+                      {allFolgen.map(({ nr, block }) => (
+                        <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
+                          Ep. {nr}
+                        </option>
+                      ))}
+                    </select>
+                    <span style={{ color: '#999' }}>—</span>
+                    <input type="text" value={standDatum} onChange={e => setStandDatum(e.target.value)}
+                      placeholder="Stand-Datum" style={{ ...compactSelectStyle, width: 90, color: '#1565C0' }} />
                   </span>
 
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 11, color: '#757575' }}>
@@ -693,9 +681,21 @@ export default function ImportPage() {
                             </div>
                           </div>
                           {elem.content && (
-                            <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic', whiteSpace: 'pre-wrap', maxHeight: 80, overflow: 'auto' }}>
-                              {elem.content}
-                            </div>
+                            <textarea
+                              value={elem.content}
+                              onChange={e => {
+                                const updated = [...nonSceneElements]
+                                updated[idx] = { ...elem, content: e.target.value }
+                                setNonSceneElements(updated)
+                              }}
+                              style={{
+                                width: '100%', fontSize: 10, color: '#666', fontStyle: 'italic',
+                                border: '1px solid #e8e8e8', borderRadius: 3, padding: '4px 6px',
+                                resize: 'vertical', minHeight: 32, maxHeight: 120,
+                                fontFamily: 'inherit', background: '#fff',
+                              }}
+                              rows={Math.min(4, elem.content.split('\n').length)}
+                            />
                           )}
                         </div>
                         {/* Merge button between adjacent elements */}
