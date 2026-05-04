@@ -26,6 +26,9 @@ const FORMAT_LABELS: Record<string, string> = {
   writerduet: 'WriterDuet (.wdz)',
   unknown: 'Unbekannt',
 }
+const STAGE_TO_FORMAT: Record<string, string> = {
+  expose: 'Notiz', treatment: 'Storyline', draft: 'Drehbuch', final: 'Drehbuch',
+}
 
 type Step = 1 | 2 | 3
 
@@ -95,6 +98,10 @@ export default function ImportPage() {
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [stageType, setStageType] = useState('draft')
+  const pendingAutoEpisode = useRef<number | null>(null)
+  const [editDocType, setEditDocType] = useState<string | null>(null)
+  const [editEpisode, setEditEpisode] = useState<number | null>(null)
+  const [standDatum, setStandDatum] = useState('')
 
   // All folgen across all blocks
   const allFolgen: { nr: number; block: any }[] = []
@@ -151,17 +158,23 @@ export default function ImportPage() {
       .then(data => {
         if (!Array.isArray(data)) return
         setBloecke(data)
+        // Auto-select from pending detected episode
+        const ep = pendingAutoEpisode.current
+        if (ep != null) {
+          const match = data.find((b: any) => b.folge_von != null && b.folge_bis != null && ep >= b.folge_von && ep <= b.folge_bis)
+          if (match) {
+            setSelectedBlock(match)
+            setSelectedFolgeNummer(ep)
+            pendingAutoEpisode.current = null
+            return
+          }
+        }
         const first = data.length > 0 ? data[0] : null
         setSelectedBlock(first)
         setSelectedFolgeNummer(first?.folge_von ?? null)
       })
       .catch(() => {})
   }, [selectedProduktionId])
-
-  // When block changes, reset folge to first of that block
-  useEffect(() => {
-    setSelectedFolgeNummer(selectedBlock?.folge_von ?? null)
-  }, [selectedBlock?.proddb_id])
 
   const handleFile = useCallback(async (f: File) => {
     setFile(f)
@@ -214,12 +227,45 @@ export default function ImportPage() {
       if (rrMeta?.document_type) {
         if (rrMeta.document_type === 'treatment') setStageType('treatment')
         else if (rrMeta.document_type === 'drehbuch') setStageType('draft')
+        setEditDocType(rrMeta.document_type === 'treatment' ? 'Treatment' : 'Drehbuch')
+      }
+
+      // Stand-Datum from filename
+      if (data.filename_metadata?.fassungsdatum) {
+        setStandDatum(data.filename_metadata.fassungsdatum)
       }
 
       // Auto-fill folge from detected episode number
       const detectedEpisode = data.rote_rosen_meta?.episode || data.filename_metadata?.episode
-      if (detectedEpisode && allFolgen.some(f => f.nr === detectedEpisode)) {
-        handleFolgeSelect(detectedEpisode)
+      if (detectedEpisode) {
+        setEditEpisode(detectedEpisode)
+        pendingAutoEpisode.current = detectedEpisode
+      }
+
+      // Auto-recognize production from staffel
+      if (data.rote_rosen_meta?.staffel) {
+        const matchProd = productions.find(p => p.staffelnummer === data.rote_rosen_meta.staffel)
+        if (matchProd) {
+          if (matchProd.id !== selectedProduktionId) {
+            setSelectedProduktionId(matchProd.id) // triggers bloecke reload → consumes pendingAutoEpisode
+          } else if (detectedEpisode) {
+            // Production already selected → bloecke already loaded → immediate match
+            const matchBlock = bloecke.find((b: any) => b.folge_von != null && b.folge_bis != null && detectedEpisode >= b.folge_von && detectedEpisode <= b.folge_bis)
+            if (matchBlock) {
+              setSelectedBlock(matchBlock)
+              setSelectedFolgeNummer(detectedEpisode)
+              pendingAutoEpisode.current = null
+            }
+          }
+        }
+      } else if (detectedEpisode) {
+        // No staffel detected → use current production, try immediate episode match
+        const matchBlock = bloecke.find((b: any) => b.folge_von != null && b.folge_bis != null && detectedEpisode >= b.folge_von && detectedEpisode <= b.folge_bis)
+        if (matchBlock) {
+          setSelectedBlock(matchBlock)
+          setSelectedFolgeNummer(detectedEpisode)
+          pendingAutoEpisode.current = null
+        }
       }
 
       setStep(2)
@@ -241,6 +287,7 @@ export default function ImportPage() {
       fd.append('folge_nummer', String(selectedFolgeNummer))
       if (selectedBlock?.proddb_id) fd.append('proddb_block_id', selectedBlock.proddb_id)
       fd.append('stage_type', stageType)
+      if (standDatum) fd.append('stand_datum', standDatum)
       const res = await fetch('/api/import/commit', { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
         const err = await res.json()
@@ -264,6 +311,10 @@ export default function ImportPage() {
     setCommitResult(null)
     setError(null)
     setFormatOverride('')
+    setEditDocType(null)
+    setEditEpisode(null)
+    setStandDatum('')
+    pendingAutoEpisode.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
@@ -472,22 +523,36 @@ export default function ImportPage() {
                     </button>
                   )}
 
-                  {/* Auto-detected metadata */}
-                  {(() => {
-                    const rr = previewResult.rote_rosen_meta
-                    const fm = previewResult.filename_metadata
-                    if (!rr && !fm) return null
-                    const docType = rr?.document_type === 'treatment' ? 'Treatment' : rr?.document_type === 'drehbuch' ? 'Drehbuch' : fm?.document_type || null
-                    const episode = rr?.episode || fm?.episode
-                    const stand = fm?.fassungsdatum || null
-                    return (
-                      <span style={{ fontSize: 12, color: '#1565c0' }}>
-                        {docType && <span style={{ fontWeight: 600 }}>{docType}</span>}
-                        {episode ? ` — Ep. ${episode}` : ''}
-                        {stand ? ` — ${stand}` : ''}
-                      </span>
-                    )
-                  })()}
+                  {/* Auto-detected metadata (editable) */}
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                    {editDocType && (
+                      <select value={editDocType} onChange={e => {
+                        setEditDocType(e.target.value)
+                        setStageType(e.target.value === 'Treatment' ? 'treatment' : 'draft')
+                      }} style={{ ...compactSelectStyle, color: '#1565C0', fontWeight: 600 }}>
+                        <option value="Drehbuch">Drehbuch</option>
+                        <option value="Treatment">Treatment</option>
+                      </select>
+                    )}
+                    {editEpisode != null && (
+                      <>
+                        <span style={{ color: '#999' }}>—</span>
+                        <span style={{ color: '#1565C0', fontSize: 11 }}>Ep.</span>
+                        <input type="number" value={editEpisode} onChange={e => {
+                          const ep = e.target.value ? Number(e.target.value) : null
+                          setEditEpisode(ep)
+                          if (ep) handleFolgeSelect(ep)
+                        }} style={{ ...compactSelectStyle, width: 56, color: '#1565C0' }} />
+                      </>
+                    )}
+                    {(standDatum || editDocType) && (
+                      <>
+                        <span style={{ color: '#999' }}>—</span>
+                        <input type="text" value={standDatum} onChange={e => setStandDatum(e.target.value)}
+                          placeholder="Stand-Datum" style={{ ...compactSelectStyle, width: 90, color: '#1565C0' }} />
+                      </>
+                    )}
+                  </span>
 
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 11, color: '#757575' }}>
                     <span><b>{previewResult.total_scenes}</b> Szenen</span>
@@ -529,7 +594,9 @@ export default function ImportPage() {
                     })}
                   </select>
                   <select value={selectedBlock?.proddb_id ?? ''} onChange={e => {
-                    const b = bloecke.find(b => b.proddb_id === e.target.value); setSelectedBlock(b ?? null)
+                    const b = bloecke.find(b => b.proddb_id === e.target.value)
+                    setSelectedBlock(b ?? null)
+                    setSelectedFolgeNummer(b?.folge_von ?? null)
                   }} style={compactSelectStyle}>
                     {bloecke.map(b => (
                       <option key={b.proddb_id} value={b.proddb_id}>
@@ -539,7 +606,9 @@ export default function ImportPage() {
                   </select>
                   <select value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))} style={compactSelectStyle}>
                     {allFolgen.map(({ nr, block }) => (
-                      <option key={nr} value={nr}>Folge {nr}</option>
+                      <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
+                        Folge {nr}
+                      </option>
                     ))}
                   </select>
                   <div style={{ display: 'flex', gap: 4 }}>
@@ -560,6 +629,41 @@ export default function ImportPage() {
 
               {/* Scene list */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
+                {/* Non-scene pages: Deckblatt, Synopsis, Memo */}
+                {previewResult.rote_rosen_meta && (
+                  <div style={{ borderBottom: '2px solid #e0e0e0' }}>
+                    <div style={{ padding: '6px 12px', background: '#FAFAFA', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={tagStyle('#E8EAF6', '#3949AB')}>Deckblatt</span>
+                      <span style={{ fontSize: 11, color: '#666' }}>
+                        {previewResult.rote_rosen_meta.staffel ? `Staffel ${previewResult.rote_rosen_meta.staffel}` : ''}
+                        {previewResult.rote_rosen_meta.episode ? ` · Ep. ${previewResult.rote_rosen_meta.episode}` : ''}
+                        {previewResult.rote_rosen_meta.block ? ` · Block ${previewResult.rote_rosen_meta.block}` : ''}
+                        {previewResult.rote_rosen_meta.regie ? ` · Regie: ${previewResult.rote_rosen_meta.regie}` : ''}
+                        {previewResult.rote_rosen_meta.autor ? ` · Autor: ${previewResult.rote_rosen_meta.autor}` : ''}
+                        {previewResult.rote_rosen_meta.gesamtlaenge ? ` · ${previewResult.rote_rosen_meta.gesamtlaenge}` : ''}
+                      </span>
+                    </div>
+                    {previewResult.rote_rosen_meta.synopsis && (
+                      <div style={{ padding: '6px 12px', background: '#FAFAFA', borderTop: '1px solid #f0f0f0' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                          <span style={tagStyle('#E8F5E9', '#2E7D32')}>Synopsis</span>
+                        </div>
+                        <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic', maxHeight: 40, overflow: 'hidden' }}>
+                          {previewResult.rote_rosen_meta.synopsis.slice(0, 200)}{previewResult.rote_rosen_meta.synopsis.length > 200 ? '…' : ''}
+                        </div>
+                      </div>
+                    )}
+                    {(previewResult.rote_rosen_meta.recaps?.length > 0 || previewResult.rote_rosen_meta.precaps?.length > 0) && (
+                      <div style={{ padding: '6px 12px', background: '#FAFAFA', borderTop: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={tagStyle('#FFF3E0', '#E65100')}>Memo</span>
+                        <span style={{ fontSize: 11, color: '#666' }}>
+                          {previewResult.rote_rosen_meta.recaps?.length > 0 ? `${previewResult.rote_rosen_meta.recaps.length} Recaps` : ''}
+                          {previewResult.rote_rosen_meta.precaps?.length > 0 ? `${previewResult.rote_rosen_meta.recaps?.length > 0 ? ' · ' : ''}${previewResult.rote_rosen_meta.precaps.length} Precaps` : ''}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {previewResult.szenen.map((sz: any, i: number) => {
                   const durMin = sz.dauer_sekunden > 0 ? Math.floor(sz.dauer_sekunden / 60) : 0
                   const durSec = sz.dauer_sekunden > 0 ? sz.dauer_sekunden % 60 : 0
@@ -617,6 +721,13 @@ export default function ImportPage() {
                           {sz.int_ext}
                         </span>
                         <span style={{ fontSize: 10, color: '#999', flexShrink: 0 }}>{sz.tageszeit}</span>
+                        <span style={{
+                          fontSize: 9, fontWeight: 600, padding: '0px 4px', borderRadius: 3,
+                          background: '#F5F5F5', color: '#9E9E9E', flexShrink: 0,
+                          textTransform: 'uppercase', letterSpacing: 0.3,
+                        }}>
+                          {STAGE_TO_FORMAT[stageType] || 'Drehbuch'}
+                        </span>
                       </div>
 
                       {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}

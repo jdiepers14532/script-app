@@ -234,8 +234,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       versionLabel = `Import ${filenameMeta.fassungsdatum}`
     }
 
-    // Stand-Datum: prefer filename date, fallback to rote-rosen cover date
-    const standDatum = filenameMeta.fassungsdatum || null
+    // Stand-Datum: prefer frontend override, then filename date
+    const standDatum = req.body.stand_datum || filenameMeta.fassungsdatum || null
 
     // Map stage_type → werkstufen-typ
     const stageToDocTyp: Record<string, string> = {
