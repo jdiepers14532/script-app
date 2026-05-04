@@ -325,6 +325,34 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     const scenesImported = sceneIdentityIds.length
 
+    // ── Non-scene elements (cover, synopsis, memo) ──
+    let nonSceneCount = 0
+    const rawNonSceneElements = req.body.non_scene_elements
+    if (rawNonSceneElements) {
+      try {
+        const nonSceneElements: Array<{ type: string; label: string; content: string }> = JSON.parse(rawNonSceneElements)
+        for (const [nsIdx, elem] of nonSceneElements.entries()) {
+          const elemType = ['cover', 'synopsis', 'memo'].includes(elem.type) ? elem.type : 'memo'
+          const pmNodes = [{
+            type: 'screenplay_element',
+            attrs: { element_type: 'action' },
+            content: elem.content ? [{ type: 'text', text: elem.content }] : undefined,
+          }]
+          await queryOne(
+            `INSERT INTO dokument_szenen
+               (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
+                content, format, element_type, geloescht, updated_by, zusammenfassung)
+             VALUES ($1, NULL, $2, NULL, $3, 'notiz', $4, false, $5, $6)`,
+            [
+              werkstufe.id, -(nonSceneElements.length - nsIdx), JSON.stringify(pmNodes),
+              elemType, req.user!.name || req.user!.user_id, elem.label,
+            ]
+          )
+          nonSceneCount++
+        }
+      } catch { /* ignore parse errors */ }
+    }
+
     // ── Characters: use new characters + character_productions system ──
     // Load existing kategorien for this staffel
     const kategorien = await query(
@@ -599,6 +627,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       folge_id: folge.id,
       werkstufe_id: werkstufe.id,
       scenes_imported: scenesImported,
+      non_scene_elements_imported: nonSceneCount,
       characters_created: charactersCreated,
       komparsen_created: komparsenCreated,
       motive_created: motiveCreated,

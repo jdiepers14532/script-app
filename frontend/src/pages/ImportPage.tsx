@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
-import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List } from 'lucide-react'
+import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
@@ -75,7 +75,7 @@ interface CommitResult {
 export default function ImportPage() {
   const navigate = useNavigate()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { selectedProduction, productions } = useSelectedProduction()
+  const { selectedProduction, productions, selectProduction, selectedId } = useSelectedProduction()
   const { treatmentLabel } = useAppSettings()
   const STAGE_TYPES = [
     { value: 'expose', label: 'Exposé' },
@@ -93,7 +93,6 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null)
 
   // Step 2 settings
-  const [selectedProduktionId, setSelectedProduktionId] = useState('')
   const [bloecke, setBloecke] = useState<any[]>([])
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
@@ -116,6 +115,11 @@ export default function ImportPage() {
     if (!entry) return
     if (entry.block.proddb_id !== selectedBlock?.proddb_id) setSelectedBlock(entry.block)
     setSelectedFolgeNummer(nr)
+  }
+
+  const handleBlockSelect = (block: any) => {
+    setSelectedBlock(block)
+    setSelectedFolgeNummer(block?.folge_von ?? null)
   }
 
   // Document preview
@@ -141,19 +145,13 @@ export default function ImportPage() {
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
 
-  // Set selectedProduktionId from context
-  useEffect(() => {
-    if (selectedProduction) {
-      setSelectedProduktionId(selectedProduction.id)
-    } else if (productions.length > 0) {
-      setSelectedProduktionId(productions[0].id)
-    }
-  }, [selectedProduction?.id, productions.length])
+  // Non-scene elements (Deckblatt, Synopsis, Memo, etc.)
+  const [nonSceneElements, setNonSceneElements] = useState<Array<{ type: string; label: string; content: string }>>([])
 
   // Load Blöcke from ProdDB (live, no sync)
   useEffect(() => {
-    if (!selectedProduktionId) return
-    fetch(`/api/produktionen/${selectedProduktionId}/bloecke`, { credentials: 'include' })
+    if (!selectedId) return
+    fetch(`/api/produktionen/${selectedId}/bloecke`, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json() })
       .then(data => {
         if (!Array.isArray(data)) return
@@ -174,7 +172,7 @@ export default function ImportPage() {
         setSelectedFolgeNummer(first?.folge_von ?? null)
       })
       .catch(() => {})
-  }, [selectedProduktionId])
+  }, [selectedId])
 
   const handleFile = useCallback(async (f: File) => {
     setFile(f)
@@ -246,8 +244,8 @@ export default function ImportPage() {
       if (data.rote_rosen_meta?.staffel) {
         const matchProd = productions.find(p => p.staffelnummer === data.rote_rosen_meta.staffel)
         if (matchProd) {
-          if (matchProd.id !== selectedProduktionId) {
-            setSelectedProduktionId(matchProd.id) // triggers bloecke reload → consumes pendingAutoEpisode
+          if (matchProd.id !== selectedId) {
+            selectProduction(matchProd.id) // triggers bloecke reload → consumes pendingAutoEpisode
           } else if (detectedEpisode) {
             // Production already selected → bloecke already loaded → immediate match
             const matchBlock = bloecke.find((b: any) => b.folge_von != null && b.folge_bis != null && detectedEpisode >= b.folge_von && detectedEpisode <= b.folge_bis)
@@ -268,6 +266,29 @@ export default function ImportPage() {
         }
       }
 
+      // Build non-scene elements from metadata
+      const elems: Array<{ type: string; label: string; content: string }> = []
+      if (data.rote_rosen_meta) {
+        const rrm = data.rote_rosen_meta
+        const coverParts = [
+          rrm.staffel ? `Staffel ${rrm.staffel}` : '',
+          rrm.episode ? `Episode ${rrm.episode}` : '',
+          rrm.block ? `Block ${rrm.block}` : '',
+          rrm.regie ? `Regie: ${rrm.regie}` : '',
+          rrm.autor ? `Autor: ${rrm.autor}` : '',
+          rrm.gesamtlaenge || '',
+        ].filter(Boolean).join(' · ')
+        elems.push({ type: 'cover', label: 'Deckblatt', content: coverParts })
+        if (rrm.synopsis) elems.push({ type: 'synopsis', label: 'Synopsis', content: rrm.synopsis })
+        if (rrm.recaps?.length > 0) {
+          for (const r of rrm.recaps) elems.push({ type: 'memo', label: 'Recap', content: r })
+        }
+        if (rrm.precaps?.length > 0) {
+          for (const p of rrm.precaps) elems.push({ type: 'memo', label: 'Precap', content: p })
+        }
+      }
+      setNonSceneElements(elems)
+
       setStep(2)
     } catch (err) {
       setError(String(err))
@@ -277,17 +298,18 @@ export default function ImportPage() {
   }
 
   const handleCommit = async () => {
-    if (!file || !selectedProduktionId || selectedFolgeNummer == null) return
+    if (!file || !selectedId || selectedFolgeNummer == null) return
     setLoading(true)
     setError(null)
     try {
       const fd = new FormData()
       fd.append('file', file)
-      fd.append('produktion_id', selectedProduktionId)
+      fd.append('produktion_id', selectedId)
       fd.append('folge_nummer', String(selectedFolgeNummer))
       if (selectedBlock?.proddb_id) fd.append('proddb_block_id', selectedBlock.proddb_id)
       fd.append('stage_type', stageType)
       if (standDatum) fd.append('stand_datum', standDatum)
+      if (nonSceneElements.length > 0) fd.append('non_scene_elements', JSON.stringify(nonSceneElements))
       const res = await fetch('/api/import/commit', { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
         const err = await res.json()
@@ -314,6 +336,7 @@ export default function ImportPage() {
     setEditDocType(null)
     setEditEpisode(null)
     setStandDatum('')
+    setNonSceneElements([])
     pendingAutoEpisode.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -322,7 +345,15 @@ export default function ImportPage() {
     c >= 0.9 ? 'var(--sw-green)' : c >= 0.7 ? 'var(--sw-warning)' : 'var(--sw-danger)'
 
   return (
-    <AppShell hideProductionSelector>
+    <AppShell
+      {...(step === 2 ? {
+        bloecke,
+        selectedBlock,
+        onSelectBlock: handleBlockSelect,
+        selectedFolgeNummer,
+        onSelectFolge: (nr: number) => setSelectedFolgeNummer(nr),
+      } : {})}
+    >
       <div style={{ ...(step === 2 ? { padding: '16px 0 0 0' } : { padding: 32, maxWidth: 720, margin: '0 auto' }) }}>
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: step === 2 ? 16 : 32, ...(step === 2 ? { paddingLeft: 16 } : {}) }}>
@@ -537,12 +568,18 @@ export default function ImportPage() {
                     {editEpisode != null && (
                       <>
                         <span style={{ color: '#999' }}>—</span>
-                        <span style={{ color: '#1565C0', fontSize: 11 }}>Ep.</span>
-                        <input type="number" value={editEpisode} onChange={e => {
+                        <select value={editEpisode ?? ''} onChange={e => {
                           const ep = e.target.value ? Number(e.target.value) : null
                           setEditEpisode(ep)
                           if (ep) handleFolgeSelect(ep)
-                        }} style={{ ...compactSelectStyle, width: 56, color: '#1565C0' }} />
+                        }} style={{ ...compactSelectStyle, color: '#1565C0' }}>
+                          <option value="">—</option>
+                          {allFolgen.map(({ nr, block }) => (
+                            <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
+                              Ep. {nr}
+                            </option>
+                          ))}
+                        </select>
                       </>
                     )}
                     {(standDatum || editDocType) && (
@@ -581,36 +618,8 @@ export default function ImportPage() {
                   </div>
                 )}
 
-                {/* Row 2: Import settings — compact inline */}
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <select value={selectedProduktionId} onChange={e => setSelectedProduktionId(e.target.value)} style={compactSelectStyle}>
-                    {productions.filter(p => p.is_active).map(p => {
-                      const label = p.staffelnummer ? `Staffel ${p.staffelnummer}` : p.title
-                      return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
-                    })}
-                    {productions.filter(p => !p.is_active).map(p => {
-                      const label = p.staffelnummer ? `Staffel ${p.staffelnummer}` : p.title
-                      return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
-                    })}
-                  </select>
-                  <select value={selectedBlock?.proddb_id ?? ''} onChange={e => {
-                    const b = bloecke.find(b => b.proddb_id === e.target.value)
-                    setSelectedBlock(b ?? null)
-                    setSelectedFolgeNummer(b?.folge_von ?? null)
-                  }} style={compactSelectStyle}>
-                    {bloecke.map(b => (
-                      <option key={b.proddb_id} value={b.proddb_id}>
-                        Block {b.block_nummer}{b.folge_von != null ? ` (${b.folge_von}–${b.folge_bis})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <select value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))} style={compactSelectStyle}>
-                    {allFolgen.map(({ nr, block }) => (
-                      <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
-                        Folge {nr}
-                      </option>
-                    ))}
-                  </select>
+                {/* Row 2: Stage type */}
+                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     {STAGE_TYPES.map(st => (
                       <button key={st.value} onClick={() => setStageType(st.value)} style={{
@@ -629,39 +638,88 @@ export default function ImportPage() {
 
               {/* Scene list */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
-                {/* Non-scene pages: Deckblatt, Synopsis, Memo */}
-                {previewResult.rote_rosen_meta && (
+                {/* Non-scene elements: Deckblatt, Synopsis, Recaps, Precaps */}
+                {nonSceneElements.length > 0 && (
                   <div style={{ borderBottom: '2px solid #e0e0e0' }}>
-                    <div style={{ padding: '6px 12px', background: '#FAFAFA', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={tagStyle('#E8EAF6', '#3949AB')}>Deckblatt</span>
-                      <span style={{ fontSize: 11, color: '#666' }}>
-                        {previewResult.rote_rosen_meta.staffel ? `Staffel ${previewResult.rote_rosen_meta.staffel}` : ''}
-                        {previewResult.rote_rosen_meta.episode ? ` · Ep. ${previewResult.rote_rosen_meta.episode}` : ''}
-                        {previewResult.rote_rosen_meta.block ? ` · Block ${previewResult.rote_rosen_meta.block}` : ''}
-                        {previewResult.rote_rosen_meta.regie ? ` · Regie: ${previewResult.rote_rosen_meta.regie}` : ''}
-                        {previewResult.rote_rosen_meta.autor ? ` · Autor: ${previewResult.rote_rosen_meta.autor}` : ''}
-                        {previewResult.rote_rosen_meta.gesamtlaenge ? ` · ${previewResult.rote_rosen_meta.gesamtlaenge}` : ''}
-                      </span>
-                    </div>
-                    {previewResult.rote_rosen_meta.synopsis && (
-                      <div style={{ padding: '6px 12px', background: '#FAFAFA', borderTop: '1px solid #f0f0f0' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                          <span style={tagStyle('#E8F5E9', '#2E7D32')}>Synopsis</span>
+                    {nonSceneElements.map((elem, idx) => (
+                      <div key={idx}>
+                        <div style={{ padding: '6px 12px', background: '#FAFAFA', borderTop: idx > 0 ? '1px solid #f0f0f0' : undefined }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: elem.content.length > 80 ? 3 : 0 }}>
+                            <select value={elem.type} onChange={e => {
+                              const updated = [...nonSceneElements]
+                              updated[idx] = { ...elem, type: e.target.value }
+                              setNonSceneElements(updated)
+                            }} style={{ ...compactSelectStyle, fontSize: 10, padding: '1px 4px', fontWeight: 600, color: '#3949AB', background: '#E8EAF6', border: 'none' }}>
+                              <option value="cover">Deckblatt</option>
+                              <option value="synopsis">Synopsis</option>
+                              <option value="memo">Memo</option>
+                            </select>
+                            <span style={{
+                              fontSize: 9, fontWeight: 600, padding: '0px 4px', borderRadius: 3,
+                              background: '#F3E5F5', color: '#7B1FA2',
+                              textTransform: 'uppercase', letterSpacing: 0.3,
+                            }}>Notiz</span>
+                            {elem.label !== elem.type && (
+                              <span style={{ fontSize: 10, color: '#999' }}>{elem.label}</span>
+                            )}
+                            <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
+                              {/* Split button: splits at first paragraph break */}
+                              {elem.content.includes('\n') && (
+                                <button onClick={() => {
+                                  const lines = elem.content.split('\n')
+                                  const mid = Math.ceil(lines.length / 2)
+                                  const updated = [...nonSceneElements]
+                                  updated.splice(idx, 1,
+                                    { ...elem, content: lines.slice(0, mid).join('\n') },
+                                    { ...elem, content: lines.slice(mid).join('\n'), label: elem.label + ' (2)' },
+                                  )
+                                  setNonSceneElements(updated)
+                                }} title="Element teilen" style={{
+                                  background: 'none', border: '1px solid #e0e0e0', borderRadius: 3,
+                                  padding: '1px 4px', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                                }}>
+                                  <Scissors size={10} color="#757575" />
+                                </button>
+                              )}
+                              {/* Remove button */}
+                              <button onClick={() => {
+                                setNonSceneElements(nonSceneElements.filter((_, i) => i !== idx))
+                              }} title="Element entfernen" style={{
+                                background: 'none', border: '1px solid #e0e0e0', borderRadius: 3,
+                                padding: '1px 4px', cursor: 'pointer', display: 'flex', alignItems: 'center',
+                              }}>
+                                <X size={10} color="#999" />
+                              </button>
+                            </div>
+                          </div>
+                          {elem.content && (
+                            <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic', whiteSpace: 'pre-wrap', maxHeight: 80, overflow: 'auto' }}>
+                              {elem.content}
+                            </div>
+                          )}
                         </div>
-                        <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic', maxHeight: 40, overflow: 'hidden' }}>
-                          {previewResult.rote_rosen_meta.synopsis.slice(0, 200)}{previewResult.rote_rosen_meta.synopsis.length > 200 ? '…' : ''}
-                        </div>
+                        {/* Merge button between adjacent elements */}
+                        {idx < nonSceneElements.length - 1 && (
+                          <div style={{ display: 'flex', justifyContent: 'center', background: '#FAFAFA', padding: '1px 0' }}>
+                            <button onClick={() => {
+                              const merged = {
+                                ...elem,
+                                content: elem.content + '\n' + nonSceneElements[idx + 1].content,
+                                label: elem.label,
+                              }
+                              const updated = [...nonSceneElements]
+                              updated.splice(idx, 2, merged)
+                              setNonSceneElements(updated)
+                            }} title="Mit nächstem Element zusammenführen" style={{
+                              background: 'none', border: '1px dashed #ccc', borderRadius: 3,
+                              padding: '0px 8px', cursor: 'pointer', fontSize: 9, color: '#999',
+                            }}>
+                              ↕ Zusammenführen
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {(previewResult.rote_rosen_meta.recaps?.length > 0 || previewResult.rote_rosen_meta.precaps?.length > 0) && (
-                      <div style={{ padding: '6px 12px', background: '#FAFAFA', borderTop: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={tagStyle('#FFF3E0', '#E65100')}>Memo</span>
-                        <span style={{ fontSize: 11, color: '#666' }}>
-                          {previewResult.rote_rosen_meta.recaps?.length > 0 ? `${previewResult.rote_rosen_meta.recaps.length} Recaps` : ''}
-                          {previewResult.rote_rosen_meta.precaps?.length > 0 ? `${previewResult.rote_rosen_meta.recaps?.length > 0 ? ' · ' : ''}${previewResult.rote_rosen_meta.precaps.length} Precaps` : ''}
-                        </span>
-                      </div>
-                    )}
+                    ))}
                   </div>
                 )}
                 {previewResult.szenen.map((sz: any, i: number) => {
@@ -723,7 +781,7 @@ export default function ImportPage() {
                         <span style={{ fontSize: 10, color: '#999', flexShrink: 0 }}>{sz.tageszeit}</span>
                         <span style={{
                           fontSize: 9, fontWeight: 600, padding: '0px 4px', borderRadius: 3,
-                          background: '#F5F5F5', color: '#9E9E9E', flexShrink: 0,
+                          background: '#F3E5F5', color: '#7B1FA2', flexShrink: 0,
                           textTransform: 'uppercase', letterSpacing: 0.3,
                         }}>
                           {STAGE_TO_FORMAT[stageType] || 'Drehbuch'}

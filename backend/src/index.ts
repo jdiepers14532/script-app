@@ -216,6 +216,7 @@ async function runMigrations() {
     'v49_drop_stimmung.sql',
     'v50_drehorte_motive.sql',
     'v51_drop_legacy_tables.sql',
+    'v52_element_type.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
