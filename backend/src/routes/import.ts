@@ -270,21 +270,6 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id, standDatum]
     )
 
-    // Create legacy stage for navigation compatibility
-    const nextStageVer = await queryOne(
-      `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM stages
-       WHERE produktion_id = $1 AND folge_nummer = $2 AND stage_type = $3`,
-      [produktion_id, folge_nummer, stage_type]
-    )
-    const stage = await queryOne(
-      `INSERT INTO stages (produktion_id, folge_nummer, proddb_block_id, stage_type,
-        version_nummer, version_label, status, erstellt_von, meta_json)
-       VALUES ($1, $2, $3, $4, $5, $6, 'in_arbeit', $7, $8) RETURNING id`,
-      [produktion_id, folge_nummer, proddb_block_id, stage_type,
-       (nextStageVer?.m ?? 0) + 1, versionLabel,
-       req.user!.name || req.user!.user_id, JSON.stringify(metaJson)]
-    )
-
     // Create scene_identities + dokument_szenen for each scene
     const sceneIdentityIds: { identityId: string; szeneIdx: number }[] = []
     for (const [idx, szene] of result.szenen.entries()) {
@@ -613,7 +598,6 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     res.json({
       folge_id: folge.id,
       werkstufe_id: werkstufe.id,
-      stage_id: stage.id,
       scenes_imported: scenesImported,
       characters_created: charactersCreated,
       komparsen_created: komparsenCreated,

@@ -1,7 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
-import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X } from 'lucide-react'
+import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
@@ -98,6 +98,26 @@ export default function ImportPage() {
     if (entry.block.proddb_id !== selectedBlock?.proddb_id) setSelectedBlock(entry.block)
     setSelectedFolgeNummer(nr)
   }
+
+  // Document preview
+  const [fileUrl, setFileUrl] = useState<string | null>(null)
+  const [fileTextContent, setFileTextContent] = useState<string | null>(null)
+  const [showDocPreview, setShowDocPreview] = useState(true)
+
+  const isPdf = useMemo(() => file?.name.toLowerCase().endsWith('.pdf') ?? false, [file])
+
+  useEffect(() => {
+    if (!file) { setFileUrl(null); setFileTextContent(null); return }
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      const url = URL.createObjectURL(file)
+      setFileUrl(url)
+      setFileTextContent(null)
+      return () => URL.revokeObjectURL(url)
+    } else {
+      setFileUrl(null)
+      file.text().then(t => setFileTextContent(t)).catch(() => {})
+    }
+  }, [file])
 
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
@@ -240,9 +260,9 @@ export default function ImportPage() {
 
   return (
     <AppShell hideProductionSelector>
-      <div style={{ padding: '32px', ...(step !== 2 ? { maxWidth: 720, margin: '0 auto' } : {}) }}>
+      <div style={{ ...(step === 2 ? { padding: '16px 0 0 0' } : { padding: 32, maxWidth: 720, margin: '0 auto' }) }}>
         {/* Stepper */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: step === 2 ? 16 : 32, ...(step === 2 ? { paddingLeft: 16 } : {}) }}>
           {[1, 2, 3].map(s => (
             <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
@@ -366,267 +386,299 @@ export default function ImportPage() {
 
         {/* Step 2 */}
         {step === 2 && previewResult && (
-          <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
-            {/* Left: Szenenvorschau */}
-            <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#757575', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {previewResult.total_scenes} Szenen
-              </div>
-              {previewResult.szenen.map((sz: any, i: number) => {
-                const durMin = sz.dauer_sekunden > 0 ? Math.floor(sz.dauer_sekunden / 60) : 0
-                const durSec = sz.dauer_sekunden > 0 ? sz.dauer_sekunden % 60 : 0
-                return (
-                  <div key={i} style={{
-                    padding: '8px 10px', borderBottom: '1px solid #f0f0f0',
-                    background: i % 2 === 0 ? '#fff' : '#fafafa',
-                  }}>
-                    {/* Row 1: SZ-Nummer, Motiv, INT/EXT, Tageszeit */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                      <span style={{
-                        fontSize: 12, fontWeight: 700, color: '#000',
-                        fontVariantNumeric: 'tabular-nums', minWidth: 44,
-                      }}>
-                        SZ {sz.nummer}
-                      </span>
-                      <span style={{
-                        fontSize: 12, fontWeight: 600, color: '#000',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-                      }}>
-                        {sz.ort_name || '—'}
-                      </span>
-                      <span style={{
-                        fontSize: 11, fontWeight: 500, flexShrink: 0,
-                        color: sz.int_ext === 'EXT' ? '#00C853' : '#757575',
-                      }}>
-                        {sz.int_ext}
-                      </span>
-                      <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>{sz.tageszeit}</span>
-                    </div>
+          <div style={{ display: 'flex', gap: 0, alignItems: 'stretch', height: 'calc(100vh - 160px)' }}>
 
-                    {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 3 }}>
-                      {sz.spieltag != null && (
-                        <span style={tagStyle('#E8EAF6', '#3949AB')}>Spieltag {sz.spieltag}</span>
-                      )}
-                      {sz.dauer_sekunden > 0 && (
-                        <span style={tagStyle('#E3F2FD', '#1565C0')}>{durMin}:{String(durSec).padStart(2, '0')}</span>
-                      )}
-                      {sz.isWechselschnitt && (
-                        <span style={tagStyle('#FFF3E0', '#E65100')}>
-                          Wechselschnitt{sz.wechselschnittPartner?.length > 0 ? ` mit SZ ${sz.wechselschnittPartner.join(', ')}` : ''}
-                        </span>
-                      )}
-                      {sz.textelemente?.length > 0 && (
-                        <span style={tagStyle('#F5F5F5', '#757575')}>{sz.textelemente.length} Elemente</span>
-                      )}
-                    </div>
-
-                    {/* Row 3: Rollen with repliken count */}
-                    {sz.charaktere.length > 0 && (
-                      <div style={{ fontSize: 12, color: '#333', marginBottom: 2 }}>
-                        <span style={{ color: '#999', fontSize: 11 }}>Rollen: </span>
-                        {(sz.charaktere_detail || sz.charaktere.map((n: string) => ({ name: n, repliken: 0 }))).map((c: any, ci: number) => (
-                          <span key={ci}>
-                            {ci > 0 && ', '}
-                            {c.name}
-                            {c.repliken > 0 && <span style={{ color: '#757575', fontSize: 11 }}> ({c.repliken})</span>}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Row 4: Komparsen with details */}
-                    {sz.komparsen?.length > 0 && (
-                      <div style={{ fontSize: 12, color: '#7B1FA2', marginBottom: 2 }}>
-                        <span style={{ color: '#999', fontSize: 11 }}>Komparsen: </span>
-                        {(sz.komparsen_detail || sz.komparsen.map((n: string) => ({ name: n, anzahl: 1, hat_spiel: false, hat_text: false, repliken: 0 }))).map((k: any, ki: number) => (
-                          <span key={ki}>
-                            {ki > 0 && ', '}
-                            {k.anzahl > 1 && <span style={{ fontWeight: 600 }}>{k.anzahl}x </span>}
-                            {k.name}
-                            {(k.hat_text || k.hat_spiel) && (
-                              <span style={{ color: '#9C27B0', fontSize: 11 }}>
-                                {k.hat_text ? ` Text:${k.repliken}` : ' Spiel'}
-                              </span>
-                            )}
-                            {!k.hat_text && !k.hat_spiel && (
-                              <span style={{ color: '#BDBDBD', fontSize: 11 }}> o.T.</span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Row 5: Zusammenfassung */}
-                    {sz.zusammenfassung && (
-                      <div style={{ fontSize: 11, color: '#666', fontStyle: 'italic', marginBottom: 1 }}>
-                        {sz.zusammenfassung}
-                      </div>
-                    )}
-
-                    {/* Row 6: Szeneninfo */}
-                    {sz.szeneninfo && (
-                      <div style={{ fontSize: 11, color: '#1565C0', fontStyle: 'italic' }}>
-                        {sz.szeneninfo}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-
-            {/* Right: Einstellungen */}
-            <div style={{ width: 360, flexShrink: 0 }}>
-              <h2 style={{ marginBottom: 20, fontSize: 20, fontWeight: 600 }}>Einstellungen</h2>
-
-              {/* Auto-detected metadata info */}
-              {(() => {
-                const rr = previewResult.rote_rosen_meta
-                const fm = previewResult.filename_metadata
-                if (!rr && !fm) return null
-                const docType = rr?.document_type === 'treatment' ? 'Treatment' : rr?.document_type === 'drehbuch' ? 'Drehbuch' : fm?.document_type || 'PDF'
-                const episode = rr?.episode || fm?.episode
-                const stand = fm?.fassungsdatum || null
-
-                return (
-                  <div style={{
-                    background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8,
-                    padding: 12, marginBottom: 16, fontSize: 13, color: '#1565c0',
-                  }}>
-                    <span style={{ fontWeight: 600 }}>{docType}</span>
-                    {episode ? ` — Episode ${episode}` : ''}
-                    {stand ? ` — Stand ${stand}` : ''}
-                  </div>
-                )
-              })()}
-
-              <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-                <StatCard label="Szenen" value={previewResult.total_scenes} />
-                <StatCard label="Rollen" value={previewResult.charaktere.length} />
-                {(previewResult.komparsen?.length ?? 0) > 0 && (
-                  <StatCard label="Komparsen" value={previewResult.komparsen!.length} />
-                )}
-                {(previewResult.motive?.length ?? 0) > 0 && (
-                  <StatCard label="Motive" value={previewResult.motive!.length} />
-                )}
-                {(() => {
-                  const totalSec = previewResult.szenen.reduce((sum: number, s: any) => sum + (s.dauer_sekunden || 0), 0)
-                  if (totalSec === 0) return null
-                  const mm = Math.floor(totalSec / 60)
-                  const ss = totalSec % 60
-                  return <StatCard label="Gesamtlänge" value={`${mm}:${String(ss).padStart(2, '0')}`} />
-                })()}
-                <StatCard label="Textelemente" value={previewResult.total_textelemente} />
-              </div>
-
-              {previewResult.warnings.length > 0 && (
+            {/* Left: Document Preview */}
+            {showDocPreview && (
+              <div style={{
+                width: '50%', flexShrink: 0, borderRight: '1px solid #e0e0e0',
+                display: 'flex', flexDirection: 'column', background: '#f5f5f5',
+              }}>
                 <div style={{
-                  background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 8,
-                  padding: 12, marginBottom: 16,
+                  padding: '8px 12px', borderBottom: '1px solid #e0e0e0',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: '#fff', flexShrink: 0,
                 }}>
-                  {previewResult.warnings.map((w, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 6, fontSize: 13, color: '#795548', marginBottom: i < previewResult.warnings.length - 1 ? 4 : 0 }}>
-                      <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-                      {w}
-                    </div>
-                  ))}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FileText size={14} color="#757575" />
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>
+                      {file?.name}
+                    </span>
+                  </div>
+                  <button onClick={() => setShowDocPreview(false)} title="Vorschau schließen"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
+                    <X size={14} />
+                  </button>
                 </div>
-              )}
+                <div style={{ flex: 1, overflow: 'hidden' }}>
+                  {isPdf && fileUrl ? (
+                    <iframe
+                      src={fileUrl}
+                      style={{ width: '100%', height: '100%', border: 'none' }}
+                      title="Dokument-Vorschau"
+                    />
+                  ) : fileTextContent ? (
+                    <pre style={{
+                      margin: 0, padding: 16, height: '100%', overflowY: 'auto',
+                      fontSize: 11, lineHeight: 1.5, fontFamily: "'Courier New', monospace",
+                      whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333',
+                    }}>
+                      {fileTextContent}
+                    </pre>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999', fontSize: 13 }}>
+                      Vorschau nicht verfügbar
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Staffel</label>
-                <select value={selectedProduktionId} onChange={e => setSelectedProduktionId(e.target.value)} style={selectStyle}>
-                  {productions.filter(p => p.is_active).length > 0 && (
-                    <optgroup label="Aktive Produktionen">
-                      {productions.filter(p => p.is_active).map(p => {
-                        const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
-                        return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
-                      })}
-                    </optgroup>
-                  )}
-                  {productions.filter(p => !p.is_active).length > 0 && (
-                    <optgroup label="Inaktive Produktionen">
-                      {productions.filter(p => !p.is_active).map(p => {
-                        const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
-                        return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
-                      })}
-                    </optgroup>
-                  )}
-                </select>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Block</label>
-                <select value={selectedBlock?.proddb_id ?? ''} onChange={e => {
-                  const b = bloecke.find(b => b.proddb_id === e.target.value)
-                  setSelectedBlock(b ?? null)
-                }} style={selectStyle}>
-                  {bloecke.map(b => (
-                    <option key={b.proddb_id} value={b.proddb_id}>
-                      Block {b.block_nummer}{b.folge_von != null ? ` (Folgen ${b.folge_von}–${b.folge_bis})` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Folge</label>
-                <select value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))} style={selectStyle}>
-                  {allFolgen.map(({ nr, block }) => (
-                    <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
-                      Folge {nr}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Stage-Typ</label>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {STAGE_TYPES.map(st => (
-                    <button
-                      key={st.value}
-                      onClick={() => setStageType(st.value)}
+            {/* Right: Scene list + Settings */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+              {/* Settings bar */}
+              <div style={{
+                padding: '12px 16px', borderBottom: '1px solid #e0e0e0', background: '#fff', flexShrink: 0,
+              }}>
+                {/* Row 1: Format badge + stats */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                    background: '#000', color: '#fff', textTransform: 'uppercase', letterSpacing: 0.3,
+                  }}>
+                    {FORMAT_LABELS[previewResult.format] ?? previewResult.format}
+                  </span>
+                  {!showDocPreview && (
+                    <button onClick={() => setShowDocPreview(true)} title="Dokument-Vorschau öffnen"
                       style={{
-                        padding: '6px 14px', borderRadius: 6, fontSize: 13,
-                        border: '1px solid',
+                        background: 'none', border: '1px solid #e0e0e0', borderRadius: 4,
+                        padding: '2px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, color: '#757575',
+                      }}>
+                      <Eye size={12} /> Dokument
+                    </button>
+                  )}
+
+                  {/* Auto-detected metadata */}
+                  {(() => {
+                    const rr = previewResult.rote_rosen_meta
+                    const fm = previewResult.filename_metadata
+                    if (!rr && !fm) return null
+                    const docType = rr?.document_type === 'treatment' ? 'Treatment' : rr?.document_type === 'drehbuch' ? 'Drehbuch' : fm?.document_type || null
+                    const episode = rr?.episode || fm?.episode
+                    const stand = fm?.fassungsdatum || null
+                    return (
+                      <span style={{ fontSize: 12, color: '#1565c0' }}>
+                        {docType && <span style={{ fontWeight: 600 }}>{docType}</span>}
+                        {episode ? ` — Ep. ${episode}` : ''}
+                        {stand ? ` — ${stand}` : ''}
+                      </span>
+                    )
+                  })()}
+
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 11, color: '#757575' }}>
+                    <span><b>{previewResult.total_scenes}</b> Szenen</span>
+                    <span><b>{previewResult.charaktere.length}</b> Rollen</span>
+                    {(previewResult.komparsen?.length ?? 0) > 0 && <span><b>{previewResult.komparsen!.length}</b> Komparsen</span>}
+                    {(previewResult.motive?.length ?? 0) > 0 && <span><b>{previewResult.motive!.length}</b> Motive</span>}
+                    {(() => {
+                      const totalSec = previewResult.szenen.reduce((sum: number, s: any) => sum + (s.dauer_sekunden || 0), 0)
+                      if (totalSec === 0) return null
+                      const mm = Math.floor(totalSec / 60); const ss = totalSec % 60
+                      return <span><b>{mm}:{String(ss).padStart(2, '0')}</b></span>
+                    })()}
+                  </div>
+                </div>
+
+                {previewResult.warnings.length > 0 && (
+                  <div style={{
+                    background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 6,
+                    padding: '6px 10px', marginBottom: 8, display: 'flex', gap: 6, flexWrap: 'wrap',
+                  }}>
+                    {previewResult.warnings.map((w, i) => (
+                      <span key={i} style={{ fontSize: 11, color: '#795548', display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <AlertTriangle size={11} /> {w}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Row 2: Import settings — compact inline */}
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select value={selectedProduktionId} onChange={e => setSelectedProduktionId(e.target.value)} style={compactSelectStyle}>
+                    {productions.filter(p => p.is_active).map(p => {
+                      const label = p.staffelnummer ? `Staffel ${p.staffelnummer}` : p.title
+                      return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
+                    })}
+                    {productions.filter(p => !p.is_active).map(p => {
+                      const label = p.staffelnummer ? `Staffel ${p.staffelnummer}` : p.title
+                      return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
+                    })}
+                  </select>
+                  <select value={selectedBlock?.proddb_id ?? ''} onChange={e => {
+                    const b = bloecke.find(b => b.proddb_id === e.target.value); setSelectedBlock(b ?? null)
+                  }} style={compactSelectStyle}>
+                    {bloecke.map(b => (
+                      <option key={b.proddb_id} value={b.proddb_id}>
+                        Block {b.block_nummer}{b.folge_von != null ? ` (${b.folge_von}–${b.folge_bis})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <select value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))} style={compactSelectStyle}>
+                    {allFolgen.map(({ nr, block }) => (
+                      <option key={nr} value={nr}>Folge {nr}</option>
+                    ))}
+                  </select>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {STAGE_TYPES.map(st => (
+                      <button key={st.value} onClick={() => setStageType(st.value)} style={{
+                        padding: '4px 10px', borderRadius: 4, fontSize: 11, border: '1px solid',
                         borderColor: stageType === st.value ? '#000' : '#e0e0e0',
                         background: stageType === st.value ? '#000' : '#fff',
-                        color: stageType === st.value ? '#fff' : '#000',
+                        color: stageType === st.value ? '#fff' : '#666',
                         cursor: 'pointer', fontWeight: stageType === st.value ? 600 : 400,
-                      }}
-                    >
-                      {st.label}
-                    </button>
-                  ))}
+                      }}>
+                        {st.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {error && (
-                <div style={{ color: 'var(--sw-danger)', fontSize: 13, marginBottom: 16, display: 'flex', gap: 6 }}>
-                  <AlertTriangle size={14} />
-                  {error}
-                </div>
-              )}
+              {/* Scene list */}
+              <div style={{ flex: 1, overflowY: 'auto' }}>
+                {previewResult.szenen.map((sz: any, i: number) => {
+                  const durMin = sz.dauer_sekunden > 0 ? Math.floor(sz.dauer_sekunden / 60) : 0
+                  const durSec = sz.dauer_sekunden > 0 ? sz.dauer_sekunden % 60 : 0
+                  return (
+                    <div key={i} style={{
+                      padding: '6px 12px', borderBottom: '1px solid #f0f0f0',
+                      background: i % 2 === 0 ? '#fff' : '#fafafa',
+                    }}>
+                      {/* Row 1: SZ-Nummer, Motiv, INT/EXT, Tageszeit */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <span style={{
+                          fontSize: 12, fontWeight: 700, color: '#000',
+                          fontVariantNumeric: 'tabular-nums', minWidth: 44,
+                        }}>
+                          SZ {sz.nummer}
+                        </span>
+                        <span style={{
+                          fontSize: 12, fontWeight: 600, color: '#000',
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
+                        }}>
+                          {sz.ort_name || '—'}
+                        </span>
+                        <span style={{
+                          fontSize: 11, fontWeight: 500, flexShrink: 0,
+                          color: sz.int_ext === 'EXT' ? '#00C853' : '#757575',
+                        }}>
+                          {sz.int_ext}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>{sz.tageszeit}</span>
+                      </div>
 
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button
-                  onClick={() => setStep(1)}
-                  style={{
-                    background: '#f5f5f5', color: '#000', border: 'none', borderRadius: 8,
-                    padding: '10px 20px', fontWeight: 500, fontSize: 14, cursor: 'pointer',
-                  }}
-                >
-                  Zurück
-                </button>
-                <button
-                  onClick={handleCommit}
-                  disabled={selectedFolgeNummer == null || loading}
-                  style={{
-                    background: '#000', color: '#fff', border: 'none', borderRadius: 8,
-                    padding: '10px 24px', fontWeight: 600, fontSize: 14,
+                      {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 2 }}>
+                        {sz.spieltag != null && (
+                          <span style={tagStyle('#E8EAF6', '#3949AB')}>Spieltag {sz.spieltag}</span>
+                        )}
+                        {sz.dauer_sekunden > 0 && (
+                          <span style={tagStyle('#E3F2FD', '#1565C0')}>{durMin}:{String(durSec).padStart(2, '0')}</span>
+                        )}
+                        {sz.isWechselschnitt && (
+                          <span style={tagStyle('#FFF3E0', '#E65100')}>
+                            Wechselschnitt{sz.wechselschnittPartner?.length > 0 ? ` mit SZ ${sz.wechselschnittPartner.join(', ')}` : ''}
+                          </span>
+                        )}
+                        {sz.textelemente?.length > 0 && (
+                          <span style={tagStyle('#F5F5F5', '#757575')}>{sz.textelemente.length} Elemente</span>
+                        )}
+                      </div>
+
+                      {/* Row 3: Rollen with repliken count */}
+                      {sz.charaktere.length > 0 && (
+                        <div style={{ fontSize: 11, color: '#333', marginBottom: 1, display: 'flex', flexWrap: 'wrap', gap: '1px 0', alignItems: 'center' }}>
+                          <span style={{ color: '#999', marginRight: 4 }}>Rollen: </span>
+                          {(sz.charaktere_detail || sz.charaktere.map((n: string) => ({ name: n, repliken: 0 }))).map((c: any, ci: number) => (
+                            <span key={ci} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              {ci > 0 && <span style={{ marginRight: 3 }}>, </span>}
+                              {c.name}
+                              {c.repliken > 0 && (
+                                <span style={tagStyle('#E3F2FD', '#1565C0')}>{c.repliken} Repl.</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Row 4: Komparsen with details */}
+                      {sz.komparsen?.length > 0 && (
+                        <div style={{ fontSize: 11, color: '#7B1FA2', marginBottom: 1, display: 'flex', flexWrap: 'wrap', gap: '1px 0', alignItems: 'center' }}>
+                          <span style={{ color: '#999', marginRight: 4 }}>Komparsen: </span>
+                          {(sz.komparsen_detail || sz.komparsen.map((n: string) => ({ name: n, anzahl: 1, hat_spiel: false, hat_text: false, repliken: 0 }))).map((k: any, ki: number) => (
+                            <span key={ki} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                              {ki > 0 && <span style={{ marginRight: 3 }}>, </span>}
+                              {k.anzahl > 1 && <span style={{ fontWeight: 600 }}>{k.anzahl}× </span>}
+                              {k.name}
+                              {k.hat_text && (
+                                <span style={tagStyle('#F3E5F5', '#7B1FA2')}>Text:{k.repliken}</span>
+                              )}
+                              {!k.hat_text && k.hat_spiel && (
+                                <span style={tagStyle('#FFF3E0', '#E65100')}>Spiel</span>
+                              )}
+                              {!k.hat_text && !k.hat_spiel && (
+                                <span style={tagStyle('#F5F5F5', '#9E9E9E')}>o.T.</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Row 5: Zusammenfassung */}
+                      {sz.zusammenfassung && (
+                        <div style={{ fontSize: 10, color: '#666', fontStyle: 'italic' }}>
+                          {sz.zusammenfassung}
+                        </div>
+                      )}
+
+                      {/* Row 6: Szeneninfo */}
+                      {sz.szeneninfo && (
+                        <div style={{ fontSize: 10, color: '#1565C0', fontStyle: 'italic' }}>
+                          {sz.szeneninfo}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Bottom bar: actions */}
+              <div style={{
+                padding: '10px 16px', borderTop: '1px solid #e0e0e0', background: '#fff',
+                display: 'flex', gap: 12, alignItems: 'center', flexShrink: 0,
+              }}>
+                {error && (
+                  <div style={{ color: 'var(--sw-danger)', fontSize: 12, display: 'flex', gap: 4, alignItems: 'center', flex: 1 }}>
+                    <AlertTriangle size={12} /> {error}
+                  </div>
+                )}
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
+                  <button onClick={() => setStep(1)} style={{
+                    background: '#f5f5f5', color: '#000', border: 'none', borderRadius: 6,
+                    padding: '8px 16px', fontWeight: 500, fontSize: 13, cursor: 'pointer',
+                  }}>
+                    Zurück
+                  </button>
+                  <button onClick={handleCommit} disabled={selectedFolgeNummer == null || loading} style={{
+                    background: '#000', color: '#fff', border: 'none', borderRadius: 6,
+                    padding: '8px 20px', fontWeight: 600, fontSize: 13,
                     cursor: 'pointer', opacity: selectedFolgeNummer == null || loading ? 0.4 : 1,
-                  }}
-                >
-                  {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen → Folge ${selectedFolgeNummer ?? '?'} importieren`}
-                </button>
+                  }}>
+                    {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen → Folge ${selectedFolgeNummer ?? '?'} importieren`}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -704,13 +756,19 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
 
 function tagStyle(bg: string, color: string): React.CSSProperties {
   return {
-    fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 4,
-    background: bg, color, whiteSpace: 'nowrap',
+    fontSize: 10, fontWeight: 600, padding: '0px 5px', borderRadius: 3,
+    background: bg, color, whiteSpace: 'nowrap', marginLeft: 3,
   }
 }
 
 const selectStyle: React.CSSProperties = {
   width: '100%', padding: '8px 12px', borderRadius: 6,
   border: '1px solid #e0e0e0', fontSize: 14,
+  background: '#fff', cursor: 'pointer',
+}
+
+const compactSelectStyle: React.CSSProperties = {
+  padding: '4px 8px', borderRadius: 4,
+  border: '1px solid #e0e0e0', fontSize: 12,
   background: '#fff', cursor: 'pointer',
 }
