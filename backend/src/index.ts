@@ -13,14 +13,10 @@ import { createHocuspocusServer } from './hocuspocus'
 
 import healthRouter from './routes/health'
 import produktionenRouter from './routes/produktionen'
-import { stagesRouter } from './routes/stages'
-import { szenenRouter, stagesSzenenRouter } from './routes/szenen'
 import { locksRouter, contractLocksRouter } from './routes/locks'
-import versionenRouter from './routes/versionen'
 import exportsRouter from './routes/exports'
 import entitiesRouter from './routes/entities'
 import kiRouter, { kiAdminRouter, kiProviderRouter } from './routes/ki'
-import { szenenKommentareRouter, kommentareRouter } from './routes/kommentare'
 import { importRouter } from './routes/import'
 import meRouter from './routes/me'
 import weatherRouter from './routes/weather'
@@ -35,19 +31,17 @@ import {
 } from './routes/vorstopp'
 import {
   stageLabelsRouter, revisionColorsRouter,
-  revisionEinstellungenRouter, szenenRevisionenRouter,
+  revisionEinstellungenRouter,
 } from './routes/revision'
-import { folgenDokumenteRouter, dokumentRouter } from './routes/dokumente'
-import { fassungenRouter, annotationenRouter } from './routes/fassungen'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
-import { stagesCommentRouter, szenenCommentRouter, commentWebhookRouter } from './routes/scene-comments'
+import { commentWebhookRouter } from './routes/scene-comments'
 import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
 import { produktionFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
 import { produktionMotiveRouter, motivRouter, produktionDrehorteRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
-import { fassungsSzenenRouter, dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
+import { dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
 import { folgenV2Router } from './routes/folgen-v2'
 import { statistikRouter } from './routes/statistik'
 import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
@@ -103,13 +97,9 @@ app.use(generalLimiter)
 // Routes
 app.use('/api', healthRouter)
 app.use('/api/produktionen', produktionenRouter)
-app.use('/api/stages', stagesRouter)
-app.use('/api/szenen', szenenRouter)
-app.use('/api/stages', stagesSzenenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
-app.use('/api/szenen', versionenRouter)
-app.use('/api/stages', exportsRouter)
+app.use('/api/stages', exportsRouter)     // werkstufe export routes are mounted here
 // Internal webhook — no auth, must be registered BEFORE the catch-all /api entitiesRouter
 app.use('/api/internal', commentWebhookRouter)
 
@@ -118,8 +108,6 @@ app.use('/api', entitiesRouter)            // for /api/stages/:id/entities
 app.use('/api/ki', kiLimiter, kiRouter)
 app.use('/api/admin/ki-settings', kiAdminRouter)
 app.use('/api/admin/ki-providers', kiProviderRouter)
-app.use('/api/szenen', szenenKommentareRouter)
-app.use('/api/kommentare', kommentareRouter)
 app.use('/api/import', importRouter)
 app.use('/api/me', meRouter)
 app.use('/api/weather', weatherRouter)
@@ -134,18 +122,15 @@ app.use('/api/characters/rollenprofil-import', rollenprofilImportRouter)
 
 // Characters
 app.use('/api/characters', charactersRouter)
-app.use('/api/szenen/:szeneId/characters', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, sceneCharactersRouter)
 app.use('/api/produktionen/:produktionId/character-kategorien', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, charKategorienRouter)
 
 // Vorstopp
-app.use('/api/szenen/:szeneId/vorstopp', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenVorstoppRouter)
 app.use('/api/produktionen/:produktionId/vorstopp-einstellungen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, vorstoppEinstellungenRouter)
 
 // Stage Labels + Revision
 app.use('/api/produktionen/:produktionId/stage-labels', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, stageLabelsRouter)
 app.use('/api/produktionen/:produktionId/revision-colors', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, revisionColorsRouter)
 app.use('/api/produktionen/:produktionId/revision-einstellungen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, revisionEinstellungenRouter)
-app.use('/api/szenen/:szeneId/revisionen', (req, _res, next) => { (req.params as any).szeneId = req.params.szeneId; next() }, szenenRevisionenRouter)       // GET/PUT /:produktionId/:folgeNummer + besetzung/synopsis
 
 // Werkstufen-Modell (v2)
 app.use('/api/v2/folgen', folgenV2Router)
@@ -157,36 +142,13 @@ app.use('/api/werkstufen/:werkId/szenen', (req, _res, next) => {
   (req.params as any).werkId = req.params.werkId; next()
 }, werkstufenSzenenRouter)
 
-// Dokument-Editor System
-app.use('/api/folgen/:produktionId/:folgeNummer/dokumente', (req, _res, next) => {
-  (req.params as any).produktionId = req.params.produktionId
-  ;(req.params as any).folgeNummer = req.params.folgeNummer
-  next()
-}, folgenDokumenteRouter)
-app.use('/api/folgen/:produktionId/:folgeNummer/dokumente/:dokumentId', (req, _res, next) => {
-  (req.params as any).dokumentId = req.params.dokumentId
-  next()
-}, dokumentRouter)
-app.use('/api/dokumente/:dokumentId/fassungen', (req, _res, next) => {
-  (req.params as any).dokumentId = req.params.dokumentId
-  next()
-}, fassungenRouter)
-app.use('/api/dokumente/:dokumentId/annotationen', (req, _res, next) => {
-  (req.params as any).dokumentId = req.params.dokumentId
-  next()
-}, annotationenRouter)
-// Dokument-Szenen (new scene identity system)
-app.use('/api/fassungen/:fassungId/szenen', (req, _res, next) => {
-  (req.params as any).fassungId = req.params.fassungId; next()
-}, fassungsSzenenRouter)
+// Dokument-Szenen
 app.use('/api/dokument-szenen', dokumentSzenenRouter)
 app.use('/api/scene-identities', sceneIdentitiesRouter)
 
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
-app.use('/api/stages', stagesCommentRouter)
-app.use('/api/szenen', szenenCommentRouter)
 
 // Fotos
 app.use('/api/characters/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFotosRouter)
@@ -253,6 +215,7 @@ async function runMigrations() {
     'v48_statistik_report.sql',
     'v49_drop_stimmung.sql',
     'v50_drehorte_motive.sql',
+    'v51_drop_legacy_tables.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

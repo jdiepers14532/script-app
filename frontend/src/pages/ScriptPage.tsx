@@ -442,121 +442,45 @@ export default function ScriptPage() {
     setSelectedFolgeNummer(inRange ? savedFolge : (selectedBlock.folge_von ?? null))
   }, [selectedBlock?.proddb_id])
 
-  // Load Stages — restore saved stageId if available
-  useEffect(() => {
-    if (!selectedProduktionId || selectedFolgeNummer == null) return
-    setStages([])
-    setSelectedStageId(null)
-    api.getStages(selectedProduktionId, selectedFolgeNummer).then(data => {
-      setStages(data)
-      if (!data.length) return
-      const savedStage = pendingNav.current.stageId
-      const match = savedStage && data.find((s: any) => s.id === savedStage)
-      setSelectedStageId(match ? match.id : data[0].id)
-      delete pendingNav.current.stageId
-    }).catch(() => {})
-  }, [selectedProduktionId, selectedFolgeNummer])
-
-  // Load Szenen — try werkstufen first, then dokument_szenen/fassungen, fall back to old szenen
+  // Load Szenen via werkstufen (only model since v51)
   useEffect(() => {
     if (!selectedProduktionId || selectedFolgeNummer == null) return
     setSzenen([])
     setSelectedSzeneId(null)
     setUseDokumentSzenen(false)
 
-    // Find matching fassung for this stage (may be null if no stages exist)
-    const stage = selectedStageId ? stages.find((s: any) => s.id === selectedStageId) : null
-    const stageToDocTyp: Record<string, string> = {
-      treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
-    }
-    const docTyp = stage ? (stageToDocTyp[stage.stage_type] || 'drehbuch') : null
-
-    // Try werkstufen first (v2 model)
-    tryWerkstufen().catch(() => { if (selectedStageId) tryFassungen(); else finalize() })
-
-    async function tryWerkstufen() {
-      const folgen = await api.getFolgenV2(selectedProduktionId)
-      const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
-      if (!folge) { if (selectedStageId) await tryFassungen(); else finalize(); return }
-      const werkstufen = await api.getWerkstufen(folge.id)
-      // Find latest werkstufe of matching type; if no stage, try all types (prefer drehbuch)
-      let matching: any[]
-      if (docTyp) {
-        matching = werkstufen.filter((w: any) => w.typ === docTyp)
-      } else {
-        // No stage selected — prefer drehbuch > storyline > notiz
+    async function loadWerkstufen() {
+      try {
+        const folgen = await api.getFolgenV2(selectedProduktionId)
+        const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
+        if (!folge) return
+        const werkstufen = await api.getWerkstufen(folge.id)
+        // Prefer drehbuch > storyline > notiz, then latest version
         const prio = ['drehbuch', 'storyline', 'notiz']
-        matching = []
+        let matching: any[] = []
         for (const typ of prio) {
           matching = werkstufen.filter((w: any) => w.typ === typ)
           if (matching.length > 0) break
         }
         if (matching.length === 0) matching = werkstufen
-      }
-      matching.sort((a: any, b: any) => b.version_nummer - a.version_nummer)
-      const werk = matching[0]
-      if (!werk) { if (selectedStageId) await tryFassungen(); else finalize(); return }
-      const werkSzenen = await api.getWerkstufenSzenen(werk.id)
-      if (werkSzenen.length > 0) {
-        setSzenen(werkSzenen)
-        setUseDokumentSzenen(true)
-        const savedSzene = pendingNav.current.szeneId
-        const match = savedSzene && werkSzenen.find((s: any) => s.id === savedSzene)
-        setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
-        delete pendingNav.current.szeneId
-        navRestored.current = true
-        return
-      }
-      // Werkstufe exists but has no scenes — fall through
-      if (selectedStageId) await tryFassungen(); else finalize()
-    }
-
-    async function tryFassungen() {
-      try {
-        const docs = await api.getDokumente(selectedProduktionId, selectedFolgeNummer!)
-        const matchDoc = docs.find((d: any) => d.typ === (docTyp || 'drehbuch'))
-        if (matchDoc?.fassung_id) {
-          const dkSzenen = await api.getFassungsSzenen(matchDoc.fassung_id)
-          if (dkSzenen.length > 0) {
-            setSzenen(dkSzenen)
-            setUseDokumentSzenen(true)
-            const savedSzene = pendingNav.current.szeneId
-            const match = savedSzene && dkSzenen.find((s: any) => s.id === savedSzene)
-            setSelectedSzeneId(match ? match.id : dkSzenen[0].id)
-            delete pendingNav.current.szeneId
-            navRestored.current = true
-            return
-          }
+        matching.sort((a: any, b: any) => b.version_nummer - a.version_nummer)
+        const werk = matching[0]
+        if (!werk) return
+        setSelectedStageId(werk.id)
+        const werkSzenen = await api.getWerkstufenSzenen(werk.id)
+        if (werkSzenen.length > 0) {
+          setSzenen(werkSzenen)
+          setUseDokumentSzenen(true)
+          const savedSzene = pendingNav.current.szeneId
+          const match = savedSzene && werkSzenen.find((s: any) => s.id === savedSzene)
+          setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
+          delete pendingNav.current.szeneId
+          navRestored.current = true
         }
-      } catch { /* fall through */ }
-      loadOldSzenen()
+      } catch { /* no data */ }
     }
-
-    function loadOldSzenen() {
-      if (!selectedStageId) { finalize(); return }
-      api.getSzenen(selectedStageId).then(async data => {
-        setSzenen(data)
-        if (!data.length) return
-        const savedSzene = pendingNav.current.szeneId
-        const match = savedSzene && data.find((s: any) => s.id === savedSzene)
-        setSelectedSzeneId(match ? match.id : data[0].id)
-        delete pendingNav.current.szeneId
-        navRestored.current = true
-        const needsCalc = data.some((s: any) => s.spieltag == null)
-        if (needsCalc) {
-          api.autoSpieltagCalc(selectedStageId)
-            .then(updated => setSzenen(updated))
-            .catch(() => {})
-        }
-      }).catch(() => {})
-    }
-
-    function finalize() {
-      // No scenes found in any model — clear nav state
-      delete pendingNav.current.szeneId
-      navRestored.current = true
-    }
-  }, [selectedStageId, selectedProduktionId, selectedFolgeNummer, stages])
+    loadWerkstufen()
+  }, [selectedProduktionId, selectedFolgeNummer])
 
   // Poll unread comment counts from Messenger-App every 60s
   useEffect(() => {

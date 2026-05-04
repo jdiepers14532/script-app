@@ -5,6 +5,18 @@ import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileT
 import { useSelectedProduction, useAppSettings } from '../contexts'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
+
+/** Parse "Stu. 02 / Gartenhaus / Küche" → { drehort, motiv, untermotiv } */
+function parseOrtDisplay(raw: string): { drehort: string | null; motiv: string; untermotiv: string | null } {
+  const normalized = raw.replace(/^A\.\s*D\.\s*/i, 'Außendreh / ').replace(/\s*\/\s*/g, ' / ')
+  const parts = normalized.split(' / ').map(p => p.trim()).filter(Boolean)
+  if (parts.length >= 3) return { drehort: parts[0], motiv: parts[1], untermotiv: parts.slice(2).join(' / ') }
+  if (parts.length === 2) {
+    if (/^(Stu\.|Studio|Außendreh|Innendreh)/i.test(parts[0])) return { drehort: parts[0], motiv: parts[1], untermotiv: null }
+    return { drehort: null, motiv: parts[0], untermotiv: parts[1] }
+  }
+  return { drehort: null, motiv: parts[0] || raw, untermotiv: null }
+}
 const FORMAT_LABELS: Record<string, string> = {
   fdx: 'Final Draft (.fdx)',
   fountain: 'Fountain (.fountain)',
@@ -556,27 +568,55 @@ export default function ImportPage() {
                       padding: '6px 12px', borderBottom: '1px solid #f0f0f0',
                       background: i % 2 === 0 ? '#fff' : '#fafafa',
                     }}>
-                      {/* Row 1: SZ-Nummer, Motiv, INT/EXT, Tageszeit */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      {/* Row 1: SZ-Nummer, Motiv (parsed), INT/EXT, Tageszeit */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, minWidth: 0 }}>
                         <span style={{
                           fontSize: 12, fontWeight: 700, color: '#000',
-                          fontVariantNumeric: 'tabular-nums', minWidth: 44,
+                          fontVariantNumeric: 'tabular-nums', minWidth: 44, flexShrink: 0,
                         }}>
                           SZ {sz.nummer}
                         </span>
+                        {(() => {
+                          if (!sz.ort_name) return <span style={{ fontSize: 12, color: '#999', flex: 1 }}>—</span>
+                          const { drehort, motiv, untermotiv } = parseOrtDisplay(sz.ort_name)
+                          return (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                              {drehort && (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 600, padding: '0px 5px', borderRadius: 3,
+                                  background: '#E0E0E0', color: '#616161', whiteSpace: 'nowrap', flexShrink: 0,
+                                }}>
+                                  {drehort}
+                                </span>
+                              )}
+                              <span style={{
+                                fontSize: 12, fontWeight: 600, color: '#1B5E20',
+                                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                              }}>
+                                {motiv}
+                              </span>
+                              {untermotiv && (
+                                <>
+                                  <span style={{ color: '#ccc', fontSize: 10, flexShrink: 0 }}>/</span>
+                                  <span style={{
+                                    fontSize: 11, fontWeight: 500, color: '#2E7D32',
+                                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                  }}>
+                                    {untermotiv}
+                                  </span>
+                                </>
+                              )}
+                            </span>
+                          )
+                        })()}
                         <span style={{
-                          fontSize: 12, fontWeight: 600, color: '#000',
-                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
-                        }}>
-                          {sz.ort_name || '—'}
-                        </span>
-                        <span style={{
-                          fontSize: 11, fontWeight: 500, flexShrink: 0,
-                          color: sz.int_ext === 'EXT' ? '#00C853' : '#757575',
+                          fontSize: 10, fontWeight: 600, flexShrink: 0, padding: '0px 4px', borderRadius: 3,
+                          background: sz.int_ext === 'EXT' ? '#E8F5E9' : '#ECEFF1',
+                          color: sz.int_ext === 'EXT' ? '#2E7D32' : '#78909C',
                         }}>
                           {sz.int_ext}
                         </span>
-                        <span style={{ fontSize: 11, color: '#999', flexShrink: 0 }}>{sz.tageszeit}</span>
+                        <span style={{ fontSize: 10, color: '#999', flexShrink: 0 }}>{sz.tageszeit}</span>
                       </div>
 
                       {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}

@@ -345,13 +345,8 @@ fassungsSzenenRouter.get('/diff/:rightId', async (req, res) => {
 dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT sr.*, f.fassung_nummer, f.fassung_label,
-              rc.name AS revision_name, rc.color AS revision_color
+      `SELECT sr.*
        FROM szenen_revisionen sr
-       LEFT JOIN folgen_dokument_fassungen f ON f.id = sr.fassung_id
-       LEFT JOIN folgen_dokumente d ON d.id = f.dokument_id
-       LEFT JOIN produktionen st ON st.id = d.produktion_id
-       LEFT JOIN revision_colors rc ON rc.produktion_id = st.id AND rc.sort_order = f.fassung_nummer
        WHERE sr.dokument_szene_id = $1
        ORDER BY sr.created_at`,
       [req.params.id]
@@ -364,7 +359,7 @@ dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
 
 // POST /api/dokument-szenen/:id/revisionen — record a delta
 dokumentSzenenRouter.post('/:id/revisionen', async (req, res) => {
-  const { fassung_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value } = req.body
+  const { field_type, field_name, block_index, block_type, speaker, old_value, new_value } = req.body
   if (!field_type) return res.status(400).json({ error: 'field_type required' })
   if (!['header', 'content_block'].includes(field_type)) {
     return res.status(400).json({ error: 'field_type muss header oder content_block sein' })
@@ -372,9 +367,9 @@ dokumentSzenenRouter.post('/:id/revisionen', async (req, res) => {
   try {
     const row = await queryOne(
       `INSERT INTO szenen_revisionen
-         (dokument_szene_id, fassung_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [req.params.id, fassung_id ?? null, field_type, field_name ?? null,
+         (dokument_szene_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [req.params.id, field_type, field_name ?? null,
        block_index ?? null, block_type ?? null, speaker ?? null, old_value ?? null, new_value ?? null]
     )
     res.status(201).json(row)

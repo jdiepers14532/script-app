@@ -5,12 +5,10 @@ import { authMiddleware } from '../auth'
 export const stageLabelsRouter = Router({ mergeParams: true })
 export const revisionColorsRouter = Router({ mergeParams: true })
 export const revisionEinstellungenRouter = Router({ mergeParams: true })
-export const szenenRevisionenRouter = Router({ mergeParams: true })
 
 stageLabelsRouter.use(authMiddleware)
 revisionColorsRouter.use(authMiddleware)
 revisionEinstellungenRouter.use(authMiddleware)
-szenenRevisionenRouter.use(authMiddleware)
 
 // ── Stage Labels ──────────────────────────────────────────────────────────────
 
@@ -244,56 +242,3 @@ revisionEinstellungenRouter.put('/', async (req, res) => {
   }
 })
 
-// ── Szenen Revisionen (Delta-Tracking) ───────────────────────────────────────
-
-// GET /api/szenen/:szeneId/revisionen
-szenenRevisionenRouter.get('/', async (req, res) => {
-  const { szeneId } = req.params as any
-  const { stage_id } = req.query
-  try {
-    const params: any[] = [szeneId]
-    let filter = ''
-    if (stage_id) { filter = ' AND sr.stage_id = $2'; params.push(stage_id) }
-    const rows = await query(
-      `SELECT sr.*, s.version_nummer, s.label_id, rc.name AS revision_name, rc.color AS revision_color
-       FROM szenen_revisionen sr
-       JOIN stages s ON s.id = sr.stage_id
-       LEFT JOIN revision_colors rc ON rc.id = s.revision_color_id
-       WHERE sr.szene_id = $1${filter}
-       ORDER BY sr.created_at`,
-      params
-    )
-    res.json(rows)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
-
-// POST /api/szenen/:szeneId/revisionen — record a delta (called internally when saving in locked stage)
-szenenRevisionenRouter.post('/', async (req, res) => {
-  const { szeneId } = req.params as any
-  const { stage_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value } = req.body
-  if (!stage_id || !field_type) return res.status(400).json({ error: 'stage_id und field_type required' })
-  if (!['header', 'content_block'].includes(field_type)) {
-    return res.status(400).json({ error: 'field_type muss header oder content_block sein' })
-  }
-  try {
-    // Only allow recording if stage is part of a locked/revision workflow
-    const stage = await queryOne(
-      `SELECT id, revision_color_id, locked_at FROM stages WHERE id = $1`,
-      [stage_id]
-    )
-    if (!stage) return res.status(404).json({ error: 'Stage nicht gefunden' })
-
-    const row = await queryOne(
-      `INSERT INTO szenen_revisionen
-         (szene_id, stage_id, field_type, field_name, block_index, block_type, speaker, old_value, new_value)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [szeneId, stage_id, field_type, field_name ?? null, block_index ?? null,
-       block_type ?? null, speaker ?? null, old_value ?? null, new_value ?? null]
-    )
-    res.status(201).json(row)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})

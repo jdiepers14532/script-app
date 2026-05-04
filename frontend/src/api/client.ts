@@ -35,30 +35,7 @@ export const api = {
   getSendedatum: (produktionId: string, folgeNummer: number) =>
     request<{ datum: string; ist_ki_prognose: boolean } | null>('GET', `/folgen/${produktionId}/${folgeNummer}/sendedatum`),
 
-  // Stages (legacy — will be removed when frontend fully migrates to werkstufen)
-  getStages: (produktionId: string, folgeNummer: number) =>
-    request<any[]>('GET', `/stages?produktion_id=${encodeURIComponent(produktionId)}&folge_nummer=${folgeNummer}`),
-  getStage: (id: number) => request<any>('GET', `/stages/${id}`),
-  createStage: (produktionId: string, folgeNummer: number, proddbBlockId: string | null, data: any) =>
-    request<any>('POST', '/stages', { produktion_id: produktionId, folge_nummer: folgeNummer, proddb_block_id: proddbBlockId, ...data }),
-  updateStage: (id: number, data: any) => request<any>('PUT', `/stages/${id}`, data),
-
-  // Szenen (legacy — will be removed when frontend fully migrates to werkstufen)
-  getSzenen: (stageId: number) => request<any[]>('GET', `/stages/${stageId}/szenen`),
-  getSzene: (id: number) => request<any>('GET', `/szenen/${id}`),
-  createSzene: (stageId: number, data: any) => request<any>('POST', `/stages/${stageId}/szenen`, data),
-  updateSzene: (id: number, data: any) => request<any>('PUT', `/szenen/${id}`, data),
-  deleteSzene: (id: number) => request<void>('DELETE', `/szenen/${id}`),
-  reorderSzenen: (stageId: number, order: number[]) =>
-    request<any[]>('PATCH', `/stages/${stageId}/szenen/reorder`, { order }),
-  renumberSzenen: (stageId: number) =>
-    request<{ scenes: any[]; renumbered: boolean }>('POST', `/stages/${stageId}/szenen/renumber`),
-  setSceneLogging: (stageId: number) =>
-    request<{ updated: number }>('POST', `/stages/${stageId}/szenen/set-logging`),
-  autoSpieltagCalc: (stageId: number) =>
-    request<any[]>('POST', `/stages/${stageId}/szenen/auto-spieltag`),
-
-  // Dokument-Szenen (new scene identity system)
+  // Dokument-Szenen
   getFassungsSzenen: (fassungId: string) =>
     request<any[]>('GET', `/fassungen/${fassungId}/szenen`),
   getDokumentSzene: (id: string) => request<any>('GET', `/dokument-szenen/${id}`),
@@ -114,26 +91,15 @@ export const api = {
   kiStyleCheck: (data: any) => request<any>('POST', '/ki/style-check', data),
   kiSynopsis: (data: any) => request<any>('POST', '/ki/synopsis', data),
 
-  // Kommentare (legacy)
-  getKommentare: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/kommentare`),
-  createKommentar: (szeneId: number, data: any) => request<any>('POST', `/szenen/${szeneId}/kommentare`, data),
-  resolveKommentar: (id: number) => request<any>('PATCH', `/kommentare/${id}/resolve`, {}),
-  deleteKommentar: (id: number) => request<void>('DELETE', `/kommentare/${id}`),
-
   // User settings
   getSettings: () => request<any>('GET', '/me/settings'),
   updateSettings: (data: { selected_production_id?: string | null; ui_settings?: Record<string, any> }) =>
     request<any>('PUT', '/me/settings', data),
 
-  // Export (legacy stage-based)
-  exportPdf: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/pdf`, { credentials: 'include' }),
-  exportFountain: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fountain`, { credentials: 'include' }),
-  exportFdx: (stageId: number) => fetch(`${BASE}/stages/${stageId}/export/fdx`, { credentials: 'include' }),
-  exportRevisionSummary: (stageId: number) => request<any>('GET', `/stages/${stageId}/export/revision-summary`),
-  // Fassung-based exports
-  exportFassungPdf: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/pdf`, { credentials: 'include' }),
-  exportFassungFountain: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/fountain`, { credentials: 'include' }),
-  exportFassungFdx: (fassungId: string) => fetch(`${BASE}/stages/fassung/${fassungId}/export/fdx`, { credentials: 'include' }),
+  // Werkstufe-based exports
+  exportWerkstufePdf: (werkId: string) => fetch(`${BASE}/stages/werkstufe/${werkId}/export/pdf`, { credentials: 'include' }),
+  exportWerkstufeFountain: (werkId: string) => fetch(`${BASE}/stages/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
+  exportWerkstufeFdx: (werkId: string) => fetch(`${BASE}/stages/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
 
   // Import with metadata opt-in
   importPreview: (file: File) => {
@@ -501,11 +467,4 @@ export const api = {
   deleteStatVorlage: (id: number) =>
     request<void>('DELETE', `/statistik/vorlagen/${id}`),
 
-  // Werkstufe-based exports
-  exportWerkstufePdf: (werkId: string) =>
-    fetch(`${BASE}/stages/werkstufe/${werkId}/export/pdf`, { credentials: 'include' }),
-  exportWerkstufeFountain: (werkId: string) =>
-    fetch(`${BASE}/stages/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
-  exportWerkstufeFdx: (werkId: string) =>
-    fetch(`${BASE}/stages/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
 }
