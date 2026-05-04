@@ -2520,158 +2520,164 @@ function SzenenFassungenTab() {
 
 function NetzplanDiagram() {
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(0.85)
+  const [zoom, setZoom] = useState(0.42)
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
-  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [hovered, setHovered] = useState<string | null>(null)
 
-  // Table positions (hand-laid-out for clarity)
-  const nodes: { id: string; x: number; y: number; group: string; label?: string }[] = [
-    // Core (center)
-    { id: 'produktionen', x: 500, y: 300, group: 'core' },
-    { id: 'folgen', x: 500, y: 460, group: 'core' },
-    { id: 'werkstufen', x: 380, y: 600, group: 'core' },
-    { id: 'scene_identities', x: 620, y: 600, group: 'core' },
-    { id: 'dokument_szenen', x: 500, y: 740, group: 'core' },
-    // Characters (left)
-    { id: 'characters', x: 140, y: 400, group: 'char' },
-    { id: 'character_productions', x: 140, y: 540, group: 'char' },
-    { id: 'character_kategorien', x: 140, y: 680, group: 'char' },
-    { id: 'scene_characters', x: 320, y: 820, group: 'char' },
-    { id: 'charakter_beziehungen', x: 20, y: 300, group: 'char' },
-    { id: 'charakter_fotos', x: 20, y: 480, group: 'char' },
-    { id: 'charakter_felder_config', x: 20, y: 600, group: 'char' },
-    { id: 'charakter_feldwerte', x: 20, y: 720, group: 'char' },
-    { id: 'charakter_feld_links', x: 20, y: 840, group: 'char' },
-    // Motive (right)
-    { id: 'drehorte', x: 840, y: 380, group: 'motiv' },
-    { id: 'motive', x: 840, y: 520, group: 'motiv' },
-    { id: 'motiv_fotos', x: 980, y: 520, group: 'motiv' },
-    // Revision (bottom-right)
-    { id: 'szenen_revisionen', x: 680, y: 860, group: 'rev' },
-    { id: 'szenen_vorstopp', x: 780, y: 700, group: 'rev' },
-    { id: 'vorstopp_einstellungen', x: 780, y: 820, group: 'rev' },
-    { id: 'stage_labels', x: 700, y: 180, group: 'rev' },
-    { id: 'revision_colors', x: 840, y: 240, group: 'rev' },
-    { id: 'revision_export_einstellungen', x: 840, y: 150, group: 'rev', label: 'rev_export_einst.' },
-    // Collab (top-left)
-    { id: 'dokument_colab_gruppen', x: 240, y: 180, group: 'collab' },
-    { id: 'dokument_colab_gruppe_mitglieder', x: 80, y: 140, group: 'collab', label: 'colab_mitglieder' },
-    { id: 'dokument_benachrichtigungen', x: 240, y: 80, group: 'collab', label: 'benachrichtigungen' },
-    { id: 'dokument_typ_definitionen', x: 420, y: 120, group: 'collab', label: 'typ_definitionen' },
-    // Editor format
-    { id: 'editor_format_templates', x: 580, y: 60, group: 'editor' },
-    { id: 'editor_format_elemente', x: 720, y: 60, group: 'editor' },
-    // Settings (top-right)
-    { id: 'app_settings', x: 960, y: 60, group: 'settings' },
-    { id: 'user_settings', x: 960, y: 150, group: 'settings' },
-    { id: 'production_app_settings', x: 960, y: 240, group: 'settings', label: 'prod_app_settings' },
-    { id: 'ki_settings', x: 960, y: 330, group: 'settings' },
-    { id: 'ki_providers', x: 960, y: 420, group: 'settings' },
-    { id: 'dk_settings_access', x: 960, y: 690, group: 'settings', label: 'dk_settings_access' },
-    // Locks & Entities
-    { id: 'episode_locks', x: 350, y: 340, group: 'lock' },
-    { id: 'entities', x: 700, y: 340, group: 'lock' },
-    { id: 'export_logs', x: 240, y: 740, group: 'lock' },
-    // Statistik
-    { id: 'statistik_vorlagen', x: 350, y: 180, group: 'stat' },
-    // Comments
-    { id: 'scene_comment_events', x: 680, y: 960, group: 'comment' },
-    { id: 'scene_comment_read_state', x: 500, y: 960, group: 'comment' },
-    // System
-    { id: 'schema_migrations', x: 960, y: 960, group: 'system' },
+  const TW = 330, FH = 16, HH = 24, GAP = 22
+  type F = [string, string, string, string?] // [name, type, desc, fk_target?]
+  type T = { id: string; g: string; f: F[] }
+
+  const defs: T[] = [
+    { id:'produktionen', g:'core', f:[['id','TEXT PK','Produktions-ID'],['titel','TEXT','Anzeigename'],['produktion_db_id','UUID','FK zur Prod-DB'],['meta_json','JSONB','Flexible Metadaten'],['seitenformat','TEXT','a4 (default)'],['created_at','TSTZ','Erstellt'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'folgen', g:'core', f:[['id','SERIAL PK','Episoden-Key'],['produktion_id','TEXT FK','Produktion','produktionen'],['folge_nummer','INT','Episodennummer (UNIQUE)'],['folgen_titel','TEXT','Arbeitstitel'],['air_date','DATE','Sendedatum'],['synopsis','TEXT','Synopsis'],['produktion_db_id','UUID','Link zur Prod-DB'],['erstellt_von','TEXT','user_id'],['erstellt_am','TSTZ','Erstellt']]},
+    { id:'scene_identities', g:'core', f:[['id','UUID PK','Stabile Szenen-UUID'],['folge_id','INT FK','Episode','folgen'],['created_by','TEXT','Ersteller'],['created_at','TSTZ','Erstellt']]},
+    { id:'werkstufen', g:'core', f:[['id','UUID PK','Werkstufen-ID'],['folge_id','INT FK','Episode','folgen'],['typ','TEXT','drehbuch|storyline|notiz'],['version_nummer','INT','Version (1,2,3...)'],['label','TEXT','z.B. Blaue Seiten'],['sichtbarkeit','TEXT','privat|team|alle'],['abgegeben','BOOL','Eingefroren?'],['bearbeitung_status','TEXT','entwurf|in_review|approved'],['erstellt_von','TEXT','user_id'],['erstellt_am','TSTZ','Erstellt'],['stand_datum','DATE','Stand-Datum']]},
+    { id:'dokument_szenen', g:'core', f:[['id','UUID PK','Szenen-Instanz'],['werkstufe_id','UUID FK','Werkstufe','werkstufen'],['scene_identity_id','UUID FK','Stabile SZ-ID','scene_identities'],['sort_order','INT','Reihenfolge'],['scene_nummer','INT','Szenennummer'],['scene_nummer_suffix','VARCHAR','a, b (WGA)'],['ort_name','TEXT','Motivname'],['int_ext','TEXT','INT|EXT|INT/EXT'],['tageszeit','TEXT','TAG|NACHT|ABEND'],['spieltag','INT','Drehtag-Index'],['spielzeit','TEXT','Spielzeit-Info'],['zusammenfassung','TEXT','Kurzbeschreibung'],['szeneninfo','TEXT','Redaktionelle Hinweise'],['seiten','TEXT','Seitenzahl (2 5/8)'],['dauer_min','INT','Dauer Min (Legacy)'],['dauer_sek','INT','Dauer Sek (Legacy)'],['is_wechselschnitt','BOOL','Wechselschnitt?'],['content','JSONB','ProseMirror JSON'],['format','TEXT','Editor-Typ'],['stoppzeit_sek','INT','Spieldauer Sek'],['geloescht','BOOL','Soft-Delete'],['yjs_state','BYTEA','Yjs Collab State'],['updated_by','TEXT','Letzter Bearbeiter'],['updated_at','TSTZ','Letzte Aenderung']]},
+    { id:'characters', g:'char', f:[['id','UUID PK','Globale Charakter-ID'],['name','TEXT','z.B. Ben Lohmann'],['meta_json','JSONB','Erweiterte Daten'],['created_at','TSTZ','Erstellt']]},
+    { id:'character_productions', g:'char', f:[['character_id','UUID FK','Charakter','characters'],['produktion_id','TEXT FK','Produktion','produktionen'],['rollen_nummer','INT','Rollenblatt-Nr.'],['komparsen_nummer','INT','Komparsen-Nr.'],['kategorie_id','INT FK','Kategorie','character_kategorien'],['updated_at','TSTZ','Aktualisiert'],['is_active','BOOL','Aktiv?'],['darsteller_name','TEXT','Schauspieler-Name']]},
+    { id:'character_kategorien', g:'char', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','z.B. Hauptrolle'],['typ','TEXT','rolle|komparse'],['sort_order','INT','Reihenfolge']]},
+    { id:'scene_characters', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Charakter','characters'],['kategorie_id','INT FK','Kategorie','character_kategorien'],['anzahl','INT','Bei Gruppen'],['ist_gruppe','BOOL','Gruppen-Eintrag?'],['scene_identity_id','UUID FK','Szene (stabil)','scene_identities'],['spiel_typ','TEXT','o.t.|spiel|text'],['repliken_anzahl','INT','Anzahl Repliken'],['header_o_t','BOOL','Im Header als o.T.'],['werkstufe_id','UUID FK','Werkstufe','werkstufen']]},
+    { id:'charakter_beziehungen', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Quell-Charakter','characters'],['related_character_id','UUID FK','Ziel-Charakter','characters'],['beziehungstyp','TEXT','parent|spouse|...'],['label','TEXT','Freies Label']]},
+    { id:'charakter_fotos', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Charakter','characters'],['dateiname','TEXT','Server-Dateiname'],['originalname','TEXT','Upload-Name'],['label','TEXT','Beschriftung'],['sort_order','INT','Reihenfolge'],['ist_primaer','BOOL','Primaerfoto?'],['hochgeladen_am','TSTZ','Upload-Datum'],['media_typ','TEXT','image|video'],['thumbnail_dateiname','TEXT','Thumbnail']]},
+    { id:'charakter_felder_config', g:'char', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','Feldname'],['typ','TEXT','text|richtext|select|ref'],['optionen','JSONB','Select-Optionen'],['sort_order','INT','Reihenfolge'],['gilt_fuer','TEXT','alle|rolle|komparse']]},
+    { id:'charakter_feldwerte', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Charakter','characters'],['motiv_id','UUID FK','Motiv','motive'],['feld_id','INT FK','Feld-Config','charakter_felder_config'],['wert_text','TEXT','Text-Wert'],['wert_json','JSONB','Rich-Text/Struktur']]},
+    { id:'charakter_feld_links', g:'char', f:[['id','SERIAL PK','Interne ID'],['source_character_id','UUID FK','Quell-Charakter','characters'],['feld_id','INT FK','Feld-Config','charakter_felder_config'],['linked_character_id','UUID FK','Ziel-Charakter','characters'],['created_at','TSTZ','Erstellt']]},
+    { id:'drehorte', g:'motiv', f:[['id','UUID PK','Drehort-ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['label','TEXT','z.B. Stu. 01'],['sort_order','INT','Reihenfolge'],['created_at','TSTZ','Erstellt']]},
+    { id:'motive', g:'motiv', f:[['id','UUID PK','Motiv-ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['motiv_nummer','TEXT','z.B. M01'],['name','TEXT','Motivname'],['typ','TEXT','interior|exterior'],['meta_json','JSONB','Metadaten'],['created_at','TSTZ','Erstellt'],['drehort_id','UUID FK','Phys. Drehort','drehorte'],['parent_id','UUID FK','Hauptmotiv','motive']]},
+    { id:'motiv_fotos', g:'motiv', f:[['id','SERIAL PK','Interne ID'],['motiv_id','UUID FK','Motiv','motive'],['dateiname','TEXT','Server-Dateiname'],['originalname','TEXT','Upload-Name'],['label','TEXT','Beschriftung'],['sort_order','INT','Reihenfolge'],['ist_primaer','BOOL','Primaerfoto?'],['hochgeladen_am','TSTZ','Upload-Datum'],['media_typ','TEXT','image|video'],['thumbnail_dateiname','TEXT','Thumbnail']]},
+    { id:'szenen_revisionen', g:'rev', f:[['id','SERIAL PK','Interne ID'],['dokument_szene_id','UUID FK NOT NULL','Szene','dokument_szenen'],['field_type','TEXT','header|content_block'],['field_name','TEXT','ort_name, spieltag...'],['block_index','INT','Content-Block-Idx'],['block_type','TEXT','action|dialogue|...'],['speaker','TEXT','Sprecher'],['old_value','TEXT','Vorheriger Wert'],['new_value','TEXT','Neuer Wert'],['created_at','TSTZ','Aenderungszeitpunkt']]},
+    { id:'szenen_vorstopp', g:'rev', f:[['id','SERIAL PK','Interne ID'],['scene_identity_id','UUID FK','Szene (stabil)','scene_identities'],['stage','TEXT','drehbuch|vorber.|dreh|schnitt'],['user_id','TEXT','Wer hat gemessen'],['user_name','TEXT','Anzeigename'],['dauer_sekunden','INT','Gemessene Zeit'],['methode','TEXT','manuell|auto_*'],['created_at','TSTZ','Erstellt'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'vorstopp_einstellungen', g:'rev', f:[['produktion_id','TEXT PK/FK','Produktion','produktionen'],['methode','TEXT','seiten|zeichen|woerter'],['menge','NUMERIC','Einheiten/Dauer'],['dauer_sekunden','INT','Sek/Mengeneinheit'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'stage_labels', g:'rev', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','Label-Name'],['sort_order','INT','Reihenfolge'],['is_produktionsfassung','BOOL','Produktionsfassung?']]},
+    { id:'revision_colors', g:'rev', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','z.B. Blaue Seiten'],['color','TEXT','Hex (#4A90D9)'],['sort_order','INT','Reihenfolge']]},
+    { id:'revision_export_einstellungen', g:'rev', f:[['produktion_id','TEXT PK/FK','Produktion','produktionen'],['memo_schwellwert_zeichen','INT','Memo-Schwelle (100)'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'dokument_colab_gruppen', g:'collab', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','Gruppenname'],['typ','TEXT','colab|produktion'],['erstellt_von','TEXT','Ersteller'],['erstellt_am','TSTZ','Erstellt']]},
+    { id:'dokument_colab_gruppe_mitglieder', g:'collab', f:[['gruppe_id','INT FK','Gruppe','dokument_colab_gruppen'],['user_id','TEXT','Benutzer-ID'],['user_name','TEXT','Anzeigename']]},
+    { id:'dokument_benachrichtigungen', g:'collab', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['ereignis','TEXT','version_submitted|...'],['empfaenger_user_ids','TEXT[]','Empfaenger'],['aktiv','BOOL','An/Aus']]},
+    { id:'dokument_typ_definitionen', g:'collab', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','z.B. Drehbuch'],['editor_modus','TEXT','screenplay|richtext'],['sort_order','INT','Reihenfolge'],['erstellt_von','TEXT','Ersteller'],['erstellt_am','TSTZ','Erstellt']]},
+    { id:'editor_format_templates', g:'editor', f:[['id','SERIAL PK','Interne ID'],['name','TEXT','z.B. Final Draft Std.'],['ist_standard','BOOL','Default?'],['erstellt_von','TEXT','Ersteller'],['erstellt_am','TSTZ','Erstellt']]},
+    { id:'editor_format_elemente', g:'editor', f:[['id','SERIAL PK','Interne ID'],['template_id','INT FK','Template','editor_format_templates'],['element_typ','TEXT','scene_heading|action|...'],['einrueckung_links','INT','Einrueckung L (%)'],['einrueckung_rechts','INT','Einrueckung R (%)'],['ausrichtung','TEXT','left|center|right'],['grossbuchstaben','BOOL','Uppercase?'],['tab_folge_element','TEXT','Tab -> naechstes'],['enter_folge_element','TEXT','Enter -> naechstes'],['sort_order','INT','Reihenfolge']]},
+    { id:'episode_locks', g:'lock', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['folge_nummer','INT','Gesperrte Folge'],['user_id','TEXT','Wer hat gesperrt'],['user_name','TEXT','Anzeigename'],['lock_type','TEXT','exclusive|contract'],['expires_at','TSTZ','Ablauf'],['contract_ref','TEXT','Vertragsreferenz'],['created_at','TSTZ','Erstellt']]},
+    { id:'entities', g:'lock', f:[['id','SERIAL PK','Interne ID'],['entity_type','TEXT','charakter|prop|location'],['external_id','TEXT','ID in externer App'],['external_app','TEXT','z.B. kostuem-app'],['name','TEXT','Anzeigename'],['meta_json','JSONB','Metadaten'],['produktion_id','TEXT FK','Produktion','produktionen'],['created_at','TSTZ','Erstellt']]},
+    { id:'export_logs', g:'lock', f:[['id','UUID PK','Export-ID'],['user_id','TEXT','Exportierer'],['user_name','TEXT','Anzeigename'],['stage_label','TEXT','Fassungs-Label'],['staffel_id','TEXT','Produktions-ID (Legacy)'],['werkstufe_id','UUID FK','Werkstufe','werkstufen'],['format','TEXT','fountain|fdx|pdf'],['exported_at','TSTZ','Exportzeitpunkt']]},
+    { id:'statistik_vorlagen', g:'stat', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','Vorlagen-Name'],['abfrage_typ','TEXT','character-repliken|...'],['parameter','JSONB','Filter-Parameter'],['erstellt_von','TEXT','Ersteller'],['erstellt_am','TSTZ','Erstellt'],['sortierung','INT','Reihenfolge']]},
+    { id:'app_settings', g:'settings', f:[['key','TEXT PK','Einstellungs-Key'],['value','TEXT','Wert'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'user_settings', g:'settings', f:[['user_id','TEXT PK','Benutzer-ID'],['selected_production_id','UUID','Letzte Produktion'],['updated_at','TSTZ','Aktualisiert'],['ui_settings','JSONB','Theme, Sidebar...']]},
+    { id:'production_app_settings', g:'settings', f:[['id','SERIAL PK','Interne ID'],['production_id','TEXT','Produktion'],['key','TEXT','Einstellungs-Key'],['value','TEXT','Wert'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'ki_settings', g:'settings', f:[['id','SERIAL PK','Interne ID'],['funktion','TEXT UNIQUE','scene_summary|...'],['provider','TEXT','ollama|mistral|openai'],['model_name','TEXT','z.B. llama3.2'],['enabled','BOOL','An/Aus'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'ki_providers', g:'settings', f:[['provider','TEXT PK','Provider-Name'],['api_key','TEXT','API-Schluessel'],['is_active','BOOL','Aktiv?'],['dsgvo_level','TEXT','gruen|orange|rot'],['tokens_in','BIGINT','Verbrauch IN'],['tokens_out','BIGINT','Verbrauch OUT'],['cost_eur','NUMERIC','Kosten EUR'],['updated_at','TSTZ','Aktualisiert']]},
+    { id:'dk_settings_access', g:'settings', f:[['id','SERIAL PK','Interne ID'],['production_id','TEXT','Produktion'],['access_type','TEXT','rolle|user'],['identifier','TEXT','Rollenname/user_id'],['created_at','TSTZ','Erstellt'],['created_by','TEXT','Ersteller']]},
+    { id:'scene_comment_events', g:'comment', f:[['id','SERIAL PK','Interne ID'],['scene_id','INT','Szenen-ID'],['messenger_annotation_id','TEXT UNIQUE','Messenger UUID'],['created_at','TSTZ','Erstellt'],['deleted_at','TSTZ','Soft-Delete']]},
+    { id:'scene_comment_read_state', g:'comment', f:[['scene_id','INT PK','Szenen-ID'],['user_id','TEXT PK','Benutzer-ID'],['last_read_at','TSTZ','Letzter Lesezeitpunkt']]},
+    { id:'schema_migrations', g:'system', f:[['name','TEXT PK','Migrations-Dateiname'],['applied_at','TSTZ','Ausfuehrungszeitpunkt']]},
   ]
 
-  // FK edges: [from_table, to_table]
-  const edges: [string, string][] = [
-    ['folgen', 'produktionen'],
-    ['werkstufen', 'folgen'],
-    ['scene_identities', 'folgen'],
-    ['dokument_szenen', 'scene_identities'],
-    ['dokument_szenen', 'werkstufen'],
-    ['character_productions', 'characters'],
-    ['character_productions', 'produktionen'],
-    ['character_productions', 'character_kategorien'],
-    ['character_kategorien', 'produktionen'],
-    ['scene_characters', 'characters'],
-    ['scene_characters', 'scene_identities'],
-    ['scene_characters', 'werkstufen'],
-    ['scene_characters', 'character_kategorien'],
-    ['charakter_beziehungen', 'characters'],
-    ['charakter_fotos', 'characters'],
-    ['charakter_felder_config', 'produktionen'],
-    ['charakter_feldwerte', 'characters'],
-    ['charakter_feldwerte', 'motive'],
-    ['charakter_feldwerte', 'charakter_felder_config'],
-    ['charakter_feld_links', 'characters'],
-    ['charakter_feld_links', 'charakter_felder_config'],
-    ['drehorte', 'produktionen'],
-    ['motive', 'produktionen'],
-    ['motive', 'drehorte'],
-    ['motiv_fotos', 'motive'],
-    ['szenen_revisionen', 'dokument_szenen'],
-    ['szenen_vorstopp', 'scene_identities'],
-    ['vorstopp_einstellungen', 'produktionen'],
-    ['stage_labels', 'produktionen'],
-    ['revision_colors', 'produktionen'],
-    ['revision_export_einstellungen', 'produktionen'],
-    ['dokument_colab_gruppen', 'produktionen'],
-    ['dokument_colab_gruppe_mitglieder', 'dokument_colab_gruppen'],
-    ['dokument_benachrichtigungen', 'produktionen'],
-    ['dokument_typ_definitionen', 'produktionen'],
-    ['editor_format_elemente', 'editor_format_templates'],
-    ['entities', 'produktionen'],
-    ['episode_locks', 'produktionen'],
-    ['export_logs', 'werkstufen'],
-    ['statistik_vorlagen', 'produktionen'],
+  // Column assignments: [x_offset, table_ids[]]
+  const cols: [number, string[]][] = [
+    [20, ['charakter_beziehungen','charakter_fotos','charakter_feld_links']],
+    [380, ['characters','character_productions','character_kategorien','charakter_felder_config','charakter_feldwerte']],
+    [740, ['dokument_colab_gruppen','dokument_colab_gruppe_mitglieder','dokument_benachrichtigungen','dokument_typ_definitionen','episode_locks','scene_characters']],
+    [1100, ['produktionen','folgen','scene_identities','werkstufen','dokument_szenen','export_logs']],
+    [1460, ['entities','statistik_vorlagen','stage_labels','revision_colors','revision_export_einstellungen','vorstopp_einstellungen','szenen_vorstopp','szenen_revisionen']],
+    [1820, ['drehorte','motive','motiv_fotos']],
+    [2180, ['editor_format_templates','editor_format_elemente','app_settings','user_settings','production_app_settings','ki_settings','ki_providers','dk_settings_access','scene_comment_events','scene_comment_read_state','schema_migrations']],
   ]
+
+  // Build table map + compute positions
+  const tMap = new Map(defs.map(t => [t.id, t]))
+  const tH = (t: T) => HH + t.f.length * FH
+  const pos: Record<string, { x: number; y: number }> = {}
+  const placed = new Set<string>()
+  for (const [cx, ids] of cols) {
+    let y = 20
+    for (const id of ids) {
+      if (placed.has(id)) continue
+      const t = tMap.get(id)
+      if (!t) continue
+      pos[id] = { x: cx, y }
+      placed.add(id)
+      y += tH(t) + GAP
+    }
+  }
+
+  // Collect FK edges with field-level positions
+  const fkEdges: { fromId: string; toId: string; fromFi: number; sx: number; sy: number; tx: number; ty: number }[] = []
+  for (const t of defs) {
+    const p = pos[t.id]
+    if (!p) continue
+    t.f.forEach((f, fi) => {
+      if (!f[3]) return
+      const targetId = f[3]
+      const target = tMap.get(targetId)
+      const tp = pos[targetId]
+      if (!target || !tp) return
+      const sy = p.y + HH + fi * FH + FH / 2
+      const ty = tp.y + HH + FH / 2 // always point to PK (first field)
+      const goRight = p.x < tp.x || (p.x === tp.x && p.y < tp.y)
+      const sx = goRight ? p.x + TW : p.x
+      const tx2 = goRight ? tp.x : tp.x + TW
+      fkEdges.push({ fromId: t.id, toId: targetId, fromFi: fi, sx, sy, tx: tx2, ty })
+    })
+  }
+
+  // Manhattan routing: H → V → H
+  function route(sx: number, sy: number, tx: number, ty: number, fromId: string, toId: string): string {
+    const sameCol = Math.abs(sx - tx) < TW
+    if (sameCol && fromId === toId) {
+      // Self-reference (e.g. motive → motive)
+      const ox = Math.max(sx, tx) + 30
+      return `M ${sx},${sy} H ${ox} V ${ty} H ${tx}`
+    }
+    if (Math.abs(sx - tx) < 5) {
+      // Same X edge — offset through side
+      const ox = sx + (sx > 1000 ? 25 : -25)
+      return `M ${sx},${sy} H ${ox} V ${ty} H ${tx}`
+    }
+    const midX = sx + (tx - sx) * 0.5
+    return `M ${sx},${sy} H ${midX} V ${ty} H ${tx}`
+  }
 
   const groupColors: Record<string, string> = {
     core: '#007AFF', char: '#FF9500', motiv: '#00C853', rev: '#FF3B30',
-    collab: '#AF52DE', editor: '#757575', settings: '#757575', lock: '#FF3B30',
-    stat: '#FF9500', comment: '#FFCC00', system: '#757575',
+    collab: '#AF52DE', editor: '#8E8E93', settings: '#8E8E93', lock: '#FF3B30',
+    stat: '#FF9500', comment: '#FFCC00', system: '#8E8E93',
   }
-
-  const nodeMap = Object.fromEntries(nodes.map(n => [n.id, n]))
 
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.08 : 0.08
-    setZoom(z => Math.min(2.5, Math.max(0.3, z + delta)))
+    const delta = e.deltaY > 0 ? -0.05 : 0.05
+    setZoom(z => Math.min(2.5, Math.max(0.15, z + delta)))
   }
-
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      setDragging(true)
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-    }
+    if (e.button === 0) { setDragging(true); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }) }
   }
-
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragging) {
-      setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
-    }
+    if (dragging) setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
   }
-
   const handleMouseUp = () => setDragging(false)
+
+  // Canvas size
+  const canvasW = 2550, canvasH = 1400
 
   return (
     <div style={{ marginBottom: 32 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: 0.5 }}>
-          NETZPLAN — ALLE TABELLEN & VERKNUEPFUNGEN
+          ER-DIAGRAMM — 42 TABELLEN, 43 FK-BEZIEHUNGEN
         </div>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <button onClick={() => setZoom(z => Math.min(2.5, z + 0.2))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>+</button>
+          <button onClick={() => setZoom(z => Math.min(2.5, z + 0.15))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>+</button>
           <span style={{ fontSize: 10, color: C.muted, minWidth: 36, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.max(0.3, z - 0.2))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>-</button>
-          <button onClick={() => { setPan({ x: 0, y: 0 }); setZoom(0.85) }} style={{ height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 10, padding: '0 8px' }}>Reset</button>
+          <button onClick={() => setZoom(z => Math.max(0.15, z - 0.15))} style={{ width: 26, height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>-</button>
+          <button onClick={() => { setPan({ x: 0, y: 0 }); setZoom(0.42) }} style={{ height: 26, borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface, cursor: 'pointer', fontSize: 10, padding: '0 8px' }}>Reset</button>
         </div>
       </div>
       <div
         style={{
-          width: '100%', height: 540, overflow: 'hidden',
-          border: `1px solid ${C.border}`, borderRadius: 12, background: '#fafafa',
+          width: '100%', height: 600, overflow: 'hidden',
+          border: `1px solid ${C.border}`, borderRadius: 12, background: '#fdfdfd',
           cursor: dragging ? 'grabbing' : 'grab', position: 'relative', userSelect: 'none',
         }}
         onWheel={handleWheel}
@@ -2680,61 +2686,112 @@ function NetzplanDiagram() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        <svg
-          width="100%" height="100%"
-          style={{ display: 'block' }}
-          viewBox={`${-pan.x / zoom} ${-pan.y / zoom} ${1100 / zoom} ${540 / zoom}`}
+        <svg width="100%" height="100%" style={{ display: 'block' }}
+          viewBox={`${-pan.x / zoom} ${-pan.y / zoom} ${canvasW / zoom} ${600 / zoom}`}
         >
-          {/* Edges */}
-          {edges.map(([from, to], i) => {
-            const a = nodeMap[from]
-            const b = nodeMap[to]
-            if (!a || !b) return null
-            return <line key={i} x1={a.x + 60} y1={a.y + 14} x2={b.x + 60} y2={b.y + 14} stroke="#ccc" strokeWidth={1.2} markerEnd="url(#arrowhead)" />
-          })}
-          {/* Arrow marker */}
           <defs>
-            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-              <polygon points="0 0, 8 3, 0 6" fill="#aaa" />
+            <marker id="fk-arrow" markerWidth="7" markerHeight="5" refX="7" refY="2.5" orient="auto">
+              <polygon points="0 0, 7 2.5, 0 5" fill="#999" />
             </marker>
           </defs>
-          {/* Nodes */}
-          {nodes.map(n => {
-            const color = groupColors[n.group] || '#757575'
-            const label = n.label || n.id
+
+          {/* FK Connection Lines */}
+          {fkEdges.map((e, i) => {
+            const isHighlight = hovered === e.fromId || hovered === e.toId
+            return <path key={`e${i}`} d={route(e.sx, e.sy, e.tx, e.ty, e.fromId, e.toId)}
+              fill="none" stroke={isHighlight ? '#007AFF' : '#ccc'} strokeWidth={isHighlight ? 1.8 : 1}
+              markerEnd="url(#fk-arrow)" style={{ transition: 'stroke 0.15s, stroke-width 0.15s' }} />
+          })}
+
+          {/* Table Cards */}
+          {defs.map(t => {
+            const p = pos[t.id]
+            if (!p) return null
+            const color = groupColors[t.g] || '#8E8E93'
+            const h = tH(t)
+            const isHov = hovered === t.id
             return (
-              <g key={n.id}
-                onMouseEnter={(e) => setTooltip({ text: n.id, x: e.clientX, y: e.clientY })}
-                onMouseLeave={() => setTooltip(null)}
-              >
-                <rect x={n.x} y={n.y} width={120} height={28} rx={6} fill={color + '18'} stroke={color} strokeWidth={1.5} />
-                <text x={n.x + 60} y={n.y + 18} textAnchor="middle" fontSize={9} fontWeight={600} fontFamily="monospace" fill={color}>
-                  {label.length > 18 ? label.slice(0, 17) + '...' : label}
+              <g key={t.id} onMouseEnter={() => setHovered(t.id)} onMouseLeave={() => setHovered(null)}>
+                {/* Shadow */}
+                <rect x={p.x + 1} y={p.y + 1} width={TW} height={h} rx={5} fill="#00000008" />
+                {/* Card bg */}
+                <rect x={p.x} y={p.y} width={TW} height={h} rx={5}
+                  fill="#fff" stroke={isHov ? color : '#ddd'} strokeWidth={isHov ? 2 : 1} />
+                {/* Header */}
+                <rect x={p.x} y={p.y} width={TW} height={HH} rx={5} fill={color} />
+                <rect x={p.x} y={p.y + HH - 5} width={TW} height={5} fill={color} />
+                <text x={p.x + 8} y={p.y + 16} fontSize={10} fontWeight={700} fontFamily="monospace" fill="#fff">
+                  {t.id}
                 </text>
+                <text x={p.x + TW - 8} y={p.y + 16} fontSize={8} fontWeight={500} fill="#ffffff99" textAnchor="end">
+                  {t.f.length}
+                </text>
+                {/* Fields */}
+                {t.f.map((f, fi) => {
+                  const fy = p.y + HH + fi * FH
+                  const isFK = !!f[3]
+                  const isPK = f[1].includes('PK')
+                  return (
+                    <g key={fi}>
+                      {fi % 2 === 1 && <rect x={p.x} y={fy} width={TW} height={FH} fill="#f8f8f8" />}
+                      {/* PK/FK indicator */}
+                      {isPK && <text x={p.x + 3} y={fy + 12} fontSize={7} fill={color} fontWeight={700}>PK</text>}
+                      {isFK && !isPK && <text x={p.x + 3} y={fy + 12} fontSize={7} fill="#999" fontWeight={600}>FK</text>}
+                      {/* Field name */}
+                      <text x={p.x + 22} y={fy + 12} fontSize={8.5} fontWeight={isFK || isPK ? 600 : 400}
+                        fontFamily="monospace" fill={isFK ? '#555' : '#333'}
+                        clipPath={`inset(0 ${TW - 115}px 0 0)`}>
+                        {f[0].length > 14 ? f[0].slice(0, 13) + '..' : f[0]}
+                      </text>
+                      {/* Type */}
+                      <text x={p.x + 120} y={fy + 12} fontSize={7.5} fontFamily="monospace" fill="#999">
+                        {f[1].replace(' NOT NULL', '!').length > 12 ? f[1].slice(0, 11) + '..' : f[1].replace(' NOT NULL', '!')}
+                      </text>
+                      {/* Description */}
+                      <text x={p.x + 195} y={fy + 12} fontSize={7.5} fill="#aaa">
+                        {f[2].length > 20 ? f[2].slice(0, 19) + '..' : f[2]}
+                      </text>
+                    </g>
+                  )
+                })}
+                {/* Bottom border */}
+                <rect x={p.x} y={p.y + h - 1} width={TW} height={1} fill="#eee" />
               </g>
             )
           })}
         </svg>
-        {tooltip && (
+        {/* Hover tooltip */}
+        {hovered && (
           <div style={{
-            position: 'absolute', top: 8, left: 8, background: '#111', color: '#fff',
-            fontSize: 11, padding: '4px 8px', borderRadius: 4, pointerEvents: 'none',
-          }}>{tooltip.text}</div>
+            position: 'absolute', top: 8, right: 8, background: '#111', color: '#fff',
+            fontSize: 11, padding: '6px 10px', borderRadius: 6, pointerEvents: 'none', maxWidth: 260,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 2 }}>{hovered}</div>
+            <div style={{ fontSize: 10, opacity: 0.7 }}>
+              {tMap.get(hovered)?.f.length} Felder
+              {fkEdges.filter(e => e.fromId === hovered).length > 0 && ` · ${fkEdges.filter(e => e.fromId === hovered).length} FK`}
+              {fkEdges.filter(e => e.toId === hovered).length > 0 && ` · ${fkEdges.filter(e => e.toId === hovered).length} referenziert`}
+            </div>
+          </div>
         )}
-        <div style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 9, color: C.muted }}>
-          Scrollen = Zoom, Ziehen = Verschieben
+        <div style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 9, color: C.muted, background: '#fdfdfdcc', padding: '2px 6px', borderRadius: 4 }}>
+          Scrollen = Zoom · Ziehen = Verschieben · Hover = Beziehungen hervorheben
         </div>
       </div>
       {/* Legend */}
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 10 }}>
         {[
-          { label: 'Kern', color: '#007AFF' },
-          { label: 'Characters', color: '#FF9500' },
-          { label: 'Motive', color: '#00C853' },
-          { label: 'Revision', color: '#FF3B30' },
-          { label: 'Kollaboration', color: '#AF52DE' },
-          { label: 'Settings/System', color: '#757575' },
-          { label: 'Kommentare', color: '#FFCC00' },
+          { label: 'Kern (5)', color: '#007AFF' },
+          { label: 'Characters (9)', color: '#FF9500' },
+          { label: 'Motive (3)', color: '#00C853' },
+          { label: 'Revision (6)', color: '#FF3B30' },
+          { label: 'Kollaboration (4)', color: '#AF52DE' },
+          { label: 'Locks/Export (3)', color: '#FF3B30' },
+          { label: 'Statistik (1)', color: '#FF9500' },
+          { label: 'Settings (6)', color: '#8E8E93' },
+          { label: 'Editor (2)', color: '#8E8E93' },
+          { label: 'Kommentare (2)', color: '#FFCC00' },
+          { label: 'System (1)', color: '#8E8E93' },
         ].map(l => (
           <span key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10 }}>
             <span style={{ width: 10, height: 10, borderRadius: 3, background: l.color + '30', border: `1px solid ${l.color}` }} />
