@@ -287,6 +287,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const zusammenfassung = ov.zusammenfassung ?? szene.zusammenfassung
       const szeneninfo = ov.szeneninfo ?? szene.szeneninfo
       const stoppzeitSek = ov.dauer_sekunden ?? szene.dauer_sekunden ?? null
+      // Per-scene format override (display label → DB value)
+      const formatMap: Record<string, string> = { 'Drehbuch': 'drehbuch', 'Storyline': 'storyline', 'Notiz': 'notiz' }
+      const sceneFormat = ov.format ? (formatMap[ov.format] || docTyp) : docTyp
       // Override charaktere/komparsen lists if provided
       if (ov.charaktere && Array.isArray(ov.charaktere)) szene.charaktere = ov.charaktere
       if (ov.komparsen && Array.isArray(ov.komparsen)) szene.komparsen = ov.komparsen
@@ -333,7 +336,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           intExt, tageszeit, ortName || null,
           zusammenfassung || null, JSON.stringify(pmNodes),
           spieltag || null, stoppzeitSek, isWechselschnitt,
-          szeneninfo || null, docTyp, req.user!.name || req.user!.user_id,
+          szeneninfo || null, sceneFormat, req.user!.name || req.user!.user_id,
         ]
       )
       sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })

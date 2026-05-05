@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
-import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors } from 'lucide-react'
+import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
 
@@ -767,13 +767,17 @@ export default function ImportPage() {
                           <option value="ABEND">ABEND</option>
                           <option value="DÄMMERUNG">DÄMMERUNG</option>
                         </select>
-                        <span style={{
+                        <select value={getSceneVal(sz, i, 'format') || STAGE_TO_FORMAT[stageType] || 'Drehbuch'}
+                          onChange={e => updateScene(i, 'format', e.target.value)} style={{
                           fontSize: 9, fontWeight: 600, padding: '0px 4px', borderRadius: 3,
                           background: '#F3E5F5', color: '#7B1FA2', flexShrink: 0,
                           textTransform: 'uppercase', letterSpacing: 0.3,
+                          border: '1px solid transparent', cursor: 'pointer',
                         }}>
-                          {STAGE_TO_FORMAT[stageType] || 'Drehbuch'}
-                        </span>
+                          <option value="Drehbuch">Drehbuch</option>
+                          <option value="Storyline">Storyline</option>
+                          <option value="Notiz">Notiz</option>
+                        </select>
                       </div>
 
                       {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}
@@ -817,44 +821,79 @@ export default function ImportPage() {
                         )}
                       </div>
 
-                      {/* Row 3: Rollen (editable) */}
-                      <div style={{ fontSize: 11, color: '#333', marginBottom: 1, display: 'flex', alignItems: 'center' }}>
-                        <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>Rollen: </span>
-                        <input type="text"
-                          value={getSceneVal(sz, i, 'charaktere') != null
-                            ? (getSceneVal(sz, i, 'charaktere') as string[]).join(', ')
-                            : (sz.charaktere_detail || sz.charaktere.map((n: string) => ({ name: n, repliken: 0 })))
-                                .map((c: any) => c.name + (c.repliken > 0 ? ` (${c.repliken})` : '')).join(', ')
-                          }
-                          onChange={e => updateScene(i, 'charaktere', e.target.value.split(',').map((s: string) => s.replace(/\s*\(\d+\)/, '').trim()).filter(Boolean))}
-                          placeholder="Rollen kommagetrennt…"
-                          style={{
-                            flex: 1, fontSize: 11, color: '#333', border: '1px solid transparent',
-                            background: 'transparent', padding: '1px 4px', borderRadius: 3,
-                          }}
-                          onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
-                          onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
-                        />
+                      {/* Row 3: Rollen — structured display or edit mode */}
+                      <div style={{ fontSize: 11, color: '#333', marginBottom: 1 }}>
+                        {sceneOverrides[i]?.charaktere != null ? (
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>Rollen: </span>
+                            <input type="text"
+                              value={(sceneOverrides[i].charaktere as string[]).join(', ')}
+                              onChange={e => updateScene(i, 'charaktere', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                              placeholder="Rollen kommagetrennt…"
+                              autoFocus
+                              style={{ flex: 1, fontSize: 11, color: '#333', border: '1px solid #e0e0e0', background: '#fff', padding: '1px 4px', borderRadius: 3 }}
+                            />
+                            <button onClick={() => { const next = { ...sceneOverrides }; delete next[i]?.charaktere; if (next[i] && Object.keys(next[i]).length === 0) delete next[i]; setSceneOverrides({ ...next }) }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', marginLeft: 2 }} title="Zurücksetzen">
+                              <X size={10} color="#999" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1px 0', alignItems: 'center' }}>
+                            <span style={{ color: '#999', marginRight: 4 }}>Rollen: </span>
+                            {(sz.charaktere_detail || sz.charaktere.map((n: string) => ({ name: n, repliken: 0 }))).map((c: any, ci: number) => (
+                              <span key={ci} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                {ci > 0 && <span style={{ marginRight: 3 }}>, </span>}
+                                {c.name}
+                                {c.repliken > 0 && <span style={tagStyle('#E3F2FD', '#1565C0')}>{c.repliken} Repl.</span>}
+                              </span>
+                            ))}
+                            {sz.charaktere.length === 0 && <span style={{ color: '#ccc' }}>—</span>}
+                            <button onClick={() => updateScene(i, 'charaktere', sz.charaktere.length > 0 ? [...sz.charaktere] : [])}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', marginLeft: 4 }} title="Rollen bearbeiten">
+                              <Pencil size={10} color="#bbb" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Row 4: Komparsen (editable) */}
-                      <div style={{ fontSize: 11, color: '#7B1FA2', marginBottom: 1, display: 'flex', alignItems: 'center' }}>
-                        <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>Komparsen: </span>
-                        <input type="text"
-                          value={getSceneVal(sz, i, 'komparsen') != null
-                            ? (getSceneVal(sz, i, 'komparsen') as string[]).join(', ')
-                            : (sz.komparsen_detail || sz.komparsen?.map((n: string) => ({ name: n, anzahl: 1 })) || [])
-                                .map((k: any) => (k.anzahl > 1 ? `${k.anzahl}× ` : '') + k.name).join(', ')
-                          }
-                          onChange={e => updateScene(i, 'komparsen', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
-                          placeholder="Komparsen kommagetrennt…"
-                          style={{
-                            flex: 1, fontSize: 11, color: '#7B1FA2', border: '1px solid transparent',
-                            background: 'transparent', padding: '1px 4px', borderRadius: 3,
-                          }}
-                          onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
-                          onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
-                        />
+                      {/* Row 4: Komparsen — structured display or edit mode */}
+                      <div style={{ fontSize: 11, color: '#7B1FA2', marginBottom: 1 }}>
+                        {sceneOverrides[i]?.komparsen != null ? (
+                          <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>Komparsen: </span>
+                            <input type="text"
+                              value={(sceneOverrides[i].komparsen as string[]).join(', ')}
+                              onChange={e => updateScene(i, 'komparsen', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                              placeholder="Komparsen kommagetrennt…"
+                              autoFocus
+                              style={{ flex: 1, fontSize: 11, color: '#7B1FA2', border: '1px solid #e0e0e0', background: '#fff', padding: '1px 4px', borderRadius: 3 }}
+                            />
+                            <button onClick={() => { const next = { ...sceneOverrides }; delete next[i]?.komparsen; if (next[i] && Object.keys(next[i]).length === 0) delete next[i]; setSceneOverrides({ ...next }) }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', marginLeft: 2 }} title="Zurücksetzen">
+                              <X size={10} color="#999" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1px 0', alignItems: 'center' }}>
+                            <span style={{ color: '#999', marginRight: 4 }}>Komparsen: </span>
+                            {(sz.komparsen_detail || sz.komparsen?.map((n: string) => ({ name: n, anzahl: 1, hat_spiel: false, hat_text: false, repliken: 0 })) || []).map((k: any, ki: number) => (
+                              <span key={ki} style={{ display: 'inline-flex', alignItems: 'center' }}>
+                                {ki > 0 && <span style={{ marginRight: 3 }}>, </span>}
+                                {k.anzahl > 1 && <span style={{ fontWeight: 600 }}>{k.anzahl}× </span>}
+                                {k.name}
+                                {k.hat_text && <span style={tagStyle('#F3E5F5', '#7B1FA2')}>Text:{k.repliken}</span>}
+                                {!k.hat_text && k.hat_spiel && <span style={tagStyle('#FFF3E0', '#E65100')}>Spiel</span>}
+                                {!k.hat_text && !k.hat_spiel && <span style={tagStyle('#F5F5F5', '#9E9E9E')}>o.T.</span>}
+                              </span>
+                            ))}
+                            {(!sz.komparsen || sz.komparsen.length === 0) && <span style={{ color: '#ccc' }}>—</span>}
+                            <button onClick={() => updateScene(i, 'komparsen', sz.komparsen?.length > 0 ? [...sz.komparsen] : [])}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', marginLeft: 4 }} title="Komparsen bearbeiten">
+                              <Pencil size={10} color="#bbb" />
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Row 5: Zusammenfassung (editable) */}
