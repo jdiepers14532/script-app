@@ -153,6 +153,7 @@ export default function ScriptPage() {
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
+  const [folgenMitDaten, setFolgenMitDaten] = useState<number[]>([])
 
   // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
   const [deepLink] = useState<{ produktionId?: string; folgeNummer?: number; stageId?: number; szeneId?: number } | null>(() => {
@@ -410,8 +411,8 @@ export default function ScriptPage() {
       }),
     })
       .then(r => r.json())
-      .then(data => { console.log('[sync] result:', data); if (data.produktion_id) setSelectedProduktionId(data.produktion_id) })
-      .catch(err => console.error('[sync] ERROR:', err))
+      .then(data => { if (data.produktion_id) setSelectedProduktionId(data.produktion_id) })
+      .catch(console.error)
   }, [selectedProduction?.id, settingsLoaded])
 
 
@@ -421,7 +422,6 @@ export default function ScriptPage() {
     setBloecke([])
     setSelectedBlock(null)
     api.getBloecke(selectedProduktionId).then(data => {
-      console.log('[bloecke] loaded:', data.length, data.map((b: any) => ({ id: b.proddb_id, von: b.folge_von, bis: b.folge_bis })))
       setBloecke(data)
       if (!data.length) return
       const savedFolge = pendingNav.current.folgeNummer
@@ -452,13 +452,12 @@ export default function ScriptPage() {
 
     async function loadWerkstufen() {
       try {
-        console.log('[loadWerkstufen] start', { selectedProduktionId, selectedFolgeNummer })
         const folgen = await api.getFolgenV2(selectedProduktionId)
-        console.log('[loadWerkstufen] folgen:', folgen.length, folgen.map((f: any) => ({ id: f.id, nr: f.folge_nummer })))
+        // Track which folgen have imported data (for UI indicators)
+        setFolgenMitDaten(folgen.filter((f: any) => f.werkstufen_count > 0).map((f: any) => f.folge_nummer))
         const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
-        if (!folge) { console.warn('[loadWerkstufen] no folge match for', selectedFolgeNummer, 'in', folgen.map((f: any) => f.folge_nummer)); return }
+        if (!folge) return
         const werkstufen = await api.getWerkstufen(folge.id)
-        console.log('[loadWerkstufen] werkstufen:', werkstufen.length, werkstufen.map((w: any) => ({ id: w.id, typ: w.typ, v: w.version_nummer })))
         // Prefer drehbuch > storyline > notiz, then latest version
         const prio = ['drehbuch', 'storyline', 'notiz']
         let matching: any[] = []
@@ -469,21 +468,19 @@ export default function ScriptPage() {
         if (matching.length === 0) matching = werkstufen
         matching.sort((a: any, b: any) => b.version_nummer - a.version_nummer)
         const werk = matching[0]
-        if (!werk) { console.warn('[loadWerkstufen] no werk found'); return }
+        if (!werk) return
         setSelectedStageId(werk.id)
         const werkSzenen = await api.getWerkstufenSzenen(werk.id)
-        console.log('[loadWerkstufen] szenen:', werkSzenen.length, werkSzenen.length > 0 ? { first: werkSzenen[0].id, type: typeof werkSzenen[0].id } : 'EMPTY')
         if (werkSzenen.length > 0) {
           setSzenen(werkSzenen)
           setUseDokumentSzenen(true)
           const savedSzene = pendingNav.current.szeneId
           const match = savedSzene && werkSzenen.find((s: any) => s.id === savedSzene)
           setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
-          console.log('[loadWerkstufen] selectedSzeneId set to', match ? match.id : werkSzenen[0].id)
           delete pendingNav.current.szeneId
           navRestored.current = true
         }
-      } catch (err) { console.error('[loadWerkstufen] ERROR:', err) }
+      } catch { /* no data */ }
     }
     loadWerkstufen()
   }, [selectedProduktionId, selectedFolgeNummer])
@@ -509,9 +506,6 @@ export default function ScriptPage() {
 
   if (loading) return <div style={{ padding: 32, color: 'var(--text-secondary)' }}>Lädt…</div>
 
-  // Temporary debug bar — remove after fixing display issue
-  const debugInfo = `prod=${selectedProduktionId?.slice(0,8)||'—'} blk=${bloecke.length} folge=${selectedFolgeNummer??'—'} stage=${typeof selectedStageId==='string'?selectedStageId.slice(0,8):selectedStageId??'—'} sz=${szenen.length} sel=${typeof selectedSzeneId==='string'?selectedSzeneId.slice(0,8):selectedSzeneId??'—'} dok=${useDokumentSzenen}`
-
   return (
     <AppShell
       selectedProduktionId={selectedProduktionId}
@@ -527,11 +521,8 @@ export default function ScriptPage() {
       stages={stages}
       selectedStageId={selectedStageId}
       onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
+      folgenMitDaten={folgenMitDaten}
     >
-      {/* Debug bar — remove after fixing */}
-      <div style={{ padding: '2px 8px', fontSize: 10, fontFamily: 'monospace', background: '#ffe0b2', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', flexShrink: 0 }}>
-        {debugInfo}
-      </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
 
         {/* Collapsible + resizable scene list */}

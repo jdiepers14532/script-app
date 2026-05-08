@@ -27,6 +27,7 @@ interface AppShellProps {
   stages?: any[]
   selectedStageId?: number | null
   onSelectStage?: (id: number) => void
+  folgenMitDaten?: number[]
   hideProductionSelector?: boolean
 }
 
@@ -247,6 +248,7 @@ export default function AppShell({
   stages = [],
   selectedStageId = null,
   onSelectStage,
+  folgenMitDaten = [],
   hideProductionSelector = false,
 }: AppShellProps) {
   const location = useLocation()
@@ -741,7 +743,7 @@ export default function AppShell({
               <select style={selectStyle} value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))}>
                 {allFolgen.map(({ nr, block }) => (
                   <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
-                    Folge {nr}
+                    {folgenMitDaten.includes(nr) ? '● ' : ''}Folge {nr}
                   </option>
                 ))}
               </select>

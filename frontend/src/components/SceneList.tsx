@@ -287,7 +287,11 @@ export default function SceneList({
       <div className="list">
         {filtered.length === 0 && (
           <div style={{ padding: '16px 20px', color: 'var(--text-muted)', fontSize: 12 }}>
-            {szenen.length === 0 ? 'Keine Szenen vorhanden.' : 'Keine Treffer.'}
+            {szenen.length === 0
+              ? (folgeNummer != null
+                ? `Für Folge ${folgeNummer} sind noch keine Szenen importiert.`
+                : 'Keine Szenen vorhanden.')
+              : 'Keine Treffer.'}
           </div>
         )}
         {filtered.map(scene => {
