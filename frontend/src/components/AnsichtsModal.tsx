@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import {
   Columns2, PanelLeft, PanelRight, BookOpen, AlignLeft, X,
+  Minimize2, Maximize2,
 } from 'lucide-react'
 import {
   LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS,
@@ -215,6 +216,14 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
                 <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={13} /></button></Tooltip>
                 <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={13} /></button></Tooltip>
                 <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={13} /></button></Tooltip>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
+              <span style={labelStyle}>Szenenkopf</span>
+              <div className="seg">
+                <Tooltip text="Alle Felder"><button className={!tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', false)}><Maximize2 size={13} /></button></Tooltip>
+                <Tooltip text="Kompakt (eine Zeile)"><button className={tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', true)}><Minimize2 size={13} /></button></Tooltip>
               </div>
             </div>
 

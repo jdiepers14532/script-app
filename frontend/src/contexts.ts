@@ -69,6 +69,7 @@ export interface TweakState {
   scrollNavDelay: number
   showPageShadow: boolean
   showTooltips: boolean
+  sceneHeaderCompact: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState

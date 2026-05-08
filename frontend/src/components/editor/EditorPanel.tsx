@@ -30,12 +30,13 @@ interface Props {
   onReloadWerkstufen: () => void
   onNavigateNext?: () => void
   onNavigatePrev?: () => void
+  onWerkstufSelected?: (werkId: string | null) => void
 }
 
 export default function EditorPanel({
   produktionId, folgeNummer, folgeId, werkstufen, formatElements = [],
   defaultTyp, selectedSzeneId, useDokumentSzenen, onCreateWerkstufe, onReloadWerkstufen,
-  onNavigateNext, onNavigatePrev,
+  onNavigateNext, onNavigatePrev, onWerkstufSelected,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
@@ -55,6 +56,9 @@ export default function EditorPanel({
   }, [werkstufen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedWerk = werkstufen.find(w => w.id === selectedWerkId) ?? null
+
+  // Report werkstufId changes to parent
+  useEffect(() => { onWerkstufSelected?.(selectedWerkId) }, [selectedWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load content for the SELECTED scene only (per-scene editing)
   const [currentSzene, setCurrentSzene] = useState<any>(null)

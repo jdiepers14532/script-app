@@ -152,6 +152,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   scrollNavDelay: 1000,
   showPageShadow: true,
   showTooltips: true,
+  sceneHeaderCompact: false,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {

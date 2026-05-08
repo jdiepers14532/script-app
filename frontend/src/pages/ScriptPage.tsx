@@ -11,9 +11,11 @@ import { useWerkstufe } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
-function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDokumentSzenen, onNavigateNext, onNavigatePrev }: {
+function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead }: {
   produktionId: string; folgeNummer: number | null; selectedSzeneId: number | string | null; useDokumentSzenen: boolean
+  stageId: number | null; sceneIdentityId: string | null
   onNavigateNext?: () => void; onNavigatePrev?: () => void
+  onSzeneUpdated?: (updated: any) => void; onMarkCommentsRead?: (szeneId: number) => void
 }) {
   const { panelMode } = useContext(PanelModeContext)
   const [folgeId, setFolgeId] = useState<number | null>(null)
@@ -40,6 +42,10 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
       if (standard?.elemente) setFormatElements(standard.elemente)
     }).catch(() => {})
   }, [])
+
+  // Track selected werkstufe per panel (for SceneEditor per panel)
+  const [leftWerkId, setLeftWerkId] = useState<string | null>(null)
+  const [rightWerkId, setRightWerkId] = useState<string | null>(null)
 
   // Resizable split
   const [splitRatio, setSplitRatio] = useState(0.5)
@@ -82,7 +88,23 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
           flex: showBoth ? undefined : 1,
           overflow: 'hidden', flexShrink: 0,
           pointerEvents: isSplitDragging ? 'none' : 'auto',
+          display: 'flex', flexDirection: 'column',
         }}>
+          {selectedSzeneId && sceneIdentityId && (
+            <SceneEditor
+              szeneId={selectedSzeneId}
+              stageId={stageId}
+              produktionId={produktionId}
+              folgeNummer={folgeNummer}
+              useDokumentSzenen={useDokumentSzenen}
+              werkstufId={leftWerkId}
+              sceneIdentityId={sceneIdentityId}
+              onSzeneUpdated={onSzeneUpdated}
+              onNavigatePrev={onNavigatePrev}
+              onNavigateNext={onNavigateNext}
+              onMarkCommentsRead={onMarkCommentsRead}
+            />
+          )}
           <EditorPanel
             key={`${produktionId}-${folgeNummer}-left`}
             produktionId={produktionId}
@@ -97,6 +119,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             onReloadWerkstufen={reloadWerkstufen}
             onNavigateNext={onNavigateNext}
             onNavigatePrev={onNavigatePrev}
+            onWerkstufSelected={setLeftWerkId}
           />
         </div>
       )}
@@ -121,7 +144,23 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
         <div style={{
           flex: 1, overflow: 'hidden',
           pointerEvents: isSplitDragging ? 'none' : 'auto',
+          display: 'flex', flexDirection: 'column',
         }}>
+          {selectedSzeneId && sceneIdentityId && (
+            <SceneEditor
+              szeneId={selectedSzeneId}
+              stageId={stageId}
+              produktionId={produktionId}
+              folgeNummer={folgeNummer}
+              useDokumentSzenen={useDokumentSzenen}
+              werkstufId={rightWerkId}
+              sceneIdentityId={sceneIdentityId}
+              onSzeneUpdated={onSzeneUpdated}
+              onNavigatePrev={onNavigatePrev}
+              onNavigateNext={onNavigateNext}
+              onMarkCommentsRead={onMarkCommentsRead}
+            />
+          )}
           <EditorPanel
             key={`${produktionId}-${folgeNummer}-right`}
             produktionId={produktionId}
@@ -136,6 +175,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             onReloadWerkstufen={reloadWerkstufen}
             onNavigateNext={onNavigateNext}
             onNavigatePrev={onNavigatePrev}
+            onWerkstufSelected={setRightWerkId}
           />
         </div>
       )}
@@ -576,26 +616,8 @@ export default function ScriptPage() {
           </button>
         </div>
 
-        {/* Editor area — SceneEditor (header) + per-scene DockedEditorPanels */}
+        {/* Editor area — per-panel SceneEditor + DockedEditorPanels */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {selectedSzeneId && (
-            <SceneEditor
-              szeneId={selectedSzeneId}
-              stageId={selectedStageId}
-              produktionId={selectedProduktionId}
-              folgeNummer={selectedFolgeNummer}
-              useDokumentSzenen={useDokumentSzenen}
-              onSzeneUpdated={(updated) => {
-                setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
-              }}
-              onNavigatePrev={() => navigateSzene(-1)}
-              onNavigateNext={() => navigateSzene(1)}
-              onMarkCommentsRead={(szeneId) => {
-                setCommentCounts(prev => ({ ...prev, [szeneId]: 0 }))
-                api.markSceneCommentsRead(szeneId).catch(() => {})
-              }}
-            />
-          )}
           {!selectedSzeneId && (
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>
               Keine Szene ausgewählt
@@ -606,8 +628,17 @@ export default function ScriptPage() {
             folgeNummer={selectedFolgeNummer}
             selectedSzeneId={selectedSzeneId}
             useDokumentSzenen={useDokumentSzenen}
+            stageId={selectedStageId}
+            sceneIdentityId={useDokumentSzenen ? szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null : null}
             onNavigateNext={() => navigateSzene(1)}
             onNavigatePrev={() => navigateSzene(-1)}
+            onSzeneUpdated={(updated) => {
+              setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
+            }}
+            onMarkCommentsRead={(szeneId) => {
+              setCommentCounts(prev => ({ ...prev, [szeneId]: 0 }))
+              api.markSceneCommentsRead(szeneId).catch(() => {})
+            }}
           />
         </div>
 

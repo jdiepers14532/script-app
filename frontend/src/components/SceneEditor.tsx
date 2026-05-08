@@ -3,7 +3,7 @@ import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2 } from 'lu
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
-import { PanelModeContext, useAppSettings, useUserPrefs } from '../contexts'
+import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks } from '../contexts'
 
 interface SceneEditorProps {
   szeneId: number | string
@@ -12,6 +12,9 @@ interface SceneEditorProps {
   folgeNummer?: number | null
   panelMode?: 'both' | 'treatment' | 'script'
   useDokumentSzenen?: boolean
+  compact?: boolean
+  werkstufId?: string | null
+  sceneIdentityId?: string | null
   onSzeneUpdated?: (updated: any) => void
   onNavigatePrev?: () => void
   onNavigateNext?: () => void
@@ -40,11 +43,13 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
-export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
   const { scrollNavDelay } = useUserPrefs()
+  const { tweaks } = useTweaks()
+  const compact = compactProp ?? tweaks.sceneHeaderCompact
   const [scene, setScene] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
   const [saving, setSaving] = useState(false)
@@ -77,6 +82,22 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const untermotivDropdownRef = useRef<HTMLDivElement | null>(null)
   const rolleDropdownRef = useRef<HTMLDivElement | null>(null)
   const komparseDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  // Compute fixed position for dropdown to escape overflow:hidden parents
+  const getFixedDropdownStyle = useCallback((ref: React.RefObject<HTMLDivElement | null>): React.CSSProperties => {
+    if (!ref.current) return {}
+    const rect = ref.current.getBoundingClientRect()
+    const maxH = 200
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const openAbove = spaceBelow < maxH && rect.top > spaceBelow
+    return {
+      position: 'fixed',
+      left: rect.left,
+      width: Math.max(rect.width, 200),
+      maxHeight: maxH,
+      ...(openAbove ? { bottom: window.innerHeight - rect.top + 2 } : { top: rect.bottom + 2 }),
+    }
+  }, [])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelsRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
@@ -249,18 +270,27 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
   // Abstraction: use new dokument_szenen API or old szenen API
   const loadScene = useCallback(() => {
+    // If werkstufId + sceneIdentityId provided, resolve the szene for this specific werkstufe
+    if (werkstufId && sceneIdentityId) {
+      return api.resolveDokumentSzene(werkstufId, sceneIdentityId)
+    }
     if (useDokumentSzenen && typeof szeneId === 'string') {
       return api.getDokumentSzene(szeneId)
     }
     return api.getSzene(szeneId as number)
-  }, [szeneId, useDokumentSzenen])
+  }, [szeneId, useDokumentSzenen, werkstufId, sceneIdentityId])
 
   const saveScene = useCallback((data: any) => {
+    // Use resolved scene ID if available
+    const resolvedId = scene?.id
+    if (werkstufId && sceneIdentityId && resolvedId) {
+      return api.updateDokumentSzene(resolvedId, data)
+    }
     if (useDokumentSzenen && typeof szeneId === 'string') {
       return api.updateDokumentSzene(szeneId, data)
     }
     return api.updateSzene(szeneId as number, data)
-  }, [szeneId, useDokumentSzenen])
+  }, [szeneId, useDokumentSzenen, werkstufId, sceneIdentityId, scene])
 
   // Load scene when szeneId changes
   useEffect(() => {
@@ -528,7 +558,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 }}
               />
               {motivDropdownOpen && (
-                <div className="sf-dropdown sf-dropdown-fixed">
+                <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(motivDropdownRef)}>
                   {parentMotive
                     .filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase()))
                     .map(m => (
@@ -566,7 +596,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     }}
                   />
                   {untermotivDropdownOpen && (
-                    <div className="sf-dropdown sf-dropdown-fixed">
+                    <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(untermotivDropdownRef)}>
                       {/* Option: no untermotiv (clear) */}
                       <div className="sf-dropdown-item" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}
                         onMouseDown={e => {
@@ -681,8 +711,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           </button>
         </div>
 
-        {/* Zeilen 2–5: Felder eingerückt unter Motiv-Position */}
-        <div className="scene-fields" key={szeneId}>
+        {/* Zeilen 2–5: Felder eingerückt unter Motiv-Position (hidden in compact mode) */}
+        {!compact && <div className="scene-fields" key={szeneId}>
           {/* Unsichtbarer Spacer — spiegelt sz-group + stopp-inp aus scene-r1 für exakte Ausrichtung */}
           <span className="sf-align-spacer" aria-hidden="true">
             <span className="sz-group"><span className="scene-big">SZ0</span></span>
@@ -721,7 +751,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   style={{ width: charSearchRolle ? 100 : 20 }}
                 />
                 {charDropdownRolle && (
-                  <div className="sf-dropdown sf-dropdown-fixed">
+                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(rolleDropdownRef)}>
                     {rolleCharacters
                       .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
                       .filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase()))
@@ -760,7 +790,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   style={{ width: charSearchKomparse ? 100 : 20 }}
                 />
                 {charDropdownKomparse && (
-                  <div className="sf-dropdown sf-dropdown-fixed">
+                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(komparseDropdownRef)}>
                     {komparseCharacters
                       .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
                       .filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase()))
@@ -810,11 +840,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             />
           </div>
           </div>{/* end scene-fields-rows */}
-        </div>
+        </div>}
       </div>
 
-      {/* Imported content (read-only display of textelemente from import) */}
-      {contentTextelemente.length > 0 && (
+      {/* Imported content (read-only display of textelemente from import, hidden in compact) */}
+      {!compact && contentTextelemente.length > 0 && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', maxHeight: 300, overflowY: 'auto', fontSize: 12, lineHeight: 1.6 }}>
           {contentTextelemente.map((el: any, i: number) => {
             if (el.type === 'character') return (

@@ -192,6 +192,26 @@ fassungsSzenenRouter.post('/renumber', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/dokument-szenen/resolve?werkstufe_id=X&scene_identity_id=Y
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.get('/resolve', async (req, res) => {
+  const { werkstufe_id, scene_identity_id } = req.query
+  if (!werkstufe_id || !scene_identity_id) {
+    return res.status(400).json({ error: 'werkstufe_id and scene_identity_id required' })
+  }
+  try {
+    const row = await queryOne(
+      'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND scene_identity_id = $2',
+      [werkstufe_id, scene_identity_id]
+    )
+    if (!row) return res.status(404).json({ error: 'Szene nicht in dieser Werkstufe gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GET /api/dokument-szenen/:id — single scene
 // ══════════════════════════════════════════════════════════════════════════════
 dokumentSzenenRouter.get('/:id', async (req, res) => {
