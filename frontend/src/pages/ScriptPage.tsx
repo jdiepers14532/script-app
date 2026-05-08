@@ -6,7 +6,7 @@ import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
-import { useFocus, useSelectedProduction, PanelModeContext } from '../contexts'
+import { useFocus, useSelectedProduction, PanelModeContext, useTweaks } from '../contexts'
 import { useWerkstufe } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
@@ -18,6 +18,8 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
   onSzeneUpdated?: (updated: any) => void; onMarkCommentsRead?: (szeneId: number) => void
 }) {
   const { panelMode } = useContext(PanelModeContext)
+  const { tweaks } = useTweaks()
+  const sceneEditorMode = tweaks.sceneEditorMode ?? 'single'
   const [folgeId, setFolgeId] = useState<number | null>(null)
   const [formatElements, setFormatElements] = useState<any[]>([])
 
@@ -80,8 +82,28 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
     await createWerkstufe(typ)
   }
 
+  // Single SceneEditor uses the left panel's werkstufId (or right if only right visible)
+  const singleWerkId = showLeft ? leftWerkId : rightWerkId
+
   return (
-    <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      {/* Single SceneEditor above both panels */}
+      {sceneEditorMode === 'single' && selectedSzeneId && sceneIdentityId && (
+        <SceneEditor
+          szeneId={selectedSzeneId}
+          stageId={stageId}
+          produktionId={produktionId}
+          folgeNummer={folgeNummer}
+          useDokumentSzenen={useDokumentSzenen}
+          werkstufId={singleWerkId}
+          sceneIdentityId={sceneIdentityId}
+          onSzeneUpdated={onSzeneUpdated}
+          onNavigatePrev={onNavigatePrev}
+          onNavigateNext={onNavigateNext}
+          onMarkCommentsRead={onMarkCommentsRead}
+        />
+      )}
+      <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {showLeft && (
         <div style={{
           width: showBoth ? `${splitRatio * 100}%` : undefined,
@@ -90,7 +112,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
           pointerEvents: isSplitDragging ? 'none' : 'auto',
           display: 'flex', flexDirection: 'column',
         }}>
-          {selectedSzeneId && sceneIdentityId && (
+          {sceneEditorMode === 'mirror' && selectedSzeneId && sceneIdentityId && (
             <SceneEditor
               szeneId={selectedSzeneId}
               stageId={stageId}
@@ -146,7 +168,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
           pointerEvents: isSplitDragging ? 'none' : 'auto',
           display: 'flex', flexDirection: 'column',
         }}>
-          {selectedSzeneId && sceneIdentityId && (
+          {sceneEditorMode === 'mirror' && selectedSzeneId && sceneIdentityId && (
             <SceneEditor
               szeneId={selectedSzeneId}
               stageId={stageId}
@@ -179,6 +201,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
           />
         </div>
       )}
+      </div>
     </div>
   )
 }

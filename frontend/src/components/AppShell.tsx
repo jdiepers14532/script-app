@@ -153,6 +153,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   showPageShadow: true,
   showTooltips: true,
   sceneHeaderCompact: false,
+  sceneEditorMode: 'single',
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {

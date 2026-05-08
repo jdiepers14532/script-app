@@ -70,6 +70,7 @@ export interface TweakState {
   showPageShadow: boolean
   showTooltips: boolean
   sceneHeaderCompact: boolean
+  sceneEditorMode: 'single' | 'mirror'
 }
 interface TweaksContextType {
   tweaks: TweakState

@@ -1,7 +1,7 @@
 import { useRef } from 'react'
 import {
   Columns2, PanelLeft, PanelRight, BookOpen, AlignLeft, X,
-  Minimize2, Maximize2,
+  Minimize2, Maximize2, Square,
 } from 'lucide-react'
 import {
   LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS,
@@ -211,11 +211,19 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             <h3 style={h3Style}>Editor</h3>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Panelmodus</span>
+              <span style={labelStyle}>Dokument-Editor</span>
               <div className="seg">
                 <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={13} /></button></Tooltip>
                 <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={13} /></button></Tooltip>
                 <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={13} /></button></Tooltip>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
+              <span style={labelStyle}>Szenenkopf-Modus</span>
+              <div className="seg">
+                <Tooltip text="Ein Szenenkopf (aktuelle Fassung)"><button className={tweaks.sceneEditorMode === 'single' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'single')}><Square size={13} /></button></Tooltip>
+                <Tooltip text="Pro Panel ein Szenenkopf (Fassungsvergleich)"><button className={tweaks.sceneEditorMode === 'mirror' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'mirror')}><Columns2 size={13} /></button></Tooltip>
               </div>
             </div>
 
