@@ -373,11 +373,23 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     // ── Characters: use new characters + character_productions system ──
-    // Load existing kategorien for this staffel
-    const kategorien = await query(
+    // Load existing kategorien for this staffel — auto-create defaults if empty
+    let kategorien = await query(
       `SELECT id, name, typ FROM character_kategorien WHERE produktion_id = $1`,
       [produktion_id]
     )
+    if (kategorien.length === 0) {
+      await query(
+        `INSERT INTO character_kategorien (produktion_id, name, typ, sort_order)
+         VALUES ($1, 'Episoden-Rolle', 'rolle', 1), ($1, 'Komparse o.T.', 'komparse', 2)
+         ON CONFLICT (produktion_id, name) DO NOTHING`,
+        [produktion_id]
+      )
+      kategorien = await query(
+        `SELECT id, name, typ FROM character_kategorien WHERE produktion_id = $1`,
+        [produktion_id]
+      )
+    }
     const rolleKatId = kategorien.find((k: any) => k.name === 'Episoden-Rolle')?.id
       || kategorien.find((k: any) => k.typ === 'rolle')?.id || null
     const komparseKatId = kategorien.find((k: any) => k.name === 'Komparse o.T.')?.id
@@ -539,25 +551,55 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     // ── Motive: parse ort_name → drehort / motiv / untermotiv ──
-    // Normalize "A.D." and "A. D." prefixes to "Außendreh"
-    function normalizeOrtName(raw: string): string {
-      return raw.replace(/^A\.\s*D\.\s*/i, 'Außendreh / ').replace(/\s*\/\s*/g, ' / ')
+    // A.D. regex: matches "A.D.", "A. D.", "AD", "A.D", "AD.", "A D" etc.
+    const AD_REGEX = /^A\.?\s*D\.?\s+/i
+
+    // Strip A.D. prefix from a name and return { cleanName, isAD }
+    function stripAD(name: string): { cleanName: string; isAD: boolean } {
+      if (AD_REGEX.test(name)) {
+        return { cleanName: name.replace(AD_REGEX, '').trim(), isAD: true }
+      }
+      return { cleanName: name, isAD: false }
     }
 
-    function parseOrtName(raw: string): { drehortLabel: string | null; motivName: string; untermotivName: string | null } {
+    function normalizeOrtName(raw: string): string {
+      return raw.replace(/^A\.?\s*D\.?\s*/i, 'Außendreh / ').replace(/\s*\/\s*/g, ' / ')
+    }
+
+    function parseOrtName(raw: string): { drehortLabel: string | null; motivName: string; untermotivName: string | null; isAD: boolean } {
       const normalized = normalizeOrtName(raw)
       const parts = normalized.split(' / ').map(p => p.trim()).filter(Boolean)
+      let drehortLabel: string | null = null
+      let motivName: string
+      let untermotivName: string | null = null
+      let isAD = false
+
       if (parts.length >= 3) {
-        return { drehortLabel: parts[0], motivName: parts[1], untermotivName: parts.slice(2).join(' / ') }
-      }
-      if (parts.length === 2) {
-        // Check if first part looks like a Drehort label (Stu., Außendreh, etc.)
+        drehortLabel = parts[0]; motivName = parts[1]; untermotivName = parts.slice(2).join(' / ')
+      } else if (parts.length === 2) {
         const isDrehort = /^(Stu\.|Studio|Außendreh|Innendreh)/i.test(parts[0])
-        if (isDrehort) return { drehortLabel: parts[0], motivName: parts[1], untermotivName: null }
-        // Otherwise treat as motiv / untermotiv
-        return { drehortLabel: null, motivName: parts[0], untermotivName: parts[1] }
+        if (isDrehort) { drehortLabel = parts[0]; motivName = parts[1] }
+        else { motivName = parts[0]; untermotivName = parts[1] }
+      } else {
+        motivName = parts[0] || raw
       }
-      return { drehortLabel: null, motivName: parts[0] || raw, untermotivName: null }
+
+      // Detect Außendreh from drehort label
+      if (drehortLabel && /Außendreh/i.test(drehortLabel)) isAD = true
+
+      // Strip residual A.D. from motiv name (e.g. "A. D. Kurpark" after split)
+      const stripped = stripAD(motivName)
+      motivName = stripped.cleanName
+      if (stripped.isAD) isAD = true
+
+      // Also strip from untermotiv
+      if (untermotivName) {
+        const strippedUnter = stripAD(untermotivName)
+        untermotivName = strippedUnter.cleanName
+        if (strippedUnter.isAD) isAD = true
+      }
+
+      return { drehortLabel, motivName, untermotivName, isAD }
     }
 
     // Cache drehort IDs
@@ -587,9 +629,10 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     for (const szene of result.szenen) {
       if (!szene.ort_name) continue
       try {
-        const { drehortLabel, motivName, untermotivName } = parseOrtName(szene.ort_name)
+        const { drehortLabel, motivName, untermotivName, isAD } = parseOrtName(szene.ort_name)
         const drehortId = drehortLabel ? await getOrCreateDrehort(drehortLabel) : null
         const motivTyp = szene.int_ext === 'EXT' ? 'exterior' : 'interior'
+        const istStudio = !isAD
 
         // Get or create main motiv
         const motivKey = `|${motivName.toUpperCase()}`
@@ -603,14 +646,13 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           )
           if (!existing) {
             existing = await queryOne(
-              `INSERT INTO motive (produktion_id, name, typ, drehort_id, meta_json)
-               VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-              [produktion_id, motivName, motivTyp, untermotivName ? null : drehortId,
+              `INSERT INTO motive (produktion_id, name, typ, drehort_id, ist_studio, meta_json)
+               VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+              [produktion_id, motivName, motivTyp, untermotivName ? null : drehortId, istStudio,
                JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
             )
             motiveCreated++
           } else if (drehortId && !untermotivName) {
-            // Update drehort if not yet set
             await query(`UPDATE motive SET drehort_id = COALESCE(drehort_id, $1) WHERE id = $2`, [drehortId, existing.id])
           }
           motivId = existing.id
@@ -627,9 +669,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
             )
             if (!existing) {
               existing = await queryOne(
-                `INSERT INTO motive (produktion_id, name, typ, parent_id, drehort_id, meta_json)
-                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-                [produktion_id, untermotivName, motivTyp, motivId, drehortId,
+                `INSERT INTO motive (produktion_id, name, typ, parent_id, drehort_id, ist_studio, meta_json)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+                [produktion_id, untermotivName, motivTyp, motivId, drehortId, istStudio,
                  JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
               )
               motiveCreated++

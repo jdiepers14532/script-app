@@ -217,6 +217,7 @@ async function runMigrations() {
     'v50_drehorte_motive.sql',
     'v51_drop_legacy_tables.sql',
     'v52_element_type.sql',
+    'v53_motive_ist_studio.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

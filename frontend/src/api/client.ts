@@ -319,9 +319,9 @@ export const api = {
   // ── Motive ───────────────────────────────────────────────────────────────────
   getMotive: (produktionId: string) =>
     request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/motive`),
-  createMotiv: (produktionId: string, data: { name: string; typ?: string; motiv_nummer?: string }) =>
+  createMotiv: (produktionId: string, data: { name: string; typ?: string; motiv_nummer?: string; ist_studio?: boolean }) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/motive`, data),
-  updateMotiv: (motivId: string, data: { name?: string; typ?: string; motiv_nummer?: string | null }) =>
+  updateMotiv: (motivId: string, data: { name?: string; typ?: string; motiv_nummer?: string | null; ist_studio?: boolean }) =>
     request<any>('PUT', `/motive/${motivId}`, data),
   deleteMotiv: (motivId: string) =>
     request<any>('DELETE', `/motive/${motivId}`),

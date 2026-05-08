@@ -41,13 +41,13 @@ produktionMotiveRouter.get('/', async (req, res) => {
 // POST /api/produktionen/:produktionId/motive
 produktionMotiveRouter.post('/', async (req, res) => {
   const { produktionId } = req.params as any
-  const { name, typ, motiv_nummer, drehort_id, parent_id } = req.body
+  const { name, typ, motiv_nummer, drehort_id, parent_id, ist_studio } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   try {
     const row = await queryOne(
-      `INSERT INTO motive (produktion_id, name, typ, motiv_nummer, drehort_id, parent_id)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [produktionId, name.trim(), typ ?? 'interior', motiv_nummer ?? null, drehort_id ?? null, parent_id ?? null]
+      `INSERT INTO motive (produktion_id, name, typ, motiv_nummer, drehort_id, parent_id, ist_studio)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [produktionId, name.trim(), typ ?? 'interior', motiv_nummer ?? null, drehort_id ?? null, parent_id ?? null, ist_studio ?? true]
     )
     res.status(201).json(row)
   } catch (err) { res.status(500).json({ error: String(err) }) }
@@ -66,7 +66,7 @@ motivRouter.get('/', async (req, res) => {
 // PUT /api/motive/:id
 motivRouter.put('/', async (req, res) => {
   const { id } = req.params as any
-  const { name, typ, motiv_nummer, drehort_id, parent_id } = req.body
+  const { name, typ, motiv_nummer, drehort_id, parent_id, ist_studio } = req.body
   try {
     const row = await queryOne(
       `UPDATE motive SET
@@ -74,9 +74,10 @@ motivRouter.put('/', async (req, res) => {
          typ           = COALESCE($2, typ),
          motiv_nummer  = $3,
          drehort_id    = $5,
-         parent_id     = $6
+         parent_id     = $6,
+         ist_studio    = COALESCE($7, ist_studio)
        WHERE id = $4 RETURNING *`,
-      [name ?? null, typ ?? null, motiv_nummer ?? null, id, drehort_id ?? null, parent_id ?? null]
+      [name ?? null, typ ?? null, motiv_nummer ?? null, id, drehort_id ?? null, parent_id ?? null, ist_studio ?? null]
     )
     if (!row) return res.status(404).json({ error: 'Motiv nicht gefunden' })
     res.json(row)

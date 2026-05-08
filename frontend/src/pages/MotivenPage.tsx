@@ -47,6 +47,7 @@ export default function MotivenPage() {
   const [editName, setEditName] = useState('')
   const [editTyp, setEditTyp] = useState('interior')
   const [editNummer, setEditNummer] = useState('')
+  const [editIstStudio, setEditIstStudio] = useState(true)
   const [editFiktAdresse, setEditFiktAdresse] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -91,6 +92,7 @@ export default function MotivenPage() {
       setEditName(selected.name)
       setEditTyp(selected.typ ?? 'interior')
       setEditNummer(selected.motiv_nummer ?? '')
+      setEditIstStudio(selected.ist_studio ?? true)
     }
   }, [selected?.id])
 
@@ -123,6 +125,7 @@ export default function MotivenPage() {
         name: editName.trim(),
         typ: editTyp,
         motiv_nummer: editNummer.trim() || null,
+        ist_studio: editIstStudio,
       })
       setMotive(prev => prev.map(m => m.id === selectedId ? { ...m, ...updated } : m))
     } finally {
@@ -189,7 +192,7 @@ export default function MotivenPage() {
 
   const motivEntities = motive.map((m: any) => ({
     ...m,
-    badge: TYP_LABELS[m.typ] ?? m.typ,
+    badge: `${TYP_LABELS[m.typ] ?? m.typ}${m.ist_studio === false ? ' · A.D.' : ''}`,
     primaerFoto: m.primaer_thumbnail_dateiname
       ? `${THUMB_BASE}${m.primaer_thumbnail_dateiname}`
       : m.primaer_foto_dateiname && m.primaer_media_typ === 'image'
@@ -200,7 +203,8 @@ export default function MotivenPage() {
   const isDirty = selected && (
     editName !== selected.name ||
     editTyp !== (selected.typ ?? 'interior') ||
-    editNummer !== (selected.motiv_nummer ?? '')
+    editNummer !== (selected.motiv_nummer ?? '') ||
+    editIstStudio !== (selected.ist_studio ?? true)
   )
 
   const labelStyle: React.CSSProperties = {
@@ -321,6 +325,35 @@ export default function MotivenPage() {
                             {opt.label}
                           </button>
                         ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, display: 'block', marginBottom: 6 }}>Drehort</label>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          onClick={() => setEditIstStudio(true)}
+                          style={{
+                            fontSize: 12, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                            border: '1px solid',
+                            borderColor: editIstStudio ? 'var(--text)' : 'var(--border)',
+                            background: editIstStudio ? 'var(--text)' : 'transparent',
+                            color: editIstStudio ? 'var(--bg)' : 'var(--text)',
+                          }}
+                        >
+                          Studio
+                        </button>
+                        <button
+                          onClick={() => setEditIstStudio(false)}
+                          style={{
+                            fontSize: 12, padding: '4px 12px', borderRadius: 6, cursor: 'pointer',
+                            border: '1px solid',
+                            borderColor: !editIstStudio ? 'var(--text)' : 'var(--border)',
+                            background: !editIstStudio ? 'var(--text)' : 'transparent',
+                            color: !editIstStudio ? 'var(--bg)' : 'var(--text)',
+                          }}
+                        >
+                          Außendreh
+                        </button>
                       </div>
                     </div>
                     {felder.some(f => f.name === 'Fiktionale Adresse in der Geschichte') && (
