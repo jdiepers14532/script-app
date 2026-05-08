@@ -508,6 +508,10 @@ export default function ScriptPage() {
   }, [selectedProduktionId, selectedFolgeNummer, selectedStageId, selectedSzeneId, saveNavPosition])
 
   if (loading) return <div style={{ padding: 32, color: 'var(--text-secondary)' }}>Lädt…</div>
+
+  // Temporary debug bar — remove after fixing display issue
+  const debugInfo = `prod=${selectedProduktionId?.slice(0,8)||'—'} blk=${bloecke.length} folge=${selectedFolgeNummer??'—'} stage=${typeof selectedStageId==='string'?selectedStageId.slice(0,8):selectedStageId??'—'} sz=${szenen.length} sel=${typeof selectedSzeneId==='string'?selectedSzeneId.slice(0,8):selectedSzeneId??'—'} dok=${useDokumentSzenen}`
+
   return (
     <AppShell
       selectedProduktionId={selectedProduktionId}
@@ -524,6 +528,10 @@ export default function ScriptPage() {
       selectedStageId={selectedStageId}
       onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
     >
+      {/* Debug bar — remove after fixing */}
+      <div style={{ padding: '2px 8px', fontSize: 10, fontFamily: 'monospace', background: '#ffe0b2', color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', flexShrink: 0 }}>
+        {debugInfo}
+      </div>
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
 
         {/* Collapsible + resizable scene list */}
