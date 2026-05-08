@@ -212,7 +212,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     const {
       int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, dauer_sek,
       sort_order, seiten, spieltag, spielzeit, szeneninfo, content,
-      is_wechselschnitt, stoppzeit_sek,
+      is_wechselschnitt, stoppzeit_sek, notiz, motiv_id,
     } = req.body
 
     const row = await queryOne(
@@ -231,9 +231,11 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         szeneninfo = COALESCE($12, szeneninfo),
         is_wechselschnitt = COALESCE($13, is_wechselschnitt),
         stoppzeit_sek = COALESCE($15, stoppzeit_sek),
+        notiz = COALESCE($16, notiz),
+        motiv_id = COALESCE($17, motiv_id),
         updated_at = NOW(),
         updated_by = $14
-       WHERE id = $16 RETURNING *`,
+       WHERE id = $18 RETURNING *`,
       [
         int_ext, tageszeit, ort_name, zusammenfassung,
         content ? JSON.stringify(content) : null,
@@ -242,6 +244,8 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         spielzeit ?? null, szeneninfo ?? null, is_wechselschnitt ?? null,
         req.user?.name ?? null,
         stoppzeit_sek !== undefined ? stoppzeit_sek : null,
+        notiz !== undefined ? notiz : null,
+        motiv_id !== undefined ? motiv_id : null,
         req.params.id,
       ]
     )
@@ -385,16 +389,20 @@ sceneIdentitiesRouter.get('/:id/characters', async (req, res) => {
   try {
     const rows = await query(
       `SELECT sc.id, sc.character_id, sc.kategorie_id, sc.anzahl, sc.ist_gruppe,
+              sc.spiel_typ, sc.repliken_anzahl, sc.header_o_t,
               c.name, c.meta_json,
               cp.rollen_nummer, cp.komparsen_nummer,
-              ck.name AS kategorie_name, ck.typ AS kategorie_typ
+              COALESCE(ck.name, ck2.name) AS kategorie_name,
+              COALESCE(ck.typ, ck2.typ) AS kategorie_typ
        FROM scene_characters sc
        JOIN characters c ON c.id = sc.character_id
        LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
        LEFT JOIN scene_identities si ON si.id = sc.scene_identity_id
-       LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.produktion_id = si.produktion_id
+       LEFT JOIN folgen fl ON fl.id = si.folge_id
+       LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.produktion_id = fl.produktion_id
+       LEFT JOIN character_kategorien ck2 ON ck2.id = cp.kategorie_id
        WHERE sc.scene_identity_id = $1
-       ORDER BY ck.typ NULLS LAST, c.name`,
+       ORDER BY COALESCE(ck.typ, ck2.typ) NULLS LAST, c.name`,
       [req.params.id]
     )
     res.json(rows)

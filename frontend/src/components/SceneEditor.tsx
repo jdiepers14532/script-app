@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback, useContext } from 'react'
-import { FileDown, MessageSquare, Send, ExternalLink, X } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
+import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2 } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS } from '../data/scenes'
 import { api } from '../api/client'
@@ -61,6 +61,18 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [annotations, setAnnotations] = useState<any[]>([])
   const [annotationText, setAnnotationText] = useState('')
   const [annotationSending, setAnnotationSending] = useState(false)
+  const [allMotive, setAllMotive] = useState<any[]>([])
+  const [allCharacters, setAllCharacters] = useState<any[]>([])
+  const [charKategorien, setCharKategorien] = useState<any[]>([])
+  const [motivSearch, setMotivSearch] = useState('')
+  const [motivDropdownOpen, setMotivDropdownOpen] = useState(false)
+  const [charSearchRolle, setCharSearchRolle] = useState('')
+  const [charSearchKomparse, setCharSearchKomparse] = useState('')
+  const [charDropdownRolle, setCharDropdownRolle] = useState(false)
+  const [charDropdownKomparse, setCharDropdownKomparse] = useState(false)
+  const motivDropdownRef = useRef<HTMLDivElement | null>(null)
+  const rolleDropdownRef = useRef<HTMLDivElement | null>(null)
+  const komparseDropdownRef = useRef<HTMLDivElement | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const panelsRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
@@ -133,6 +145,29 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     document.addEventListener('mousemove', onMouseMove)
     document.addEventListener('mouseup', onMouseUp)
   }, [])
+
+  // Load motive + characters for autocomplete when produktionId changes
+  useEffect(() => {
+    if (!produktionId) return
+    api.getMotive(produktionId).then(setAllMotive).catch(() => setAllMotive([]))
+    api.getCharacters(produktionId).then(setAllCharacters).catch(() => setAllCharacters([]))
+    api.getCharKategorien(produktionId).then(setCharKategorien).catch(() => setCharKategorien([]))
+  }, [produktionId])
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (motivDropdownRef.current && !motivDropdownRef.current.contains(e.target as Node)) setMotivDropdownOpen(false)
+      if (rolleDropdownRef.current && !rolleDropdownRef.current.contains(e.target as Node)) setCharDropdownRolle(false)
+      if (komparseDropdownRef.current && !komparseDropdownRef.current.contains(e.target as Node)) setCharDropdownKomparse(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Derived: kategorie IDs for rolle/komparse
+  const rolleKatId = useMemo(() => charKategorien.find((k: any) => k.typ === 'rolle')?.id ?? null, [charKategorien])
+  const komparseKatId = useMemo(() => charKategorien.find((k: any) => k.typ === 'komparse')?.id ?? null, [charKategorien])
 
   // Load annotations when panel opens or scene changes
   useEffect(() => {
@@ -275,6 +310,40 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     }, 3000)
   }, [scene, szeneId, onSzeneUpdated])
 
+  const handleAddCharacter = useCallback(async (character: any, kategorieId: number | null) => {
+    if (!scene?.scene_identity_id) return
+    try {
+      await api.addSceneIdentityCharacter(scene.scene_identity_id, {
+        character_id: character.id,
+        kategorie_id: kategorieId,
+      })
+      const chars = await api.getSceneIdentityCharacters(scene.scene_identity_id)
+      setSceneChars(Array.isArray(chars) ? chars : [])
+    } catch (e: any) {
+      console.error('Fehler beim Hinzufügen', e)
+    }
+  }, [scene])
+
+  const handleRemoveCharacter = useCallback(async (characterId: string) => {
+    if (!scene?.scene_identity_id) return
+    try {
+      await api.removeSceneIdentityCharacter(scene.scene_identity_id, characterId)
+      setSceneChars(prev => prev.filter(c => c.character_id !== characterId))
+    } catch (e: any) {
+      console.error('Fehler beim Entfernen', e)
+    }
+  }, [scene])
+
+  const handleMotivSelect = useCallback(async (motiv: any) => {
+    setMotivDropdownOpen(false)
+    setMotivSearch('')
+    try {
+      const updated = await saveScene({ ort_name: motiv.name, motiv_id: motiv.id })
+      setScene(updated)
+      onSzeneUpdated?.(updated)
+    } catch {}
+  }, [saveScene, onSzeneUpdated])
+
   if (loading) {
     return (
       <div className="detail" style={{ padding: 32, color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center' }}>
@@ -354,8 +423,50 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             />
           )}
 
-          {/* Motiv — wächst und füllt */}
-          <span className="sf-motiv">{scene.ort_name}</span>
+          {/* Motiv — dropdown with autocomplete */}
+          <div className="sf-motiv-wrap" ref={motivDropdownRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+            <input
+              className="sf-motiv sf-motiv-input"
+              value={motivDropdownOpen ? motivSearch : (scene.ort_name ?? '')}
+              placeholder="Motiv…"
+              onChange={e => { setMotivSearch(e.target.value); if (!motivDropdownOpen) setMotivDropdownOpen(true) }}
+              onFocus={() => { setMotivDropdownOpen(true); setMotivSearch(scene.ort_name ?? '') }}
+              onBlur={e => {
+                // Delay to allow click on dropdown item
+                setTimeout(() => {
+                  if (!motivDropdownRef.current?.contains(document.activeElement)) {
+                    setMotivDropdownOpen(false)
+                    // If user typed a custom name (no motiv selected), save as ort_name
+                    const val = motivSearch.trim()
+                    if (val && val !== (scene.ort_name ?? '')) {
+                      saveScene({ ort_name: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                    }
+                  }
+                }, 150)
+              }}
+            />
+            {motivDropdownOpen && (
+              <div className="sf-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                {allMotive
+                  .filter(m => !motivSearch || m.name.toLowerCase().includes(motivSearch.toLowerCase()))
+                  .slice(0, 20)
+                  .map(m => (
+                    <div
+                      key={m.id}
+                      className="sf-dropdown-item"
+                      style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)' }}
+                      onMouseDown={e => { e.preventDefault(); handleMotivSelect(m) }}
+                    >
+                      {m.name}
+                      {m.typ && <span style={{ color: 'var(--text-muted)', marginLeft: 6, fontSize: 10 }}>{m.typ}</span>}
+                    </div>
+                  ))}
+                {allMotive.filter(m => !motivSearch || m.name.toLowerCase().includes(motivSearch.toLowerCase())).length === 0 && (
+                  <div style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Kein Motiv gefunden</div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Save status */}
           {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Speichert…</span>}
@@ -462,23 +573,108 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               }}
             />
           </div>
+          {/* Rollen — editable with autocomplete */}
           <div className="sf-row sf-chars">
             <span className="sf-tag">R·</span>
             <span className="sf-charlist">
-              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any) => c.name).join(', ') || <em className="sf-empty">—</em>}
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any) => (
+                <span key={c.character_id} className="sf-char-chip">
+                  {c.name}
+                  <button className="sf-char-remove" title="Entfernen" onClick={() => handleRemoveCharacter(c.character_id)}><X size={9} /></button>
+                </span>
+              ))}
+              <span className="sf-char-add-wrap" ref={rolleDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                <input
+                  className="sf-char-search"
+                  value={charSearchRolle}
+                  placeholder="+"
+                  onChange={e => { setCharSearchRolle(e.target.value); setCharDropdownRolle(true) }}
+                  onFocus={() => setCharDropdownRolle(true)}
+                  style={{ width: charSearchRolle ? 100 : 20 }}
+                />
+                {charDropdownRolle && (
+                  <div className="sf-dropdown" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 180, maxHeight: 180, overflowY: 'auto', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                    {allCharacters
+                      .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
+                      .filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase()))
+                      .slice(0, 15)
+                      .map(ch => (
+                        <div key={ch.id} className="sf-dropdown-item" style={{ padding: '5px 10px', cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)' }}
+                          onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, rolleKatId); setCharSearchRolle(''); setCharDropdownRolle(false) }}>
+                          {ch.name}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </span>
             </span>
           </div>
+          {/* Komparsen — editable with autocomplete */}
           <div className="sf-row sf-chars">
             <span className="sf-tag">K·</span>
             <span className="sf-charlist">
-              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => c.name).join(', ') || <em className="sf-empty">—</em>}
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => (
+                <span key={c.character_id} className="sf-char-chip">
+                  {c.name}
+                  <button className="sf-char-remove" title="Entfernen" onClick={() => handleRemoveCharacter(c.character_id)}><X size={9} /></button>
+                </span>
+              ))}
+              <span className="sf-char-add-wrap" ref={komparseDropdownRef} style={{ position: 'relative', display: 'inline-block' }}>
+                <input
+                  className="sf-char-search"
+                  value={charSearchKomparse}
+                  placeholder="+"
+                  onChange={e => { setCharSearchKomparse(e.target.value); setCharDropdownKomparse(true) }}
+                  onFocus={() => setCharDropdownKomparse(true)}
+                  style={{ width: charSearchKomparse ? 100 : 20 }}
+                />
+                {charDropdownKomparse && (
+                  <div className="sf-dropdown" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 180, maxHeight: 180, overflowY: 'auto', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, zIndex: 100, boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}>
+                    {allCharacters
+                      .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
+                      .filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase()))
+                      .slice(0, 15)
+                      .map(ch => (
+                        <div key={ch.id} className="sf-dropdown-item" style={{ padding: '5px 10px', cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)' }}
+                          onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, komparseKatId); setCharSearchKomparse(''); setCharDropdownKomparse(false) }}>
+                          {ch.name}
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </span>
             </span>
           </div>
-          {scene.szeneninfo && (
-            <div className="sf-row" style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic' }}>
-              {scene.szeneninfo}
-            </div>
-          )}
+          {/* Szeneninfo — editable */}
+          <div className="sf-row">
+            <input
+              key={`sinfo-${szeneId}`}
+              className="sf-input sf-input-info"
+              defaultValue={scene.szeneninfo ?? ''}
+              placeholder="Szeneninfo…"
+              style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic' }}
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.szeneninfo ?? null))
+                  saveScene({ szeneninfo: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+              }}
+            />
+          </div>
+          {/* Notiz — editable */}
+          <div className="sf-row">
+            <textarea
+              key={`notiz-${szeneId}`}
+              className="sf-input sf-notiz"
+              defaultValue={scene.notiz ?? ''}
+              placeholder="Notiz…"
+              rows={2}
+              onBlur={e => {
+                const val = e.target.value.trim() || null
+                if (val !== (scene.notiz ?? null))
+                  saveScene({ notiz: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+              }}
+            />
+          </div>
           </div>{/* end scene-fields-rows */}
         </div>
       </div>
