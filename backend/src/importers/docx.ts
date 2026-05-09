@@ -2,6 +2,11 @@ import mammoth from 'mammoth'
 import { Textelement, TextelementType, InlineNode, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+/i
+const KOMPARSEN_RE = /^Komparsen:\s*(.*)/i
+// Footer patterns to filter out
+const FOOTER_RE = /^(Treatment|Drehbuch|Synopsis|Exposé?)\s*-\s*Episode\s+\d+$/i
+const FOOTER_STAND_RE = /^Stand:\s+\d{2}\.\d{2}\.\d{4}/
+const FOOTER_PAGE_RE = /^\d+\s+von\s+\d+$/
 
 // Style name -> Textelement-Typ mapping fuer Drehbuch-Word-Stile
 const STYLE_MAP: Record<string, TextelementType> = {
@@ -114,14 +119,18 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
   let lastTextelementType: TextelementType | null = null
   const allCharaktere = new Set<string>()
 
-  // Parse HTML paragraph by paragraph
-  const paraRe = /<p([^>]*)>(.*?)<\/p>/gi
+  // Parse HTML paragraphs AND headings (h1-h6)
+  const paraRe = /<(p|h[1-6])([^>]*)>(.*?)<\/\1>/gi
   let match
   while ((match = paraRe.exec(html)) !== null) {
-    const attrs = match[1]
-    const innerHtml = match[2]
+    const tagName = match[1].toLowerCase()
+    const attrs = match[2]
+    const innerHtml = match[3]
     const rawText = innerHtml.replace(/<[^>]+>/g, '').trim()
     if (!rawText) continue
+
+    // Filter out footer lines
+    if (FOOTER_RE.test(rawText) || FOOTER_STAND_RE.test(rawText) || FOOTER_PAGE_RE.test(rawText)) continue
 
     // Determine class from style mapping
     const classMatch = /class="([^"]+)"/.exec(attrs)
@@ -131,6 +140,21 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
     for (const cls of classes) {
       const key = cls.toLowerCase()
       if (STYLE_MAP[key]) { detectedType = STYLE_MAP[key]; break }
+    }
+
+    // Headings (h1-h6): treat as general text (title/heading from document)
+    const isHeading = tagName.startsWith('h')
+
+    // Check for Komparsen line → extract into scene metadata, not textelemente
+    const kompM = KOMPARSEN_RE.exec(rawText)
+    if (kompM) {
+      if (currentScene) {
+        const kompText = kompM[1]
+        const names = kompText.split(',').map(k => k.trim()).filter(Boolean)
+        if (!currentScene.komparsen) currentScene.komparsen = []
+        currentScene.komparsen.push(...names)
+      }
+      continue
     }
 
     // Fallback heuristic
@@ -175,6 +199,9 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
     const richContent = parseInlineHtml(innerHtml)
     const hasRichFormatting = richContent.some(n => n.marks && n.marks.length > 0)
     const alignment = extractAlignment(attrs)
+
+    // For headings, mark as general type with bold formatting
+    if (isHeading && !detectedType) detectedType = 'general'
 
     const textelement: Textelement = {
       id: nextId(),

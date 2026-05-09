@@ -59,6 +59,11 @@ const PARENTHETICAL_RE = /^\(.+\)$/
 const SHOT_RE = /^(NAHAUFNAHME|TOTALE|HALBTOTALE|KAMERAFAHRT|ZOOM|SCHWENK|SCHUSS|POV|INSERT|CLOSE ON|WIDE SHOT|MEDIUM SHOT)/i
 const NOTE_RE = /^\[\[.+\]\]$/
 const PAGE_BREAK_RE = /^={3,}$/
+const KOMPARSEN_RE = /^Komparsen:\s*(.*)/i
+// Footer patterns to filter out
+const FOOTER_RE = /^(Treatment|Drehbuch|Synopsis|Exposé?)\s*-\s*Episode\s+\d+$/i
+const FOOTER_STAND_RE = /^Stand:\s+\d{2}\.\d{2}\.\d{4}/
+const FOOTER_PAGE_RE = /^\d+\s+von\s+\d+$/
 
 export function parseFountain(content: string): ImportResult {
   const warnings: string[] = []
@@ -74,8 +79,9 @@ export function parseFountain(content: string): ImportResult {
     const line = lines[i]
     const trimmed = line.trim()
 
-    // Skip notes, page breaks, blank lines
-    if (!trimmed || NOTE_RE.test(trimmed) || PAGE_BREAK_RE.test(trimmed)) {
+    // Skip notes, page breaks, blank lines, footers
+    if (!trimmed || NOTE_RE.test(trimmed) || PAGE_BREAK_RE.test(trimmed)
+      || FOOTER_RE.test(trimmed) || FOOTER_STAND_RE.test(trimmed) || FOOTER_PAGE_RE.test(trimmed)) {
       // Blank line resets character context for dialogue
       if (!trimmed && lastTextelementType === 'dialogue') {
         lastCharacter = ''
@@ -120,6 +126,18 @@ export function parseFountain(content: string): ImportResult {
       currentScene.textelemente.push(textelement)
       lastTextelementType = 'transition'
       lastCharacter = ''
+      i++
+      continue
+    }
+
+    // Komparsen line → extract into scene metadata
+    const kompM = KOMPARSEN_RE.exec(trimmed)
+    if (kompM) {
+      if (currentScene) {
+        const names = kompM[1].split(',').map(k => k.trim()).filter(Boolean)
+        if (!currentScene.komparsen) currentScene.komparsen = []
+        currentScene.komparsen.push(...names)
+      }
       i++
       continue
     }
