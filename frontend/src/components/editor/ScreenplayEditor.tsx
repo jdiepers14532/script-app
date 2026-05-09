@@ -27,7 +27,7 @@ const ELEMENT_TYPE_LABELS: Record<ScreenplayElementType, string> = {
   action: 'Aktion',
   character: 'Figur',
   dialogue: 'Dialog',
-  parenthetical: 'Regie',
+  parenthetical: 'Par.',
   transition: 'Übergang',
   shot: 'Shot',
 }

@@ -194,7 +194,7 @@ export default function EditorPage() {
           }}>{t.icon}</button>
         ))}
         <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 4px' }} />
-        {['Überschrift', 'Action', 'Charakter', 'Regieanweisung', 'Dialog', 'Transition'].map(t => (
+        {['Überschrift', 'Action', 'Charakter', 'Par.', 'Dialog', 'Transition'].map(t => (
           <button key={t} style={{
             padding: '3px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)',
             background: 'transparent', color: 'var(--text-secondary)',
