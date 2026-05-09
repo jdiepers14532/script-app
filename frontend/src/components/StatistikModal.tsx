@@ -26,6 +26,8 @@ interface StatistikModalProps {
   bloecke: any[]
   sections: StatModalSection[]
   initialFolgeNummer?: number | null
+  onNavigateToScene?: (sceneNummer: number) => void
+  szenen?: any[]
 }
 
 type ViewMode = 'folge' | 'block'
@@ -46,7 +48,7 @@ function formatDrehdauer(sek: number): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function StatistikModal({ onClose, folgen, bloecke, sections, initialFolgeNummer }: StatistikModalProps) {
+export default function StatistikModal({ onClose, folgen, bloecke, sections, initialFolgeNummer, onNavigateToScene, szenen }: StatistikModalProps) {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
 
@@ -64,6 +66,9 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
   const [loading, setLoading] = useState(false)
   const [hideDetails, setHideDetails] = useState(false)
   const refreshCounter = useRef(0)
+
+  // Interaction tooltip
+  const [interactionTooltip, setInteractionTooltip] = useState<{ x: number; y: number; pairs: { name: string; count: number }[] } | null>(null)
 
   // Auto-select folge: prefer initialFolgeNummer, fallback to last
   useEffect(() => {
@@ -126,6 +131,24 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
       window.removeEventListener('scene-characters-changed', handler)
     }
   }, [loadReport])
+
+  // Close interaction tooltip on outside click
+  useEffect(() => {
+    if (!interactionTooltip) return
+    const handler = () => setInteractionTooltip(null)
+    window.addEventListener('mousedown', handler)
+    return () => window.removeEventListener('mousedown', handler)
+  }, [interactionTooltip])
+
+  // Scene click handler — navigate to scene in editor
+  const handleSceneClick = useCallback((ref: string) => {
+    // ref is like "4402.6" — extract scene_nummer
+    const parts = ref.split('.')
+    const sceneNum = parseInt(parts[parts.length - 1])
+    if (!isNaN(sceneNum) && onNavigateToScene) {
+      onNavigateToScene(sceneNum)
+    }
+  }, [onNavigateToScene])
 
   // ── Drag ─────────────────────────────────────────────────────────────────
 
@@ -238,46 +261,29 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
         <div onMouseDown={onResizeStart('se')} style={{ position: 'absolute', bottom: -3, right: -3, width: 12, height: 12, cursor: 'se-resize', zIndex: 3 }} />
       </>}
 
-      {/* Header — tooltip-styled dark bar */}
+      {/* Header */}
       <div
         onMouseDown={onDragStart}
         style={{
-          background: '#111',
-          color: '#fff',
-          padding: '8px 12px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          cursor: expanded ? 'default' : 'grab',
-          userSelect: 'none',
-          flexShrink: 0,
-          borderRadius: '8px 8px 0 0',
+          background: '#111', color: '#fff', padding: '8px 12px',
+          display: 'flex', alignItems: 'center', gap: 8,
+          cursor: expanded ? 'default' : 'grab', userSelect: 'none',
+          flexShrink: 0, borderRadius: '8px 8px 0 0',
         }}
       >
-        {/* Drag handle */}
         <span style={{ fontSize: 14, lineHeight: 1, opacity: 0.5 }}>&#x2807;</span>
-
-        {/* Title */}
         <span style={{ flex: 1, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           Statistiken {title}
         </span>
-
-        {/* Refresh */}
         <button onClick={loadReport} title="Aktualisieren" style={headerBtn}>
           <RefreshCw size={13} style={loading ? { animation: 'spin 1s linear infinite' } : undefined} />
         </button>
-
-        {/* Hide details toggle */}
         <button onClick={() => setHideDetails(v => !v)} title={hideDetails ? 'Details einblenden' : 'Details ausblenden'} style={headerBtn}>
           {hideDetails ? <Eye size={13} /> : <EyeOff size={13} />}
         </button>
-
-        {/* Expand */}
         <button onClick={toggleExpand} title={expanded ? 'Verkleinern' : 'Maximieren'} style={headerBtn}>
           {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
         </button>
-
-        {/* Close */}
         <button onClick={onClose} title="Schliessen" style={headerBtn}>
           <X size={13} />
         </button>
@@ -285,42 +291,21 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
 
       {/* Toolbar */}
       <div style={{
-        padding: '8px 12px',
-        borderBottom: '1px solid var(--border, #e0e0e0)',
-        display: 'flex',
-        gap: 8,
-        alignItems: 'center',
-        flexShrink: 0,
-        flexWrap: 'wrap',
-        fontSize: 12,
+        padding: '8px 12px', borderBottom: '1px solid var(--border, #e0e0e0)',
+        display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', fontSize: 12,
       }}>
-        {/* Mode toggle */}
         <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 5, overflow: 'hidden' }}>
           <button onClick={() => setMode('folge')} style={toggleBtnStyle(mode === 'folge')}>Pro Folge</button>
           <button onClick={() => setMode('block')} style={{ ...toggleBtnStyle(mode === 'block'), borderLeft: '1px solid var(--border)' }}>Pro Block</button>
         </div>
-
-        {/* Selector */}
         {mode === 'folge' && (
-          <select
-            value={selectedFolgeId ?? ''}
-            onChange={e => setSelectedFolgeId(Number(e.target.value) || null)}
-            style={selectStyle}
-          >
-            {folgen.map(f => (
-              <option key={f.id} value={f.id}>Folge {f.folge_nummer}</option>
-            ))}
+          <select value={selectedFolgeId ?? ''} onChange={e => setSelectedFolgeId(Number(e.target.value) || null)} style={selectStyle}>
+            {folgen.map(f => <option key={f.id} value={f.id}>Folge {f.folge_nummer}</option>)}
           </select>
         )}
         {mode === 'block' && bloecke.length > 0 && (
-          <select
-            value={selectedBlockIdx}
-            onChange={e => setSelectedBlockIdx(Number(e.target.value))}
-            style={selectStyle}
-          >
-            {bloecke.map((b, i) => (
-              <option key={i} value={i}>Block {b.block_nummer} ({b.folge_von}-{b.folge_bis})</option>
-            ))}
+          <select value={selectedBlockIdx} onChange={e => setSelectedBlockIdx(Number(e.target.value))} style={selectStyle}>
+            {bloecke.map((b, i) => <option key={i} value={i}>Block {b.block_nummer} ({b.folge_von}-{b.folge_bis})</option>)}
           </select>
         )}
         {mode === 'block' && bloecke.length === 0 && (
@@ -335,11 +320,37 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
         ) : !report ? (
           <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 32, fontSize: 13 }}>Keine Daten</div>
         ) : (
-          <ReportContent report={report} sections={visibleSections} hideDetails={hideDetails} />
+          <ReportContent
+            report={report}
+            sections={visibleSections}
+            hideDetails={hideDetails}
+            onSceneClick={onNavigateToScene ? handleSceneClick : undefined}
+            onShowInteraction={(e, pairs) => setInteractionTooltip({ x: e.clientX, y: e.clientY, pairs })}
+          />
         )}
       </div>
 
-      {/* Spin animation */}
+      {/* Interaction tooltip */}
+      {interactionTooltip && (
+        <div
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            position: 'fixed', left: interactionTooltip.x, top: interactionTooltip.y,
+            transform: 'translate(-50%, -100%) translateY(-8px)',
+            background: '#111', color: '#fff', fontSize: 11, lineHeight: 1.5,
+            padding: '8px 12px', borderRadius: 6, maxWidth: 280, maxHeight: 300, overflowY: 'auto',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 100001, whiteSpace: 'pre-line',
+          }}
+        >
+          {interactionTooltip.pairs.map((p, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '1px 0' }}>
+              <span>{p.name}</span>
+              <span style={{ fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{p.count}x</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>,
     document.body
@@ -348,7 +359,15 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
 
 // ── Report Content ────────────────────────────────────────────────────────────
 
-function ReportContent({ report, sections, hideDetails }: { report: any; sections: StatModalSection[]; hideDetails: boolean }) {
+interface ReportContentProps {
+  report: any
+  sections: StatModalSection[]
+  hideDetails: boolean
+  onSceneClick?: (ref: string) => void
+  onShowInteraction: (e: React.MouseEvent, pairs: { name: string; count: number }[]) => void
+}
+
+function ReportContent({ report, sections, hideDetails, onSceneClick, onShowInteraction }: ReportContentProps) {
   return (
     <div style={{ fontSize: 13 }}>
       {sections.map(sec => {
@@ -358,9 +377,9 @@ function ReportContent({ report, sections, hideDetails }: { report: any; section
           case 'rollen_pro_bild':
             return <RollenProBildSection key={sec.id} report={report} />
           case 'rollen':
-            return <RollenSection key={sec.id} report={report} hideDetails={hideDetails} />
+            return <RollenSection key={sec.id} report={report} hideDetails={hideDetails} onSceneClick={onSceneClick} onShowInteraction={onShowInteraction} />
           case 'motive':
-            return <MotiveSection key={sec.id} report={report} hideDetails={hideDetails} />
+            return <MotiveSection key={sec.id} report={report} hideDetails={hideDetails} onSceneClick={onSceneClick} />
           case 'drehorte':
             return <DrehorteSection key={sec.id} report={report} />
           default:
@@ -377,8 +396,8 @@ function UebersichtSection({ report }: { report: any }) {
   return (
     <Section>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px' }}>
-        <SummaryItem label="Bilder insgesamt" value={report.bilder_insgesamt} />
-        <SummaryItem label="Anzahl an Drehbuchseiten" value={report.drehbuchseiten_display || '0'} />
+        <SummaryItem label="Szenen insgesamt" value={report.szenen_insgesamt ?? report.bilder_insgesamt} />
+        <SummaryItem label="Anzahl an Drehbuchseiten" value={report.drehbuchseiten_display || '-'} />
         <SummaryItem label="Vorstopp (mm:ss)" value={formatTime(report.vorstopp_sek || 0)} />
         <SummaryItem label="Geplante Drehdauer (hh:mm)" value={report.vorstopp_sek ? formatDrehdauer(report.vorstopp_sek) : '-'} />
       </div>
@@ -387,27 +406,41 @@ function UebersichtSection({ report }: { report: any }) {
 }
 
 function RollenProBildSection({ report }: { report: any }) {
-  if (!report.rollen_pro_bild?.length) return null
-
   const grouped = useMemo(() => {
     const result: { label: string; count: number }[] = []
-    let over3 = 0
-    for (const r of report.rollen_pro_bild) {
+    const map = new Map<number, number>()
+
+    // Collect from report data
+    for (const r of (report.rollen_pro_bild || [])) {
       if (r.rollen_count <= 3) {
-        result.push({
-          label: `Bilder mit ${r.rollen_count} ${r.rollen_count === 1 ? 'Rolle' : 'Rollen'}`,
-          count: r.bilder_count,
-        })
+        map.set(r.rollen_count, (map.get(r.rollen_count) || 0) + r.bilder_count)
       } else {
-        over3 += r.bilder_count
+        map.set(99, (map.get(99) || 0) + r.bilder_count)
       }
     }
-    if (over3 > 0) result.push({ label: 'Bilder mit mehr als 3 Rollen', count: over3 })
+
+    // Scenes with 0 characters
+    const totalWithChars = Array.from(map.values()).reduce((s, v) => s + v, 0)
+    const totalScenes = report.szenen_insgesamt ?? report.bilder_insgesamt ?? 0
+    const zeroCharScenes = totalScenes - totalWithChars
+    if (zeroCharScenes > 0) {
+      result.push({ label: 'Szenen mit 0 Rollen', count: zeroCharScenes })
+    }
+
+    for (let n = 1; n <= 3; n++) {
+      const c = map.get(n)
+      if (c) result.push({ label: `Szenen mit ${n} ${n === 1 ? 'Rolle' : 'Rollen'}`, count: c })
+    }
+    const over3 = map.get(99)
+    if (over3) result.push({ label: 'Szenen mit mehr als 3 Rollen', count: over3 })
+
     return result
-  }, [report.rollen_pro_bild])
+  }, [report.rollen_pro_bild, report.szenen_insgesamt, report.bilder_insgesamt])
+
+  if (grouped.length === 0) return null
 
   return (
-    <Section title="Rollen pro Bild">
+    <Section title="Rollen pro Szene">
       {grouped.map((g, i) => (
         <div key={i} style={listRow}>
           <span style={countBadge}>{g.count}x</span>
@@ -418,31 +451,71 @@ function RollenProBildSection({ report }: { report: any }) {
   )
 }
 
-function RollenSection({ report, hideDetails }: { report: any; hideDetails: boolean }) {
+function RollenSection({ report, hideDetails, onSceneClick, onShowInteraction }: {
+  report: any; hideDetails: boolean; onSceneClick?: (ref: string) => void
+  onShowInteraction: (e: React.MouseEvent, pairs: { name: string; count: number }[]) => void
+}) {
   if (!report.rollen?.length) return null
+
+  // Build interaction map from report.interactions (if available)
+  const interactionMap = useMemo(() => {
+    const m = new Map<string, { total: number; pairs: { name: string; count: number }[] }>()
+    if (!report.interactions) return m
+    for (const int of report.interactions) {
+      // int = { character_a, character_b, character_name_a, character_name_b, shared_scenes }
+      for (const side of ['a', 'b'] as const) {
+        const charName = int[`character_name_${side}`]
+        const otherName = int[`character_name_${side === 'a' ? 'b' : 'a'}`]
+        if (!m.has(charName)) m.set(charName, { total: 0, pairs: [] })
+        const entry = m.get(charName)!
+        entry.total += int.shared_scenes
+        entry.pairs.push({ name: otherName, count: int.shared_scenes })
+      }
+    }
+    // Sort pairs by count desc
+    for (const entry of m.values()) {
+      entry.pairs.sort((a, b) => b.count - a.count)
+    }
+    return m
+  }, [report.interactions])
+
   return (
     <Section title="Rollen">
-      {report.rollen.map((r: any, i: number) => (
-        <div key={i} style={{ ...listRow, alignItems: 'flex-start' }}>
-          <span style={countBadge}>{r.scene_count}x</span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontWeight: 500 }}>{r.character_name}</span>
-            {!hideDetails && r.darsteller_name && (
-              <span style={{ color: 'var(--text-secondary)', marginLeft: 12 }}>{r.darsteller_name}</span>
-            )}
-            {!hideDetails && r.scenes?.length > 0 && (
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, wordBreak: 'break-all' }}>
-                {r.scenes.length > 12 ? r.scenes.slice(0, 12).join(', ') + ', ...' : r.scenes.join(', ')}
-              </div>
-            )}
+      {report.rollen.map((r: any, i: number) => {
+        const interaction = interactionMap.get(r.character_name)
+        return (
+          <div key={i} style={{ ...listRow, alignItems: 'flex-start' }}>
+            <span style={countBadge}>{r.scene_count}x</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <span style={{ fontWeight: 500 }}>{r.character_name}</span>
+              {!hideDetails && r.darsteller_name && (
+                <span style={{ color: 'var(--text-secondary)', marginLeft: 12 }}>{r.darsteller_name}</span>
+              )}
+              {interaction && interaction.pairs.length > 0 && (
+                <span
+                  onClick={e => { e.stopPropagation(); onShowInteraction(e, interaction.pairs) }}
+                  style={{
+                    marginLeft: 8, fontSize: 11, color: 'var(--text-secondary)',
+                    cursor: 'pointer', textDecoration: 'underline dotted',
+                  }}
+                >
+                  Interaktion: {interaction.pairs.length}
+                </span>
+              )}
+              {!hideDetails && r.scenes?.length > 0 && (
+                <div style={{ fontSize: 11, marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: '0 4px' }}>
+                  <SceneRefs scenes={r.scenes} onSceneClick={onSceneClick} />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </Section>
   )
 }
 
-function MotiveSection({ report, hideDetails }: { report: any; hideDetails: boolean }) {
+function MotiveSection({ report, hideDetails, onSceneClick }: { report: any; hideDetails: boolean; onSceneClick?: (ref: string) => void }) {
   if (!report.motive?.length) return null
   return (
     <Section title="Motive">
@@ -453,8 +526,8 @@ function MotiveSection({ report, hideDetails }: { report: any; hideDetails: bool
             <span style={{ fontWeight: 500 }}>{m.name}</span>
             <span style={{ color: 'var(--text-secondary)', marginLeft: 12 }}>{m.drehort}</span>
             {!hideDetails && m.scenes?.length > 0 && (
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, wordBreak: 'break-all' }}>
-                {m.scenes.length > 12 ? m.scenes.slice(0, 12).join(', ') + ', ...' : m.scenes.join(', ')}
+              <div style={{ fontSize: 11, marginTop: 2, display: 'flex', flexWrap: 'wrap', gap: '0 4px' }}>
+                <SceneRefs scenes={m.scenes} onSceneClick={onSceneClick} />
               </div>
             )}
           </div>
@@ -475,6 +548,34 @@ function DrehorteSection({ report }: { report: any }) {
         </div>
       ))}
     </Section>
+  )
+}
+
+// ── Scene references (clickable) ──────────────────────────────────────────────
+
+function SceneRefs({ scenes, onSceneClick }: { scenes: string[]; onSceneClick?: (ref: string) => void }) {
+  if (!scenes || scenes.length === 0) return null
+  const display = scenes.length > 16 ? scenes.slice(0, 16) : scenes
+  const hasMore = scenes.length > 16
+  return (
+    <>
+      {display.map((ref, i) => (
+        <span key={i}>
+          {onSceneClick ? (
+            <span
+              onClick={e => { e.stopPropagation(); onSceneClick(ref) }}
+              style={{ color: 'var(--sw-info, #007AFF)', cursor: 'pointer', textDecoration: 'underline' }}
+            >
+              {ref}
+            </span>
+          ) : (
+            <span style={{ color: 'var(--text-secondary)' }}>{ref}</span>
+          )}
+          {i < display.length - 1 && <span style={{ color: 'var(--text-muted)' }}>, </span>}
+        </span>
+      ))}
+      {hasMore && <span style={{ color: 'var(--text-muted)' }}>, ...</span>}
+    </>
   )
 }
 

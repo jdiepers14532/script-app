@@ -3,17 +3,43 @@ import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import { useState, useEffect, useRef, useCallback, useMemo, type WheelEvent } from 'react'
-import { Info } from 'lucide-react'
+import {
+  Info, ChevronDown, ChevronUp,
+  Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
+  AlignLeft, AlignCenter, AlignRight,
+  List, ListOrdered, ImageIcon, Maximize2, Minimize2,
+} from 'lucide-react'
 import Tooltip from '../Tooltip'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
+import { TextStyle } from '@tiptap/extension-text-style'
+import FontFamily from '@tiptap/extension-font-family'
+import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import { ScreenplayExtension, ScreenplayElementType, FormatElement, SCREENPLAY_CSS } from '../../tiptap/ScreenplayExtension'
 import { AbsatzExtension, generateAbsatzCSS, convertScreenplayToAbsatz, type AbsatzFormat } from '../../tiptap/AbsatzExtension'
+import { FontSizeExtension } from '../../tiptap/FontSizeExtension'
+import { LineSpacingExtension } from '../../tiptap/LineSpacingExtension'
 import { AnnotationMark } from '../../tiptap/AnnotationMark'
 import PageWrapper from './PageWrapper'
+
+// ── Platform detection ──────────────────────────────────────────────────────
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
+const modKey = isMac ? '\u2318' : 'Ctrl'
+const altKey = isMac ? '\u2325' : 'Alt'
+
+// ── Courier Prime font ──────────────────────────────────────────────────────
+let fontLoaded = false
+function loadCourierPrime() {
+  if (fontLoaded) return
+  fontLoaded = true
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = 'https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap'
+  document.head.appendChild(link)
+}
 
 // Inject screenplay CSS once (backward compat)
 let spCssInjected = false
@@ -25,6 +51,38 @@ function injectScreenplayCSS() {
   document.head.appendChild(style)
   spCssInjected = true
 }
+
+// ── Constants ───────────────────────────────────────────────────────────────
+
+const FONT_SIZES = ['9pt', '10pt', '11pt', '12pt', '13pt', '14pt', '16pt', '18pt', '24pt', '36pt']
+const FONT_FAMILIES = [
+  { label: 'Courier Prime', value: 'Courier Prime' },
+  { label: 'Courier New', value: 'Courier New' },
+  { label: 'Inter', value: 'Inter' },
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Helvetica', value: 'Helvetica' },
+  { label: 'Times New Roman', value: 'Times New Roman' },
+  { label: 'Georgia', value: 'Georgia' },
+]
+const LINE_SPACINGS = [
+  { label: '1.0', value: '1' },
+  { label: '1.15', value: '1.15' },
+  { label: '1.5', value: '1.5' },
+  { label: '2.0', value: '2' },
+]
+
+const LS_TOOLBAR_KEY = 'script_editor_toolbar'
+function loadToolbarPrefs(): { formatBar: boolean; textBar: boolean } {
+  try {
+    const raw = localStorage.getItem(LS_TOOLBAR_KEY)
+    return raw ? JSON.parse(raw) : { formatBar: true, textBar: true }
+  } catch { return { formatBar: true, textBar: true } }
+}
+function saveToolbarPrefs(prefs: { formatBar: boolean; textBar: boolean }) {
+  try { localStorage.setItem(LS_TOOLBAR_KEY, JSON.stringify(prefs)) } catch {}
+}
+
+// ── Props ───────────────────────────────────────────────────────────────────
 
 interface UniversalEditorProps {
   ydoc?: Y.Doc | null
@@ -44,6 +102,8 @@ interface UniversalEditorProps {
   onNavigatePrev?: () => void
 }
 
+// ── Component ───────────────────────────────────────────────────────────────
+
 export default function UniversalEditor({
   initialContent,
   onSave,
@@ -62,10 +122,27 @@ export default function UniversalEditor({
   onNavigatePrev,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
+  loadCourierPrime()
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
   onSaveRef.current = onSave
+
+  // Toolbar visibility
+  const [toolbarPrefs, setToolbarPrefs] = useState(loadToolbarPrefs)
+  const toggleToolbar = useCallback((bar: 'formatBar' | 'textBar') => {
+    setToolbarPrefs(prev => {
+      const next = { ...prev, [bar]: !prev[bar] }
+      saveToolbarPrefs(next)
+      return next
+    })
+  }, [])
+  const toggleAllToolbars = useCallback(() => {
+    const allVisible = toolbarPrefs.formatBar && toolbarPrefs.textBar
+    const next = { formatBar: !allVisible, textBar: !allVisible }
+    setToolbarPrefs(next)
+    saveToolbarPrefs(next)
+  }, [toolbarPrefs])
 
   // Filter formats by kategorie
   const relevantFormats = useMemo(() =>
@@ -84,21 +161,16 @@ export default function UniversalEditor({
       document.head.appendChild(style)
     }
     style.textContent = generateAbsatzCSS(absatzformate)
-    return () => { /* keep CSS injected across re-renders */ }
   }, [absatzformate, relevantFormats])
 
   // Convert content from screenplay_element to absatz if formats available
   const processedContent = useMemo(() => {
     if (!initialContent) return null
     if (relevantFormats.length === 0) return initialContent
-
-    // Check if content has screenplay_element nodes
     const hasScreenplay = initialContent?.content?.some(
       (n: any) => n.type === 'screenplay_element'
     )
-    if (hasScreenplay) {
-      return convertScreenplayToAbsatz(initialContent, relevantFormats)
-    }
+    if (hasScreenplay) return convertScreenplayToAbsatz(initialContent, relevantFormats)
     return initialContent
   }, [initialContent, relevantFormats])
 
@@ -135,12 +207,10 @@ export default function UniversalEditor({
     })] : []),
   ] : []
 
-  // Determine which node types to include
   const hasAbsatzFormate = relevantFormats.length > 0
 
   const editor = useEditor({
     extensions: [
-      // Always include paragraph + heading as fallback (content may have mixed node types)
       StarterKit.configure({
         blockquote: false,
         codeBlock: false,
@@ -148,10 +218,13 @@ export default function UniversalEditor({
         history: ydoc ? false : undefined,
       }),
       Underline,
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      // Always include ScreenplayExtension for backward compat rendering
+      TextStyle,
+      FontFamily,
+      FontSizeExtension,
+      LineSpacingExtension,
+      TextAlign.configure({ types: ['heading', 'paragraph', 'absatz', 'screenplay_element'] }),
+      Image.configure({ inline: false, allowBase64: true }),
       ScreenplayExtension.configure({ formatElements }),
-      // Include AbsatzExtension when formats are available
       ...(hasAbsatzFormate ? [AbsatzExtension.configure({ formate: relevantFormats })] : []),
       AnnotationMark,
       Placeholder.configure({
@@ -169,7 +242,7 @@ export default function UniversalEditor({
         onSaveRef.current?.(editor.getJSON())
       }, autoSaveMs)
     },
-  }, [processedContent, hasAbsatzFormate]) // re-create editor when content/formats change
+  }, [processedContent, hasAbsatzFormate])
 
   useEffect(() => {
     editor?.setEditable(!readOnly)
@@ -211,7 +284,6 @@ export default function UniversalEditor({
     return null
   }, [editor, relevantFormats])
 
-  // Get current screenplay element type (backward compat)
   const getCurrentElementType = useCallback((): ScreenplayElementType | null => {
     if (!editor) return null
     const { $from } = editor.state.selection
@@ -239,83 +311,317 @@ export default function UniversalEditor({
     }
   }, [editor, getCurrentFormat, getCurrentElementType])
 
+  // Image upload handler
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const handleImageUpload = useCallback(async (file: File) => {
+    if (!editor) return
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      const res = await fetch('/api/editor-uploads', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+      const data = await res.json()
+      if (data.url) {
+        editor.chain().focus().setImage({ src: data.url }).run()
+      }
+    } catch (err) {
+      console.error('Image upload failed:', err)
+    }
+  }, [editor])
+
   if (!editor) return null
+
+  // Current inline style values for dropdowns
+  const activeFontFamily = editor.getAttributes('textStyle').fontFamily || ''
+  const activeFontSize = editor.getAttributes('textStyle').fontSize || ''
+  const activeLineSpacing = (() => {
+    const { $from } = editor.state.selection
+    const node = $from.node()
+    return node.attrs?.lineSpacing || ''
+  })()
+
+  const allHidden = !toolbarPrefs.formatBar && !toolbarPrefs.textBar
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Toolbar */}
+      {/* Hidden file input for image upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        style={{ display: 'none' }}
+        onChange={e => {
+          const file = e.target.files?.[0]
+          if (file) handleImageUpload(file)
+          e.target.value = ''
+        }}
+      />
+
       {!readOnly && (
-        <div style={{
-          display: 'flex', gap: 4, padding: '6px 12px',
-          borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
-          background: 'var(--bg-surface)', flexShrink: 0, alignItems: 'center',
-        }}>
-          {hasAbsatzFormate ? (
-            // Absatzformat toolbar — format buttons from loaded formats
-            <>
-              {relevantFormats.map(fmt => (
-                <Tooltip key={fmt.id} text={`${fmt.name}${fmt.kuerzel ? ` (${fmt.kuerzel})` : ''}`} placement="bottom" delay={400}>
-                  <button
-                    onClick={() => editor.commands.setAbsatzFormat(fmt.id)}
-                    style={{
-                      height: 28, padding: '0 8px',
-                      fontSize: 11,
-                      fontFamily: 'inherit',
-                      border: '1px solid var(--border)',
-                      borderRadius: 4,
-                      background: currentFormat?.id === fmt.id ? 'var(--text-primary)' : 'transparent',
-                      color: currentFormat?.id === fmt.id ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                      cursor: 'pointer',
-                      fontWeight: currentFormat?.id === fmt.id ? 600 : 400,
-                      transition: '0.1s',
-                    }}
-                  >
-                    {fmt.kuerzel || fmt.name.slice(0, 4)}
+        <>
+          {/* ── Row 1: Format Toolbar (Absatzformate / Screenplay types) ──── */}
+          {toolbarPrefs.formatBar && (
+            <div style={{
+              display: 'flex', gap: 4, padding: '5px 12px',
+              borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
+              background: 'var(--bg-surface)', flexShrink: 0, alignItems: 'center',
+            }}>
+              {hasAbsatzFormate ? (
+                <>
+                  {relevantFormats.sort((a, b) => a.sort_order - b.sort_order).map((fmt, idx) => (
+                    <Tooltip key={fmt.id} text={`${fmt.name}${fmt.kuerzel ? ` (${fmt.kuerzel})` : ''}\n${altKey}+${idx + 1}`} placement="bottom" delay={400}>
+                      <button
+                        onClick={() => editor.commands.setAbsatzFormat(fmt.id)}
+                        style={{
+                          height: 26, padding: '0 8px',
+                          fontSize: 11, fontFamily: 'inherit',
+                          border: '1px solid var(--border)', borderRadius: 4,
+                          background: currentFormat?.id === fmt.id ? 'var(--text-primary)' : 'transparent',
+                          color: currentFormat?.id === fmt.id ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontWeight: currentFormat?.id === fmt.id ? 600 : 400,
+                          transition: '0.1s',
+                        }}
+                      >
+                        {fmt.kuerzel || fmt.name.slice(0, 4)}
+                      </button>
+                    </Tooltip>
+                  ))}
+                  <Tooltip text={`Tab: nachstes Format\nEnter: Folgeformat`} placement="bottom">
+                    <span style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'help', color: 'var(--text-muted)', flexShrink: 0 }}>
+                      <Info size={12} />
+                    </span>
+                  </Tooltip>
+                </>
+              ) : currentElementType ? (
+                <>
+                  {(['scene_heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot'] as ScreenplayElementType[]).map((type, idx) => (
+                    <Tooltip key={type} text={`${type === 'scene_heading' ? 'Szene' : type === 'parenthetical' ? 'Par.' : type}\n${altKey}+${idx + 1}`} placement="bottom" delay={400}>
+                      <button
+                        onClick={() => editor.commands.setElementType(type)}
+                        style={{
+                          height: 26, padding: '0 8px', fontSize: 11,
+                          border: '1px solid var(--border)', borderRadius: 4,
+                          background: currentElementType === type ? 'var(--text-primary)' : 'transparent',
+                          color: currentElementType === type ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontWeight: currentElementType === type ? 600 : 400,
+                          transition: '0.1s',
+                        }}
+                      >
+                        {type === 'scene_heading' ? 'SH' : type === 'parenthetical' ? 'PAR' : type.slice(0, 4).toUpperCase()}
+                      </button>
+                    </Tooltip>
+                  ))}
+                </>
+              ) : null}
+
+              <div style={{ flex: 1 }} />
+
+              {/* Fokus-Modus */}
+              <Tooltip text="Fokus-Modus (alle Leisten ausblenden)" placement="bottom">
+                <button onClick={toggleAllToolbars} style={miniBtn}>
+                  <Minimize2 size={11} />
+                </button>
+              </Tooltip>
+              {/* Minimize format bar */}
+              <Tooltip text="Formatleiste minimieren" placement="bottom">
+                <button onClick={() => toggleToolbar('formatBar')} style={miniBtn}>
+                  <ChevronUp size={12} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* ── Row 2: Inline Text Formatting Toolbar ──────────────────── */}
+          {toolbarPrefs.textBar && (
+            <div style={{
+              display: 'flex', gap: 3, padding: '4px 12px',
+              borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
+              background: 'var(--bg-surface)', flexShrink: 0, alignItems: 'center',
+            }}>
+              {/* Bold / Italic / Underline */}
+              <ToolbarBtn
+                active={editor.isActive('bold')}
+                onClick={() => editor.chain().focus().toggleBold().run()}
+                tooltip={`Fett (${modKey}+B)`}
+              >
+                <BoldIcon size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                active={editor.isActive('italic')}
+                onClick={() => editor.chain().focus().toggleItalic().run()}
+                tooltip={`Kursiv (${modKey}+I)`}
+              >
+                <ItalicIcon size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                active={editor.isActive('underline')}
+                onClick={() => editor.chain().focus().toggleUnderline().run()}
+                tooltip={`Unterstrichen (${modKey}+U)`}
+              >
+                <UnderlineIcon size={13} />
+              </ToolbarBtn>
+
+              <Sep />
+
+              {/* Text Alignment */}
+              <ToolbarBtn
+                active={editor.isActive({ textAlign: 'left' })}
+                onClick={() => editor.chain().focus().setTextAlign('left').run()}
+                tooltip="Linksbuendig"
+              >
+                <AlignLeft size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                active={editor.isActive({ textAlign: 'center' })}
+                onClick={() => editor.chain().focus().setTextAlign('center').run()}
+                tooltip="Zentriert"
+              >
+                <AlignCenter size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                active={editor.isActive({ textAlign: 'right' })}
+                onClick={() => editor.chain().focus().setTextAlign('right').run()}
+                tooltip="Rechtsbuendig"
+              >
+                <AlignRight size={13} />
+              </ToolbarBtn>
+
+              <Sep />
+
+              {/* Font Family */}
+              <Tooltip text="Schriftart" placement="bottom">
+                <select
+                  value={activeFontFamily}
+                  onChange={e => {
+                    if (e.target.value) editor.chain().focus().setFontFamily(e.target.value).run()
+                    else editor.chain().focus().unsetFontFamily().run()
+                  }}
+                  style={selectStyle}
+                >
+                  <option value="">Standard</option>
+                  {FONT_FAMILIES.map(f => (
+                    <option key={f.value} value={f.value}>{f.label}</option>
+                  ))}
+                </select>
+              </Tooltip>
+
+              {/* Font Size */}
+              <Tooltip text="Schriftgroesse" placement="bottom">
+                <select
+                  value={activeFontSize}
+                  onChange={e => {
+                    if (e.target.value) editor.chain().focus().setFontSize(e.target.value).run()
+                    else editor.chain().focus().unsetFontSize().run()
+                  }}
+                  style={{ ...selectStyle, width: 56 }}
+                >
+                  <option value="">--</option>
+                  {FONT_SIZES.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </Tooltip>
+
+              {/* Line Spacing */}
+              <Tooltip text="Zeilenabstand" placement="bottom">
+                <select
+                  value={activeLineSpacing}
+                  onChange={e => {
+                    if (e.target.value) editor.chain().focus().setLineSpacing(e.target.value).run()
+                    else editor.chain().focus().unsetLineSpacing().run()
+                  }}
+                  style={{ ...selectStyle, width: 52 }}
+                >
+                  <option value="">--</option>
+                  {LINE_SPACINGS.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </Tooltip>
+
+              <Sep />
+
+              {/* Lists */}
+              <ToolbarBtn
+                active={editor.isActive('bulletList')}
+                onClick={() => editor.chain().focus().toggleBulletList().run()}
+                tooltip="Aufzaehlung"
+              >
+                <List size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                active={editor.isActive('orderedList')}
+                onClick={() => editor.chain().focus().toggleOrderedList().run()}
+                tooltip="Nummerierung"
+              >
+                <ListOrdered size={13} />
+              </ToolbarBtn>
+
+              <Sep />
+
+              {/* Image Upload */}
+              <ToolbarBtn
+                onClick={() => fileInputRef.current?.click()}
+                tooltip="Bild einfuegen"
+              >
+                <ImageIcon size={13} />
+              </ToolbarBtn>
+
+              <div style={{ flex: 1 }} />
+
+              {/* Minimize text bar */}
+              <Tooltip text="Textformate minimieren" placement="bottom">
+                <button onClick={() => toggleToolbar('textBar')} style={miniBtn}>
+                  <ChevronUp size={12} />
+                </button>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* ── Collapsed bar indicator ─────────────────────────────────── */}
+          {(!toolbarPrefs.formatBar || !toolbarPrefs.textBar) && (
+            <div style={{
+              display: 'flex', gap: 4, padding: '2px 12px',
+              borderBottom: '1px solid var(--border)',
+              background: 'var(--bg-surface)', flexShrink: 0, alignItems: 'center',
+              justifyContent: 'flex-end',
+            }}>
+              {!toolbarPrefs.formatBar && (
+                <Tooltip text="Formatleiste einblenden" placement="bottom">
+                  <button onClick={() => toggleToolbar('formatBar')} style={{ ...miniBtn, gap: 4, display: 'flex', alignItems: 'center' }}>
+                    <ChevronDown size={11} />
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Formate</span>
                   </button>
                 </Tooltip>
-              ))}
-              <Tooltip text={'Tab: nächster Typ · Enter: folgendes Element'} placement="bottom">
-                <span style={{ width: 28, height: 28, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'help', color: 'var(--text-muted)', flexShrink: 0 }}>
-                  <Info size={13} />
-                </span>
-              </Tooltip>
-            </>
-          ) : currentElementType ? (
-            // Legacy screenplay toolbar
-            <>
-              {(['scene_heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot'] as ScreenplayElementType[]).map(type => (
-                <button
-                  key={type}
-                  onClick={() => editor.commands.setElementType(type)}
-                  style={{
-                    height: 28, padding: '0 8px',
-                    fontSize: 11,
-                    border: '1px solid var(--border)',
-                    borderRadius: 4,
-                    background: currentElementType === type ? 'var(--text-primary)' : 'transparent',
-                    color: currentElementType === type ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontWeight: currentElementType === type ? 600 : 400,
-                    transition: '0.1s',
-                  }}
-                >
-                  {type === 'scene_heading' ? 'SH' : type === 'parenthetical' ? 'PAR' : type.slice(0, 4).toUpperCase()}
+              )}
+              {!toolbarPrefs.textBar && (
+                <Tooltip text="Textformate einblenden" placement="bottom">
+                  <button onClick={() => toggleToolbar('textBar')} style={{ ...miniBtn, gap: 4, display: 'flex', alignItems: 'center' }}>
+                    <ChevronDown size={11} />
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Text</span>
+                  </button>
+                </Tooltip>
+              )}
+              <div style={{ flex: 1 }} />
+              <Tooltip text={allHidden ? 'Alle Leisten einblenden' : 'Fokus-Modus'} placement="bottom">
+                <button onClick={toggleAllToolbars} style={miniBtn}>
+                  {allHidden ? <Maximize2 size={11} /> : <Minimize2 size={11} />}
                 </button>
-              ))}
-            </>
-          ) : (
-            // Richtext toolbar (fallback when no formats loaded)
-            <>
-              <ToolbarBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Fett">B</ToolbarBtn>
-              <ToolbarBtn active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()} title="Kursiv">I</ToolbarBtn>
-              <ToolbarBtn active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()} title="Unterstrichen">U</ToolbarBtn>
-            </>
+              </Tooltip>
+            </div>
           )}
-        </div>
+
+          {/* (Fokus toggle is inside each toolbar row via the minimize button) */}
+        </>
       )}
 
       {/* Page area */}
-      <div style={{ flex: 1, overflow: 'auto' }} onWheel={handleScrollWheel}>
+      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }} onWheel={handleScrollWheel}>
         <PageWrapper seitenformat={seitenformat} showShadow={showShadow}>
           <EditorContent
             editor={editor}
@@ -327,24 +633,44 @@ export default function UniversalEditor({
   )
 }
 
-function ToolbarBtn({ active, onClick, title, children }: {
-  active?: boolean; onClick: () => void; title: string; children: React.ReactNode
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function ToolbarBtn({ active, onClick, tooltip, children }: {
+  active?: boolean; onClick: () => void; tooltip: string; children: React.ReactNode
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      style={{
-        width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        border: '1px solid var(--border)', borderRadius: 4,
-        background: active ? 'var(--text-primary)' : 'transparent',
-        color: active ? 'var(--text-inverse)' : 'var(--text-secondary)',
-        cursor: 'pointer', flexShrink: 0, fontSize: 12, fontWeight: 600,
-      }}
-    >
-      {children}
-    </button>
+    <Tooltip text={tooltip} placement="bottom" delay={500}>
+      <button
+        onClick={onClick}
+        style={{
+          width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '1px solid var(--border)', borderRadius: 4,
+          background: active ? 'var(--text-primary)' : 'transparent',
+          color: active ? 'var(--text-inverse)' : 'var(--text-secondary)',
+          cursor: 'pointer', flexShrink: 0,
+        }}
+      >
+        {children}
+      </button>
+    </Tooltip>
   )
+}
+
+function Sep() {
+  return <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+}
+
+const miniBtn: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  color: 'var(--text-muted)', padding: 2, borderRadius: 4,
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}
+
+const selectStyle: React.CSSProperties = {
+  fontSize: 11, padding: '2px 4px', borderRadius: 4,
+  border: '1px solid var(--border)', background: 'transparent',
+  color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
+  height: 26, maxWidth: 120,
 }
 
 function getDefaultContent(hasFormats: boolean, formate: AbsatzFormat[], kategorie: string): any {
@@ -358,7 +684,6 @@ function getDefaultContent(hasFormats: boolean, formate: AbsatzFormat[], kategor
       }],
     }
   }
-  // Fallback: screenplay element for drehbuch, paragraph for others
   if (kategorie === 'drehbuch') {
     return { type: 'doc', content: [{ type: 'screenplay_element', attrs: { element_type: 'scene_heading' } }] }
   }

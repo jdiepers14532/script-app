@@ -85,7 +85,21 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
     const getFormatById = (id: string | null) =>
       id ? this.options.formate.find(f => f.id === id) : null
 
+    // Build Alt+1 through Alt+9 shortcuts for format selection
+    const altShortcuts: Record<string, () => boolean> = {}
+    for (let i = 1; i <= 9; i++) {
+      altShortcuts[`Alt-${i}`] = () => {
+        const fmt = this.options.formate.sort((a, b) => a.sort_order - b.sort_order)[i - 1]
+        if (!fmt) return false
+        return this.editor.chain()
+          .updateAttributes('absatz', { format_id: fmt.id, format_name: fmt.name })
+          .run()
+      }
+    }
+
     return {
+      ...altShortcuts,
+
       Tab: () => {
         const { state } = this.editor
         const { $from } = state.selection

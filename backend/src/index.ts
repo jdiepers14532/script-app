@@ -47,6 +47,7 @@ import { statistikRouter } from './routes/statistik'
 import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
 import { dokumentVorlagenRouter } from './routes/dokument-vorlagen'
 import { absatzformateRouter, absatzformatPresetsRouter } from './routes/absatzformate'
+import { editorUploadsRouter } from './routes/editor-uploads'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -158,6 +159,10 @@ app.use('/api/scene-identities', sceneIdentitiesRouter)
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
+
+// Editor image uploads
+app.use('/api/editor-uploads', editorUploadsRouter)
+app.use('/uploads/editor-images', express.static(path.join(process.cwd(), 'uploads', 'editor-images')))
 
 // Fotos
 app.use('/api/characters/:id/fotos', (req, _res, next) => { (req.params as any).id = req.params.id; next() }, characterFotosRouter)
