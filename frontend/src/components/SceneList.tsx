@@ -344,6 +344,13 @@ export default function SceneList({
                 <span className="sl-sep">/</span>
                 <span className="sl-tz">{{ tag: 'T', nacht: 'N', abend: 'A', morgen: 'M' }[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
               </div>
+              <div className="sl-info">
+                {scene.szeneninfo && (
+                  <Tooltip text={scene.szeneninfo}>
+                    <Info size={11} style={{ color: 'var(--text-muted)', display: 'block' }} />
+                  </Tooltip>
+                )}
+              </div>
               <div className="rt">
                 {scene.dauer_min && <span>{scene.dauer_min} min</span>}
                 <div className="badges">
@@ -354,11 +361,6 @@ export default function SceneList({
                     </div>
                   )}
                   {scene.is_locked && <Lock size={11} className="lock-ico" />}
-                  {scene.szeneninfo && (
-                    <Tooltip text={scene.szeneninfo}>
-                      <Info size={11} style={{ color: 'var(--text-muted)', display: 'block' }} />
-                    </Tooltip>
-                  )}
                 </div>
                 {/* Context menu trigger */}
                 <div className="scene-ctx-wrap" ref={isMenuOpen ? menuRef : null}>
