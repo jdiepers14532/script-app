@@ -103,8 +103,18 @@ function injectLTCSS() {
   const style = document.createElement('style')
   style.id = 'languagetool-css'
   style.textContent = `
-    .lt-error { border-bottom: 2px wavy #FF3B30; cursor: pointer; position: relative; }
-    .lt-warning { border-bottom: 2px wavy #FFCC00; cursor: pointer; position: relative; }
+    .lt-error {
+      text-decoration: underline wavy #FF3B30;
+      text-decoration-skip-ink: none;
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
+    .lt-warning {
+      text-decoration: underline wavy #FFCC00;
+      text-decoration-skip-ink: none;
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
     .lt-popup {
       position: fixed; z-index: 99999; background: var(--bg-surface, #fff);
       border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 10px 14px;
@@ -167,7 +177,6 @@ export default function UniversalEditor({
   injectLTCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
-  useEffect(() => { console.log('[LT] spellcheckMode:', spellcheckMode) }, [spellcheckMode])
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
@@ -405,17 +414,15 @@ export default function UniversalEditor({
 
   // Debounced LT check
   useEffect(() => {
-    console.log('[LT] useEffect triggered — mode:', spellcheckMode, 'editor:', !!editor, 'editorDestroyed:', editor?.isDestroyed)
     if (spellcheckMode !== 'languagetool' || !editor) {
       setLtMatches([])
       setLtPopup(null)
       return
     }
     const check = async () => {
-      if (editor.isDestroyed) { console.log('[LT] editor destroyed, skip'); return }
+      if (editor.isDestroyed) return
       const text = editor.getText()
-      console.log('[LT] getText() length:', text.length, 'preview:', JSON.stringify(text.slice(0, 80)))
-      if (!text.trim() || text.length < 3) { console.log('[LT] text too short, skip'); setLtMatches([]); return }
+      if (!text.trim() || text.length < 3) { setLtMatches([]); return }
       try {
         ltAbort.current?.abort()
         ltAbort.current = new AbortController()
@@ -426,14 +433,9 @@ export default function UniversalEditor({
           body: JSON.stringify({ text }),
           signal: ltAbort.current.signal,
         })
-        if (!resp.ok) {
-          console.error('[LT] API error:', resp.status, await resp.text().catch(() => ''))
-          return
-        }
+        if (!resp.ok) return
         const data = await resp.json()
-        const matches = data.matches || []
-        console.log('[LT] Check:', text.length, 'chars →', matches.length, 'matches')
-        setLtMatches(matches)
+        setLtMatches(data.matches || [])
       } catch (e: any) {
         if (e.name !== 'AbortError') console.error('[LT] check failed:', e)
       }
@@ -478,7 +480,6 @@ export default function UniversalEditor({
       }))
     }
 
-    console.log('[LT] Decorations:', decos.length, 'of', ltMatches.length, 'matches mapped')
     if (decos.length === 0) return
 
     const decoSet = DecorationSet.create(doc, decos)
