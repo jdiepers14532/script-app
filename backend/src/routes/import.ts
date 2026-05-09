@@ -352,11 +352,29 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         const nonSceneElements: Array<{ type: string; label: string; content: string }> = JSON.parse(rawNonSceneElements)
         for (const [nsIdx, elem] of nonSceneElements.entries()) {
           const elemType = ['cover', 'synopsis', 'memo'].includes(elem.type) ? elem.type : 'memo'
-          const pmNodes = [{
-            type: 'screenplay_element',
-            attrs: { element_type: 'action' },
-            content: elem.content ? [{ type: 'text', text: elem.content }] : undefined,
-          }]
+          // Convert raw text to richtext paragraphs — merge consecutive lines
+          // into paragraphs, split on empty lines
+          const pmNodes: any[] = []
+          if (elem.content) {
+            const rawLines = elem.content.split('\n')
+            let currentPara = ''
+            for (const line of rawLines) {
+              if (line.trim() === '') {
+                if (currentPara) {
+                  pmNodes.push({ type: 'paragraph', content: [{ type: 'text', text: currentPara.trim() }] })
+                  currentPara = ''
+                } else {
+                  pmNodes.push({ type: 'paragraph' })
+                }
+              } else {
+                currentPara += (currentPara ? ' ' : '') + line.trim()
+              }
+            }
+            if (currentPara) {
+              pmNodes.push({ type: 'paragraph', content: [{ type: 'text', text: currentPara.trim() }] })
+            }
+          }
+          if (pmNodes.length === 0) pmNodes.push({ type: 'paragraph' })
           await queryOne(
             `INSERT INTO dokument_szenen
                (werkstufe_id, scene_identity_id, sort_order, scene_nummer,

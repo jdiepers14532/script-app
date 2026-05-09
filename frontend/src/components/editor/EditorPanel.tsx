@@ -120,10 +120,13 @@ export default function EditorPanel({
     }, 1500)
   }, [selectedSzeneId, useDokumentSzenen])
 
-  // Determine editor mode
-  const editorModus = selectedWerk
-    ? (EDITOR_MODUS[selectedWerk.typ] ?? 'richtext')
-    : 'richtext'
+  // Determine editor mode — per scene format overrides werkstufe type
+  const sceneFormat = currentSzene?.format
+  const editorModus = sceneFormat
+    ? (EDITOR_MODUS[sceneFormat] ?? 'richtext')
+    : selectedWerk
+      ? (EDITOR_MODUS[selectedWerk.typ] ?? 'richtext')
+      : 'richtext'
 
   const isReadOnly = selectedWerk?.bearbeitung_status === 'gesperrt' || selectedWerk?.abgegeben
 
