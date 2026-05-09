@@ -68,7 +68,7 @@ export default function SceneList({
   })
 
   const filtered = sorted.filter(s => {
-    if (nurSzenen && s.format && s.format !== 'drehbuch') return false
+    if (nurSzenen && s.format === 'notiz') return false
     if (searchQuery === '') return true
     return `${s.scene_nummer}${s.scene_nummer_suffix || ''}`.includes(searchQuery) ||
       (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
