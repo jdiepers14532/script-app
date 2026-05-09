@@ -257,8 +257,7 @@ export default function ScriptPage() {
   const pendingNav = useRef<{ produktionId?: string; folgeNummer?: number; stageId?: number; szeneId?: number }>({})
   const navRestored = useRef(false)
 
-  // Throttle timestamps for keyboard navigation (max 1 navigation per interval)
-  const kbFolgeLastFire = useRef(0)
+  // Throttle timestamp for keyboard navigation (max 1 navigation per interval)
   const kbSzeneLastFire = useRef(0)
 
   // Live refs for keyboard handler (avoid stale closures without re-registering listener)
@@ -361,70 +360,20 @@ export default function ScriptPage() {
       }}).catch(() => {})
   }, [])
 
-  // Keyboard navigation: ↑↓ = Episode, ←→ = Szene
+  // Keyboard navigation: ←→ = Szene wechseln, ↑↓ = Editor scrollen (Browser-Default)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
       const tag = (document.activeElement?.tagName || '').toLowerCase()
       if (['input', 'textarea', 'select'].includes(tag)) return
       if (document.activeElement?.getAttribute('contenteditable')) return
 
-      const currentBloecke    = bloeckeRef.current
-      const currentBlock      = selectedBlockRef.current
-      const currentFolge      = selectedFolgeNummerRef.current
-      const currentStageId    = selectedStageIdRef.current
-      const currentSzenen     = szenenRef.current
-      const currentSzeneId    = selectedSzeneIdRef.current
-      const produktionId         = selectedProduktionIdRef.current
-
-      // ↑↓ — Episode wechseln (block-übergreifend), throttled auf 400ms
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-        e.preventDefault()
-        const now = Date.now()
-        if (now - kbFolgeLastFire.current < 400) return
-        kbFolgeLastFire.current = now
-
-        if (currentFolge == null || !currentBlock || !produktionId) return
-        const dir = e.key === 'ArrowDown' ? 1 : -1
-        const nextFolge = currentFolge + dir
-        const inBlock = nextFolge >= (currentBlock.folge_von ?? nextFolge)
-          && (currentBlock.folge_bis == null || nextFolge <= currentBlock.folge_bis)
-
-        if (inBlock) {
-          pendingNav.current = {}; navRestored.current = true
-          setSelectedFolgeNummer(nextFolge)
-          api.updateSettings({ ui_settings: {
-            last_produktion_id: produktionId, last_folge_nummer: nextFolge,
-            last_stage_id: null, last_szene_id: null,
-          }}).catch(() => {})
-        } else {
-          const sorted = [...currentBloecke].sort((a, b) => (a.folge_von ?? 0) - (b.folge_von ?? 0))
-          const idx = sorted.findIndex(b => b.proddb_id === currentBlock.proddb_id)
-          const nextIdx = idx + dir
-          if (nextIdx < 0 || nextIdx >= sorted.length) return
-          const nextBlock = sorted[nextIdx]
-          const targetFolge = dir > 0
-            ? (nextBlock.folge_von ?? null)
-            : (nextBlock.folge_bis ?? nextBlock.folge_von ?? null)
-          if (targetFolge == null) return
-          pendingNav.current = {}; navRestored.current = true
-          setSelectedBlock(nextBlock)
-          setSelectedFolgeNummer(targetFolge)
-          api.updateSettings({ ui_settings: {
-            last_produktion_id: produktionId, last_folge_nummer: targetFolge,
-            last_stage_id: null, last_szene_id: null,
-          }}).catch(() => {})
-        }
-      }
-
       // ←→ — Szene wechseln, throttled auf 200ms
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        e.preventDefault()
-        const now = Date.now()
-        if (now - kbSzeneLastFire.current < 200) return
-        kbSzeneLastFire.current = now
-        navigateSzene(e.key === 'ArrowRight' ? 1 : -1)
-      }
+      e.preventDefault()
+      const now = Date.now()
+      if (now - kbSzeneLastFire.current < 200) return
+      kbSzeneLastFire.current = now
+      navigateSzene(e.key === 'ArrowRight' ? 1 : -1)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
