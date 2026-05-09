@@ -888,9 +888,8 @@ export function parseRoteRosen(rawText: string): ImportResult {
     const charaktere = Array.from(charMap.values())
     for (const c of charaktere) allCharaktere.set(c.toUpperCase(), c)
 
-    if (header.komparsen.length > 0) {
-      textelemente.unshift({ id: nextId(), type: 'direction', text: `Komparsen: ${header.komparsen.join(', ')}` })
-    }
+    // Komparsen are stored as scene header metadata (szene.komparsen → scene_characters),
+    // not as body text in the editor content.
 
     let finalIntExt = header.int_ext
     if (header.ort_name && /^Außendreh/i.test(header.ort_name) && finalIntExt === 'INT') {
