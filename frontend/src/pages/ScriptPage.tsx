@@ -540,8 +540,9 @@ export default function ScriptPage() {
         // Track which folgen have imported data (for UI indicators)
         setFolgenMitDaten(folgen.filter((f: any) => f.werkstufen_count > 0).map((f: any) => f.folge_nummer))
         const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
-        if (!folge) return
+        if (!folge) { console.warn('[ScriptPage] Folge not found:', selectedFolgeNummer, 'in', folgen.length, 'folgen'); return }
         const werkstufen = await api.getWerkstufen(folge.id)
+        if (werkstufen.length === 0) { console.warn('[ScriptPage] No werkstufen for folge', folge.id); return }
         // Prefer drehbuch > storyline > notiz, then latest version
         const prio = ['drehbuch', 'storyline', 'notiz']
         let matching: any[] = []
@@ -552,7 +553,7 @@ export default function ScriptPage() {
         if (matching.length === 0) matching = werkstufen
         matching.sort((a: any, b: any) => b.version_nummer - a.version_nummer)
         const werk = matching[0]
-        if (!werk) return
+        if (!werk) { console.warn('[ScriptPage] No matching werkstufe'); return }
         setSelectedStageId(werk.id)
         const werkSzenen = await api.getWerkstufenSzenen(werk.id)
         if (werkSzenen.length > 0) {
@@ -563,9 +564,11 @@ export default function ScriptPage() {
           setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
           delete pendingNav.current.szeneId
           navRestored.current = true
+        } else {
+          console.warn('[ScriptPage] Werkstufe has 0 scenes:', werk.id)
         }
       } catch (err) {
-        console.error('loadWerkstufen error:', err)
+        console.error('[ScriptPage] loadWerkstufen error:', err)
       }
     }
     loadWerkstufen()
