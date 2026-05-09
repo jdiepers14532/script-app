@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
-import { DEFAULT_ENV_COLORS, type EnvKey, type EnvColor } from '../data/scenes'
+import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor } from '../data/scenes'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -134,6 +134,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [saving, setSaving] = useState(false)
   const [kuerzelSaving, setKuerzelSaving] = useState(false)
   const [envColors, setEnvColors] = useState<Record<EnvKey, EnvColor>>({ ...DEFAULT_ENV_COLORS })
+  const [envColorsDark, setEnvColorsDark] = useState<Record<EnvKey, EnvColor>>({ ...DEFAULT_ENV_COLORS_DARK })
   const [envColorsSaving, setEnvColorsSaving] = useState(false)
   const [envColorsCustom, setEnvColorsCustom] = useState(false)
 
@@ -155,6 +156,16 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
             }
             setEnvColors(merged)
             setEnvColorsCustom(true)
+          } catch {}
+        }
+        if (data?.scene_env_colors_dark) {
+          try {
+            const parsed = JSON.parse(data.scene_env_colors_dark)
+            const merged = { ...DEFAULT_ENV_COLORS_DARK }
+            for (const k of Object.keys(parsed) as EnvKey[]) {
+              if (merged[k]) merged[k] = { ...merged[k], ...parsed[k] }
+            }
+            setEnvColorsDark(merged)
           } catch {}
         }
       })
@@ -208,17 +219,36 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     window.dispatchEvent(new Event('app-settings-changed'))
   }
 
-  const resetEnvColorsToDefault = async () => {
-    setEnvColors({ ...DEFAULT_ENV_COLORS })
-    setEnvColorsCustom(false)
+  const saveEnvColorsDark = async (next: Record<EnvKey, EnvColor>) => {
+    setEnvColorsDark(next)
     setEnvColorsSaving(true)
-    // Delete by saving the default (backend stores it, App.tsx sees no custom → resets)
-    await fetch(`/api/dk-settings/${productionId}/app-settings/scene_env_colors`, {
+    await fetch(`/api/dk-settings/${productionId}/app-settings/scene_env_colors_dark`, {
       method: 'PUT',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: JSON.stringify(DEFAULT_ENV_COLORS) }),
+      body: JSON.stringify({ value: JSON.stringify(next) }),
     }).catch(() => {})
+    setEnvColorsSaving(false)
+    window.dispatchEvent(new Event('app-settings-changed'))
+  }
+
+  const resetEnvColorsToDefault = async () => {
+    setEnvColors({ ...DEFAULT_ENV_COLORS })
+    setEnvColorsDark({ ...DEFAULT_ENV_COLORS_DARK })
+    setEnvColorsCustom(false)
+    setEnvColorsSaving(true)
+    await Promise.all([
+      fetch(`/api/dk-settings/${productionId}/app-settings/scene_env_colors`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(DEFAULT_ENV_COLORS) }),
+      }),
+      fetch(`/api/dk-settings/${productionId}/app-settings/scene_env_colors_dark`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(DEFAULT_ENV_COLORS_DARK) }),
+      }),
+    ]).catch(() => {})
     setEnvColorsSaving(false)
     window.dispatchEvent(new Event('app-settings-changed'))
   }
@@ -281,41 +311,73 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
           Farbkodierung der Szenen nach INT/EXT und Tageszeit. Standard: Industrie-Standard (Movie Magic Scheduling).
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {(Object.keys(ENV_COLOR_LABELS) as EnvKey[]).map(key => (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 12, fontWeight: 500, width: 120, flexShrink: 0 }}>{ENV_COLOR_LABELS[key]}</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-                Hintergrund
-                <input
-                  type="color"
-                  value={envColors[key].bg}
-                  onChange={e => {
-                    const next = { ...envColors, [key]: { ...envColors[key], bg: e.target.value } }
-                    setEnvColors(next)
-                  }}
-                  onBlur={() => saveEnvColors(envColors)}
-                  style={{ width: 32, height: 24, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
-                />
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-                Akzent
-                <input
-                  type="color"
-                  value={envColors[key].stripe}
-                  onChange={e => {
-                    const next = { ...envColors, [key]: { ...envColors[key], stripe: e.target.value } }
-                    setEnvColors(next)
-                  }}
-                  onBlur={() => saveEnvColors(envColors)}
-                  style={{ width: 32, height: 24, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
-                />
-              </label>
-              <div style={{ width: 60, height: 24, borderRadius: 4, background: envColors[key].bg, border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: envColors[key].stripe }} />
-              </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          {/* Light Mode */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#FFF', border: '1px solid #ccc', display: 'inline-block' }} />
+              Hell
             </div>
-          ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(Object.keys(ENV_COLOR_LABELS) as EnvKey[]).map(key => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, width: 100, flexShrink: 0 }}>{ENV_COLOR_LABELS[key]}</span>
+                  <input
+                    type="color"
+                    value={envColors[key].bg}
+                    title="Hintergrund"
+                    onChange={e => setEnvColors(prev => ({ ...prev, [key]: { ...prev[key], bg: e.target.value } }))}
+                    onBlur={() => saveEnvColors(envColors)}
+                    style={{ width: 28, height: 22, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
+                  />
+                  <input
+                    type="color"
+                    value={envColors[key].stripe}
+                    title="Akzent"
+                    onChange={e => setEnvColors(prev => ({ ...prev, [key]: { ...prev[key], stripe: e.target.value } }))}
+                    onBlur={() => saveEnvColors(envColors)}
+                    style={{ width: 28, height: 22, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
+                  />
+                  <div style={{ width: 40, height: 22, borderRadius: 4, background: envColors[key].bg, border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: envColors[key].stripe }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Dark Mode */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#1A1A1A', border: '1px solid #555', display: 'inline-block' }} />
+              Dunkel
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(Object.keys(ENV_COLOR_LABELS) as EnvKey[]).map(key => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, fontWeight: 500, width: 100, flexShrink: 0 }}>{ENV_COLOR_LABELS[key]}</span>
+                  <input
+                    type="color"
+                    value={envColorsDark[key].bg}
+                    title="Hintergrund"
+                    onChange={e => setEnvColorsDark(prev => ({ ...prev, [key]: { ...prev[key], bg: e.target.value } }))}
+                    onBlur={() => saveEnvColorsDark(envColorsDark)}
+                    style={{ width: 28, height: 22, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
+                  />
+                  <input
+                    type="color"
+                    value={envColorsDark[key].stripe}
+                    title="Akzent"
+                    onChange={e => setEnvColorsDark(prev => ({ ...prev, [key]: { ...prev[key], stripe: e.target.value } }))}
+                    onBlur={() => saveEnvColorsDark(envColorsDark)}
+                    style={{ width: 28, height: 22, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
+                  />
+                  <div style={{ width: 40, height: 22, borderRadius: 4, background: envColorsDark[key].bg, border: '1px solid #555', position: 'relative', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: envColorsDark[key].stripe }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
         <button
           style={{ marginTop: 12, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, cursor: 'pointer' }}

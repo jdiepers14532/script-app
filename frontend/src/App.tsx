@@ -20,7 +20,7 @@ import {
   AppSettingsContext,
   DEFAULT_KUERZEL,
 } from './contexts'
-import { setEnvColors, resetEnvColors } from './data/scenes'
+import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 
 export default function App() {
   const { focus, toggle } = useFocusMode()
@@ -49,6 +49,9 @@ export default function App() {
           } else {
             resetEnvColors()
             setSceneEnvColors(null)
+          }
+          if (data?.scene_env_colors_dark) {
+            try { setEnvColorsDark(JSON.parse(data.scene_env_colors_dark)) } catch {}
           }
         })
         .catch(() => {})
