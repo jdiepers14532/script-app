@@ -702,6 +702,11 @@ export default function ScriptPage() {
           bloecke={bloecke}
           sections={statSections}
           initialFolgeNummer={selectedFolgeNummer}
+          szenen={szenen}
+          onNavigateToScene={(sceneNum) => {
+            const match = szenen.find((s: any) => s.scene_nummer === sceneNum)
+            if (match) setSelectedSzeneId(match.id)
+          }}
         />
       )}
     </AppShell>

@@ -510,7 +510,7 @@ statistikRouter.get('/report', async (req, res) => {
       })
     }
 
-    // All scenes across selected werkstufen
+    // All scenes across selected werkstufen (exclude notiz format)
     const scenes = await query(
       `SELECT ds.scene_identity_id, ds.scene_nummer, ds.ort_name, ds.int_ext,
               ds.seiten, ds.stoppzeit_sek, ds.werkstufe_id,
@@ -519,11 +519,12 @@ statistikRouter.get('/report', async (req, res) => {
        JOIN werkstufen w ON w.id = ds.werkstufe_id
        JOIN folgen f ON f.id = w.folge_id
        WHERE ds.werkstufe_id = ANY($1::uuid[]) AND ds.geloescht = false
+             AND COALESCE(ds.format, 'storyline') != 'notiz'
        ORDER BY f.folge_nummer, ds.scene_nummer`,
       [wsIds]
     )
 
-    // All characters in these scenes
+    // All characters in these scenes (excluding notiz-format scenes)
     const chars = await query(
       `SELECT sc.scene_identity_id, sc.werkstufe_id, sc.character_id, sc.spiel_typ,
               sc.repliken_anzahl, sc.anzahl,
@@ -537,6 +538,7 @@ statistikRouter.get('/report', async (req, res) => {
        JOIN dokument_szenen ds ON ds.scene_identity_id = sc.scene_identity_id
                                AND ds.werkstufe_id = sc.werkstufe_id
                                AND ds.geloescht = false
+                               AND COALESCE(ds.format, 'storyline') != 'notiz'
        JOIN werkstufen w ON w.id = sc.werkstufe_id
        JOIN folgen f ON f.id = w.folge_id
        LEFT JOIN character_kategorien ck ON ck.id = COALESCE(cp.kategorie_id, sc.kategorie_id)
@@ -657,8 +659,33 @@ statistikRouter.get('/report', async (req, res) => {
     }
     folgenBreakdown.sort((a, b) => a.folge_nummer - b.folge_nummer)
 
+    // ── Interactions (character pairs sharing scenes) ──
+    // Build map: scene_key → set of character names
+    const sceneCharsMap = new Map<string, Set<string>>()
+    for (const ch of chars) {
+      const key = `${ch.werkstufe_id}:${ch.scene_identity_id}`
+      if (!sceneCharsMap.has(key)) sceneCharsMap.set(key, new Set())
+      sceneCharsMap.get(key)!.add(ch.character_name)
+    }
+    // Count shared scenes per pair
+    const pairCounts = new Map<string, { character_name_a: string; character_name_b: string; shared_scenes: number }>()
+    for (const charSet of sceneCharsMap.values()) {
+      const names = [...charSet].sort()
+      for (let i = 0; i < names.length; i++) {
+        for (let j = i + 1; j < names.length; j++) {
+          const pairKey = `${names[i]}|${names[j]}`
+          if (!pairCounts.has(pairKey)) {
+            pairCounts.set(pairKey, { character_name_a: names[i], character_name_b: names[j], shared_scenes: 0 })
+          }
+          pairCounts.get(pairKey)!.shared_scenes++
+        }
+      }
+    }
+    const interactions = [...pairCounts.values()].sort((a, b) => b.shared_scenes - a.shared_scenes)
+
     res.json({
       bilder_insgesamt,
+      szenen_insgesamt: bilder_insgesamt,
       drehbuchseiten: seitenTotal,
       drehbuchseiten_display: formatSeiten(seitenTotal),
       vorstopp_sek,
@@ -666,6 +693,7 @@ statistikRouter.get('/report', async (req, res) => {
       rollen,
       motive,
       drehorte,
+      interactions,
       folgen: folgenBreakdown,
       werkstufe_typ: usedTyp,
     })
