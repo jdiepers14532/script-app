@@ -564,17 +564,18 @@ export const api = {
  * Fires all relevant GET requests in the background — results land in the cache.
  */
 export function preloadScene(szeneId: string, sceneIdentityId?: string | null, werkstufId?: string | null) {
+  const swallow = (p: Promise<any>) => p.catch(() => {})
   // Main scene data
   if (werkstufId && sceneIdentityId) {
-    api.resolveDokumentSzene(werkstufId, sceneIdentityId)
+    swallow(api.resolveDokumentSzene(werkstufId, sceneIdentityId))
   } else {
-    api.getDokumentSzene(szeneId)
+    swallow(api.getDokumentSzene(szeneId))
   }
   // Characters + Vorstopp (need scene_identity_id)
   if (sceneIdentityId) {
-    api.getSceneIdentityCharacters(sceneIdentityId)
-    api.getSceneIdentityVorstopp(sceneIdentityId)
+    swallow(api.getSceneIdentityCharacters(sceneIdentityId))
+    swallow(api.getSceneIdentityVorstopp(sceneIdentityId))
   }
   // Revisionen
-  api.getDokumentSzeneRevisionen(szeneId)
+  swallow(api.getDokumentSzeneRevisionen(szeneId))
 }
