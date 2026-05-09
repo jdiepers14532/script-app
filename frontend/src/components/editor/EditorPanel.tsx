@@ -142,9 +142,17 @@ export default function EditorPanel({
         produktionId={produktionId}
         folgeNummer={folgeNummer}
         folgeId={folgeId}
+        sceneFormat={currentSzene?.format ?? null}
         onSelectWerkstufe={setSelectedWerkId}
         onCreateWerkstufe={onCreateWerkstufe}
         onReloadWerkstufen={onReloadWerkstufen}
+        onChangeSceneFormat={async (fmt) => {
+          if (!currentSzene?.id || typeof currentSzene.id !== 'string') return
+          try {
+            await api.updateDokumentSzene(currentSzene.id, { format: fmt })
+            setCurrentSzene((prev: any) => prev ? { ...prev, format: fmt } : prev)
+          } catch { /* ignore */ }
+        }}
       />
 
       {selectedWerk && currentSzene && (

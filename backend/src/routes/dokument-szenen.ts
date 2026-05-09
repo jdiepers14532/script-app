@@ -232,7 +232,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     const {
       int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, dauer_sek,
       sort_order, seiten, spieltag, spielzeit, szeneninfo, content,
-      is_wechselschnitt, stoppzeit_sek, notiz, motiv_id,
+      is_wechselschnitt, stoppzeit_sek, notiz, motiv_id, format,
     } = req.body
 
     const row = await queryOne(
@@ -253,6 +253,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         stoppzeit_sek = COALESCE($15, stoppzeit_sek),
         notiz = COALESCE($16, notiz),
         motiv_id = COALESCE($17, motiv_id),
+        format = COALESCE($19, format),
         updated_at = NOW(),
         updated_by = $14
        WHERE id = $18 RETURNING *`,
@@ -267,6 +268,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         notiz !== undefined ? notiz : null,
         motiv_id !== undefined ? motiv_id : null,
         req.params.id,
+        format ?? null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })

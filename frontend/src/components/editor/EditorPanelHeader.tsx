@@ -25,20 +25,29 @@ const TYP_LABELS: Record<string, string> = {
   abstrakt: 'Abstrakt',
 }
 
+const FORMAT_OPTIONS = [
+  { value: 'drehbuch', label: 'Drehbuch' },
+  { value: 'storyline', label: 'Storyline' },
+  { value: 'notiz', label: 'Notiz' },
+]
+
 interface Props {
   selectedWerk: WerkstufeMeta | null
   werkstufen: WerkstufeMeta[]
   produktionId: string
   folgeNummer: number
   folgeId: number | null
+  sceneFormat?: string | null
   onSelectWerkstufe: (id: string) => void
   onCreateWerkstufe: (typ: string) => void
   onReloadWerkstufen: () => void
+  onChangeSceneFormat?: (format: string) => void
 }
 
 export default function EditorPanelHeader({
   selectedWerk, werkstufen, produktionId, folgeNummer, folgeId,
-  onSelectWerkstufe, onCreateWerkstufe, onReloadWerkstufen,
+  sceneFormat, onSelectWerkstufe, onCreateWerkstufe, onReloadWerkstufen,
+  onChangeSceneFormat,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
 
@@ -136,6 +145,25 @@ export default function EditorPanelHeader({
             {SICHTBARKEIT_ICONS[sichtbarkeit]}
             {sichtbarkeit}
           </span>
+        </Tooltip>
+      )}
+
+      {/* Scene format switcher */}
+      {selectedWerk && sceneFormat && onChangeSceneFormat && (
+        <Tooltip text="Szenen-Format ändern (bestimmt Editor-Typ und Absatzformate)">
+          <select
+            value={sceneFormat}
+            onChange={e => onChangeSceneFormat(e.target.value)}
+            style={{
+              fontSize: 11, padding: '3px 6px', borderRadius: 4,
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            {FORMAT_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </Tooltip>
       )}
 

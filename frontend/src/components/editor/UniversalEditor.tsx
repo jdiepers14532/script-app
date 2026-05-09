@@ -137,30 +137,22 @@ export default function UniversalEditor({
 
   // Determine which node types to include
   const hasAbsatzFormate = relevantFormats.length > 0
-  const hasScreenplayContent = processedContent?.content?.some(
-    (n: any) => n.type === 'screenplay_element'
-  )
 
   const editor = useEditor({
     extensions: [
+      // Always include paragraph + heading as fallback (content may have mixed node types)
       StarterKit.configure({
-        // Enable paragraph for richtext, disable if only absatz/screenplay nodes
-        paragraph: hasAbsatzFormate ? false : (hasScreenplayContent ? false : undefined),
-        heading: hasAbsatzFormate ? false : (hasScreenplayContent ? false : undefined),
-        bulletList: hasAbsatzFormate ? false : undefined,
-        orderedList: hasAbsatzFormate ? false : undefined,
-        listItem: hasAbsatzFormate ? false : undefined,
         blockquote: false,
         codeBlock: false,
         horizontalRule: false,
         history: ydoc ? false : undefined,
       }),
+      Underline,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
       // Always include ScreenplayExtension for backward compat rendering
       ScreenplayExtension.configure({ formatElements }),
       // Include AbsatzExtension when formats are available
       ...(hasAbsatzFormate ? [AbsatzExtension.configure({ formate: relevantFormats })] : []),
-      ...(hasAbsatzFormate ? [] : [Underline]),
-      ...(hasAbsatzFormate ? [] : [TextAlign.configure({ types: ['heading', 'paragraph'] })]),
       AnnotationMark,
       Placeholder.configure({
         placeholder,
@@ -288,7 +280,7 @@ export default function UniversalEditor({
                 </span>
               </Tooltip>
             </>
-          ) : hasScreenplayContent || currentElementType ? (
+          ) : currentElementType ? (
             // Legacy screenplay toolbar
             <>
               {(['scene_heading', 'action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot'] as ScreenplayElementType[]).map(type => (
