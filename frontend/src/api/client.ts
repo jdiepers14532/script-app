@@ -1,18 +1,53 @@
 const BASE = '/api'
 
+// ── Short-lived GET cache (TTL 30s) for preloading adjacent scenes ──────────
+const getCache = new Map<string, { data: any; ts: number }>()
+const CACHE_TTL = 30_000
+
+function getCached<T>(path: string): T | undefined {
+  const entry = getCache.get(path)
+  if (!entry) return undefined
+  if (Date.now() - entry.ts > CACHE_TTL) { getCache.delete(path); return undefined }
+  return entry.data as T
+}
+
+function setCache(path: string, data: any) {
+  getCache.set(path, { data, ts: Date.now() })
+  // Evict old entries periodically
+  if (getCache.size > 200) {
+    const now = Date.now()
+    for (const [k, v] of getCache) { if (now - v.ts > CACHE_TTL) getCache.delete(k) }
+  }
+}
+
 // Deduplication: if the same GET request is already in-flight, reuse it
 const inflightGets = new Map<string, Promise<any>>()
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  // Deduplicate concurrent identical GET requests
+  // For GET: check cache first, then deduplicate
   if (method === 'GET') {
+    const cached = getCached<T>(path)
+    if (cached !== undefined) return cached
     const existing = inflightGets.get(path)
     if (existing) return existing as Promise<T>
-    const p = doRequest<T>(method, path, body).finally(() => inflightGets.delete(path))
+    const p = doRequest<T>(method, path, body)
+      .then(data => { setCache(path, data); return data })
+      .finally(() => inflightGets.delete(path))
     inflightGets.set(path, p)
     return p
   }
+  // Mutations invalidate related cache entries
+  invalidateCache(path)
   return doRequest<T>(method, path, body)
+}
+
+function invalidateCache(path: string) {
+  // Invalidate exact path and parent paths (e.g. PUT /dokument-szenen/X invalidates GET /dokument-szenen/X)
+  getCache.delete(path)
+  // Also invalidate related sub-resources
+  for (const key of getCache.keys()) {
+    if (key.startsWith(path) || path.startsWith(key)) getCache.delete(key)
+  }
 }
 
 async function doRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -522,4 +557,24 @@ export const api = {
   deleteStatVorlage: (id: number) =>
     request<void>('DELETE', `/statistik/vorlagen/${id}`),
 
+}
+
+/**
+ * Preload scene data for adjacent scenes (prev/next) so switching feels instant.
+ * Fires all relevant GET requests in the background — results land in the cache.
+ */
+export function preloadScene(szeneId: string, sceneIdentityId?: string | null, werkstufId?: string | null) {
+  // Main scene data
+  if (werkstufId && sceneIdentityId) {
+    api.resolveDokumentSzene(werkstufId, sceneIdentityId)
+  } else {
+    api.getDokumentSzene(szeneId)
+  }
+  // Characters + Vorstopp (need scene_identity_id)
+  if (sceneIdentityId) {
+    api.getSceneIdentityCharacters(sceneIdentityId)
+    api.getSceneIdentityVorstopp(sceneIdentityId)
+  }
+  // Revisionen
+  api.getDokumentSzeneRevisionen(szeneId)
 }

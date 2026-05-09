@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { api } from '../api/client'
+import { api, preloadScene } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
@@ -577,6 +577,21 @@ export default function ScriptPage() {
   useEffect(() => {
     if (selectedProduktionId) saveNavPosition(selectedProduktionId, selectedFolgeNummer, selectedStageId, selectedSzeneId)
   }, [selectedProduktionId, selectedFolgeNummer, selectedStageId, selectedSzeneId, saveNavPosition])
+
+  // Preload adjacent scenes (prev + next) for instant switching
+  useEffect(() => {
+    if (!selectedSzeneId || !useDokumentSzenen || szenen.length < 2) return
+    const idx = szenen.findIndex(s => s.id === selectedSzeneId)
+    if (idx < 0) return
+    const neighbors = [szenen[idx - 1], szenen[idx + 1]].filter(Boolean)
+    // Small delay so the current scene loads first
+    const timer = setTimeout(() => {
+      for (const s of neighbors) {
+        preloadScene(s.id, s.scene_identity_id, selectedStageId ? String(selectedStageId) : null)
+      }
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [selectedSzeneId, szenen, useDokumentSzenen, selectedStageId])
 
   if (loading) return <div style={{ padding: 32, color: 'var(--text-secondary)' }}>Lädt…</div>
 
