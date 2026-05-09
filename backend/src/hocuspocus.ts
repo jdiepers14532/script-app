@@ -3,6 +3,7 @@ import { Database } from '@hocuspocus/extension-database'
 import { pool } from './db'
 import fetch from 'node-fetch'
 import { recalcSceneStats } from './utils/recalcRepliken'
+import { calcPageLength } from './utils/calcPageLength'
 
 /**
  * Document name formats:
@@ -193,13 +194,20 @@ export function createHocuspocusServer() {
               [Buffer.from(state), context?.user_id ?? null, parsed.id]
             )
 
-            // Recalc repliken/spiel_typ after Yjs content persist
+            // Recalc repliken/spiel_typ + page_length after Yjs content persist
             try {
               const dsRow = await pool.query(
                 `SELECT werkstufe_id, scene_identity_id, content FROM dokument_szenen WHERE id = $1`,
                 [parsed.id]
               )
               const ds = dsRow.rows[0]
+              if (ds?.content) {
+                const pl = calcPageLength(ds.content)
+                await pool.query(
+                  `UPDATE dokument_szenen SET page_length = $1 WHERE id = $2`,
+                  [pl, parsed.id]
+                )
+              }
               if (ds?.werkstufe_id && ds?.scene_identity_id && ds?.content) {
                 recalcSceneStats(ds.werkstufe_id, ds.scene_identity_id, ds.content).catch(() => {})
               }

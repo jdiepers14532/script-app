@@ -199,6 +199,28 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const rolleCharacters = useMemo(() => allCharacters.filter(c => c.kategorie_typ === 'rolle'), [allCharacters])
   const komparseCharacters = useMemo(() => allCharacters.filter(c => c.kategorie_typ === 'komparse'), [allCharacters])
 
+  // Live text statistics (characters, words, sentences, repliken)
+  const textStats = useMemo(() => {
+    if (!scene?.content) return { chars: 0, words: 0, sentences: 0, repliken: 0, isScreenplay: false }
+    const nodes: any[] = Array.isArray(scene.content) ? scene.content : (scene.content?.content ?? [])
+    let fullText = ''
+    let repliken = 0
+    let isScreenplay = false
+    for (const node of nodes) {
+      if (!node) continue
+      if (node.type === 'screenplay_element') {
+        isScreenplay = true
+        if (node.attrs?.element_type === 'character') repliken++
+      }
+      const text = node.content?.map((c: any) => c.text ?? '').join('') ?? ''
+      if (text) fullText += (fullText ? '\n' : '') + text
+    }
+    const chars = fullText.length
+    const words = fullText.trim() ? fullText.trim().split(/\s+/).length : 0
+    const sentences = fullText.trim() ? (fullText.match(/[.!?]+/g) || []).length : 0
+    return { chars, words, sentences, repliken, isScreenplay }
+  }, [scene?.content])
+
   // Derived: motive hierarchy — parent (no parent_id) and children (with parent_id)
   const parentMotive = useMemo(() => allMotive.filter(m => !m.parent_id), [allMotive])
   const childrenOf = useMemo(() => {
@@ -545,6 +567,27 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             />
           )}
 
+          {/* Seitenachtel — page_length */}
+          {scene.page_length != null && scene.page_length > 0 && (
+            <Tooltip text={`Seitenlänge: ${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)\nBerechnung: 56 Zeilen/Seite`} placement="bottom">
+              <span className="page-length-badge" style={{
+                fontSize: 10,
+                color: 'var(--text-muted)',
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 4,
+                padding: '1px 5px',
+                flexShrink: 0,
+                cursor: 'default',
+                fontVariantNumeric: 'tabular-nums',
+              }}>
+                {scene.page_length % 8 === 0
+                  ? `${scene.page_length / 8}`
+                  : `${Math.floor(scene.page_length / 8)} ${scene.page_length % 8}/8`}
+              </span>
+            </Tooltip>
+          )}
+
           {/* Motiv + Untermotiv dropdowns */}
           <div className="sf-motiv-group" style={{ display: 'flex', flex: 1, gap: 4, minWidth: 0, alignItems: 'center' }}>
             {/* Motiv (parent) dropdown */}
@@ -635,7 +678,13 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             )}
           </div>
 
-          {/* Save status */}
+          {/* Text stats + Save status */}
+          {textStats.chars > 0 && (
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              {textStats.chars.toLocaleString('de-DE')}&thinsp;Z · {textStats.words.toLocaleString('de-DE')}&thinsp;W
+              {textStats.isScreenplay && <>{' · '}{textStats.sentences}&thinsp;S · {textStats.repliken}&thinsp;R</>}
+            </span>
+          )}
           {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Speichert…</span>}
           {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)', flexShrink: 0 }}>{saveMsg}</span>}
 

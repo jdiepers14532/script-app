@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { recalcSceneStats } from '../utils/recalcRepliken'
+import { calcPageLength } from '../utils/calcPageLength'
 
 // ── Fassungs-Szenen Router ───────────────────────────────────────────────────
 // Mounted at /api/fassungen/:fassungId/szenen
@@ -235,6 +236,9 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       is_wechselschnitt, stoppzeit_sek, notiz, motiv_id, format,
     } = req.body
 
+    // Calculate page_length if content is provided
+    const pageLength = content ? calcPageLength(content) : null
+
     const row = await queryOne(
       `UPDATE dokument_szenen SET
         int_ext = COALESCE($1, int_ext),
@@ -254,6 +258,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         notiz = COALESCE($16, notiz),
         motiv_id = COALESCE($17, motiv_id),
         format = COALESCE($19, format),
+        page_length = COALESCE($20, page_length),
         updated_at = NOW(),
         updated_by = $14
        WHERE id = $18 RETURNING *`,
@@ -269,6 +274,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         motiv_id !== undefined ? motiv_id : null,
         req.params.id,
         format ?? null,
+        pageLength,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
