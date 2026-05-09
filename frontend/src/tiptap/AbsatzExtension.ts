@@ -176,12 +176,12 @@ export function generateAbsatzCSS(formate: AbsatzFormat[]): string {
     if (fmt.space_before > 0) rules.push(`margin-top: ${fmt.space_before / 12}em`)
     if (fmt.space_after > 0) rules.push(`margin-bottom: ${fmt.space_after / 12}em`)
 
-    css += `.ProseMirror .absatz-fmt-${fmt.id} { ${rules.join('; ')}; }\n`
+    css += `.ProseMirror p[data-format-id="${fmt.id}"] { ${rules.join('; ')}; }\n`
 
     // Textbaustein: non-editable bold prefix via ::before
     if (fmt.textbaustein) {
       const escaped = fmt.textbaustein.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"')
-      css += `.ProseMirror .absatz-fmt-${fmt.id}::before {
+      css += `.ProseMirror p[data-format-id="${fmt.id}"]::before {
   content: '${escaped} ';
   font-weight: 700;
   pointer-events: none;
