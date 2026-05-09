@@ -405,14 +405,17 @@ export default function UniversalEditor({
 
   // Debounced LT check
   useEffect(() => {
+    console.log('[LT] useEffect triggered — mode:', spellcheckMode, 'editor:', !!editor, 'editorDestroyed:', editor?.isDestroyed)
     if (spellcheckMode !== 'languagetool' || !editor) {
       setLtMatches([])
       setLtPopup(null)
       return
     }
     const check = async () => {
+      if (editor.isDestroyed) { console.log('[LT] editor destroyed, skip'); return }
       const text = editor.getText()
-      if (!text.trim() || text.length < 3) { setLtMatches([]); return }
+      console.log('[LT] getText() length:', text.length, 'preview:', JSON.stringify(text.slice(0, 80)))
+      if (!text.trim() || text.length < 3) { console.log('[LT] text too short, skip'); setLtMatches([]); return }
       try {
         ltAbort.current?.abort()
         ltAbort.current = new AbortController()
