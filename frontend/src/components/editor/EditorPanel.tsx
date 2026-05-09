@@ -80,7 +80,7 @@ export default function EditorPanel({
           const nodes = Array.isArray(sz.content) ? sz.content : (sz.content?.content ?? [])
           setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
         })
-        .catch(() => { setCurrentSzene(null); setSceneContent(null) })
+        .catch((err) => { console.error('Load dokument-szene error:', err); setCurrentSzene(null); setSceneContent(null) })
         .finally(() => setLoading(false))
     } else if (typeof selectedSzeneId === 'number') {
       // Legacy szenen
@@ -90,7 +90,7 @@ export default function EditorPanel({
           const nodes = Array.isArray(sz.content) ? sz.content : (sz.content?.content ?? [])
           setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
         })
-        .catch(() => { setCurrentSzene(null); setSceneContent(null) })
+        .catch((err) => { console.error('Load szene error:', err); setCurrentSzene(null); setSceneContent(null) })
         .finally(() => setLoading(false))
     } else {
       setCurrentSzene(null); setSceneContent(null); setLoading(false)

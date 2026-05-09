@@ -475,11 +475,17 @@ export default function UniversalEditor({
     const decoSet = DecorationSet.create(doc, decos)
     const plugin = new Plugin({
       key: new PluginKey('languagetool'),
+      state: {
+        init() { return decoSet },
+        apply(tr: any, old: any) {
+          // Map decorations through each transaction's steps
+          if (tr.docChanged) return old.map(tr.mapping, tr.doc)
+          return old
+        },
+      },
       props: {
         decorations(state: any) {
-          // Map decorations to current doc state
-          if (state.doc === doc) return decoSet
-          return decoSet.map(state.tr.mapping, state.doc)
+          return this.getState(state)
         },
       },
     })

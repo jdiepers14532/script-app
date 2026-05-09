@@ -564,7 +564,9 @@ export default function ScriptPage() {
           delete pendingNav.current.szeneId
           navRestored.current = true
         }
-      } catch { /* no data */ }
+      } catch (err) {
+        console.error('loadWerkstufen error:', err)
+      }
     }
     loadWerkstufen()
   }, [selectedProduktionId, selectedFolgeNummer])
