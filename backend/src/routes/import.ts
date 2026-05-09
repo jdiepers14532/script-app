@@ -381,6 +381,36 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id, standDatum]
     )
 
+    // Load absatzformate for this production (for absatz-node generation)
+    const absatzformate = await query(
+      `SELECT id, name FROM absatzformate WHERE produktion_id = $1`,
+      [produktion_id]
+    )
+    // Map element_type names to format IDs
+    const elementTypeToFormatId = new Map<string, string>()
+    if (absatzformate.length > 0) {
+      const nameMap: Record<string, string> = {
+        scene_heading: 'Szenenueberschrift',
+        action: 'Action',
+        character: 'Character',
+        dialogue: 'Dialogue',
+        parenthetical: 'Parenthetical',
+        transition: 'Transition',
+        shot: 'Shot',
+      }
+      for (const [elemType, formatName] of Object.entries(nameMap)) {
+        const fmt = absatzformate.find((f: any) => f.name === formatName)
+        if (fmt) elementTypeToFormatId.set(elemType, fmt.id)
+      }
+      // Also map storyline format names
+      const storylineNames = ['Haupttext', 'Status Quo', 'Anmerkung', 'Strang-Marker']
+      for (const name of storylineNames) {
+        const fmt = absatzformate.find((f: any) => f.name === name)
+        if (fmt) elementTypeToFormatId.set(name.toLowerCase().replace(/ /g, '_'), fmt.id)
+      }
+    }
+    const useAbsatzNodes = elementTypeToFormatId.size > 0
+
     // Parse frontend scene overrides (field corrections)
     let sceneOverrides: Record<number, Record<string, any>> = {}
     if (req.body.scene_overrides) {
@@ -411,28 +441,49 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         [folge.id, req.user!.name || req.user!.user_id]
       )
 
-      // Convert textelemente to ProseMirror format (screenplay_element nodes)
+      // Convert textelemente to ProseMirror format
       const pmNodes: any[] = []
 
       // Scene heading node
       const headingParts = [intExt, ortName].filter(Boolean)
       if (tageszeit) headingParts.push(`- ${tageszeit}`)
       const headingText = headingParts.join('. ').replace(/\.\s*-/, ' -') || `SZ ${szene.nummer}`
-      pmNodes.push({
-        type: 'screenplay_element',
-        attrs: { element_type: 'scene_heading' },
-        content: [{ type: 'text', text: headingText }],
-      })
+
+      if (useAbsatzNodes) {
+        const headingFmtId = elementTypeToFormatId.get('scene_heading')
+        pmNodes.push({
+          type: 'absatz',
+          attrs: { format_id: headingFmtId ?? null, format_name: 'Szenenueberschrift' },
+          content: [{ type: 'text', text: headingText }],
+        })
+      } else {
+        pmNodes.push({
+          type: 'screenplay_element',
+          attrs: { element_type: 'scene_heading' },
+          content: [{ type: 'text', text: headingText }],
+        })
+      }
 
       // Content nodes
       for (const te of szene.textelemente) {
         const pmType = (['action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot'].includes(te.type))
           ? te.type : 'action'
-        pmNodes.push({
-          type: 'screenplay_element',
-          attrs: { element_type: pmType },
-          content: te.text ? [{ type: 'text', text: te.text }] : undefined,
-        })
+
+        if (useAbsatzNodes) {
+          const fmtId = elementTypeToFormatId.get(pmType)
+          const fmtName = absatzformate.find((f: any) => f.id === fmtId)?.name ?? pmType
+          pmNodes.push({
+            type: 'absatz',
+            attrs: { format_id: fmtId ?? null, format_name: fmtName },
+            content: te.text ? [{ type: 'text', text: te.text }] : undefined,
+          })
+        } else {
+          pmNodes.push({
+            type: 'screenplay_element',
+            attrs: { element_type: pmType },
+            content: te.text ? [{ type: 'text', text: te.text }] : undefined,
+          })
+        }
       }
 
       await queryOne(
