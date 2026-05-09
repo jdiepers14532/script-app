@@ -193,13 +193,15 @@ function isCharacterLine(line: string): boolean {
   if (DURATION_RE.test(t) || SCENE_NUM_RE.test(t) || INT_EXT_SPIELTAG_RE.test(t)) return false
   // Must contain at least one comma (single-name lines are ambiguous)
   if (!t.includes(',')) return false
-  // Reject lines that look like sentences (end with sentence punctuation, contain verbs/articles)
+  // Reject lines that look like sentences (end with sentence punctuation)
   if (/[!?;]/.test(t)) return false
-  // Allow periods only for abbreviations (e.g. "Dr.", "o.T."), reject sentence-ending periods
-  if (/[^.]\.\s*$/.test(t) && !/\b[A-Z]\.\s*$/.test(t) && !/o\.T\.\s*$/i.test(t)) return false
   const parts = t.split(',').map(p => p.trim())
-  // Each part should be a short name (1-4 words, max 35 chars)
-  return parts.length >= 2 && parts.every(p => p.length > 0 && p.length < 35 && p.split(/\s+/).length <= 5)
+  // Each part must: start with uppercase, be a short name (1-4 words, max 30 chars)
+  // This prevents "ob Lou plant, umzuziehen" from being detected as characters
+  return parts.length >= 2 && parts.every(p =>
+    p.length > 0 && p.length < 30 && p.split(/\s+/).length <= 4 &&
+    /^[A-ZÄÖÜ]/.test(p)  // must start with uppercase letter
+  )
 }
 
 // ─── Cover Page Metadata ────────────────────────────────
@@ -475,18 +477,10 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     if (INT_EXT_SPIELTAG_RE.test(line)) break
     if (KOMPARSEN_RE.test(line)) break
     if (/^Bild aus Block/i.test(line) || WECHSELSCHNITT_RE.test(line) || /^Bitte.*Memo/i.test(line)) break
-    // Safety: if this looks like a character list that was missed, don't add to zusammenfassung
-    if (isCharacterLine(line)) break
     zusammenfassungParts.push(line)
     i++
   }
   const zusammenfassung = zusammenfassungParts.join(' ')
-
-  // If zusammenfassung loop broke on a character line, parse it now
-  if (charaktere.length === 0 && i < lines.length && isCharacterLine(lines[i])) {
-    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
-    i++
-  }
 
   // If zusammenfassung loop broke on INT/EXT, parse it now
   if (i < lines.length && INT_EXT_SPIELTAG_RE.test(lines[i].trim())) {
@@ -554,9 +548,32 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     break
   }
 
+  // Post-process: if zusammenfassung starts with comma-separated names (pdftotext
+  // merges character line + oneliner into one line), extract them as characters.
+  // Pattern: "Lou, Jess, Daniel Lou merkt feinfühlig..." → chars=["Lou","Jess","Daniel"], zf="Lou merkt..."
+  let finalZusammenfassung = zusammenfassung
+  if (charaktere.length === 0 && finalZusammenfassung) {
+    const charMatch = finalZusammenfassung.match(
+      /^([A-ZÄÖÜ][a-zäöüß]+(?:\.\s*[A-ZÄÖÜ][a-zäöüß]+)?(?:,\s*[A-ZÄÖÜ][a-zäöüß]+(?:\.\s*[A-ZÄÖÜ][a-zäöüß]+)?)+)\s+([A-ZÄÖÜ].*)/
+    )
+    if (charMatch) {
+      charaktere = charMatch[1].split(',').map(c => c.trim()).filter(Boolean)
+      finalZusammenfassung = charMatch[2]
+    } else {
+      // Single character: "Richard Richard versucht..." → chars=["Richard"], zf="Richard versucht..."
+      const singleMatch = finalZusammenfassung.match(
+        /^([A-ZÄÖÜ][a-zäöüß]+)\s+\1\s+(.*)/
+      )
+      if (singleMatch) {
+        charaktere = [singleMatch[1]]
+        finalZusammenfassung = singleMatch[1] + ' ' + singleMatch[2]
+      }
+    }
+  }
+
   return {
     episodeNr, sceneNr, ort_name, int_ext, tageszeit, spieltag,
-    charaktere, zusammenfassung, dauer_sekunden, komparsen, hinweise,
+    charaktere, zusammenfassung: finalZusammenfassung, dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
     isWechselschnitt,
     wechselschnittPartner,
