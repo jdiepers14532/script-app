@@ -442,27 +442,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       )
 
       // Convert textelemente to ProseMirror format
+      // NOTE: Scene heading is NOT written into content — it's stored in metadata fields
+      // (int_ext, ort_name, tageszeit) and displayed by the SceneEditor header component.
       const pmNodes: any[] = []
-
-      // Scene heading node
-      const headingParts = [intExt, ortName].filter(Boolean)
-      if (tageszeit) headingParts.push(`- ${tageszeit}`)
-      const headingText = headingParts.join('. ').replace(/\.\s*-/, ' -') || `SZ ${szene.nummer}`
-
-      if (useAbsatzNodes) {
-        const headingFmtId = elementTypeToFormatId.get('scene_heading')
-        pmNodes.push({
-          type: 'absatz',
-          attrs: { format_id: headingFmtId ?? null, format_name: 'Szenenueberschrift' },
-          content: [{ type: 'text', text: headingText }],
-        })
-      } else {
-        pmNodes.push({
-          type: 'screenplay_element',
-          attrs: { element_type: 'scene_heading' },
-          content: [{ type: 'text', text: headingText }],
-        })
-      }
 
       // Content nodes
       for (const te of szene.textelemente) {

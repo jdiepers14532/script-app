@@ -186,16 +186,20 @@ function parseDurationToSeconds(durStr: string): number {
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
 }
 
-// Heuristic: is this line a character list? (e.g. "Lou, Jess, Daniel")
+// Heuristic: is this line a character list? (e.g. "Lou, Jess, Daniel" or "Dr. Brückner, Merle")
 function isCharacterLine(line: string): boolean {
   const t = line.trim()
-  if (!t || t.length > 80) return false
+  if (!t || t.length > 120) return false
   if (DURATION_RE.test(t) || SCENE_NUM_RE.test(t) || INT_EXT_SPIELTAG_RE.test(t)) return false
-  // Character lines don't contain sentence-ending punctuation
-  if (/[.!?;]/.test(t)) return false
+  // Must contain at least one comma (single-name lines are ambiguous)
+  if (!t.includes(',')) return false
+  // Reject lines that look like sentences (end with sentence punctuation, contain verbs/articles)
+  if (/[!?;]/.test(t)) return false
+  // Allow periods only for abbreviations (e.g. "Dr.", "o.T."), reject sentence-ending periods
+  if (/[^.]\.\s*$/.test(t) && !/\b[A-Z]\.\s*$/.test(t) && !/o\.T\.\s*$/i.test(t)) return false
   const parts = t.split(',').map(p => p.trim())
-  // Each part should be a short name (1-3 words)
-  return parts.every(p => p.length > 0 && p.length < 30 && p.split(/\s+/).length <= 4)
+  // Each part should be a short name (1-4 words, max 35 chars)
+  return parts.length >= 2 && parts.every(p => p.length > 0 && p.length < 35 && p.split(/\s+/).length <= 5)
 }
 
 // ─── Cover Page Metadata ────────────────────────────────
@@ -422,10 +426,21 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   }
 
   // Characters line (comma-separated names) — comes BEFORE INT/EXT in Rote Rosen format
+  // Also handle single-character scenes by looking ahead for INT/EXT pattern
   let charaktere: string[] = []
   if (i < lines.length && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
     i++
+  } else if (i < lines.length && i + 1 < lines.length) {
+    // Lookahead: if next line is INT/EXT, current line is likely a single character name
+    const candidate = lines[i].trim()
+    const nextLine = lines[i + 1]?.trim() || ''
+    if (candidate && !DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate) &&
+        !INT_EXT_SPIELTAG_RE.test(candidate) && INT_EXT_SPIELTAG_RE.test(nextLine) &&
+        candidate.length < 40 && candidate.split(/\s+/).length <= 4) {
+      charaktere = candidate.split(',').map(c => c.trim()).filter(Boolean)
+      i++
+    }
   }
 
   // Duration can appear between characters and I/T4 when pdftotext puts
@@ -457,12 +472,30 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     if (!line) { i++; continue }
     if (DURATION_RE.test(line)) break
     if (SCENE_NUM_RE.test(line)) break
+    if (INT_EXT_SPIELTAG_RE.test(line)) break
     if (KOMPARSEN_RE.test(line)) break
     if (/^Bild aus Block/i.test(line) || WECHSELSCHNITT_RE.test(line) || /^Bitte.*Memo/i.test(line)) break
+    // Safety: if this looks like a character list that was missed, don't add to zusammenfassung
+    if (isCharacterLine(line)) break
     zusammenfassungParts.push(line)
     i++
   }
   const zusammenfassung = zusammenfassungParts.join(' ')
+
+  // If zusammenfassung loop broke on a character line, parse it now
+  if (charaktere.length === 0 && i < lines.length && isCharacterLine(lines[i])) {
+    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    i++
+  }
+
+  // If zusammenfassung loop broke on INT/EXT, parse it now
+  if (i < lines.length && INT_EXT_SPIELTAG_RE.test(lines[i].trim())) {
+    const parsed = parseIntExtCode(lines[i].trim())
+    int_ext = parsed.int_ext
+    tageszeit = parsed.tageszeit
+    spieltag = parsed.spieltag
+    i++
+  }
 
   // Duration (can also appear after zusammenfassung)
   if (i < lines.length && DURATION_RE.test(lines[i].trim())) {
