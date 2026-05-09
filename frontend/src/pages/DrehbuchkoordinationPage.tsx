@@ -4,6 +4,8 @@ import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
 import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor } from '../data/scenes'
+import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
+import { BarChart3 } from 'lucide-react'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -18,6 +20,7 @@ const DK_TABS = [
   { id: 'format-templates',      label: 'Format-Templates' },
   { id: 'benachrichtigungen',    label: 'Benachrichtigungen' },
   { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
+  { id: 'statistik-panel',         label: 'Statistik-Panel' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -1738,6 +1741,10 @@ export default function DrehbuchkoordinationPage() {
   const [activeTab, setActiveTab] = useState('allgemein')
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [copyOpen, setCopyOpen] = useState(false)
+  const [showStatModal, setShowStatModal] = useState(false)
+  const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
+  const [folgen, setFolgen] = useState<any[]>([])
+  const [bloecke, setBloecke] = useState<any[]>([])
   const navigate = useNavigate()
   const { selectedProduction, productions } = useSelectedProduction()
 
@@ -1764,6 +1771,29 @@ export default function DrehbuchkoordinationPage() {
         }
       })
       .catch(() => setHasAccess(false))
+  }, [produktionId])
+
+  // Load folgen + bloecke for stat modal
+  useEffect(() => {
+    if (!produktionId) return
+    api.getFolgenV2(produktionId).then(setFolgen).catch(() => {})
+    api.getBloecke(produktionId).then(b => setBloecke(b || [])).catch(() => setBloecke([]))
+  }, [produktionId])
+
+  // Load stat modal config from production settings
+  useEffect(() => {
+    if (!produktionId) return
+    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (data?.statistik_modal_config) {
+          try {
+            const parsed = JSON.parse(data.statistik_modal_config)
+            if (Array.isArray(parsed)) setStatSections(parsed)
+          } catch {}
+        }
+      })
+      .catch(() => {})
   }, [produktionId])
 
   const prodLabel = selectedProduction
@@ -1811,6 +1841,10 @@ export default function DrehbuchkoordinationPage() {
         return <BenachrichtigungenTab />
       case 'dokument-einstellungen':
         return <DokumentEinstellungenTab />
+      case 'statistik-panel':
+        return produktionId
+          ? <StatistikPanelTab productionId={produktionId} sections={statSections} onSectionsChange={setStatSections} />
+          : <NoProduction />
       default:
         return <Placeholder label={activeTab} />
     }
@@ -1848,6 +1882,24 @@ export default function DrehbuchkoordinationPage() {
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)', flex: 1 }}>
             Drehbuchkoordination
           </h2>
+          {/* Statistik-Panel Button */}
+          <button
+            onClick={() => setShowStatModal(v => !v)}
+            title="Statistik-Panel oeffnen"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '6px 12px', borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: showStatModal ? 'var(--text-primary)' : 'var(--bg-subtle)',
+              color: showStatModal ? '#fff' : 'var(--text-primary)',
+              cursor: 'pointer', fontSize: 12, fontWeight: 500, flexShrink: 0,
+              transition: 'background 0.15s, color 0.15s',
+            }}
+          >
+            <BarChart3 size={14} />
+            Statistik
+          </button>
+
           <div style={{
             fontSize: 13, fontWeight: 500,
             padding: '6px 14px', borderRadius: 8,
@@ -1947,7 +1999,116 @@ export default function DrehbuchkoordinationPage() {
           </div>
         </div>
       </div>
+
+      {/* Statistik Modal */}
+      {showStatModal && produktionId && (
+        <StatistikModal
+          onClose={() => setShowStatModal(false)}
+          folgen={folgen}
+          bloecke={bloecke}
+          sections={statSections}
+        />
+      )}
     </AppShell>
+  )
+}
+
+// ── Tab: Statistik-Panel Settings ─────────────────────────────────────────────────
+
+function StatistikPanelTab({
+  productionId,
+  sections,
+  onSectionsChange,
+}: {
+  productionId: string
+  sections: StatModalSection[]
+  onSectionsChange: (s: StatModalSection[]) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const dragIdx = useRef<number | null>(null)
+  const overIdx = useRef<number | null>(null)
+
+  const save = async (next: StatModalSection[]) => {
+    onSectionsChange(next)
+    setSaving(true)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/statistik_modal_config`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    setSaving(false)
+  }
+
+  const toggleVisible = (id: string) => {
+    const next = sections.map(s => s.id === id ? { ...s, visible: !s.visible } : s)
+    save(next)
+  }
+
+  const handleReorder = () => {
+    if (dragIdx.current === null || overIdx.current === null || dragIdx.current === overIdx.current) return
+    const arr = [...sections]
+    const [moved] = arr.splice(dragIdx.current, 1)
+    arr.splice(overIdx.current, 0, moved)
+    dragIdx.current = null
+    overIdx.current = null
+    save(arr)
+  }
+
+  return (
+    <div style={{ maxWidth: 500 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Statistik-Panel</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
+        Lege fest, welche Rubriken im Statistik-Panel angezeigt werden und in welcher Reihenfolge. Ziehe die Eintraege per Drag & Drop.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {sections.map((sec, i) => (
+          <div
+            key={sec.id}
+            draggable
+            onDragStart={() => { dragIdx.current = i }}
+            onDragOver={e => { e.preventDefault(); overIdx.current = i }}
+            onDrop={handleReorder}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 12px',
+              background: 'var(--bg-subtle)',
+              borderRadius: 6,
+              userSelect: 'none',
+              opacity: sec.visible ? 1 : 0.5,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            <span style={{ cursor: 'grab', color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }}>&#x2807;</span>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{sec.label}</span>
+            <button
+              onClick={() => toggleVisible(sec.id)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: sec.visible ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontSize: 12, padding: '2px 8px',
+              }}
+            >
+              {sec.visible ? 'Sichtbar' : 'Ausgeblendet'}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {saving && <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</p>}
+
+      <button
+        onClick={() => save([...DEFAULT_SECTIONS])}
+        style={{
+          marginTop: 16, padding: '6px 14px', borderRadius: 6,
+          border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+          fontSize: 12, cursor: 'pointer',
+        }}
+      >
+        Auf Standard zuruecksetzen
+      </button>
+    </div>
   )
 }
 
