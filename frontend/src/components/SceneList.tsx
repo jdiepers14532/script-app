@@ -369,19 +369,19 @@ export default function SceneList({
               {scene.id !== selectedSzeneId && (effectiveColorMode === 'subtle' || effectiveColorMode === 'full') && (
                 <div className="env-stripe" style={{ background: envColor.stripe }} />
               )}
-              <div className="num">{scene.format === 'drehbuch' ? sceneLabel : '·'}</div>
+              <div className="num">{scene.format !== 'notiz' ? sceneLabel : '·'}</div>
               <div className="body">
                 <div className="sl-line">
-                  <span className="sl-set">{scene.ort_name || scene.zusammenfassung || ({ notiz: 'Notiz', storyline: 'Storyline' }[scene.format as string] ?? scene.format)}</span>
+                  <span className="sl-set">{scene.ort_name || scene.zusammenfassung || (scene.format === 'notiz' ? 'Notiz' : '')}</span>
                 </div>
               </div>
               <div className="meta">
-                {scene.format === 'drehbuch' ? (<>
+                {scene.format !== 'notiz' ? (<>
                   <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
                   <span className="sl-sep">/</span>
                   <span className="sl-tz">{{ tag: 'T', nacht: 'N', abend: 'A', morgen: 'M' }[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
                 </>) : (
-                  <span className="sl-fmt">{{ notiz: 'N', storyline: 'SL' }[scene.format as string] ?? '?'}</span>
+                  <span className="sl-fmt">N</span>
                 )}
               </div>
               <div className="sl-info">
