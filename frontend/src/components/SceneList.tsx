@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle } from 'lucide-react'
-import { ENV_COLORS } from '../data/scenes'
+import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
-import { useAppSettings } from '../contexts'
+import { useAppSettings, useTweaks } from '../contexts'
 import Tooltip from './Tooltip'
 
 interface SceneListProps {
@@ -155,6 +155,19 @@ export default function SceneList({
     }
   }
 
+  const handleSaveTemplate = async () => {
+    if (!stageId || !produktionId) return
+    setHeaderMenuOpen(false)
+    const name = prompt('Template-Name:')
+    if (!name?.trim()) return
+    try {
+      await api.createDokumentVorlage(produktionId, { name: name.trim(), werkstufe_id: String(stageId) })
+      alert('Template gespeichert.')
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    }
+  }
+
   const handleRenumber = async () => {
     if (!stageId || renumbering) return
     setHeaderMenuOpen(false)
@@ -292,6 +305,12 @@ export default function SceneList({
                 disabled={renumbering}
               >
                 {renumbering ? 'Lädt…' : 'Neu nummerieren'}
+              </button>
+              <button
+                className="scene-ctx-item"
+                onClick={handleSaveTemplate}
+              >
+                Als Template speichern
               </button>
             </div>
           )}

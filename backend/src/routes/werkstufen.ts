@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { applyVorlage } from './dokument-vorlagen'
 
 // ── Werkstufen Router ────────────────────────────────────────────────────────
 // Mounted at /api/folgen/:folgeId/werkstufen AND /api/werkstufen
@@ -173,6 +174,18 @@ werkstufenRouter.delete('/:id', async (req, res) => {
     res.status(204).send()
   } catch (err) {
     res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/werkstufen/:id/apply-vorlage — apply a dokument_vorlage template
+werkstufenRouter.post('/:id/apply-vorlage', async (req, res) => {
+  try {
+    const { vorlage_id } = req.body
+    if (!vorlage_id) return res.status(400).json({ error: 'vorlage_id required' })
+    const count = await applyVorlage(req.params.id, vorlage_id, req.user!.name || req.user!.user_id)
+    res.json({ ok: true, inserted: count })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || String(err) })
   }
 })
 

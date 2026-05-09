@@ -45,6 +45,7 @@ import { dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-s
 import { folgenV2Router } from './routes/folgen-v2'
 import { statistikRouter } from './routes/statistik'
 import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
+import { dokumentVorlagenRouter } from './routes/dokument-vorlagen'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -141,6 +142,9 @@ app.use('/api/werkstufen', werkstufenRouter)
 app.use('/api/werkstufen/:werkId/szenen', (req, _res, next) => {
   (req.params as any).werkId = req.params.werkId; next()
 }, werkstufenSzenenRouter)
+
+// Dokument-Vorlagen (Templates)
+app.use('/api/produktionen/:produktionId/dokument-vorlagen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, dokumentVorlagenRouter)
 
 // Dokument-Szenen
 app.use('/api/dokument-szenen', dokumentSzenenRouter)

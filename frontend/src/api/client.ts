@@ -425,6 +425,18 @@ export const api = {
     request<{ scenes: any[]; renumbered: boolean }>('POST', `/werkstufen/${werkId}/szenen/renumber`),
   diffWerkstufen: (leftId: string, rightId: string) =>
     request<any>('GET', `/werkstufen/${leftId}/szenen/diff/${rightId}`),
+  applyVorlage: (werkId: string, vorlageId: string) =>
+    request<{ ok: boolean; inserted: number }>('POST', `/werkstufen/${werkId}/apply-vorlage`, { vorlage_id: vorlageId }),
+
+  // Dokument-Vorlagen (Templates)
+  getDokumentVorlagen: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen`),
+  getDokumentVorlage: (produktionId: string, id: string) =>
+    request<any>('GET', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
+  createDokumentVorlage: (produktionId: string, data: { name: string; werkstufe_id: string }) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen`, data),
+  deleteDokumentVorlage: (produktionId: string, id: string) =>
+    request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
 
   // ── Statistik ──────────────────────────────────────────────────────────────
   getStatOverview: (werkId: string) =>

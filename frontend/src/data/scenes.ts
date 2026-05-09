@@ -8,7 +8,7 @@ export interface EnvColor {
   textDark?: boolean;
 }
 
-// Industry-standard colors (Movie Magic Scheduling)
+// Industry-standard colors (Movie Magic Scheduling) — Light
 export const DEFAULT_ENV_COLORS: Record<EnvKey, EnvColor> = {
   d_i:      { bg: '#FFFFFF',  stripe: '#9E9E9E' },                    // INT/Tag = Weiss
   d_e:      { bg: '#FFF9C4',  stripe: '#F9A825' },                    // EXT/Tag = Gelb
@@ -19,7 +19,19 @@ export const DEFAULT_ENV_COLORS: Record<EnvKey, EnvColor> = {
   n_ie:     { bg: '#FFE0B2',  stripe: '#F57C00' },                    // INT+EXT/Nacht = Orange
 };
 
+// Dark-mode equivalents — low-saturation, low-brightness
+export const DEFAULT_ENV_COLORS_DARK: Record<EnvKey, EnvColor> = {
+  d_i:      { bg: '#1A1A1A',  stripe: '#616161' },                    // INT/Tag = Neutral dunkel
+  d_e:      { bg: '#2A2510',  stripe: '#C89100' },                    // EXT/Tag = Gelb dunkel
+  d_ie:     { bg: '#2A1520',  stripe: '#C2185B' },                    // INT+EXT/Tag = Pink dunkel
+  evening_i:{ bg: '#1A1A2E',  stripe: '#7986CB' },                    // INT/Abend = Lavendel dunkel
+  n_i:      { bg: '#0D1B2A',  stripe: '#42A5F5' },                    // INT/Nacht = Blau dunkel
+  n_e:      { bg: '#0D2818',  stripe: '#66BB6A' },                    // EXT/Nacht = Gruen dunkel
+  n_ie:     { bg: '#2A1A0D',  stripe: '#FF9800' },                    // INT+EXT/Nacht = Orange dunkel
+};
+
 export let ENV_COLORS: Record<EnvKey, EnvColor> = { ...DEFAULT_ENV_COLORS };
+export let ENV_COLORS_DARK: Record<EnvKey, EnvColor> = { ...DEFAULT_ENV_COLORS_DARK };
 
 export function setEnvColors(custom: Partial<Record<EnvKey, Partial<EnvColor>>>) {
   const merged = { ...DEFAULT_ENV_COLORS }
@@ -31,8 +43,19 @@ export function setEnvColors(custom: Partial<Record<EnvKey, Partial<EnvColor>>>)
   ENV_COLORS = merged
 }
 
+export function setEnvColorsDark(custom: Partial<Record<EnvKey, Partial<EnvColor>>>) {
+  const merged = { ...DEFAULT_ENV_COLORS_DARK }
+  for (const key of Object.keys(custom) as EnvKey[]) {
+    if (merged[key]) {
+      merged[key] = { ...merged[key], ...custom[key] }
+    }
+  }
+  ENV_COLORS_DARK = merged
+}
+
 export function resetEnvColors() {
   ENV_COLORS = { ...DEFAULT_ENV_COLORS }
+  ENV_COLORS_DARK = { ...DEFAULT_ENV_COLORS_DARK }
 }
 
 export interface SceneComment {
