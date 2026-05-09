@@ -4,8 +4,7 @@ import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
 import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor } from '../data/scenes'
-import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
-import { BarChart3 } from 'lucide-react'
+import { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -1741,10 +1740,7 @@ export default function DrehbuchkoordinationPage() {
   const [activeTab, setActiveTab] = useState('allgemein')
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [copyOpen, setCopyOpen] = useState(false)
-  const [showStatModal, setShowStatModal] = useState(false)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
-  const [folgen, setFolgen] = useState<any[]>([])
-  const [bloecke, setBloecke] = useState<any[]>([])
   const navigate = useNavigate()
   const { selectedProduction, productions } = useSelectedProduction()
 
@@ -1771,13 +1767,6 @@ export default function DrehbuchkoordinationPage() {
         }
       })
       .catch(() => setHasAccess(false))
-  }, [produktionId])
-
-  // Load folgen + bloecke for stat modal
-  useEffect(() => {
-    if (!produktionId) return
-    api.getFolgenV2(produktionId).then(setFolgen).catch(() => {})
-    api.getBloecke(produktionId).then(b => setBloecke(b || [])).catch(() => setBloecke([]))
   }, [produktionId])
 
   // Load stat modal config from production settings
@@ -1882,24 +1871,6 @@ export default function DrehbuchkoordinationPage() {
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)', flex: 1 }}>
             Drehbuchkoordination
           </h2>
-          {/* Statistik-Panel Button */}
-          <button
-            onClick={() => setShowStatModal(v => !v)}
-            title="Statistik-Panel oeffnen"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '6px 12px', borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: showStatModal ? 'var(--text-primary)' : 'var(--bg-subtle)',
-              color: showStatModal ? '#fff' : 'var(--text-primary)',
-              cursor: 'pointer', fontSize: 12, fontWeight: 500, flexShrink: 0,
-              transition: 'background 0.15s, color 0.15s',
-            }}
-          >
-            <BarChart3 size={14} />
-            Statistik
-          </button>
-
           <div style={{
             fontSize: 13, fontWeight: 500,
             padding: '6px 14px', borderRadius: 8,
@@ -2000,15 +1971,6 @@ export default function DrehbuchkoordinationPage() {
         </div>
       </div>
 
-      {/* Statistik Modal */}
-      {showStatModal && produktionId && (
-        <StatistikModal
-          onClose={() => setShowStatModal(false)}
-          folgen={folgen}
-          bloecke={bloecke}
-          sections={statSections}
-        />
-      )}
     </AppShell>
   )
 }

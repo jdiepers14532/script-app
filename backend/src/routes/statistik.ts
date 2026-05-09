@@ -482,25 +482,31 @@ statistikRouter.get('/report', async (req, res) => {
       return res.status(400).json({ error: 'produktion_id und folge_ids erforderlich' })
     }
 
-    const typ = String(werkstufe_typ || 'drehbuch')
     const ids = String(folge_ids).split(',').map(Number).filter(n => !isNaN(n))
     if (ids.length === 0) return res.status(400).json({ error: 'Keine gültigen folge_ids' })
 
-    // Get latest werkstufe per folge for given typ
-    const wsRows = await query(
-      `SELECT DISTINCT ON (w.folge_id) w.id, w.folge_id, f.folge_nummer
-       FROM werkstufen w
-       JOIN folgen f ON f.id = w.folge_id
-       WHERE f.id = ANY($1::int[]) AND w.typ = $2 AND f.produktion_id = $3
-       ORDER BY w.folge_id, w.version_nummer DESC`,
-      [ids, typ, produktion_id]
-    )
+    // Get latest werkstufe per folge — try requested typ first, then fallback
+    const typPrio = werkstufe_typ ? [String(werkstufe_typ)] : ['drehbuch', 'storyline', 'notiz']
+    let wsRows: any[] = []
+    let usedTyp = typPrio[0]
+    for (const typ of typPrio) {
+      wsRows = await query(
+        `SELECT DISTINCT ON (w.folge_id) w.id, w.folge_id, f.folge_nummer
+         FROM werkstufen w
+         JOIN folgen f ON f.id = w.folge_id
+         WHERE f.id = ANY($1::int[]) AND w.typ = $2 AND f.produktion_id = $3
+         ORDER BY w.folge_id, w.version_nummer DESC`,
+        [ids, typ, produktion_id]
+      )
+      if (wsRows.length > 0) { usedTyp = typ; break }
+    }
 
     const wsIds = wsRows.map((r: any) => r.id)
     if (wsIds.length === 0) {
       return res.json({
         bilder_insgesamt: 0, drehbuchseiten: 0, drehbuchseiten_display: '0',
         vorstopp_sek: 0, rollen_pro_bild: [], rollen: [], motive: [], drehorte: [], folgen: [],
+        werkstufe_typ: usedTyp,
       })
     }
 
@@ -661,6 +667,7 @@ statistikRouter.get('/report', async (req, res) => {
       motive,
       drehorte,
       folgen: folgenBreakdown,
+      werkstufe_typ: usedTyp,
     })
   } catch (err) {
     console.error('statistik/report error:', err)

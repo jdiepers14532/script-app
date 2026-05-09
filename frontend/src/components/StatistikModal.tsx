@@ -25,6 +25,7 @@ interface StatistikModalProps {
   folgen: any[]
   bloecke: any[]
   sections: StatModalSection[]
+  initialFolgeNummer?: number | null
 }
 
 type ViewMode = 'folge' | 'block'
@@ -45,7 +46,7 @@ function formatDrehdauer(sek: number): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function StatistikModal({ onClose, folgen, bloecke, sections }: StatistikModalProps) {
+export default function StatistikModal({ onClose, folgen, bloecke, sections, initialFolgeNummer }: StatistikModalProps) {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
 
@@ -64,12 +65,16 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections }: S
   const [hideDetails, setHideDetails] = useState(false)
   const refreshCounter = useRef(0)
 
-  // Auto-select first folge
+  // Auto-select folge: prefer initialFolgeNummer, fallback to last
   useEffect(() => {
     if (folgen.length > 0 && !selectedFolgeId) {
+      if (initialFolgeNummer != null) {
+        const match = folgen.find(f => f.folge_nummer === initialFolgeNummer)
+        if (match) { setSelectedFolgeId(match.id); return }
+      }
       setSelectedFolgeId(folgen[folgen.length - 1].id)
     }
-  }, [folgen, selectedFolgeId])
+  }, [folgen, selectedFolgeId, initialFolgeNummer])
 
   // Determine folge IDs
   const selectedFolgeIds = useMemo(() => {
@@ -101,7 +106,7 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections }: S
     if (!produktionId || selectedFolgeIds.length === 0) { setReport(null); return }
     const rc = ++refreshCounter.current
     setLoading(true)
-    api.getStatReport(produktionId, selectedFolgeIds, 'drehbuch')
+    api.getStatReport(produktionId, selectedFolgeIds)
       .then(r => { if (rc === refreshCounter.current) setReport(r) })
       .catch(() => { if (rc === refreshCounter.current) setReport(null) })
       .finally(() => { if (rc === refreshCounter.current) setLoading(false) })

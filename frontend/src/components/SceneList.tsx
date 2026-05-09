@@ -17,6 +17,7 @@ interface SceneListProps {
   onSzeneDeleted?: (id: number | string) => void
   onSzenesReordered?: (scenes: any[]) => void
   commentCounts?: Record<number, number>
+  onOpenStatistik?: () => void
 }
 
 export default function SceneList({
@@ -31,6 +32,7 @@ export default function SceneList({
   onSzeneDeleted,
   onSzenesReordered,
   commentCounts,
+  onOpenStatistik,
 }: SceneListProps) {
   const { sceneKuerzel } = useAppSettings()
   const { tweaks } = useTweaks()
@@ -314,6 +316,17 @@ export default function SceneList({
               >
                 Als Template speichern
               </button>
+              {onOpenStatistik && (
+                <>
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                  <button
+                    className="scene-ctx-item"
+                    onClick={() => { onOpenStatistik(); setHeaderMenuOpen(false) }}
+                  >
+                    Statistiken
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

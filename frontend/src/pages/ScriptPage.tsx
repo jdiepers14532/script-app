@@ -6,6 +6,7 @@ import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
+import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 import { useFocus, useSelectedProduction, PanelModeContext, useTweaks } from '../contexts'
 import { useWerkstufe } from '../hooks/useDokument'
 
@@ -237,6 +238,9 @@ export default function ScriptPage() {
   const [selectedProduktionId, setSelectedProduktionId] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
+  const [showStatModal, setShowStatModal] = useState(false)
+  const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
+  const [allFolgen, setAllFolgen] = useState<any[]>([])
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | string | null>(null)
 
@@ -479,6 +483,23 @@ export default function ScriptPage() {
   }, [selectedProduction?.id, settingsLoaded])
 
 
+  // Load all folgen + stat modal settings for Statistik-Panel
+  useEffect(() => {
+    if (!selectedProduktionId) return
+    api.getFolgenV2(selectedProduktionId).then(setAllFolgen).catch(() => {})
+    fetch(`/api/dk-settings/${selectedProduktionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (data?.statistik_modal_config) {
+          try {
+            const parsed = JSON.parse(data.statistik_modal_config)
+            if (Array.isArray(parsed)) setStatSections(parsed)
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [selectedProduktionId])
+
   // Load Blöcke — restore saved folgeNummer by finding the right block
   useEffect(() => {
     if (!selectedProduktionId) return
@@ -624,6 +645,7 @@ export default function ScriptPage() {
               }}
               onSzenesReordered={setSzenen}
               commentCounts={commentCounts}
+              onOpenStatistik={() => setShowStatModal(true)}
             />
           </div>
         )}
@@ -671,6 +693,17 @@ export default function ScriptPage() {
           sceneIdentityId={useDokumentSzenen ? szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null : null}
         />}
       </div>
+
+      {/* Statistik Modal */}
+      {showStatModal && selectedProduktionId && (
+        <StatistikModal
+          onClose={() => setShowStatModal(false)}
+          folgen={allFolgen}
+          bloecke={bloecke}
+          sections={statSections}
+          initialFolgeNummer={selectedFolgeNummer}
+        />
+      )}
     </AppShell>
   )
 }
