@@ -223,6 +223,7 @@ async function runMigrations() {
     'v52_element_type.sql',
     'v53_motive_ist_studio.sql',
     'v54_notiz_motiv_id.sql',
+    'v55_dokument_vorlagen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
