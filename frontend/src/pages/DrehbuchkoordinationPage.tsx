@@ -1080,6 +1080,8 @@ function DokumentTypenTab() {
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Ausr.</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug L</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug R</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Abst.↑</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Abst.↓</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Enter→</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Tab→</th>
           <th style={{ padding: '6px 4px' }} />
@@ -1111,6 +1113,12 @@ function DokumentTypenTab() {
               </td>
               <td style={{ padding: '4px 4px' }}>
                 <input type="number" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <input type="number" step="1" min="0" value={editData.space_before ?? 0} onChange={e => setEditData({ ...editData, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <input type="number" step="1" min="0" value={editData.space_after ?? 0} onChange={e => setEditData({ ...editData, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
               </td>
               <td style={{ padding: '4px 4px' }}>
                 <select value={editData.enter_next_format ?? ''} onChange={e => setEditData({ ...editData, enter_next_format: e.target.value || null })} style={{ ...selectStyle, fontSize: 10 }}>
@@ -1146,6 +1154,8 @@ function DokumentTypenTab() {
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.text_align === 'left' ? 'L' : f.text_align === 'center' ? 'C' : 'R'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_left ? f.margin_left + '"' : '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_right ? f.margin_right + '"' : '-'}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.space_before || '-'}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.space_after || '-'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>
                 {formate.find(x => x.id === f.enter_next_format)?.kuerzel || formate.find(x => x.id === f.enter_next_format)?.name || '-'}
               </td>
@@ -1159,7 +1169,7 @@ function DokumentTypenTab() {
             </tr>
           ))}
           {filtered.length === 0 && !loading && (
-            <tr><td colSpan={12} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
+            <tr><td colSpan={14} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
               Keine Absatzformate. Waehle ein Preset aus, um zu starten.
             </td></tr>
           )}
@@ -1259,6 +1269,10 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
           <input type="number" step="0.1" value={data.margin_left} onChange={e => setData({ ...data, margin_left: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Einzug R (inch)</label>
           <input type="number" step="0.1" value={data.margin_right} onChange={e => setData({ ...data, margin_right: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Abstand vor (pt)</label>
+          <input type="number" step="1" value={data.space_before} onChange={e => setData({ ...data, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Abstand nach (pt)</label>
+          <input type="number" step="1" value={data.space_after} onChange={e => setData({ ...data, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: '100%' }} /></div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
         <button onClick={onCancel}
