@@ -298,6 +298,78 @@ absatzformateRouter.post('/from-produktion', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// POST /api/produktionen/:produktionId/absatzformate/migrate-content
+// Batch-migrates existing screenplay_element nodes → absatz nodes for all scenes
+// ══════════════════════════════════════════════════════════════════════════════
+absatzformateRouter.post('/migrate-content', async (req, res) => {
+  const pid = (req.params as any).produktionId
+
+  try {
+    // Load formats for this production
+    const formate = await query(
+      'SELECT id, name FROM absatzformate WHERE produktion_id = $1',
+      [pid]
+    )
+    if (formate.length === 0) {
+      return res.status(400).json({ error: 'Keine Absatzformate konfiguriert. Bitte zuerst ein Preset anwenden.' })
+    }
+
+    // Build element_type → format mapping
+    const nameMap: Record<string, string> = {
+      scene_heading: 'Szenenueberschrift',
+      action: 'Action',
+      character: 'Character',
+      dialogue: 'Dialogue',
+      parenthetical: 'Parenthetical',
+      transition: 'Transition',
+      shot: 'Shot',
+    }
+    const elementToFmt = new Map<string, { id: string; name: string }>()
+    for (const [elemType, formatName] of Object.entries(nameMap)) {
+      const fmt = formate.find((f: any) => f.name === formatName)
+      if (fmt) elementToFmt.set(elemType, { id: fmt.id, name: fmt.name })
+    }
+
+    // Find all dokument_szenen for this production that have screenplay_element content
+    const scenes = await query(
+      `SELECT ds.id, ds.content FROM dokument_szenen ds
+       JOIN werkstufen w ON ds.werkstufe_id = w.id
+       JOIN folgen f ON w.folge_id = f.id
+       WHERE f.produktion_id = $1 AND ds.geloescht = false`,
+      [pid]
+    )
+
+    let migratedCount = 0
+    for (const scene of scenes) {
+      if (!scene.content || !Array.isArray(scene.content)) continue
+      const hasScreenplay = scene.content.some((n: any) => n.type === 'screenplay_element')
+      if (!hasScreenplay) continue
+
+      const converted = scene.content.map((node: any) => {
+        if (node.type !== 'screenplay_element') return node
+        const elemType = node.attrs?.element_type ?? 'action'
+        const fmt = elementToFmt.get(elemType)
+        return {
+          type: 'absatz',
+          attrs: { format_id: fmt?.id ?? null, format_name: fmt?.name ?? elemType },
+          content: node.content,
+        }
+      })
+
+      await queryOne(
+        'UPDATE dokument_szenen SET content = $1 WHERE id = $2 RETURNING id',
+        [JSON.stringify(converted), scene.id]
+      )
+      migratedCount++
+    }
+
+    res.json({ migrated_scenes: migratedCount, total_scenes: scenes.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // PRESETS
 // ══════════════════════════════════════════════════════════════════════════════
 

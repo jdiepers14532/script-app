@@ -1009,6 +1009,18 @@ function DokumentTypenTab() {
           style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
           Als Preset speichern...
         </button>
+        {formate.length > 0 && (
+          <button onClick={async () => {
+            if (!confirm('Bestehende Szenen-Inhalte von screenplay_element auf absatz-Nodes migrieren?')) return
+            try {
+              const result = await api.migrateAbsatzformatContent(produktionId)
+              setMsg(`${result.migrated_scenes} von ${result.total_scenes} Szenen migriert`)
+            } catch (e: any) { setMsg(e.message) }
+          }}
+            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>
+            Content migrieren
+          </button>
+        )}
         <div style={{ flex: 1 }} />
         <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Filter:</label>
         <select value={filterKat} onChange={e => setFilterKat(e.target.value)} style={selectStyle}>
