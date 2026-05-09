@@ -41,6 +41,8 @@ export default function SceneList({
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [renumbering, setRenumbering] = useState(false)
   const [nurSzenen, setNurSzenen] = useState(true)
+  const [colorOff, setColorOff] = useState(false)
+  const effectiveColorMode = colorOff ? 'off' as const : colorMode
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -237,7 +239,7 @@ export default function SceneList({
   const isDragActive = searchQuery === '' // drag only when not filtering
 
   return (
-    <div className="scenes" data-colormode={colorMode}>
+    <div className="scenes" data-colormode={effectiveColorMode}>
       {/* Search bar + actions */}
       <div className="searchbar" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}>
         <Search size={11} style={{
@@ -274,6 +276,12 @@ export default function SceneList({
             <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 160 }}>
               <button
                 className="scene-ctx-item"
+                onClick={() => { setColorOff(v => !v); setHeaderMenuOpen(false) }}
+              >
+                {colorOff ? 'Einfärbung einblenden' : 'Einfärbung ausblenden'}
+              </button>
+              <button
+                className="scene-ctx-item"
                 onClick={() => { setNurSzenen(v => !v); setHeaderMenuOpen(false) }}
               >
                 {nurSzenen ? 'Alles anzeigen' : 'Nur Szenen'}
@@ -306,8 +314,8 @@ export default function SceneList({
           const envColor = ENV_COLORS[envKey]
           const isDark = !!envColor.textDark
           const rowStyle = {} as Record<string, string>
-          if (colorMode === 'full') rowStyle['--row-bg'] = envColor.bg
-          if (colorMode === 'subtle' || colorMode === 'full') rowStyle['--stripe'] = envColor.stripe
+          if (effectiveColorMode === 'full') rowStyle['--row-bg'] = envColor.bg
+          if (effectiveColorMode === 'subtle' || effectiveColorMode === 'full') rowStyle['--stripe'] = envColor.stripe
 
           const isMenuOpen = menuOpenId === scene.id
           const isDeleting = deleting === scene.id
@@ -329,7 +337,7 @@ export default function SceneList({
               className={[
                 'row',
                 scene.id === selectedSzeneId ? 'active' : '',
-                colorMode === 'full' && isDark ? 'on-dark' : '',
+                effectiveColorMode === 'full' && isDark ? 'on-dark' : '',
                 isDeleting ? 'deleting' : '',
                 isDragging ? 'dragging' : '',
                 isDragOver ? 'drag-over' : '',
@@ -337,7 +345,7 @@ export default function SceneList({
               style={{ ...rowStyle, position: 'relative', cursor: isDragActive ? 'grab' : 'pointer' }}
               onClick={() => !isMenuOpen && onSelectSzene(scene.id)}
             >
-              {scene.id !== selectedSzeneId && (colorMode === 'subtle' || colorMode === 'full') && (
+              {scene.id !== selectedSzeneId && (effectiveColorMode === 'subtle' || effectiveColorMode === 'full') && (
                 <div className="env-stripe" style={{ background: envColor.stripe }} />
               )}
               <div className="num">{scene.format === 'drehbuch' ? sceneLabel : '·'}</div>
