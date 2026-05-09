@@ -5,6 +5,7 @@ import { authMiddleware } from '../auth'
 import { detectFormat, parseScript } from '../importers'
 import { stripWatermark, decodeWatermarkFromText } from '../utils/watermark'
 import { parseFilename } from '../importers/roteRosen'
+import { calcPageLength } from '../utils/calcPageLength'
 
 /** Extract human-readable metadata from Fountain title page or FDX header */
 function extractFileMetadata(filename: string, buffer: Buffer): Record<string, string> {
@@ -549,19 +550,21 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         }
       }
 
+      const pl = calcPageLength(pmNodes)
       await queryOne(
         `INSERT INTO dokument_szenen
            (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
             int_ext, tageszeit, ort_name, zusammenfassung, content,
             spieltag, stoppzeit_sek, is_wechselschnitt, szeneninfo,
-            format, geloescht, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15)`,
+            format, geloescht, updated_by, page_length)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15, $16)`,
         [
           werkstufe.id, identity.id, idx, szene.nummer,
           intExt, tageszeit, ortName || null,
           zusammenfassung || null, JSON.stringify(pmNodes),
           spieltag || null, stoppzeitSek, isWechselschnitt,
           szeneninfo || null, sceneFormat, req.user!.name || req.user!.user_id,
+          pl,
         ]
       )
       sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
@@ -578,14 +581,15 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         for (const [nsIdx, elem] of nonSceneElements.entries()) {
           const elemType = ['cover', 'synopsis', 'memo'].includes(elem.type) ? elem.type : 'memo'
           const pmNodes = buildNonSceneContent(elem.type, elem.content)
+          const nspl = calcPageLength(pmNodes)
           await queryOne(
             `INSERT INTO dokument_szenen
                (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
-                content, format, element_type, geloescht, updated_by, zusammenfassung)
-             VALUES ($1, NULL, $2, NULL, $3, 'notiz', $4, false, $5, $6)`,
+                content, format, element_type, geloescht, updated_by, zusammenfassung, page_length)
+             VALUES ($1, NULL, $2, NULL, $3, 'notiz', $4, false, $5, $6, $7)`,
             [
               werkstufe.id, -(nonSceneElements.length - nsIdx), JSON.stringify(pmNodes),
-              elemType, req.user!.name || req.user!.user_id, elem.label,
+              elemType, req.user!.name || req.user!.user_id, elem.label, nspl,
             ]
           )
           nonSceneCount++

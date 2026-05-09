@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { applyVorlage } from './dokument-vorlagen'
+import { calcPageLength } from '../utils/calcPageLength'
 
 // ── Werkstufen Router ────────────────────────────────────────────────────────
 // Mounted at /api/folgen/:folgeId/werkstufen AND /api/werkstufen
@@ -87,10 +88,10 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
         `INSERT INTO dokument_szenen
            (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
             format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-            szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
+            szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by, page_length)
          SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
                 format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-                szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, $2
+                szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, $2, page_length
          FROM dokument_szenen
          WHERE werkstufe_id = $3 AND geloescht = false`,
         [werkstufe.id, user.name || user.user_id, predecessorId]
@@ -335,18 +336,19 @@ werkstufenSzenenRouter.post('/', async (req, res) => {
       finalSortOrder = (maxSort?.ms ?? 0) + 1
     }
 
+    const pl = calcPageLength(content || [])
     const row = await queryOne(
       `INSERT INTO dokument_szenen
          (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
           format, int_ext, tageszeit, ort_name, zusammenfassung, content,
-          stoppzeit_sek, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`,
+          stoppzeit_sek, updated_by, page_length)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
         werkId, identityId, finalSortOrder, finalSceneNummer,
         format || ws.typ || 'drehbuch',
         int_ext || 'INT', tageszeit || 'TAG', ort_name || null,
         zusammenfassung || null, JSON.stringify(content || []),
-        stoppzeit_sek || null, user.name || user.user_id,
+        stoppzeit_sek || null, user.name || user.user_id, pl,
       ]
     )
 

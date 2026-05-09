@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { calcPageLength } from '../utils/calcPageLength'
 
 export const dokumentVorlagenRouter = Router({ mergeParams: true })
 dokumentVorlagenRouter.use(authMiddleware)
@@ -93,12 +94,13 @@ export async function applyVorlage(werkId: string, vorlagenId: string, userName:
 
   for (let i = 0; i < sektionen.length; i++) {
     const s = sektionen[i]
+    const pl = calcPageLength(s.content)
     await queryOne(
       `INSERT INTO dokument_szenen
          (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
-          content, format, element_type, geloescht, updated_by, zusammenfassung)
-       VALUES ($1, NULL, $2, NULL, $3, 'notiz', $4, false, $5, $6)`,
-      [werkId, -(sektionen.length - i), JSON.stringify(s.content), s.element_type, userName, s.label]
+          content, format, element_type, geloescht, updated_by, zusammenfassung, page_length)
+       VALUES ($1, NULL, $2, NULL, $3, 'notiz', $4, false, $5, $6, $7)`,
+      [werkId, -(sektionen.length - i), JSON.stringify(s.content), s.element_type, userName, s.label, pl]
     )
   }
 
