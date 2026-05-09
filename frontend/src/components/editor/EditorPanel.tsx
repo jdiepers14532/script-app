@@ -166,14 +166,6 @@ export default function EditorPanel({
     return { chars, words, sentences, repliken, isScreenplay }
   }, [currentSzene?.content])
 
-  // Format page_length display
-  const pageLengthDisplay = useMemo(() => {
-    const pl = currentSzene?.page_length
-    if (!pl || pl <= 0) return null
-    if (pl % 8 === 0) return `${pl / 8}`
-    return `${Math.floor(pl / 8)} ${pl % 8}/8`
-  }, [currentSzene?.page_length])
-
   const isReadOnly = selectedWerk?.bearbeitung_status === 'gesperrt' || selectedWerk?.abgegeben
 
   // Collaboration
@@ -215,11 +207,6 @@ export default function EditorPanel({
                 </span>
               )}
               <div style={{ flex: 1 }} />
-              {pageLengthDisplay && (
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }} title="Seitenlänge (Achtel)">
-                  {pageLengthDisplay} S.
-                </span>
-              )}
               {textStats.chars > 0 && (
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                   {textStats.chars.toLocaleString('de-DE')}&thinsp;Z · {textStats.words.toLocaleString('de-DE')}&thinsp;W

@@ -521,72 +521,72 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
         {/* Zeile 1: SZ | Stoppzeit-Input | Motiv (grows) | Spielzeit | DT · I/T | buttons */}
         <div className="scene-r1">
-          {/* SZ-Nummer */}
-          <span className="sz-group">
-            <span className="scene-big">SZ{scene.scene_nummer}</span>
-          </span>
-
-          {/* Stoppzeit — mm:ss for werkstufen (stoppzeit_sek), minutes for legacy */}
-          {scene.stoppzeit_sek != null || (useDokumentSzenen && typeof szeneId === 'string') ? (
-            <input
-              key={`stopp-${szeneId}`}
-              className="spielzeit-inp stopp-inp"
-              defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
-              placeholder="0:00"
-              title="Stoppzeit (mm:ss)"
-              onBlur={e => {
-                const raw = e.target.value.trim()
-                if (!raw) {
-                  if (scene.stoppzeit_sek != null)
-                    saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                  return
-                }
-                const parts = raw.split(':')
-                const mins = parseInt(parts[0] || '0', 10) || 0
-                const secs = parseInt(parts[1] || '0', 10) || 0
-                const total = mins * 60 + secs
-                if (total !== (scene.stoppzeit_sek ?? null))
-                  saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
-          ) : (
-            <input
-              key={`stopp-${szeneId}`}
-              className="spielzeit-inp stopp-inp"
-              defaultValue={scene.dauer_min != null ? String(scene.dauer_min) : ''}
-              placeholder="0'"
-              title="Geplante Dauer (Minuten)"
-              type="number"
-              min={0}
-              onBlur={e => {
-                const raw = e.target.value.trim()
-                const val = raw ? parseFloat(raw) : null
-                if (val !== (scene.dauer_min ?? null))
-                  saveScene({ dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
-          )}
-
-          {/* Seitenachtel — page_length */}
-          {scene.page_length != null && scene.page_length > 0 && (
-            <Tooltip text={`Seitenlänge: ${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)\nBerechnung: 56 Zeilen/Seite`} placement="bottom">
-              <span className="page-length-badge" style={{
-                fontSize: 10,
-                color: 'var(--text-muted)',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 4,
-                padding: '1px 5px',
-                flexShrink: 0,
-                cursor: 'default',
-                fontVariantNumeric: 'tabular-nums',
-              }}>
-                {scene.page_length % 8 === 0
-                  ? `${scene.page_length / 8}`
-                  : `${Math.floor(scene.page_length / 8)} ${scene.page_length % 8}/8`}
+          {/* SZ-Nummer + Stoppzeit + Seitenachtel (vertikal) */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span className="sz-group">
+                <span className="scene-big">SZ{scene.scene_nummer}</span>
               </span>
-            </Tooltip>
-          )}
+
+              {/* Stoppzeit — mm:ss for werkstufen (stoppzeit_sek), minutes for legacy */}
+              {scene.stoppzeit_sek != null || (useDokumentSzenen && typeof szeneId === 'string') ? (
+                <input
+                  key={`stopp-${szeneId}`}
+                  className="spielzeit-inp stopp-inp"
+                  defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
+                  placeholder="0:00"
+                  title="Stoppzeit (mm:ss)"
+                  onBlur={e => {
+                    const raw = e.target.value.trim()
+                    if (!raw) {
+                      if (scene.stoppzeit_sek != null)
+                        saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                      return
+                    }
+                    const parts = raw.split(':')
+                    const mins = parseInt(parts[0] || '0', 10) || 0
+                    const secs = parseInt(parts[1] || '0', 10) || 0
+                    const total = mins * 60 + secs
+                    if (total !== (scene.stoppzeit_sek ?? null))
+                      saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  }}
+                />
+              ) : (
+                <input
+                  key={`stopp-${szeneId}`}
+                  className="spielzeit-inp stopp-inp"
+                  defaultValue={scene.dauer_min != null ? String(scene.dauer_min) : ''}
+                  placeholder="0'"
+                  title="Geplante Dauer (Minuten)"
+                  type="number"
+                  min={0}
+                  onBlur={e => {
+                    const raw = e.target.value.trim()
+                    const val = raw ? parseFloat(raw) : null
+                    if (val !== (scene.dauer_min ?? null))
+                      saveScene({ dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  }}
+                />
+              )}
+            </div>
+            {/* Seitenachtel — page_length (unter Stoppzeit) */}
+            {scene.page_length != null && scene.page_length > 0 && (
+              <Tooltip text={`Seitenlänge: ${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)\nBerechnung: 56 Zeilen/Seite`} placement="bottom">
+                <span style={{
+                  fontSize: 9,
+                  color: 'var(--text-muted)',
+                  fontVariantNumeric: 'tabular-nums',
+                  marginTop: 1,
+                  paddingLeft: 2,
+                  cursor: 'default',
+                }}>
+                  {scene.page_length % 8 === 0
+                    ? `${scene.page_length / 8} S.`
+                    : `${Math.floor(scene.page_length / 8)} ${scene.page_length % 8}/8 S.`}
+                </span>
+              </Tooltip>
+            )}
+          </div>
 
           {/* Motiv + Untermotiv dropdowns */}
           <div className="sf-motiv-group" style={{ display: 'flex', flex: 1, gap: 4, minWidth: 0, alignItems: 'center' }}>
