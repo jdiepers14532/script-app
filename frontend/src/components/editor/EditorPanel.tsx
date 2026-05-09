@@ -3,19 +3,11 @@ import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
 import CollaborationPresence from './CollaborationPresence'
-const ScreenplayEditor = lazy(() => import('./ScreenplayEditor'))
-const RichTextEditor = lazy(() => import('./RichTextEditor'))
+const UniversalEditor = lazy(() => import('./UniversalEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs } from '../../contexts'
-
-// Editor modus per werkstufe type
-const EDITOR_MODUS: Record<string, 'screenplay' | 'richtext'> = {
-  drehbuch: 'screenplay',
-  storyline: 'richtext',
-  notiz: 'richtext',
-  abstrakt: 'richtext',
-}
+import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 
 interface Props {
   produktionId: string
@@ -40,6 +32,15 @@ export default function EditorPanel({
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
+
+  // Load absatzformate for this production
+  const [absatzformate, setAbsatzformate] = useState<AbsatzFormat[]>([])
+  useEffect(() => {
+    if (!produktionId) return
+    api.getAbsatzformate(produktionId)
+      .then(setAbsatzformate)
+      .catch(() => setAbsatzformate([]))
+  }, [produktionId])
 
   // Panel state: which werkstufe is selected
   const [selectedWerkId, setSelectedWerkId] = useState<string | null>(null)
@@ -120,13 +121,9 @@ export default function EditorPanel({
     }, 1500)
   }, [selectedSzeneId, useDokumentSzenen])
 
-  // Determine editor mode — per scene format overrides werkstufe type
+  // Determine kategorie for format filtering
   const sceneFormat = currentSzene?.format
-  const editorModus = sceneFormat
-    ? (EDITOR_MODUS[sceneFormat] ?? 'richtext')
-    : selectedWerk
-      ? (EDITOR_MODUS[selectedWerk.typ] ?? 'richtext')
-      : 'richtext'
+  const kategorie = sceneFormat ?? selectedWerk?.typ ?? 'drehbuch'
 
   const isReadOnly = selectedWerk?.bearbeitung_status === 'gesperrt' || selectedWerk?.abgegeben
 
@@ -208,9 +205,9 @@ export default function EditorPanel({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 13 }}>
             Kein Inhalt
           </div>
-        ) : editorModus === 'screenplay' ? (
+        ) : (
           <Suspense fallback={null}>
-            <ScreenplayEditor
+            <UniversalEditor
               key={String(selectedSzeneId)}
               initialContent={sceneContent}
               onSave={isReadOnly ? undefined : scheduleSave}
@@ -218,24 +215,11 @@ export default function EditorPanel({
               seitenformat={prefs.seitenformat}
               showShadow={showPageShadow}
               formatElements={formatElements}
+              absatzformate={absatzformate}
+              kategorie={kategorie}
               ydoc={ydoc}
               provider={provider}
               produktionId={produktionId}
-              onNavigateNext={onNavigateNext}
-              onNavigatePrev={onNavigatePrev}
-            />
-          </Suspense>
-        ) : (
-          <Suspense fallback={null}>
-            <RichTextEditor
-              key={String(selectedSzeneId)}
-              initialContent={sceneContent}
-              onSave={isReadOnly ? undefined : scheduleSave}
-              readOnly={!!isReadOnly}
-              seitenformat={prefs.seitenformat}
-              showShadow={showPageShadow}
-              ydoc={ydoc}
-              provider={provider}
               onNavigateNext={onNavigateNext}
               onNavigatePrev={onNavigatePrev}
             />
