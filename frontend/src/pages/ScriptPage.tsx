@@ -218,6 +218,14 @@ export default function ScriptPage() {
   const [szenen, setSzenen] = useState<any[]>([])
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
   const [folgenMitDaten, setFolgenMitDaten] = useState<number[]>([])
+  const [refreshKey, setRefreshKey] = useState(0)
+
+  // Auto-refresh after import
+  useEffect(() => {
+    const handler = () => setRefreshKey(k => k + 1)
+    window.addEventListener('script-import-complete', handler)
+    return () => window.removeEventListener('script-import-complete', handler)
+  }, [])
 
   // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
   const [deepLink] = useState<{ produktionId?: string; folgeNummer?: number; stageId?: number; szeneId?: number } | null>(() => {
@@ -447,7 +455,7 @@ export default function ScriptPage() {
         }
       })
       .catch(() => {})
-  }, [selectedProduktionId])
+  }, [selectedProduktionId, refreshKey])
 
   // Load Blöcke — restore saved folgeNummer by finding the right block
   useEffect(() => {
@@ -463,7 +471,7 @@ export default function ScriptPage() {
       )
       setSelectedBlock(match || data[0])
     }).catch(() => {})
-  }, [selectedProduktionId])
+  }, [selectedProduktionId, refreshKey])
 
   // Set default Folge when Block changes — restore saved folgeNummer if in range
   useEffect(() => {
@@ -521,7 +529,7 @@ export default function ScriptPage() {
       }
     }
     loadWerkstufen()
-  }, [selectedProduktionId, selectedFolgeNummer])
+  }, [selectedProduktionId, selectedFolgeNummer, refreshKey])
 
   // Poll unread comment counts from Messenger-App every 60s
   // TODO: Comment counts not yet implemented for new werkstufe model (UUID IDs)

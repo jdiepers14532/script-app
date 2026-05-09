@@ -356,6 +356,7 @@ export default function AppShell({
         save_metadata: importSaveMeta,
       })
       setImportResult(result)
+      if (!result.error) window.dispatchEvent(new CustomEvent('script-import-complete'))
     } catch (e: any) {
       setImportResult({ error: e.message })
     } finally { setImportLoading(false) }
