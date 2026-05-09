@@ -131,6 +131,8 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
 
 function AllgemeinTab({ productionId }: { productionId: string }) {
   const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline' | null>(null)
+  const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
+  const [seitenformatSaving, setSeitenformatSaving] = useState(false)
   const [kuerzel, setKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
   const [roles, setRoles] = useState<string[] | null>(null)
   const [saving, setSaving] = useState(false)
@@ -146,6 +148,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
         if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
+        if (data?.seitenformat === 'letter') setSeitenformat('letter')
         if (data?.scene_kuerzel) {
           try { setKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
         }
@@ -193,6 +196,18 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       body: JSON.stringify({ value: JSON.stringify(next) }),
     }).catch(() => {})
     setKuerzelSaving(false)
+  }
+
+  const saveSeitenformat = async (val: 'a4' | 'letter') => {
+    setSeitenformat(val)
+    setSeitenformatSaving(true)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/seitenformat`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setSeitenformatSaving(false)
   }
 
   const saveTreatmentLabel = async (val: 'Treatment' | 'Storylines' | 'Outline') => {
@@ -276,6 +291,26 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
           ))}
         </div>
         {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Seitenformat</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Standard-Papierformat fuer neue Dokumente dieser Produktion.
+        </p>
+        <div className="seg" style={{ display: 'inline-flex' }}>
+          {(['a4', 'letter'] as const).map(opt => (
+            <button
+              key={opt}
+              className={seitenformat === opt ? 'on' : ''}
+              onClick={() => saveSeitenformat(opt)}
+              disabled={seitenformatSaving}
+            >
+              {opt === 'a4' ? 'A4 (210 × 297 mm)' : 'US Letter (8.5 × 11 in)'}
+            </button>
+          ))}
+        </div>
+        {seitenformatSaving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
       </section>
 
       <section>
