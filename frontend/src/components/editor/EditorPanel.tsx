@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
@@ -143,6 +143,37 @@ export default function EditorPanel({
 
   const currentReplikOffset = selectedSzeneId ? (replikOffsets[String(selectedSzeneId)] ?? 0) : 0
 
+  // Live text statistics from current scene content
+  const textStats = useMemo(() => {
+    const c = currentSzene?.content
+    if (!c) return { chars: 0, words: 0, sentences: 0, repliken: 0, isScreenplay: false }
+    const nodes: any[] = Array.isArray(c) ? c : (c?.content ?? [])
+    let fullText = ''
+    let repliken = 0
+    let isScreenplay = false
+    for (const node of nodes) {
+      if (!node) continue
+      if (node.type === 'screenplay_element') {
+        isScreenplay = true
+        if (node.attrs?.element_type === 'character') repliken++
+      }
+      const text = node.content?.map((ch: any) => ch.text ?? '').join('') ?? ''
+      if (text) fullText += (fullText ? '\n' : '') + text
+    }
+    const chars = fullText.length
+    const words = fullText.trim() ? fullText.trim().split(/\s+/).length : 0
+    const sentences = fullText.trim() ? (fullText.match(/[.!?]+/g) || []).length : 0
+    return { chars, words, sentences, repliken, isScreenplay }
+  }, [currentSzene?.content])
+
+  // Format page_length display
+  const pageLengthDisplay = useMemo(() => {
+    const pl = currentSzene?.page_length
+    if (!pl || pl <= 0) return null
+    if (pl % 8 === 0) return `${pl / 8}`
+    return `${Math.floor(pl / 8)} ${pl % 8}/8`
+  }, [currentSzene?.page_length])
+
   const isReadOnly = selectedWerk?.bearbeitung_status === 'gesperrt' || selectedWerk?.abgegeben
 
   // Collaboration
@@ -184,6 +215,17 @@ export default function EditorPanel({
                 </span>
               )}
               <div style={{ flex: 1 }} />
+              {pageLengthDisplay && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }} title="Seitenlänge (Achtel)">
+                  {pageLengthDisplay} S.
+                </span>
+              )}
+              {textStats.chars > 0 && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {textStats.chars.toLocaleString('de-DE')}&thinsp;Z · {textStats.words.toLocaleString('de-DE')}&thinsp;W
+                  {textStats.isScreenplay && <>{' · '}{textStats.sentences}&thinsp;S · {textStats.repliken}&thinsp;R</>}
+                </span>
+              )}
               {saveStatus !== 'idle' && (
                 <span style={{
                   color: saveStatus === 'saved' ? 'var(--sw-green)' : saveStatus === 'error' ? 'var(--sw-danger)' : 'var(--text-muted)',

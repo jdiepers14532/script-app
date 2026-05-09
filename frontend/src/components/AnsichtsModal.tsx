@@ -260,6 +260,22 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
+            <div style={rowStyle}>
+              <span style={labelStyle}>Zeilennummern</span>
+              <div className="seg">
+                <button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button>
+                <button className={!tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', false)}>Aus</button>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
+              <span style={labelStyle}>Repliken-Nummern</span>
+              <div className="seg">
+                <button className={tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', true)}>An</button>
+                <button className={!tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', false)}>Aus</button>
+              </div>
+            </div>
+
             <div style={{ ...rowStyle, borderBottom: 'none' }}>
               <span style={labelStyle}>Scroll-Nav Verzogerung</span>
               <div className="seg">
