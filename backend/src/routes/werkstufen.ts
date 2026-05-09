@@ -19,7 +19,7 @@ folgeWerkstufenRouter.get('/', async (req, res) => {
     const rows = await query(
       `SELECT w.*,
               (SELECT COUNT(*)::int FROM dokument_szenen ds
-               WHERE ds.werkstufe_id = w.id AND ds.geloescht = false) AS szenen_count
+               WHERE ds.werkstufe_id = w.id AND ds.geloescht = false AND ds.format = 'drehbuch') AS szenen_count
        FROM werkstufen w
        WHERE w.folge_id = $1
        ORDER BY w.typ, w.version_nummer`,
@@ -127,7 +127,7 @@ werkstufenRouter.get('/:id', async (req, res) => {
     const row = await queryOne(
       `SELECT w.*,
               (SELECT COUNT(*)::int FROM dokument_szenen ds
-               WHERE ds.werkstufe_id = w.id AND ds.geloescht = false) AS szenen_count,
+               WHERE ds.werkstufe_id = w.id AND ds.geloescht = false AND ds.format = 'drehbuch') AS szenen_count,
               f.produktion_id, f.folge_nummer, f.folgen_titel
        FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id

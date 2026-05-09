@@ -419,6 +419,10 @@ export const api = {
     request<any[]>('GET', `/werkstufen/${werkId}/szenen`),
   createWerkstufeSzene: (werkId: string, data: any) =>
     request<any>('POST', `/werkstufen/${werkId}/szenen`, data),
+  reorderWerkstufeSzenen: (werkId: string, order: string[]) =>
+    request<any[]>('PATCH', `/werkstufen/${werkId}/szenen/reorder`, { order }),
+  renumberWerkstufeSzenen: (werkId: string) =>
+    request<{ scenes: any[]; renumbered: boolean }>('POST', `/werkstufen/${werkId}/szenen/renumber`),
   diffWerkstufen: (leftId: string, rightId: string) =>
     request<any>('GET', `/werkstufen/${leftId}/szenen/diff/${rightId}`),
 

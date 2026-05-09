@@ -93,12 +93,12 @@ export default function SceneList({
     return () => document.removeEventListener('mousedown', handler)
   }, [headerMenuOpen])
 
-  const handleDelete = async (e: React.MouseEvent, szeneId: number) => {
+  const handleDelete = async (e: React.MouseEvent, szeneId: number | string) => {
     e.stopPropagation()
     setMenuOpenId(null)
     setDeleting(szeneId)
     try {
-      await api.deleteSzene(szeneId)
+      await api.deleteDokumentSzene(String(szeneId))
       onSzeneDeleted?.(szeneId)
     } catch (err: any) {
       alert('Fehler beim Löschen: ' + err.message)
@@ -111,7 +111,7 @@ export default function SceneList({
     if (!stageId || creating) return
     setCreating(true)
     try {
-      const newSzene = await api.createSzene(stageId, {
+      const newSzene = await api.createWerkstufeSzene(String(stageId), {
         int_ext: 'INT',
         tageszeit: 'TAG',
         ort_name: 'NEUE SZENE',
@@ -124,20 +124,20 @@ export default function SceneList({
     }
   }
 
-  const handleInsertAfter = async (e: React.MouseEvent, afterSzeneId: number) => {
+  const handleInsertAfter = async (e: React.MouseEvent, afterSzeneId: number | string) => {
     e.stopPropagation()
     setMenuOpenId(null)
     if (!stageId || creating) return
     setCreating(true)
     try {
-      await api.createSzene(stageId, {
+      await api.createWerkstufeSzene(String(stageId), {
         int_ext: 'INT',
         tageszeit: 'TAG',
         ort_name: 'NEUE SZENE',
         after_scene_id: afterSzeneId,
       })
       // Re-fetch all scenes to get correct sort_order + suffix
-      const updated = await api.getSzenen(stageId)
+      const updated = await api.getWerkstufenSzenen(String(stageId))
       onSzenesReordered?.(updated)
       // Select the newly created scene (last inserted at afterSzeneId position)
       if (updated.length > 0) {
@@ -156,10 +156,9 @@ export default function SceneList({
     setHeaderMenuOpen(false)
     setRenumbering(true)
     try {
-      const result = await api.renumberSzenen(stageId)
+      const result = await api.renumberWerkstufeSzenen(String(stageId))
       onSzenesReordered?.(result.scenes)
       if (!result.renumbered) {
-        // Logging active — position notes were added
         alert('Szenen sind geloggt. Positionen wurden in Szeneninfo vermerkt.')
       }
     } catch (e: any) {
@@ -207,7 +206,7 @@ export default function SceneList({
     setDragOverId(null)
 
     try {
-      const updated = await api.reorderSzenen(stageId, ids)
+      const updated = await api.reorderWerkstufeSzenen(String(stageId), ids)
       onSzenesReordered?.(updated)
     } catch (e) {
       console.error('Fehler beim Sortieren', e)
