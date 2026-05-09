@@ -46,6 +46,7 @@ import { folgenV2Router } from './routes/folgen-v2'
 import { statistikRouter } from './routes/statistik'
 import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
 import { dokumentVorlagenRouter } from './routes/dokument-vorlagen'
+import { absatzformateRouter, absatzformatPresetsRouter } from './routes/absatzformate'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -146,6 +147,10 @@ app.use('/api/werkstufen/:werkId/szenen', (req, _res, next) => {
 // Dokument-Vorlagen (Templates)
 app.use('/api/produktionen/:produktionId/dokument-vorlagen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, dokumentVorlagenRouter)
 
+// Absatzformate
+app.use('/api/produktionen/:produktionId/absatzformate', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, absatzformateRouter)
+app.use('/api/absatzformat-presets', absatzformatPresetsRouter)
+
 // Dokument-Szenen
 app.use('/api/dokument-szenen', dokumentSzenenRouter)
 app.use('/api/scene-identities', sceneIdentitiesRouter)
@@ -224,6 +229,7 @@ async function runMigrations() {
     'v53_motive_ist_studio.sql',
     'v54_notiz_motiv_id.sql',
     'v55_dokument_vorlagen.sql',
+    'v56_absatzformate.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

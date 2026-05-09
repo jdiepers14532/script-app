@@ -12,7 +12,7 @@ import { useUserPrefs } from '../../contexts'
 // Editor modus per werkstufe type
 const EDITOR_MODUS: Record<string, 'screenplay' | 'richtext'> = {
   drehbuch: 'screenplay',
-  storyline: 'screenplay',
+  storyline: 'richtext',
   notiz: 'richtext',
   abstrakt: 'richtext',
 }
