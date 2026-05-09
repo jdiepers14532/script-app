@@ -20,6 +20,7 @@ import {
   AppSettingsContext,
   DEFAULT_KUERZEL,
 } from './contexts'
+import { setEnvColors, resetEnvColors } from './data/scenes'
 
 export default function App() {
   const { focus, toggle } = useFocusMode()
@@ -27,6 +28,7 @@ export default function App() {
   const [treatmentLabel, setTreatmentLabel] = useState('Treatment')
   const [sceneKuerzel, setSceneKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
   const [figurenLabel, setFigurenLabel] = useState('Rollen')
+  const [sceneEnvColors, setSceneEnvColors] = useState<Record<string, any> | null>(null)
 
   useEffect(() => {
     const loadSettings = () => {
@@ -38,6 +40,16 @@ export default function App() {
           if (data?.scene_kuerzel) {
             try { setSceneKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
           }
+          if (data?.scene_env_colors) {
+            try {
+              const parsed = JSON.parse(data.scene_env_colors)
+              setSceneEnvColors(parsed)
+              setEnvColors(parsed)
+            } catch {}
+          } else {
+            resetEnvColors()
+            setSceneEnvColors(null)
+          }
         })
         .catch(() => {})
     }
@@ -47,7 +59,7 @@ export default function App() {
   }, [])
 
   return (
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle }}>
           <BrowserRouter>

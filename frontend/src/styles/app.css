@@ -273,6 +273,8 @@
 .scenes .row .rt .badges { display:flex; gap:4px; align-items:center; }
 /* Color modes */
 .scenes[data-colormode='full'] .row { background: var(--row-bg, transparent); }
+.scenes[data-colormode='full'] .row .env-stripe { background: var(--stripe, transparent); }
+.scenes[data-colormode='full'] .row.active .env-stripe { display:none; }
 .scenes[data-colormode='full'] .row.on-dark { color:#fff; }
 .scenes[data-colormode='full'] .row.on-dark .sl-set,
 .scenes[data-colormode='full'] .row.on-dark .num,

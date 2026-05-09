@@ -8,15 +8,32 @@ export interface EnvColor {
   textDark?: boolean;
 }
 
-export const ENV_COLORS: Record<EnvKey, EnvColor> = {
-  d_i:      { bg: '#FFFFFF',  stripe: '#9E9E9E' },
-  d_e:      { bg: '#DCFCE7',  stripe: '#22C55E' },
-  d_ie:     { bg: '#ECFCCB',  stripe: '#84CC16' },
-  evening_i:{ bg: '#064E3B',  stripe: '#10B981', textDark: true },
-  n_i:      { bg: '#FED7AA',  stripe: '#F97316' },
-  n_e:      { bg: '#1E3A8A',  stripe: '#3B82F6', textDark: true },
-  n_ie:     { bg: '#FEF3C7',  stripe: '#F59E0B' },
+// Industry-standard colors (Movie Magic Scheduling)
+export const DEFAULT_ENV_COLORS: Record<EnvKey, EnvColor> = {
+  d_i:      { bg: '#FFFFFF',  stripe: '#9E9E9E' },                    // INT/Tag = Weiss
+  d_e:      { bg: '#FFF9C4',  stripe: '#F9A825' },                    // EXT/Tag = Gelb
+  d_ie:     { bg: '#FCE4EC',  stripe: '#E91E63' },                    // INT+EXT/Tag = Pink
+  evening_i:{ bg: '#E8EAF6',  stripe: '#5C6BC0' },                    // INT/Abend = Lavendel
+  n_i:      { bg: '#BBDEFB',  stripe: '#1976D2' },                    // INT/Nacht = Blau
+  n_e:      { bg: '#C8E6C9',  stripe: '#388E3C' },                    // EXT/Nacht = Gruen
+  n_ie:     { bg: '#FFE0B2',  stripe: '#F57C00' },                    // INT+EXT/Nacht = Orange
 };
+
+export let ENV_COLORS: Record<EnvKey, EnvColor> = { ...DEFAULT_ENV_COLORS };
+
+export function setEnvColors(custom: Partial<Record<EnvKey, Partial<EnvColor>>>) {
+  const merged = { ...DEFAULT_ENV_COLORS }
+  for (const key of Object.keys(custom) as EnvKey[]) {
+    if (merged[key]) {
+      merged[key] = { ...merged[key], ...custom[key] }
+    }
+  }
+  ENV_COLORS = merged
+}
+
+export function resetEnvColors() {
+  ENV_COLORS = { ...DEFAULT_ENV_COLORS }
+}
 
 export interface SceneComment {
   total: number;

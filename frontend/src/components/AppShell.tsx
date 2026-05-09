@@ -136,7 +136,7 @@ export const CUSTOM_IDX = 99  // sentinel: eigene Farbe gewählt
 
 export const DEFAULT_TWEAKS: TweakState = {
   theme: 'light',
-  colorMode: 'subtle',
+  colorMode: 'full',
   panelMode: 'both',
   density: 'normal',
   breakdown: true,

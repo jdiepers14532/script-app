@@ -26,7 +26,7 @@ export default function SceneList({
   produktionId,
   folgeNummer,
   stageId,
-  colorMode = 'subtle',
+  colorMode = 'full',
   onSzeneCreated,
   onSzeneDeleted,
   onSzenesReordered,

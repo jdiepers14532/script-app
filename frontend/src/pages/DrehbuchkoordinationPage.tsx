@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
+import { DEFAULT_ENV_COLORS, type EnvKey, type EnvColor } from '../data/scenes'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,16 @@ const KUERZEL_FIELDS = [
   { key: 'abend',     label: 'Abend' },
 ]
 const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
+
+const ENV_COLOR_LABELS: Record<EnvKey, string> = {
+  d_i:       'INT / Tag',
+  d_e:       'EXT / Tag',
+  d_ie:      'INT+EXT / Tag',
+  evening_i: 'INT / Abend',
+  n_i:       'INT / Nacht',
+  n_e:       'EXT / Nacht',
+  n_ie:      'INT+EXT / Nacht',
+}
 
 const EREIGNIS_LABELS: Record<string, string> = {
   neue_hauptrolle:         'Neue Hauptrolle angelegt',
@@ -122,6 +133,9 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [roles, setRoles] = useState<string[] | null>(null)
   const [saving, setSaving] = useState(false)
   const [kuerzelSaving, setKuerzelSaving] = useState(false)
+  const [envColors, setEnvColors] = useState<Record<EnvKey, EnvColor>>({ ...DEFAULT_ENV_COLORS })
+  const [envColorsSaving, setEnvColorsSaving] = useState(false)
+  const [envColorsCustom, setEnvColorsCustom] = useState(false)
 
   useEffect(() => {
     // Treatment label from production-specific endpoint
@@ -131,6 +145,17 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
         if (data?.scene_kuerzel) {
           try { setKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
+        }
+        if (data?.scene_env_colors) {
+          try {
+            const parsed = JSON.parse(data.scene_env_colors)
+            const merged = { ...DEFAULT_ENV_COLORS }
+            for (const k of Object.keys(parsed) as EnvKey[]) {
+              if (merged[k]) merged[k] = { ...merged[k], ...parsed[k] }
+            }
+            setEnvColors(merged)
+            setEnvColorsCustom(true)
+          } catch {}
         }
       })
       .catch(() => {})
@@ -167,6 +192,35 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       body: JSON.stringify({ value: val }),
     }).catch(() => {})
     setSaving(false)
+  }
+
+  const saveEnvColors = async (next: Record<EnvKey, EnvColor>) => {
+    setEnvColors(next)
+    setEnvColorsCustom(true)
+    setEnvColorsSaving(true)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/scene_env_colors`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    setEnvColorsSaving(false)
+    window.dispatchEvent(new Event('app-settings-changed'))
+  }
+
+  const resetEnvColorsToDefault = async () => {
+    setEnvColors({ ...DEFAULT_ENV_COLORS })
+    setEnvColorsCustom(false)
+    setEnvColorsSaving(true)
+    // Delete by saving the default (backend stores it, App.tsx sees no custom → resets)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/scene_env_colors`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(DEFAULT_ENV_COLORS) }),
+    }).catch(() => {})
+    setEnvColorsSaving(false)
+    window.dispatchEvent(new Event('app-settings-changed'))
   }
 
   return (
@@ -220,6 +274,57 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
           Zuruecksetzen
         </button>
         {kuerzelSaving && <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Szenenfarben</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Farbkodierung der Szenen nach INT/EXT und Tageszeit. Standard: Industrie-Standard (Movie Magic Scheduling).
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {(Object.keys(ENV_COLOR_LABELS) as EnvKey[]).map(key => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 12, fontWeight: 500, width: 120, flexShrink: 0 }}>{ENV_COLOR_LABELS[key]}</span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+                Hintergrund
+                <input
+                  type="color"
+                  value={envColors[key].bg}
+                  onChange={e => {
+                    const next = { ...envColors, [key]: { ...envColors[key], bg: e.target.value } }
+                    setEnvColors(next)
+                  }}
+                  onBlur={() => saveEnvColors(envColors)}
+                  style={{ width: 32, height: 24, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
+                />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+                Akzent
+                <input
+                  type="color"
+                  value={envColors[key].stripe}
+                  onChange={e => {
+                    const next = { ...envColors, [key]: { ...envColors[key], stripe: e.target.value } }
+                    setEnvColors(next)
+                  }}
+                  onBlur={() => saveEnvColors(envColors)}
+                  style={{ width: 32, height: 24, border: '1px solid var(--border)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
+                />
+              </label>
+              <div style={{ width: 60, height: 24, borderRadius: 4, background: envColors[key].bg, border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: envColors[key].stripe }} />
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          style={{ marginTop: 12, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, cursor: 'pointer' }}
+          onClick={resetEnvColorsToDefault}
+          disabled={envColorsSaving}
+        >
+          Auf Standard zuruecksetzen
+        </button>
+        {envColorsSaving && <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
       </section>
 
       <section>

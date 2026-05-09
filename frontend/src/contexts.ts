@@ -41,8 +41,8 @@ export function usePanelMode() { return useContext(PanelModeContext) }
 
 // App Settings Context
 export const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
-interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen' })
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context
