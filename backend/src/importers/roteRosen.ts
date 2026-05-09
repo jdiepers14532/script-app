@@ -716,7 +716,7 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
       }
       continue
     }
-    if (/^Anm(erkung|\.)/i.test(t)) {
+    if (/^Anm(erkungen?|\.)/i.test(t)) {
       if (contentLines.length > 0) {
         elems.push({ id: nextId(), type: 'action', text: contentLines.join(' ') })
         contentLines.length = 0
@@ -822,7 +822,7 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
     }
 
     // Anmerkung
-    if (/^Anm(erkung|\.)/i.test(t)) {
+    if (/^Anm(erkungen?|\.)/i.test(t)) {
       flushAction()
       const anmParts = [t]
       let j = i + 1
