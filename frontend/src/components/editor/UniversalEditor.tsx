@@ -382,25 +382,24 @@ export default function UniversalEditor({
   const ltTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ltAbort = useRef<AbortController | null>(null)
 
-  // Map getText() offset to ProseMirror position
-  const textOffsetToPmPos = useCallback((doc: any, textOffset: number): number => {
-    let charCount = 0
-    let result = -1
+  // Build a full mapping: getText() char index → ProseMirror position
+  const buildTextToPmMap = useCallback((doc: any): number[] => {
+    const map: number[] = [] // map[textIdx] = pmPos
+    let isFirstBlock = true
     doc.descendants((node: any, pos: number) => {
-      if (result >= 0) return false
+      if (node.isBlock && node.isLeaf) return false
+      if (node.isBlock && !isFirstBlock && node.content.size > 0) {
+        map.push(-1) // newline separator from getText()
+      }
+      if (node.isBlock && node.content.size > 0) isFirstBlock = false
       if (node.isText) {
-        const end = charCount + node.text.length
-        if (textOffset >= charCount && textOffset < end) {
-          result = pos + (textOffset - charCount)
-          return false
+        for (let i = 0; i < node.text.length; i++) {
+          map.push(pos + i)
         }
-        charCount = end
-      } else if (node.isBlock && node.content.size > 0 && charCount > 0) {
-        charCount++ // getText() inserts \n between blocks
       }
       return true
     })
-    return result
+    return map
   }, [])
 
   // Debounced LT check
@@ -448,32 +447,40 @@ export default function UniversalEditor({
   // Apply ProseMirror inline decorations for LT matches
   useEffect(() => {
     if (!editor) return
-
-    const ltPluginKey = new PluginKey('languagetool')
-    // Remove old plugin if exists
-    // We use registerPlugin/unregisterPlugin
     try { editor.unregisterPlugin('languagetool') } catch {}
 
     if (spellcheckMode !== 'languagetool' || ltMatches.length === 0) return
 
-    const decos: any[] = []
     const doc = editor.state.doc
+    const textMap = buildTextToPmMap(doc)
+
+    const decos: any[] = []
     for (let i = 0; i < ltMatches.length; i++) {
       const m = ltMatches[i]
-      const from = textOffsetToPmPos(doc, m.offset)
-      const to = textOffsetToPmPos(doc, m.offset + m.length)
-      if (from < 0 || to < 0 || from >= to) continue
+      const from = textMap[m.offset]
+      const toIdx = m.offset + m.length - 1
+      const to = toIdx < textMap.length ? textMap[toIdx] : undefined
+      if (from == null || from < 0 || to == null || to < 0) continue
+      const pmTo = to + 1 // end is exclusive in PM
+      if (from >= pmTo) continue
       const isSpelling = m.rule.category === 'TYPOS' || m.rule.category === 'SPELLING'
-      decos.push(Decoration.inline(from, to, {
+      decos.push(Decoration.inline(from, pmTo, {
         class: isSpelling ? 'lt-error' : 'lt-warning',
         'data-lt-idx': String(i),
       }))
     }
 
+    if (decos.length === 0) return
+
+    const decoSet = DecorationSet.create(doc, decos)
     const plugin = new Plugin({
-      key: ltPluginKey,
+      key: new PluginKey('languagetool'),
       props: {
-        decorations: () => DecorationSet.create(editor.state.doc, decos),
+        decorations(state: any) {
+          // Map decorations to current doc state
+          if (state.doc === doc) return decoSet
+          return decoSet.map(state.tr.mapping, state.doc)
+        },
       },
     })
     editor.registerPlugin(plugin)
@@ -481,7 +488,7 @@ export default function UniversalEditor({
     return () => {
       try { editor.unregisterPlugin('languagetool') } catch {}
     }
-  }, [editor, ltMatches, spellcheckMode, textOffsetToPmPos])
+  }, [editor, ltMatches, spellcheckMode, buildTextToPmMap])
 
   // Click handler on editor for LT popup
   useEffect(() => {
@@ -494,8 +501,10 @@ export default function UniversalEditor({
         const match = ltMatches[idx]
         if (match) {
           const rect = target.getBoundingClientRect()
-          const from = textOffsetToPmPos(editor.state.doc, match.offset)
-          const to = textOffsetToPmPos(editor.state.doc, match.offset + match.length)
+          const textMap = buildTextToPmMap(editor.state.doc)
+          const from = textMap[match.offset] ?? -1
+          const toIdx = match.offset + match.length - 1
+          const to = toIdx < textMap.length ? (textMap[toIdx] ?? -1) + 1 : -1
           setLtPopup({ match, pmFrom: from, pmTo: to, x: rect.left, y: rect.bottom + 4 })
           e.stopPropagation()
         }
@@ -505,7 +514,7 @@ export default function UniversalEditor({
     }
     el.addEventListener('click', handleClick)
     return () => el.removeEventListener('click', handleClick)
-  }, [editor, ltMatches, spellcheckMode, textOffsetToPmPos])
+  }, [editor, ltMatches, spellcheckMode, buildTextToPmMap])
 
   // Close LT popup on outside click
   useEffect(() => {
