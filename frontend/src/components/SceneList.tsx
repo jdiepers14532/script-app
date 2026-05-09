@@ -40,6 +40,7 @@ export default function SceneList({
   const [deleting, setDeleting] = useState<number | string | null>(null)
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [renumbering, setRenumbering] = useState(false)
+  const [nurSzenen, setNurSzenen] = useState(true)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -62,12 +63,13 @@ export default function SceneList({
     return (a.scene_nummer_suffix ?? '').localeCompare(b.scene_nummer_suffix ?? '')
   })
 
-  const filtered = sorted.filter(s =>
-    searchQuery === '' ||
-    `${s.scene_nummer}${s.scene_nummer_suffix || ''}`.includes(searchQuery) ||
-    (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
-  )
+  const filtered = sorted.filter(s => {
+    if (nurSzenen && s.format && s.format !== 'drehbuch') return false
+    if (searchQuery === '') return true
+    return `${s.scene_nummer}${s.scene_nummer_suffix || ''}`.includes(searchQuery) ||
+      (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+  })
 
   // Close scene context menu on outside click
   useEffect(() => {
@@ -272,6 +274,12 @@ export default function SceneList({
             <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 160 }}>
               <button
                 className="scene-ctx-item"
+                onClick={() => { setNurSzenen(v => !v); setHeaderMenuOpen(false) }}
+              >
+                {nurSzenen ? 'Alles anzeigen' : 'Nur Szenen'}
+              </button>
+              <button
+                className="scene-ctx-item"
                 onClick={handleRenumber}
                 disabled={renumbering}
               >
@@ -332,16 +340,20 @@ export default function SceneList({
               {scene.id !== selectedSzeneId && (colorMode === 'subtle' || colorMode === 'full') && (
                 <div className="env-stripe" style={{ background: envColor.stripe }} />
               )}
-              <div className="num">{sceneLabel}</div>
+              <div className="num">{scene.format === 'drehbuch' ? sceneLabel : '·'}</div>
               <div className="body">
                 <div className="sl-line">
-                  <span className="sl-set">{scene.ort_name}</span>
+                  <span className="sl-set">{scene.ort_name || scene.zusammenfassung || ({ notiz: 'Notiz', storyline: 'Storyline' }[scene.format as string] ?? scene.format)}</span>
                 </div>
               </div>
               <div className="meta">
-                <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
-                <span className="sl-sep">/</span>
-                <span className="sl-tz">{{ tag: 'T', nacht: 'N', abend: 'A', morgen: 'M' }[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
+                {scene.format === 'drehbuch' ? (<>
+                  <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
+                  <span className="sl-sep">/</span>
+                  <span className="sl-tz">{{ tag: 'T', nacht: 'N', abend: 'A', morgen: 'M' }[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
+                </>) : (
+                  <span className="sl-fmt">{{ notiz: 'N', storyline: 'SL' }[scene.format as string] ?? '?'}</span>
+                )}
               </div>
               <div className="sl-info">
                 {scene.szeneninfo && (
