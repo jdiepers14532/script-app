@@ -48,6 +48,7 @@ import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from 
 import { dokumentVorlagenRouter } from './routes/dokument-vorlagen'
 import { absatzformateRouter, absatzformatPresetsRouter } from './routes/absatzformate'
 import { editorUploadsRouter } from './routes/editor-uploads'
+import { spellcheckRouter } from './routes/spellcheck'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -159,6 +160,9 @@ app.use('/api/scene-identities', sceneIdentitiesRouter)
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
+
+// Spellcheck (LanguageTool proxy)
+app.use('/api/spellcheck', spellcheckRouter)
 
 // Editor image uploads
 app.use('/api/editor-uploads', editorUploadsRouter)

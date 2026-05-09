@@ -154,6 +154,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   showTooltips: true,
   sceneHeaderCompact: false,
   sceneEditorMode: 'single',
+  spellcheck: 'off',
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -482,6 +483,7 @@ export default function AppShell({
           scrollNavDelay:    typeof s.scrollNavDelay === 'number' ? s.scrollNavDelay : 1000,
           showPageShadow:    typeof s.showPageShadow === 'boolean' ? s.showPageShadow : true,
           showTooltips:      typeof s.showTooltips === 'boolean' ? s.showTooltips : true,
+          spellcheck:        s.spellcheck ?? prev.spellcheck,
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -848,7 +850,7 @@ export default function AppShell({
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
         <TweaksContext.Provider value={{ tweaks, set, reset: () => setTweaks(DEFAULT_TWEAKS) }}>
-          <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips }}>
+          <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips, spellcheck: tweaks.spellcheck }}>
             <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
               {children}
             </PanelModeContext.Provider>

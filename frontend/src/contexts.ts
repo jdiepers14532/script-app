@@ -46,8 +46,8 @@ export const AppSettingsContext = createContext<AppSettingsContextType>({ treatm
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context
-interface UserPrefsContextType { scrollNavDelay: number; showPageShadow: boolean; showTooltips: boolean }
-export const UserPrefsContext = createContext<UserPrefsContextType>({ scrollNavDelay: 1000, showPageShadow: true, showTooltips: true })
+interface UserPrefsContextType { scrollNavDelay: number; showPageShadow: boolean; showTooltips: boolean; spellcheck: 'off' | 'browser' | 'languagetool' }
+export const UserPrefsContext = createContext<UserPrefsContextType>({ scrollNavDelay: 1000, showPageShadow: true, showTooltips: true, spellcheck: 'off' })
 export function useUserPrefs() { return useContext(UserPrefsContext) }
 
 // Tweaks Context (user-level view settings, managed by AppShell)
@@ -71,6 +71,7 @@ export interface TweakState {
   showTooltips: boolean
   sceneHeaderCompact: boolean
   sceneEditorMode: 'single' | 'mirror'
+  spellcheck: 'off' | 'browser' | 'languagetool'
 }
 interface TweaksContextType {
   tweaks: TweakState

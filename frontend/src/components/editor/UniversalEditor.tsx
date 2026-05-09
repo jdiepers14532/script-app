@@ -2,7 +2,7 @@ import Collaboration from '@tiptap/extension-collaboration'
 import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
-import { useState, useEffect, useRef, useCallback, useMemo, type WheelEvent } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, type WheelEvent, type CSSProperties } from 'react'
 import {
   Info, ChevronDown, ChevronUp,
   Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
@@ -24,6 +24,7 @@ import { FontSizeExtension } from '../../tiptap/FontSizeExtension'
 import { LineSpacingExtension } from '../../tiptap/LineSpacingExtension'
 import { AnnotationMark } from '../../tiptap/AnnotationMark'
 import PageWrapper from './PageWrapper'
+import { useUserPrefs } from '../../contexts'
 
 // ── Platform detection ──────────────────────────────────────────────────────
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
@@ -82,6 +83,44 @@ function saveToolbarPrefs(prefs: { formatBar: boolean; textBar: boolean }) {
   try { localStorage.setItem(LS_TOOLBAR_KEY, JSON.stringify(prefs)) } catch {}
 }
 
+// ── LanguageTool types + CSS ─────────────────────────────────────────────────
+
+interface LTMatch {
+  message: string
+  shortMessage: string
+  offset: number
+  length: number
+  replacements: string[]
+  rule: { id: string; category: string }
+}
+
+let ltCssInjected = false
+function injectLTCSS() {
+  if (ltCssInjected) return
+  ltCssInjected = true
+  const style = document.createElement('style')
+  style.id = 'languagetool-css'
+  style.textContent = `
+    .lt-error { border-bottom: 2px wavy #FF3B30; cursor: pointer; position: relative; }
+    .lt-warning { border-bottom: 2px wavy #FFCC00; cursor: pointer; position: relative; }
+    .lt-popup {
+      position: fixed; z-index: 99999; background: var(--bg-surface, #fff);
+      border: 1px solid var(--border, #ddd); border-radius: 8px; padding: 10px 14px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18); max-width: 320px; font-size: 12px;
+      line-height: 1.5; color: var(--text-primary, #111);
+    }
+    .lt-popup-msg { margin-bottom: 6px; font-weight: 500; }
+    .lt-popup-replacements { display: flex; gap: 4px; flex-wrap: wrap; }
+    .lt-popup-btn {
+      padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border, #ddd);
+      background: var(--bg-subtle, #f5f5f5); cursor: pointer; font-size: 11px;
+      color: var(--text-primary, #111); font-family: inherit;
+    }
+    .lt-popup-btn:hover { background: #007AFF; color: #fff; border-color: #007AFF; }
+  `
+  document.head.appendChild(style)
+}
+
 // ── Props ───────────────────────────────────────────────────────────────────
 
 interface UniversalEditorProps {
@@ -123,6 +162,9 @@ export default function UniversalEditor({
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
+  injectLTCSS()
+
+  const { spellcheck: spellcheckMode } = useUserPrefs()
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
@@ -330,6 +372,192 @@ export default function UniversalEditor({
     } catch (err) {
       console.error('Image upload failed:', err)
     }
+  }, [editor])
+
+  // ── LanguageTool integration ──────────────────────────────────────────────
+  const [ltMatches, setLtMatches] = useState<LTMatch[]>([])
+  const [ltPopup, setLtPopup] = useState<{ match: LTMatch; x: number; y: number } | null>(null)
+  const ltTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const ltAbort = useRef<AbortController | null>(null)
+
+  // Debounced LT check
+  useEffect(() => {
+    if (spellcheckMode !== 'languagetool' || !editor) {
+      setLtMatches([])
+      setLtPopup(null)
+      return
+    }
+    if (ltTimer.current) clearTimeout(ltTimer.current)
+    const handler = () => {
+      ltTimer.current = setTimeout(async () => {
+        const text = editor.getText()
+        if (!text.trim() || text.length < 3) { setLtMatches([]); return }
+        try {
+          ltAbort.current?.abort()
+          ltAbort.current = new AbortController()
+          const resp = await fetch('/api/spellcheck', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text }),
+            signal: ltAbort.current.signal,
+          })
+          if (resp.ok) {
+            const data = await resp.json()
+            setLtMatches(data.matches || [])
+          }
+        } catch (e: any) {
+          if (e.name !== 'AbortError') console.error('LT check failed:', e)
+        }
+      }, 2000)
+    }
+    editor.on('update', handler)
+    // Initial check
+    handler()
+    return () => {
+      editor.off('update', handler)
+      if (ltTimer.current) clearTimeout(ltTimer.current)
+      ltAbort.current?.abort()
+    }
+  }, [editor, spellcheckMode])
+
+  // Apply LT decorations via DOM overlay spans
+  useEffect(() => {
+    if (!editor || spellcheckMode !== 'languagetool' || ltMatches.length === 0) return
+    const el = editor.view.dom as HTMLElement
+    // We use CSS class-based approach: wrap matched text in marks via Tiptap decorations
+    // But simpler: use editor.view.dom click handler for popup
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.classList.contains('lt-error') || target.classList.contains('lt-warning')) {
+        const idx = parseInt(target.dataset.ltIdx || '-1')
+        const match = ltMatches[idx]
+        if (match) {
+          const rect = target.getBoundingClientRect()
+          setLtPopup({ match, x: rect.left, y: rect.bottom + 4 })
+          e.stopPropagation()
+        }
+      } else {
+        setLtPopup(null)
+      }
+    }
+    el.addEventListener('click', handleClick)
+    return () => el.removeEventListener('click', handleClick)
+  }, [editor, ltMatches, spellcheckMode])
+
+  // Apply LT underlines using Tiptap decorations (via ProseMirror DecorationSet)
+  useEffect(() => {
+    if (!editor) return
+    if (spellcheckMode !== 'languagetool' || ltMatches.length === 0) {
+      // Clear decorations
+      const existing = document.querySelectorAll('.lt-error, .lt-warning')
+      existing.forEach(el => {
+        const parent = el.parentNode
+        if (parent) {
+          while (el.firstChild) parent.insertBefore(el.firstChild, el)
+          parent.removeChild(el)
+        }
+      })
+      return
+    }
+    // Use a simple DOM-based approach: scan editor text nodes and wrap matches
+    const editorEl = editor.view.dom as HTMLElement
+    // First clean old decorations
+    editorEl.querySelectorAll('.lt-error, .lt-warning').forEach(el => {
+      const parent = el.parentNode
+      if (parent) {
+        while (el.firstChild) parent.insertBefore(el.firstChild, el)
+        parent.removeChild(el)
+      }
+    })
+
+    // Build a text-to-DOM-node map
+    const walker = document.createTreeWalker(editorEl, NodeFilter.SHOW_TEXT)
+    const textNodes: { node: Text; start: number; end: number }[] = []
+    let offset = 0
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text
+      const len = node.textContent?.length || 0
+      textNodes.push({ node, start: offset, end: offset + len })
+      offset += len
+    }
+
+    // Apply matches (reverse order to not shift offsets)
+    const sortedMatches = [...ltMatches]
+      .map((m, i) => ({ ...m, _idx: i }))
+      .sort((a, b) => b.offset - a.offset)
+
+    for (const match of sortedMatches) {
+      const mStart = match.offset
+      const mEnd = match.offset + match.length
+      // Find affected text nodes
+      for (const tn of textNodes) {
+        if (tn.end <= mStart || tn.start >= mEnd) continue
+        const relStart = Math.max(0, mStart - tn.start)
+        const relEnd = Math.min(tn.node.textContent!.length, mEnd - tn.start)
+        if (relStart >= relEnd) continue
+        const before = tn.node.textContent!.slice(0, relStart)
+        const matched = tn.node.textContent!.slice(relStart, relEnd)
+        const after = tn.node.textContent!.slice(relEnd)
+
+        const parent = tn.node.parentNode
+        if (!parent) continue
+        const isSpelling = match.rule.category === 'TYPOS' || match.rule.category === 'SPELLING'
+        const span = document.createElement('span')
+        span.className = isSpelling ? 'lt-error' : 'lt-warning'
+        span.dataset.ltIdx = String((match as any)._idx)
+        span.textContent = matched
+
+        const frag = document.createDocumentFragment()
+        if (before) frag.appendChild(document.createTextNode(before))
+        frag.appendChild(span)
+        if (after) frag.appendChild(document.createTextNode(after))
+        parent.replaceChild(frag, tn.node)
+        break // one text node per match for simplicity
+      }
+    }
+  }, [editor, ltMatches, spellcheckMode])
+
+  // Close LT popup on outside click
+  useEffect(() => {
+    if (!ltPopup) return
+    const close = () => setLtPopup(null)
+    const timer = setTimeout(() => document.addEventListener('click', close), 50)
+    return () => { clearTimeout(timer); document.removeEventListener('click', close) }
+  }, [ltPopup])
+
+  // Apply replacement from LT popup
+  const applyLtReplacement = useCallback((match: LTMatch, replacement: string) => {
+    if (!editor) return
+    // Find the position in ProseMirror doc
+    const text = editor.getText()
+    const mStart = match.offset
+    const mEnd = match.offset + match.length
+    // Map text offset to PM position
+    let pmPos = 0
+    let textOffset = 0
+    editor.state.doc.descendants((node, pos) => {
+      if (node.isText && textOffset <= mStart) {
+        const nodeText = node.textContent
+        const nodeStart = textOffset
+        const nodeEnd = textOffset + nodeText.length
+        if (mStart >= nodeStart && mStart < nodeEnd) {
+          pmPos = pos + (mStart - nodeStart)
+        }
+        textOffset = nodeEnd
+      } else if (node.isBlock && textOffset > 0) {
+        // Block nodes add implicit newlines in getText()
+      }
+      return true
+    })
+    if (pmPos > 0) {
+      editor.chain()
+        .focus()
+        .deleteRange({ from: pmPos, to: pmPos + match.length })
+        .insertContentAt(pmPos, replacement)
+        .run()
+    }
+    setLtPopup(null)
   }, [editor])
 
   if (!editor) return null
@@ -626,9 +854,30 @@ export default function UniversalEditor({
           <EditorContent
             editor={editor}
             style={{ outline: 'none', minHeight: '100%' }}
+            spellCheck={spellcheckMode === 'browser'}
           />
         </PageWrapper>
       </div>
+
+      {/* LanguageTool Popup */}
+      {ltPopup && (
+        <div
+          className="lt-popup"
+          style={{ left: ltPopup.x, top: ltPopup.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="lt-popup-msg">{ltPopup.match.message}</div>
+          {ltPopup.match.replacements.length > 0 && (
+            <div className="lt-popup-replacements">
+              {ltPopup.match.replacements.map((r, i) => (
+                <button key={i} className="lt-popup-btn" onClick={() => applyLtReplacement(ltPopup.match, r)}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

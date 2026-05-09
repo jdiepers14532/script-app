@@ -251,6 +251,15 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
+            <div style={rowStyle}>
+              <span style={labelStyle}>Rechtschreibpruefung</span>
+              <div className="seg">
+                <Tooltip text="Aus"><button className={tweaks.spellcheck === 'off' ? 'on' : ''} onClick={() => set('spellcheck', 'off')}>Aus</button></Tooltip>
+                <Tooltip text="Browser-Spellcheck (rote Wellenlinien)"><button className={tweaks.spellcheck === 'browser' ? 'on' : ''} onClick={() => set('spellcheck', 'browser')}>Browser</button></Tooltip>
+                <Tooltip text="LanguageTool (Grammatik + Stil)"><button className={tweaks.spellcheck === 'languagetool' ? 'on' : ''} onClick={() => set('spellcheck', 'languagetool')}>LanguageTool</button></Tooltip>
+              </div>
+            </div>
+
             <div style={{ ...rowStyle, borderBottom: 'none' }}>
               <span style={labelStyle}>Scroll-Nav Verzogerung</span>
               <div className="seg">
