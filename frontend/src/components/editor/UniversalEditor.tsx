@@ -27,6 +27,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
 import { useUserPrefs } from '../../contexts'
+import { createLineNumberPlugin, LINE_NUMBER_CSS } from '../../tiptap/LineNumberPlugin'
+import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 
 // ── Platform detection ──────────────────────────────────────────────────────
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
@@ -53,6 +55,16 @@ function injectScreenplayCSS() {
   style.textContent = SCREENPLAY_CSS
   document.head.appendChild(style)
   spCssInjected = true
+}
+
+let gutterCssInjected = false
+function injectGutterCSS() {
+  if (gutterCssInjected) return
+  gutterCssInjected = true
+  const style = document.createElement('style')
+  style.id = 'gutter-css'
+  style.textContent = LINE_NUMBER_CSS + REPLIK_NUMBER_CSS
+  document.head.appendChild(style)
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -151,6 +163,11 @@ interface UniversalEditorProps {
   placeholder?: string
   onNavigateNext?: () => void
   onNavigatePrev?: () => void
+  showLineNumbers?: boolean
+  showReplikNumbers?: boolean
+  replikOffset?: number
+  replikBaseline?: any[] | null
+  isLocked?: boolean
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -171,10 +188,16 @@ export default function UniversalEditor({
   produktionId,
   onNavigateNext,
   onNavigatePrev,
+  showLineNumbers = false,
+  showReplikNumbers = false,
+  replikOffset = 0,
+  replikBaseline = null,
+  isLocked = false,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
   injectLTCSS()
+  injectGutterCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
 
@@ -301,6 +324,37 @@ export default function UniversalEditor({
   useEffect(() => {
     editor?.setEditable(!readOnly)
   }, [editor, readOnly])
+
+  // ── Line number plugin (register/unregister based on toggle) ──────────────
+  useEffect(() => {
+    if (!editor) return
+    try { editor.unregisterPlugin('lineNumbers') } catch {}
+    const el = editor.view.dom as HTMLElement
+    if (showLineNumbers) {
+      editor.registerPlugin(createLineNumberPlugin())
+      el.classList.add('has-line-numbers')
+    } else {
+      el.classList.remove('has-line-numbers')
+    }
+    return () => {
+      try { editor.unregisterPlugin('lineNumbers') } catch {}
+      el.classList.remove('has-line-numbers')
+    }
+  }, [editor, showLineNumbers])
+
+  // ── Replik number plugin ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (!editor) return
+    try { editor.unregisterPlugin('replikNumbers') } catch {}
+    if (showReplikNumbers) {
+      editor.registerPlugin(createReplikNumberPlugin({
+        offset: replikOffset,
+        baseline: replikBaseline,
+        isLocked,
+      }))
+    }
+    return () => { try { editor.unregisterPlugin('replikNumbers') } catch {} }
+  }, [editor, showReplikNumbers, replikOffset, replikBaseline, isLocked])
 
   useEffect(() => () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)

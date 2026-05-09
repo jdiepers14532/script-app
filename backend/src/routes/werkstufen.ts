@@ -190,6 +190,72 @@ werkstufenRouter.post('/:id/apply-vorlage', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/werkstufen/:id/replik-offsets — cumulative replik offsets per scene
+// Returns: { offsets: { [scene_id]: number }, total: number, baseline: {...} | null }
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.get('/:id/replik-offsets', async (req, res) => {
+  try {
+    const ws = await queryOne('SELECT id, replik_baseline FROM werkstufen WHERE id = $1', [req.params.id])
+    if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+
+    const scenes = await query(
+      `SELECT id, replik_count FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht = false
+       ORDER BY sort_order, scene_nummer`,
+      [req.params.id]
+    )
+
+    const offsets: Record<string, number> = {}
+    let cumulative = 0
+    for (const s of scenes) {
+      offsets[s.id] = cumulative
+      cumulative += (s.replik_count ?? 0)
+    }
+
+    res.json({
+      offsets,
+      total: cumulative,
+      baseline: ws.replik_baseline ?? null,
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/werkstufen/:id/replik-baseline — snapshot current replik numbers (for lock)
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.post('/:id/replik-baseline', async (req, res) => {
+  try {
+    const scenes = await query(
+      `SELECT id, replik_count FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht = false
+       ORDER BY sort_order, scene_nummer`,
+      [req.params.id]
+    )
+
+    // Build baseline: ordered array of { scene_id, start, count }
+    const baseline: { scene_id: string; start: number; count: number }[] = []
+    let cumulative = 0
+    for (const s of scenes) {
+      const count = s.replik_count ?? 0
+      baseline.push({ scene_id: s.id, start: cumulative, count })
+      cumulative += count
+    }
+
+    const row = await queryOne(
+      'UPDATE werkstufen SET replik_baseline = $1 WHERE id = $2 RETURNING id',
+      [JSON.stringify(baseline), req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+
+    res.json({ ok: true, baseline, total: cumulative })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Werkstufen-Szenen Router
 // Mounted at /api/werkstufen/:werkId/szenen
 // ══════════════════════════════════════════════════════════════════════════════

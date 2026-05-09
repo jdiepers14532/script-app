@@ -7,6 +7,7 @@ const UniversalEditor = lazy(() => import('./UniversalEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs } from '../../contexts'
+import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 
 interface Props {
@@ -32,6 +33,7 @@ export default function EditorPanel({
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
+  const { tweaks } = useTweaks()
 
   // Load absatzformate for this production
   const [absatzformate, setAbsatzformate] = useState<AbsatzFormat[]>([])
@@ -124,6 +126,22 @@ export default function EditorPanel({
   // Determine kategorie for format filtering
   const sceneFormat = currentSzene?.format
   const kategorie = sceneFormat ?? selectedWerk?.typ ?? 'drehbuch'
+
+  // ── Replik offsets for numbering ──────────────────────────────────────────
+  const [replikOffsets, setReplikOffsets] = useState<Record<string, number>>({})
+  const [replikBaseline, setReplikBaseline] = useState<any[] | null>(null)
+
+  useEffect(() => {
+    if (!selectedWerkId || !tweaks.showReplikNumbers) { setReplikOffsets({}); setReplikBaseline(null); return }
+    api.getReplikOffsets(selectedWerkId)
+      .then(data => {
+        setReplikOffsets(data.offsets ?? {})
+        setReplikBaseline(data.baseline ?? null)
+      })
+      .catch(() => { setReplikOffsets({}); setReplikBaseline(null) })
+  }, [selectedWerkId, tweaks.showReplikNumbers, selectedSzeneId])
+
+  const currentReplikOffset = selectedSzeneId ? (replikOffsets[String(selectedSzeneId)] ?? 0) : 0
 
   const isReadOnly = selectedWerk?.bearbeitung_status === 'gesperrt' || selectedWerk?.abgegeben
 
@@ -230,6 +248,11 @@ export default function EditorPanel({
               produktionId={produktionId}
               onNavigateNext={onNavigateNext}
               onNavigatePrev={onNavigatePrev}
+              showLineNumbers={tweaks.showLineNumbers}
+              showReplikNumbers={tweaks.showReplikNumbers}
+              replikOffset={currentReplikOffset}
+              replikBaseline={replikBaseline}
+              isLocked={!!isReadOnly}
             />
           </Suspense>
         )}

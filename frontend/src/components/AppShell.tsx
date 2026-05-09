@@ -155,6 +155,8 @@ export const DEFAULT_TWEAKS: TweakState = {
   sceneHeaderCompact: false,
   sceneEditorMode: 'single',
   spellcheck: 'off',
+  showLineNumbers: false,
+  showReplikNumbers: false,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -484,6 +486,8 @@ export default function AppShell({
           showPageShadow:    typeof s.showPageShadow === 'boolean' ? s.showPageShadow : true,
           showTooltips:      typeof s.showTooltips === 'boolean' ? s.showTooltips : true,
           spellcheck:        s.spellcheck ?? prev.spellcheck,
+          showLineNumbers:   typeof s.showLineNumbers === 'boolean' ? s.showLineNumbers : false,
+          showReplikNumbers: typeof s.showReplikNumbers === 'boolean' ? s.showReplikNumbers : false,
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -933,6 +937,20 @@ export default function AppShell({
             <div className="seg">
               <button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)} title="Blatt mit Schatten"><BookOpen size={13} /></button>
               <button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)} title="Fliesstext mit Seitentrennlinie"><AlignLeft size={13} /></button>
+            </div>
+          </TweakGroup>
+
+          <TweakGroup label="Zeilennummern">
+            <div className="seg">
+              <button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button>
+              <button className={!tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', false)}>Aus</button>
+            </div>
+          </TweakGroup>
+
+          <TweakGroup label="Repliken-Nummern">
+            <div className="seg">
+              <button className={tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', true)}>An</button>
+              <button className={!tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', false)}>Aus</button>
             </div>
           </TweakGroup>
 

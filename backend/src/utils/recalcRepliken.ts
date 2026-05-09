@@ -42,6 +42,34 @@ export function isInActionContent(content: any, charName: string): boolean {
 }
 
 /**
+ * Count total CHARACTER blocks in a scene's content (for replik numbering).
+ */
+export function countTotalRepliken(content: any): number {
+  if (!content?.content || !Array.isArray(content.content)) return 0
+  let count = 0
+  for (const node of content.content) {
+    if (node?.type === 'screenplay_element' && node?.attrs?.element_type === 'character') count++
+    if (node?.type === 'absatz') {
+      // Check if absatz maps to a character format (via format_name)
+      const name = (node?.attrs?.format_name ?? '').toLowerCase()
+      if (name === 'character' || name === 'rolle' || name === 'figur') count++
+    }
+  }
+  return count
+}
+
+/**
+ * Update replik_count on dokument_szenen after content save.
+ */
+export async function updateReplikCount(szeneId: string, content: any): Promise<void> {
+  const count = countTotalRepliken(content)
+  await query(
+    'UPDATE dokument_szenen SET replik_count = $1 WHERE id = $2',
+    [count, szeneId]
+  )
+}
+
+/**
  * Recalculate repliken_anzahl and spiel_typ for all characters linked to a scene
  * in a specific werkstufe. Call after content save.
  */

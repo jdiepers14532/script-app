@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
-import { recalcSceneStats } from '../utils/recalcRepliken'
+import { recalcSceneStats, updateReplikCount } from '../utils/recalcRepliken'
 import { calcPageLength } from '../utils/calcPageLength'
 
 // ── Fassungs-Szenen Router ───────────────────────────────────────────────────
@@ -282,6 +282,10 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     // Recalc repliken stats if content was updated
     if (content && row.werkstufe_id && row.scene_identity_id) {
       recalcSceneStats(row.werkstufe_id, row.scene_identity_id, content).catch(() => {})
+    }
+    // Update replik_count for numbering
+    if (content) {
+      updateReplikCount(row.id, { content }).catch(() => {})
     }
 
     res.json(row)

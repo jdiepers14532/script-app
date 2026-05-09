@@ -475,6 +475,10 @@ export const api = {
     request<{ scenes: any[]; renumbered: boolean }>('POST', `/werkstufen/${werkId}/szenen/renumber`),
   diffWerkstufen: (leftId: string, rightId: string) =>
     request<any>('GET', `/werkstufen/${leftId}/szenen/diff/${rightId}`),
+  getReplikOffsets: (werkId: string) =>
+    request<{ offsets: Record<string, number>; total: number; baseline: any }>('GET', `/werkstufen/${werkId}/replik-offsets`),
+  saveReplikBaseline: (werkId: string) =>
+    request<{ ok: boolean; baseline: any; total: number }>('POST', `/werkstufen/${werkId}/replik-baseline`),
   applyVorlage: (werkId: string, vorlageId: string) =>
     request<{ ok: boolean; inserted: number }>('POST', `/werkstufen/${werkId}/apply-vorlage`, { vorlage_id: vorlageId }),
 

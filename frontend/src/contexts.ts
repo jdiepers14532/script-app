@@ -72,6 +72,8 @@ export interface TweakState {
   sceneHeaderCompact: boolean
   sceneEditorMode: 'single' | 'mirror'
   spellcheck: 'off' | 'browser' | 'languagetool'
+  showLineNumbers: boolean
+  showReplikNumbers: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState
