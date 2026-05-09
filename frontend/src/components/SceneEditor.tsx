@@ -273,6 +273,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     // If werkstufId + sceneIdentityId provided, resolve the szene for this specific werkstufe
     if (werkstufId && sceneIdentityId) {
       return api.resolveDokumentSzene(werkstufId, sceneIdentityId)
+        .catch(e => {
+          // 404 = scene not yet in this werkstufe (normal for new/empty werkstufen)
+          if (e.message?.includes('nicht') || e.message?.includes('404')) return null
+          throw e
+        })
     }
     if (useDokumentSzenen && typeof szeneId === 'string') {
       return api.getDokumentSzene(szeneId)
