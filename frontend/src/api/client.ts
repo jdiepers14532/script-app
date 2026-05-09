@@ -1,6 +1,21 @@
 const BASE = '/api'
 
+// Deduplication: if the same GET request is already in-flight, reuse it
+const inflightGets = new Map<string, Promise<any>>()
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  // Deduplicate concurrent identical GET requests
+  if (method === 'GET') {
+    const existing = inflightGets.get(path)
+    if (existing) return existing as Promise<T>
+    const p = doRequest<T>(method, path, body).finally(() => inflightGets.delete(path))
+    inflightGets.set(path, p)
+    return p
+  }
+  return doRequest<T>(method, path, body)
+}
+
+async function doRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
     credentials: 'include',
