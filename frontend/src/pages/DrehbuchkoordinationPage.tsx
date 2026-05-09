@@ -1043,6 +1043,8 @@ function DokumentTypenTab() {
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Groesse</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Stil</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Ausr.</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug L</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug R</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Enter→</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Tab→</th>
           <th style={{ padding: '6px 4px' }} />
@@ -1068,6 +1070,12 @@ function DokumentTypenTab() {
                 <select value={editData.text_align} onChange={e => setEditData({ ...editData, text_align: e.target.value })} style={{ ...selectStyle, fontSize: 10 }}>
                   <option value="left">L</option><option value="center">C</option><option value="right">R</option>
                 </select>
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <input type="number" step="0.1" min="0" value={editData.margin_left ?? 0} onChange={e => setEditData({ ...editData, margin_left: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <input type="number" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
               </td>
               <td style={{ padding: '4px 4px' }}>
                 <select value={editData.enter_next_format ?? ''} onChange={e => setEditData({ ...editData, enter_next_format: e.target.value || null })} style={{ ...selectStyle, fontSize: 10 }}>
@@ -1101,6 +1109,8 @@ function DokumentTypenTab() {
                 {!f.bold && !f.italic && !f.uppercase && '-'}
               </td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.text_align === 'left' ? 'L' : f.text_align === 'center' ? 'C' : 'R'}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_left ? f.margin_left + '"' : '-'}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_right ? f.margin_right + '"' : '-'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>
                 {formate.find(x => x.id === f.enter_next_format)?.kuerzel || formate.find(x => x.id === f.enter_next_format)?.name || '-'}
               </td>
@@ -1114,7 +1124,7 @@ function DokumentTypenTab() {
             </tr>
           ))}
           {filtered.length === 0 && !loading && (
-            <tr><td colSpan={10} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
+            <tr><td colSpan={12} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
               Keine Absatzformate. Waehle ein Preset aus, um zu starten.
             </td></tr>
           )}
