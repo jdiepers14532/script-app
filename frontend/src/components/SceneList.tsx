@@ -337,10 +337,12 @@ export default function SceneList({
               <div className="body">
                 <div className="sl-line">
                   <span className="sl-set">{scene.ort_name}</span>
-                  <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
-                  <span className="sl-sep">/</span>
-                  <span className="sl-tz">{{ tag: 'T', nacht: 'N', abend: 'A', morgen: 'M' }[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
                 </div>
+              </div>
+              <div className="meta">
+                <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
+                <span className="sl-sep">/</span>
+                <span className="sl-tz">{{ tag: 'T', nacht: 'N', abend: 'A', morgen: 'M' }[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
               </div>
               <div className="rt">
                 {scene.dauer_min && <span>{scene.dauer_min} min</span>}
