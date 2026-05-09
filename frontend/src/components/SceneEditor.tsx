@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2 } from 'lucide-react'
 import Tooltip from './Tooltip'
-import { ENV_COLORS } from '../data/scenes'
+import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks } from '../contexts'
 
@@ -474,7 +474,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   }
 
   const envKey = getEnvKey(scene)
-  const envColor = ENV_COLORS[envKey]
+  const envColor = (tweaks.theme === 'dark' ? ENV_COLORS_DARK : ENV_COLORS)[envKey]
   const stripeColor = envColor.stripe
   const panelsClass = panelMode === 'script' ? 'panels mode-script'
     : panelMode === 'treatment' ? 'panels mode-treatment'

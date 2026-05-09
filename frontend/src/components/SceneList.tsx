@@ -33,6 +33,8 @@ export default function SceneList({
   commentCounts,
 }: SceneListProps) {
   const { sceneKuerzel } = useAppSettings()
+  const { tweaks } = useTweaks()
+  const isDarkTheme = tweaks.theme === 'dark'
   const [searchQuery, setSearchQuery] = useState('')
   const [lock, setLock] = useState<any | null>(null)
   const [creating, setCreating] = useState(false)
@@ -330,7 +332,7 @@ export default function SceneList({
         )}
         {filtered.map(scene => {
           const envKey = getEnvKey(scene)
-          const envColor = ENV_COLORS[envKey]
+          const envColor = (isDarkTheme ? ENV_COLORS_DARK : ENV_COLORS)[envKey]
           const isDark = !!envColor.textDark
           const rowStyle = {} as Record<string, string>
           if (effectiveColorMode === 'full') rowStyle['--row-bg'] = envColor.bg
