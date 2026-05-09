@@ -376,6 +376,12 @@ interface SceneHeader {
  *   Content...
  *   Wechselschnitt mit Bild 4402.8
  */
+/** Skip blank lines from position i, return next non-blank index */
+function skipBlanks(lines: string[], i: number): number {
+  while (i < lines.length && !lines[i].trim()) i++
+  return i
+}
+
 function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null {
   const t = lines[startIdx]?.trim()
   if (!t) return null
@@ -387,13 +393,13 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   const sceneNr = parseInt(numM[2], 10)
   let locationOnSameLine = numM[3]?.trim() || ''
 
-  let i = startIdx + 1
+  let i = skipBlanks(lines, startIdx + 1)
 
   // Duration can appear right after scene number (before location)
   let dauer_sekunden = 0
   if (!locationOnSameLine && i < lines.length && DURATION_RE.test(lines[i].trim())) {
     dauer_sekunden = parseDurationToSeconds(lines[i].trim())
-    i++
+    i = skipBlanks(lines, i + 1)
   }
 
   // ── Crosscut duration table detection ──
@@ -403,15 +409,16 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   const crosscutDurationEntries = new Map<number, number>()
   if (dauer_sekunden > 0) {
     while (i < lines.length) {
-      const nextLine = lines[i].trim()
+      i = skipBlanks(lines, i)
+      const nextLine = lines[i]?.trim() || ''
       const partnerM = SCENE_NUM_RE.exec(nextLine)
       if (!partnerM) break
       const partnerNr = parseInt(partnerM[2], 10)
-      i++
+      i = skipBlanks(lines, i + 1)
       let partnerDur = 0
       if (i < lines.length && DURATION_RE.test(lines[i].trim())) {
         partnerDur = parseDurationToSeconds(lines[i].trim())
-        i++
+        i = skipBlanks(lines, i + 1)
       }
       crosscutDurationEntries.set(partnerNr, partnerDur)
     }
@@ -421,9 +428,9 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   let ort_name = locationOnSameLine
   if (!ort_name && i < lines.length) {
     const candidate = lines[i].trim()
-    if (!SCENE_NUM_RE.test(candidate) && !DURATION_RE.test(candidate)) {
+    if (candidate && !SCENE_NUM_RE.test(candidate) && !DURATION_RE.test(candidate)) {
       ort_name = candidate
-      i++
+      i = skipBlanks(lines, i + 1)
     }
   }
 
@@ -432,16 +439,17 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   let charaktere: string[] = []
   if (i < lines.length && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
-    i++
-  } else if (i < lines.length && i + 1 < lines.length) {
-    // Lookahead: if next line is INT/EXT, current line is likely a single character name
+    i = skipBlanks(lines, i + 1)
+  } else if (i < lines.length) {
+    // Lookahead: if next non-blank line is INT/EXT, current line is likely a single character name
     const candidate = lines[i].trim()
-    const nextLine = lines[i + 1]?.trim() || ''
+    const nextIdx = skipBlanks(lines, i + 1)
+    const nextLine = lines[nextIdx]?.trim() || ''
     if (candidate && !DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate) &&
         !INT_EXT_SPIELTAG_RE.test(candidate) && INT_EXT_SPIELTAG_RE.test(nextLine) &&
         candidate.length < 40 && candidate.split(/\s+/).length <= 4) {
       charaktere = candidate.split(',').map(c => c.trim()).filter(Boolean)
-      i++
+      i = skipBlanks(lines, i + 1)
     }
   }
 
@@ -451,7 +459,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     if (dauer_sekunden === 0) {
       dauer_sekunden = parseDurationToSeconds(lines[i].trim())
     }
-    i++
+    i = skipBlanks(lines, i + 1)
   }
 
   // INT/EXT + Spieltag (I/T4, E/N2, etc.) — comes AFTER characters
@@ -466,6 +474,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     spieltag = parsed.spieltag
     i++
   }
+  i = skipBlanks(lines, i)
 
   // Zusammenfassung: collect lines until duration, next scene, or post-header metadata
   const zusammenfassungParts: string[] = []
@@ -483,6 +492,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   const zusammenfassung = zusammenfassungParts.join(' ')
 
   // If zusammenfassung loop broke on INT/EXT, parse it now
+  i = skipBlanks(lines, i)
   if (i < lines.length && INT_EXT_SPIELTAG_RE.test(lines[i].trim())) {
     const parsed = parseIntExtCode(lines[i].trim())
     int_ext = parsed.int_ext
@@ -492,6 +502,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   }
 
   // Duration (can also appear after zusammenfassung)
+  i = skipBlanks(lines, i)
   if (i < lines.length && DURATION_RE.test(lines[i].trim())) {
     if (dauer_sekunden === 0) {
       dauer_sekunden = parseDurationToSeconds(lines[i].trim())
