@@ -75,6 +75,117 @@ function analyzeInContent(
   return { spiel_typ: 'o.t.', repliken: 0 }
 }
 
+// ── Rich-Text builder for non-scene elements ──
+
+function textNode(text: string, marks?: Array<{ type: string }>): any {
+  const node: any = { type: 'text', text }
+  if (marks && marks.length > 0) node.marks = marks
+  return node
+}
+
+function para(content?: any[]): any {
+  if (!content || content.length === 0) return { type: 'paragraph' }
+  return { type: 'paragraph', content }
+}
+
+function heading(text: string, level: number): any {
+  return { type: 'heading', attrs: { level }, content: [textNode(text, [{ type: 'bold' }])] }
+}
+
+/** Parse text with UPPERCASE names → bold marks */
+function richTextWithBoldNames(text: string): any[] {
+  const parts: any[] = []
+  // Match ALL-CAPS words (2+ chars, may include hyphens) that are character names
+  const re = /\b([A-ZÄÖÜ][A-ZÄÖÜ\-]{1,})\b/g
+  let lastIndex = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > lastIndex) parts.push(textNode(text.slice(lastIndex, m.index)))
+    parts.push(textNode(m[1], [{ type: 'bold' }]))
+    lastIndex = re.lastIndex
+  }
+  if (lastIndex < text.length) parts.push(textNode(text.slice(lastIndex)))
+  return parts.length > 0 ? parts : [textNode(text)]
+}
+
+/** Merge consecutive non-empty lines into paragraphs, split on empty lines */
+function textToParagraphs(text: string, boldNames = false): any[] {
+  const nodes: any[] = []
+  const rawLines = text.split('\n')
+  let currentPara = ''
+  for (const line of rawLines) {
+    if (line.trim() === '') {
+      if (currentPara) {
+        const t = currentPara.trim()
+        nodes.push(boldNames ? para(richTextWithBoldNames(t)) : para([textNode(t)]))
+        currentPara = ''
+      } else {
+        nodes.push(para())
+      }
+    } else {
+      currentPara += (currentPara ? ' ' : '') + line.trim()
+    }
+  }
+  if (currentPara) {
+    const t = currentPara.trim()
+    nodes.push(boldNames ? para(richTextWithBoldNames(t)) : para([textNode(t)]))
+  }
+  return nodes.length > 0 ? nodes : [para()]
+}
+
+function buildNonSceneContent(type: string, content: string): any[] {
+  if (!content) return [para()]
+
+  if (type === 'cover') {
+    // Cover: key-value pairs separated by " · "
+    const nodes: any[] = []
+    const parts = content.split(' · ')
+    // Title line (first 2-3 parts: Staffel, Episode, Block)
+    const titleParts = parts.filter(p => /^(Staffel|Episode|Block)\b/.test(p))
+    const metaParts = parts.filter(p => !/^(Staffel|Episode|Block)\b/.test(p))
+    if (titleParts.length > 0) {
+      nodes.push(heading(titleParts.join(' · '), 2))
+    }
+    for (const p of metaParts) {
+      const colonIdx = p.indexOf(':')
+      if (colonIdx > 0) {
+        const label = p.slice(0, colonIdx + 1)
+        const value = p.slice(colonIdx + 1).trim()
+        nodes.push(para([textNode(label + ' ', [{ type: 'bold' }]), textNode(value)]))
+      } else if (p.trim()) {
+        nodes.push(para([textNode(p.trim())]))
+      }
+    }
+    return nodes.length > 0 ? nodes : [para()]
+  }
+
+  if (type === 'synopsis') {
+    // Synopsis: merge lines, bold UPPERCASE character names
+    return textToParagraphs(content, true)
+  }
+
+  if (type === 'memo') {
+    // Recaps/Precaps: numbered items — each "N. ..." is a paragraph
+    const lines = content.split('\n')
+    const nodes: any[] = []
+    let currentItem = ''
+    for (const line of lines) {
+      const t = line.trim()
+      if (/^\d+\./.test(t) && currentItem) {
+        nodes.push(para(richTextWithBoldNames(currentItem.trim())))
+        currentItem = t
+      } else {
+        currentItem += (currentItem ? ' ' : '') + t
+      }
+    }
+    if (currentItem) nodes.push(para(richTextWithBoldNames(currentItem.trim())))
+    return nodes.length > 0 ? nodes : [para()]
+  }
+
+  // Fallback: plain paragraphs
+  return textToParagraphs(content)
+}
+
 export const importRouter = Router()
 
 const upload = multer({
@@ -352,29 +463,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         const nonSceneElements: Array<{ type: string; label: string; content: string }> = JSON.parse(rawNonSceneElements)
         for (const [nsIdx, elem] of nonSceneElements.entries()) {
           const elemType = ['cover', 'synopsis', 'memo'].includes(elem.type) ? elem.type : 'memo'
-          // Convert raw text to richtext paragraphs — merge consecutive lines
-          // into paragraphs, split on empty lines
-          const pmNodes: any[] = []
-          if (elem.content) {
-            const rawLines = elem.content.split('\n')
-            let currentPara = ''
-            for (const line of rawLines) {
-              if (line.trim() === '') {
-                if (currentPara) {
-                  pmNodes.push({ type: 'paragraph', content: [{ type: 'text', text: currentPara.trim() }] })
-                  currentPara = ''
-                } else {
-                  pmNodes.push({ type: 'paragraph' })
-                }
-              } else {
-                currentPara += (currentPara ? ' ' : '') + line.trim()
-              }
-            }
-            if (currentPara) {
-              pmNodes.push({ type: 'paragraph', content: [{ type: 'text', text: currentPara.trim() }] })
-            }
-          }
-          if (pmNodes.length === 0) pmNodes.push({ type: 'paragraph' })
+          const pmNodes = buildNonSceneContent(elem.type, elem.content)
           await queryOne(
             `INSERT INTO dokument_szenen
                (werkstufe_id, scene_identity_id, sort_order, scene_nummer,

@@ -269,9 +269,18 @@ export default function ImportPage() {
           rrm.staffel ? `Staffel ${rrm.staffel}` : '',
           rrm.episode ? `Episode ${rrm.episode}` : '',
           rrm.block ? `Block ${rrm.block}` : '',
+          rrm.drehtermin ? `Drehtermin: ${rrm.drehtermin}` : '',
+          rrm.sendetermin ? `Sendetermin: ${rrm.sendetermin}` : '',
+          rrm.gesamtlaenge ? `Gesamtlänge: ${rrm.gesamtlaenge}` : '',
           rrm.regie ? `Regie: ${rrm.regie}` : '',
+          rrm.writer_producer ? `Writer Producer: ${rrm.writer_producer}` : '',
+          rrm.head_of_story ? `Head of Story: ${rrm.head_of_story}` : '',
+          rrm.storyliner ? `Storyliner: ${rrm.storyliner}` : '',
+          rrm.story_edit ? `Story Edit: ${rrm.story_edit}` : '',
           rrm.autor ? `Autor: ${rrm.autor}` : '',
-          rrm.gesamtlaenge || '',
+          rrm.script_edit ? `Script Edit: ${rrm.script_edit}` : '',
+          rrm.dialogautor ? `Dialogautor: ${rrm.dialogautor}` : '',
+          rrm.dialog_edit ? `Dialog Edit: ${rrm.dialog_edit}` : '',
         ].filter(Boolean).join(' · ')
         elems.push({ type: 'cover', label: 'Deckblatt', content: coverParts })
         if (rrm.synopsis) elems.push({ type: 'synopsis', label: 'Synopsis', content: rrm.synopsis })
