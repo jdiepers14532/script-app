@@ -159,10 +159,10 @@ function cleanText(raw: string): string[] {
   const preprocessed = preprocessPdfText(noFF)
   const lines = preprocessed.split(/\r?\n/)
   const stripped = stripFooterLines(lines)
-  // Remove margin numbers and blank lines
+  // Remove margin numbers but keep blank lines (used as paragraph separators)
   return stripped.filter(l => {
     const t = l.trim()
-    if (!t) return false
+    if (!t) return true
     if (isMarginNumber(t)) return false
     return true
   })
