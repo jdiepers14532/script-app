@@ -899,79 +899,314 @@ function ProduktionTab() {
   )
 }
 
-// ── Tab: Dokument-Typen ──────────────────────────────────────────────────────────
+// ── Tab: Dokument-Typen (Absatzformate) ─────────────────────────────────────────
 
 function DokumentTypenTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? ''
-  const [typen, setTypen] = useState<any[]>([])
-  const [name, setName] = useState('')
-  const [modus, setModus] = useState<'richtext' | 'screenplay'>('richtext')
+  const [formate, setFormate] = useState<any[]>([])
+  const [presets, setPresets] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editData, setEditData] = useState<any>(null)
+  const [showAdd, setShowAdd] = useState(false)
+  const [showSavePreset, setShowSavePreset] = useState(false)
+  const [presetName, setPresetName] = useState('')
+  const [filterKat, setFilterKat] = useState<string>('alle')
 
   const load = async () => {
     if (!produktionId) return
-    try { setTypen(await api.getDokumentTypen(produktionId)) } catch {}
+    setLoading(true)
+    try {
+      const [f, p] = await Promise.all([
+        api.getAbsatzformate(produktionId),
+        api.getAbsatzformatPresets(),
+      ])
+      setFormate(f); setPresets(p)
+    } catch {} finally { setLoading(false) }
   }
 
   useEffect(() => { load() }, [produktionId])
 
-  const handleAdd = async () => {
-    if (!name.trim() || !produktionId) return
-    setLoading(true); setMsg(null)
+  const handleApplyPreset = async (presetId: string) => {
+    if (!confirm('Alle bestehenden Absatzformate dieser Produktion werden ersetzt. Fortfahren?')) return
+    setMsg(null)
     try {
-      await api.createDokumentTyp(produktionId, { name: name.trim(), editor_modus: modus })
-      setName(''); await load(); setMsg('Typ erstellt.')
-    } catch (e: any) { setMsg(e.message ?? 'Fehler') } finally { setLoading(false) }
+      const result = await api.applyAbsatzformatPreset(produktionId, presetId)
+      setFormate(result); setMsg('Preset angewendet.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 
-  const handleDelete = async (typName: string, typId: number) => {
-    if (!confirm(`Typ "${typName}" loeschen?`)) return
-    try { await api.deleteDokumentTyp(produktionId, typId); await load() } catch (e: any) { setMsg(e.message) }
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Absatzformat "${name}" loeschen?`)) return
+    try { await api.deleteAbsatzformat(produktionId, id); await load() } catch (e: any) { setMsg(e.message) }
   }
+
+  const startEdit = (fmt: any) => { setEditId(fmt.id); setEditData({ ...fmt }) }
+  const cancelEdit = () => { setEditId(null); setEditData(null) }
+
+  const saveEdit = async () => {
+    if (!editData || !editId) return
+    try {
+      await api.updateAbsatzformat(produktionId, editId, editData)
+      setEditId(null); setEditData(null); await load(); setMsg('Gespeichert.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleAdd = async (data: any) => {
+    try {
+      await api.createAbsatzformat(produktionId, data)
+      setShowAdd(false); await load(); setMsg('Format erstellt.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleSaveAsPreset = async () => {
+    if (!presetName.trim()) return
+    const presetFormate = formate.map(f => ({
+      name: f.name, kuerzel: f.kuerzel, textbaustein: f.textbaustein,
+      font_family: f.font_family, font_size: f.font_size,
+      bold: f.bold, italic: f.italic, underline: f.underline,
+      uppercase: f.uppercase, text_align: f.text_align,
+      margin_left: f.margin_left, margin_right: f.margin_right,
+      space_before: f.space_before, space_after: f.space_after,
+      line_height: f.line_height, sort_order: f.sort_order,
+      ist_standard: f.ist_standard, kategorie: f.kategorie,
+      enter_next: formate.find(x => x.id === f.enter_next_format)?.name ?? null,
+      tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
+    }))
+    try {
+      await api.createAbsatzformatPreset({ name: presetName.trim(), formate: presetFormate })
+      setShowSavePreset(false); setPresetName(''); await load(); setMsg('Preset gespeichert.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const filtered = filterKat === 'alle' ? formate : formate.filter(f => f.kategorie === filterKat || f.kategorie === 'alle')
+
+  const inputStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, width: '100%', background: 'var(--bg-surface)', color: 'var(--text-primary)' } as const
+  const selectStyle = { ...inputStyle, width: 'auto' } as const
+
+  if (!produktionId) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>
 
   return (
-    <div>
-      {!produktionId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
-      {produktionId && (
-        <>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 24, alignItems: 'center' }}>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Typ-Name (z.B. Expose)"
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, width: 200 }} />
-            <select value={modus} onChange={e => setModus(e.target.value as any)}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, background: 'var(--bg-surface)' }}>
-              <option value="richtext">Rich Text</option>
-              <option value="screenplay">Drehbuch-Format</option>
-            </select>
-            <button onClick={handleAdd} disabled={loading || !name.trim()}
-              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-              Hinzufuegen
-            </button>
+    <div style={{ maxWidth: 900 }}>
+      {/* Preset-Auswahl */}
+      <section style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 12, fontWeight: 500 }}>Preset:</label>
+        <select
+          onChange={e => { if (e.target.value) handleApplyPreset(e.target.value); e.target.value = '' }}
+          style={{ ...selectStyle, minWidth: 200 }}
+          defaultValue=""
+        >
+          <option value="" disabled>Preset anwenden...</option>
+          {presets.map(p => (
+            <option key={p.id} value={p.id}>{p.name} {p.ist_system ? '(System)' : ''}</option>
+          ))}
+        </select>
+        <button onClick={() => setShowSavePreset(true)}
+          style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+          Als Preset speichern...
+        </button>
+        <div style={{ flex: 1 }} />
+        <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Filter:</label>
+        <select value={filterKat} onChange={e => setFilterKat(e.target.value)} style={selectStyle}>
+          <option value="alle">Alle</option>
+          <option value="drehbuch">Drehbuch</option>
+          <option value="storyline">Storyline</option>
+        </select>
+      </section>
+
+      {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
+      {loading && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Laedt...</p>}
+
+      {/* Absatzformate-Tabelle */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+        <thead><tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <th style={{ textAlign: 'left', padding: '6px 6px', fontWeight: 600 }}>Name</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kuerzel</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kat.</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Schrift</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Groesse</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Stil</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Ausr.</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Enter→</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Tab→</th>
+          <th style={{ padding: '6px 4px' }} />
+        </tr></thead>
+        <tbody>
+          {filtered.map(f => editId === f.id ? (
+            <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+              <td style={{ padding: '4px 6px' }}><input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} style={inputStyle} /></td>
+              <td style={{ padding: '4px 4px' }}><input value={editData.kuerzel ?? ''} onChange={e => setEditData({ ...editData, kuerzel: e.target.value })} style={{ ...inputStyle, width: 50 }} /></td>
+              <td style={{ padding: '4px 4px' }}>
+                <select value={editData.kategorie} onChange={e => setEditData({ ...editData, kategorie: e.target.value })} style={{ ...selectStyle, fontSize: 10 }}>
+                  <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option>
+                </select>
+              </td>
+              <td style={{ padding: '4px 4px' }}><input value={editData.font_family} onChange={e => setEditData({ ...editData, font_family: e.target.value })} style={{ ...inputStyle, width: 100 }} /></td>
+              <td style={{ padding: '4px 4px' }}><input type="number" value={editData.font_size} onChange={e => setEditData({ ...editData, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} /></td>
+              <td style={{ padding: '4px 4px', textAlign: 'center' }}>
+                <label style={{ fontSize: 10, marginRight: 4 }}><input type="checkbox" checked={editData.bold} onChange={e => setEditData({ ...editData, bold: e.target.checked })} /> B</label>
+                <label style={{ fontSize: 10, marginRight: 4 }}><input type="checkbox" checked={editData.italic} onChange={e => setEditData({ ...editData, italic: e.target.checked })} /> I</label>
+                <label style={{ fontSize: 10 }}><input type="checkbox" checked={editData.uppercase} onChange={e => setEditData({ ...editData, uppercase: e.target.checked })} /> UC</label>
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <select value={editData.text_align} onChange={e => setEditData({ ...editData, text_align: e.target.value })} style={{ ...selectStyle, fontSize: 10 }}>
+                  <option value="left">L</option><option value="center">C</option><option value="right">R</option>
+                </select>
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <select value={editData.enter_next_format ?? ''} onChange={e => setEditData({ ...editData, enter_next_format: e.target.value || null })} style={{ ...selectStyle, fontSize: 10 }}>
+                  <option value="">-</option>
+                  {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
+                </select>
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <select value={editData.tab_next_format ?? ''} onChange={e => setEditData({ ...editData, tab_next_format: e.target.value || null })} style={{ ...selectStyle, fontSize: 10 }}>
+                  <option value="">-</option>
+                  {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
+                </select>
+              </td>
+              <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
+                <button onClick={saveEdit} style={{ fontSize: 10, color: '#00C853', background: 'none', border: 'none', cursor: 'pointer', marginRight: 4 }}>OK</button>
+                <button onClick={cancelEdit} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>X</button>
+              </td>
+            </tr>
+          ) : (
+            <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
+              <td style={{ padding: '6px 6px', fontWeight: f.ist_standard ? 600 : 400 }}>
+                {f.name}
+                {f.textbaustein && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>({f.textbaustein})</span>}
+              </td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kuerzel ?? '-'}</td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kategorie === 'alle' ? '*' : f.kategorie === 'drehbuch' ? 'DB' : 'SL'}</td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>{f.font_family} {f.font_size}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)' }}>{f.font_size}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', fontSize: 10 }}>
+                {f.bold && <b>B</b>}{f.italic && <i>I</i>}{f.uppercase && <span>UC</span>}
+                {!f.bold && !f.italic && !f.uppercase && '-'}
+              </td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.text_align === 'left' ? 'L' : f.text_align === 'center' ? 'C' : 'R'}</td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>
+                {formate.find(x => x.id === f.enter_next_format)?.kuerzel || formate.find(x => x.id === f.enter_next_format)?.name || '-'}
+              </td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>
+                {formate.find(x => x.id === f.tab_next_format)?.kuerzel || formate.find(x => x.id === f.tab_next_format)?.name || '-'}
+              </td>
+              <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>
+                <button onClick={() => startEdit(f)} style={{ fontSize: 10, color: 'var(--sw-info)', background: 'none', border: 'none', cursor: 'pointer', marginRight: 4 }}>Edit</button>
+                <button onClick={() => handleDelete(f.id, f.name)} style={{ fontSize: 10, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>X</button>
+              </td>
+            </tr>
+          ))}
+          {filtered.length === 0 && !loading && (
+            <tr><td colSpan={10} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
+              Keine Absatzformate. Waehle ein Preset aus, um zu starten.
+            </td></tr>
+          )}
+        </tbody>
+      </table>
+
+      {/* Add button */}
+      <div style={{ marginTop: 12 }}>
+        {!showAdd ? (
+          <button onClick={() => setShowAdd(true)}
+            style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+            + Format hinzufuegen
+          </button>
+        ) : (
+          <AbsatzformatAddForm formate={formate} onAdd={handleAdd} onCancel={() => setShowAdd(false)} />
+        )}
+      </div>
+
+      {/* Save-as-Preset Dialog */}
+      {showSavePreset && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, padding: 24, minWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Als Preset speichern</h3>
+            <input value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="Preset-Name"
+              style={{ ...inputStyle, width: '100%', marginBottom: 12, padding: '8px 12px', fontSize: 13 }} />
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Speichert die {formate.length} aktuellen Absatzformate als wiederverwendbares Preset.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowSavePreset(false); setPresetName('') }}
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+                Abbrechen
+              </button>
+              <button onClick={handleSaveAsPreset} disabled={!presetName.trim()}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer', opacity: presetName.trim() ? 1 : 0.5 }}>
+                Speichern
+              </button>
+            </div>
           </div>
-          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 12 }}>{msg}</p>}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-              <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>Name</th>
-              <th style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>Editor</th>
-              <th style={{ padding: '6px 8px' }} />
-            </tr></thead>
-            <tbody>
-              {typen.map(t => (
-                <tr key={t.name} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '8px' }}>{t.name}</td>
-                  <td style={{ padding: '8px', color: 'var(--text-secondary)' }}>{t.editor_modus}</td>
-                  <td style={{ padding: '8px', textAlign: 'right' }}>
-                    <button onClick={() => handleDelete(t.name, t.id)}
-                      style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>Loeschen</button>
-                  </td>
-                </tr>
-              ))}
-              {typen.length === 0 && <tr><td colSpan={3} style={{ padding: 12, color: 'var(--text-muted)' }}>Keine Custom-Typen.</td></tr>}
-            </tbody>
-          </table>
-        </>
+        </div>
       )}
+    </div>
+  )
+}
+
+// ── Sub-Component: Add Absatzformat Form ─────────────────────────────────────────
+
+function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onAdd: (d: any) => void; onCancel: () => void }) {
+  const [data, setData] = useState({
+    name: '', kuerzel: '', kategorie: 'alle', font_family: 'Courier Prime', font_size: 12,
+    bold: false, italic: false, uppercase: false, text_align: 'left',
+    margin_left: 0, margin_right: 0, space_before: 12, space_after: 0, line_height: 1.0,
+    enter_next_format: null as string | null, tab_next_format: null as string | null,
+    textbaustein: '', sort_order: formate.length + 1,
+  })
+
+  const inputStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-primary)' } as const
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginTop: 8, background: 'var(--bg-subtle)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 11 }}>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Name *</label>
+          <input value={data.name} onChange={e => setData({ ...data, name: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Kuerzel</label>
+          <input value={data.kuerzel} onChange={e => setData({ ...data, kuerzel: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Kategorie</label>
+          <select value={data.kategorie} onChange={e => setData({ ...data, kategorie: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
+            <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option>
+          </select></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Textbaustein</label>
+          <input value={data.textbaustein} onChange={e => setData({ ...data, textbaustein: e.target.value })} placeholder="z.B. Status Quo:" style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Schrift</label>
+          <input value={data.font_family} onChange={e => setData({ ...data, font_family: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Groesse (pt)</label>
+          <input type="number" value={data.font_size} onChange={e => setData({ ...data, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Ausrichtung</label>
+          <select value={data.text_align} onChange={e => setData({ ...data, text_align: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
+            <option value="left">Links</option><option value="center">Mitte</option><option value="right">Rechts</option>
+          </select></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Stil</label>
+          <div style={{ display: 'flex', gap: 6, paddingTop: 4 }}>
+            <label><input type="checkbox" checked={data.bold} onChange={e => setData({ ...data, bold: e.target.checked })} /> B</label>
+            <label><input type="checkbox" checked={data.italic} onChange={e => setData({ ...data, italic: e.target.checked })} /> I</label>
+            <label><input type="checkbox" checked={data.uppercase} onChange={e => setData({ ...data, uppercase: e.target.checked })} /> UC</label>
+          </div></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Enter→</label>
+          <select value={data.enter_next_format ?? ''} onChange={e => setData({ ...data, enter_next_format: e.target.value || null })} style={{ ...inputStyle, width: '100%' }}>
+            <option value="">-</option>
+            {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
+          </select></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Tab→</label>
+          <select value={data.tab_next_format ?? ''} onChange={e => setData({ ...data, tab_next_format: e.target.value || null })} style={{ ...inputStyle, width: '100%' }}>
+            <option value="">-</option>
+            {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
+          </select></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Einzug L (inch)</label>
+          <input type="number" step="0.1" value={data.margin_left} onChange={e => setData({ ...data, margin_left: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Einzug R (inch)</label>
+          <input type="number" step="0.1" value={data.margin_right} onChange={e => setData({ ...data, margin_right: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+        <button onClick={onCancel}
+          style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>Abbrechen</button>
+        <button onClick={() => { if (data.name.trim()) onAdd({ ...data, textbaustein: data.textbaustein || null }) }} disabled={!data.name.trim()}
+          style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer', opacity: data.name.trim() ? 1 : 0.5 }}>Erstellen</button>
+      </div>
     </div>
   )
 }

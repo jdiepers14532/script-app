@@ -438,6 +438,26 @@ export const api = {
   deleteDokumentVorlage: (produktionId: string, id: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
 
+  // ── Absatzformate ─────────────────────────────────────────────────────────
+  getAbsatzformate: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate`),
+  createAbsatzformat: (produktionId: string, data: any) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate`, data),
+  updateAbsatzformat: (produktionId: string, id: string, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/${id}`, data),
+  deleteAbsatzformat: (produktionId: string, id: string) =>
+    request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/${id}`),
+  applyAbsatzformatPreset: (produktionId: string, presetId: string) =>
+    request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/from-preset`, { preset_id: presetId }),
+  copyAbsatzformateFromProduktion: (produktionId: string, sourceId: string) =>
+    request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/from-produktion`, { source_produktion_id: sourceId }),
+  getAbsatzformatPresets: () =>
+    request<any[]>('GET', '/absatzformat-presets'),
+  createAbsatzformatPreset: (data: { name: string; beschreibung?: string; formate: any[]; erstellt_von?: string }) =>
+    request<any>('POST', '/absatzformat-presets', data),
+  deleteAbsatzformatPreset: (id: string) =>
+    request<void>('DELETE', `/absatzformat-presets/${id}`),
+
   // ── Statistik ──────────────────────────────────────────────────────────────
   getStatOverview: (werkId: string) =>
     request<any>('GET', `/statistik/overview?werkstufe_id=${werkId}`),
