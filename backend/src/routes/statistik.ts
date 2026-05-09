@@ -660,9 +660,11 @@ statistikRouter.get('/report', async (req, res) => {
     folgenBreakdown.sort((a, b) => a.folge_nummer - b.folge_nummer)
 
     // ── Interactions (character pairs sharing scenes) ──
-    // Build map: scene_key → set of character names
+    // Only count interactions between Rollen (not Komparsen)
+    // Build map: scene_key → set of character names (excluding Komparsen)
     const sceneCharsMap = new Map<string, Set<string>>()
     for (const ch of chars) {
+      if (ch.kategorie_typ === 'komparse') continue
       const key = `${ch.werkstufe_id}:${ch.scene_identity_id}`
       if (!sceneCharsMap.has(key)) sceneCharsMap.set(key, new Set())
       sceneCharsMap.get(key)!.add(ch.character_name)
