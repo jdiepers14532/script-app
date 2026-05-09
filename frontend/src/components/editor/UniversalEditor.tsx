@@ -269,7 +269,7 @@ export default function UniversalEditor({
       TextAlign.configure({ types: ['heading', 'paragraph', 'absatz', 'screenplay_element'] }),
       Image.configure({ inline: false, allowBase64: true }),
       ScreenplayExtension.configure({ formatElements }),
-      ...(hasAbsatzFormate ? [AbsatzExtension.configure({ formate: relevantFormats })] : []),
+      AbsatzExtension.configure({ formate: relevantFormats }),
       AnnotationMark,
       Placeholder.configure({
         placeholder,
