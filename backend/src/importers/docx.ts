@@ -1,9 +1,9 @@
 import mammoth from 'mammoth'
-import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, InlineNode, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+/i
 
-// Style name → Textelement-Typ mapping für Drehbuch-Word-Stile
+// Style name -> Textelement-Typ mapping fuer Drehbuch-Word-Stile
 const STYLE_MAP: Record<string, TextelementType> = {
   'szenenüberschrift': 'action',
   'scene heading': 'action',
@@ -23,10 +23,69 @@ const STYLE_MAP: Record<string, TextelementType> = {
   'shot': 'shot',
 }
 
-export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
-  const warnings: string[] = ['DOCX-Import: Stile werden heuristisch erkannt, bitte Ergebnis prüfen']
+// Parse HTML inline tags into ProseMirror-compatible InlineNode[]
+function parseInlineHtml(html: string): InlineNode[] {
+  const nodes: InlineNode[] = []
+  // Regex to find text and inline tags
+  const re = /(<\/?(?:strong|em|b|i|u|s|sup|sub|span)[^>]*>)|([^<]+)/gi
+  const markStack: string[] = []
+  let match
 
-  // Convert to HTML with style info
+  while ((match = re.exec(html)) !== null) {
+    const tag = match[1]
+    const text = match[2]
+
+    if (tag) {
+      const isClose = tag.startsWith('</')
+      const tagName = (tag.match(/<\/?(\w+)/)?.[1] || '').toLowerCase()
+
+      if (isClose) {
+        // Pop matching tag from stack
+        const idx = markStack.lastIndexOf(tagName)
+        if (idx >= 0) markStack.splice(idx, 1)
+      } else {
+        markStack.push(tagName)
+      }
+    } else if (text) {
+      const marks: { type: 'bold' | 'italic' | 'underline' }[] = []
+      for (const m of markStack) {
+        if (m === 'strong' || m === 'b') marks.push({ type: 'bold' })
+        else if (m === 'em' || m === 'i') marks.push({ type: 'italic' })
+        else if (m === 'u') marks.push({ type: 'underline' })
+      }
+      // Deduplicate marks
+      const uniqueMarks = marks.filter((m, i, arr) => arr.findIndex(x => x.type === m.type) === i)
+      nodes.push({ type: 'text', text, ...(uniqueMarks.length > 0 ? { marks: uniqueMarks } : {}) })
+    }
+  }
+
+  // Merge adjacent nodes with same marks
+  const merged: InlineNode[] = []
+  for (const node of nodes) {
+    const last = merged[merged.length - 1]
+    if (last && JSON.stringify(last.marks || []) === JSON.stringify(node.marks || [])) {
+      last.text += node.text
+    } else {
+      merged.push({ ...node })
+    }
+  }
+
+  return merged
+}
+
+// Extract alignment from HTML style attribute
+function extractAlignment(attrs: string): 'left' | 'center' | 'right' | undefined {
+  const styleMatch = /style="([^"]*)"/.exec(attrs)
+  if (!styleMatch) return undefined
+  const alignMatch = /text-align:\s*(center|right|left)/i.exec(styleMatch[1])
+  if (!alignMatch) return undefined
+  return alignMatch[1].toLowerCase() as 'left' | 'center' | 'right'
+}
+
+export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
+  const warnings: string[] = ['DOCX-Import: Stile werden heuristisch erkannt, bitte Ergebnis pruefen']
+
+  // Convert to HTML with style info — preserve inline formatting
   const { value: html } = await mammoth.convertToHtml(
     { buffer },
     {
@@ -60,7 +119,8 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
   let match
   while ((match = paraRe.exec(html)) !== null) {
     const attrs = match[1]
-    const rawText = match[2].replace(/<[^>]+>/g, '').trim()
+    const innerHtml = match[2]
+    const rawText = innerHtml.replace(/<[^>]+>/g, '').trim()
     if (!rawText) continue
 
     // Determine class from style mapping
@@ -111,7 +171,18 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
       currentScene = { nummer: 1, int_ext: 'INT', tageszeit: 'TAG', ort_name: 'Unbekannt', textelemente: [], charaktere: [] }
     }
 
-    const textelement: Textelement = { id: nextId(), type: detectedType, text: rawText }
+    // Parse rich content from HTML inline tags
+    const richContent = parseInlineHtml(innerHtml)
+    const hasRichFormatting = richContent.some(n => n.marks && n.marks.length > 0)
+    const alignment = extractAlignment(attrs)
+
+    const textelement: Textelement = {
+      id: nextId(),
+      type: detectedType,
+      text: rawText,
+      ...(hasRichFormatting ? { richContent } : {}),
+      ...(alignment && alignment !== 'left' ? { textAlign: alignment } : {}),
+    }
 
     if (detectedType === 'character') {
       const charName = rawText.toUpperCase().trim().replace(/\s*\(.*?\)\s*$/, '')

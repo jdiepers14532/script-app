@@ -446,24 +446,65 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       // (int_ext, ort_name, tageszeit) and displayed by the SceneEditor header component.
       const pmNodes: any[] = []
 
+      // Build inline content: use richContent (with marks) if available, otherwise plain text
+      function buildInlineContent(te: any): any[] | undefined {
+        if (!te.text && !te.richContent) return undefined
+        if (te.richContent && te.richContent.length > 0) {
+          return te.richContent.map((n: any) => ({
+            type: 'text',
+            text: n.text,
+            ...(n.marks && n.marks.length > 0 ? { marks: n.marks } : {}),
+          }))
+        }
+        return [{ type: 'text', text: te.text }]
+      }
+
       // Content nodes
       for (const te of szene.textelemente) {
+        const inlineContent = buildInlineContent(te)
+
+        // For notiz format: use plain paragraph nodes (rich text, no screenplay structure)
+        if (sceneFormat === 'notiz') {
+          const attrs: any = {}
+          if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
+          pmNodes.push({
+            type: 'paragraph',
+            ...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+            content: inlineContent,
+          })
+          continue
+        }
+
         const pmType = (['action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot'].includes(te.type))
           ? te.type : 'action'
 
         if (useAbsatzNodes) {
-          const fmtId = elementTypeToFormatId.get(pmType)
+          // For storyline format: map all elements to 'haupttext' unless a specific storyline format exists
+          let fmtId: string | undefined
+          if (docTyp === 'storyline') {
+            // Try storyline-specific format first, fallback to 'haupttext'
+            fmtId = elementTypeToFormatId.get(pmType)
+              || elementTypeToFormatId.get('haupttext')
+              || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
+              || absatzformate[0]?.id
+          } else {
+            fmtId = elementTypeToFormatId.get(pmType)
+          }
           const fmtName = absatzformate.find((f: any) => f.id === fmtId)?.name ?? pmType
+          const attrs: any = { format_id: fmtId ?? null, format_name: fmtName }
+          if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
           pmNodes.push({
             type: 'absatz',
-            attrs: { format_id: fmtId ?? null, format_name: fmtName },
-            content: te.text ? [{ type: 'text', text: te.text }] : undefined,
+            attrs,
+            content: inlineContent,
           })
         } else {
+          const attrs: any = { element_type: pmType }
+          if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
           pmNodes.push({
             type: 'screenplay_element',
-            attrs: { element_type: pmType },
-            content: te.text ? [{ type: 'text', text: te.text }] : undefined,
+            attrs,
+            content: inlineContent,
           })
         }
       }

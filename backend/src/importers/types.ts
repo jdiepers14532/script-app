@@ -1,10 +1,22 @@
 export type TextelementType = 'action' | 'dialogue' | 'character' | 'parenthetical' | 'transition' | 'shot' | 'direction' | 'general'
 
+export interface InlineMark {
+  type: 'bold' | 'italic' | 'underline'
+}
+
+export interface InlineNode {
+  type: 'text'
+  text: string
+  marks?: InlineMark[]
+}
+
 export interface Textelement {
   id: string
   type: TextelementType
   text: string
   character?: string
+  richContent?: InlineNode[] // ProseMirror-compatible inline nodes with marks
+  textAlign?: 'left' | 'center' | 'right'
 }
 
 export interface ParsedScene {

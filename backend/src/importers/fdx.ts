@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser'
-import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, InlineNode, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
 
 const TYPE_MAP: Record<string, TextelementType> = {
   'Action': 'action',
@@ -27,6 +27,63 @@ function extractText(paragraph: any): string {
     })
     .join('')
     .trim()
+}
+
+// Extract rich content with Bold/Italic/Underline marks from FDX Text nodes
+function extractRichContent(paragraph: any): InlineNode[] | undefined {
+  if (!paragraph) return undefined
+  const textNodes = paragraph.Text
+  if (!textNodes) return undefined
+  const texts = Array.isArray(textNodes) ? textNodes : [textNodes]
+
+  const nodes: InlineNode[] = []
+  let hasMarks = false
+
+  for (const t of texts) {
+    let text = ''
+    let style = ''
+
+    if (typeof t === 'string') {
+      text = t
+    } else if (typeof t === 'number') {
+      text = String(t)
+    } else {
+      text = t['#text'] ?? t._ ?? ''
+      style = t['@_Style'] ?? ''
+    }
+
+    if (!text) continue
+
+    const marks: { type: 'bold' | 'italic' | 'underline' }[] = []
+    if (style.includes('Bold')) marks.push({ type: 'bold' })
+    if (style.includes('Italic')) marks.push({ type: 'italic' })
+    if (style.includes('Underline')) marks.push({ type: 'underline' })
+
+    if (marks.length > 0) hasMarks = true
+    nodes.push({ type: 'text', text, ...(marks.length > 0 ? { marks } : {}) })
+  }
+
+  if (!hasMarks) return undefined
+
+  // Merge adjacent nodes with same marks
+  const merged: InlineNode[] = []
+  for (const node of nodes) {
+    const last = merged[merged.length - 1]
+    if (last && JSON.stringify(last.marks || []) === JSON.stringify(node.marks || [])) {
+      last.text += node.text
+    } else {
+      merged.push({ ...node })
+    }
+  }
+  return merged
+}
+
+// Extract alignment from FDX paragraph
+function extractFdxAlignment(paragraph: any): 'left' | 'center' | 'right' | undefined {
+  const align = paragraph?.['@_Alignment']
+  if (align === 'Center') return 'center'
+  if (align === 'Right') return 'right'
+  return undefined
 }
 
 function extractCharakters(paragraph: any): string[] {
@@ -122,7 +179,13 @@ export function parseFdx(xmlContent: string): ImportResult {
 
     if (textelementType === 'general' && ptype === 'Page #') continue
 
-    const textelement: Textelement = { id: nextId(), type: textelementType, text }
+    const richContent = extractRichContent(para)
+    const alignment = extractFdxAlignment(para)
+    const textelement: Textelement = {
+      id: nextId(), type: textelementType, text,
+      ...(richContent ? { richContent } : {}),
+      ...(alignment ? { textAlign: alignment } : {}),
+    }
 
     if (textelementType === 'character') {
       lastCharacter = text.toUpperCase().trim()

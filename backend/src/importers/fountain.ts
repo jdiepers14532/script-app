@@ -1,4 +1,53 @@
-import { Textelement, TextelementType, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+import { Textelement, TextelementType, InlineNode, ImportResult, ParsedScene, nextId, parseSceneHeading } from './types'
+
+// Parse Fountain inline formatting: ***bold-italic***, **bold**, *italic*, _underline_
+function parseFountainInline(text: string): { plain: string; richContent?: InlineNode[] } {
+  // Check if text contains any formatting markers
+  if (!/[*_]/.test(text)) return { plain: text }
+
+  const nodes: InlineNode[] = []
+  // Regex for Fountain formatting (order matters: bold-italic before bold before italic)
+  const re = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|_(.+?)_)/g
+  let lastIdx = 0
+  let match: RegExpExecArray | null
+  let hasMarks = false
+
+  while ((match = re.exec(text)) !== null) {
+    // Text before this match
+    if (match.index > lastIdx) {
+      nodes.push({ type: 'text', text: text.slice(lastIdx, match.index) })
+    }
+
+    if (match[2]) {
+      // ***bold-italic***
+      nodes.push({ type: 'text', text: match[2], marks: [{ type: 'bold' }, { type: 'italic' }] })
+      hasMarks = true
+    } else if (match[3]) {
+      // **bold**
+      nodes.push({ type: 'text', text: match[3], marks: [{ type: 'bold' }] })
+      hasMarks = true
+    } else if (match[4]) {
+      // *italic*
+      nodes.push({ type: 'text', text: match[4], marks: [{ type: 'italic' }] })
+      hasMarks = true
+    } else if (match[5]) {
+      // _underline_
+      nodes.push({ type: 'text', text: match[5], marks: [{ type: 'underline' }] })
+      hasMarks = true
+    }
+    lastIdx = match.index + match[0].length
+  }
+
+  // Remaining text
+  if (lastIdx < text.length) {
+    nodes.push({ type: 'text', text: text.slice(lastIdx) })
+  }
+
+  if (!hasMarks) return { plain: text }
+  // Plain text = stripped version
+  const plain = text.replace(/\*{1,3}|_/g, '')
+  return { plain, richContent: nodes }
+}
 
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+.+/i
 const FORCED_SCENE_HEADING_RE = /^\./
@@ -126,7 +175,8 @@ export function parseFountain(content: string): ImportResult {
 
     // Dialogue (after character)
     if (lastTextelementType === 'character' || lastTextelementType === 'dialogue' || lastTextelementType === 'parenthetical') {
-      const textelement: Textelement = { id: nextId(), type: 'dialogue', text: trimmed }
+      const { plain, richContent } = parseFountainInline(trimmed)
+      const textelement: Textelement = { id: nextId(), type: 'dialogue', text: plain, ...(richContent ? { richContent } : {}) }
       if (lastCharacter) textelement.character = lastCharacter
       if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
       currentScene.textelemente.push(textelement)
@@ -136,7 +186,8 @@ export function parseFountain(content: string): ImportResult {
     }
 
     // Default: action
-    const textelement: Textelement = { id: nextId(), type: 'action', text: trimmed }
+    const { plain: actionPlain, richContent: actionRich } = parseFountainInline(trimmed)
+    const textelement: Textelement = { id: nextId(), type: 'action', text: actionPlain, ...(actionRich ? { richContent: actionRich } : {}) }
     if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
     currentScene.textelemente.push(textelement)
     lastTextelementType = 'action'
