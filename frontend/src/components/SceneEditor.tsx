@@ -288,11 +288,15 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const saveScene = useCallback((data: any) => {
     // Use resolved scene ID if available
     const resolvedId = scene?.id
+    if (!resolvedId && useDokumentSzenen) {
+      // Scene not loaded (e.g. deleted/re-imported) — skip save silently
+      return Promise.resolve(null)
+    }
     if (werkstufId && sceneIdentityId && resolvedId) {
       return api.updateDokumentSzene(resolvedId, data)
     }
-    if (useDokumentSzenen && typeof szeneId === 'string') {
-      return api.updateDokumentSzene(szeneId, data)
+    if (useDokumentSzenen && resolvedId) {
+      return api.updateDokumentSzene(resolvedId, data)
     }
     return api.updateSzene(szeneId as number, data)
   }, [szeneId, useDokumentSzenen, werkstufId, sceneIdentityId, scene])
