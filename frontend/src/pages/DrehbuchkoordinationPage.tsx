@@ -1072,6 +1072,7 @@ function DokumentTypenTab() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead><tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-subtle)' }}>
           <th style={{ textAlign: 'left', padding: '6px 6px', fontWeight: 600 }}>Name</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Prefix</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kuerzel</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kat.</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Schrift</th>
@@ -1090,6 +1091,7 @@ function DokumentTypenTab() {
           {filtered.map(f => editId === f.id ? (
             <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
               <td style={{ padding: '4px 6px' }}><input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} style={inputStyle} /></td>
+              <td style={{ padding: '4px 4px' }}><input value={editData.textbaustein ?? ''} onChange={e => setEditData({ ...editData, textbaustein: e.target.value || null })} placeholder="—" style={{ ...inputStyle, width: 80 }} /></td>
               <td style={{ padding: '4px 4px' }}><input value={editData.kuerzel ?? ''} onChange={e => setEditData({ ...editData, kuerzel: e.target.value })} style={{ ...inputStyle, width: 50 }} /></td>
               <td style={{ padding: '4px 4px' }}>
                 <select value={editData.kategorie} onChange={e => setEditData({ ...editData, kategorie: e.target.value })} style={{ ...selectStyle, fontSize: 10 }}>
@@ -1141,8 +1143,8 @@ function DokumentTypenTab() {
             <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
               <td style={{ padding: '6px 6px', fontWeight: f.ist_standard ? 600 : 400 }}>
                 {f.name}
-                {f.textbaustein && <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4 }}>({f.textbaustein})</span>}
               </td>
+              <td style={{ padding: '6px 4px', color: f.textbaustein ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: f.textbaustein ? 600 : 400, fontSize: 10 }}>{f.textbaustein ?? '—'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kuerzel ?? '-'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kategorie === 'alle' ? '*' : f.kategorie === 'drehbuch' ? 'DB' : 'SL'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>{f.font_family} {f.font_size}</td>
