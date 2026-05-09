@@ -177,6 +177,16 @@ export function generateAbsatzCSS(formate: AbsatzFormat[]): string {
     if (fmt.space_after > 0) rules.push(`margin-bottom: ${fmt.space_after / 12}em`)
 
     css += `.ProseMirror .absatz-fmt-${fmt.id} { ${rules.join('; ')}; }\n`
+
+    // Textbaustein: non-editable bold prefix via ::before
+    if (fmt.textbaustein) {
+      const escaped = fmt.textbaustein.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"')
+      css += `.ProseMirror .absatz-fmt-${fmt.id}::before {
+  content: '${escaped} ';
+  font-weight: 700;
+  pointer-events: none;
+}\n`
+    }
   }
 
   return css

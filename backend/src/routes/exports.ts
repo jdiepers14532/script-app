@@ -14,7 +14,35 @@ interface Block {
   character?: string
 }
 
-function contentToFountain(szenen: any[]): string {
+/** Extract plain text from ProseMirror inline content array */
+function inlineToText(content: any[]): string {
+  if (!Array.isArray(content)) return ''
+  return content.map((n: any) => n.text ?? '').join('')
+}
+
+/** Resolve content blocks, prepending textbaustein for absatz nodes */
+function resolveBlocks(szene: any, formatMap: Map<string, any>): Block[] {
+  const raw = Array.isArray(szene.content) ? szene.content : []
+  return raw.map((node: any) => {
+    if (node.type === 'absatz') {
+      const fmtId = node.attrs?.format_id
+      const fmt = fmtId ? formatMap.get(fmtId) : null
+      const text = inlineToText(node.content)
+      const prefix = fmt?.textbaustein ? `${fmt.textbaustein} ` : ''
+      // Map format_name to block type
+      const nameToType: Record<string, string> = {
+        'Szenenueberschrift': 'heading', 'Scene Heading': 'heading',
+        'Action': 'action', 'Character': 'character', 'Dialogue': 'dialogue',
+        'Parenthetical': 'parenthetical', 'Transition': 'transition', 'Shot': 'shot',
+      }
+      const blockType = nameToType[node.attrs?.format_name] ?? 'action'
+      return { type: blockType, text: prefix + text } as Block
+    }
+    return node as Block
+  })
+}
+
+function contentToFountain(szenen: any[], formatMap: Map<string, any>): string {
   let out = ''
   for (const szene of szenen) {
     // Scene heading
@@ -23,7 +51,7 @@ function contentToFountain(szenen: any[]): string {
     const zeit = szene.tageszeit || 'TAG'
     out += `\n${intExt}. ${ort} - ${zeit}\n\n`
 
-    const blocks: Block[] = Array.isArray(szene.content) ? szene.content : []
+    const blocks = resolveBlocks(szene, formatMap)
     for (const block of blocks) {
       switch (block.type) {
         case 'heading':
@@ -55,7 +83,7 @@ function contentToFountain(szenen: any[]): string {
   return out
 }
 
-function contentToFdx(szenen: any[], episodeTitel: string): string {
+function contentToFdx(szenen: any[], episodeTitel: string, formatMap: Map<string, any>): string {
   let lines = ['<?xml version="1.0" encoding="UTF-8"?>']
   lines.push('<FinalDraft DocumentType="Script" Template="No" Version="5">')
   lines.push('<Content>')
@@ -67,7 +95,7 @@ function contentToFdx(szenen: any[], episodeTitel: string): string {
 
     lines.push(`<Paragraph Type="Scene Heading"><Text>${intExt}. ${ort} - ${zeit}</Text></Paragraph>`)
 
-    const blocks: Block[] = Array.isArray(szene.content) ? szene.content : []
+    const blocks = resolveBlocks(szene, formatMap)
     for (const block of blocks) {
       const typeMap: Record<string, string> = {
         action: 'Action', character: 'Character', dialogue: 'Dialogue',
@@ -86,6 +114,15 @@ function contentToFdx(szenen: any[], episodeTitel: string): string {
 
 
 // ── Werkstufe-based exports (v43 Werkstufen-Modell) ─────────────────────────
+
+/** Load absatzformate for a production as Map<id, {name, textbaustein}> */
+async function loadFormatMap(produktionId: string): Promise<Map<string, any>> {
+  const rows = await query(
+    'SELECT id, name, textbaustein FROM absatzformate WHERE produktion_id = $1',
+    [produktionId]
+  )
+  return new Map(rows.map((r: any) => [r.id, r]))
+}
 
 async function logWerkstufenExport(userId: string, userName: string, werkId: string, format: string): Promise<string> {
   const result = await queryOne(
@@ -116,14 +153,14 @@ router.get('/werkstufe/:werkId/export/fountain', async (req, res) => {
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const szenen = await query(
-      'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer',
-      [req.params.werkId]
-    )
+    const [szenen, formatMap] = await Promise.all([
+      query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
+      loadFormatMap(ws.produktion_id),
+    ])
 
     const exportId = await logWerkstufenExport(req.user!.user_id, req.user!.name, ws.id, 'fountain')
     const payload = buildPayload(req.user!.user_id, exportId)
-    const fountain = injectIntoText(contentToFountain(szenen), payload)
+    const fountain = injectIntoText(contentToFountain(szenen, formatMap), payload)
 
     const label = (ws.label || `${ws.typ}_V${ws.version_nummer}`).replace(/[^a-zA-Z0-9_-]/g, '_')
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
@@ -144,15 +181,15 @@ router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const szenen = await query(
-      'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer',
-      [req.params.werkId]
-    )
+    const [szenen, formatMap] = await Promise.all([
+      query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
+      loadFormatMap(ws.produktion_id),
+    ])
 
     const exportId = await logWerkstufenExport(req.user!.user_id, req.user!.name, ws.id, 'fdx')
     const payload = buildPayload(req.user!.user_id, exportId)
     const wm = require('../utils/watermark').encodeWatermark(payload)
-    let fdx = contentToFdx(szenen, ws.label || 'Drehbuch')
+    let fdx = contentToFdx(szenen, ws.label || 'Drehbuch', formatMap)
     fdx = fdx.replace('<Content>', `<!-- ${wm} -->\n<Content>`)
 
     const label = (ws.label || `${ws.typ}_V${ws.version_nummer}`).replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -174,10 +211,10 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const szenen = await query(
-      'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer',
-      [req.params.werkId]
-    )
+    const [szenen, formatMap] = await Promise.all([
+      query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
+      loadFormatMap(ws.produktion_id),
+    ])
 
     const exportId = await logWerkstufenExport(req.user!.user_id, req.user!.name, ws.id, 'pdf')
     const payload = buildPayload(req.user!.user_id, exportId)
@@ -207,7 +244,7 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
       const stoppzeit = szene.stoppzeit_sek ? `<span class="stoppzeit">${formatStoppzeit(szene.stoppzeit_sek)}</span>` : ''
       html += `<div class="scene-heading">${szene.scene_nummer}. ${intExt}. ${ort} - ${zeit}${stoppzeit}</div>`
 
-      const blocks: Block[] = Array.isArray(szene.content) ? szene.content : []
+      const blocks = resolveBlocks(szene, formatMap)
       for (const block of blocks) {
         const cls = block.type === 'heading' ? 'heading' : block.type
         const escaped = String(block.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
