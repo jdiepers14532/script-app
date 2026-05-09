@@ -190,7 +190,7 @@ werkstufenSzenenRouter.get('/', async (req, res) => {
     const rows = await query(
       `SELECT ds.*, si.folge_id AS identity_folge_id
        FROM dokument_szenen ds
-       JOIN scene_identities si ON si.id = ds.scene_identity_id
+       LEFT JOIN scene_identities si ON si.id = ds.scene_identity_id
        WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
        ORDER BY ds.sort_order, ds.scene_nummer`,
       [werkId]
