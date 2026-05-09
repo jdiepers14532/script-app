@@ -167,6 +167,7 @@ export default function UniversalEditor({
   injectLTCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
+  useEffect(() => { console.log('[LT] spellcheckMode:', spellcheckMode) }, [spellcheckMode])
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
@@ -422,12 +423,16 @@ export default function UniversalEditor({
           body: JSON.stringify({ text }),
           signal: ltAbort.current.signal,
         })
-        if (resp.ok) {
-          const data = await resp.json()
-          setLtMatches(data.matches || [])
+        if (!resp.ok) {
+          console.error('[LT] API error:', resp.status, await resp.text().catch(() => ''))
+          return
         }
+        const data = await resp.json()
+        const matches = data.matches || []
+        console.log('[LT] Check:', text.length, 'chars →', matches.length, 'matches')
+        setLtMatches(matches)
       } catch (e: any) {
-        if (e.name !== 'AbortError') console.error('LT check failed:', e)
+        if (e.name !== 'AbortError') console.error('[LT] check failed:', e)
       }
     }
     const handler = () => {
@@ -470,6 +475,7 @@ export default function UniversalEditor({
       }))
     }
 
+    console.log('[LT] Decorations:', decos.length, 'of', ltMatches.length, 'matches mapped')
     if (decos.length === 0) return
 
     const decoSet = DecorationSet.create(doc, decos)
