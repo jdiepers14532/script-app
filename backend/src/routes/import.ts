@@ -383,9 +383,13 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     // Load absatzformate for this production (for absatz-node generation)
     const absatzformate = await query(
-      `SELECT id, name FROM absatzformate WHERE produktion_id = $1`,
+      `SELECT id, name, textbaustein, kategorie FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order`,
       [produktion_id]
     )
+    // Build textbaustein lookup: sorted by length desc for longest-match-first
+    const textbausteinFormats = absatzformate
+      .filter((f: any) => f.textbaustein)
+      .sort((a: any, b: any) => b.textbaustein.length - a.textbaustein.length)
     // Map element_type names to format IDs
     const elementTypeToFormatId = new Map<string, string>()
     if (absatzformate.length > 0) {
@@ -461,17 +465,33 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
       // Content nodes
       for (const te of szene.textelemente) {
-        const inlineContent = buildInlineContent(te)
+        let inlineContent = buildInlineContent(te)
 
-        // For notiz format: use plain paragraph nodes (rich text, no screenplay structure)
+        // For notiz format: use absatz nodes with a neutral format (Arial, not Courier)
         if (sceneFormat === 'notiz') {
-          const attrs: any = {}
-          if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
-          pmNodes.push({
-            type: 'paragraph',
-            ...(Object.keys(attrs).length > 0 ? { attrs } : {}),
-            content: inlineContent,
-          })
+          if (useAbsatzNodes) {
+            // Use Haupttext or any storyline format (Arial 11pt) — never drehbuch (Courier)
+            const notizFmtId = elementTypeToFormatId.get('haupttext')
+              || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
+              || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
+              || absatzformate[0]?.id
+            const notizFmtName = absatzformate.find((f: any) => f.id === notizFmtId)?.name ?? 'Haupttext'
+            const attrs: any = { format_id: notizFmtId ?? null, format_name: notizFmtName }
+            if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
+            pmNodes.push({
+              type: 'absatz',
+              attrs,
+              content: inlineContent && inlineContent.length > 0 ? inlineContent : [{ type: 'text', text: '' }],
+            })
+          } else {
+            const attrs: any = {}
+            if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
+            pmNodes.push({
+              type: 'paragraph',
+              ...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+              content: inlineContent,
+            })
+          }
           continue
         }
 
@@ -479,16 +499,36 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           ? te.type : 'action'
 
         if (useAbsatzNodes) {
-          // For storyline format: map all elements to 'haupttext' unless a specific storyline format exists
+          // Check if line starts with a textbaustein → override format + strip prefix
           let fmtId: string | undefined
-          if (docTyp === 'storyline') {
-            // Try storyline-specific format first, fallback to 'haupttext'
-            fmtId = elementTypeToFormatId.get(pmType)
-              || elementTypeToFormatId.get('haupttext')
-              || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
-              || absatzformate[0]?.id
-          } else {
-            fmtId = elementTypeToFormatId.get(pmType)
+          let matchedTextbaustein = false
+          const firstText = inlineContent[0]?.type === 'text' ? inlineContent[0].text : ''
+          for (const tbFmt of textbausteinFormats) {
+            const prefix = tbFmt.textbaustein as string
+            if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
+              fmtId = tbFmt.id
+              matchedTextbaustein = true
+              // Strip prefix from first text node (+ optional trailing space)
+              const stripped = firstText.slice(prefix.length).replace(/^\s/, '')
+              if (stripped) {
+                inlineContent = [{ ...inlineContent[0], text: stripped }, ...inlineContent.slice(1)]
+              } else {
+                inlineContent = inlineContent.slice(1)
+              }
+              break
+            }
+          }
+
+          if (!matchedTextbaustein) {
+            // For storyline format: always use Haupttext (Arial 11pt), never drehbuch formats (Courier)
+            if (docTyp === 'storyline') {
+              fmtId = elementTypeToFormatId.get('haupttext')
+                || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
+                || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
+                || absatzformate[0]?.id
+            } else {
+              fmtId = elementTypeToFormatId.get(pmType)
+            }
           }
           const fmtName = absatzformate.find((f: any) => f.id === fmtId)?.name ?? pmType
           const attrs: any = { format_id: fmtId ?? null, format_name: fmtName }
@@ -496,7 +536,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           pmNodes.push({
             type: 'absatz',
             attrs,
-            content: inlineContent,
+            content: inlineContent.length > 0 ? inlineContent : [{ type: 'text', text: '' }],
           })
         } else {
           const attrs: any = { element_type: pmType }
