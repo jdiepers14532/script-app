@@ -570,18 +570,8 @@ export default function ScriptPage() {
   }, [selectedProduktionId, selectedFolgeNummer])
 
   // Poll unread comment counts from Messenger-App every 60s
-  useEffect(() => {
-    if (!selectedStageId) { setCommentCounts({}); return }
-    let cancelled = false
-    const load = () => {
-      api.getSceneCommentCounts(selectedStageId)
-        .then(data => { if (!cancelled) setCommentCounts(data) })
-        .catch(() => {})
-    }
-    load()
-    const interval = setInterval(load, 60_000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [selectedStageId])
+  // TODO: Comment counts not yet implemented for new werkstufe model (UUID IDs)
+  // Disabled to avoid 404 errors — re-enable when scene-comment integration is complete
 
   // Save navigation position when selections change
   useEffect(() => {
