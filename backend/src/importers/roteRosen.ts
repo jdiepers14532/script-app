@@ -826,7 +826,12 @@ const SENTENCE_END_RE = /[.!?][»"')\]]?\s*$/
 const ABBREV_END_RE = /\b(Dr|Prof|Hr|Fr|Hrsg|ca|usw|etc|z\.B|d\.h|bzw|ggf|inkl|exkl|bzgl|Nr|Tel|Str|Abs|Anm|Abb|vgl|vs|ebd|ggü)\.\s*$/i
 const UPPER_START_RE = /^[A-ZÄÖÜ„"]/
 
-function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number): Textelement[] {
+function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number, layout?: BboxLayout): Textelement[] {
+  // Build a fast lookup: normalized line text → LineInfo (for centered/large-font detection)
+  const lineInfoMap = new Map<string, LineInfo>()
+  if (layout) {
+    for (const li of layout.lines) lineInfoMap.set(li.text.trim(), li)
+  }
   const elems: Textelement[] = []
   const contentLines: string[] = []
 
@@ -860,10 +865,17 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
     if (TEXTBAUSTEIN_LINE_START_RE.test(t)) {
       flushContent()
     }
-    // Heuristic: if the previous line ended with sentence-final punctuation (and is not
-    // an abbreviation) and this line starts with an uppercase letter, it is very likely
-    // the start of a new paragraph. pdftotext wraps lines within a paragraph mid-sentence,
-    // so wrapped continuations almost never end with . ! ?
+    // bbox layout: centered or large-font lines are likely headings/section titles
+    else if (layout && contentLines.length > 0) {
+      const li = lineInfoMap.get(t)
+      if (li && (li.isCentered || li.isLargeFont)) {
+        flushContent()
+      }
+    }
+    // Fallback heuristic (no bbox or bbox missed the gap):
+    // If the previous content line ends with sentence-final punctuation (not an abbreviation)
+    // AND this line starts uppercase, treat it as a new paragraph.
+    // With bbox-enhanced text, real gaps are already blank lines, so this fires much less.
     else if (contentLines.length > 0) {
       const prev = contentLines[contentLines.length - 1]
       if (SENTENCE_END_RE.test(prev) && !ABBREV_END_RE.test(prev) && UPPER_START_RE.test(t)) {
@@ -1014,7 +1026,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     let sceneChars: string[] = []
 
     if (docType === 'treatment') {
-      textelemente = parseTreatmentContent(lines, contentStartIdx, contentEndIdx)
+      textelemente = parseTreatmentContent(lines, contentStartIdx, contentEndIdx, layout)
     } else {
       const parsed = parseDrehbuchContent(lines, contentStartIdx, contentEndIdx)
       textelemente = parsed.elems
