@@ -4,37 +4,79 @@ import * as pdfjsLib from 'pdfjs-dist'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
-const PAD = 24 // px padding inside the viewer area
+const PAD = 24
 
 interface PdfPageViewerProps {
   fileUrl: string
-  cropLeft?: number   // 0-30%
-  cropRight?: number  // 0-30%
-  cropBottom?: number // 0-30%
+  cropLeft?: number
+  cropRight?: number
+  cropBottom?: number
 }
 
 export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cropBottom = 0 }: PdfPageViewerProps) {
-  const outerRef = useRef<HTMLDivElement>(null)   // measurement ref — NEVER contains canvas
+  // outerRef measures available space. Canvas is position:absolute inside it,
+  // so it never affects clientWidth/clientHeight → no resize feedback loop.
+  const outerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null)
   const renderingRef = useRef(false)
-  const sizeRef = useRef({ w: 0, h: 0 })          // stable container dimensions
+  const pendingPageRef = useRef<number | null>(null)
 
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
 
-  // Track stable container dimensions via ResizeObserver on the outer div
-  // The canvas is NOT in the outer div's flex flow, so this never creates a feedback loop
-  useEffect(() => {
-    const el = outerRef.current
-    if (!el) return
-    const update = () => {
-      sizeRef.current = { w: el.clientWidth, h: el.clientHeight }
+  const renderPage = useCallback(async (pageNum: number) => {
+    const pdf = pdfRef.current
+    const canvas = canvasRef.current
+    const outer = outerRef.current
+    if (!pdf || !canvas || !outer) return
+
+    // If already rendering, queue the latest request
+    if (renderingRef.current) {
+      pendingPageRef.current = pageNum
+      return
     }
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
+
+    // Read container dimensions directly — safe because canvas is absolutely positioned
+    const w = outer.clientWidth
+    const h = outer.clientHeight
+    const availW = w - PAD * 2
+    const availH = h - PAD * 2
+    if (availW <= 0 || availH <= 0) return
+
+    renderingRef.current = true
+    try {
+      const pdfPage = await pdf.getPage(pageNum)
+      const baseViewport = pdfPage.getViewport({ scale: 1 })
+
+      const scale = Math.min(availW / baseViewport.width, availH / baseViewport.height)
+      const dpr = window.devicePixelRatio || 1
+
+      const displayW = Math.round(baseViewport.width * scale)
+      const displayH = Math.round(baseViewport.height * scale)
+
+      canvas.width = displayW * dpr
+      canvas.height = displayH * dpr
+      canvas.style.width = `${displayW}px`
+      canvas.style.height = `${displayH}px`
+
+      const ctx = canvas.getContext('2d')!
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      await pdfPage.render({
+        canvasContext: ctx,
+        viewport: pdfPage.getViewport({ scale: scale * dpr }),
+      }).promise
+    } catch (err) {
+      console.error('[PdfPageViewer] render error:', err)
+    } finally {
+      renderingRef.current = false
+      // Drain pending request (e.g. page changed while rendering)
+      const pending = pendingPageRef.current
+      if (pending !== null) {
+        pendingPageRef.current = null
+        renderPage(pending)
+      }
+    }
   }, [])
 
   // Load PDF
@@ -52,54 +94,12 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
     return () => { cancelled = true; task.destroy() }
   }, [fileUrl])
 
-  const renderPage = useCallback(async (pageNum: number) => {
-    const pdf = pdfRef.current
-    const canvas = canvasRef.current
-    if (!pdf || !canvas || renderingRef.current) return
-
-    const { w, h } = sizeRef.current
-    const availW = w - PAD * 2
-    const availH = h - PAD * 2
-    if (availW <= 0 || availH <= 0) return
-
-    renderingRef.current = true
-    try {
-      const pdfPage = await pdf.getPage(pageNum)
-      const viewport = pdfPage.getViewport({ scale: 1 })
-
-      // Scale to contain the whole page (both axes) within available area
-      const scale = Math.min(availW / viewport.width, availH / viewport.height)
-      const dpr = window.devicePixelRatio || 1
-
-      const displayW = Math.round(viewport.width * scale)
-      const displayH = Math.round(viewport.height * scale)
-
-      // Pixel buffer = display × dpr for crisp HiDPI rendering
-      canvas.width = displayW * dpr
-      canvas.height = displayH * dpr
-      // CSS dimensions are fixed — canvas position is absolute so this won't shift layout
-      canvas.style.width = `${displayW}px`
-      canvas.style.height = `${displayH}px`
-
-      const ctx = canvas.getContext('2d')!
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      await pdfPage.render({
-        canvasContext: ctx,
-        viewport: pdfPage.getViewport({ scale: scale * dpr }),
-      }).promise
-    } catch (err) {
-      console.error('[PdfPageViewer] render error:', err)
-    } finally {
-      renderingRef.current = false
-    }
-  }, [])
-
-  // Render when page or total changes
+  // Render when page or PDF changes
   useEffect(() => {
     if (totalPages > 0) renderPage(page)
   }, [page, totalPages, renderPage])
 
-  // Re-render on container resize (fires after sizeRef is updated)
+  // Re-render on container resize
   useEffect(() => {
     const el = outerRef.current
     if (!el) return
@@ -113,7 +113,7 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#6b6b6b' }}>
 
-      {/* Viewer area: outerRef measures space, canvas is absolutely positioned → no feedback loop */}
+      {/* Viewer: outerRef is the measuring element, canvas is absolutely positioned */}
       <div ref={outerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <div style={{
           position: 'absolute', inset: 0,
