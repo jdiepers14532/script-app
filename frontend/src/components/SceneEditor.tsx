@@ -44,6 +44,53 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
   return 'd_ie'
 }
 
+// ── Notiz Header (template selector for non-scene elements) ──────────────────
+function NotizHeader({ scene, produktionId, onUpdate, saveScene }: { scene: any; produktionId?: string | null; onUpdate: (s: any) => void; saveScene: (data: any) => Promise<any> }) {
+  const [vorlagen, setVorlagen] = useState<any[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!produktionId) return
+    api.getDokumentVorlagen(produktionId).then(setVorlagen).finally(() => setLoaded(true))
+  }, [produktionId])
+
+  const applyTemplate = async (vorlageId: string) => {
+    const vorlage = vorlagen.find(v => v.id === vorlageId)
+    if (!vorlage) return
+    // Apply template: set element_type + zusammenfassung from vorlage, insert sektionen content
+    const sektionen = vorlage.sektionen || []
+    const firstContent = sektionen[0]?.content
+    const updates: any = { element_type: vorlage.typ, zusammenfassung: vorlage.name }
+    if (firstContent) updates.content = JSON.stringify(firstContent)
+    const updated = await saveScene(updates)
+    if (updated) onUpdate(updated)
+  }
+
+  const typeLabelMap: Record<string, string> = { titelseite: 'Titelseite', synopsis: 'Synopsis', recap: 'Recap', precap: 'Precap', memo: 'Memo', cover: 'Deckblatt' }
+  const typeLabel = scene.element_type ? (typeLabelMap[scene.element_type] || scene.element_type) : 'Notiz'
+
+  return (
+    <div className="detail-head" style={{ borderLeft: 'none', borderBottom: '1px solid var(--border)', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{typeLabel}</span>
+      {scene.zusammenfassung && scene.zusammenfassung !== typeLabel && (
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>— {scene.zusammenfassung}</span>
+      )}
+      <div style={{ marginLeft: 'auto' }}>
+        {loaded && vorlagen.length > 0 && (
+          <select
+            style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', cursor: 'pointer' }}
+            value=""
+            onChange={e => { if (e.target.value) applyTemplate(e.target.value) }}
+          >
+            <option value="">Vorlage einfuegen...</option>
+            {vorlagen.map(v => <option key={v.id} value={v.id}>{v.name} ({v.typ || 'custom'})</option>)}
+          </select>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
@@ -505,11 +552,16 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const isBothMode = panelMode !== 'script' && panelMode !== 'treatment'
 
   const contentTextelemente: any[] = Array.isArray(scene.content) ? scene.content : []
+  const isNotiz = scene.format === 'notiz'
 
   return (
     <div className="detail">
+      {/* Notiz header — template dropdown + label */}
+      {isNotiz && (
+        <NotizHeader scene={scene} produktionId={produktionId} onUpdate={(s) => { setScene(s); onSzeneUpdated?.(s) }} saveScene={saveScene} />
+      )}
       {/* Lean header — alles inline, kein Kasten */}
-      <div className="detail-head" style={{ borderLeft: 'none', borderBottom: 'none' }}>
+      {!isNotiz && <div className="detail-head" style={{ borderLeft: 'none', borderBottom: 'none' }}>
 
         {/* Zeile 1: SZ | Stoppzeit-Input | Motiv (grows) | Spielzeit | DT · I/T | buttons */}
         <div className="scene-r1">
@@ -925,7 +977,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           </div>
           </div>{/* end scene-fields-rows */}
         </div>}
-      </div>
+      </div>}
 
       {/* Imported content (read-only display of textelemente from import, hidden in compact) */}
       {!compact && contentTextelemente.length > 0 && (
