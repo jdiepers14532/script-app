@@ -196,7 +196,7 @@ export default function EditorPanel({
         }}
       />
 
-      {selectedWerk && currentSzene && (
+      {selectedWerk && currentSzene && !tweaks.sceneHeaderCompact && (
         <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-subtle)' }}>
