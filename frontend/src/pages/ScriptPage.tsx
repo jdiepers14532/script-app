@@ -634,6 +634,7 @@ export default function ScriptPage() {
               commentCounts={commentCounts}
               onOpenStatistik={() => setShowStatModal(true)}
               onOpenRadar={() => setShowRadar(v => !v)}
+              onOpenSearch={() => setShowSearchReplace(true)}
               werkstufId={selectedStageId ? String(selectedStageId) : null}
             />
           </div>

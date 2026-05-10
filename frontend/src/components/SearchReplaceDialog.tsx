@@ -218,7 +218,7 @@ export default function SearchReplaceDialog({
     <div style={{
       position: 'fixed', top: 0, right: 0, bottom: 0,
       width: 420, maxWidth: '100vw',
-      background: 'var(--bg-primary)',
+      background: 'var(--bg-surface)',
       borderLeft: '1px solid var(--border)',
       boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
       zIndex: 50,

@@ -22,6 +22,7 @@ interface SceneListProps {
   commentCounts?: Record<number, number>
   onOpenStatistik?: () => void
   onOpenRadar?: () => void
+  onOpenSearch?: () => void
   werkstufId?: string | null
   allCharacters?: any[]
 }
@@ -40,9 +41,11 @@ export default function SceneList({
   commentCounts,
   onOpenStatistik,
   onOpenRadar,
+  onOpenSearch,
   werkstufId,
   allCharacters,
 }: SceneListProps) {
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
   const { sceneKuerzel } = useAppSettings()
   const { tweaks } = useTweaks()
   const { t } = useTerminologie()
@@ -396,6 +399,18 @@ export default function SceneList({
               >
                 Platzhalter-{t('szene', 'p')} anlegen
               </button>
+              {onOpenSearch && (
+                <button
+                  className="scene-ctx-item"
+                  style={{ display: 'flex', alignItems: 'center' }}
+                  onClick={() => { onOpenSearch(); setHeaderMenuOpen(false) }}
+                >
+                  <span style={{ flex: 1 }}>Suchen &amp; Ersetzen</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                    {isMac ? '\u2318H' : 'Ctrl+H'}
+                  </span>
+                </button>
+              )}
               {onOpenRadar && (
                 <button
                   className="scene-ctx-item"
