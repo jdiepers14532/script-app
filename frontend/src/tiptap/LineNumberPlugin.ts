@@ -8,6 +8,8 @@ export const lineNumberPluginKey = new PluginKey('lineNumbers')
  * Lines are counted per block node (paragraph/screenplay_element/absatz).
  * Only every 5th line shows the number; counting resets per scene
  * (each scene is a separate editor instance, so reset is automatic).
+ *
+ * Uses node decorations with ::before pseudo-elements for reliable positioning.
  */
 export function createLineNumberPlugin() {
   return new Plugin({
@@ -35,12 +37,10 @@ function buildDecorations(doc: any): DecorationSet {
     lineNum++
     if (lineNum % 5 === 0) {
       decos.push(
-        Decoration.widget(offset, () => {
-          const el = document.createElement('span')
-          el.className = 'line-number-gutter'
-          el.textContent = String(lineNum)
-          return el
-        }, { side: -1, key: `ln-${lineNum}` })
+        Decoration.node(offset, offset + node.nodeSize, {
+          class: 'has-line-num',
+          'data-line-num': String(lineNum),
+        })
       )
     }
   })
@@ -49,15 +49,16 @@ function buildDecorations(doc: any): DecorationSet {
 }
 
 export const LINE_NUMBER_CSS = `
-.ProseMirror {
-  position: relative;
-}
 .ProseMirror.has-line-numbers {
   padding-left: 44px !important;
 }
-.line-number-gutter {
+.ProseMirror.has-line-numbers .has-line-num {
+  position: relative;
+}
+.ProseMirror.has-line-numbers .has-line-num::before {
+  content: attr(data-line-num);
   position: absolute;
-  left: 4px;
+  left: -40px;
   width: 32px;
   text-align: right;
   font-family: 'Courier Prime', 'Courier New', monospace;
