@@ -2266,6 +2266,153 @@ function StatistikPanelTab({
   )
 }
 
+// ── Daily-Regeln Tab ────────────────────────────────────────────────────────────
+function DailyRegelnTab({ productionId }: { productionId: string }) {
+  const [enabled, setEnabled] = useState(false)
+  const [nachtbildMin, setNachtbildMin] = useState(20)
+  const [drehschluss, setDrehschluss] = useState('18:30')
+  const [saving, setSaving] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/weather/daily-regeln/${encodeURIComponent(productionId)}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (data) {
+          setEnabled(!!data.enabled)
+          if (data.nachtbild_dauer_min != null) setNachtbildMin(data.nachtbild_dauer_min)
+          if (data.drehschluss_zeit) setDrehschluss(data.drehschluss_zeit)
+        }
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [productionId])
+
+  const save = async (next: { enabled: boolean; nachtbild_dauer_min: number; drehschluss_zeit: string }) => {
+    setSaving(true)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/daily_regeln`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    setSaving(false)
+  }
+
+  const handleToggle = () => {
+    const next = !enabled
+    setEnabled(next)
+    save({ enabled: next, nachtbild_dauer_min: nachtbildMin, drehschluss_zeit: drehschluss })
+  }
+
+  const handleNachtbild = (val: number) => {
+    setNachtbildMin(val)
+    save({ enabled, nachtbild_dauer_min: val, drehschluss_zeit: drehschluss })
+  }
+
+  const handleDrehschluss = (val: string) => {
+    setDrehschluss(val)
+    save({ enabled, nachtbild_dauer_min: nachtbildMin, drehschluss_zeit: val })
+  }
+
+  if (!loaded) return <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Laden...</p>
+
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, marginBottom: 4 }
+  const descStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }
+  const inputStyle: React.CSSProperties = {
+    padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
+    background: 'var(--bg-subtle)', fontSize: 13, fontFamily: 'var(--font-sans)',
+    width: 120,
+  }
+
+  return (
+    <div style={{ maxWidth: 500 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Daily-Regeln</h3>
+      <p style={descStyle}>
+        Steuert die Sommer/Winter-Anzeige im Header. Bei aktivierter Anzeige wird basierend auf dem Sonnenuntergang berechnet,
+        wie viele Nachtbilder vor Drehschluss moeglich sind.
+      </p>
+
+      {/* Toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+        <button
+          onClick={handleToggle}
+          style={{
+            width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
+            background: enabled ? 'var(--sw-green, #00C853)' : 'var(--border)',
+            position: 'relative', transition: 'background 0.2s',
+          }}
+        >
+          <span style={{
+            position: 'absolute', top: 2, left: enabled ? 20 : 2,
+            width: 18, height: 18, borderRadius: '50%', background: '#fff',
+            transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+          }} />
+        </button>
+        <span style={{ fontSize: 13, fontWeight: 500 }}>
+          Sommer/Winter-Anzeige {enabled ? 'aktiv' : 'inaktiv'}
+        </span>
+      </div>
+
+      {enabled && (
+        <>
+          {/* Drehlänge Nachtbild */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={labelStyle}>Drehlänge Nachtbild (Minuten)</div>
+            <p style={descStyle}>
+              Wie lange dauert ein Nachtbild durchschnittlich? Wird zur Berechnung der moeglichen Nachtbilder vor Drehschluss verwendet.
+            </p>
+            <input
+              type="number"
+              min={5}
+              max={120}
+              step={5}
+              value={nachtbildMin}
+              onChange={e => handleNachtbild(Number(e.target.value) || 20)}
+              style={inputStyle}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>Min.</span>
+          </div>
+
+          {/* Drehschluss */}
+          <div style={{ marginBottom: 16 }}>
+            <div style={labelStyle}>Drehschluss</div>
+            <p style={descStyle}>
+              Offizielle Drehschluss-Uhrzeit. Wenn der Sonnenuntergang davor liegt, wird "Winter + n" im Header angezeigt.
+            </p>
+            <input
+              type="time"
+              value={drehschluss}
+              onChange={e => handleDrehschluss(e.target.value || '18:30')}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Preview */}
+          <div style={{
+            padding: '12px 16px', borderRadius: 8,
+            background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Vorschau-Beispiel</div>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+              Sonnenuntergang 17:50 · Drehschluss {drehschluss}<br />
+              → {(() => {
+                const [h, m] = drehschluss.split(':').map(Number)
+                const dsMins = h * 60 + m
+                const ssMins = 17 * 60 + 50
+                const n = Math.floor((dsMins - ssMins) / (nachtbildMin || 20))
+                return n > 0 ? `Winter + ${n} (${n} Nachtbild${n !== 1 ? 'er' : ''} moeglich)` : 'Sommer'
+              })()}
+            </p>
+          </div>
+        </>
+      )}
+
+      {saving && <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</p>}
+    </div>
+  )
+}
+
 // ── Placeholder for tabs still in development ────────────────────────────────────
 
 function Placeholder({ label }: { label: string }) {
