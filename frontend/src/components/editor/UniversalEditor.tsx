@@ -333,7 +333,7 @@ export default function UniversalEditor({
     try { editor.unregisterPlugin('lineNumbers') } catch {}
     const el = editor.view.dom as HTMLElement
     if (showLineNumbers) {
-      editor.registerPlugin(createLineNumberPlugin())
+      try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
       el.classList.add('has-line-numbers')
     } else {
       el.classList.remove('has-line-numbers')
@@ -349,11 +349,11 @@ export default function UniversalEditor({
     if (!editor) return
     try { editor.unregisterPlugin('replikNumbers') } catch {}
     if (showReplikNumbers) {
-      editor.registerPlugin(createReplikNumberPlugin({
+      try { editor.registerPlugin(createReplikNumberPlugin({
         offset: replikOffset,
         baseline: replikBaseline,
         isLocked,
-      }))
+      })) } catch {}
     }
     return () => { try { editor.unregisterPlugin('replikNumbers') } catch {} }
   }, [editor, showReplikNumbers, replikOffset, replikBaseline, isLocked])
@@ -555,7 +555,7 @@ export default function UniversalEditor({
         },
       },
     })
-    editor.registerPlugin(plugin)
+    try { editor.registerPlugin(plugin) } catch {}
 
     return () => {
       try { editor.unregisterPlugin('languagetool') } catch {}
