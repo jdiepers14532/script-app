@@ -2,7 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type TermKey = 'szene' | 'motiv' | 'staffel' | 'stab' | 'darsteller' | 'komparse' | 'episode';
+export type TermKey = 'szene' | 'motiv' | 'staffel' | 'stab' | 'darsteller' | 'komparse' | 'episode' | 'stockshot' | 'flashback';
 
 export interface TermForms {
   /** Singular: "Szene", "Bild" */
@@ -49,6 +49,14 @@ export const TERM_OPTIONS: Record<TermKey, Record<string, TermForms>> = {
     'Folge':   { s: 'Folge',   p: 'Folgen',   c: 'Folgen' },
     'Episode': { s: 'Episode', p: 'Episoden', c: 'Episoden' },
   },
+  stockshot: {
+    'Stockshot':  { s: 'Stockshot',  p: 'Stockshots',  c: 'Stockshot' },
+    'Archivshot': { s: 'Archivshot', p: 'Archivshots', c: 'Archivshot' },
+  },
+  flashback: {
+    'Flashback':    { s: 'Flashback',    p: 'Flashbacks',    c: 'Flashback' },
+    'Rückblende': { s: 'Rückblende', p: 'Rückblenden', c: 'Rückblenden' },
+  },
 };
 
 export const TERM_DEFAULTS: TerminologieConfig = {
@@ -59,9 +67,11 @@ export const TERM_DEFAULTS: TerminologieConfig = {
   darsteller: 'Darsteller',
   komparse: 'Komparse',
   episode: 'Folge',
+  stockshot: 'Stockshot',
+  flashback: 'Flashback',
 };
 
-export const TERM_KEYS: TermKey[] = ['szene', 'motiv', 'staffel', 'stab', 'darsteller', 'komparse', 'episode'];
+export const TERM_KEYS: TermKey[] = ['szene', 'motiv', 'staffel', 'stab', 'darsteller', 'komparse', 'episode', 'stockshot', 'flashback'];
 
 export const TERM_LABELS: Record<TermKey, string> = {
   szene: 'Szene / Bild',
@@ -71,6 +81,8 @@ export const TERM_LABELS: Record<TermKey, string> = {
   darsteller: 'Darsteller / Schauspieler / Cast',
   komparse: 'Komparse / Statist',
   episode: 'Episode / Folge',
+  stockshot: 'Stockshot / Archivshot',
+  flashback: 'Flashback / Rückblende',
 };
 
 // ── Resolver ──────────────────────────────────────────────────────────────────

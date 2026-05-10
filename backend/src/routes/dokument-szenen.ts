@@ -234,6 +234,8 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, dauer_sek,
       sort_order, seiten, spieltag, spielzeit, szeneninfo, content,
       is_wechselschnitt, stoppzeit_sek, notiz, motiv_id, format,
+      sondertyp, stockshot_kategorie, stockshot_stimmung, stockshot_neu_drehen,
+      flashback_referenz_id,
     } = req.body
 
     // Calculate page_length if content is provided
@@ -259,6 +261,11 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         motiv_id = COALESCE($17, motiv_id),
         format = COALESCE($19, format),
         page_length = COALESCE($20, page_length),
+        sondertyp = CASE WHEN $21::text = '__null__' THEN NULL ELSE COALESCE($21, sondertyp) END,
+        stockshot_kategorie = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22, stockshot_kategorie) END,
+        stockshot_stimmung = CASE WHEN $23::text = '__null__' THEN NULL ELSE COALESCE($23, stockshot_stimmung) END,
+        stockshot_neu_drehen = COALESCE($24, stockshot_neu_drehen),
+        flashback_referenz_id = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25::uuid, flashback_referenz_id) END,
         updated_at = NOW(),
         updated_by = $14
        WHERE id = $18 RETURNING *`,
@@ -275,6 +282,11 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         req.params.id,
         format ?? null,
         pageLength,
+        sondertyp !== undefined ? (sondertyp === null ? '__null__' : sondertyp) : null,
+        stockshot_kategorie !== undefined ? (stockshot_kategorie === null ? '__null__' : stockshot_kategorie) : null,
+        stockshot_stimmung !== undefined ? (stockshot_stimmung === null ? '__null__' : stockshot_stimmung) : null,
+        stockshot_neu_drehen ?? null,
+        flashback_referenz_id !== undefined ? (flashback_referenz_id === null ? '__null__' : flashback_referenz_id) : null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
@@ -552,6 +564,217 @@ sceneIdentitiesRouter.get('/:id/history', async (req, res) => {
       [req.params.id]
     )
     res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Wechselschnitt-Partner CRUD
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/dokument-szenen/:id/wechselschnitt-partner
+dokumentSzenenRouter.get('/:id/wechselschnitt-partner', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT wp.*, si.folge_id,
+              (SELECT ds2.scene_nummer FROM dokument_szenen ds2
+               WHERE ds2.scene_identity_id = wp.partner_identity_id
+                 AND ds2.werkstufe_id = (SELECT werkstufe_id FROM dokument_szenen WHERE id = $1)
+               LIMIT 1) AS partner_scene_nummer
+       FROM wechselschnitt_partner wp
+       JOIN scene_identities si ON si.id = wp.partner_identity_id
+       WHERE wp.dokument_szene_id = $1
+       ORDER BY wp.position`,
+      [req.params.id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// PUT /api/dokument-szenen/:id/wechselschnitt-partner — replace all partners
+dokumentSzenenRouter.put('/:id/wechselschnitt-partner', async (req, res) => {
+  const { partners } = req.body // [{ partner_identity_id, position }]
+  if (!Array.isArray(partners)) return res.status(400).json({ error: 'partners array required' })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query('DELETE FROM wechselschnitt_partner WHERE dokument_szene_id = $1', [req.params.id])
+    for (const p of partners) {
+      await client.query(
+        'INSERT INTO wechselschnitt_partner (dokument_szene_id, partner_identity_id, position) VALUES ($1, $2, $3)',
+        [req.params.id, p.partner_identity_id, p.position ?? 0]
+      )
+    }
+    await client.query('COMMIT')
+    const rows = await query('SELECT * FROM wechselschnitt_partner WHERE dokument_szene_id = $1 ORDER BY position', [req.params.id])
+    res.json(rows)
+  } catch (err) {
+    await client.query('ROLLBACK')
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
+  }
+})
+
+// GET /api/dokument-szenen/:id/wechselschnitt-beteiligt — is this scene a partner in another WS?
+dokumentSzenenRouter.get('/:id/wechselschnitt-beteiligt', async (req, res) => {
+  try {
+    const scene = await queryOne('SELECT scene_identity_id, werkstufe_id FROM dokument_szenen WHERE id = $1', [req.params.id])
+    if (!scene?.scene_identity_id) return res.json([])
+    const rows = await query(
+      `SELECT wp.dokument_szene_id, ds.scene_nummer
+       FROM wechselschnitt_partner wp
+       JOIN dokument_szenen ds ON ds.id = wp.dokument_szene_id
+       WHERE wp.partner_identity_id = $1 AND ds.werkstufe_id = $2`,
+      [scene.scene_identity_id, scene.werkstufe_id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Stockshot-Archiv
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Mounted at /api/stockshot-archiv
+export const stockshotArchivRouter = Router()
+stockshotArchivRouter.use(authMiddleware)
+
+// GET /api/stockshot-archiv/:produktionId
+stockshotArchivRouter.get('/:produktionId', async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT * FROM stockshot_archiv WHERE produktion_id = $1 ORDER BY motiv_name, lichtstimmung',
+      [req.params.produktionId]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/stockshot-archiv/:produktionId/check?motiv=X&lichtstimmung=Y
+stockshotArchivRouter.get('/:produktionId/check', async (req, res) => {
+  const { motiv, lichtstimmung } = req.query as Record<string, string>
+  if (!motiv || !lichtstimmung) return res.status(400).json({ error: 'motiv + lichtstimmung required' })
+  try {
+    const row = await queryOne(
+      'SELECT id FROM stockshot_archiv WHERE produktion_id = $1 AND motiv_name = $2 AND lichtstimmung = $3',
+      [req.params.produktionId, motiv, lichtstimmung]
+    )
+    res.json({ exists: !!row })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/stockshot-archiv/:produktionId
+stockshotArchivRouter.post('/:produktionId', async (req, res) => {
+  const { motiv_name, motiv_id, lichtstimmung, quelle_folge_nr, quelle_szene_id } = req.body
+  if (!motiv_name || !lichtstimmung) return res.status(400).json({ error: 'motiv_name + lichtstimmung required' })
+  try {
+    const row = await queryOne(
+      `INSERT INTO stockshot_archiv (produktion_id, motiv_name, motiv_id, lichtstimmung, quelle_folge_nr, quelle_szene_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (produktion_id, motiv_name, lichtstimmung) DO UPDATE SET
+         motiv_id = COALESCE($3, stockshot_archiv.motiv_id),
+         quelle_folge_nr = COALESCE($5, stockshot_archiv.quelle_folge_nr),
+         quelle_szene_id = COALESCE($6, stockshot_archiv.quelle_szene_id)
+       RETURNING *`,
+      [req.params.produktionId, motiv_name, motiv_id ?? null, lichtstimmung, quelle_folge_nr ?? null, quelle_szene_id ?? null]
+    )
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/stockshot-archiv/:produktionId/import-from/:sourceProduktionId
+stockshotArchivRouter.post('/:produktionId/import-from/:sourceProduktionId', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO stockshot_archiv (produktion_id, motiv_name, motiv_id, lichtstimmung, quelle_folge_nr, quelle_szene_id)
+       SELECT $1, motiv_name, NULL, lichtstimmung, quelle_folge_nr, NULL
+       FROM stockshot_archiv WHERE produktion_id = $2
+       ON CONFLICT DO NOTHING
+       RETURNING *`,
+      [req.params.produktionId, req.params.sourceProduktionId]
+    )
+    res.json({ imported: rows.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Stockshot-Templates
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const stockshotTemplatesRouter = Router()
+stockshotTemplatesRouter.use(authMiddleware)
+
+// GET /api/stockshot-templates/:produktionId
+stockshotTemplatesRouter.get('/:produktionId', async (req, res) => {
+  try {
+    const rows = await query(
+      'SELECT * FROM stockshot_templates WHERE produktion_id = $1 ORDER BY kategorie, sortierung',
+      [req.params.produktionId]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/stockshot-templates/:produktionId
+stockshotTemplatesRouter.post('/:produktionId', async (req, res) => {
+  const { kategorie, name, oneliner_vorlage, sortierung } = req.body
+  if (!kategorie || !name) return res.status(400).json({ error: 'kategorie + name required' })
+  try {
+    const row = await queryOne(
+      `INSERT INTO stockshot_templates (produktion_id, kategorie, name, oneliner_vorlage, sortierung)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [req.params.produktionId, kategorie, name, oneliner_vorlage ?? '', sortierung ?? 0]
+    )
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// PUT /api/stockshot-templates/:produktionId/:id
+stockshotTemplatesRouter.put('/:produktionId/:id', async (req, res) => {
+  const { name, oneliner_vorlage, sortierung } = req.body
+  try {
+    const row = await queryOne(
+      `UPDATE stockshot_templates SET
+        name = COALESCE($1, name),
+        oneliner_vorlage = COALESCE($2, oneliner_vorlage),
+        sortierung = COALESCE($3, sortierung)
+       WHERE id = $4 AND produktion_id = $5 RETURNING *`,
+      [name ?? null, oneliner_vorlage ?? null, sortierung ?? null, req.params.id, req.params.produktionId]
+    )
+    if (!row) return res.status(404).json({ error: 'Template nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// DELETE /api/stockshot-templates/:produktionId/:id
+stockshotTemplatesRouter.delete('/:produktionId/:id', async (req, res) => {
+  try {
+    const result = await queryOne(
+      'DELETE FROM stockshot_templates WHERE id = $1 AND produktion_id = $2 RETURNING id',
+      [req.params.id, req.params.produktionId]
+    )
+    if (!result) return res.status(404).json({ error: 'Template nicht gefunden' })
+    res.status(204).send()
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

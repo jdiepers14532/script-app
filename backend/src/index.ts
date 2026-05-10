@@ -41,7 +41,7 @@ import { produktionFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter 
 import { produktionMotiveRouter, motivRouter, produktionDrehorteRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
-import { dokumentSzenenRouter, sceneIdentitiesRouter } from './routes/dokument-szenen'
+import { dokumentSzenenRouter, sceneIdentitiesRouter, stockshotArchivRouter, stockshotTemplatesRouter } from './routes/dokument-szenen'
 import { folgenV2Router } from './routes/folgen-v2'
 import { statistikRouter } from './routes/statistik'
 import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
@@ -158,6 +158,8 @@ app.use('/api/absatzformat-presets', absatzformatPresetsRouter)
 // Dokument-Szenen
 app.use('/api/dokument-szenen', dokumentSzenenRouter)
 app.use('/api/scene-identities', sceneIdentitiesRouter)
+app.use('/api/stockshot-archiv', stockshotArchivRouter)
+app.use('/api/stockshot-templates', stockshotTemplatesRouter)
 
 // Suchen & Ersetzen
 app.use('/api/search', searchRouter)
@@ -253,6 +255,7 @@ async function runMigrations() {
     'v60_shortcut_headline.sql',
     'v61_straenge.sql',
     'v62_notiz_vorlagen_ocr.sql',
+    'v63_sonderszenen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
