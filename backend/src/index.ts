@@ -256,6 +256,7 @@ async function runMigrations() {
     'v61_straenge.sql',
     'v62_notiz_vorlagen_ocr.sql',
     'v63_sonderszenen.sql',
+    'v64_datei_archiv_hash.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
