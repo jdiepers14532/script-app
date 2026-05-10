@@ -312,6 +312,7 @@
 
 /* Zeile 1 — CSS Grid für saubere Ausrichtung */
 .scene-r1 { display:grid; grid-template-columns:auto auto 1fr auto auto auto auto; align-items:baseline; gap:8px; }
+.scene-r1-compact { grid-template-columns:auto auto minmax(80px, 280px) minmax(0, 1fr) auto auto auto auto; }
 /* sz-group: SZ-Nummer allein, feste Breite für Ausrichtung mit scene-fields */
 .sz-group { display:flex; align-items:baseline; gap:1px; flex-shrink:0; min-width:52px; }
 .sz-group .scene-big { font-size:17px; font-weight:700; letter-spacing:-0.005em; }
@@ -383,8 +384,10 @@
 .sf-dropdown-fixed { position:fixed; min-width:200px; max-height:200px; overflow-y:auto; background:var(--bg-surface); border:1px solid var(--border); border-radius:6px; z-index:99999; box-shadow:0 4px 16px rgba(0,0,0,0.25); }
 .sf-motiv-wrap { position:relative; flex:1; min-width:0; }
 .sf-motiv-sub { font-weight:400; font-size:12px; }
-/* Compact mode — inline chars in scene-r1 after motiv */
-.compact-chars-inline { display:inline-flex; flex-wrap:wrap; align-items:center; gap:2px; font-size:11px; color:var(--text-secondary); overflow:hidden; }
+/* Compact mode — motiv truncation + chars column */
+.sf-motiv-compact { overflow:hidden; }
+.sf-motiv-compact .sf-motiv-input { text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+.compact-chars-inline { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px; font-size:11px; color:var(--text-secondary); min-width:0; }
 .compact-char-name { white-space:nowrap; }
 .compact-char-add-wrap { position:relative; display:inline-block; }
 .compact-char-add-btn { background:none; border:1px dashed var(--border); border-radius:3px; cursor:pointer; font-size:11px; color:var(--text-muted); padding:0 4px; line-height:16px; transition:all 0.15s; }

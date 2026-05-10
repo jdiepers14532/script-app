@@ -605,8 +605,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         }}
       >
 
-        {/* Zeile 1: SZ | Stoppzeit-Input | Motiv (grows) | Spielzeit | DT · I/T | buttons */}
-        <div className="scene-r1">
+        {/* Zeile 1: SZ | Stoppzeit-Input | Motiv | [Rollen compact] | Spielzeit | DT · I/T | buttons */}
+        <div className={`scene-r1${compact ? ' scene-r1-compact' : ''}`}>
           {/* SZ-Nummer */}
           <span className="sz-group">
             <span className="scene-big">SZ{scene.scene_nummer}</span>
@@ -673,7 +673,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           </div>
 
           {/* Motiv + Untermotiv dropdowns (+ compact chars) */}
-          <div className="sf-motiv-group" style={{ display: 'flex', flex: 1, gap: 4, minWidth: 0, alignItems: 'center', flexWrap: compact ? 'wrap' : undefined }}>
+          <div className={`sf-motiv-group${compact ? ' sf-motiv-compact' : ''}`} style={{ display: 'flex', flex: 1, gap: 4, minWidth: 0, alignItems: 'center' }}>
             {/* Motiv (parent) dropdown */}
             <div className="sf-motiv-wrap" ref={motivDropdownRef}>
               <input
@@ -761,63 +761,63 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               </>
             )}
 
-            {/* Compact mode: inline chars after motiv */}
-            {compact && (
-              <span className="compact-chars-inline">
-                <span style={{ color: 'var(--border)', margin: '0 2px' }}>·</span>
-                {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any, i: number, arr: any[]) => (
-                  <span key={c.character_id} className="compact-char-name">{c.name}{i < arr.length - 1 ? ', ' : ''}</span>
-                ))}
-                {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').length > 0 && (
-                  <>
-                    {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').length > 0 && <span style={{ color: 'var(--border)', margin: '0 2px' }}>·</span>}
-                    {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any, i: number, arr: any[]) => (
-                      <span key={c.character_id} className="compact-char-name" style={{ fontStyle: 'italic' }}>{c.name}{i < arr.length - 1 ? ', ' : ''}</span>
-                    ))}
-                  </>
-                )}
-                <span className="compact-char-add-wrap" ref={compactCharRef}>
-                  <button
-                    className="compact-char-add-btn"
-                    onClick={e => { e.stopPropagation(); setCompactCharDropdown(v => !v); setCompactCharSearch('') }}
-                  >+</button>
-                  {compactCharDropdown && (
-                    <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(compactCharRef)}>
-                      <input
-                        className="compact-char-filter"
-                        value={compactCharSearch}
-                        onChange={e => setCompactCharSearch(e.target.value)}
-                        placeholder="Suchen…"
-                        autoFocus
-                        onBlur={() => setTimeout(() => {
-                          if (!compactCharRef.current?.contains(document.activeElement)) setCompactCharDropdown(false)
-                        }, 150)}
-                      />
-                      {[...rolleCharacters, ...komparseCharacters]
-                        .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
-                        .filter(ch => !compactCharSearch || ch.name.toLowerCase().includes(compactCharSearch.toLowerCase()))
-                        .slice(0, 15)
-                        .map(ch => {
-                          const isRolle = ch.kategorie_typ === 'rolle'
-                          return (
-                            <div key={ch.id} className="sf-dropdown-item"
-                              onMouseDown={e => {
-                                e.preventDefault()
-                                handleAddCharacter(ch, isRolle ? rolleKatId : komparseKatId)
-                                setCompactCharSearch('')
-                                setCompactCharDropdown(false)
-                              }}>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', marginRight: 4 }}>{isRolle ? 'R' : 'K'}</span>
-                              {ch.name}
-                            </div>
-                          )
-                        })}
-                    </div>
-                  )}
-                </span>
-              </span>
-            )}
           </div>
+
+          {/* Compact mode: chars as own grid column */}
+          {compact && (
+            <span className="compact-chars-inline">
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any, i: number, arr: any[]) => (
+                <span key={c.character_id} className="compact-char-name">{c.name}{i < arr.length - 1 ? ', ' : ''}</span>
+              ))}
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').length > 0 && (
+                <>
+                  {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').length > 0 && <span style={{ color: 'var(--border)', margin: '0 2px' }}>·</span>}
+                  {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any, i: number, arr: any[]) => (
+                    <span key={c.character_id} className="compact-char-name" style={{ fontStyle: 'italic' }}>{c.name}{i < arr.length - 1 ? ', ' : ''}</span>
+                  ))}
+                </>
+              )}
+              <span className="compact-char-add-wrap" ref={compactCharRef}>
+                <button
+                  className="compact-char-add-btn"
+                  onClick={e => { e.stopPropagation(); setCompactCharDropdown(v => !v); setCompactCharSearch('') }}
+                >+</button>
+                {compactCharDropdown && (
+                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(compactCharRef)}>
+                    <input
+                      className="compact-char-filter"
+                      value={compactCharSearch}
+                      onChange={e => setCompactCharSearch(e.target.value)}
+                      placeholder="Suchen…"
+                      autoFocus
+                      onBlur={() => setTimeout(() => {
+                        if (!compactCharRef.current?.contains(document.activeElement)) setCompactCharDropdown(false)
+                      }, 150)}
+                    />
+                    {[...rolleCharacters, ...komparseCharacters]
+                      .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
+                      .filter(ch => !compactCharSearch || ch.name.toLowerCase().includes(compactCharSearch.toLowerCase()))
+                      .slice(0, 15)
+                      .map(ch => {
+                        const isRolle = ch.kategorie_typ === 'rolle'
+                        return (
+                          <div key={ch.id} className="sf-dropdown-item"
+                            onMouseDown={e => {
+                              e.preventDefault()
+                              handleAddCharacter(ch, isRolle ? rolleKatId : komparseKatId)
+                              setCompactCharSearch('')
+                              setCompactCharDropdown(false)
+                            }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', marginRight: 4 }}>{isRolle ? 'R' : 'K'}</span>
+                            {ch.name}
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </span>
+            </span>
+          )}
 
           {/* Spielzeit mit Hover-Info */}
           <span
