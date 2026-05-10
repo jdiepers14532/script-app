@@ -4,7 +4,7 @@ import { Textelement, TextelementType, InlineNode, ImportResult, ParsedScene, ne
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+/i
 const KOMPARSEN_RE = /^Komparsen:\s*(.*)/i
 // Footer patterns to filter out
-const FOOTER_RE = /^(Treatment|Drehbuch|Synopsis|Exposé?)\s*-\s*Episode\s+\d+$/i
+const FOOTER_RE = /^(Treatment|Storylines?|Drehbuch|Synopsis|Exposé?)\s*[-–]?\s*(Episode|Folge)\s+\d+$/i
 const FOOTER_STAND_RE = /^Stand:\s+\d{2}\.\d{2}\.\d{4}/
 const FOOTER_PAGE_RE = /^\d+\s+von\s+\d+$/
 
@@ -119,8 +119,8 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
   let lastTextelementType: TextelementType | null = null
   const allCharaktere = new Set<string>()
 
-  // Parse HTML paragraphs AND headings (h1-h6)
-  const paraRe = /<(p|h[1-6])([^>]*)>(.*?)<\/\1>/gi
+  // Parse HTML paragraphs AND headings (h1-h6) — [\s\S]*? to match across newlines
+  const paraRe = /<(p|h[1-6])([^>]*)>([\s\S]*?)<\/\1>/gi
   let match
   while ((match = paraRe.exec(html)) !== null) {
     const tagName = match[1].toLowerCase()
@@ -142,8 +142,9 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
       if (STYLE_MAP[key]) { detectedType = STYLE_MAP[key]; break }
     }
 
-    // Headings (h1-h6): treat as general text (title/heading from document)
+    // Headings (h1-h6): treat as heading type (maps to Headline absatzformat)
     const isHeading = tagName.startsWith('h')
+    if (isHeading && !detectedType) detectedType = 'heading'
 
     // Check for Komparsen line → extract into scene metadata, not textelemente
     const kompM = KOMPARSEN_RE.exec(rawText)
@@ -199,9 +200,6 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
     const richContent = parseInlineHtml(innerHtml)
     const hasRichFormatting = richContent.some(n => n.marks && n.marks.length > 0)
     const alignment = extractAlignment(attrs)
-
-    // For headings, mark as general type with bold formatting
-    if (isHeading && !detectedType) detectedType = 'general'
 
     const textelement: Textelement = {
       id: nextId(),

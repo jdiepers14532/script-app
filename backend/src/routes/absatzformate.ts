@@ -39,6 +39,7 @@ absatzformateRouter.post('/', async (req, res) => {
       bold, italic, underline, uppercase, text_align,
       margin_left, margin_right, space_before, space_after, line_height,
       enter_next_format, tab_next_format, sort_order, ist_standard, kategorie,
+      shortcut,
     } = req.body
 
     if (!name) return res.status(400).json({ error: 'name required' })
@@ -48,8 +49,9 @@ absatzformateRouter.post('/', async (req, res) => {
          (produktion_id, name, kuerzel, textbaustein, font_family, font_size,
           bold, italic, underline, uppercase, text_align,
           margin_left, margin_right, space_before, space_after, line_height,
-          enter_next_format, tab_next_format, sort_order, ist_standard, kategorie)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+          enter_next_format, tab_next_format, sort_order, ist_standard, kategorie,
+          shortcut)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING *`,
       [
         pid, name, kuerzel ?? null, textbaustein ?? null,
@@ -60,6 +62,7 @@ absatzformateRouter.post('/', async (req, res) => {
         line_height ?? 1.0,
         enter_next_format ?? null, tab_next_format ?? null,
         sort_order ?? 0, ist_standard ?? false, kategorie ?? 'alle',
+        shortcut ?? null,
       ]
     )
     res.status(201).json(row)
@@ -81,6 +84,7 @@ absatzformateRouter.put('/:id', async (req, res) => {
       bold, italic, underline, uppercase, text_align,
       margin_left, margin_right, space_before, space_after, line_height,
       enter_next_format, tab_next_format, sort_order, ist_standard, kategorie,
+      shortcut,
     } = req.body
 
     const row = await queryOne(
@@ -104,8 +108,9 @@ absatzformateRouter.put('/:id', async (req, res) => {
         tab_next_format = $17,
         sort_order = COALESCE($18, sort_order),
         ist_standard = COALESCE($19, ist_standard),
-        kategorie = COALESCE($20, kategorie)
-       WHERE id = $21 AND produktion_id = $22
+        kategorie = COALESCE($20, kategorie),
+        shortcut = $21
+       WHERE id = $22 AND produktion_id = $23
        RETURNING *`,
       [
         name, kuerzel, textbaustein ?? null,
@@ -114,6 +119,7 @@ absatzformateRouter.put('/:id', async (req, res) => {
         margin_left, margin_right, space_before, space_after, line_height,
         enter_next_format ?? null, tab_next_format ?? null,
         sort_order, ist_standard, kategorie,
+        shortcut ?? null,
         id, pid,
       ]
     )
@@ -175,8 +181,8 @@ absatzformateRouter.post('/from-preset', async (req, res) => {
            (produktion_id, name, kuerzel, textbaustein, font_family, font_size,
             bold, italic, underline, uppercase, text_align,
             margin_left, margin_right, space_before, space_after, line_height,
-            sort_order, ist_standard, kategorie)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+            sort_order, ist_standard, kategorie, shortcut)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
          RETURNING id`,
         [
           pid, fmt.name, fmt.kuerzel ?? null, fmt.textbaustein ?? null,
@@ -187,6 +193,7 @@ absatzformateRouter.post('/from-preset', async (req, res) => {
           fmt.space_before ?? 12, fmt.space_after ?? 0,
           fmt.line_height ?? 1.0,
           fmt.sort_order ?? 0, fmt.ist_standard ?? false, fmt.kategorie ?? 'alle',
+          fmt.shortcut ?? null,
         ]
       )
       nameToId.set(fmt.name, row.rows[0].id)

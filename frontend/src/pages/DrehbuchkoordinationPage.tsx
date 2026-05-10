@@ -1020,6 +1020,7 @@ function DokumentTypenTab() {
       space_before: f.space_before, space_after: f.space_after,
       line_height: f.line_height, sort_order: f.sort_order,
       ist_standard: f.ist_standard, kategorie: f.kategorie,
+      shortcut: f.shortcut ?? null,
       enter_next: formate.find(x => x.id === f.enter_next_format)?.name ?? null,
       tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
     }))
@@ -1096,6 +1097,7 @@ function DokumentTypenTab() {
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Abst.↓</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Enter→</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Tab→</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Shortcut</th>
           <th style={{ padding: '6px 4px' }} />
         </tr></thead>
         <tbody>
@@ -1145,6 +1147,9 @@ function DokumentTypenTab() {
                   {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
                 </select>
               </td>
+              <td style={{ padding: '4px 4px' }}>
+                <input value={editData.shortcut ?? ''} onChange={e => setEditData({ ...editData, shortcut: e.target.value || null })} placeholder="z.B. Ctrl+1" style={{ ...inputStyle, width: 70 }} />
+              </td>
               <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
                 <button onClick={saveEdit} style={{ fontSize: 10, color: '#00C853', background: 'none', border: 'none', cursor: 'pointer', marginRight: 4 }}>OK</button>
                 <button onClick={cancelEdit} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>X</button>
@@ -1175,6 +1180,9 @@ function DokumentTypenTab() {
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>
                 {formate.find(x => x.id === f.tab_next_format)?.kuerzel || formate.find(x => x.id === f.tab_next_format)?.name || '-'}
               </td>
+              <td style={{ padding: '6px 4px', color: f.shortcut ? 'var(--sw-info)' : 'var(--text-muted)', fontSize: 10, fontFamily: 'monospace' }}>
+                {f.shortcut ?? '-'}
+              </td>
               <td style={{ padding: '6px 4px', whiteSpace: 'nowrap' }}>
                 <button onClick={() => startEdit(f)} style={{ fontSize: 10, color: 'var(--sw-info)', background: 'none', border: 'none', cursor: 'pointer', marginRight: 4 }}>Edit</button>
                 <button onClick={() => handleDelete(f.id, f.name)} style={{ fontSize: 10, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>X</button>
@@ -1182,7 +1190,7 @@ function DokumentTypenTab() {
             </tr>
           ))}
           {filtered.length === 0 && !loading && (
-            <tr><td colSpan={14} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
+            <tr><td colSpan={16} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
               Keine Absatzformate. Waehle ein Preset aus, um zu starten.
             </td></tr>
           )}
@@ -1237,6 +1245,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
     margin_left: 0, margin_right: 0, space_before: 12, space_after: 0, line_height: 1.0,
     enter_next_format: null as string | null, tab_next_format: null as string | null,
     textbaustein: '', sort_order: formate.length + 1,
+    shortcut: '' as string,
   })
 
   const inputStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-primary)' } as const
@@ -1278,6 +1287,8 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
             <option value="">-</option>
             {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
           </select></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Shortcut</label>
+          <input value={data.shortcut} onChange={e => setData({ ...data, shortcut: e.target.value })} placeholder="z.B. Ctrl+1" style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Einzug L (inch)</label>
           <input type="number" step="0.1" value={data.margin_left} onChange={e => setData({ ...data, margin_left: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Einzug R (inch)</label>

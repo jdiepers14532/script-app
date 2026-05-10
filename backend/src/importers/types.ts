@@ -1,4 +1,4 @@
-export type TextelementType = 'action' | 'dialogue' | 'character' | 'parenthetical' | 'transition' | 'shot' | 'direction' | 'general'
+export type TextelementType = 'action' | 'dialogue' | 'character' | 'parenthetical' | 'transition' | 'shot' | 'direction' | 'general' | 'heading'
 
 export interface InlineMark {
   type: 'bold' | 'italic' | 'underline'

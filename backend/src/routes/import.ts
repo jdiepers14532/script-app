@@ -402,6 +402,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         parenthetical: 'Parenthetical',
         transition: 'Transition',
         shot: 'Shot',
+        heading: 'Headline',
       }
       for (const [elemType, formatName] of Object.entries(nameMap)) {
         const fmt = absatzformate.find((f: any) => f.name === formatName)
@@ -496,11 +497,11 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           continue
         }
 
-        const pmType = (['action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot'].includes(te.type))
+        const pmType = (['action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot', 'heading'].includes(te.type))
           ? te.type : 'action'
 
         if (useAbsatzNodes) {
-          // Check if line starts with a textbaustein → override format + strip prefix
+          // Check if line starts with a textbaustein → set format + make prefix bold
           let fmtId: string | undefined
           let matchedTextbaustein = false
           const firstText = inlineContent[0]?.type === 'text' ? inlineContent[0].text : ''
@@ -509,12 +510,16 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
             if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
               fmtId = tbFmt.id
               matchedTextbaustein = true
-              // Strip prefix from first text node (+ optional trailing space)
-              const stripped = firstText.slice(prefix.length).replace(/^\s/, '')
-              if (stripped) {
-                inlineContent = [{ ...inlineContent[0], text: stripped }, ...inlineContent.slice(1)]
+              // Make prefix bold, keep remaining text as-is
+              const actualPrefix = firstText.slice(0, prefix.length)
+              const rest = firstText.slice(prefix.length)
+              const boldPrefix: any = { type: 'text', text: actualPrefix, marks: [{ type: 'bold' }] }
+              if (rest) {
+                // Preserve existing marks on rest text
+                const restNode = { ...inlineContent[0], text: rest }
+                inlineContent = [boldPrefix, restNode, ...inlineContent.slice(1)]
               } else {
-                inlineContent = inlineContent.slice(1)
+                inlineContent = [boldPrefix, ...inlineContent.slice(1)]
               }
               break
             }
