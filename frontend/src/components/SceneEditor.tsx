@@ -342,17 +342,19 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
   // Abstraction: use new dokument_szenen API or old szenen API
   const loadScene = useCallback(() => {
-    // If werkstufId + sceneIdentityId provided, resolve the szene for this specific werkstufe
+    // If szeneId is already a UUID, load it directly — no cross-werkstufe resolution needed.
+    // scene_identity_ids are NOT shared between werkstufen from separate imports, so
+    // resolveDokumentSzene(werkstufId, sceneIdentityId) would 404 when werkstufId differs.
+    if (useDokumentSzenen && typeof szeneId === 'string') {
+      return api.getDokumentSzene(szeneId)
+    }
+    // Fallback: resolve by werkstuf+scene_identity (legacy / cross-werkstufe mirror view)
     if (werkstufId && sceneIdentityId) {
       return api.resolveDokumentSzene(werkstufId, sceneIdentityId)
         .catch(e => {
-          // 404 = scene not yet in this werkstufe (normal for new/empty werkstufen)
           if (e.message?.includes('nicht') || e.message?.includes('404')) return null
           throw e
         })
-    }
-    if (useDokumentSzenen && typeof szeneId === 'string') {
-      return api.getDokumentSzene(szeneId)
     }
     return api.getSzene(szeneId as number)
   }, [szeneId, useDokumentSzenen, werkstufId, sceneIdentityId])
