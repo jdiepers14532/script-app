@@ -11,7 +11,7 @@ import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, User
 import type { TweakState } from '../contexts'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
-import { CompanyInfoModal } from '../sw-ui'
+import { CompanyInfoModal, useTerminologie } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
@@ -261,6 +261,7 @@ export default function AppShell({
   const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
   const { treatmentLabel, figurenLabel } = useAppSettings()
+  const { t } = useTerminologie()
 
   const [tweaksOpen, setTweaksOpen] = useState(false)
   const [tweaks, setTweaks] = useState<TweakState>(DEFAULT_TWEAKS)
@@ -656,7 +657,7 @@ export default function AppShell({
   const selectedStage = stages.find(s => s.id === selectedStageId)
   const crumbProduktion = selectedProduktion
     ? (() => {
-        const title = selectedProduktion.staffelnummer ? `${selectedProduktion.title} Staffel ${selectedProduktion.staffelnummer}` : selectedProduktion.title
+        const title = selectedProduktion.staffelnummer ? `${selectedProduktion.title} ${t('staffel')} ${selectedProduktion.staffelnummer}` : selectedProduktion.title
         return selectedProduktion.projektnummer ? `${selectedProduktion.projektnummer} · ${title}` : title
       })()
     : selectedProduktionId ?? 'Script'
@@ -752,7 +753,7 @@ export default function AppShell({
               <select style={selectStyle} value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))}>
                 {allFolgen.map(({ nr, block }) => (
                   <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
-                    {folgenMitDaten.includes(nr) ? '● ' : ''}Folge {nr}
+                    {folgenMitDaten.includes(nr) ? '● ' : ''}{t('episode')} {nr}
                   </option>
                 ))}
               </select>
@@ -1111,10 +1112,10 @@ export default function AppShell({
           <div className="menu-overlay" onClick={() => setNavMenuOpen(false)} />
           <div className="user-menu" style={{ left: 8, right: 'auto', minWidth: 180 }}>
             {[
-              { to: '/',          label: 'Folgen',     icon: <LayoutDashboard size={14} /> },
+              { to: '/',          label: t('episode', 'p'), icon: <LayoutDashboard size={14} /> },
               { to: '/rollen',    label: figurenLabel, icon: <Users size={14} /> },
-              { to: '/komparsen', label: 'Komparsen',  icon: <UserCheck size={14} /> },
-              { to: '/motive',    label: 'Motive',     icon: <MapPin size={14} /> },
+              { to: '/komparsen', label: t('komparse', 'p'),  icon: <UserCheck size={14} /> },
+              { to: '/motive',    label: t('motiv', 'p'),     icon: <MapPin size={14} /> },
               { to: '/statistik',  label: 'Statistik',  icon: <BarChart3 size={14} /> },
               { to: '/besetzung', label: 'Besetzung',  icon: <Grid3x3 size={14} /> },
               { to: '/import',    label: 'Import',     icon: <FileUp size={14} /> },
@@ -1294,7 +1295,7 @@ export default function AppShell({
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Fassung</div>
                     {stages.length === 0 ? (
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '10px 12px', background: 'var(--bg-subtle)', borderRadius: 6 }}>
-                        Öffne zuerst eine Folge im Script-Bereich, dann steht der Export hier zur Verfügung.
+                        Öffne zuerst eine {t('episode')} im Script-Bereich, dann steht der Export hier zur Verfügung.
                       </div>
                     ) : (
                       <select
@@ -1304,7 +1305,7 @@ export default function AppShell({
                       >
                         {stages.map((s: any) => (
                           <option key={s.id} value={s.id}>
-                            {s.version_label || s.stage_type} {s.folge_nummer ? `· Folge ${s.folge_nummer}` : ''}
+                            {s.version_label || s.stage_type} {s.folge_nummer ? `· ${t('episode')} ${s.folge_nummer}` : ''}
                           </option>
                         ))}
                       </select>
@@ -1395,7 +1396,7 @@ export default function AppShell({
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       {[
                         ['Format', importPreview.format?.toUpperCase()],
-                        ['Szenen', importPreview.total_scenes],
+                        [t('szene', 'p'), importPreview.total_scenes],
                         ['Charaktere', importPreview.charaktere?.length],
                       ].map(([k, v]) => (
                         <div key={k} style={{ padding: '6px 12px', background: 'var(--bg-subtle)', borderRadius: 6, fontSize: 12 }}>
@@ -1425,13 +1426,13 @@ export default function AppShell({
                     {/* Target */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Staffel</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>{t('staffel')}</div>
                         <select value={importProduktionId} onChange={e => setImportProduktionId(e.target.value)}
                           style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
                           {productions.filter(p => p.is_active).length > 0 && (
                             <optgroup label="Aktive Produktionen">
                               {productions.filter(p => p.is_active).map(p => {
-                                const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+                                const label = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
                                 return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
                               })}
                             </optgroup>
@@ -1439,7 +1440,7 @@ export default function AppShell({
                           {productions.filter(p => !p.is_active).length > 0 && (
                             <optgroup label="Inaktive Produktionen">
                               {productions.filter(p => !p.is_active).map(p => {
-                                const label = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+                                const label = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
                                 return <option key={p.id} value={p.id}>{p.projektnummer ? `${p.projektnummer} · ${label}` : label}</option>
                               })}
                             </optgroup>
@@ -1447,7 +1448,7 @@ export default function AppShell({
                         </select>
                       </div>
                       <div>
-                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Folge</div>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>{t('episode')}</div>
                         <input type="number" value={importFolge} onChange={e => setImportFolge(e.target.value)}
                           placeholder="Nr."
                           style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box' }} />
@@ -1493,7 +1494,7 @@ export default function AppShell({
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--sw-green)' }}>Import erfolgreich</div>
                         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          {importResult.scenes_imported} Szenen · {importResult.entities_created} neue Charaktere
+                          {importResult.scenes_imported} {t('szene', 'p')} · {importResult.entities_created} neue Charaktere
                           {importResult.metadata_saved ? ' · Metadaten gespeichert' : ''}
                         </div>
                         <button onClick={() => { setImportResult(null); setImportFile(null); setImportPreview(null) }}

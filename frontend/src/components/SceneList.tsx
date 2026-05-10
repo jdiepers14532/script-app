@@ -3,6 +3,7 @@ import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle }
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { useAppSettings, useTweaks } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
 
 interface SceneListProps {
@@ -36,6 +37,7 @@ export default function SceneList({
 }: SceneListProps) {
   const { sceneKuerzel } = useAppSettings()
   const { tweaks } = useTweaks()
+  const { t } = useTerminologie()
   const isDarkTheme = tweaks.theme === 'dark'
   const [searchQuery, setSearchQuery] = useState('')
   const [lock, setLock] = useState<any | null>(null)
@@ -180,7 +182,7 @@ export default function SceneList({
       const result = await api.renumberWerkstufeSzenen(String(stageId))
       onSzenesReordered?.(result.scenes)
       if (!result.renumbered) {
-        alert('Szenen sind geloggt. Positionen wurden in Szeneninfo vermerkt.')
+        alert(`${t('szene', 'p')} sind geloggt. Positionen wurden in ${t('szene', 'c')}info vermerkt.`)
       }
     } catch (e: any) {
       alert('Fehler beim Neu-Nummerieren: ' + e.message)
@@ -265,7 +267,7 @@ export default function SceneList({
           color: 'var(--text-muted)', pointerEvents: 'none',
         }} />
         <input
-          placeholder="Szene suchen…"
+          placeholder={`${t('szene')} suchen…`}
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           style={{ flex: 1 }}
@@ -301,7 +303,7 @@ export default function SceneList({
                 className="scene-ctx-item"
                 onClick={() => { setNurSzenen(v => !v); setHeaderMenuOpen(false) }}
               >
-                {nurSzenen ? 'Alles anzeigen' : 'Nur Szenen'}
+                {nurSzenen ? 'Alles anzeigen' : `Nur ${t('szene', 'p')}`}
               </button>
               <button
                 className="scene-ctx-item"
@@ -338,8 +340,8 @@ export default function SceneList({
           <div style={{ padding: '16px 20px', color: 'var(--text-muted)', fontSize: 12 }}>
             {szenen.length === 0
               ? (folgeNummer != null
-                ? `Für Folge ${folgeNummer} sind noch keine Szenen importiert.`
-                : 'Keine Szenen vorhanden.')
+                ? `Für ${t('episode')} ${folgeNummer} sind noch keine ${t('szene', 'p')} importiert.`
+                : `Keine ${t('szene', 'p')} vorhanden.`)
               : 'Keine Treffer.'}
           </div>
         )}

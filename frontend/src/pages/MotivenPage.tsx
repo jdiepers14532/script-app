@@ -6,6 +6,7 @@ import FotoGalerie from '../components/figuren/FotoGalerie'
 const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import { Plus, X } from 'lucide-react'
 
 const TYP_LABELS: Record<string, string> = {
@@ -25,6 +26,7 @@ const THUMB_BASE = '/uploads/script-fotos/thumbnails/'
 
 export default function MotivenPage() {
   const { selectedProduction } = useSelectedProduction()
+  const { t } = useTerminologie()
   const produktionId = selectedProduction?.id ?? null
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -134,7 +136,7 @@ export default function MotivenPage() {
   }
 
   const handleDelete = async () => {
-    if (!selectedId || !confirm('Motiv wirklich löschen? Alle Fotos und Feldwerte werden entfernt.')) return
+    if (!selectedId || !confirm(`${t('motiv')} wirklich löschen? Alle Fotos und Feldwerte werden entfernt.`)) return
     await api.deleteMotiv(selectedId)
     setSelectedId(null)
     setSearchParams({})
@@ -246,7 +248,7 @@ export default function MotivenPage() {
 
           {showNewForm && (
             <div style={{ maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Neues Motiv</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Neues {t('motiv')}</h2>
               <input
                 autoFocus
                 value={newName}

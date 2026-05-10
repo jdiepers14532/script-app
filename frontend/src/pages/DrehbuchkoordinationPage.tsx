@@ -5,11 +5,14 @@ import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
 import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor } from '../data/scenes'
 import { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
+import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
+import type { TermKey, TerminologieConfig } from '../sw-ui'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
 const DK_TABS = [
   { id: 'allgemein',              label: 'Allgemein' },
+  { id: 'terminologie',           label: 'Terminologie' },
   { id: 'figuren',                label: 'Figuren' },
   { id: 'produktion',            label: 'Produktion' },
   { id: 'export-vorlagen',       label: 'Export-Vorlagen' },
@@ -42,13 +45,18 @@ const ENV_COLOR_LABELS: Record<EnvKey, string> = {
   n_ie:      'INT+EXT / Nacht',
 }
 
-const EREIGNIS_LABELS: Record<string, string> = {
-  neue_hauptrolle:         'Neue Hauptrolle angelegt',
-  neue_episodenrolle:      'Neue Episodenrolle angelegt',
-  neuer_komparse:          'Neuer Komparse angelegt',
-  neue_location:           'Neuer Drehort angelegt',
-  uebernahme_schauspieler: 'Schauspieler Cross-Staffel uebernommen',
-  uebernahme_komparse:     'Komparse Cross-Staffel uebernommen',
+const EREIGNIS_KEYS = ['neue_hauptrolle', 'neue_episodenrolle', 'neuer_komparse', 'neue_location', 'uebernahme_schauspieler', 'uebernahme_komparse'] as const
+
+function useEreignisLabels() {
+  const { t } = useTerminologie()
+  return {
+    neue_hauptrolle:         'Neue Hauptrolle angelegt',
+    neue_episodenrolle:      'Neue Episodenrolle angelegt',
+    neuer_komparse:          `Neuer ${t('komparse')} angelegt`,
+    neue_location:           'Neuer Drehort angelegt',
+    uebernahme_schauspieler: `${t('darsteller')} Cross-${t('staffel')} uebernommen`,
+    uebernahme_komparse:     `${t('komparse')} Cross-${t('staffel')} uebernommen`,
+  } as Record<string, string>
 }
 
 const COPY_SECTIONS = [
@@ -130,6 +138,7 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
 // ── Tab: Allgemein (production-specific endpoints) ───────────────────────────────
 
 function AllgemeinTab({ productionId }: { productionId: string }) {
+  const { t } = useTerminologie()
   const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline' | null>(null)
   const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
   const [seitenformatSaving, setSeitenformatSaving] = useState(false)
@@ -314,9 +323,9 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       </section>
 
       <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Szenen-Kuerzel</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>{t('szene', 'c')}-Kuerzel</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Abkuerzungen fuer die einzeilige Szenenuebersicht.
+          Abkuerzungen fuer die einzeilige {t('szene', 'c')}uebersicht.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 360 }}>
           {KUERZEL_FIELDS.map(({ key, label }) => (
@@ -344,9 +353,9 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       </section>
 
       <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Szenenfarben</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>{t('szene', 'c')}farben</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Farbkodierung der Szenen nach INT/EXT und Tageszeit. Standard: Industrie-Standard (Movie Magic Scheduling).
+          Farbkodierung der {t('szene', 'p')} nach INT/EXT und Tageszeit. Standard: Industrie-Standard (Movie Magic Scheduling).
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
           {/* Light Mode */}
@@ -450,6 +459,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 function FigurenTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
+  const { t } = useTerminologie()
 
   const [figurenLabel, setFigurenLabel] = useState<'Rollen' | 'Figuren' | 'Charaktere'>('Rollen')
   const [felder, setFelder] = useState<any[]>([])
@@ -542,12 +552,12 @@ function FigurenTab() {
       {produktionId && (
         <>
           <section>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {figurenLabel} & Komparsen</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {figurenLabel} & {t('komparse', 'p')}</h3>
             <FeldListe felder={rollenFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
           </section>
 
           <section>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer Motive</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {t('motiv', 'p')}</h3>
             <FeldListe felder={motivFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
           </section>
 
@@ -581,7 +591,7 @@ function FigurenTab() {
                   style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}>
                   <option value="alle">Alle</option>
                   <option value="rolle">Nur {figurenLabel}</option>
-                  <option value="komparse">Nur Komparsen</option>
+                  <option value="komparse">Nur {t('komparse', 'p')}</option>
                   <option value="motiv">Nur Motive</option>
                 </select>
               </div>
@@ -616,6 +626,7 @@ function FigurenTab() {
 function ProduktionTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? ''
+  const { t } = useTerminologie()
 
   const [kategorien, setKategorien] = useState<any[]>([])
   const [labels, setLabels] = useState<any[]>([])
@@ -742,7 +753,7 @@ function ProduktionTab() {
       {/* ── Character Kategorien ── */}
       <section style={sectionStyle}>
         <h3 style={h3Style}>Charakter-Kategorien</h3>
-        <p style={subStyle}>Definiert die Kategorien fuer Rollen und Komparsen in dieser Produktion. Reihenfolge per Drag &amp; Drop.</p>
+        <p style={subStyle}>Definiert die Kategorien fuer Rollen und {t('komparse', 'p')} in dieser Produktion. Reihenfolge per Drag &amp; Drop.</p>
 
         <SortableList
           items={kategorien}
@@ -751,7 +762,7 @@ function ProduktionTab() {
             <div style={rowStyle}>
               {handle}
               <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 7px', borderRadius: 99, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 }}>
-                {k.typ === 'komparse' ? 'Komparse' : 'Rolle'}
+                {k.typ === 'komparse' ? t('komparse') : 'Rolle'}
               </span>
               <span style={{ flex: 1, fontSize: 13 }}>{k.name}</span>
               <button style={delBtnStyle} onClick={() => delKat(k.id)} title="Loeschen">x</button>
@@ -769,7 +780,7 @@ function ProduktionTab() {
           />
           <select style={inputStyle} value={newKat.typ} onChange={e => setNewKat(v => ({ ...v, typ: e.target.value as any }))}>
             <option value="rolle">Rolle</option>
-            <option value="komparse">Komparse</option>
+            <option value="komparse">{t('komparse')}</option>
           </select>
           <button style={btnStyle} onClick={addKat} disabled={busy('kat') || !newKat.name.trim()}>
             {busy('kat') ? '...' : '+ Hinzufuegen'}
@@ -1501,6 +1512,7 @@ function FormatTemplatesTab() {
 function BenachrichtigungenTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? ''
+  const EREIGNIS_LABELS = useEreignisLabels()
   const [settings, setSettings] = useState<Record<string, { empfaenger: string; aktiv: boolean }>>({})
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -1510,7 +1522,7 @@ function BenachrichtigungenTab() {
       .then(r => r.json())
       .then((data: any[]) => {
         const map: Record<string, { empfaenger: string; aktiv: boolean }> = {}
-        Object.keys(EREIGNIS_LABELS).forEach(k => {
+        EREIGNIS_KEYS.forEach(k => {
           const found = data.find(d => d.ereignis === k)
           map[k] = { empfaenger: (found?.empfaenger_user_ids ?? []).join(', '), aktiv: found?.aktiv ?? true }
         })
@@ -1652,6 +1664,7 @@ function DokumentEinstellungenTab() {
 
 function CopySection({ produktionId, onCopied }: { produktionId: string; onCopied: () => void }) {
   const { selectedProduction, productions } = useSelectedProduction()
+  const { t } = useTerminologie()
 
   const [copySearch, setCopySearch] = useState('')
   const [copySourceId, setCopySourceId] = useState('')
@@ -1664,7 +1677,7 @@ function CopySection({ produktionId, onCopied }: { produktionId: string; onCopie
   const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
 
   const prodLabel = (p: any) => {
-    const title = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+    const title = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
     return p.projektnummer ? `${p.projektnummer} · ${title}` : title
   }
   const copySourceProd = productions.find(p => p.id === copySourceId)
@@ -1781,7 +1794,7 @@ function CopySection({ produktionId, onCopied }: { produktionId: string; onCopie
         <div style={{ padding: '12px 14px', background: 'rgba(255,59,48,0.06)', borderRadius: 8, border: '1px solid rgba(255,59,48,0.3)', display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.5 }}>
             <strong>Achtung:</strong> Die bestehenden Einstellungen von{' '}
-            <strong>{selectedProduction ? [selectedProduction.projektnummer, selectedProduction.title, selectedProduction.staffelnummer != null ? `Staffel ${selectedProduction.staffelnummer}` : null].filter(Boolean).join(' · ') : ''}</strong>{' '}
+            <strong>{selectedProduction ? [selectedProduction.projektnummer, selectedProduction.title, selectedProduction.staffelnummer != null ? `${t('staffel')} ${selectedProduction.staffelnummer}` : null].filter(Boolean).join(' · ') : ''}</strong>{' '}
             werden durch die Einstellungen von <strong>{copySourceName}</strong> ersetzt.
             Bereiche: {copySections.map(s => COPY_SECTIONS.find(c => c.id === s)?.label).join(', ')}.
           </div>
@@ -1807,6 +1820,95 @@ function CopySection({ produktionId, onCopied }: { produktionId: string; onCopie
   )
 }
 
+// ── Tab: Terminologie ────────────────────────────────────────────────────────────
+
+function TerminologieTab() {
+  const { config: currentConfig } = useTerminologie()
+  const [config, setConfig] = useState<TerminologieConfig>({ ...currentConfig })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setConfig({ ...currentConfig })
+  }, [currentConfig])
+
+  const saveKey = async (key: TermKey, value: string) => {
+    const next = { ...config, [key]: value }
+    setConfig(next)
+    setSaving(true)
+    await fetch('/api/admin/app-settings/terminologie', {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    setSaving(false)
+    window.dispatchEvent(new CustomEvent('app-settings-changed'))
+  }
+
+  const resetAll = async () => {
+    setConfig({ ...TERM_DEFAULTS })
+    setSaving(true)
+    await fetch('/api/admin/app-settings/terminologie', {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(TERM_DEFAULTS) }),
+    }).catch(() => {})
+    setSaving(false)
+    window.dispatchEvent(new CustomEvent('app-settings-changed'))
+  }
+
+  return (
+    <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 32 }}>
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Begriffe anpassen</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
+          In der Branche werden fuer dieselben Konzepte unterschiedliche Begriffe verwendet.
+          Hier legst du fest, welcher Begriff jeweils in der gesamten App verwendet wird.
+        </p>
+      </section>
+
+      {TERM_KEYS.map(key => {
+        const options = TERM_OPTIONS[key]
+        const optionNames = Object.keys(options)
+        return (
+          <section key={key}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>{TERM_LABELS[key]}</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+              Singular: <strong>{options[config[key]]?.s ?? optionNames[0]}</strong> · Plural: <strong>{options[config[key]]?.p ?? optionNames[0]}</strong>
+            </p>
+            <div className="seg" style={{ display: 'inline-flex' }}>
+              {optionNames.map(opt => (
+                <button
+                  key={opt}
+                  className={config[key] === opt ? 'on' : ''}
+                  onClick={() => saveKey(key, opt)}
+                  disabled={saving}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+          </section>
+        )
+      })}
+
+      <section>
+        <button
+          onClick={resetAll}
+          disabled={saving}
+          style={{
+            padding: '8px 18px', borderRadius: 7,
+            border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+            fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Alle auf Standard zuruecksetzen
+        </button>
+        {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
+      </section>
+    </div>
+  )
+}
+
 // ── Main Page Export ──────────────────────────────────────────────────────────────
 
 export default function DrehbuchkoordinationPage() {
@@ -1816,6 +1918,7 @@ export default function DrehbuchkoordinationPage() {
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
   const navigate = useNavigate()
   const { selectedProduction, productions } = useSelectedProduction()
+  const { t } = useTerminologie()
 
   const produktionId = selectedProduction?.id ?? ''
 
@@ -1862,7 +1965,7 @@ export default function DrehbuchkoordinationPage() {
     ? [
         selectedProduction.projektnummer,
         selectedProduction.title,
-        selectedProduction.staffelnummer != null ? `Staffel ${selectedProduction.staffelnummer}` : null,
+        selectedProduction.staffelnummer != null ? `${t('staffel')} ${selectedProduction.staffelnummer}` : null,
       ].filter(Boolean).join(' · ')
     : 'Keine Produktion'
 
@@ -1885,6 +1988,8 @@ export default function DrehbuchkoordinationPage() {
     switch (activeTab) {
       case 'allgemein':
         return produktionId ? <AllgemeinTab productionId={produktionId} /> : <NoProduction />
+      case 'terminologie':
+        return <TerminologieTab />
       case 'figuren':
         return <FigurenTab />
       case 'produktion':

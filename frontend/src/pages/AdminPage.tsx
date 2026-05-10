@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell'
 import AdminKI from '../components/AdminKI'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 
 const ADMIN_TABS = [
   { id: 'ki',             label: 'KI-Konfiguration' },
@@ -16,6 +17,7 @@ const ADMIN_TABS = [
 // ── Wasserzeichen Tab ─────────────────────────────────────────────────────────
 
 function WasserzeichenTab() {
+  const { t } = useTerminologie()
   const [decodeFile, setDecodeFile]   = useState<File | null>(null)
   const [decodeResult, setDecodeResult] = useState<any>(null)
   const [decoding, setDecoding]       = useState(false)
@@ -113,8 +115,8 @@ function WasserzeichenTab() {
                       ['Zeitpunkt',      fmt(decodeResult.log.exported_at)],
                       ['Format',         decodeResult.log.format],
                       ['Fassung',        decodeResult.log.version_label || decodeResult.log.stage_type || '—'],
-                      ['Staffel',        decodeResult.log.staffel_titel || '—'],
-                      ['Folge',          decodeResult.log.folge_nummer || '—'],
+                      [t('staffel'),     decodeResult.log.staffel_titel || '—'],
+                      [t('episode'),    decodeResult.log.folge_nummer || '—'],
                     ].map(([label, value]) => (
                       <tr key={label}>
                         <td style={{ padding: '4px 12px 4px 0', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{label}</td>
@@ -164,7 +166,7 @@ function WasserzeichenTab() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
                 <tr style={{ background: 'var(--bg-subtle)' }}>
-                  {['Zeitpunkt', 'Benutzer', 'Format', 'Fassung', 'Staffel', 'Folge'].map(h => (
+                  {['Zeitpunkt', 'Benutzer', 'Format', 'Fassung', t('staffel'), t('episode')].map(h => (
                     <th key={h} style={{ textAlign: 'left', padding: '7px 10px', border: '1px solid var(--border)', fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
@@ -192,6 +194,7 @@ function WasserzeichenTab() {
 // ── DK-Zugriff Tab ────────────────────────────────────────────────────────────
 
 function DkZugriffTab() {
+  const { t } = useTerminologie()
   const { productions } = useSelectedProduction()
   const [selectedProdId, setSelectedProdId] = useState<string>('')
   const [entries, setEntries] = useState<{ access_type: string; identifier: string }[]>([])
@@ -233,7 +236,7 @@ function DkZugriffTab() {
   }
 
   const prodLabel = (p: any) => {
-    const title = p.staffelnummer ? `${p.title} Staffel ${p.staffelnummer}` : p.title
+    const title = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
     return p.projektnummer ? `${p.projektnummer} · ${title}` : title
   }
 

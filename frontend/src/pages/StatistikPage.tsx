@@ -3,6 +3,7 @@ import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
 import { Printer } from 'lucide-react'
+import { useTerminologie } from '../sw-ui'
 
 type ViewMode = 'block' | 'folge'
 
@@ -15,6 +16,7 @@ function formatTime(sek: number): string {
 export default function StatistikPage() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
+  const { t } = useTerminologie()
 
   const [folgen, setFolgen] = useState<any[]>([])
   const [bloecke, setBloecke] = useState<any[]>([])
@@ -70,11 +72,11 @@ export default function StatistikPage() {
   const reportTitle = useMemo(() => {
     if (mode === 'block' && selectedBlockIdx >= 0 && bloecke[selectedBlockIdx]) {
       const b = bloecke[selectedBlockIdx]
-      return `Block ${b.block_nummer} (Folgen ${b.folge_von}–${b.folge_bis})`
+      return `Block ${b.block_nummer} (${t('episode', 'p')} ${b.folge_von}–${b.folge_bis})`
     }
     if (mode === 'folge' && selectedFolgeId) {
       const f = folgen.find(f => f.id === selectedFolgeId)
-      if (f) return `Folge ${f.folge_nummer}${f.folgen_titel ? ` — ${f.folgen_titel}` : ''}`
+      if (f) return `${t('episode')} ${f.folge_nummer}${f.folgen_titel ? ` — ${f.folgen_titel}` : ''}`
     }
     return ''
   }, [mode, selectedBlockIdx, bloecke, selectedFolgeId, folgen])
@@ -83,7 +85,7 @@ export default function StatistikPage() {
     return (
       <AppShell hideProductionSelector={false}>
         <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center' }}>
-          Bitte Staffel auswählen
+          Bitte {t('staffel')} auswählen
         </div>
       </AppShell>
     )
@@ -112,7 +114,7 @@ export default function StatistikPage() {
                 background: mode === 'folge' ? 'var(--text)' : 'var(--bg)',
                 color: mode === 'folge' ? 'var(--bg)' : 'var(--text)',
               }}
-            >Folge</button>
+            >{t('episode')}</button>
           </div>
 
           {/* Block selector */}
@@ -138,9 +140,9 @@ export default function StatistikPage() {
               onChange={e => setSelectedFolgeId(Number(e.target.value) || null)}
               style={selStyle}
             >
-              <option value="">Folge wählen...</option>
+              <option value="">{t('episode')} wählen...</option>
               {folgen.map(f => (
-                <option key={f.id} value={f.id}>Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}</option>
+                <option key={f.id} value={f.id}>{t('episode')} {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}</option>
               ))}
             </select>
           )}
@@ -166,7 +168,7 @@ export default function StatistikPage() {
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 48 }}>Laden...</div>
           ) : !report ? (
             <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: 48 }}>
-              {selectedFolgeIds.length === 0 ? 'Bitte Block oder Folge wählen' : 'Keine Daten'}
+              {selectedFolgeIds.length === 0 ? `Bitte Block oder ${t('episode')} wählen` : 'Keine Daten'}
             </div>
           ) : (
             <ReportView report={report} title={reportTitle} />
@@ -179,6 +181,7 @@ export default function StatistikPage() {
 
 // ── Report View ────────────────────────────────────────────────────────────
 function ReportView({ report, title }: { report: any; title: string }) {
+  const { t } = useTerminologie()
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>Statistiken</h1>
@@ -193,11 +196,11 @@ function ReportView({ report, title }: { report: any; title: string }) {
 
       {/* Per-Folge breakdown (only for blocks with multiple folgen) */}
       {report.folgen?.length > 1 && (
-        <Section title="Pro Folge">
+        <Section title={`Pro ${t('episode')}`}>
           <table style={tableStyle}>
             <thead>
               <tr>
-                <th style={thStyle}>Folge</th>
+                <th style={thStyle}>{t('episode')}</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Bilder</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Seiten</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Vorstopp</th>
@@ -259,12 +262,12 @@ function ReportView({ report, title }: { report: any; title: string }) {
 
       {/* Motive */}
       {report.motive?.length > 0 && (
-        <Section title="Motive">
+        <Section title={t('motiv', 'p')}>
           <table style={tableStyle}>
             <thead>
               <tr>
                 <th style={{ ...thStyle, width: 50 }}>#</th>
-                <th style={thStyle}>Motiv</th>
+                <th style={thStyle}>{t('motiv')}</th>
                 <th style={thStyle}>Drehort</th>
                 <th style={thStyle}>Bilder</th>
               </tr>

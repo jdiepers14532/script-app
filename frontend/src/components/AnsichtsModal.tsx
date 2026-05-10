@@ -8,11 +8,13 @@ import {
   FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX, DEFAULT_TWEAKS,
 } from './AppShell'
 import { useTweaks, useAppSettings } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
 
 export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
   const { tweaks, set, reset } = useTweaks()
   const { treatmentLabel } = useAppSettings()
+  const { t } = useTerminologie()
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef = useRef<HTMLInputElement>(null)
 
@@ -220,15 +222,15 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Szenenkopf-Modus</span>
+              <span style={labelStyle}>{t('szene', 'c')}kopf-Modus</span>
               <div className="seg">
-                <Tooltip text="Ein Szenenkopf (aktuelle Fassung)"><button className={tweaks.sceneEditorMode === 'single' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'single')}><Square size={13} /></button></Tooltip>
-                <Tooltip text="Pro Panel ein Szenenkopf (Fassungsvergleich)"><button className={tweaks.sceneEditorMode === 'mirror' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'mirror')}><Columns2 size={13} /></button></Tooltip>
+                <Tooltip text={`Ein ${t('szene', 'c')}kopf (aktuelle Fassung)`}><button className={tweaks.sceneEditorMode === 'single' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'single')}><Square size={13} /></button></Tooltip>
+                <Tooltip text={`Pro Panel ein ${t('szene', 'c')}kopf (Fassungsvergleich)`}><button className={tweaks.sceneEditorMode === 'mirror' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'mirror')}><Columns2 size={13} /></button></Tooltip>
               </div>
             </div>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Szenenkopf</span>
+              <span style={labelStyle}>{t('szene', 'c')}kopf</span>
               <div className="seg">
                 <Tooltip text="Alle Felder"><button className={!tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', false)}><Maximize2 size={13} /></button></Tooltip>
                 <Tooltip text="Kompakt (eine Zeile)"><button className={tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', true)}><Minimize2 size={13} /></button></Tooltip>

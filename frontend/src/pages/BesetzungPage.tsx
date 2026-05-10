@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 
 const SPIEL_COLORS: Record<string, string> = {
   'text': '#00C853',
@@ -10,6 +11,7 @@ const SPIEL_COLORS: Record<string, string> = {
 }
 
 export default function BesetzungPage() {
+  const { t } = useTerminologie()
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
 
@@ -68,7 +70,7 @@ export default function BesetzungPage() {
     return (
       <AppShell hideProductionSelector={false}>
         <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center' }}>
-          Bitte Staffel auswählen
+          Bitte {t('staffel')} auswählen
         </div>
       </AppShell>
     )
@@ -151,7 +153,7 @@ export default function BesetzungPage() {
                       const bg = SPIEL_COLORS[dominant] || '#BDBDBD'
 
                       return (
-                        <td key={f.id} style={cellStyle} title={`${ch.name} · Folge ${f.folge_nummer}: ${entry.scene_count} Szenen, ${entry.total_repliken} Repliken`}>
+                        <td key={f.id} style={cellStyle} title={`${ch.name} · ${t('episode')} ${f.folge_nummer}: ${entry.scene_count} ${t('szene','p')}, ${entry.total_repliken} Repliken`}>
                           <div style={{
                             width: 28, height: 22, borderRadius: 4,
                             background: bg, opacity: 0.85,

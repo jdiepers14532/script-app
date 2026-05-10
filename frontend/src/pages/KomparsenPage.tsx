@@ -6,10 +6,12 @@ import FotoGalerie from '../components/figuren/FotoGalerie'
 const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import { Plus, X } from 'lucide-react'
 
 export default function KomparsenPage() {
   const { selectedProduction } = useSelectedProduction()
+  const { t } = useTerminologie()
   const produktionId = selectedProduction?.id ?? null
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -154,13 +156,13 @@ export default function KomparsenPage() {
 
           {produktionId && !selected && !showNewForm && (
             <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
-              Komparse aus der Liste auswählen oder <button onClick={() => setShowNewForm(true)} style={{ border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 14, padding: 0, textDecoration: 'underline' }}>neuen anlegen</button>.
+              {t('komparse')} aus der Liste auswählen oder <button onClick={() => setShowNewForm(true)} style={{ border: 'none', background: 'none', color: 'var(--text)', cursor: 'pointer', fontWeight: 600, fontSize: 14, padding: 0, textDecoration: 'underline' }}>neuen anlegen</button>.
             </div>
           )}
 
           {showNewForm && (
             <div style={{ maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Neuer Komparse</h2>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Neuer {t('komparse')}</h2>
               <input
                 autoFocus value={newName} onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleCreate()}

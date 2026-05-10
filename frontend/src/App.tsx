@@ -21,6 +21,8 @@ import {
   DEFAULT_KUERZEL,
 } from './contexts'
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
+import { TerminologieProvider, TERM_DEFAULTS } from './sw-ui'
+import type { TerminologieConfig } from './sw-ui'
 
 export default function App() {
   const { focus, toggle } = useFocusMode()
@@ -29,6 +31,7 @@ export default function App() {
   const [sceneKuerzel, setSceneKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
   const [figurenLabel, setFigurenLabel] = useState('Rollen')
   const [sceneEnvColors, setSceneEnvColors] = useState<Record<string, any> | null>(null)
+  const [terminologie, setTerminologie] = useState<TerminologieConfig>({ ...TERM_DEFAULTS })
 
   useEffect(() => {
     const loadSettings = () => {
@@ -53,6 +56,9 @@ export default function App() {
           if (data?.scene_env_colors_dark) {
             try { setEnvColorsDark(JSON.parse(data.scene_env_colors_dark)) } catch {}
           }
+          if (data?.terminologie) {
+            try { setTerminologie({ ...TERM_DEFAULTS, ...JSON.parse(data.terminologie) }) } catch {}
+          }
         })
         .catch(() => {})
     }
@@ -62,6 +68,7 @@ export default function App() {
   }, [])
 
   return (
+    <TerminologieProvider config={terminologie}>
     <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle }}>
@@ -85,5 +92,6 @@ export default function App() {
         </FocusContext.Provider>
       </ProductionContext.Provider>
     </AppSettingsContext.Provider>
+    </TerminologieProvider>
   )
 }

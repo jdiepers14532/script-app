@@ -4,11 +4,13 @@ import { ArrowLeft, Columns, Square, Settings, Eye, EyeOff } from 'lucide-react'
 import { useWerkstufe } from '../hooks/useDokument'
 import { useEditorPrefs } from '../hooks/useEditorPrefs'
 import { useAppSettings } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import EditorPanel from '../components/editor/EditorPanel'
 import { api } from '../api/client'
 import Tooltip from '../components/Tooltip'
 
 export default function DokumentEditorPage() {
+  const { t } = useTerminologie()
   const [searchParams] = useSearchParams()
   const produktionId = searchParams.get('produktion') ?? searchParams.get('staffel') ?? ''
   const folgeNummer = parseInt(searchParams.get('folge') ?? '0', 10)
@@ -79,7 +81,7 @@ export default function DokumentEditorPage() {
   if (!produktionId || !folgeNummer) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', flexDirection: 'column', gap: 12 }}>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Keine Staffel / Folge angegeben</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Keine {t('staffel')} / {t('episode')} angegeben</p>
         <Link to="/" style={{ fontSize: 13, color: 'var(--sw-info)' }}>← Zurück zur Übersicht</Link>
       </div>
     )
@@ -112,7 +114,7 @@ export default function DokumentEditorPage() {
         <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
           <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{produktionId}</span>
           <span style={{ margin: '0 6px' }}>·</span>
-          <span>Folge {folgeNummer}</span>
+          <span>{t('episode')} {folgeNummer}</span>
         </div>
 
         {loading && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Lädt…</span>}

@@ -8,6 +8,7 @@ import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
 import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 import { useFocus, useSelectedProduction, PanelModeContext, useTweaks } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import { useWerkstufe } from '../hooks/useDokument'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
@@ -211,6 +212,7 @@ const MIN_WIDTH = 180
 const DEFAULT_WIDTH = 276
 
 export default function ScriptPage() {
+  const { t } = useTerminologie()
   const { focus } = useFocus()
   const { selectedProduction, loading } = useSelectedProduction()
   const [bloecke, setBloecke] = useState<any[]>([])
@@ -622,7 +624,7 @@ export default function ScriptPage() {
           <button
             className="scene-list-collapse-btn"
             onClick={toggleCollapse}
-            title={sidebarCollapsed ? 'Szenenübersicht öffnen' : 'Szenenübersicht schließen'}
+            title={sidebarCollapsed ? `${t('szene','c')}übersicht öffnen` : `${t('szene','c')}übersicht schließen`}
           >
             {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
           </button>
@@ -632,7 +634,7 @@ export default function ScriptPage() {
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {!selectedSzeneId && (
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>
-              Keine Szene ausgewählt
+              Keine {t('szene')} ausgewählt
             </div>
           )}
           <DockedEditorPanels

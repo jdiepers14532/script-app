@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import { RefreshCw, Maximize2, Minimize2, X, Eye, EyeOff } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -51,6 +52,7 @@ function formatDrehdauer(sek: number): string {
 export default function StatistikModal({ onClose, folgen, bloecke, sections, initialFolgeNummer, onNavigateToScene, szenen }: StatistikModalProps) {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
+  const { t } = useTerminologie()
 
   // Position / Size
   const [pos, setPos] = useState({ x: window.innerWidth - 520, y: 80 })
@@ -295,12 +297,12 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
         display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', fontSize: 12,
       }}>
         <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 5, overflow: 'hidden' }}>
-          <button onClick={() => setMode('folge')} style={toggleBtnStyle(mode === 'folge')}>Pro Folge</button>
+          <button onClick={() => setMode('folge')} style={toggleBtnStyle(mode === 'folge')}>Pro {t('episode')}</button>
           <button onClick={() => setMode('block')} style={{ ...toggleBtnStyle(mode === 'block'), borderLeft: '1px solid var(--border)' }}>Pro Block</button>
         </div>
         {mode === 'folge' && (
           <select value={selectedFolgeId ?? ''} onChange={e => setSelectedFolgeId(Number(e.target.value) || null)} style={selectStyle}>
-            {folgen.map(f => <option key={f.id} value={f.id}>Folge {f.folge_nummer}</option>)}
+            {folgen.map(f => <option key={f.id} value={f.id}>{t('episode')} {f.folge_nummer}</option>)}
           </select>
         )}
         {mode === 'block' && bloecke.length > 0 && (
@@ -393,10 +395,11 @@ function ReportContent({ report, sections, hideDetails, onSceneClick, onShowInte
 // ── Sections ──────────────────────────────────────────────────────────────────
 
 function UebersichtSection({ report }: { report: any }) {
+  const { t } = useTerminologie()
   return (
     <Section>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px' }}>
-        <SummaryItem label="Szenen insgesamt" value={report.szenen_insgesamt ?? report.bilder_insgesamt} />
+        <SummaryItem label={`${t('szene', 'p')} insgesamt`} value={report.szenen_insgesamt ?? report.bilder_insgesamt} />
         <SummaryItem label="Anzahl an Drehbuchseiten" value={report.drehbuchseiten_display || '-'} />
         <SummaryItem label="Vorstopp (mm:ss)" value={formatTime(report.vorstopp_sek || 0)} />
         <SummaryItem label="Geplante Drehdauer (hh:mm)" value={report.vorstopp_sek ? formatDrehdauer(report.vorstopp_sek) : '-'} />
@@ -406,11 +409,11 @@ function UebersichtSection({ report }: { report: any }) {
 }
 
 function RollenProBildSection({ report }: { report: any }) {
+  const { t } = useTerminologie()
   const grouped = useMemo(() => {
     const result: { label: string; count: number }[] = []
     const map = new Map<number, number>()
 
-    // Collect from report data
     for (const r of (report.rollen_pro_bild || [])) {
       if (r.rollen_count <= 3) {
         map.set(r.rollen_count, (map.get(r.rollen_count) || 0) + r.bilder_count)
@@ -419,28 +422,27 @@ function RollenProBildSection({ report }: { report: any }) {
       }
     }
 
-    // Scenes with 0 characters
     const totalWithChars = Array.from(map.values()).reduce((s, v) => s + v, 0)
     const totalScenes = report.szenen_insgesamt ?? report.bilder_insgesamt ?? 0
     const zeroCharScenes = totalScenes - totalWithChars
     if (zeroCharScenes > 0) {
-      result.push({ label: 'Szenen mit 0 Rollen', count: zeroCharScenes })
+      result.push({ label: `${t('szene', 'p')} mit 0 Rollen`, count: zeroCharScenes })
     }
 
     for (let n = 1; n <= 3; n++) {
       const c = map.get(n)
-      if (c) result.push({ label: `Szenen mit ${n} ${n === 1 ? 'Rolle' : 'Rollen'}`, count: c })
+      if (c) result.push({ label: `${t('szene', 'p')} mit ${n} ${n === 1 ? 'Rolle' : 'Rollen'}`, count: c })
     }
     const over3 = map.get(99)
-    if (over3) result.push({ label: 'Szenen mit mehr als 3 Rollen', count: over3 })
+    if (over3) result.push({ label: `${t('szene', 'p')} mit mehr als 3 Rollen`, count: over3 })
 
     return result
-  }, [report.rollen_pro_bild, report.szenen_insgesamt, report.bilder_insgesamt])
+  }, [report.rollen_pro_bild, report.szenen_insgesamt, report.bilder_insgesamt, t])
 
   if (grouped.length === 0) return null
 
   return (
-    <Section title="Rollen pro Szene">
+    <Section title={`Rollen pro ${t('szene')}`}>
       {grouped.map((g, i) => (
         <div key={i} style={listRow}>
           <span style={countBadge}>{g.count}x</span>
@@ -516,9 +518,10 @@ function RollenSection({ report, hideDetails, onSceneClick, onShowInteraction }:
 }
 
 function MotiveSection({ report, hideDetails, onSceneClick }: { report: any; hideDetails: boolean; onSceneClick?: (ref: string) => void }) {
+  const { t } = useTerminologie()
   if (!report.motive?.length) return null
   return (
-    <Section title="Motive">
+    <Section title={t('motiv', 'p')}>
       {report.motive.map((m: any, i: number) => (
         <div key={i} style={{ ...listRow, alignItems: 'flex-start' }}>
           <span style={countBadge}>{m.scene_count}x</span>

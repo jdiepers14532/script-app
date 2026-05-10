@@ -4,6 +4,7 @@ import AppShell from '../components/AppShell'
 import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
+import { useTerminologie } from '../sw-ui'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 
@@ -68,6 +69,7 @@ export default function ImportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { selectedProduction, productions, selectProduction, selectedId } = useSelectedProduction()
   const { treatmentLabel } = useAppSettings()
+  const { t } = useTerminologie()
   const STAGE_TYPES = [
     { value: 'expose', label: 'Exposé' },
     { value: 'treatment', label: treatmentLabel },
@@ -266,7 +268,7 @@ export default function ImportPage() {
       if (data.rote_rosen_meta) {
         const rrm = data.rote_rosen_meta
         const coverParts = [
-          rrm.staffel ? `Staffel ${rrm.staffel}` : '',
+          rrm.staffel ? `${t('staffel')} ${rrm.staffel}` : '',
           rrm.episode ? `Episode ${rrm.episode}` : '',
           rrm.block ? `Block ${rrm.block}` : '',
           rrm.drehtermin ? `Drehtermin: ${rrm.drehtermin}` : '',
@@ -597,10 +599,10 @@ export default function ImportPage() {
                   </span>
 
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 11, color: '#757575' }}>
-                    <span><b>{previewResult.total_scenes}</b> Szenen</span>
+                    <span><b>{previewResult.total_scenes}</b> {t('szene', 'p')}</span>
                     <span><b>{previewResult.charaktere.length}</b> Rollen</span>
-                    {(previewResult.komparsen?.length ?? 0) > 0 && <span><b>{previewResult.komparsen!.length}</b> Komparsen</span>}
-                    {(previewResult.motive?.length ?? 0) > 0 && <span><b>{previewResult.motive!.length}</b> Motive</span>}
+                    {(previewResult.komparsen?.length ?? 0) > 0 && <span><b>{previewResult.komparsen!.length}</b> {t('komparse', 'p')}</span>}
+                    {(previewResult.motive?.length ?? 0) > 0 && <span><b>{previewResult.motive!.length}</b> {t('motiv', 'p')}</span>}
                     {(() => {
                       const totalSec = previewResult.szenen.reduce((sum: number, s: any) => sum + (s.dauer_sekunden || 0), 0)
                       if (totalSec === 0) return null
@@ -756,7 +758,7 @@ export default function ImportPage() {
                         <input type="text"
                           value={getSceneVal(sz, i, 'ort_name') || ''}
                           onChange={e => updateScene(i, 'ort_name', e.target.value)}
-                          placeholder="Motiv…"
+                          placeholder={`${t('motiv')}…`}
                           style={{
                             flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: '#1B5E20',
                             border: '1px solid transparent', background: 'transparent',
@@ -879,11 +881,11 @@ export default function ImportPage() {
                       <div style={{ fontSize: 11, color: '#7B1FA2', marginBottom: 1 }}>
                         {sceneOverrides[i]?.komparsen != null ? (
                           <div style={{ display: 'flex', alignItems: 'center' }}>
-                            <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>Komparsen: </span>
+                            <span style={{ color: '#999', marginRight: 4, flexShrink: 0 }}>{t('komparse', 'p')}:</span>
                             <input type="text"
                               value={(sceneOverrides[i].komparsen as string[]).join(', ')}
                               onChange={e => updateScene(i, 'komparsen', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
-                              placeholder="Komparsen kommagetrennt…"
+                              placeholder={`${t('komparse', 'p')} kommagetrennt…`}
                               autoFocus
                               style={{ flex: 1, fontSize: 11, color: '#7B1FA2', border: '1px solid #e0e0e0', background: '#fff', padding: '1px 4px', borderRadius: 3 }}
                             />
@@ -894,7 +896,7 @@ export default function ImportPage() {
                           </div>
                         ) : (
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1px 0', alignItems: 'center' }}>
-                            <span style={{ color: '#999', marginRight: 4 }}>Komparsen: </span>
+                            <span style={{ color: '#999', marginRight: 4 }}>{t('komparse', 'p')}:</span>
                             {(sz.komparsen_detail || sz.komparsen?.map((n: string) => ({ name: n, anzahl: 1, hat_spiel: false, hat_text: false, repliken: 0 })) || []).map((k: any, ki: number) => (
                               <span key={ki} style={{ display: 'inline-flex', alignItems: 'center' }}>
                                 {ki > 0 && <span style={{ marginRight: 3 }}>, </span>}
@@ -907,7 +909,7 @@ export default function ImportPage() {
                             ))}
                             {(!sz.komparsen || sz.komparsen.length === 0) && <span style={{ color: '#ccc' }}>—</span>}
                             <button onClick={() => updateScene(i, 'komparsen', sz.komparsen?.length > 0 ? [...sz.komparsen] : [])}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', marginLeft: 4 }} title="Komparsen bearbeiten">
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', marginLeft: 4 }} title={`${t('komparse', 'p')} bearbeiten`}>
                               <Pencil size={10} color="#bbb" />
                             </button>
                           </div>
@@ -924,7 +926,7 @@ export default function ImportPage() {
 
                       {/* Row 6: Szeneninfo (editable) */}
                       <input type="text" value={getSceneVal(sz, i, 'szeneninfo') || ''} onChange={e => updateScene(i, 'szeneninfo', e.target.value)}
-                        placeholder="Szeneninfo…"
+                        placeholder={`${t('szene', 'c')}info…`}
                         style={{ width: '100%', fontSize: 10, color: '#1565C0', fontStyle: 'italic', border: '1px solid transparent', background: 'transparent', padding: '1px 4px', borderRadius: 3 }}
                         onFocus={e => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#fff' }}
                         onBlur={e => { e.target.style.borderColor = 'transparent'; e.target.style.background = 'transparent' }}
@@ -956,7 +958,7 @@ export default function ImportPage() {
                     padding: '8px 20px', fontWeight: 600, fontSize: 13,
                     cursor: 'pointer', opacity: selectedFolgeNummer == null || loading ? 0.4 : 1,
                   }}>
-                    {loading ? 'Importiere…' : `${previewResult.total_scenes} Szenen → Folge ${selectedFolgeNummer ?? '?'} importieren`}
+                    {loading ? 'Importiere…' : `${previewResult.total_scenes} ${t('szene', 'p')} → ${t('episode')} ${selectedFolgeNummer ?? '?'} importieren`}
                   </button>
                 </div>
               </div>
@@ -976,10 +978,10 @@ export default function ImportPage() {
             </div>
             <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Import erfolgreich</h2>
             <p style={{ color: '#757575', fontSize: 14, marginBottom: 24 }}>
-              {commitResult.scenes_imported} Szenen importiert
+              {commitResult.scenes_imported} {t('szene', 'p')} importiert
               {commitResult.characters_created > 0 && `, ${commitResult.characters_created} Rollen angelegt`}
-              {commitResult.komparsen_created > 0 && `, ${commitResult.komparsen_created} Komparsen angelegt`}
-              {commitResult.motive_created > 0 && `, ${commitResult.motive_created} Motive angelegt`}
+              {commitResult.komparsen_created > 0 && `, ${commitResult.komparsen_created} ${t('komparse', 'p')} angelegt`}
+              {commitResult.motive_created > 0 && `, ${commitResult.motive_created} ${t('motiv', 'p')} angelegt`}
             </p>
 
             {commitResult.warnings.length > 0 && (
@@ -1004,7 +1006,7 @@ export default function ImportPage() {
                   padding: '10px 24px', fontWeight: 600, fontSize: 14, cursor: 'pointer',
                 }}
               >
-                Zur Folgenübersicht
+                Zur {t('episode','c')}übersicht
               </button>
               <button
                 onClick={reset}

@@ -8,6 +8,7 @@ import BeziehungsPanel from '../components/figuren/BeziehungsPanel'
 import RollenprofilImportModal from '../components/RollenprofilImportModal'
 import { api } from '../api/client'
 import { useSelectedProduction, useAppSettings } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import { Plus, X, FileUp } from 'lucide-react'
 
 const ROLLENPROFIL_LABELS: Record<string, string> = {
@@ -28,6 +29,7 @@ const ROLLENPROFIL_ORDER = [
 ]
 
 function RollenprofilAnzeige({ data }: { data: Record<string, string> }) {
+  const { t } = useTerminologie()
   const [expanded, setExpanded] = useState(false)
   const fields = ROLLENPROFIL_ORDER.filter(k => data[k]?.trim())
   if (fields.length === 0) return null
@@ -43,7 +45,7 @@ function RollenprofilAnzeige({ data }: { data: Record<string, string> }) {
         <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           {fields.map(key => (
             <div key={key} style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 8, fontSize: 13 }}>
-              <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{ROLLENPROFIL_LABELS[key] || key}</span>
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{key === 'staffel' ? t('staffel') : key === 'folgen_range' ? `${t('episode', 'c')}bereich` : ROLLENPROFIL_LABELS[key] || key}</span>
               <span style={{ whiteSpace: 'pre-wrap' }}>{data[key]}</span>
             </div>
           ))}
@@ -56,6 +58,7 @@ function RollenprofilAnzeige({ data }: { data: Record<string, string> }) {
 export default function RollenPage() {
   const { selectedProduction } = useSelectedProduction()
   const { figurenLabel } = useAppSettings()
+  const { t } = useTerminologie()
   const produktionId = selectedProduction?.id ?? null
   const [searchParams, setSearchParams] = useSearchParams()
 

@@ -7,6 +7,7 @@ import {
   AlignLeft, List, Mic2
 } from 'lucide-react'
 import { useFocus } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 
 // Keep types inline — editorData.ts is no longer imported in production code
 type TextelementType = 'heading' | 'action' | 'character' | 'parenthetical' | 'dialogue' | 'transition' | 'shot'
@@ -89,6 +90,7 @@ export default function EditorPage() {
   const [showHistory, setShowHistory] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const { focus, toggle: toggleFocus } = useFocus()
+  const { t } = useTerminologie()
 
   const versions = STATIC_VERSIONS
   const comments = STATIC_COMMENTS
@@ -109,7 +111,7 @@ export default function EditorPage() {
           <span>·</span>
           <span>Block 028</span>
           <span>·</span>
-          <span>Folge 4512</span>
+          <span>{t('episode')} 4512</span>
           <span>·</span>
           <span>SZ 7</span>
         </div>
@@ -153,7 +155,7 @@ export default function EditorPage() {
               <EdMenuBtn icon={<Clock size={13} />} label="Historie" active={showHistory && activeTab === 'history'} onClick={() => { setShowHistory(true); setActiveTab('history'); setShowMenu(false) }} />
               <EdMenuBtn icon={<MessageSquare size={13} />} label="Kommentare" active={showHistory && activeTab === 'comments'} onClick={() => { setShowHistory(true); setActiveTab('comments'); setShowMenu(false) }} />
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-              <EdMenuBtn icon={<Lock size={13} />} label="Szene locken" onClick={() => setShowMenu(false)} />
+              <EdMenuBtn icon={<Lock size={13} />} label={`${t('szene')} locken`} onClick={() => setShowMenu(false)} />
               <EdMenuBtn icon={<FileDown size={13} />} label="PDF exportieren" onClick={() => setShowMenu(false)} />
             </div>
           </>
@@ -220,7 +222,7 @@ export default function EditorPage() {
                 border: '1px solid var(--border)', borderRadius: 6,
                 font: 'inherit', fontSize: 11, background: 'var(--input-bg)', color: 'var(--text-primary)',
                 outline: 'none',
-              }} placeholder="Szene suchen…" />
+              }} placeholder={`${t('szene')} suchen…`} />
             </div>
           </div>
           <div style={{ overflow: 'auto', flex: 1 }}>
@@ -364,7 +366,7 @@ export default function EditorPage() {
 
       {/* Status bar */}
       <div className="ed-status">
-        <span>SZ 7 · Folge 4512</span>
+        <span>SZ 7 · {t('episode')} 4512</span>
         <span>|</span>
         <span>{STATIC_TEXTELEMENTE.length} Textelemente</span>
         <span>|</span>

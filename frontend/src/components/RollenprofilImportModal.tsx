@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Upload, X, ChevronRight, Check, AlertCircle, FileText, Loader, ChevronDown, ChevronUp, Minus } from 'lucide-react'
+import { useTerminologie } from '../sw-ui'
 
 function AutoResizeTextarea({ value, onChange, style }: {
   value: string
@@ -112,6 +113,7 @@ let idCounter = 0
 function nextId() { return String(++idCounter) }
 
 export default function RollenprofilImportModal({ produktionId, onClose, onSuccess }: Props) {
+  const { t } = useTerminologie()
   const [step, setStep] = useState<'upload' | 'review' | 'done'>('upload')
   const [dragging, setDragging] = useState(false)
   const [files, setFiles] = useState<FileItem[]>([])
@@ -432,7 +434,7 @@ export default function RollenprofilImportModal({ produktionId, onClose, onSucce
                         return (
                           <div key={key} style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: 8, alignItems: 'start' }}>
                             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', paddingTop: 8 }}>
-                              {FIELD_LABELS[key] || key}
+                              {key === 'staffel' ? t('staffel') : key === 'folgen_range' ? `${t('episode', 'c')}bereich` : FIELD_LABELS[key] || key}
                               {key === 'name' && <span style={{ color: '#FF3B30' }}> *</span>}
                             </label>
                             <AutoResizeTextarea

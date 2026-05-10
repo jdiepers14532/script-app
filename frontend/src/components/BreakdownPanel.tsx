@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Plus, X, Search, Users } from 'lucide-react'
 import { api } from '../api/client'
+import { useTerminologie } from '../sw-ui'
 
 interface BreakdownPanelProps {
   szeneId?: number | string | null
@@ -9,6 +10,7 @@ interface BreakdownPanelProps {
 }
 
 export default function BreakdownPanel({ szeneId, produktionId, sceneIdentityId }: BreakdownPanelProps) {
+  const { t } = useTerminologie()
   const [sceneChars, setSceneChars] = useState<any[]>([])
   const [allChars, setAllChars] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -175,7 +177,7 @@ export default function BreakdownPanel({ szeneId, produktionId, sceneIdentityId 
             )}
             {komparsen.length > 0 && (
               <>
-                <div className="bd-group-label">Komparsen</div>
+                <div className="bd-group-label">{t('komparse', 'p')}</div>
                 {komparsen.map(c => (
                   <div className="bd-char-row" key={c.character_id}>
                     <span className="bd-char-name">{c.name}</span>

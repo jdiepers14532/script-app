@@ -4,6 +4,7 @@ import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 
 interface SceneEditorProps {
   szeneId: number | string
@@ -49,6 +50,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const { treatmentLabel } = useAppSettings()
   const { scrollNavDelay } = useUserPrefs()
   const { tweaks } = useTweaks()
+  const { t } = useTerminologie()
   const compact = compactProp ?? tweaks.sceneHeaderCompact
   const [scene, setScene] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
@@ -477,7 +479,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   if (error || !scene) {
     return (
       <div className="detail" style={{ padding: 32, color: 'var(--sw-danger)', fontSize: 13 }}>
-        {error ?? 'Szene nicht gefunden'}
+        {error ?? `${t('szene')} nicht gefunden`}
       </div>
     )
   }
@@ -576,7 +578,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   const parent = curMotiv?.parent_id ? allMotive.find(m => m.id === curMotiv.parent_id) : curMotiv
                   return parent ? motivDisplayLabel(parent) : (scene.ort_name ?? '')
                 })())}
-                placeholder="Motiv…"
+                placeholder={`${t('motiv')}…`}
                 onChange={e => { setMotivSearch(e.target.value); if (!motivDropdownOpen) setMotivDropdownOpen(true) }}
                 onFocus={() => { setMotivDropdownOpen(true); setMotivSearch('') }}
                 onBlur={() => {
@@ -597,7 +599,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       </div>
                     ))}
                   {parentMotive.filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase())).length === 0 && (
-                    <div className="sf-dropdown-empty">Kein Motiv gefunden</div>
+                    <div className="sf-dropdown-empty">Kein {t('motiv')} gefunden</div>
                   )}
                 </div>
               )}
@@ -830,7 +832,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                         </div>
                       ))}
                     {komparseCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase())).length === 0 && (
-                      <div className="sf-dropdown-empty">Keine Komparsen verfügbar</div>
+                      <div className="sf-dropdown-empty">Keine {t('komparse', 'p')} verfügbar</div>
                     )}
                   </div>
                 )}
@@ -843,7 +845,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               key={`sinfo-${szeneId}`}
               className="sf-input sf-input-info"
               defaultValue={scene.szeneninfo ?? ''}
-              placeholder="Szeneninfo…"
+              placeholder={`${t('szene','c')}info…`}
               style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic' }}
               onBlur={e => {
                 const val = e.target.value.trim() || null
