@@ -737,6 +737,13 @@ function parseSubSceneHeader(
     i++
   }
 
+  // Mistral OCR: characters can appear AFTER I/E (reversed from pdftotext order)
+  i = skipBlanks(lines, i)
+  if (charaktere.length === 0 && i < endIdx && isCharacterLine(lines[i])) {
+    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    i++
+  }
+
   // Zusammenfassung
   const parts: string[] = []
   while (i < endIdx) {
@@ -1036,26 +1043,14 @@ export function parseRoteRosen(rawText: string, ocrMode = false): ImportResult {
     const header = parseSceneHeader(lines, i)
     if (!header) { i++; continue }
 
-    // Find end of this scene's entire block (next scene number not consumed
-    // by the crosscut duration table or referenced by Wechselschnitt markers, or EOF)
+    // Find end of this scene's block using a 2-phase approach:
+    // Phase 1: Find initial blockEnd using only the crosscut duration table (pdftotext format).
+    //          For non-crosscut scenes, this stops at the very next scene number.
+    // Phase 2: Check for Wechselschnitt markers within that initial block (Mistral OCR format).
+    //          If found, expand blockEnd to include partner scenes and re-scan.
     const crosscutPartnerNrs = new Set(header.crosscutDurationEntries.keys())
 
-    // Also collect scene numbers referenced by "Wechselschnitt mit Bild NNNN.X" markers
-    // (needed for Mistral OCR where the duration table may not be detected)
-    for (let j = header.headerEndIdx; j < lines.length; j++) {
-      const wsM = WECHSELSCHNITT_RE.exec(lines[j]?.trim() || '')
-      if (wsM) {
-        const refNr = parseInt(wsM[2], 10)
-        crosscutPartnerNrs.add(refNr)
-      }
-      // Stop scanning at next scene that's clearly a new scene (not a partner)
-      const scM = SCENE_NUM_RE.exec(lines[j]?.trim() || '')
-      if (scM && j > header.headerEndIdx + 5) {
-        const nr = parseInt(scM[2], 10)
-        if (nr !== header.sceneNr && !crosscutPartnerNrs.has(nr)) break
-      }
-    }
-
+    // Phase 1: initial blockEnd (only partners from duration table, if any)
     let blockEnd = lines.length
     for (let j = header.headerEndIdx; j < lines.length; j++) {
       const lineJ = lines[j]?.trim() || ''
@@ -1066,6 +1061,34 @@ export function parseRoteRosen(rawText: string, ocrMode = false): ImportResult {
           blockEnd = j
           break
         }
+      }
+    }
+
+    // Phase 2: scan for Wechselschnitt markers ONLY within current block
+    // (prevents non-crosscut scenes from absorbing later crosscut blocks)
+    for (let j = header.headerEndIdx; j < blockEnd; j++) {
+      const wsM = WECHSELSCHNITT_RE.exec(lines[j]?.trim() || '')
+      if (wsM) {
+        crosscutPartnerNrs.add(parseInt(wsM[2], 10))
+      }
+    }
+
+    // Phase 3: if new partners were found via markers, expand blockEnd
+    if (crosscutPartnerNrs.size > header.crosscutDurationEntries.size) {
+      blockEnd = lines.length
+      for (let j = header.headerEndIdx; j < lines.length; j++) {
+        const lineJ = lines[j]?.trim() || ''
+        const scM = SCENE_NUM_RE.exec(lineJ)
+        if (scM) {
+          const nr = parseInt(scM[2], 10)
+          if (!crosscutPartnerNrs.has(nr)) {
+            blockEnd = j
+            break
+          }
+        }
+        // Also check for additional markers in expanded area
+        const wsM = WECHSELSCHNITT_RE.exec(lineJ)
+        if (wsM) crosscutPartnerNrs.add(parseInt(wsM[2], 10))
       }
     }
 
