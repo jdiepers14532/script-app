@@ -80,6 +80,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [charSearchKomparse, setCharSearchKomparse] = useState('')
   const [charDropdownRolle, setCharDropdownRolle] = useState(false)
   const [charDropdownKomparse, setCharDropdownKomparse] = useState(false)
+  const [sceneStraenge, setSceneStraenge] = useState<any[]>([])
+  const [allStraenge, setAllStraenge] = useState<any[]>([])
+  const [strangDropdownOpen, setStrangDropdownOpen] = useState(false)
+  const strangDropdownRef = useRef<HTMLDivElement | null>(null)
   const motivDropdownRef = useRef<HTMLDivElement | null>(null)
   const untermotivDropdownRef = useRef<HTMLDivElement | null>(null)
   const rolleDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -179,7 +183,14 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     api.getMotive(produktionId).then(setAllMotive).catch(() => setAllMotive([]))
     api.getCharacters(produktionId).then(setAllCharacters).catch(() => setAllCharacters([]))
     api.getCharKategorien(produktionId).then(setCharKategorien).catch(() => setCharKategorien([]))
+    api.getStraenge(produktionId).then(setAllStraenge).catch(() => setAllStraenge([]))
   }, [produktionId])
+
+  // Load scene strands
+  useEffect(() => {
+    if (!szeneId) { setSceneStraenge([]); return }
+    api.getSzeneStaenge(String(szeneId)).then(setSceneStraenge).catch(() => setSceneStraenge([]))
+  }, [szeneId])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -188,6 +199,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       if (untermotivDropdownRef.current && !untermotivDropdownRef.current.contains(e.target as Node)) setUntermotivDropdownOpen(false)
       if (rolleDropdownRef.current && !rolleDropdownRef.current.contains(e.target as Node)) setCharDropdownRolle(false)
       if (komparseDropdownRef.current && !komparseDropdownRef.current.contains(e.target as Node)) setCharDropdownKomparse(false)
+      if (strangDropdownRef.current && !strangDropdownRef.current.contains(e.target as Node)) setStrangDropdownOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -833,6 +845,48 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       ))}
                     {komparseCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase())).length === 0 && (
                       <div className="sf-dropdown-empty">Keine {t('komparse', 'p')} verfügbar</div>
+                    )}
+                  </div>
+                )}
+              </span>
+            </span>
+          </div>
+          {/* Strang chips */}
+          <div className="sf-row sf-chars">
+            <span className="sf-tag">S·</span>
+            <span className="sf-charlist">
+              {sceneStraenge.map((s: any) => (
+                <span key={s.strang_id} className="sf-char-chip" style={{ borderLeft: `3px solid ${s.farbe || '#888'}` }}>
+                  {s.strang_name}
+                  <button className="sf-char-remove" title="Entfernen" onClick={() => {
+                    api.removeSzeneStrang(String(szeneId), s.strang_id).then(() => {
+                      setSceneStraenge(prev => prev.filter(x => x.strang_id !== s.strang_id))
+                    }).catch(() => {})
+                  }}><X size={9} /></button>
+                </span>
+              ))}
+              <span className="sf-char-add-wrap" ref={strangDropdownRef}>
+                <button className="sf-char-search" style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }} onClick={() => setStrangDropdownOpen(v => !v)}>+</button>
+                {strangDropdownOpen && (
+                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(strangDropdownRef)}>
+                    {allStraenge
+                      .filter(st => st.status === 'aktiv')
+                      .filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id))
+                      .map(st => (
+                        <div key={st.id} className="sf-dropdown-item"
+                          onMouseDown={e => {
+                            e.preventDefault()
+                            api.addSzeneStrang(String(szeneId), st.id).then(() => {
+                              setSceneStraenge(prev => [...prev, { strang_id: st.id, strang_name: st.name, farbe: st.farbe }])
+                              setStrangDropdownOpen(false)
+                            }).catch(() => {})
+                          }}>
+                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: st.farbe, marginRight: 6 }} />
+                          {st.name}
+                        </div>
+                      ))}
+                    {allStraenge.filter(st => st.status === 'aktiv').filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id)).length === 0 && (
+                      <div className="sf-dropdown-empty">Keine Str\u00e4nge verf\u00fcgbar</div>
                     )}
                   </div>
                 )}

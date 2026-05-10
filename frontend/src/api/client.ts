@@ -596,6 +596,53 @@ export const api = {
     }>('GET', `/search?${qs.toString()}`)
   },
 
+  // ── Straenge (Story-Arcs) ──────────────────────────────────────────────────
+  getStraenge: (produktionId: string) =>
+    request<any[]>('GET', `/straenge?produktion_id=${encodeURIComponent(produktionId)}`),
+  createStrang: (data: any) =>
+    request<any>('POST', '/straenge', data),
+  updateStrang: (id: string, data: any) =>
+    request<any>('PUT', `/straenge/${id}`, data),
+  deleteStrang: (id: string) =>
+    request<any>('DELETE', `/straenge/${id}`),
+  getStrangCharaktere: (id: string) =>
+    request<any[]>('GET', `/straenge/${id}/charaktere`),
+  addStrangCharakter: (id: string, data: { character_id: string; rolle?: string }) =>
+    request<any>('POST', `/straenge/${id}/charaktere`, data),
+  removeStrangCharakter: (id: string, characterId: string) =>
+    request<any>('DELETE', `/straenge/${id}/charaktere/${characterId}`),
+  getStrangBeats: (id: string, ebene?: string) =>
+    request<any[]>('GET', `/straenge/${id}/beats${ebene ? `?ebene=${ebene}` : ''}`),
+  createStrangBeat: (id: string, data: any) =>
+    request<any>('POST', `/straenge/${id}/beats`, data),
+  updateStrangBeat: (beatId: string, data: any) =>
+    request<any>('PUT', `/straenge/beats/${beatId}`, data),
+  deleteStrangBeat: (beatId: string) =>
+    request<any>('DELETE', `/straenge/beats/${beatId}`),
+  toggleStrangBeatAbgearbeitet: (beatId: string) =>
+    request<any>('PUT', `/straenge/beats/${beatId}/abgearbeitet`),
+  getSzeneStaenge: (dokumentSzeneId: string) =>
+    request<any[]>('GET', `/straenge/szene/${dokumentSzeneId}`),
+  addSzeneStrang: (dokumentSzeneId: string, strangId: string) =>
+    request<any>('POST', `/straenge/szene/${dokumentSzeneId}`, { strang_id: strangId }),
+  removeSzeneStrang: (dokumentSzeneId: string, strangId: string) =>
+    request<any>('DELETE', `/straenge/szene/${dokumentSzeneId}/${strangId}`),
+  bulkAddSzeneStrang: (dokSzeneIds: string[], strangId: string) =>
+    request<any>('POST', '/straenge/bulk-szenen', { dokument_szene_ids: dokSzeneIds, strang_id: strangId }),
+  bulkRemoveSzeneStrang: (dokSzeneIds: string[], strangId: string) =>
+    request<any>('POST', '/straenge/bulk-szenen/entfernen', { dokument_szene_ids: dokSzeneIds, strang_id: strangId }),
+  createPlatzhalterSzenen: (data: { werkstufe_id: string; anzahl: number; strang_id?: string }) =>
+    request<any>('POST', '/straenge/platzhalter-szenen', data),
+  getWerkstufeStraenge: (werkId: string) =>
+    request<Record<string, any[]>>('GET', `/straenge/werkstufe/${werkId}`),
+  getStrangRadar: (produktionId: string, folgeId?: number) => {
+    const p = new URLSearchParams({ produktion_id: produktionId })
+    if (folgeId) p.set('folge_id', String(folgeId))
+    return request<any[]>('GET', `/straenge/radar?${p}`)
+  },
+  getStrangPacing: (produktionId: string) =>
+    request<{ warnungen: any[] }>('GET', `/straenge/pacing?produktion_id=${encodeURIComponent(produktionId)}`),
+
   replace: (params: {
     query: string
     replacement: string

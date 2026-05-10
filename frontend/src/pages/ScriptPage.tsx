@@ -631,6 +631,7 @@ export default function ScriptPage() {
               onSzenesReordered={setSzenen}
               commentCounts={commentCounts}
               onOpenStatistik={() => setShowStatModal(true)}
+              werkstufId={selectedStageId ? String(selectedStageId) : null}
             />
           </div>
         )}

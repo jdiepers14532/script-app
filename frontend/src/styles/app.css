@@ -284,6 +284,10 @@
 .scenes[data-colormode='subtle'] .row .env-stripe { background: var(--stripe, transparent); }
 .scenes[data-colormode='subtle'] .row.active .env-stripe { display:none; }
 .scenes[data-colormode='off'] .row .env-stripe { display:none; }
+/* Strang color stripes */
+.scenes .row .strang-stripes { position:absolute; left:0; top:0; bottom:0; display:flex; gap:1px; pointer-events:none; z-index:1; }
+.scenes .row .strang-stripe { position:absolute; top:0; bottom:0; width:3px; }
+.scenes .row.active .strang-stripes { display:none; }
 .scenes .lock-ico { color: var(--sw-warning-alt); }
 .scenes .lock-ico.contract { color: var(--sw-green); }
 .scenes .shot-ico { color: var(--sw-green); }

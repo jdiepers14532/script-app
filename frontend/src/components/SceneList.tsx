@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle } from 'lucide-react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, CheckSquare, Square } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { useAppSettings, useTweaks } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
+import StrangVerwaltungModal from './StrangVerwaltungModal'
+import PlatzhalterSzenenDialog from './PlatzhalterSzenenDialog'
 
 interface SceneListProps {
   szenen: any[]
@@ -19,6 +21,8 @@ interface SceneListProps {
   onSzenesReordered?: (scenes: any[]) => void
   commentCounts?: Record<number, number>
   onOpenStatistik?: () => void
+  werkstufId?: string | null
+  allCharacters?: any[]
 }
 
 export default function SceneList({
@@ -34,6 +38,8 @@ export default function SceneList({
   onSzenesReordered,
   commentCounts,
   onOpenStatistik,
+  werkstufId,
+  allCharacters,
 }: SceneListProps) {
   const { sceneKuerzel } = useAppSettings()
   const { tweaks } = useTweaks()
@@ -48,7 +54,15 @@ export default function SceneList({
   const [renumbering, setRenumbering] = useState(false)
   const [nurSzenen, setNurSzenen] = useState(true)
   const [colorOff, setColorOff] = useState(false)
-  const effectiveColorMode = colorOff ? 'off' as const : colorMode
+  const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
+  const [strangModalOpen, setStrangModalOpen] = useState(false)
+  const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
+  const [multiSelectMode, setMultiSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkStrangDropdown, setBulkStrangDropdown] = useState(false)
+  const [straenge, setStraenge] = useState<any[]>([])
+  const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
+  const effectiveColorMode = farbModus === 'aus' || colorOff ? 'off' as const : colorMode
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -62,6 +76,46 @@ export default function SceneList({
       .then(setLock)
       .catch(() => setLock(null))
   }, [produktionId, folgeNummer])
+
+  // Load strang data for color stripes
+  useEffect(() => {
+    if (!produktionId) return
+    api.getStraenge(produktionId).then(setStraenge).catch(() => {})
+  }, [produktionId, strangModalOpen])
+
+  useEffect(() => {
+    if (!werkstufId || farbModus !== 'strang') { setWerkstufeStraenge({}); return }
+    api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
+  }, [werkstufId, farbModus, strangModalOpen])
+
+  const handleBulkAssign = async (strangId: string) => {
+    if (selectedIds.size === 0) return
+    try {
+      await api.bulkAddSzeneStrang(Array.from(selectedIds), strangId)
+      setMultiSelectMode(false)
+      setSelectedIds(new Set())
+      setBulkStrangDropdown(false)
+      if (werkstufId) api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
+    } catch (e) { console.error(e) }
+  }
+
+  const handleBulkRemove = async (strangId: string) => {
+    if (selectedIds.size === 0) return
+    try {
+      await api.bulkRemoveSzeneStrang(Array.from(selectedIds), strangId)
+      setMultiSelectMode(false)
+      setSelectedIds(new Set())
+      if (werkstufId) api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
+    } catch (e) { console.error(e) }
+  }
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
 
   const sorted = [...szenen].sort((a, b) => {
     const so = (a.sort_order ?? 0) - (b.sort_order ?? 0)
@@ -292,13 +346,15 @@ export default function SceneList({
             <MoreVertical size={13} />
           </button>
           {headerMenuOpen && (
-            <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 160 }}>
-              <button
-                className="scene-ctx-item"
-                onClick={() => { setColorOff(v => !v); setHeaderMenuOpen(false) }}
-              >
-                {colorOff ? 'Einfärbung einblenden' : 'Einfärbung ausblenden'}
-              </button>
+            <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 180 }}>
+              {/* Farbe submenu */}
+              <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Farbe</div>
+              {([['licht', 'Lichtstimmung'], ['strang', 'Strang'], ['aus', 'Aus']] as const).map(([val, label]) => (
+                <button key={val} className="scene-ctx-item" onClick={() => { setFarbModus(val); setColorOff(val === 'aus'); setHeaderMenuOpen(false) }}>
+                  <span style={{ display: 'inline-block', width: 14, textAlign: 'center', marginRight: 4 }}>{farbModus === val ? '\u2022' : ''}</span>{label}
+                </button>
+              ))}
+              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               <button
                 className="scene-ctx-item"
                 onClick={() => { setNurSzenen(v => !v); setHeaderMenuOpen(false) }}
@@ -307,16 +363,36 @@ export default function SceneList({
               </button>
               <button
                 className="scene-ctx-item"
+                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()); setHeaderMenuOpen(false) }}
+              >
+                {multiSelectMode ? 'Auswahl beenden' : 'Mehrere ausw\u00e4hlen'}
+              </button>
+              <button
+                className="scene-ctx-item"
                 onClick={handleRenumber}
                 disabled={renumbering}
               >
-                {renumbering ? 'Lädt…' : 'Neu nummerieren'}
+                {renumbering ? 'L\u00e4dt\u2026' : 'Neu nummerieren'}
               </button>
               <button
                 className="scene-ctx-item"
                 onClick={handleSaveTemplate}
               >
                 Als Template speichern
+              </button>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setStrangModalOpen(true); setHeaderMenuOpen(false) }}
+              >
+                Str\u00e4nge verwalten
+              </button>
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setPlatzhalterOpen(true); setHeaderMenuOpen(false) }}
+                disabled={!werkstufId}
+              >
+                Platzhalter-{t('szene', 'p')} anlegen
               </button>
               {onOpenStatistik && (
                 <>
@@ -381,7 +457,20 @@ export default function SceneList({
               style={{ ...rowStyle, position: 'relative', cursor: isDragActive ? 'grab' : 'pointer' }}
               onClick={() => !isMenuOpen && onSelectSzene(scene.id)}
             >
-              {scene.id !== selectedSzeneId && (effectiveColorMode === 'subtle' || effectiveColorMode === 'full') && (
+              {multiSelectMode && (
+                <div className="sl-checkbox" onClick={e => { e.stopPropagation(); toggleSelect(String(scene.id)) }} style={{ display: 'flex', alignItems: 'center', paddingLeft: 6, cursor: 'pointer' }}>
+                  {selectedIds.has(String(scene.id)) ? <CheckSquare size={14} style={{ color: 'var(--sw-green)' }} /> : <Square size={14} style={{ color: 'var(--text-muted)' }} />}
+                </div>
+              )}
+              {farbModus === 'strang' && werkstufeStraenge[scene.id] && werkstufeStraenge[scene.id].length > 0 && (
+                <div className="strang-stripes">
+                  {straenge.filter(st => st.status === 'aktiv').map((st, idx) => {
+                    const assigned = werkstufeStraenge[scene.id]?.some((a: any) => a.strang_id === st.id)
+                    return <div key={st.id} className="strang-stripe" style={{ background: assigned ? st.farbe : 'transparent', left: 4 + idx * 4 }} />
+                  })}
+                </div>
+              )}
+              {farbModus !== 'strang' && scene.id !== selectedSzeneId && (effectiveColorMode === 'subtle' || effectiveColorMode === 'full') && (
                 <div className="env-stripe" style={{ background: envColor.stripe }} />
               )}
               <div className="num">{scene.format !== 'notiz' ? sceneLabel : '·'}</div>
@@ -450,6 +539,54 @@ export default function SceneList({
           )
         })}
       </div>
+
+      {/* Bulk assign toolbar */}
+      {multiSelectMode && selectedIds.size > 0 && (
+        <div className="bulk-toolbar" style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <span style={{ fontWeight: 600 }}>{selectedIds.size} {t('szene', selectedIds.size > 1 ? 'p' : 's')}</span>
+          <div style={{ position: 'relative' }}>
+            <button className="btn-sm btn-primary" onClick={() => setBulkStrangDropdown(v => !v)}>Strang zuweisen</button>
+            {bulkStrangDropdown && (
+              <div className="scene-ctx-menu" style={{ bottom: '100%', left: 0, minWidth: 160 }}>
+                {straenge.filter(s => s.status === 'aktiv').map(s => (
+                  <button key={s.id} className="scene-ctx-item" onClick={() => handleBulkAssign(s.id)}>
+                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: s.farbe, marginRight: 6 }} />
+                    {s.name}
+                  </button>
+                ))}
+                <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                {straenge.filter(s => s.status === 'aktiv').map(s => (
+                  <button key={`rm-${s.id}`} className="scene-ctx-item danger" onClick={() => handleBulkRemove(s.id)}>
+                    Entferne: {s.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button className="btn-sm" onClick={() => { setMultiSelectMode(false); setSelectedIds(new Set()); setBulkStrangDropdown(false) }}>Abbrechen</button>
+        </div>
+      )}
+
+      {/* Modals */}
+      {produktionId && (
+        <StrangVerwaltungModal
+          produktionId={produktionId}
+          open={strangModalOpen}
+          onClose={() => setStrangModalOpen(false)}
+          allCharacters={allCharacters || []}
+        />
+      )}
+      {produktionId && werkstufId && (
+        <PlatzhalterSzenenDialog
+          werkstufId={werkstufId}
+          produktionId={produktionId}
+          open={platzhalterOpen}
+          onClose={() => setPlatzhalterOpen(false)}
+          onCreated={() => {
+            if (stageId) api.getWerkstufenSzenen(String(stageId)).then(s => onSzenesReordered?.(s)).catch(() => {})
+          }}
+        />
+      )}
     </div>
   )
 }
