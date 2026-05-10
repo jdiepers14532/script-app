@@ -52,22 +52,21 @@ function buildDecorations(doc: any): DecorationSet {
 
 export const LINE_NUMBER_CSS = `
 .ProseMirror.has-line-numbers {
-  padding-left: 44px !important;
+  padding-left: 52px !important;
 }
 .line-number-gutter {
   height: 0 !important;
   overflow: visible !important;
   position: relative !important;
-  z-index: 1;
   pointer-events: none;
   user-select: none;
 }
 .line-number-gutter::after {
   content: attr(data-ln);
   position: absolute;
-  right: 0;
+  left: -52px;
   bottom: 0;
-  width: 36px;
+  width: 28px;
   text-align: right;
   font-family: 'Courier Prime', 'Courier New', monospace;
   font-size: 10px;
