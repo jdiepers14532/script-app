@@ -678,20 +678,21 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       }
 
       const pl = calcPageLength(pmNodes)
+      const sondertyp = isWechselschnitt ? 'wechselschnitt' : null
       await queryOne(
         `INSERT INTO dokument_szenen
            (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
             int_ext, tageszeit, ort_name, zusammenfassung, content,
             spieltag, stoppzeit_sek, is_wechselschnitt, szeneninfo,
-            format, geloescht, updated_by, page_length)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15, $16)`,
+            format, geloescht, updated_by, page_length, sondertyp)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15, $16, $17)`,
         [
           werkstufe.id, identity.id, idx, szene.nummer,
           intExt, tageszeit, ortName || null,
           zusammenfassung || null, JSON.stringify(pmNodes),
           spieltag || null, stoppzeitSek, isWechselschnitt,
           szeneninfo || null, sceneFormat, req.user!.name || req.user!.user_id,
-          pl,
+          pl, sondertyp,
         ]
       )
       sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
