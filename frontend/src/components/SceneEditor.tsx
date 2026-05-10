@@ -130,6 +130,12 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [sceneStraenge, setSceneStraenge] = useState<any[]>([])
   const [allStraenge, setAllStraenge] = useState<any[]>([])
   const [strangDropdownOpen, setStrangDropdownOpen] = useState(false)
+  const [wsPartner, setWsPartner] = useState<any[]>([])
+  const [wsBeteiligt, setWsBeteiligt] = useState<any[]>([])
+  const [allSceneIdentities, setAllSceneIdentities] = useState<any[]>([])
+  const [wsDropdownOpen, setWsDropdownOpen] = useState(false)
+  const [wsSearch, setWsSearch] = useState('')
+  const wsDropdownRef = useRef<HTMLDivElement | null>(null)
   const strangDropdownRef = useRef<HTMLDivElement | null>(null)
   const motivDropdownRef = useRef<HTMLDivElement | null>(null)
   const untermotivDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -390,6 +396,13 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               setRevisionColor(colorDelta?.revision_color ?? null)
             })
             .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
+          // Sondertyp: load wechselschnitt partner + beteiligt
+          if (data?.id) {
+            api.getWechselschnittPartner(data.id).then(setWsPartner).catch(() => setWsPartner([]))
+          }
+          if (data?.id) {
+            api.getWechselschnittBeteiligt(data.id).then(setWsBeteiligt).catch(() => setWsBeteiligt([]))
+          }
         }
       })
       .catch(e => setError(e.message))
@@ -825,6 +838,124 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               }}
             />
           </div>
+          {/* Sondertyp — Wechselschnitt / Stockshot / Flashback */}
+          {scene.sondertyp && (
+            <div className="sf-row" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <select
+                className="sf-input"
+                value={scene.sondertyp ?? ''}
+                style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
+                onChange={e => {
+                  const val = e.target.value || null
+                  saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }}
+              >
+                <option value="">Normal</option>
+                <option value="wechselschnitt">Wechselschnitt</option>
+                <option value="stockshot">{t('stockshot')}</option>
+                <option value="flashback">{t('flashback')}</option>
+              </select>
+
+              {/* Wechselschnitt: show partner badges */}
+              {scene.sondertyp === 'wechselschnitt' && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                  <span style={{ fontWeight: 500 }}>Partner:</span>
+                  {wsPartner.length === 0 && <span style={{ fontStyle: 'italic' }}>keine</span>}
+                  {wsPartner.map((p: any) => (
+                    <span key={p.id} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                      background: '#007AFF18', border: '1px solid #007AFF44', borderRadius: 4,
+                      padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#007AFF',
+                    }}>
+                      Sz. {p.partner_scene_nummer ?? '?'}
+                      <button
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#007AFF', fontSize: 10 }}
+                        onClick={() => {
+                          const next = wsPartner.filter((pp: any) => pp.id !== p.id)
+                          api.setWechselschnittPartner(scene.id, next.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i }))).then(setWsPartner).catch(() => {})
+                        }}
+                      >×</button>
+                    </span>
+                  ))}
+                </span>
+              )}
+
+              {/* Stockshot: show kategorie + neu_drehen */}
+              {scene.sondertyp === 'stockshot' && (
+                <>
+                  <select
+                    className="sf-input"
+                    value={scene.stockshot_kategorie ?? ''}
+                    style={{ width: 'auto', maxWidth: 150, fontSize: 11 }}
+                    onChange={e => {
+                      const val = e.target.value || null
+                      saveScene({ stockshot_kategorie: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                    }}
+                  >
+                    <option value="">Kategorie…</option>
+                    <option value="ortswechsel">Ortswechsel</option>
+                    <option value="zeit_vergeht">Zeit vergeht</option>
+                    <option value="stimmungswechsel">Stimmungswechsel</option>
+                  </select>
+                  {scene.stockshot_kategorie === 'stimmungswechsel' && (
+                    <input
+                      className="sf-input"
+                      defaultValue={scene.stockshot_stimmung ?? ''}
+                      placeholder="Stimmung…"
+                      style={{ width: 100, fontSize: 11 }}
+                      onBlur={e => {
+                        const val = e.target.value.trim() || null
+                        saveScene({ stockshot_stimmung: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                      }}
+                    />
+                  )}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: scene.stockshot_neu_drehen ? '#FF3B30' : 'var(--text-muted)', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={scene.stockshot_neu_drehen ?? false}
+                      onChange={e => {
+                        saveScene({ stockshot_neu_drehen: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                      }}
+                      style={{ accentColor: '#FF3B30' }}
+                    />
+                    Neu zu drehen
+                  </label>
+                </>
+              )}
+
+              {/* Flashback: show reference */}
+              {scene.sondertyp === 'flashback' && scene.flashback_referenz_id && (
+                <span style={{ fontSize: 11, color: '#AF52DE', fontWeight: 500 }}>
+                  → Referenz: {scene.flashback_referenz_scene_nummer ? `Sz. ${scene.flashback_referenz_scene_nummer}` : scene.flashback_referenz_id.slice(0, 8)}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Wechselschnitt beteiligt (read-only, shown on partner scenes) */}
+          {!scene.sondertyp && wsBeteiligt.length > 0 && (
+            <div className="sf-row" style={{ fontSize: 11, color: '#007AFF', fontStyle: 'italic' }}>
+              ⇄ Beteiligt an Wechselschnitt (Sz. {wsBeteiligt.map((b: any) => b.scene_nummer ?? '?').join(', ')})
+            </div>
+          )}
+
+          {/* Sondertyp toggle — show button to set sondertyp when none is set */}
+          {!scene.sondertyp && wsBeteiligt.length === 0 && (
+            <div className="sf-row">
+              <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
+                <button
+                  className="btn ghost"
+                  style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)' }}
+                  onClick={() => {
+                    saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  }}
+                >
+                  🎭 Sondertyp
+                </button>
+              </Tooltip>
+            </div>
+          )}
+
           {/* Rollen — editable with autocomplete, only rolle characters */}
           <div className="sf-row sf-chars">
             <span className="sf-tag">R·</span>

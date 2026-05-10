@@ -659,8 +659,8 @@ export const api = {
     request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-partner`),
   setWechselschnittPartner: (szeneId: string, partners: { partner_identity_id: string; position: number }[]) =>
     request<any[]>('PUT', `/dokument-szenen/${szeneId}/wechselschnitt-partner`, { partners }),
-  getWechselschnittBeteiligt: (sceneIdentityId: string) =>
-    request<any[]>('GET', `/dokument-szenen/wechselschnitt-beteiligt/${sceneIdentityId}`),
+  getWechselschnittBeteiligt: (szeneId: string) =>
+    request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-beteiligt`),
 
   // ── Sonderszenen: Stockshot-Archiv ──
   getStockshotArchiv: (produktionId: string) =>
