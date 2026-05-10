@@ -91,16 +91,50 @@ function preprocessMistralOcr(text: string): string {
     // Strip Markdown horizontal rules
     if (/^[-*_]{3,}\s*$/.test(line.trim())) continue
 
-    // Strip leading line numbers from OCR (e.g. "5  Lou und Daniel..." or "10 gerade als...")
-    // Pattern: 1-2 digit number at start of line followed by 2+ spaces, then text content
-    // But NOT scene numbers (4402.1), durations (1:33), or footer pages (5 von 33)
-    line = line.replace(/^(\d{1,2})\s{2,}(?!von\s|\d{4}\.)/, '')
+    // Strip Markdown table rows (cover page metadata)
+    if (/^\|.*\|$/.test(line.trim())) continue
 
-    // Strip inline margin numbers (OCR reads them between words)
-    // Same as pdftotext but more aggressive: any 1-2 digit number between text
-    line = line.replace(/([a-zA-ZäöüÄÖÜß.,;:!?)])\s+(\d{1,2})\s+([a-zA-ZäöüÄÖÜß(])/g, '$1 $3')
+    // ── Mistral-specific line splitting ──
+    // Mistral OCR often puts multiple fields on a single line that pdftotext
+    // would output on separate lines.
 
-    result.push(line)
+    // A) Duration + "Wechselschnitt/Bild aus Block/Bitte...Memo" on same line:
+    //    "1:52 Wechselschnitt mit Bild 4402.9" → "1:52\nWechselschnitt mit Bild 4402.9"
+    line = line.replace(/^(\d{1,2}:\d{2})\s+(Wechselschnitt|Bild aus Block|Bitte|Komparsen)/m, '$1\n$2')
+
+    // B) Scene number with location + I/T on same line:
+    //    "4402.9 Stu. 02 / Wohngemeinschaft I/T4" → "4402.9\nStu. 02 / Wohngemeinschaft\nI/T4"
+    //    Must run before generic scene+location split
+    line = line.replace(
+      /^(\d{4}\.\d{1,3})\s+((?:Stu\.|Außendreh).*?)\s+([IE]\/[TNAD]\d+)\s*$/m,
+      '$1\n$2\n$3'
+    )
+
+    // C) Scene number + location on same line (without I/T):
+    //    "4402.8 Außendreh / A. D. Pferdehof" → "4402.8\nAußendreh / A. D. Pferdehof"
+    //    Only split when text after scene number starts with location keyword
+    line = line.replace(
+      /^(\d{4}\.\d{1,3})\s+((?:Stu\.|Außendreh|Studio)\s.+)$/m,
+      '$1\n$2'
+    )
+
+    // Split any newlines introduced above
+    const sublines = line.split('\n')
+
+    for (let sub of sublines) {
+      // Strip leading line numbers from OCR (e.g. "5 auszuschließen..." or "35 WG:")
+      // Mistral OCR puts margin line numbers (1-99) at the start of lines with 1+ spaces.
+      // Exclude: "5 von 33" (page footer), scene numbers (4402.1), durations (1:33),
+      //          and standalone numbers (no text following).
+      // The number must be followed by a letter (a-z, A-Z, Ä-Ü) to be a line number.
+      sub = sub.replace(/^(\d{1,2})\s+(?!von\s|\d{4}\.|$)([a-zA-ZäöüÄÖÜß(])/, '$2')
+
+      // Strip inline margin numbers (OCR reads them between words)
+      // Same as pdftotext but more aggressive: any 1-2 digit number between text
+      sub = sub.replace(/([a-zA-ZäöüÄÖÜß.,;:!?)])\s+(\d{1,2})\s+([a-zA-ZäöüÄÖÜß(])/g, '$1 $3')
+
+      result.push(sub)
+    }
   }
 
   return result.join('\n')
@@ -133,8 +167,8 @@ function preprocessPdfText(text: string): string {
     // 4. Duration dedup: "1:331:33" → "1:33" (pdf-parse)
     l = l.replace(/(\d{1,2}:\d{2})\1/g, '$1')
 
-    // 5. Duration + trailing content: "1:33Bild aus Block..." (pdf-parse)
-    l = l.replace(/^(\d{1,2}:\d{2})((?:Bild aus Block|Wechselschnitt|Komparsen).*)$/m, '$1\n$2')
+    // 5. Duration + trailing content: "1:33Bild aus Block..." (pdf-parse) or "1:52 Wechselschnitt..." (OCR)
+    l = l.replace(/^(\d{1,2}:\d{2})\s*((?:Bild aus Block|Wechselschnitt|Komparsen).*)$/m, '$1\n$2')
 
     // 6. Dialog number dedup: "1. 1. DANIELDANIEL" → "1. DANIEL" (pdf-parse)
     l = l.replace(/^(\d+\.\s+)\1(.+)\2$/m, '$1$2')
