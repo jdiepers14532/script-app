@@ -24,6 +24,8 @@ const DK_TABS = [
   { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
+  { id: 'vorlagen',               label: 'Vorlagen' },
+  { id: 'ki-einstellungen',       label: 'KI-Einstellungen' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -2028,6 +2030,10 @@ export default function DrehbuchkoordinationPage() {
           : <NoProduction />
       case 'daily-regeln':
         return produktionId ? <DailyRegelnTab productionId={produktionId} /> : <NoProduction />
+      case 'vorlagen':
+        return produktionId ? <VorlagenTab productionId={produktionId} /> : <NoProduction />
+      case 'ki-einstellungen':
+        return produktionId ? <KiEinstellungenTab /> : <NoProduction />
       default:
         return <Placeholder label={activeTab} />
     }
@@ -2422,6 +2428,312 @@ function Placeholder({ label }: { label: string }) {
     <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
       <strong>{label}</strong>
       <p style={{ marginTop: 8 }}>Noch in Entwicklung.</p>
+    </div>
+  )
+}
+
+// ── Vorlagen Tab ────────────────────────────────────────────────────────────────
+
+const VORLAGE_TYPES = [
+  { id: 'titelseite', label: 'Titelseite' },
+  { id: 'synopsis', label: 'Synopsis' },
+  { id: 'recap', label: 'Recap' },
+  { id: 'precap', label: 'Precap' },
+  { id: 'custom', label: 'Benutzerdefiniert' },
+]
+
+const META_PLACEHOLDERS = [
+  { key: '{{autor}}', label: 'Autor' },
+  { key: '{{block}}', label: 'Block' },
+  { key: '{{folge}}', label: 'Folge' },
+  { key: '{{folgentitel}}', label: 'Folgentitel' },
+  { key: '{{staffel}}', label: 'Staffel' },
+  { key: '{{produktion}}', label: 'Produktion' },
+  { key: '{{datum}}', label: 'Datum' },
+  { key: '{{fassung}}', label: 'Fassung' },
+  { key: '{{version}}', label: 'Version' },
+]
+
+function VorlagenTab({ productionId }: { productionId: string }) {
+  const [vorlagen, setVorlagen] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editTyp, setEditTyp] = useState('custom')
+  const [editSektionen, setEditSektionen] = useState<any[]>([])
+  const [editMetaFields, setEditMetaFields] = useState<any[]>([])
+  const [saving, setSaving] = useState(false)
+
+  const load = () => {
+    setLoading(true)
+    api.getDokumentVorlagen(productionId).then(setVorlagen).finally(() => setLoading(false))
+  }
+  useEffect(load, [productionId])
+
+  const startEdit = (v: any) => {
+    setEditId(v.id)
+    setEditName(v.name)
+    setEditTyp(v.typ || 'custom')
+    setEditSektionen(v.sektionen || [])
+    setEditMetaFields(v.meta_fields || [])
+  }
+
+  const startNew = () => {
+    setEditId('__new__')
+    setEditName('')
+    setEditTyp('custom')
+    setEditSektionen([{ element_type: 'notiz', label: 'Inhalt', content: { type: 'doc', content: [{ type: 'paragraph' }] } }])
+    setEditMetaFields([])
+  }
+
+  const saveVorlage = async () => {
+    setSaving(true)
+    try {
+      const data = { name: editName, typ: editTyp, sektionen: editSektionen, meta_fields: editMetaFields }
+      if (editId === '__new__') {
+        await api.createDokumentVorlageManual(productionId, data)
+      } else {
+        await api.updateDokumentVorlage(productionId, editId!, data)
+      }
+      setEditId(null)
+      load()
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteVorlage = async (id: string) => {
+    if (!confirm('Vorlage wirklich loeschen?')) return
+    await api.deleteDokumentVorlage(productionId, id)
+    load()
+  }
+
+  const insertPlaceholder = (key: string) => {
+    // Insert placeholder into the first sektion's content (simplified — richtext editing in Phase 7)
+    setEditSektionen(prev => {
+      if (!prev.length) return prev
+      const copy = [...prev]
+      const sec = { ...copy[0] }
+      // Append placeholder text to the label for now
+      sec.label = (sec.label || '') + ' ' + key
+      copy[0] = sec
+      return copy
+    })
+  }
+
+  const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }
+  const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
+
+  if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
+
+  // Edit mode
+  if (editId) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
+          {editId === '__new__' ? 'Neue Vorlage' : 'Vorlage bearbeiten'}
+        </h3>
+
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Name</label>
+          <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite" />
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Typ</label>
+          <select
+            style={{ ...inputStyle, cursor: 'pointer' }}
+            value={editTyp}
+            onChange={e => setEditTyp(e.target.value)}
+          >
+            {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Meta-Platzhalter einfuegen</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {META_PLACEHOLDERS.map(p => (
+              <button key={p.key} onClick={() => insertPlaceholder(p.key)} style={{ ...btnStyle, fontSize: 11, padding: '3px 8px' }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Sektionen (Vorschau)</label>
+          {editSektionen.map((s, i) => (
+            <div key={i} style={{ padding: '8px 12px', background: 'var(--bg-subtle)', borderRadius: 6, marginBottom: 6, fontSize: 12 }}>
+              <strong>{s.element_type}</strong>: {s.label || '(kein Label)'}
+            </div>
+          ))}
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+            Rich-Text-Editor fuer Sektionen-Inhalt folgt in Phase 7.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button onClick={saveVorlage} disabled={saving || !editName.trim()} style={{ ...btnStyle, background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600 }}>
+            {saving ? 'Speichere...' : 'Speichern'}
+          </button>
+          <button onClick={() => setEditId(null)} style={btnStyle}>Abbrechen</button>
+        </div>
+      </div>
+    )
+  }
+
+  // List mode
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Dokument-Vorlagen</h3>
+        <button onClick={startNew} style={{ ...btnStyle, fontWeight: 500 }}>+ Neue Vorlage</button>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+        Vorlagen fuer Titelseite, Synopsis, Recap und Precap. Beim Import werden passende Vorlagen automatisch zugewiesen.
+        Platzhalter wie {'{{autor}}'} werden beim Einfuegen durch echte Werte ersetzt.
+      </p>
+
+      {vorlagen.length === 0 ? (
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '24px 0', textAlign: 'center' }}>
+          Keine Vorlagen vorhanden.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {vorlagen.map(v => (
+            <div key={v.id} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8,
+              border: '1px solid var(--border)',
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{v.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  Typ: {VORLAGE_TYPES.find(t => t.id === v.typ)?.label || v.typ || 'custom'}
+                </div>
+              </div>
+              <button onClick={() => startEdit(v)} style={{ ...btnStyle, fontSize: 11 }}>Bearbeiten</button>
+              <button onClick={() => deleteVorlage(v.id)} style={{ ...btnStyle, fontSize: 11, color: 'var(--sw-danger, #FF3B30)' }}>Loeschen</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── KI-Einstellungen Tab ────────────────────────────────────────────────────────
+
+function KiEinstellungenTab() {
+  const [settings, setSettings] = useState<any[]>([])
+  const [providers, setProviders] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  useEffect(() => {
+    Promise.all([api.getKiSettings(), api.getKiProviders()])
+      .then(([s, p]) => { setSettings(s); setProviders(p) })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const toggleProvider = async (provider: string, field: string, value: boolean) => {
+    setSaving(provider)
+    try {
+      await api.updateKiProvider(provider, { [field]: value })
+      setProviders(prev => prev.map(p => p.provider === provider ? { ...p, [field]: value } : p))
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const updateSetting = async (funktion: string, field: string, value: any) => {
+    setSaving(funktion)
+    try {
+      await api.updateKiSetting(funktion, { [field]: value })
+      setSettings(prev => prev.map(s => s.funktion === funktion ? { ...s, [field]: value } : s))
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none' }
+
+  if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 700 }}>
+      {/* Providers */}
+      <div>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 12px' }}>KI-Anbieter</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {providers.map(p => (
+            <div key={p.provider} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8,
+              border: '1px solid var(--border)', opacity: saving === p.provider ? 0.6 : 1,
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{p.provider}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  API-Key: {p.api_key ? '••••' + p.api_key.slice(-4) : '(nicht gesetzt)'}
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                <input type="checkbox" checked={p.is_active ?? false} onChange={e => toggleProvider(p.provider, 'is_active', e.target.checked)} />
+                Aktiv
+              </label>
+            </div>
+          ))}
+          {providers.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Provider konfiguriert.</div>
+          )}
+        </div>
+      </div>
+
+      {/* Settings (functions) */}
+      <div>
+        <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 12px' }}>KI-Funktionen</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {settings.map(s => (
+            <div key={s.funktion} style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8,
+              border: '1px solid var(--border)', opacity: saving === s.funktion ? 0.6 : 1,
+            }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{s.funktion}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                  Provider: {s.provider || '—'} · Modell: {s.model_name || '—'}
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
+                <input type="checkbox" checked={s.enabled ?? false} onChange={e => updateSetting(s.funktion, 'enabled', e.target.checked)} />
+                Aktiv
+              </label>
+              <select
+                style={{ ...inputStyle, width: 'auto', fontSize: 11 }}
+                value={s.provider || ''}
+                onChange={e => updateSetting(s.funktion, 'provider', e.target.value)}
+              >
+                <option value="">—</option>
+                {providers.filter(p => p.is_active).map(p => (
+                  <option key={p.provider} value={p.provider}>{p.provider}</option>
+                ))}
+              </select>
+            </div>
+          ))}
+          {settings.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine KI-Funktionen konfiguriert.</div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

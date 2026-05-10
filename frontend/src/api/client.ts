@@ -138,6 +138,8 @@ export const api = {
   // KI
   getKiSettings: () => request<any[]>('GET', '/admin/ki-settings'),
   updateKiSetting: (funktion: string, data: any) => request<any>('PUT', `/admin/ki-settings/${funktion}`, data),
+  getKiProviders: () => request<any[]>('GET', '/admin/ki-providers'),
+  updateKiProvider: (provider: string, data: any) => request<any>('PUT', `/admin/ki-providers/${provider}`, data),
   kiSceneSummary: (data: any) => request<any>('POST', '/ki/scene-summary', data),
   kiEntityDetect: (data: any) => request<any>('POST', '/ki/entity-detect', data),
   kiStyleCheck: (data: any) => request<any>('POST', '/ki/style-check', data),
@@ -489,6 +491,10 @@ export const api = {
     request<any>('GET', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
   createDokumentVorlage: (produktionId: string, data: { name: string; werkstufe_id: string }) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen`, data),
+  createDokumentVorlageManual: (produktionId: string, data: { name: string; typ?: string; sektionen?: any[]; meta_fields?: any[] }) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/create`, data),
+  updateDokumentVorlage: (produktionId: string, id: string, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`, data),
   deleteDokumentVorlage: (produktionId: string, id: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
 
