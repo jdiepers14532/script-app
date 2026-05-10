@@ -158,21 +158,20 @@ export default function EditorPanelHeader({
       {/* Fassungs-Label */}
       {selectedWerk && stageLabels.length > 0 && (
         <div style={{ position: 'relative' }}>
-          <Tooltip text="Fassungs-Label zuweisen">
-            <button
-              onClick={() => setShowLabelMenu(v => !v)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
-                border: `1px solid ${selectedWerk.label ? '#00C853' : 'var(--border)'}`,
-                borderRadius: 999, fontSize: 11, fontWeight: 500,
-                color: selectedWerk.label ? '#00C853' : 'var(--text-muted)',
-                background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              <Tag size={11} />
-              {selectedWerk.label || 'Label'}
-            </button>
-          </Tooltip>
+          <button
+            onClick={() => { setShowLabelMenu(v => !v); setShowMenu(false) }}
+            title="Fassungs-Label zuweisen"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
+              border: `1px solid ${selectedWerk.label ? '#00C853' : 'var(--border)'}`,
+              borderRadius: 999, fontSize: 11, fontWeight: 500,
+              color: selectedWerk.label ? '#00C853' : 'var(--text-muted)',
+              background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            <Tag size={11} />
+            {selectedWerk.label || 'Label'}
+          </button>
           {showLabelMenu && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLabelMenu(false)} />
@@ -180,10 +179,16 @@ export default function EditorPanelHeader({
                 {stageLabels.map(sl => (
                   <button
                     key={sl.id}
-                    onClick={async () => {
-                      const newLabel = selectedWerk.label === sl.name ? null : sl.name
-                      await api.updateWerkstufe(selectedWerk.id, { label: newLabel ?? '' })
-                      onReloadWerkstufen()
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const newLabel = selectedWerk.label === sl.name ? '' : sl.name
+                      try {
+                        await api.updateWerkstufe(selectedWerk.id, { label: newLabel })
+                        onReloadWerkstufen()
+                      } catch (err) {
+                        console.error('Label update failed:', err)
+                      }
                       setShowLabelMenu(false)
                     }}
                     style={{
@@ -204,9 +209,15 @@ export default function EditorPanelHeader({
                   <>
                     <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
                     <button
-                      onClick={async () => {
-                        await api.updateWerkstufe(selectedWerk.id, { label: '' })
-                        onReloadWerkstufen()
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        try {
+                          await api.updateWerkstufe(selectedWerk.id, { label: '' })
+                          onReloadWerkstufen()
+                        } catch (err) {
+                          console.error('Label remove failed:', err)
+                        }
                         setShowLabelMenu(false)
                       }}
                       style={{
