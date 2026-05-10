@@ -9,7 +9,7 @@
  * - Doppelte Text-Runs (Dialog-Nummern, Dauer, Komparsen)
  */
 
-import { Textelement, ImportResult, ParsedScene, NonSceneElement, nextId } from './types'
+import { Textelement, ImportResult, ParsedScene, NonSceneElement, nextId, BboxLayout, LineInfo } from './types'
 
 // ─── Detection ──────────────────────────────────────────
 
@@ -995,7 +995,7 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
 
 // ─── Main Parser ────────────────────────────────────────
 
-export function parseRoteRosen(rawText: string, ocrMode = false): ImportResult {
+export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLayout): ImportResult {
   const lines = cleanText(rawText, ocrMode)
   const warnings: string[] = []
 

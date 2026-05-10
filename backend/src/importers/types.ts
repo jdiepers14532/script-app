@@ -101,3 +101,26 @@ export function parseSceneHeading(text: string): { int_ext: 'INT' | 'EXT' | 'INT
 
   return { int_ext, ort_name, tageszeit }
 }
+
+// ─── PDF Bbox Layout ─────────────────────────────────────
+// Extracted from pdftotext -bbox (word-level bounding boxes)
+
+export interface LineInfo {
+  text: string
+  yMid: number          // vertical center in pts
+  xMin: number          // leftmost word edge
+  xMax: number          // rightmost word edge
+  charHeight: number    // average word height (proxy for font size)
+  gapBefore: number     // vertical gap to previous line (0 = first line or page break)
+  pageIdx: number       // 0-based page index
+  isCentered: boolean   // text x-center near page center (±12%)
+  isLargeFont: boolean  // charHeight > 1.35× median
+}
+
+export interface BboxLayout {
+  lines: LineInfo[]
+  pageWidth: number          // pts (A4 ≈ 595)
+  pageHeight: number         // pts (A4 ≈ 842)
+  medianLineSpacing: number  // typical distance between consecutive lines
+  medianCharHeight: number   // typical character/word height
+}

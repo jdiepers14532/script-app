@@ -654,8 +654,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 }}
               />
             )}
-            {/* Seitenachtel — page_length (unter Stoppzeit) */}
-            {scene.page_length != null && scene.page_length > 0 && (
+            {/* Seitenachtel — page_length (unter Stoppzeit, hidden in compact) */}
+            {!compact && scene.page_length != null && scene.page_length > 0 && (
               <Tooltip text={`Seitenlänge: ${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)\nBerechnung: 56 Zeilen/Seite`} placement="bottom">
                 <span style={{
                   fontSize: 9,
