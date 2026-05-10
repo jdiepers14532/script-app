@@ -149,14 +149,17 @@ werkstufenRouter.get('/:id', async (req, res) => {
 werkstufenRouter.put('/:id', async (req, res) => {
   try {
     const { label, sichtbarkeit, abgegeben, bearbeitung_status } = req.body
+    // label: undefined = don't change, '' = clear to NULL, 'X' = set to X
+    const hasLabel = 'label' in req.body
+    const labelVal = hasLabel ? (label || null) : undefined
     const row = await queryOne(
       `UPDATE werkstufen SET
-        label = COALESCE($1, label),
+        label = ${hasLabel ? '$1' : 'label'},
         sichtbarkeit = COALESCE($2, sichtbarkeit),
         abgegeben = COALESCE($3, abgegeben),
         bearbeitung_status = COALESCE($4, bearbeitung_status)
        WHERE id = $5 RETURNING *`,
-      [label, sichtbarkeit, abgegeben, bearbeitung_status, req.params.id]
+      [labelVal, sichtbarkeit, abgegeben, bearbeitung_status, req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
     res.json(row)

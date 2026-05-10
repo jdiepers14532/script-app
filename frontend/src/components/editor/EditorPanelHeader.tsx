@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { ChevronDown, Plus, Lock, Users, Globe, Eye } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronDown, Plus, Lock, Users, Globe, Eye, Tag } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api } from '../../api/client'
@@ -50,6 +50,13 @@ export default function EditorPanelHeader({
   onChangeSceneFormat,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
+  const [showLabelMenu, setShowLabelMenu] = useState(false)
+  const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
+
+  useEffect(() => {
+    if (!produktionId) return
+    api.getStageLabels(produktionId).then(setStageLabels).catch(() => {})
+  }, [produktionId])
 
   // Group werkstufen by typ
   const grouped = new Map<string, WerkstufeMeta[]>()
@@ -146,6 +153,76 @@ export default function EditorPanelHeader({
             {sichtbarkeit}
           </span>
         </Tooltip>
+      )}
+
+      {/* Fassungs-Label */}
+      {selectedWerk && stageLabels.length > 0 && (
+        <div style={{ position: 'relative' }}>
+          <Tooltip text="Fassungs-Label zuweisen">
+            <button
+              onClick={() => setShowLabelMenu(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
+                border: `1px solid ${selectedWerk.label ? '#00C853' : 'var(--border)'}`,
+                borderRadius: 999, fontSize: 11, fontWeight: 500,
+                color: selectedWerk.label ? '#00C853' : 'var(--text-muted)',
+                background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <Tag size={11} />
+              {selectedWerk.label || 'Label'}
+            </button>
+          </Tooltip>
+          {showLabelMenu && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLabelMenu(false)} />
+              <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 99, marginTop: 4, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 180, padding: '4px 0' }}>
+                {stageLabels.map(sl => (
+                  <button
+                    key={sl.id}
+                    onClick={async () => {
+                      const newLabel = selectedWerk.label === sl.name ? null : sl.name
+                      await api.updateWerkstufe(selectedWerk.id, { label: newLabel ?? '' })
+                      onReloadWerkstufen()
+                      setShowLabelMenu(false)
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '7px 12px', fontSize: 12, border: 'none', cursor: 'pointer',
+                      textAlign: 'left', fontFamily: 'inherit',
+                      background: selectedWerk.label === sl.name ? 'var(--bg-active)' : 'transparent',
+                      color: 'var(--text-primary)', fontWeight: selectedWerk.label === sl.name ? 600 : 400,
+                    }}
+                  >
+                    {sl.name}
+                    {sl.is_produktionsfassung && (
+                      <Lock size={10} style={{ color: 'var(--text-muted)', marginLeft: 'auto' }} />
+                    )}
+                  </button>
+                ))}
+                {selectedWerk.label && (
+                  <>
+                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                    <button
+                      onClick={async () => {
+                        await api.updateWerkstufe(selectedWerk.id, { label: '' })
+                        onReloadWerkstufen()
+                        setShowLabelMenu(false)
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                        padding: '7px 12px', fontSize: 12, border: 'none', cursor: 'pointer',
+                        color: '#FF3B30', background: 'transparent', fontFamily: 'inherit',
+                      }}
+                    >
+                      Label entfernen
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {/* Scene format switcher */}
