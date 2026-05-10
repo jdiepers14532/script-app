@@ -724,11 +724,11 @@ straengeRouter.get('/pacing', async (req, res) => {
     // Character absence: main characters of active strands not appearing in recent episodes
     const charAbsence = await query(
       `WITH strang_chars AS (
-        SELECT sc.character_id, c.name AS char_name, s.id AS strang_id, s.name AS strang_name, s.farbe
-        FROM strang_charaktere sc
-        JOIN characters c ON c.id = sc.character_id
-        JOIN straenge s ON s.id = sc.strang_id
-        WHERE s.produktion_id = $1 AND s.status = 'aktiv' AND sc.rolle = 'haupt'
+        SELECT sc2.character_id, c.name AS char_name, s.name AS strang_name, s.farbe
+        FROM strang_charaktere sc2
+        JOIN characters c ON c.id = sc2.character_id
+        JOIN straenge s ON s.id = sc2.strang_id
+        WHERE s.produktion_id = $1 AND s.status = 'aktiv' AND sc2.rolle = 'haupt'
       ),
       recent_folgen AS (
         SELECT id, folge_nummer FROM folgen WHERE produktion_id = $1 ORDER BY folge_nummer DESC LIMIT 5
@@ -736,12 +736,9 @@ straengeRouter.get('/pacing', async (req, res) => {
       char_appearances AS (
         SELECT DISTINCT sch.character_id, f.folge_nummer
         FROM scene_characters sch
-        JOIN dokument_szenen ds ON ds.scene_identity_id = (
-          SELECT scene_identity_id FROM dokument_szenen WHERE id = sch.dokument_szene_id LIMIT 1
-        )
-        JOIN werkstufen w ON w.id = ds.werkstufe_id
+        JOIN werkstufen w ON w.id = sch.werkstufe_id
         JOIN folgen f ON f.id = w.folge_id
-        WHERE f.id IN (SELECT id FROM recent_folgen)
+        WHERE f.id IN (SELECT id FROM recent_folgen) AND sch.werkstufe_id IS NOT NULL
       )
       SELECT sc.character_id, sc.char_name, sc.strang_name, sc.farbe,
              COUNT(ca.folge_nummer) AS appearances
