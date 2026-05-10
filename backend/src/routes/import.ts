@@ -469,14 +469,40 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       for (const te of szene.textelemente) {
         let inlineContent = buildInlineContent(te)
 
-        // For notiz format: use absatz nodes with a neutral format (Arial, not Courier)
-        if (sceneFormat === 'notiz') {
+        // For notiz/storyline format: use absatz nodes with neutral format (Arial, not Courier)
+        // but respect heading type → Headline format
+        if (sceneFormat === 'notiz' || sceneFormat === 'storyline') {
           if (useAbsatzNodes) {
-            // Use Haupttext or any storyline format (Arial 11pt) — never drehbuch (Courier)
-            const notizFmtId = elementTypeToFormatId.get('haupttext')
-              || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
-              || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
-              || absatzformate[0]?.id
+            let notizFmtId: string | undefined
+            // Headings → Headline format
+            if (te.type === 'heading') {
+              notizFmtId = elementTypeToFormatId.get('heading')
+                || absatzformate.find((f: any) => f.name === 'Headline')?.id
+            }
+            // Check textbaustein match
+            if (!notizFmtId) {
+              const firstText = inlineContent?.[0]?.type === 'text' ? inlineContent[0].text : ''
+              for (const tbFmt of textbausteinFormats) {
+                const prefix = tbFmt.textbaustein as string
+                if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
+                  notizFmtId = tbFmt.id
+                  const stripped = firstText.slice(prefix.length).replace(/^[:\s]+/, '')
+                  if (stripped) {
+                    inlineContent = [{ ...inlineContent![0], text: stripped }, ...inlineContent!.slice(1)]
+                  } else {
+                    inlineContent = inlineContent!.slice(1)
+                  }
+                  break
+                }
+              }
+            }
+            // Default: Haupttext
+            if (!notizFmtId) {
+              notizFmtId = elementTypeToFormatId.get('haupttext')
+                || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
+                || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
+                || absatzformate[0]?.id
+            }
             const notizFmtName = absatzformate.find((f: any) => f.id === notizFmtId)?.name ?? 'Haupttext'
             const attrs: any = { format_id: notizFmtId ?? null, format_name: notizFmtName }
             if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
@@ -501,7 +527,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           ? te.type : 'action'
 
         if (useAbsatzNodes) {
-          // Check if line starts with a textbaustein → set format + make prefix bold
+          // Check if line starts with a textbaustein → set format + strip prefix
+          // (the prefix is rendered via CSS ::before in the editor, so content must NOT contain it)
           let fmtId: string | undefined
           let matchedTextbaustein = false
           const firstText = inlineContent[0]?.type === 'text' ? inlineContent[0].text : ''
@@ -510,16 +537,12 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
             if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
               fmtId = tbFmt.id
               matchedTextbaustein = true
-              // Make prefix bold, keep remaining text as-is
-              const actualPrefix = firstText.slice(0, prefix.length)
-              const rest = firstText.slice(prefix.length)
-              const boldPrefix: any = { type: 'text', text: actualPrefix, marks: [{ type: 'bold' }] }
-              if (rest) {
-                // Preserve existing marks on rest text
-                const restNode = { ...inlineContent[0], text: rest }
-                inlineContent = [boldPrefix, restNode, ...inlineContent.slice(1)]
+              // Strip prefix from content (+ optional trailing colon/space)
+              const stripped = firstText.slice(prefix.length).replace(/^[:\s]+/, '')
+              if (stripped) {
+                inlineContent = [{ ...inlineContent[0], text: stripped }, ...inlineContent.slice(1)]
               } else {
-                inlineContent = [boldPrefix, ...inlineContent.slice(1)]
+                inlineContent = inlineContent.slice(1)
               }
               break
             }

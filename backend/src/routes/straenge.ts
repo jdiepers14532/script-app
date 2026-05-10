@@ -600,12 +600,13 @@ straengeRouter.get('/pacing', async (req, res) => {
       }
     }
 
-    // Forgotten beats
+    // Forgotten beats (only future/block level — folge-level are too granular)
     const vergesseneBeats = await query(
-      `SELECT sb.id, sb.beat_text, sb.block_label, s.name AS strang_name, s.farbe
+      `SELECT sb.id, sb.beat_text, sb.block_label, sb.ebene, s.name AS strang_name, s.farbe
        FROM strang_beats sb
        JOIN straenge s ON s.id = sb.strang_id
        WHERE s.produktion_id = $1 AND sb.ist_abgearbeitet = FALSE AND s.status = 'aktiv'
+         AND sb.ebene IN ('future', 'block')
        ORDER BY s.sort_order, sb.sort_order`,
       [produktion_id]
     )
@@ -615,9 +616,130 @@ straengeRouter.get('/pacing', async (req, res) => {
         strang_name: b.strang_name,
         farbe: b.farbe,
         beat_id: b.id,
-        nachricht: `Offener Beat: "${b.beat_text.substring(0, 80)}..."`,
-        schwere: 'niedrig',
+        nachricht: `Offener ${b.ebene === 'future' ? 'Future' : 'Block'}-Beat: "${(b.beat_text || '').substring(0, 60)}"`,
+        schwere: b.ebene === 'future' ? 'mittel' : 'niedrig',
       })
+    }
+
+    // Character absence: main characters of active strands not appearing in recent episodes
+    const charAbsence = await query(
+      `WITH strang_chars AS (
+        SELECT sc.character_id, c.name AS char_name, s.id AS strang_id, s.name AS strang_name, s.farbe
+        FROM strang_charaktere sc
+        JOIN characters c ON c.id = sc.character_id
+        JOIN straenge s ON s.id = sc.strang_id
+        WHERE s.produktion_id = $1 AND s.status = 'aktiv' AND sc.rolle = 'haupt'
+      ),
+      recent_folgen AS (
+        SELECT id, folge_nummer FROM folgen WHERE produktion_id = $1 ORDER BY folge_nummer DESC LIMIT 5
+      ),
+      char_appearances AS (
+        SELECT DISTINCT sch.character_id, f.folge_nummer
+        FROM scene_characters sch
+        JOIN dokument_szenen ds ON ds.scene_identity_id = (
+          SELECT scene_identity_id FROM dokument_szenen WHERE id = sch.dokument_szene_id LIMIT 1
+        )
+        JOIN werkstufen w ON w.id = ds.werkstufe_id
+        JOIN folgen f ON f.id = w.folge_id
+        WHERE f.id IN (SELECT id FROM recent_folgen)
+      )
+      SELECT sc.character_id, sc.char_name, sc.strang_name, sc.farbe,
+             COUNT(ca.folge_nummer) AS appearances
+      FROM strang_chars sc
+      LEFT JOIN char_appearances ca ON ca.character_id = sc.character_id
+      GROUP BY sc.character_id, sc.char_name, sc.strang_name, sc.farbe
+      HAVING COUNT(ca.folge_nummer) = 0`,
+      [produktion_id]
+    )
+    for (const c of charAbsence) {
+      warnungen.push({
+        typ: 'figur_abwesend',
+        strang_name: c.strang_name,
+        farbe: c.farbe,
+        nachricht: `${c.char_name} (${c.strang_name}) taucht in den letzten 5 Folgen nicht auf`,
+        schwere: 'mittel',
+      })
+    }
+
+    // Strand balance: check if one strand dominates an episode (>60% of scenes)
+    const balanceCheck = await query(
+      `WITH latest_werk AS (
+        SELECT w.id AS werk_id, w.folge_id, f.folge_nummer
+        FROM werkstufen w
+        JOIN folgen f ON f.id = w.folge_id
+        WHERE f.produktion_id = $1
+        ORDER BY f.folge_nummer DESC LIMIT 1
+      ),
+      scene_counts AS (
+        SELECT COUNT(*) AS total FROM dokument_szenen ds
+        JOIN latest_werk lw ON lw.werk_id = ds.werkstufe_id
+        WHERE ds.geloescht IS NOT TRUE
+      ),
+      strang_counts AS (
+        SELECT s.name AS strang_name, s.farbe, COUNT(DISTINCT dss.dokument_szene_id) AS cnt
+        FROM dokument_szenen_straenge dss
+        JOIN dokument_szenen ds ON ds.id = dss.dokument_szene_id
+        JOIN latest_werk lw ON lw.werk_id = ds.werkstufe_id
+        JOIN straenge s ON s.id = dss.strang_id
+        WHERE ds.geloescht IS NOT TRUE AND s.status = 'aktiv'
+        GROUP BY s.name, s.farbe
+      )
+      SELECT sc.strang_name, sc.farbe, sc.cnt, tc.total,
+             ROUND(sc.cnt * 100.0 / NULLIF(tc.total, 0)) AS pct
+      FROM strang_counts sc, scene_counts tc
+      WHERE tc.total > 0 AND sc.cnt * 100.0 / tc.total > 60`,
+      [produktion_id]
+    )
+    for (const b of balanceCheck) {
+      warnungen.push({
+        typ: 'strang_balance',
+        strang_name: b.strang_name,
+        farbe: b.farbe,
+        nachricht: `"${b.strang_name}" dominiert letzte Folge mit ${b.pct}% der Szenen (${b.cnt}/${b.total})`,
+        schwere: 'mittel',
+      })
+    }
+
+    // Crossing poverty: latest episode has no scene with 2+ strands
+    const crossingCheck = await query(
+      `WITH latest_werk AS (
+        SELECT w.id AS werk_id FROM werkstufen w
+        JOIN folgen f ON f.id = w.folge_id
+        WHERE f.produktion_id = $1
+        ORDER BY f.folge_nummer DESC LIMIT 1
+      ),
+      multi_strang_scenes AS (
+        SELECT dss.dokument_szene_id, COUNT(DISTINCT dss.strang_id) AS strang_count
+        FROM dokument_szenen_straenge dss
+        JOIN dokument_szenen ds ON ds.id = dss.dokument_szene_id
+        JOIN latest_werk lw ON lw.werk_id = ds.werkstufe_id
+        WHERE ds.geloescht IS NOT TRUE
+        GROUP BY dss.dokument_szene_id
+        HAVING COUNT(DISTINCT dss.strang_id) >= 2
+      )
+      SELECT COUNT(*) AS crossing_count FROM multi_strang_scenes`,
+      [produktion_id]
+    )
+    if (crossingCheck.length > 0 && parseInt(crossingCheck[0].crossing_count) === 0) {
+      // Only warn if there are any strand assignments at all
+      const anyAssignments = await query(
+        `SELECT 1 FROM dokument_szenen_straenge dss
+         JOIN dokument_szenen ds ON ds.id = dss.dokument_szene_id
+         JOIN werkstufen w ON w.id = ds.werkstufe_id
+         JOIN folgen f ON f.id = w.folge_id
+         WHERE f.produktion_id = $1 AND ds.geloescht IS NOT TRUE
+         LIMIT 1`,
+        [produktion_id]
+      )
+      if (anyAssignments.length > 0) {
+        warnungen.push({
+          typ: 'kreuzung_fehlt',
+          strang_name: 'Alle',
+          farbe: '#8E8E93',
+          nachricht: 'Letzte Folge hat keine Kreuzungsszene (Szene mit 2+ Str\u00e4ngen)',
+          schwere: 'niedrig',
+        })
+      }
     }
 
     res.json({ warnungen })

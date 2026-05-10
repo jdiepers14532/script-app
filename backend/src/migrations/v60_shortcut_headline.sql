@@ -8,7 +8,7 @@ INSERT INTO absatzformate (produktion_id, name, kuerzel, kategorie, font_family,
   bold, italic, underline, uppercase, text_align,
   margin_left, margin_right, space_before, space_after, line_height,
   sort_order, ist_standard)
-SELECT p.id, 'Headline', 'HL', 'storyline', 'Arial', 14,
+SELECT p.id, 'Headline', 'HL', 'alle', 'Arial', 14,
   true, false, false, false, 'left',
   0, 0, 18, 12, 1.5,
   9, false

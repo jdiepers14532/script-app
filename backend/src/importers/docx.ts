@@ -4,9 +4,10 @@ import { Textelement, TextelementType, InlineNode, ImportResult, ParsedScene, ne
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+/i
 const KOMPARSEN_RE = /^Komparsen:\s*(.*)/i
 // Footer patterns to filter out
-const FOOTER_RE = /^(Treatment|Storylines?|Drehbuch|Synopsis|Exposé?)\s*[-–]?\s*(Episode|Folge)\s+\d+$/i
-const FOOTER_STAND_RE = /^Stand:\s+\d{2}\.\d{2}\.\d{4}/
-const FOOTER_PAGE_RE = /^\d+\s+von\s+\d+$/
+const FOOTER_RE = /^(Treatment|Storylines?|Drehbuch|Synopsis|Exposé?)\s*[-–—]?\s*(Episode|Folge)?\s*\d{4,5}$/i
+const FOOTER_STAND_RE = /^Stand:\s*\d{2}\.\d{2}\.\d{4}/
+const FOOTER_PAGE_RE = /^\d+\s*(von|\/)\s*\d+$/
+const FOOTER_SEITE_RE = /^Seite\s+\d+/i
 
 // Style name -> Textelement-Typ mapping fuer Drehbuch-Word-Stile
 const STYLE_MAP: Record<string, TextelementType> = {
@@ -130,7 +131,7 @@ export async function parseDocx(buffer: Buffer): Promise<ImportResult> {
     if (!rawText) continue
 
     // Filter out footer lines
-    if (FOOTER_RE.test(rawText) || FOOTER_STAND_RE.test(rawText) || FOOTER_PAGE_RE.test(rawText)) continue
+    if (FOOTER_RE.test(rawText) || FOOTER_STAND_RE.test(rawText) || FOOTER_PAGE_RE.test(rawText) || FOOTER_SEITE_RE.test(rawText)) continue
 
     // Determine class from style mapping
     const classMatch = /class="([^"]+)"/.exec(attrs)

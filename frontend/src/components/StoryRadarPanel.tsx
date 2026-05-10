@@ -42,7 +42,7 @@ export default function StoryRadarPanel({ produktionId, open, onClose }: Props) 
 
   if (!open) return null
 
-  const warnings = pacing?.warnings ?? []
+  const warnings = pacing?.warnungen ?? []
 
   return (
     <div className="story-radar-panel">
@@ -63,7 +63,7 @@ export default function StoryRadarPanel({ produktionId, open, onClose }: Props) 
           {warnings.slice(0, 5).map((w: any, i: number) => (
             <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '3px 0', lineHeight: 1.4 }}>
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: w.farbe || '#888', marginRight: 6 }} />
-              <strong>{w.strang_name}</strong>: {w.message}
+              <strong>{w.strang_name}</strong>: {w.nachricht}
             </div>
           ))}
           {warnings.length > 5 && (
