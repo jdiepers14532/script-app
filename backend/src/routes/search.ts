@@ -161,8 +161,8 @@ searchRouter.post('/replace', async (req, res) => {
 
     // Get scenes to process
     const { sql, params } = await buildScopeQuery(scope, scope_id, werkstufe_typ, contentTypesArr)
-    const rawRows = await client.query(sql, params)
-    const rows = rawRows.rows || rawRows
+    const rawResult = await client.query(sql, params as any[])
+    const rows = rawResult.rows as any[]
 
     let replacedCount = 0
     let skippedLocked = 0
@@ -216,7 +216,13 @@ searchRouter.post('/replace', async (req, res) => {
     // Recalc stats for affected scenes (outside transaction for performance)
     for (const scene of affectedScenes) {
       try {
-        await recalcSceneStats(scene.dokument_szene_id)
+        const ds = await queryOne(
+          `SELECT werkstufe_id, scene_identity_id, content FROM dokument_szenen WHERE id = $1`,
+          [scene.dokument_szene_id]
+        )
+        if (ds) {
+          await recalcSceneStats(ds.werkstufe_id, ds.scene_identity_id, ds.content)
+        }
       } catch (e) {
         console.error('recalcSceneStats error for', scene.dokument_szene_id, e)
       }
