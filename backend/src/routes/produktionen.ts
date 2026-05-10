@@ -53,7 +53,7 @@ router.post('/:id/copy-settings', async (req, res) => {
   if (!source_produktion_id || !Array.isArray(sections) || !sections.length) {
     return res.status(400).json({ error: 'source_produktion_id und sections erforderlich' })
   }
-  const allowed = ['kategorien', 'labels', 'colors', 'einstellungen']
+  const allowed = ['kategorien', 'labels', 'colors', 'einstellungen', 'absatzformate', 'vorlagen']
   const invalid = (sections as string[]).filter(s => !allowed.includes(s))
   if (invalid.length) return res.status(400).json({ error: `Ungültige Sections: ${invalid.join(', ')}` })
 
@@ -103,6 +103,43 @@ router.post('/:id/copy-settings', async (req, res) => {
            VALUES ($1, $2)
            ON CONFLICT (produktion_id) DO UPDATE SET memo_schwellwert_zeichen = $2`,
           [targetId, e.memo_schwellwert_zeichen]
+        )
+      }
+    }
+
+    if (sections.includes('absatzformate')) {
+      await client.query('DELETE FROM absatzformate WHERE produktion_id = $1', [targetId])
+      const src = await client.query(
+        'SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order',
+        [source_produktion_id]
+      )
+      for (const row of src.rows) {
+        await client.query(
+          `INSERT INTO absatzformate (produktion_id, name, kuerzel, kategorie, font_family, font_size,
+            bold, italic, underline, uppercase, text_align, margin_left, margin_right,
+            space_before, space_after, line_height, sort_order, ist_standard, textbaustein,
+            enter_next, tab_next, shortcut)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+          [targetId, row.name, row.kuerzel, row.kategorie, row.font_family, row.font_size,
+            row.bold, row.italic, row.underline, row.uppercase, row.text_align,
+            row.margin_left, row.margin_right, row.space_before, row.space_after,
+            row.line_height, row.sort_order, row.ist_standard, row.textbaustein,
+            row.enter_next, row.tab_next, row.shortcut]
+        )
+      }
+    }
+
+    if (sections.includes('vorlagen')) {
+      await client.query('DELETE FROM dokument_vorlagen WHERE produktion_id = $1', [targetId])
+      const src = await client.query(
+        'SELECT * FROM dokument_vorlagen WHERE produktion_id = $1 ORDER BY created_at',
+        [source_produktion_id]
+      )
+      for (const row of src.rows) {
+        await client.query(
+          `INSERT INTO dokument_vorlagen (produktion_id, name, typ, sektionen, meta_fields, created_by)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [targetId, row.name, row.typ, JSON.stringify(row.sektionen), JSON.stringify(row.meta_fields), row.created_by]
         )
       }
     }

@@ -65,6 +65,8 @@ const COPY_SECTIONS = [
   { id: 'labels',     label: 'Fassungs-Labels' },
   { id: 'colors',     label: 'Revisions-Farben' },
   { id: 'einstellungen', label: 'Revisions-Export' },
+  { id: 'absatzformate', label: 'Absatzformate' },
+  { id: 'vorlagen',   label: 'Dokument-Vorlagen' },
 ]
 
 // ── Drag-sortable list helper ────────────────────────────────────────────────────

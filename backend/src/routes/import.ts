@@ -2,7 +2,7 @@ import { Router } from 'express'
 import multer from 'multer'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
-import { detectFormat, parseScript } from '../importers'
+import { detectFormat, parseScript, ParseOptions } from '../importers'
 import { stripWatermark, decodeWatermarkFromText } from '../utils/watermark'
 import { parseFilename } from '../importers/roteRosen'
 import { calcPageLength } from '../utils/calcPageLength'
@@ -194,6 +194,27 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 })
 
+// GET /api/import/ocr-status — Check if Mistral OCR is available
+importRouter.get('/ocr-status', async (req, res) => {
+  try {
+    const setting = await queryOne(
+      `SELECT ks.enabled, ks.provider, ks.model_name, kp.is_active,
+              CASE WHEN kp.api_key IS NOT NULL AND kp.api_key != '' THEN true ELSE false END as has_key
+       FROM ki_settings ks
+       LEFT JOIN ki_providers kp ON kp.provider = ks.provider
+       WHERE ks.funktion = 'pdf_ocr'`,
+      []
+    )
+    res.json({
+      mistral_available: !!(setting?.enabled && setting?.is_active && setting?.has_key),
+      provider: setting?.provider || null,
+      model: setting?.model_name || null,
+    })
+  } catch {
+    res.json({ mistral_available: false, provider: null, model: null })
+  }
+})
+
 // POST /api/import/detect — Auto-Detect only, no save
 importRouter.post('/detect', upload.single('file'), async (req, res) => {
   try {
@@ -221,7 +242,12 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       parseBuffer  = Buffer.from(cleanText, 'utf8')
     }
 
-    const result   = await parseScript(req.file.originalname, parseBuffer)
+    // PDF extraction options from request body
+    const parseOpts: ParseOptions = {}
+    if (req.body.pdf_method === 'mistral') parseOpts.pdfMethod = 'mistral'
+    if (req.body.pdf_crop_percent) parseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
+
+    const result   = await parseScript(req.file.originalname, parseBuffer, parseOpts)
     const fileMeta = extractFileMetadata(req.file.originalname, req.file.buffer)
     const filenameMeta = parseFilename(req.file.originalname)
 
@@ -312,7 +338,12 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       parseBuffer  = Buffer.from(cleanText, 'utf8')
     }
 
-    const result    = await parseScript(req.file.originalname, parseBuffer)
+    // PDF extraction options from request body
+    const commitParseOpts: ParseOptions = {}
+    if (req.body.pdf_method === 'mistral') commitParseOpts.pdfMethod = 'mistral'
+    if (req.body.pdf_crop_percent) commitParseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
+
+    const result    = await parseScript(req.file.originalname, parseBuffer, commitParseOpts)
 
     // Auto-detect stage_type from Rote-Rosen metadata if not explicitly set
     if (result.meta.roteRosenMeta && !req.body.stage_type) {

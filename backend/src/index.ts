@@ -252,6 +252,7 @@ async function runMigrations() {
     'v59_terminologie.sql',
     'v60_shortcut_headline.sql',
     'v61_straenge.sql',
+    'v62_notiz_vorlagen_ocr.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

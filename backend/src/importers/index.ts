@@ -2,7 +2,7 @@ import { detectFormat } from './autodetect'
 import { parseFdx } from './fdx'
 import { parseFountain } from './fountain'
 import { parseDocx } from './docx'
-import { parsePdf } from './pdf'
+import { parsePdf, PdfExtractOptions } from './pdf'
 import { parseCeltx } from './celtx'
 import { parseWriterDuet } from './writerduet'
 import { ImportResult } from './types'
@@ -11,7 +11,12 @@ export { detectFormat } from './autodetect'
 export type { DetectResult } from './autodetect'
 export type { ImportResult, ParsedScene, Textelement, TextelementType } from './types'
 
-export async function parseScript(filename: string, buffer: Buffer): Promise<ImportResult> {
+export interface ParseOptions {
+  pdfMethod?: 'pdftotext' | 'mistral'
+  pdfCropPercent?: number
+}
+
+export async function parseScript(filename: string, buffer: Buffer, options?: ParseOptions): Promise<ImportResult> {
   const detected = detectFormat(filename, buffer)
 
   if (detected.confidence < 0.5) {
@@ -25,8 +30,12 @@ export async function parseScript(filename: string, buffer: Buffer): Promise<Imp
       return parseFountain(buffer.toString('utf8'))
     case 'docx':
       return parseDocx(buffer)
-    case 'pdf':
-      return parsePdf(buffer)
+    case 'pdf': {
+      const pdfOpts: PdfExtractOptions = {}
+      if (options?.pdfMethod) pdfOpts.method = options.pdfMethod
+      if (options?.pdfCropPercent) pdfOpts.cropPercent = options.pdfCropPercent
+      return parsePdf(buffer, pdfOpts)
+    }
     case 'celtx':
       return parseCeltx(buffer)
     case 'writerduet':

@@ -10,7 +10,7 @@ dokumentVorlagenRouter.use(authMiddleware)
 dokumentVorlagenRouter.get('/', async (req, res) => {
   try {
     const rows = await query(
-      'SELECT id, name, created_by, created_at FROM dokument_vorlagen WHERE produktion_id = $1 ORDER BY created_at DESC',
+      'SELECT id, name, typ, meta_fields, created_by, created_at, updated_at FROM dokument_vorlagen WHERE produktion_id = $1 ORDER BY typ, created_at DESC',
       [(req.params as any).produktionId]
     )
     res.json(rows)
@@ -64,6 +64,51 @@ dokumentVorlagenRouter.post('/', async (req, res) => {
       `INSERT INTO dokument_vorlagen (produktion_id, name, sektionen, created_by)
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [(req.params as any).produktionId, name, JSON.stringify(sektionen), req.user!.name || req.user!.user_id]
+    )
+    res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// PUT /api/produktionen/:produktionId/dokument-vorlagen/:id
+dokumentVorlagenRouter.put('/:id', async (req, res) => {
+  try {
+    const { name, typ, sektionen, meta_fields } = req.body
+    const sets: string[] = []
+    const params: any[] = []
+    let idx = 1
+    if (name !== undefined) { sets.push(`name = $${idx++}`); params.push(name) }
+    if (typ !== undefined) { sets.push(`typ = $${idx++}`); params.push(typ) }
+    if (sektionen !== undefined) { sets.push(`sektionen = $${idx++}`); params.push(JSON.stringify(sektionen)) }
+    if (meta_fields !== undefined) { sets.push(`meta_fields = $${idx++}`); params.push(JSON.stringify(meta_fields)) }
+    if (sets.length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren' })
+    sets.push(`updated_at = NOW()`)
+    params.push(req.params.id, (req.params as any).produktionId)
+    const row = await queryOne(
+      `UPDATE dokument_vorlagen SET ${sets.join(', ')} WHERE id = $${idx++} AND produktion_id = $${idx} RETURNING *`,
+      params
+    )
+    if (!row) return res.status(404).json({ error: 'Vorlage nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/produktionen/:produktionId/dokument-vorlagen/create — create new template manually
+dokumentVorlagenRouter.post('/create', async (req, res) => {
+  try {
+    const { name, typ, sektionen, meta_fields } = req.body
+    if (!name) return res.status(400).json({ error: 'name required' })
+    const row = await queryOne(
+      `INSERT INTO dokument_vorlagen (produktion_id, name, typ, sektionen, meta_fields, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [
+        (req.params as any).produktionId, name, typ || 'custom',
+        JSON.stringify(sektionen || []), JSON.stringify(meta_fields || []),
+        req.user!.name || req.user!.user_id,
+      ]
     )
     res.status(201).json(row)
   } catch (err) {
