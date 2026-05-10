@@ -148,6 +148,18 @@ export default function ImportPage() {
   // Non-scene elements (Deckblatt, Synopsis, Memo, etc.)
   const [nonSceneElements, setNonSceneElements] = useState<Array<{ type: string; label: string; content: string }>>([])
 
+  // PDF extraction options
+  const [pdfMethod, setPdfMethod] = useState<'pdftotext' | 'mistral'>('pdftotext')
+  const [pdfCropPercent, setPdfCropPercent] = useState(85) // default: crop 15% right margin
+  const [ocrAvailable, setOcrAvailable] = useState(false)
+
+  // Check OCR availability on mount
+  useEffect(() => {
+    api.getOcrStatus().then(data => {
+      if (data?.available) setOcrAvailable(true)
+    }).catch(() => {})
+  }, [])
+
   // Load Blöcke from ProdDB (same as ScriptPage: api.getBloecke)
   useEffect(() => {
     if (!selectedId) return
@@ -209,6 +221,10 @@ export default function ImportPage() {
     try {
       const fd = new FormData()
       fd.append('file', file)
+      if (isPdf) {
+        fd.append('pdf_method', pdfMethod)
+        if (pdfMethod === 'pdftotext') fd.append('pdf_crop_percent', String(pdfCropPercent))
+      }
       const res = await fetch('/api/import/preview', { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
         const err = await res.json()
@@ -263,37 +279,8 @@ export default function ImportPage() {
         }
       }
 
-      // Build non-scene elements from metadata
-      const elems: Array<{ type: string; label: string; content: string }> = []
-      if (data.rote_rosen_meta) {
-        const rrm = data.rote_rosen_meta
-        const coverParts = [
-          rrm.staffel ? `${t('staffel')} ${rrm.staffel}` : '',
-          rrm.episode ? `Episode ${rrm.episode}` : '',
-          rrm.block ? `Block ${rrm.block}` : '',
-          rrm.drehtermin ? `Drehtermin: ${rrm.drehtermin}` : '',
-          rrm.sendetermin ? `Sendetermin: ${rrm.sendetermin}` : '',
-          rrm.gesamtlaenge ? `Gesamtlänge: ${rrm.gesamtlaenge}` : '',
-          rrm.regie ? `Regie: ${rrm.regie}` : '',
-          rrm.writer_producer ? `Writer Producer: ${rrm.writer_producer}` : '',
-          rrm.head_of_story ? `Head of Story: ${rrm.head_of_story}` : '',
-          rrm.storyliner ? `Storyliner: ${rrm.storyliner}` : '',
-          rrm.story_edit ? `Story Edit: ${rrm.story_edit}` : '',
-          rrm.autor ? `Autor: ${rrm.autor}` : '',
-          rrm.script_edit ? `Script Edit: ${rrm.script_edit}` : '',
-          rrm.dialogautor ? `Dialogautor: ${rrm.dialogautor}` : '',
-          rrm.dialog_edit ? `Dialog Edit: ${rrm.dialog_edit}` : '',
-        ].filter(Boolean).join(' · ')
-        elems.push({ type: 'cover', label: 'Deckblatt', content: coverParts })
-        if (rrm.synopsis) elems.push({ type: 'synopsis', label: 'Synopsis', content: rrm.synopsis })
-        if (rrm.recaps?.length > 0) {
-          elems.push({ type: 'memo', label: 'Recaps', content: rrm.recaps.join('\n') })
-        }
-        if (rrm.precaps?.length > 0) {
-          elems.push({ type: 'memo', label: 'Precaps', content: rrm.precaps.join('\n') })
-        }
-      }
-      setNonSceneElements(elems)
+      // Use non-scene elements from backend parser (or empty)
+      setNonSceneElements(data.non_scene_elements || [])
 
       setStep(2)
     } catch (err) {
@@ -315,6 +302,10 @@ export default function ImportPage() {
       if (selectedBlock?.proddb_id) fd.append('proddb_block_id', selectedBlock.proddb_id)
       fd.append('stage_type', stageType)
       if (standDatum) fd.append('stand_datum', standDatum)
+      if (isPdf) {
+        fd.append('pdf_method', pdfMethod)
+        if (pdfMethod === 'pdftotext') fd.append('pdf_crop_percent', String(pdfCropPercent))
+      }
       if (nonSceneElements.length > 0) fd.append('non_scene_elements', JSON.stringify(nonSceneElements))
       if (Object.keys(sceneOverrides).length > 0) fd.append('scene_overrides', JSON.stringify(sceneOverrides))
       const res = await fetch('/api/import/commit', { method: 'POST', body: fd, credentials: 'include' })
@@ -473,6 +464,45 @@ export default function ImportPage() {
                     <option key={k} value={k}>{v}</option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {/* PDF-specific extraction options */}
+            {isPdf && detectResult && (
+              <div style={{
+                border: '1px solid #e0e0e0', borderRadius: 8, padding: 16,
+                marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12,
+              }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>PDF-Extraktionsoptionen</div>
+
+                {/* OCR Toggle */}
+                {ocrAvailable && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={pdfMethod === 'mistral'}
+                      onChange={e => setPdfMethod(e.target.checked ? 'mistral' : 'pdftotext')}
+                    />
+                    Mistral OCR verwenden (bessere Texterkennung)
+                  </label>
+                )}
+
+                {/* Crop slider — only for pdftotext */}
+                {pdfMethod === 'pdftotext' && (
+                  <div>
+                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                      Seitenbreite beschneiden: {pdfCropPercent}% (schneidet Zeilennummern am rechten Rand ab)
+                    </label>
+                    <input
+                      type="range" min={50} max={100} value={pdfCropPercent}
+                      onChange={e => setPdfCropPercent(parseInt(e.target.value))}
+                      style={{ width: '100%' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#999' }}>
+                      <span>50%</span><span>100% (kein Crop)</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

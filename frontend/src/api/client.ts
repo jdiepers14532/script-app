@@ -156,6 +156,7 @@ export const api = {
   exportWerkstufeFdx: (werkId: string) => fetch(`${BASE}/stages/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
 
   // Import with metadata opt-in
+  getOcrStatus: () => request<any>('GET', '/import/ocr-status'),
   importPreview: (file: File) => {
     const fd = new FormData(); fd.append('file', file)
     return fetch(`${BASE}/import/preview`, { method: 'POST', credentials: 'include', body: fd }).then(r => r.json())
