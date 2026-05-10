@@ -430,7 +430,11 @@ statistikRouter.get('/overview', async (req, res) => {
     const [scenes, chars, repliken, stoppzeit] = await Promise.all([
       queryOne(
         `SELECT COUNT(*) AS total,
-                COUNT(*) FILTER (WHERE is_wechselschnitt = true) AS wechselschnitt
+                COUNT(*) FILTER (WHERE sondertyp IS DISTINCT FROM 'stockshot') AS total_ohne_stockshots,
+                COUNT(*) FILTER (WHERE sondertyp = 'wechselschnitt' OR is_wechselschnitt = true) AS wechselschnitt,
+                COUNT(*) FILTER (WHERE sondertyp = 'stockshot') AS stockshots,
+                COUNT(*) FILTER (WHERE sondertyp = 'stockshot' AND stockshot_neu_drehen = true) AS stockshots_neu,
+                COUNT(*) FILTER (WHERE sondertyp = 'flashback') AS flashbacks
          FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false`,
         [werkstufe_id]
       ),
@@ -454,7 +458,14 @@ statistikRouter.get('/overview', async (req, res) => {
     ])
 
     res.json({
-      scenes: { total: parseInt(scenes?.total ?? 0), wechselschnitt: parseInt(scenes?.wechselschnitt ?? 0) },
+      scenes: {
+        total: parseInt(scenes?.total ?? 0),
+        total_ohne_stockshots: parseInt(scenes?.total_ohne_stockshots ?? 0),
+        wechselschnitt: parseInt(scenes?.wechselschnitt ?? 0),
+        stockshots: parseInt(scenes?.stockshots ?? 0),
+        stockshots_neu: parseInt(scenes?.stockshots_neu ?? 0),
+        flashbacks: parseInt(scenes?.flashbacks ?? 0),
+      },
       characters: {
         total: parseInt(chars?.total_characters ?? 0),
         with_text: parseInt(chars?.with_text ?? 0),
