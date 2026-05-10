@@ -297,13 +297,15 @@
 .detail { flex-shrink:0; width:100%; display:flex; flex-direction:column; background:var(--bg-page); overflow:hidden; }
 .detail .detail-head { flex-shrink:0; z-index:5; background:var(--bg-page); border-bottom:1px solid var(--border); padding:10px 20px 6px; display:flex; flex-direction:column; gap:4px; }
 
-/* Zeile 1 — alles in einer Flex-Reihe */
-.scene-r1 { display:flex; align-items:center; gap:8px; }
+/* Zeile 1 — CSS Grid für saubere Ausrichtung */
+.scene-r1 { display:grid; grid-template-columns:auto auto 1fr auto auto auto auto; align-items:baseline; gap:8px; }
 /* sz-group: SZ-Nummer allein, feste Breite für Ausrichtung mit scene-fields */
 .sz-group { display:flex; align-items:baseline; gap:1px; flex-shrink:0; min-width:52px; }
 .sz-group .scene-big { font-size:17px; font-weight:700; letter-spacing:-0.005em; }
 .sz-stopp { font-size:11px; color:var(--text-muted); font-weight:500; }
 
+/* Stoppzeit-Spalte — Stoppzeit + Seitenachtel vertikal */
+.stopp-col { display:flex; flex-direction:column; align-items:center; flex-shrink:0; }
 /* Stoppzeit — einfaches Eingabefeld */
 .stopp-inp { font-size:11px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:32px; min-width:32px; max-width:32px; box-sizing:border-box; padding:0; font-family:inherit; cursor:text; text-align:center; flex-shrink:0; font-variant-numeric:tabular-nums; }
 .stopp-inp:hover, .stopp-inp:focus { border-bottom-color:var(--border); }

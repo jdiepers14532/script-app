@@ -199,28 +199,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const rolleCharacters = useMemo(() => allCharacters.filter(c => c.kategorie_typ === 'rolle'), [allCharacters])
   const komparseCharacters = useMemo(() => allCharacters.filter(c => c.kategorie_typ === 'komparse'), [allCharacters])
 
-  // Live text statistics (characters, words, sentences, repliken)
-  const textStats = useMemo(() => {
-    if (!scene?.content) return { chars: 0, words: 0, sentences: 0, repliken: 0, isScreenplay: false }
-    const nodes: any[] = Array.isArray(scene.content) ? scene.content : (scene.content?.content ?? [])
-    let fullText = ''
-    let repliken = 0
-    let isScreenplay = false
-    for (const node of nodes) {
-      if (!node) continue
-      if (node.type === 'screenplay_element') {
-        isScreenplay = true
-        if (node.attrs?.element_type === 'character') repliken++
-      }
-      const text = node.content?.map((c: any) => c.text ?? '').join('') ?? ''
-      if (text) fullText += (fullText ? '\n' : '') + text
-    }
-    const chars = fullText.length
-    const words = fullText.trim() ? fullText.trim().split(/\s+/).length : 0
-    const sentences = fullText.trim() ? (fullText.match(/[.!?]+/g) || []).length : 0
-    return { chars, words, sentences, repliken, isScreenplay }
-  }, [scene?.content])
-
   // Derived: motive hierarchy — parent (no parent_id) and children (with parent_id)
   const parentMotive = useMemo(() => allMotive.filter(m => !m.parent_id), [allMotive])
   const childrenOf = useMemo(() => {
@@ -521,54 +499,53 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
         {/* Zeile 1: SZ | Stoppzeit-Input | Motiv (grows) | Spielzeit | DT · I/T | buttons */}
         <div className="scene-r1">
-          {/* SZ-Nummer + Stoppzeit + Seitenachtel (vertikal) */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span className="sz-group">
-                <span className="scene-big">SZ{scene.scene_nummer}</span>
-              </span>
+          {/* SZ-Nummer */}
+          <span className="sz-group">
+            <span className="scene-big">SZ{scene.scene_nummer}</span>
+          </span>
 
-              {/* Stoppzeit — mm:ss for werkstufen (stoppzeit_sek), minutes for legacy */}
-              {scene.stoppzeit_sek != null || (useDokumentSzenen && typeof szeneId === 'string') ? (
-                <input
-                  key={`stopp-${szeneId}`}
-                  className="spielzeit-inp stopp-inp"
-                  defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
-                  placeholder="0:00"
-                  title="Stoppzeit (mm:ss)"
-                  onBlur={e => {
-                    const raw = e.target.value.trim()
-                    if (!raw) {
-                      if (scene.stoppzeit_sek != null)
-                        saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                      return
-                    }
-                    const parts = raw.split(':')
-                    const mins = parseInt(parts[0] || '0', 10) || 0
-                    const secs = parseInt(parts[1] || '0', 10) || 0
-                    const total = mins * 60 + secs
-                    if (total !== (scene.stoppzeit_sek ?? null))
-                      saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                  }}
-                />
-              ) : (
-                <input
-                  key={`stopp-${szeneId}`}
-                  className="spielzeit-inp stopp-inp"
-                  defaultValue={scene.dauer_min != null ? String(scene.dauer_min) : ''}
-                  placeholder="0'"
-                  title="Geplante Dauer (Minuten)"
-                  type="number"
-                  min={0}
-                  onBlur={e => {
-                    const raw = e.target.value.trim()
-                    const val = raw ? parseFloat(raw) : null
-                    if (val !== (scene.dauer_min ?? null))
-                      saveScene({ dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                  }}
-                />
-              )}
-            </div>
+          {/* Stoppzeit + Seitenachtel (vertikal gestapelt) */}
+          <div className="stopp-col">
+            {/* Stoppzeit — mm:ss for werkstufen (stoppzeit_sek), minutes for legacy */}
+            {scene.stoppzeit_sek != null || (useDokumentSzenen && typeof szeneId === 'string') ? (
+              <input
+                key={`stopp-${szeneId}`}
+                className="spielzeit-inp stopp-inp"
+                defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
+                placeholder="0:00"
+                title="Stoppzeit (mm:ss)"
+                onBlur={e => {
+                  const raw = e.target.value.trim()
+                  if (!raw) {
+                    if (scene.stoppzeit_sek != null)
+                      saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                    return
+                  }
+                  const parts = raw.split(':')
+                  const mins = parseInt(parts[0] || '0', 10) || 0
+                  const secs = parseInt(parts[1] || '0', 10) || 0
+                  const total = mins * 60 + secs
+                  if (total !== (scene.stoppzeit_sek ?? null))
+                    saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }}
+              />
+            ) : (
+              <input
+                key={`stopp-${szeneId}`}
+                className="spielzeit-inp stopp-inp"
+                defaultValue={scene.dauer_min != null ? String(scene.dauer_min) : ''}
+                placeholder="0'"
+                title="Geplante Dauer (Minuten)"
+                type="number"
+                min={0}
+                onBlur={e => {
+                  const raw = e.target.value.trim()
+                  const val = raw ? parseFloat(raw) : null
+                  if (val !== (scene.dauer_min ?? null))
+                    saveScene({ dauer_min: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }}
+              />
+            )}
             {/* Seitenachtel — page_length (unter Stoppzeit) */}
             {scene.page_length != null && scene.page_length > 0 && (
               <Tooltip text={`Seitenlänge: ${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)\nBerechnung: 56 Zeilen/Seite`} placement="bottom">
@@ -577,7 +554,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   color: 'var(--text-muted)',
                   fontVariantNumeric: 'tabular-nums',
                   marginTop: 1,
-                  paddingLeft: 2,
                   cursor: 'default',
                 }}>
                   {scene.page_length % 8 === 0
@@ -678,16 +654,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             )}
           </div>
 
-          {/* Text stats + Save status */}
-          {textStats.chars > 0 && (
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-              {textStats.chars.toLocaleString('de-DE')}&thinsp;Z · {textStats.words.toLocaleString('de-DE')}&thinsp;W
-              {textStats.isScreenplay && <>{' · '}{textStats.sentences}&thinsp;S · {textStats.repliken}&thinsp;R</>}
-            </span>
-          )}
-          {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Speichert…</span>}
-          {saveMsg && !saving && <span style={{ fontSize: 11, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)', flexShrink: 0 }}>{saveMsg}</span>}
-
           {/* Spielzeit mit Hover-Info */}
           <span
             className="spielzeit-wrap"
@@ -762,19 +728,23 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               )}
             </button>
           </Tooltip>
-          <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId).then(r => r.blob()).then(b => {
-            const url = URL.createObjectURL(b); window.open(url, '_blank')
-          })}>
-            <FileDown size={12} />PDF
-          </button>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+            {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
+            {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
+            <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId).then(r => r.blob()).then(b => {
+              const url = URL.createObjectURL(b); window.open(url, '_blank')
+            })}>
+              <FileDown size={12} />PDF
+            </button>
+          </span>
         </div>
 
         {/* Zeilen 2–5: Felder eingerückt unter Motiv-Position (hidden in compact mode) */}
         {!compact && <div className="scene-fields" key={szeneId}>
-          {/* Unsichtbarer Spacer — spiegelt sz-group + stopp-inp aus scene-r1 für exakte Ausrichtung */}
+          {/* Unsichtbarer Spacer — spiegelt sz-group + stopp-col aus scene-r1 für exakte Ausrichtung */}
           <span className="sf-align-spacer" aria-hidden="true">
             <span className="sz-group"><span className="scene-big">SZ0</span></span>
-            <input className="stopp-inp" type="number" tabIndex={-1} readOnly style={{ pointerEvents: 'none' }} />
+            <span style={{ width: 32 }} />
           </span>
           <div className="scene-fields-rows">
           <div className="sf-row">
