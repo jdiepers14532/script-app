@@ -5135,12 +5135,12 @@ function VorlagenOcrTab() {
         <p style={p}>
           KI-basierte Texterkennung über die Mistral-API (<code>mistral-ocr-latest</code>).
           Liefert bessere Ergebnisse bei gescannten PDFs oder komplexen Layouts.
-          Erfordert einen aktiven Mistral API-Key in den KI-Einstellungen.
+          Erfordert einen aktiven Mistral API-Key in den Admin-Einstellungen.
         </p>
         <h3 style={h3}>Konfiguration</h3>
         <p style={p}>
           Der OCR-Toggle erscheint automatisch im Import-Wizard (Schritt 1), wenn in den
-          <strong> KI-Einstellungen</strong> (Drehbuchkoordination → KI-Einstellungen) ein Mistral-Provider mit API-Key aktiv ist
+          <strong> Admin-Einstellungen</strong> (Admin → KI) ein Mistral-Provider mit API-Key aktiv ist
           und die Funktion <code>pdf_ocr</code> aktiviert wurde.
         </p>
         <div style={{ background: '#f8f9fa', borderRadius: 8, padding: 12, border: `1px solid ${C.border}` }}>

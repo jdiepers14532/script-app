@@ -26,7 +26,6 @@ const DK_TABS = [
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
   { id: 'stockshot-templates',    label: 'Stockshot-Vorlagen' },
   { id: 'vorlagen',               label: 'Vorlagen' },
-  { id: 'ki-einstellungen',       label: 'KI-Einstellungen' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -2035,8 +2034,6 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <StockshotTemplatesTab productionId={produktionId} /> : <NoProduction />
       case 'vorlagen':
         return produktionId ? <VorlagenTab productionId={produktionId} /> : <NoProduction />
-      case 'ki-einstellungen':
-        return produktionId ? <KiEinstellungenTab /> : <NoProduction />
       default:
         return <Placeholder label={activeTab} />
     }
@@ -2734,118 +2731,6 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   )
 }
 
-// ── KI-Einstellungen Tab ────────────────────────────────────────────────────────
-
-function KiEinstellungenTab() {
-  const [settings, setSettings] = useState<any[]>([])
-  const [providers, setProviders] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState<string | null>(null)
-
-  useEffect(() => {
-    Promise.all([api.getKiSettings(), api.getKiProviders()])
-      .then(([s, p]) => { setSettings(s); setProviders(p) })
-      .finally(() => setLoading(false))
-  }, [])
-
-  const toggleProvider = async (provider: string, field: string, value: boolean) => {
-    setSaving(provider)
-    try {
-      await api.updateKiProvider(provider, { [field]: value })
-      setProviders(prev => prev.map(p => p.provider === provider ? { ...p, [field]: value } : p))
-    } catch (err: any) {
-      alert('Fehler: ' + err.message)
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const updateSetting = async (funktion: string, field: string, value: any) => {
-    setSaving(funktion)
-    try {
-      await api.updateKiSetting(funktion, { [field]: value })
-      setSettings(prev => prev.map(s => s.funktion === funktion ? { ...s, [field]: value } : s))
-    } catch (err: any) {
-      alert('Fehler: ' + err.message)
-    } finally {
-      setSaving(null)
-    }
-  }
-
-  const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none' }
-
-  if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, maxWidth: 700 }}>
-      {/* Providers */}
-      <div>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 12px' }}>KI-Anbieter</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {providers.map(p => (
-            <div key={p.provider} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8,
-              border: '1px solid var(--border)', opacity: saving === p.provider ? 0.6 : 1,
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{p.provider}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                  API-Key: {p.api_key ? '••••' + p.api_key.slice(-4) : '(nicht gesetzt)'}
-                </div>
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
-                <input type="checkbox" checked={p.is_active ?? false} onChange={e => toggleProvider(p.provider, 'is_active', e.target.checked)} />
-                Aktiv
-              </label>
-            </div>
-          ))}
-          {providers.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Provider konfiguriert.</div>
-          )}
-        </div>
-      </div>
-
-      {/* Settings (functions) */}
-      <div>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: '0 0 12px' }}>KI-Funktionen</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {settings.map(s => (
-            <div key={s.funktion} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8,
-              border: '1px solid var(--border)', opacity: saving === s.funktion ? 0.6 : 1,
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{s.funktion}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                  Provider: {s.provider || '—'} · Modell: {s.model_name || '—'}
-                </div>
-              </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer' }}>
-                <input type="checkbox" checked={s.enabled ?? false} onChange={e => updateSetting(s.funktion, 'enabled', e.target.checked)} />
-                Aktiv
-              </label>
-              <select
-                style={{ ...inputStyle, width: 'auto', fontSize: 11 }}
-                value={s.provider || ''}
-                onChange={e => updateSetting(s.funktion, 'provider', e.target.value)}
-              >
-                <option value="">—</option>
-                {providers.filter(p => p.is_active).map(p => (
-                  <option key={p.provider} value={p.provider}>{p.provider}</option>
-                ))}
-              </select>
-            </div>
-          ))}
-          {settings.length === 0 && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine KI-Funktionen konfiguriert.</div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function NoProduction() {
   return (
