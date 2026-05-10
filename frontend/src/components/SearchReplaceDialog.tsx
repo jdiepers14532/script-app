@@ -71,7 +71,7 @@ export default function SearchReplaceDialog({
 
   const [query, setQuery] = useState('')
   const [replacement, setReplacement] = useState('')
-  const [scope, setScope] = useState<SearchScope>('szene')
+  const [scope, setScope] = useState<SearchScope>('block')
   const [werkstufenTyp, setWerkstufenTyp] = useState('drehbuch')
   const [options, setOptions] = useState<SearchOptions>({
     caseSensitive: false,
@@ -79,7 +79,7 @@ export default function SearchReplaceDialog({
     regex: false,
   })
   const [selectedBlock, setSelectedBlock] = useState<string | undefined>(undefined)
-  const [selectedStaffel, setSelectedStaffel] = useState<string>('current')
+  const [selectedStaffel, setSelectedStaffel] = useState<string>(currentProduktionId || '')
   const [showPreview, setShowPreview] = useState(false)
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set())
   const [replaceResult, setReplaceResult] = useState<{ replaced_count: number; skipped_locked: number } | null>(null)
@@ -90,6 +90,13 @@ export default function SearchReplaceDialog({
       setSelectedBlock(String(currentBlockNummer))
     }
   }, [scope, currentBlockNummer, selectedBlock])
+
+  // Sync selectedStaffel when production changes
+  useEffect(() => {
+    if (currentProduktionId && selectedStaffel !== 'alle') {
+      setSelectedStaffel(currentProduktionId)
+    }
+  }, [currentProduktionId])
 
   // Focus input on open
   useEffect(() => {
@@ -129,8 +136,7 @@ export default function SearchReplaceDialog({
       }
       case 'produktion': {
         if (selectedStaffel === 'alle') return undefined
-        if (selectedStaffel === 'current') return currentProduktionId
-        return selectedStaffel
+        return selectedStaffel || currentProduktionId
       }
       case 'alle': return undefined
     }
