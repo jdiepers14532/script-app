@@ -5,6 +5,7 @@ import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileT
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
 import { useTerminologie } from '../sw-ui'
+import PdfPageViewer from '../components/PdfPageViewer'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 
@@ -588,41 +589,12 @@ export default function ImportPage() {
                 )}
                 <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                   {isPdf && fileUrl ? (
-                    <>
-                      <iframe
-                        src={fileUrl}
-                        style={{ width: '100%', height: '100%', border: 'none' }}
-                        title="Dokument-Vorschau"
-                      />
-                      {/* Crop overlays — left, right, bottom */}
-                      {pdfMethod === 'pdftotext' && pdfCropLeft > 0 && (
-                        <div style={{
-                          position: 'absolute', top: 0, left: 0, bottom: 0,
-                          width: `${pdfCropLeft}%`,
-                          background: 'rgba(255, 59, 48, 0.12)',
-                          borderRight: '2px dashed rgba(255, 59, 48, 0.6)',
-                          pointerEvents: 'none',
-                        }} />
-                      )}
-                      {pdfMethod === 'pdftotext' && pdfCropRight > 0 && (
-                        <div style={{
-                          position: 'absolute', top: 0, right: 0, bottom: 0,
-                          width: `${pdfCropRight}%`,
-                          background: 'rgba(255, 59, 48, 0.12)',
-                          borderLeft: '2px dashed rgba(255, 59, 48, 0.6)',
-                          pointerEvents: 'none',
-                        }} />
-                      )}
-                      {pdfMethod === 'pdftotext' && pdfCropBottom > 0 && (
-                        <div style={{
-                          position: 'absolute', left: 0, right: 0, bottom: 0,
-                          height: `${pdfCropBottom}%`,
-                          background: 'rgba(255, 59, 48, 0.12)',
-                          borderTop: '2px dashed rgba(255, 59, 48, 0.6)',
-                          pointerEvents: 'none',
-                        }} />
-                      )}
-                    </>
+                    <PdfPageViewer
+                      fileUrl={fileUrl}
+                      cropLeft={pdfMethod === 'pdftotext' ? pdfCropLeft : 0}
+                      cropRight={pdfMethod === 'pdftotext' ? pdfCropRight : 0}
+                      cropBottom={pdfMethod === 'pdftotext' ? pdfCropBottom : 0}
+                    />
                   ) : fileTextContent ? (
                     <pre style={{
                       margin: 0, padding: 16, height: '100%', overflowY: 'auto',
