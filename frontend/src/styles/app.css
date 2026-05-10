@@ -1027,3 +1027,24 @@
 }
 .admin-save-btn:disabled { opacity: 0.5; cursor: default; }
 .admin-save-btn:not(:disabled):hover { opacity: 0.85; }
+
+/* ── Search & Replace Highlights ── */
+.search-highlight {
+  background: #ffe566;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+.search-highlight-active {
+  background: #FF9500;
+  color: #fff;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+[data-theme='dark'] .search-highlight {
+  background: #7a6200;
+}
+[data-theme='dark'] .search-highlight-active {
+  background: #CC7700;
+  color: #fff;
+}

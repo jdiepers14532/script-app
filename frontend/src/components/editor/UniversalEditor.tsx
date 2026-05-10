@@ -23,6 +23,7 @@ import { AbsatzExtension, generateAbsatzCSS, convertScreenplayToAbsatz, type Abs
 import { FontSizeExtension } from '../../tiptap/FontSizeExtension'
 import { LineSpacingExtension } from '../../tiptap/LineSpacingExtension'
 import { AnnotationMark } from '../../tiptap/AnnotationMark'
+import { SearchHighlightExtension } from '../../tiptap/SearchHighlightExtension'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
@@ -304,6 +305,7 @@ export default function UniversalEditor({
       ScreenplayExtension.configure({ formatElements }),
       AbsatzExtension.configure({ formate: relevantFormats }),
       AnnotationMark,
+      SearchHighlightExtension,
       Placeholder.configure({
         placeholder,
         emptyEditorClass: 'universal-editor-empty',

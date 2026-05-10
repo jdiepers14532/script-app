@@ -561,6 +561,58 @@ export const api = {
   deleteStatVorlage: (id: number) =>
     request<void>('DELETE', `/statistik/vorlagen/${id}`),
 
+  // ── Suchen & Ersetzen ──────────────────────────────────────────────────────
+
+  search: (params: {
+    query: string
+    scope: 'szene' | 'episode' | 'block' | 'produktion' | 'alle'
+    scope_id?: string
+    werkstufe_typ?: string
+    content_types?: string[]
+    case_sensitive?: boolean
+    whole_words?: boolean
+    regex?: boolean
+    limit?: number
+    offset?: number
+  }) => {
+    const qs = new URLSearchParams()
+    qs.set('query', params.query)
+    qs.set('scope', params.scope)
+    if (params.scope_id) qs.set('scope_id', params.scope_id)
+    if (params.werkstufe_typ) qs.set('werkstufe_typ', params.werkstufe_typ)
+    if (params.content_types) qs.set('content_types', params.content_types.join(','))
+    if (params.case_sensitive) qs.set('case_sensitive', 'true')
+    if (params.whole_words) qs.set('whole_words', 'true')
+    if (params.regex) qs.set('regex', 'true')
+    if (params.limit) qs.set('limit', String(params.limit))
+    if (params.offset) qs.set('offset', String(params.offset))
+    return request<{
+      results: any[]
+      total: number
+      total_scenes: number
+      locked_count: number
+      fallback_count: number
+      has_more: boolean
+    }>('GET', `/search?${qs.toString()}`)
+  },
+
+  replace: (params: {
+    query: string
+    replacement: string
+    scope: 'szene' | 'episode' | 'block' | 'produktion' | 'alle'
+    scope_id?: string
+    werkstufe_typ?: string
+    content_types?: string[]
+    case_sensitive?: boolean
+    whole_words?: boolean
+    regex?: boolean
+    exclude_ids?: string[]
+  }) => request<{
+    replaced_count: number
+    skipped_locked: number
+    skipped_excluded: number
+    affected_scenes: any[]
+  }>('POST', '/search/replace', params),
 }
 
 /**

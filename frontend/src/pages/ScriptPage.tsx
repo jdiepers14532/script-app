@@ -10,6 +10,8 @@ import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../comp
 import { useFocus, useSelectedProduction, PanelModeContext, useTweaks } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import { useWerkstufe } from '../hooks/useDokument'
+import SearchReplaceDialog from '../components/SearchReplaceDialog'
+import { useSearchReplace } from '../hooks/useSearchReplace'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
@@ -255,6 +257,20 @@ export default function ScriptPage() {
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | string | null>(null)
 
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({})
+  const [showSearchReplace, setShowSearchReplace] = useState(false)
+  const searchReplace = useSearchReplace()
+
+  // Ctrl+H / Cmd+H → open Search & Replace
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+        e.preventDefault()
+        setShowSearchReplace(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -662,6 +678,46 @@ export default function ScriptPage() {
           sceneIdentityId={useDokumentSzenen ? szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null : null}
         />}
       </div>
+
+      {/* Search & Replace */}
+      <SearchReplaceDialog
+        open={showSearchReplace}
+        onClose={() => {
+          setShowSearchReplace(false)
+          searchReplace.clearSearch()
+        }}
+        currentSzeneId={typeof selectedSzeneId === 'string' ? selectedSzeneId : undefined}
+        currentWerkstufenId={undefined}
+        currentFolgeId={selectedFolgeNummer ?? undefined}
+        currentProduktionId={selectedProduktionId || undefined}
+        editorActiveIndex={searchReplace.state.editorActiveIndex}
+        editorTotal={searchReplace.state.editorTotal}
+        onEditorSearch={searchReplace.searchInEditor}
+        onFindNext={searchReplace.findNext}
+        onFindPrev={searchReplace.findPrev}
+        onReplaceCurrent={searchReplace.replaceCurrent}
+        onReplaceAllEditor={searchReplace.replaceAllInEditor}
+        onBackendSearch={searchReplace.searchBackend}
+        onBackendReplace={async (params) => {
+          const result = await searchReplace.replaceBackend(params)
+          return result
+        }}
+        backendResults={searchReplace.state.results}
+        backendTotal={searchReplace.state.total}
+        backendTotalScenes={searchReplace.state.totalScenes}
+        backendLockedCount={searchReplace.state.lockedCount}
+        backendFallbackCount={searchReplace.state.fallbackCount}
+        backendLoading={searchReplace.state.loading}
+        backendError={searchReplace.state.error}
+        onNavigateToScene={(szeneId, _folgeId) => {
+          setSelectedSzeneId(szeneId)
+        }}
+        bloecke={bloecke?.map((b: any) => ({
+          block_nummer: b.block_nummer,
+          folge_von: b.folge_von,
+          folge_bis: b.folge_bis,
+        }))}
+      />
 
       {/* Statistik Modal */}
       {showStatModal && selectedProduktionId && (
