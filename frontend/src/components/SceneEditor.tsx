@@ -261,6 +261,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       if (rolleDropdownRef.current && !rolleDropdownRef.current.contains(e.target as Node)) setCharDropdownRolle(false)
       if (komparseDropdownRef.current && !komparseDropdownRef.current.contains(e.target as Node)) setCharDropdownKomparse(false)
       if (strangDropdownRef.current && !strangDropdownRef.current.contains(e.target as Node)) setStrangDropdownOpen(false)
+      if (wsDropdownRef.current && !wsDropdownRef.current.contains(e.target as Node)) setWsDropdownOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -1012,7 +1013,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               {scene.sondertyp === 'wechselschnitt' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
                   <span style={{ fontWeight: 500 }}>Partner:</span>
-                  {wsPartner.length === 0 && <span style={{ fontStyle: 'italic' }}>keine</span>}
+                  {wsPartner.length === 0 && !wsDropdownOpen && <span style={{ fontStyle: 'italic' }}>keine</span>}
                   {wsPartner.map((p: any) => (
                     <span key={p.id} style={{
                       display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -1029,6 +1030,72 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       >×</button>
                     </span>
                   ))}
+                  <span className="sf-char-add-wrap" ref={wsDropdownRef}>
+                    <button
+                      className="sf-char-search"
+                      style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }}
+                      onClick={() => {
+                        if (allSceneIdentities.length === 0 && werkstufId) {
+                          api.getWerkstufenSzenen(werkstufId).then(scenes => {
+                            setAllSceneIdentities(scenes)
+                            setWsDropdownOpen(true)
+                          }).catch(() => setWsDropdownOpen(true))
+                        } else {
+                          setWsDropdownOpen(v => !v)
+                        }
+                      }}
+                    >+</button>
+                    {wsDropdownOpen && (
+                      <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(wsDropdownRef)}>
+                        <input
+                          className="sf-dropdown-search"
+                          autoFocus
+                          placeholder="Szene suchen…"
+                          value={wsSearch}
+                          onChange={e => setWsSearch(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Escape') setWsDropdownOpen(false) }}
+                          style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }}
+                        />
+                        {allSceneIdentities
+                          .filter(s => s.scene_identity_id !== scene.scene_identity_id)
+                          .filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id))
+                          .filter(s => {
+                            if (!wsSearch.trim()) return true
+                            const q = wsSearch.toLowerCase()
+                            return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q)
+                          })
+                          .map(s => (
+                            <div key={s.id} className="sf-dropdown-item"
+                              onMouseDown={e => {
+                                e.preventDefault()
+                                const next = [
+                                  ...wsPartner.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i })),
+                                  { partner_identity_id: s.scene_identity_id, position: wsPartner.length }
+                                ]
+                                api.setWechselschnittPartner(scene.id, next).then(updated => {
+                                  setWsPartner(updated)
+                                  setWsDropdownOpen(false)
+                                  setWsSearch('')
+                                }).catch(() => {})
+                              }}
+                            >
+                              <span style={{ fontWeight: 600, marginRight: 6 }}>Sz. {s.scene_nummer ?? '?'}</span>
+                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{[s.int_ext, s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
+                            </div>
+                          ))}
+                        {allSceneIdentities
+                          .filter(s => s.scene_identity_id !== scene.scene_identity_id)
+                          .filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id))
+                          .filter(s => {
+                            if (!wsSearch.trim()) return true
+                            const q = wsSearch.toLowerCase()
+                            return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q)
+                          }).length === 0 && (
+                          <div className="sf-dropdown-empty">Keine Szenen verfügbar</div>
+                        )}
+                      </div>
+                    )}
+                  </span>
                 </span>
               )}
 
