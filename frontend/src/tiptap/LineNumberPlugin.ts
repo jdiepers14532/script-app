@@ -4,9 +4,12 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 export const lineNumberPluginKey = new PluginKey('lineNumbers')
 
 /**
- * ProseMirror plugin that renders line numbers in the left gutter.
- * Uses widget decorations placed INSIDE each 5th block node.
- * The widget is absolutely positioned relative to its parent block.
+ * ProseMirror plugin: line numbers in the left gutter.
+ *
+ * Uses Decoration.node() to add a data-line-num attribute + CSS class
+ * to every 5th block node. The number is rendered via ::after pseudo-element.
+ * This is the most reliable approach because it modifies existing DOM elements
+ * rather than inserting new ones (no contenteditable/widget issues).
  */
 export function createLineNumberPlugin() {
   return new Plugin({
@@ -33,16 +36,11 @@ function buildDecorations(doc: any): DecorationSet {
   doc.forEach((node: any, offset: number) => {
     lineNum++
     if (lineNum % 5 === 0) {
-      const num = lineNum
-      // Place widget BETWEEN blocks (before this block)
       decos.push(
-        Decoration.widget(offset, () => {
-          const el = document.createElement('div')
-          el.className = 'line-number-gutter'
-          el.setAttribute('data-ln', String(num))
-          el.textContent = String(num)
-          return el
-        }, { side: -1, key: `ln-${num}` })
+        Decoration.node(offset, offset + node.nodeSize, {
+          class: 'ln-numbered',
+          'data-line-num': String(lineNum),
+        })
       )
     }
   })
@@ -54,23 +52,21 @@ export const LINE_NUMBER_CSS = `
 .ProseMirror.has-line-numbers {
   padding-left: 52px !important;
 }
-.line-number-gutter {
-  height: 0 !important;
-  overflow: visible !important;
-  position: relative !important;
-  pointer-events: none;
-  user-select: none;
+.ProseMirror.has-line-numbers .ln-numbered {
+  position: relative;
 }
-.line-number-gutter::after {
-  content: attr(data-ln);
+.ProseMirror.has-line-numbers .ln-numbered::after {
+  content: attr(data-line-num);
   position: absolute;
-  left: -52px;
-  bottom: 0;
-  width: 28px;
+  left: -48px;
+  top: 0;
+  width: 32px;
   text-align: right;
   font-family: 'Courier Prime', 'Courier New', monospace;
   font-size: 10px;
-  line-height: 1;
-  color: var(--text-secondary);
+  line-height: inherit;
+  color: var(--text-primary);
+  opacity: 0.4;
+  pointer-events: none;
 }
 `
