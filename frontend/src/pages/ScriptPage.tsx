@@ -12,6 +12,7 @@ import { useTerminologie } from '../sw-ui'
 import { useWerkstufe } from '../hooks/useDokument'
 import SearchReplaceDialog from '../components/SearchReplaceDialog'
 import { useSearchReplace } from '../hooks/useSearchReplace'
+import StoryRadarPanel from '../components/StoryRadarPanel'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
@@ -251,6 +252,7 @@ export default function ScriptPage() {
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [showStatModal, setShowStatModal] = useState(false)
+  const [showRadar, setShowRadar] = useState(false)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
   const [allFolgen, setAllFolgen] = useState<any[]>([])
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
@@ -631,6 +633,7 @@ export default function ScriptPage() {
               onSzenesReordered={setSzenen}
               commentCounts={commentCounts}
               onOpenStatistik={() => setShowStatModal(true)}
+              onOpenRadar={() => setShowRadar(v => !v)}
               werkstufId={selectedStageId ? String(selectedStageId) : null}
             />
           </div>
@@ -719,6 +722,15 @@ export default function ScriptPage() {
           folge_bis: b.folge_bis,
         }))}
       />
+
+      {/* Story-Radar Panel */}
+      {selectedProduktionId && (
+        <StoryRadarPanel
+          produktionId={selectedProduktionId}
+          open={showRadar}
+          onClose={() => setShowRadar(false)}
+        />
+      )}
 
       {/* Statistik Modal */}
       {showStatModal && selectedProduktionId && (

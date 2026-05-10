@@ -21,6 +21,7 @@ interface SceneListProps {
   onSzenesReordered?: (scenes: any[]) => void
   commentCounts?: Record<number, number>
   onOpenStatistik?: () => void
+  onOpenRadar?: () => void
   werkstufId?: string | null
   allCharacters?: any[]
 }
@@ -38,6 +39,7 @@ export default function SceneList({
   onSzenesReordered,
   commentCounts,
   onOpenStatistik,
+  onOpenRadar,
   werkstufId,
   allCharacters,
 }: SceneListProps) {
@@ -394,6 +396,14 @@ export default function SceneList({
               >
                 Platzhalter-{t('szene', 'p')} anlegen
               </button>
+              {onOpenRadar && (
+                <button
+                  className="scene-ctx-item"
+                  onClick={() => { onOpenRadar(); setHeaderMenuOpen(false) }}
+                >
+                  Story-Radar
+                </button>
+              )}
               {onOpenStatistik && (
                 <>
                   <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />

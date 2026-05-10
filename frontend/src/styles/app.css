@@ -293,6 +293,10 @@
 .scenes .shot-ico { color: var(--sw-green); }
 .scenes .comment-bubble { display:inline-flex; align-items:center; gap:2px; font-size:10px; color:var(--sw-warning, #FFCC00); font-weight:700; flex-shrink:0; padding:0 4px; }
 
+/* Story-Radar Panel */
+.story-radar-panel { position:absolute; right:0; top:0; bottom:0; width:280px; background:var(--bg-card); border-left:1px solid var(--border); z-index:20; display:flex; flex-direction:column; box-shadow:-2px 0 8px rgba(0,0,0,0.08); }
+.story-radar-head { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; border-bottom:1px solid var(--border); }
+
 [data-mode='focus'] .scenes .row .meta,
 [data-mode='focus'] .scenes .row .sl-info { display:none; }
 [data-mode='focus'] .scenes .row { grid-template-columns:30px 1fr auto; }
