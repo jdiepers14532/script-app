@@ -716,7 +716,7 @@ export default function ScriptPage() {
         currentFolgeId={selectedFolgeNummer ?? undefined}
         currentProduktionId={selectedProduktionId || undefined}
         currentBlockNummer={selectedBlock?.block_nummer}
-        productions={productions?.map((p: any) => ({ id: p.id, titel: p.titel, is_active: p.is_active }))}
+        productions={productions}
         editorActiveIndex={searchReplace.state.editorActiveIndex}
         editorTotal={searchReplace.state.editorTotal}
         onEditorSearch={searchReplace.searchInEditor}

@@ -13,7 +13,7 @@ interface Props {
   currentProduktionId?: string
   currentBlockNummer?: number
   // All productions (Staffeln) for the dropdown
-  productions?: { id: string; titel: string; is_active: boolean }[]
+  productions?: { id: string; title: string; staffelnummer?: number; projektnummer?: string; is_active: boolean }[]
   // Editor search (scope: szene)
   editorActiveIndex: number
   editorTotal: number
@@ -68,6 +68,11 @@ export default function SearchReplaceDialog({
 }: Props) {
   const { t } = useTerminologie()
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const prodLabel = (p: { title: string; staffelnummer?: number; projektnummer?: string }) => {
+    const base = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
+    return p.projektnummer ? `${p.projektnummer} · ${base}` : base
+  }
 
   const [query, setQuery] = useState('')
   const [replacement, setReplacement] = useState('')
@@ -344,22 +349,18 @@ export default function SearchReplaceDialog({
             <select
               value={selectedStaffel}
               onChange={e => setSelectedStaffel(e.target.value)}
-              style={{
-                width: '100%', padding: '6px 10px', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--bg-surface)',
-                color: 'var(--text-primary)', fontSize: 12,
-              }}
+              style={selectStyle}
             >
               {productions.filter(p => p.is_active).map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.titel}{p.id === currentProduktionId ? ' (aktuell)' : ''}
+                  {prodLabel(p)}{p.id === currentProduktionId ? ' (aktuell)' : ''}
                 </option>
               ))}
               <option value="alle">Alle {t('staffel', 'p')}</option>
               {productions.some(p => !p.is_active) && (
                 <optgroup label="Archiviert">
                   {productions.filter(p => !p.is_active).map(p => (
-                    <option key={p.id} value={p.id}>{p.titel}</option>
+                    <option key={p.id} value={p.id}>{prodLabel(p)}</option>
                   ))}
                 </optgroup>
               )}
@@ -376,11 +377,7 @@ export default function SearchReplaceDialog({
             <select
               value={selectedBlock || ''}
               onChange={e => setSelectedBlock(e.target.value || undefined)}
-              style={{
-                width: '100%', padding: '6px 10px', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--bg-surface)',
-                color: 'var(--text-primary)', fontSize: 12,
-              }}
+              style={selectStyle}
             >
               <option value="">Block waehlen...</option>
               {bloecke.map(b => (
@@ -401,11 +398,7 @@ export default function SearchReplaceDialog({
             <select
               value={werkstufenTyp}
               onChange={e => setWerkstufenTyp(e.target.value)}
-              style={{
-                width: '100%', padding: '6px 10px', borderRadius: 8,
-                border: '1px solid var(--border)', background: 'var(--bg-surface)',
-                color: 'var(--text-primary)', fontSize: 12,
-              }}
+              style={selectStyle}
             >
               <option value="drehbuch">Drehbuch</option>
               <option value="treatment">Treatment</option>
@@ -656,6 +649,13 @@ function highlightSnippet(snippet: string, query: string) {
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────────
+
+const selectStyle: React.CSSProperties = {
+  width: '100%', padding: '6px 10px', borderRadius: 8,
+  border: '1px solid var(--border)', background: 'var(--input-bg)',
+  color: 'var(--text-primary)', fontSize: 12, fontFamily: 'inherit',
+  colorScheme: 'light dark',
+}
 
 const navBtnStyle: React.CSSProperties = {
   padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)',
