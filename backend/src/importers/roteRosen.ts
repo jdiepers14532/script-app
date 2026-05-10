@@ -9,7 +9,7 @@
  * - Doppelte Text-Runs (Dialog-Nummern, Dauer, Komparsen)
  */
 
-import { Textelement, ImportResult, ParsedScene, nextId } from './types'
+import { Textelement, ImportResult, ParsedScene, NonSceneElement, nextId } from './types'
 
 // ─── Detection ──────────────────────────────────────────
 
@@ -1015,13 +1015,57 @@ export function parseRoteRosen(rawText: string): ImportResult {
     i = blockEnd
   }
 
-  // Prepend "FOLGE XXXX" heading to first scene's textelemente
-  if (folgeHeading && szenen.length > 0) {
-    szenen[0].textelemente.unshift({ id: nextId(), type: 'heading', text: folgeHeading })
-  }
-
   if (szenen.length === 0) {
     warnings.push('Keine Szenen erkannt. Möglicherweise unbekanntes PDF-Layout.')
+  }
+
+  // ── Build non-scene elements (cover, synopsis, recap, precap) ──
+  const nonSceneElements: NonSceneElement[] = []
+
+  // Titelseite (cover page) — built from parsed cover metadata
+  const coverParts: string[] = []
+  if (coverMeta.staffel) coverParts.push(`Staffel ${coverMeta.staffel}`)
+  if (coverMeta.episode) coverParts.push(`Folge ${coverMeta.episode}`)
+  if (coverMeta.block) coverParts.push(`Block ${coverMeta.block}`)
+  if (coverMeta.autor) coverParts.push(`Autor: ${coverMeta.autor}`)
+  if (coverMeta.dialogautor) coverParts.push(`Dialogautor: ${coverMeta.dialogautor}`)
+  if (coverMeta.regie) coverParts.push(`Regie: ${coverMeta.regie}`)
+  if (coverMeta.drehtermin) coverParts.push(`Drehtermin: ${coverMeta.drehtermin}`)
+  if (coverMeta.sendetermin) coverParts.push(`Sendetermin: ${coverMeta.sendetermin}`)
+  if (coverParts.length > 0) {
+    nonSceneElements.push({
+      type: 'titelseite',
+      label: 'Titelseite',
+      content: coverParts.join('\n'),
+    })
+  }
+
+  // Synopsis (with optional "FOLGE XXXX" heading)
+  if (synopsis || folgeHeading) {
+    const synopsisContent = [folgeHeading, synopsis].filter(Boolean).join('\n\n')
+    nonSceneElements.push({
+      type: 'synopsis',
+      label: folgeHeading || 'Synopsis',
+      content: synopsisContent,
+    })
+  }
+
+  // Recaps
+  for (const [ri, recap] of recaps.entries()) {
+    nonSceneElements.push({
+      type: 'recap',
+      label: recaps.length > 1 ? `Recap ${ri + 1}` : 'Recap',
+      content: recap,
+    })
+  }
+
+  // Precaps
+  for (const [pi, precap] of precaps.entries()) {
+    nonSceneElements.push({
+      type: 'precap',
+      label: precaps.length > 1 ? `Precap ${pi + 1}` : 'Precap',
+      content: precap,
+    })
   }
 
   // Build metadata
@@ -1050,6 +1094,7 @@ export function parseRoteRosen(rawText: string): ImportResult {
 
   return {
     szenen,
+    nonSceneElements: nonSceneElements.length > 0 ? nonSceneElements : undefined,
     meta: {
       format: `rote-rosen-${docType}`,
       total_scenes: szenen.length,

@@ -9,7 +9,7 @@ import { ImportResult } from './types'
 
 export { detectFormat } from './autodetect'
 export type { DetectResult } from './autodetect'
-export type { ImportResult, ParsedScene, Textelement, TextelementType } from './types'
+export type { ImportResult, ParsedScene, Textelement, TextelementType, NonSceneElement } from './types'
 
 export interface ParseOptions {
   pdfMethod?: 'pdftotext' | 'mistral'

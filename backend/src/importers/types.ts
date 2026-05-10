@@ -35,8 +35,15 @@ export interface ParsedScene {
   szeneninfo?: string
 }
 
+export interface NonSceneElement {
+  type: 'titelseite' | 'synopsis' | 'recap' | 'precap' | 'memo'
+  label: string
+  content: string // plain text or pre-formatted content
+}
+
 export interface ImportResult {
   szenen: ParsedScene[]
+  nonSceneElements?: NonSceneElement[]
   meta: {
     format: string
     version?: string

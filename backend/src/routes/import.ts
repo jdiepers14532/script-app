@@ -137,7 +137,7 @@ function textToParagraphs(text: string, boldNames = false): any[] {
 function buildNonSceneContent(type: string, content: string): any[] {
   if (!content) return [para()]
 
-  if (type === 'cover') {
+  if (type === 'titelseite' || type === 'cover') {
     // Cover: key-value pairs separated by " · "
     const nodes: any[] = []
     const parts = content.split(' · ')
@@ -165,7 +165,7 @@ function buildNonSceneContent(type: string, content: string): any[] {
     return textToParagraphs(content, true)
   }
 
-  if (type === 'memo') {
+  if (type === 'memo' || type === 'recap' || type === 'precap') {
     // Recaps/Precaps: numbered items — each "N. ..." is a paragraph
     const lines = content.split('\n')
     const nodes: any[] = []
@@ -300,6 +300,7 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       motive: allMotive,
       warnings: result.meta.warnings,
       szenen: enrichedSzenen,
+      non_scene_elements: result.nonSceneElements || [],
       file_metadata: fileMeta,
       filename_metadata: filenameMeta,
       watermark_found: wmPayload !== null,
@@ -631,29 +632,48 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     const scenesImported = sceneIdentityIds.length
 
-    // ── Non-scene elements (cover, synopsis, memo) ──
+    // ── Non-scene elements (titelseite, synopsis, recap, precap, memo) ──
     let nonSceneCount = 0
+    // Merge: parser-detected non-scene elements + frontend-supplied overrides
+    const allNonScene: Array<{ type: string; label: string; content: string }> = []
+    if (result.nonSceneElements) {
+      allNonScene.push(...result.nonSceneElements)
+    }
     const rawNonSceneElements = req.body.non_scene_elements
     if (rawNonSceneElements) {
       try {
-        const nonSceneElements: Array<{ type: string; label: string; content: string }> = JSON.parse(rawNonSceneElements)
-        for (const [nsIdx, elem] of nonSceneElements.entries()) {
-          const elemType = ['cover', 'synopsis', 'memo'].includes(elem.type) ? elem.type : 'memo'
-          const pmNodes = buildNonSceneContent(elem.type, elem.content)
-          const nspl = calcPageLength(pmNodes)
-          await queryOne(
-            `INSERT INTO dokument_szenen
-               (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
-                content, format, element_type, geloescht, updated_by, zusammenfassung, page_length)
-             VALUES ($1, NULL, $2, NULL, $3, 'notiz', $4, false, $5, $6, $7)`,
-            [
-              werkstufe.id, -(nonSceneElements.length - nsIdx), JSON.stringify(pmNodes),
-              elemType, req.user!.name || req.user!.user_id, elem.label, nspl,
-            ]
-          )
-          nonSceneCount++
+        const frontendNonScene: Array<{ type: string; label: string; content: string }> = JSON.parse(rawNonSceneElements)
+        // Only add frontend elements whose type doesn't already exist from parser
+        const existingTypes = new Set(allNonScene.map(e => e.type))
+        for (const elem of frontendNonScene) {
+          if (!existingTypes.has(elem.type)) allNonScene.push(elem)
         }
       } catch { /* ignore parse errors */ }
+    }
+
+    for (const [nsIdx, elem] of allNonScene.entries()) {
+      const elemType = ['titelseite', 'synopsis', 'recap', 'precap', 'memo', 'cover'].includes(elem.type) ? elem.type : 'memo'
+      const pmNodes = buildNonSceneContent(elem.type, elem.content)
+      const nspl = calcPageLength(pmNodes)
+
+      // Create a scene_identity with is_non_scene = true
+      const nsIdentity = await queryOne(
+        `INSERT INTO scene_identities (folge_id, is_non_scene, non_scene_type, created_by)
+         VALUES ($1, true, $2, $3) RETURNING id`,
+        [folge.id, elemType, req.user!.name || req.user!.user_id]
+      )
+
+      await queryOne(
+        `INSERT INTO dokument_szenen
+           (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
+            content, format, element_type, geloescht, updated_by, zusammenfassung, page_length)
+         VALUES ($1, $2, $3, NULL, $4, 'notiz', $5, false, $6, $7, $8)`,
+        [
+          werkstufe.id, nsIdentity.id, -(allNonScene.length - nsIdx), JSON.stringify(pmNodes),
+          elemType, req.user!.name || req.user!.user_id, elem.label, nspl,
+        ]
+      )
+      nonSceneCount++
     }
 
     // ── Characters: use new characters + character_productions system ──
