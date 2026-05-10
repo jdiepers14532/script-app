@@ -13,6 +13,7 @@ import { useWerkstufe } from '../hooks/useDokument'
 import SearchReplaceDialog from '../components/SearchReplaceDialog'
 import { useSearchReplace } from '../hooks/useSearchReplace'
 import StoryRadarPanel from '../components/StoryRadarPanel'
+import StrangVerwaltungModal from '../components/StrangVerwaltungModal'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
@@ -259,6 +260,7 @@ export default function ScriptPage() {
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [showStatModal, setShowStatModal] = useState(false)
   const [showRadar, setShowRadar] = useState(false)
+  const [showStrangPanel, setShowStrangPanel] = useState(false)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
   const [allFolgen, setAllFolgen] = useState<any[]>([])
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
@@ -642,6 +644,7 @@ export default function ScriptPage() {
               onOpenStatistik={() => setShowStatModal(true)}
               onOpenRadar={() => setShowRadar(v => !v)}
               onOpenSearch={() => setShowSearchReplace(true)}
+              onOpenStrangPanel={() => setShowStrangPanel(v => !v)}
               werkstufId={selectedStageId ? String(selectedStageId) : null}
             />
           </div>
@@ -658,30 +661,40 @@ export default function ScriptPage() {
           </button>
         </div>
 
-        {/* Editor area — per-panel SceneEditor + DockedEditorPanels */}
+        {/* Editor area — per-panel SceneEditor + DockedEditorPanels OR Strang panel */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {!selectedSzeneId && (
-            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>
-              Keine {t('szene')} ausgewählt
-            </div>
+          {showStrangPanel && selectedProduktionId ? (
+            <StrangVerwaltungModal
+              produktionId={selectedProduktionId}
+              open={true}
+              onClose={() => setShowStrangPanel(false)}
+            />
+          ) : (
+            <>
+              {!selectedSzeneId && (
+                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, color: 'var(--text-secondary)', fontSize: 13 }}>
+                  Keine {t('szene')} ausgewählt
+                </div>
+              )}
+              <DockedEditorPanels
+                produktionId={selectedProduktionId}
+                folgeNummer={selectedFolgeNummer}
+                selectedSzeneId={selectedSzeneId}
+                useDokumentSzenen={useDokumentSzenen}
+                stageId={selectedStageId}
+                sceneIdentityId={useDokumentSzenen ? szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null : null}
+                onNavigateNext={() => navigateSzene(1)}
+                onNavigatePrev={() => navigateSzene(-1)}
+                onSzeneUpdated={(updated) => {
+                  setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
+                }}
+                onMarkCommentsRead={(szeneId) => {
+                  setCommentCounts(prev => ({ ...prev, [szeneId]: 0 }))
+                  api.markSceneCommentsRead(szeneId).catch(() => {})
+                }}
+              />
+            </>
           )}
-          <DockedEditorPanels
-            produktionId={selectedProduktionId}
-            folgeNummer={selectedFolgeNummer}
-            selectedSzeneId={selectedSzeneId}
-            useDokumentSzenen={useDokumentSzenen}
-            stageId={selectedStageId}
-            sceneIdentityId={useDokumentSzenen ? szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null : null}
-            onNavigateNext={() => navigateSzene(1)}
-            onNavigatePrev={() => navigateSzene(-1)}
-            onSzeneUpdated={(updated) => {
-              setSzenen(prev => prev.map(s => s.id === updated.id ? updated : s))
-            }}
-            onMarkCommentsRead={(szeneId) => {
-              setCommentCounts(prev => ({ ...prev, [szeneId]: 0 }))
-              api.markSceneCommentsRead(szeneId).catch(() => {})
-            }}
-          />
         </div>
 
         {!focus && <BreakdownPanel

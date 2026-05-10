@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Plus, ChevronDown, ChevronRight, Check, Circle } from 'lucide-react'
+import { X, Plus, ChevronDown, ChevronRight, Check, Circle, Upload } from 'lucide-react'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 
@@ -69,7 +69,7 @@ export default function StrangVerwaltungModal({ produktionId, open, onClose, all
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Strang wirklich loeschen? Alle Zuordnungen gehen verloren.')) return
+    if (!confirm('Strang wirklich l\u00f6schen? Alle Zuordnungen gehen verloren.')) return
     try {
       await api.deleteStrang(id)
       await loadStraenge()
@@ -99,43 +99,45 @@ export default function StrangVerwaltungModal({ produktionId, open, onClose, all
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box strang-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 560, maxHeight: '85vh' }}>
-        <div className="modal-head">
-          <span>Straenge verwalten</span>
-          <button className="iconbtn" onClick={onClose}><X size={14} /></button>
+    <div className="strang-panel">
+      {/* Header */}
+      <div className="strang-panel-head">
+        <span style={{ fontWeight: 700, fontSize: 14 }}>Str\u00e4nge verwalten</span>
+        <button className="iconbtn" onClick={onClose} title="Schlie\u00dfen"><X size={14} /></button>
+      </div>
+
+      {/* Content */}
+      <div className="strang-panel-body">
+        {loading && <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: 8 }}>Laden...</div>}
+
+        {/* Create new */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 20, padding: '0 4px' }}>
+          <input
+            placeholder="Neuer Strang..."
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleCreate()}
+            style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+          />
+          <button className="btn-sm btn-primary" onClick={handleCreate} disabled={creating || !newName.trim()} style={{ padding: '8px 14px' }}>
+            <Plus size={12} style={{ marginRight: 4 }} /> Anlegen
+          </button>
         </div>
-        <div className="modal-body" style={{ overflowY: 'auto', padding: '12px 16px' }}>
-          {loading && <div style={{ color: 'var(--text-muted)', fontSize: 12, padding: 8 }}>Laden...</div>}
 
-          {/* Create new */}
-          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
-            <input
-              className="sf-input"
-              placeholder="Neuer Strang..."
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              style={{ flex: 1, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }}
-            />
-            <button className="btn-sm btn-primary" onClick={handleCreate} disabled={creating || !newName.trim()}>
-              <Plus size={12} /> Anlegen
-            </button>
-          </div>
-
-          {/* Grouped lists */}
-          {(['aktiv', 'ruhend', 'beendet'] as const).map(status => {
-            const items = grouped[status]
-            if (items.length === 0 && status !== 'aktiv') return null
-            return (
-              <div key={status} style={{ marginBottom: 12 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 6 }}>
-                  {status === 'aktiv' ? 'Aktiv' : status === 'ruhend' ? 'Ruhend' : 'Beendet'}
-                  {items.length > 0 && ` (${items.length})`}
-                </div>
-                {items.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '4px 0' }}>Keine Straenge</div>
-                )}
+        {/* Grouped lists */}
+        {(['aktiv', 'ruhend', 'beendet'] as const).map(status => {
+          const items = grouped[status]
+          if (items.length === 0 && status !== 'aktiv') return null
+          return (
+            <div key={status} style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.08em', marginBottom: 8, padding: '0 4px' }}>
+                {status === 'aktiv' ? 'Aktiv' : status === 'ruhend' ? 'Ruhend' : 'Beendet'}
+                {items.length > 0 && ` (${items.length})`}
+              </div>
+              {items.length === 0 && (
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 4px' }}>Noch keine Str\u00e4nge angelegt.</div>
+              )}
+              <div style={{ display: 'grid', gap: 8 }}>
                 {items.map(s => (
                   <StrangCard
                     key={s.id}
@@ -154,9 +156,9 @@ export default function StrangVerwaltungModal({ produktionId, open, onClose, all
                   />
                 ))}
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
@@ -212,66 +214,49 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
     .slice(0, 10)
 
   return (
-    <div style={{
-      border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px',
-      marginBottom: 6, background: 'var(--bg)',
-      borderLeft: `4px solid ${strang.farbe}`,
-    }}>
+    <div className="strang-card" style={{ borderLeftColor: strang.farbe }}>
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Color dot — click to pick */}
         <div
-          style={{
-            width: 14, height: 14, borderRadius: '50%', background: strang.farbe,
-            cursor: 'pointer', flexShrink: 0, border: '2px solid var(--border)',
-          }}
+          style={{ width: 16, height: 16, borderRadius: '50%', background: strang.farbe, cursor: 'pointer', flexShrink: 0, border: '2px solid var(--border)' }}
           onClick={onToggleFarbPicker}
-          title="Farbe aendern"
+          title="Farbe \u00e4ndern"
         />
-        {/* Name */}
         {isEditing ? (
           <input
-            className="sf-input"
             defaultValue={strang.name}
             autoFocus
-            style={{ flex: 1, fontWeight: 600, fontSize: 13, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4 }}
+            style={{ flex: 1, fontWeight: 600, fontSize: 13, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
             onBlur={e => { if (e.target.value.trim() !== strang.name) onUpdate({ name: e.target.value.trim() }) }}
             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
           />
         ) : (
           <span style={{ flex: 1, fontWeight: 600, fontSize: 13, cursor: 'pointer' }} onClick={onEdit}>{strang.name}</span>
         )}
-        {/* Typ badge */}
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--surface)', padding: '1px 6px', borderRadius: 4 }}>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 8px', borderRadius: 4 }}>
           {TYP_LABELS[strang.typ] || strang.typ}
         </span>
-        {/* Szenen count */}
         <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{strang.szenen_count || 0} Sz.</span>
-        {/* Status toggle */}
         <select
           value={strang.status}
           onChange={e => onUpdate({ status: e.target.value })}
-          style={{ fontSize: 10, padding: '1px 4px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg)' }}
+          style={{ fontSize: 10, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
         >
           <option value="aktiv">Aktiv</option>
           <option value="ruhend">Ruhend</option>
           <option value="beendet">Beendet</option>
         </select>
-        {/* Delete */}
-        <button className="iconbtn" title="Loeschen" onClick={onDelete} style={{ color: 'var(--sw-danger)' }}><X size={12} /></button>
+        <button className="iconbtn" title="L\u00f6schen" onClick={onDelete} style={{ color: 'var(--sw-danger)' }}><X size={12} /></button>
       </div>
 
       {/* Farb-Picker */}
       {showFarbPicker && (
-        <div style={{ display: 'flex', gap: 4, padding: '8px 0 4px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 6, padding: '10px 0 4px', flexWrap: 'wrap' }}>
           {STRANG_FARBEN.map(f => (
             <div
               key={f}
               onClick={() => { onUpdate({ farbe: f }); onToggleFarbPicker() }}
-              style={{
-                width: 22, height: 22, borderRadius: '50%', background: f, cursor: 'pointer',
-                border: f === strang.farbe ? '3px solid var(--text)' : '2px solid var(--border)',
-              }}
+              style={{ width: 24, height: 24, borderRadius: '50%', background: f, cursor: 'pointer', border: f === strang.farbe ? '3px solid var(--text-primary)' : '2px solid var(--border)', transition: 'transform 0.1s' }}
             />
           ))}
         </div>
@@ -280,34 +265,27 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
       {/* Untertitel */}
       {isEditing && (
         <input
-          className="sf-input"
           defaultValue={strang.untertitel ?? ''}
           placeholder="Untertitel..."
-          style={{ width: '100%', fontSize: 11, marginTop: 6, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-muted)' }}
+          style={{ width: '100%', fontSize: 11, marginTop: 8, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-secondary)' }}
           onBlur={e => { const v = e.target.value.trim() || null; if (v !== (strang.untertitel ?? null)) onUpdate({ untertitel: v }) }}
         />
       )}
       {!isEditing && strang.untertitel && (
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{strang.untertitel}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{strang.untertitel}</div>
       )}
 
       {/* Typ + Label (editing) */}
       {isEditing && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-          <select
-            value={strang.typ}
-            onChange={e => onUpdate({ typ: e.target.value })}
-            style={{ fontSize: 11, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg)' }}
-          >
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <select value={strang.typ} onChange={e => onUpdate({ typ: e.target.value })}
+            style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
             <option value="soap">Beziehungsdynamik</option>
             <option value="genre">Thematischer Bogen</option>
             <option value="anthology">Anthology</option>
           </select>
-          <select
-            value={strang.label ?? ''}
-            onChange={e => onUpdate({ label: e.target.value || null })}
-            style={{ fontSize: 11, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg)' }}
-          >
+          <select value={strang.label ?? ''} onChange={e => onUpdate({ label: e.target.value || null })}
+            style={{ fontSize: 11, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
             <option value="">Kein Label</option>
             <option value="business">Business-Plot</option>
             <option value="privat">Privat-Plot</option>
@@ -316,26 +294,25 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
       )}
 
       {/* Charakter-Chips */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 6, alignItems: 'center' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8, alignItems: 'center' }}>
         {chars.map((c: any) => (
           <span key={c.character_id} className="sf-char-chip" style={{ fontSize: 10 }}>
             {c.name}
             <button className="sf-char-remove" onClick={() => onRemoveCharakter(c.character_id)}><X size={8} /></button>
           </span>
         ))}
-        {/* Add character */}
         <span style={{ position: 'relative' }}>
           <input
             className="sf-char-search"
             value={charSearch}
-            placeholder="+"
+            placeholder="+ Figur"
             onChange={e => { setCharSearch(e.target.value); setCharDropdown(true) }}
             onFocus={() => setCharDropdown(true)}
             onBlur={() => setTimeout(() => setCharDropdown(false), 200)}
-            style={{ width: charSearch ? 80 : 20, fontSize: 10 }}
+            style={{ width: charSearch ? 100 : 50, fontSize: 10 }}
           />
           {charDropdown && filteredChars.length > 0 && (
-            <div className="sf-dropdown" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 140, zIndex: 100 }}>
+            <div className="sf-dropdown" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 160, zIndex: 100 }}>
               {filteredChars.map((ch: any) => (
                 <div key={ch.id} className="sf-dropdown-item" style={{ fontSize: 11 }}
                   onMouseDown={e => { e.preventDefault(); onAddCharakter(ch.id); setCharSearch(''); setCharDropdown(false) }}>
@@ -347,31 +324,24 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
         </span>
       </div>
 
-      {/* Beats section — collapsible */}
-      <div style={{ marginTop: 6 }}>
-        <button
-          onClick={onToggleBeats}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 4, fontSize: 10,
-            color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-          }}
-        >
-          {isBeatsExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-          Beats ({beats.length || '...'})
+      {/* Beats section */}
+      <div style={{ marginTop: 8 }}>
+        <button onClick={onToggleBeats}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+          {isBeatsExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+          Beats ({beats.length || '\u2026'})
         </button>
         {isBeatsExpanded && (
-          <div style={{ marginTop: 4, paddingLeft: 8, borderLeft: `2px solid ${strang.farbe}33` }}>
+          <div style={{ marginTop: 6, paddingLeft: 10, borderLeft: `2px solid ${strang.farbe}44` }}>
             {beats.map((b: any) => (
-              <div key={b.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 4, marginBottom: 3, fontSize: 11 }}>
-                <button
-                  onClick={() => handleToggleBeat(b.id)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 2, flexShrink: 0 }}
-                >
+              <div key={b.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4, fontSize: 11 }}>
+                <button onClick={() => handleToggleBeat(b.id)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: 2, flexShrink: 0 }}>
                   {b.ist_abgearbeitet
-                    ? <Check size={11} style={{ color: 'var(--sw-green)' }} />
-                    : <Circle size={11} style={{ color: 'var(--text-muted)' }} />}
+                    ? <Check size={12} style={{ color: 'var(--sw-green)' }} />
+                    : <Circle size={12} style={{ color: 'var(--text-muted)' }} />}
                 </button>
-                <span style={{ flex: 1, textDecoration: b.ist_abgearbeitet ? 'line-through' : 'none', color: b.ist_abgearbeitet ? 'var(--text-muted)' : 'var(--text)' }}>
+                <span style={{ flex: 1, textDecoration: b.ist_abgearbeitet ? 'line-through' : 'none', color: b.ist_abgearbeitet ? 'var(--text-muted)' : 'var(--text-primary)', lineHeight: 1.5 }}>
                   {b.block_label && <span style={{ color: strang.farbe, fontWeight: 600, marginRight: 4 }}>[{b.block_label}]</span>}
                   {b.beat_text}
                 </span>
@@ -379,72 +349,59 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
               </div>
             ))}
             {/* Add beat */}
-            <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
               <input
-                className="sf-input"
                 value={beatText}
                 placeholder="Neuer Beat..."
                 onChange={e => setBeatText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAddBeat()}
-                style={{ flex: 1, fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4 }}
+                style={{ flex: 1, fontSize: 11, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
               />
-              <button className="iconbtn" onClick={handleAddBeat} disabled={!beatText.trim()}><Plus size={11} /></button>
+              <button className="iconbtn" onClick={handleAddBeat} disabled={!beatText.trim()}><Plus size={12} /></button>
             </div>
             {/* Future-Import */}
-            <div style={{ marginTop: 8 }}>
-              <button
-                onClick={() => setShowImport(!showImport)}
-                style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
-              >
-                {showImport ? 'Import schliessen' : 'Future-Text importieren'}
+            <div style={{ marginTop: 10 }}>
+              <button onClick={() => setShowImport(!showImport)}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--sw-info)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <Upload size={11} />
+                {showImport ? 'Import schlie\u00dfen' : 'Future-Text importieren'}
               </button>
               {showImport && (
-                <div style={{ marginTop: 4, padding: 8, background: 'var(--bg-subtle)', borderRadius: 6 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
-                    Jede Zeile = ein Beat. Aufzaehlungszeichen (-, *, {'\u2022'}) werden entfernt.
+                <div style={{ marginTop: 6, padding: 12, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    Jede Zeile = ein Beat. Aufz\u00e4hlungszeichen (-, *, \u2022) werden entfernt.
                   </div>
-                  <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                     <input
                       value={importBlockLabel}
                       placeholder="Block-Label (z.B. 870)"
                       onChange={e => setImportBlockLabel(e.target.value)}
-                      style={{ width: 120, fontSize: 10, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4 }}
+                      style={{ width: 140, fontSize: 11, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                     />
                   </div>
                   <textarea
                     value={importText}
                     onChange={e => setImportText(e.target.value)}
                     placeholder={'- Lou trifft Daniel\n- Jess entdeckt Geheimnis\n- Franka vermittelt'}
-                    rows={5}
-                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, resize: 'vertical', fontFamily: 'inherit' }}
+                    rows={6}
+                    style={{ width: '100%', fontSize: 11, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                   />
-                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 4 }}>
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
                     <button className="btn-sm" onClick={() => { setShowImport(false); setImportText(''); setImportBlockLabel('') }}>Abbrechen</button>
-                    <button
-                      className="btn-sm btn-primary"
-                      disabled={!importText.trim() || importing}
+                    <button className="btn-sm btn-primary" disabled={!importText.trim() || importing}
                       onClick={async () => {
                         setImporting(true)
                         try {
-                          const result = await api.importFutureBeats(strang.id, {
-                            text: importText,
-                            block_label: importBlockLabel || undefined,
-                            ebene: 'future',
-                          })
-                          alert(`${result.count} Beats importiert.`)
+                          const result = await api.importFutureBeats(strang.id, { text: importText, block_label: importBlockLabel || undefined, ebene: 'future' })
                           setImportText('')
                           setImportBlockLabel('')
                           setShowImport(false)
                           const updated = await api.getStrangBeats(strang.id)
                           setBeats(updated)
-                        } catch (e: any) {
-                          alert('Fehler: ' + e.message)
-                        } finally {
-                          setImporting(false)
-                        }
-                      }}
-                    >
-                      {importing ? 'Importiere...' : 'Importieren'}
+                        } catch (e: any) { alert('Fehler: ' + e.message) }
+                        finally { setImporting(false) }
+                      }}>
+                      {importing ? 'Importiere\u2026' : `Importieren`}
                     </button>
                   </div>
                 </div>

@@ -5,7 +5,6 @@ import { api } from '../api/client'
 import { useAppSettings, useTweaks } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
-import StrangVerwaltungModal from './StrangVerwaltungModal'
 import PlatzhalterSzenenDialog from './PlatzhalterSzenenDialog'
 
 interface SceneListProps {
@@ -23,6 +22,7 @@ interface SceneListProps {
   onOpenStatistik?: () => void
   onOpenRadar?: () => void
   onOpenSearch?: () => void
+  onOpenStrangPanel?: () => void
   werkstufId?: string | null
   allCharacters?: any[]
 }
@@ -42,6 +42,7 @@ export default function SceneList({
   onOpenStatistik,
   onOpenRadar,
   onOpenSearch,
+  onOpenStrangPanel,
   werkstufId,
   allCharacters,
 }: SceneListProps) {
@@ -60,7 +61,6 @@ export default function SceneList({
   const [nurSzenen, setNurSzenen] = useState(true)
   const [colorOff, setColorOff] = useState(false)
   const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
-  const [strangModalOpen, setStrangModalOpen] = useState(false)
   const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -86,12 +86,12 @@ export default function SceneList({
   useEffect(() => {
     if (!produktionId) return
     api.getStraenge(produktionId).then(setStraenge).catch(() => {})
-  }, [produktionId, strangModalOpen])
+  }, [produktionId])
 
   useEffect(() => {
     if (!werkstufId || farbModus !== 'strang') { setWerkstufeStraenge({}); return }
     api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
-  }, [werkstufId, farbModus, strangModalOpen])
+  }, [werkstufId, farbModus])
 
   const handleBulkAssign = async (strangId: string) => {
     if (selectedIds.size === 0) return
@@ -388,7 +388,7 @@ export default function SceneList({
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               <button
                 className="scene-ctx-item"
-                onClick={() => { setStrangModalOpen(true); setHeaderMenuOpen(false) }}
+                onClick={() => { onOpenStrangPanel?.(); setHeaderMenuOpen(false) }}
               >
                 Str\u00e4nge verwalten
               </button>
@@ -593,14 +593,6 @@ export default function SceneList({
       )}
 
       {/* Modals */}
-      {produktionId && (
-        <StrangVerwaltungModal
-          produktionId={produktionId}
-          open={strangModalOpen}
-          onClose={() => setStrangModalOpen(false)}
-          allCharacters={allCharacters || []}
-        />
-      )}
       {produktionId && werkstufId && (
         <PlatzhalterSzenenDialog
           werkstufId={werkstufId}

@@ -116,7 +116,7 @@ export default function StoryRadarPanel({ produktionId, open, onClose }: Props) 
                       {entry.beats.filter((b: any) => !b.abgearbeitet).slice(0, 5).map((b: any) => (
                         <div key={b.id} style={{ fontSize: 11, padding: '2px 0', display: 'flex', gap: 6, alignItems: 'baseline' }}>
                           <span style={{ color: 'var(--text-muted)' }}>{b.ebene === 'future' ? 'F' : b.ebene === 'block' ? 'B' : 'S'}</span>
-                          <span>{b.titel}</span>
+                          <span>{b.beat_text}</span>
                         </div>
                       ))}
                     </div>
