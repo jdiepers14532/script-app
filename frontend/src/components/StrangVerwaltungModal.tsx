@@ -168,6 +168,10 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
   const [beats, setBeats] = useState<any[]>([])
   const [charSearch, setCharSearch] = useState('')
   const [charDropdown, setCharDropdown] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [importText, setImportText] = useState('')
+  const [importBlockLabel, setImportBlockLabel] = useState('')
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     if (isBeatsExpanded) {
@@ -385,6 +389,66 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
                 style={{ flex: 1, fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4 }}
               />
               <button className="iconbtn" onClick={handleAddBeat} disabled={!beatText.trim()}><Plus size={11} /></button>
+            </div>
+            {/* Future-Import */}
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={() => setShowImport(!showImport)}
+                style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}
+              >
+                {showImport ? 'Import schliessen' : 'Future-Text importieren'}
+              </button>
+              {showImport && (
+                <div style={{ marginTop: 4, padding: 8, background: 'var(--bg-subtle)', borderRadius: 6 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                    Jede Zeile = ein Beat. Aufzaehlungszeichen (-, *, {'\u2022'}) werden entfernt.
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                    <input
+                      value={importBlockLabel}
+                      placeholder="Block-Label (z.B. 870)"
+                      onChange={e => setImportBlockLabel(e.target.value)}
+                      style={{ width: 120, fontSize: 10, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4 }}
+                    />
+                  </div>
+                  <textarea
+                    value={importText}
+                    onChange={e => setImportText(e.target.value)}
+                    placeholder={'- Lou trifft Daniel\n- Jess entdeckt Geheimnis\n- Franka vermittelt'}
+                    rows={5}
+                    style={{ width: '100%', fontSize: 11, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 4, resize: 'vertical', fontFamily: 'inherit' }}
+                  />
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 4 }}>
+                    <button className="btn-sm" onClick={() => { setShowImport(false); setImportText(''); setImportBlockLabel('') }}>Abbrechen</button>
+                    <button
+                      className="btn-sm btn-primary"
+                      disabled={!importText.trim() || importing}
+                      onClick={async () => {
+                        setImporting(true)
+                        try {
+                          const result = await api.importFutureBeats(strang.id, {
+                            text: importText,
+                            block_label: importBlockLabel || undefined,
+                            ebene: 'future',
+                          })
+                          alert(`${result.count} Beats importiert.`)
+                          setImportText('')
+                          setImportBlockLabel('')
+                          setShowImport(false)
+                          const updated = await api.getStrangBeats(strang.id)
+                          setBeats(updated)
+                        } catch (e: any) {
+                          alert('Fehler: ' + e.message)
+                        } finally {
+                          setImporting(false)
+                        }
+                      }}
+                    >
+                      {importing ? 'Importiere...' : 'Importieren'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

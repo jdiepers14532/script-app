@@ -489,6 +489,104 @@ straengeRouter.post('/platzhalter-szenen', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// FUTURE-IMPORT: Text → Beats parsen
+// ══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/straenge/:id/future-import
+// Body: { text: string, block_label?: string, ebene?: 'future'|'block', folge_id?: number }
+// Parses text into beats: each line = one beat. Lines starting with - or * are treated as beats.
+// Empty lines are ignored. Returns created beats.
+straengeRouter.post('/:id/future-import', async (req, res) => {
+  const { text, block_label, ebene = 'future', folge_id } = req.body
+  if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text required' })
+
+  try {
+    // Verify strand exists
+    const strand = await query('SELECT id FROM straenge WHERE id = $1', [req.params.id])
+    if (strand.length === 0) return res.status(404).json({ error: 'Strang nicht gefunden' })
+
+    // Parse lines into beats
+    const lines = text.split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0)
+      .map(l => l.replace(/^[-*•]\s*/, '').trim()) // remove bullet markers
+      .filter(l => l.length > 0)
+
+    if (lines.length === 0) return res.status(400).json({ error: 'Keine Beats im Text gefunden' })
+
+    // Get current max sort_order
+    const maxSort = await query(
+      'SELECT COALESCE(MAX(sort_order), 0) AS max_so FROM strang_beats WHERE strang_id = $1',
+      [req.params.id]
+    )
+    let sortOrder = (maxSort[0]?.max_so ?? 0) + 1
+
+    const created: any[] = []
+    for (const line of lines) {
+      const result = await query(
+        `INSERT INTO strang_beats (strang_id, ebene, block_label, folge_id, beat_text, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING *`,
+        [req.params.id, ebene, block_label || null, folge_id || null, line, sortOrder++]
+      )
+      created.push(result[0])
+    }
+
+    res.json({ created, count: created.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/straenge/:id/raster-generieren
+// Body: { folge_ids: number[] }
+// Auto-generates block-level beats from future-level beats for the given episodes.
+// Creates one block-beat per folge_id for each future-beat, linked via parent_beat_id.
+straengeRouter.post('/:id/raster-generieren', async (req, res) => {
+  const { folge_ids } = req.body
+  if (!Array.isArray(folge_ids) || folge_ids.length === 0) {
+    return res.status(400).json({ error: 'folge_ids required (array)' })
+  }
+
+  try {
+    // Get all future-level beats for this strand
+    const futureBeats = await query(
+      `SELECT * FROM strang_beats WHERE strang_id = $1 AND ebene = 'future' ORDER BY sort_order`,
+      [req.params.id]
+    )
+
+    if (futureBeats.length === 0) {
+      return res.status(400).json({ error: 'Keine Future-Beats vorhanden. Zuerst Beats anlegen oder importieren.' })
+    }
+
+    const created: any[] = []
+    for (const folgeId of folge_ids) {
+      // Check if block-beats already exist for this folge
+      const existing = await query(
+        `SELECT 1 FROM strang_beats WHERE strang_id = $1 AND ebene = 'block' AND folge_id = $2 LIMIT 1`,
+        [req.params.id, folgeId]
+      )
+      if (existing.length > 0) continue // skip already-rastered episodes
+
+      let sortOrder = 1
+      for (const fb of futureBeats) {
+        const result = await query(
+          `INSERT INTO strang_beats (strang_id, ebene, folge_id, beat_text, sort_order, parent_beat_id)
+           VALUES ($1, 'block', $2, $3, $4, $5)
+           RETURNING *`,
+          [req.params.id, folgeId, fb.beat_text, sortOrder++, fb.id]
+        )
+        created.push(result[0])
+      }
+    }
+
+    res.json({ created, count: created.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // STORY-RADAR (Analyse-Endpoint)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -543,11 +641,13 @@ straengeRouter.get('/radar', async (req, res) => {
       )
 
       result.push({
-        ...strand,
+        strang: strand,
         beats: futureBeats,
         szenen: scenes,
-        charaktere: chars,
-        offene_beats: futureBeats.filter((b: any) => !b.ist_abgearbeitet).length,
+        characters: chars.map((c: any) => ({ character_name: c.name, rolle: c.rolle })),
+        scene_count: scenes.length,
+        beat_count: futureBeats.length,
+        open_beat_count: futureBeats.filter((b: any) => !b.ist_abgearbeitet).length,
       })
     }
 

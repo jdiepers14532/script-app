@@ -60,14 +60,15 @@ export default function StoryRadarPanel({ produktionId, open, onClose }: Props) 
             <AlertTriangle size={10} style={{ marginRight: 4, verticalAlign: 'middle' }} />
             Pacing-Hinweise ({warnings.length})
           </div>
-          {warnings.slice(0, 5).map((w: any, i: number) => (
-            <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '3px 0', lineHeight: 1.4 }}>
-              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: w.farbe || '#888', marginRight: 6 }} />
-              <strong>{w.strang_name}</strong>: {w.nachricht}
+          {warnings.slice(0, 8).map((w: any, i: number) => (
+            <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '3px 0', lineHeight: 1.4, display: 'flex', alignItems: 'baseline', gap: 4 }}>
+              <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: w.schwere === 'hoch' ? '#FF3B30' : w.schwere === 'mittel' ? '#FF9500' : '#FFCC00', flexShrink: 0, marginTop: 3 }} />
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: w.farbe || '#888', flexShrink: 0 }} />
+              <span><strong>{w.strang_name}</strong>: {w.nachricht}</span>
             </div>
           ))}
-          {warnings.length > 5 && (
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>+{warnings.length - 5} weitere</div>
+          {warnings.length > 8 && (
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>+{warnings.length - 8} weitere</div>
           )}
         </div>
       )}
