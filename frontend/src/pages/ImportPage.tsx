@@ -29,6 +29,14 @@ interface DetectResult {
   format: string
   confidence: number
   hint?: string
+  file_hash?: string
+  duplicate?: {
+    werkstufe_id: string
+    label: string
+    typ: string
+    folge_nummer: number
+    produktion: string
+  } | null
 }
 
 interface PreviewResult {
@@ -456,6 +464,21 @@ export default function ImportPage() {
                   padding: '2px 8px', borderRadius: 4,
                 }}>
                   {Math.round(detectResult.confidence * 100)}%
+                </div>
+              </div>
+            )}
+
+            {/* Duplicate warning */}
+            {detectResult?.duplicate && (
+              <div style={{
+                border: '1px solid var(--sw-warning)', borderRadius: 8, padding: 12,
+                marginBottom: 16, background: '#FFFDE7', display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <AlertTriangle size={16} color="#F9A825" />
+                <div style={{ fontSize: 12 }}>
+                  <strong>Duplikat erkannt</strong> — Diese Datei wurde bereits importiert als{' '}
+                  <em>{detectResult.duplicate.label}</em> ({detectResult.duplicate.typ}, Ep. {detectResult.duplicate.folge_nummer}, {detectResult.duplicate.produktion}).
+                  Import ist trotzdem möglich.
                 </div>
               </div>
             )}

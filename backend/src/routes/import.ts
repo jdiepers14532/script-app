@@ -1,11 +1,16 @@
 import { Router } from 'express'
 import multer from 'multer'
+import * as crypto from 'crypto'
+import * as fs from 'fs'
+import * as path from 'path'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { detectFormat, parseScript, ParseOptions } from '../importers'
 import { stripWatermark, decodeWatermarkFromText } from '../utils/watermark'
 import { parseFilename } from '../importers/roteRosen'
 import { calcPageLength } from '../utils/calcPageLength'
+
+const UPLOAD_BASE = process.env.UPLOAD_DIR || '/srv/script/uploads/originals'
 
 /** Extract human-readable metadata from Fountain title page or FDX header */
 function extractFileMetadata(filename: string, buffer: Buffer): Record<string, string> {
@@ -220,7 +225,29 @@ importRouter.post('/detect', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
     const result = detectFormat(req.file.originalname, req.file.buffer)
-    res.json(result)
+
+    // SHA-256 hash for duplicate check
+    const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
+    const duplicate = await queryOne(
+      `SELECT w.id, w.label, w.typ, f.folge_nummer, p.titel AS produktion_titel
+       FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       JOIN produktionen p ON p.id = f.produktion_id
+       WHERE w.datei_hash = $1`,
+      [fileHash]
+    )
+
+    res.json({
+      ...result,
+      file_hash: fileHash,
+      duplicate: duplicate ? {
+        werkstufe_id: duplicate.id,
+        label: duplicate.label,
+        typ: duplicate.typ,
+        folge_nummer: duplicate.folge_nummer,
+        produktion: duplicate.produktion_titel,
+      } : null,
+    })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -429,6 +456,30 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
        VALUES ($1, $2, $3, $4, 'team', $5, $6) RETURNING id`,
       [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id, standDatum]
     )
+
+    // ── SHA-256 hash + file archiving ──
+    const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
+    const uploadDir = path.join(UPLOAD_BASE, produktion_id, String(folge_nummer))
+    try {
+      fs.mkdirSync(uploadDir, { recursive: true })
+      const ext = path.extname(req.file.originalname) || '.bin'
+      const archiveName = `${werkstufe.id}${ext}`
+      const archivePath = path.join(uploadDir, archiveName)
+      fs.writeFileSync(archivePath, req.file.buffer)
+      // Store relative path from UPLOAD_BASE
+      const relPath = path.join(produktion_id, String(folge_nummer), archiveName)
+      await query(
+        `UPDATE werkstufen SET original_datei = $1, original_dateiname = $2, datei_hash = $3, datei_groesse = $4 WHERE id = $5`,
+        [relPath, req.file.originalname, fileHash, req.file.buffer.length, werkstufe.id]
+      )
+    } catch (archiveErr) {
+      console.error('[Import] File archive failed (non-fatal):', archiveErr)
+      // Still save hash even if file storage fails
+      await query(
+        `UPDATE werkstufen SET original_dateiname = $1, datei_hash = $2, datei_groesse = $3 WHERE id = $4`,
+        [req.file.originalname, fileHash, req.file.buffer.length, werkstufe.id]
+      ).catch(() => {})
+    }
 
     // Load absatzformate for this production (for absatz-node generation)
     const absatzformate = await query(
