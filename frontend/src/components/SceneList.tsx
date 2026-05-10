@@ -501,7 +501,7 @@ export default function SceneList({
               <div className="num">{scene.format !== 'notiz' ? sceneLabel : '·'}</div>
               <div className="body">
                 <div className="sl-line">
-                  <span className="sl-set">{scene.ort_name || scene.zusammenfassung || (scene.format === 'notiz' ? 'Notiz' : '')}</span>
+                  <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
                 </div>
               </div>
               <div className="meta">
