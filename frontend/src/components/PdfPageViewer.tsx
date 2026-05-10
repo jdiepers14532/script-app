@@ -111,7 +111,7 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
   }, [page, totalPages, renderPage])
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#6b6b6b' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#6b6b6b' }}>
 
       {/* Viewer: outerRef is the measuring element, canvas is absolutely positioned */}
       <div ref={outerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
