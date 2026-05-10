@@ -818,6 +818,14 @@ const TEXTBAUSTEIN_SPLIT_RE = /[.!?]\s+(Anmerkung(?:en)?|Status\s+[Qq]uo\s*:)/
 // so we detect these structural markers explicitly.
 const TEXTBAUSTEIN_LINE_START_RE = /^(Status\s+[Qq]uo\s*:|Haupthandlung\s*:|Anmerkung(?:en)?\s*:)/i
 
+// A line ending with sentence-final punctuation (not an abbreviation) is likely the
+// last line of a paragraph. If the next line starts with an uppercase letter, treat
+// it as a new paragraph — pdftotext word-wraps within paragraphs without periods.
+const SENTENCE_END_RE = /[.!?][»"')\]]?\s*$/
+// Known German abbreviations that end with "." but do NOT close a sentence
+const ABBREV_END_RE = /\b(Dr|Prof|Hr|Fr|Hrsg|ca|usw|etc|z\.B|d\.h|bzw|ggf|inkl|exkl|bzgl|Nr|Tel|Str|Abs|Anm|Abb|vgl|vs|ebd|ggü)\.\s*$/i
+const UPPER_START_RE = /^[A-ZÄÖÜ„"]/
+
 function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number): Textelement[] {
   const elems: Textelement[] = []
   const contentLines: string[] = []
@@ -851,6 +859,16 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
     // pdftotext loses font-change and extra-spacing cues, so we detect these explicitly.
     if (TEXTBAUSTEIN_LINE_START_RE.test(t)) {
       flushContent()
+    }
+    // Heuristic: if the previous line ended with sentence-final punctuation (and is not
+    // an abbreviation) and this line starts with an uppercase letter, it is very likely
+    // the start of a new paragraph. pdftotext wraps lines within a paragraph mid-sentence,
+    // so wrapped continuations almost never end with . ! ?
+    else if (contentLines.length > 0) {
+      const prev = contentLines[contentLines.length - 1]
+      if (SENTENCE_END_RE.test(prev) && !ABBREV_END_RE.test(prev) && UPPER_START_RE.test(t)) {
+        flushContent()
+      }
     }
     if (/^Anm(erkungen?|\.)/i.test(t)) {
       flushContent()
