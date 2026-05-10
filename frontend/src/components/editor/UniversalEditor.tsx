@@ -28,7 +28,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
 import { useUserPrefs } from '../../contexts'
-import { createLineNumberPlugin, LINE_NUMBER_CSS } from '../../tiptap/LineNumberPlugin'
+import { LINE_NUMBER_CSS } from '../../tiptap/LineNumberPlugin'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 
 // ── Platform detection ──────────────────────────────────────────────────────
@@ -327,21 +327,16 @@ export default function UniversalEditor({
     editor?.setEditable(!readOnly)
   }, [editor, readOnly])
 
-  // ── Line number plugin (register/unregister based on toggle) ──────────────
+  // ── Line numbers (pure CSS — toggle class only) ──────────────────────────
   useEffect(() => {
     if (!editor) return
-    try { editor.unregisterPlugin('lineNumbers') } catch {}
     const el = editor.view.dom as HTMLElement
     if (showLineNumbers) {
-      try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
       el.classList.add('has-line-numbers')
     } else {
       el.classList.remove('has-line-numbers')
     }
-    return () => {
-      try { editor.unregisterPlugin('lineNumbers') } catch {}
-      el.classList.remove('has-line-numbers')
-    }
+    return () => { el.classList.remove('has-line-numbers') }
   }, [editor, showLineNumbers])
 
   // ── Replik number plugin ──────────────────────────────────────────────────
