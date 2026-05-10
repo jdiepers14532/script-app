@@ -911,6 +911,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     res.json({
       folge_id: folge.id,
+      folge_nummer,
       werkstufe_id: werkstufe.id,
       scenes_imported: scenesImported,
       non_scene_elements_imported: nonSceneCount,

@@ -322,7 +322,16 @@ export default function ImportPage() {
       }
       const data = await res.json()
       setCommitResult(data)
-      setStep(3)
+      // Save last navigation state and go directly to the imported episode
+      await api.updateSettings({
+        ui_settings: {
+          last_produktion_id: selectedId,
+          last_folge_nummer: data.folge_nummer ?? selectedFolgeNummer,
+          last_stage_id: null,
+          last_szene_id: null,
+        },
+      }).catch(() => {})
+      navigate('/')
     } catch (err) {
       setError(String(err))
     } finally {
