@@ -225,10 +225,16 @@ export default function ScriptPage() {
   const [folgenMitDaten, setFolgenMitDaten] = useState<number[]>([])
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Auto-refresh after import
+  // Auto-refresh after import (event from SPA navigation + URL param for fresh mount)
   useEffect(() => {
     const handler = () => setRefreshKey(k => k + 1)
     window.addEventListener('script-import-complete', handler)
+    // If navigated from import with ?imported= param, force re-read settings
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('imported')) {
+      window.history.replaceState({}, '', window.location.pathname)
+      setRefreshKey(k => k + 1)
+    }
     return () => window.removeEventListener('script-import-complete', handler)
   }, [])
 
@@ -306,6 +312,7 @@ export default function ScriptPage() {
 
   // Load user settings (sidebar + last navigation position)
   // Deep-link (?scene=...) takes priority over saved settings
+  // Re-reads settings when refreshKey changes (e.g. after import)
   useEffect(() => {
     if (deepLink && !deepLink.produktionId) {
       // Minimal deep-link — only scene ID, need to resolve staffel/folge/stage via API
@@ -340,7 +347,7 @@ export default function ScriptPage() {
       }
       setSettingsLoaded(true)
     }).catch(() => setSettingsLoaded(true))
-  }, [deepLink])
+  }, [deepLink, refreshKey])
 
   // Debounced save layout to backend
   const saveSettings = useCallback((collapsed: boolean) => {

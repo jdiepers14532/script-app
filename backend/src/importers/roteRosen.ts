@@ -140,22 +140,20 @@ function stripFooterLines(lines: string[]): string[] {
     // FOOTER_DOC_RE only outside cover page area (after first scene reference)
     result.push(lines[i])
   }
-  // Second pass: strip standalone "Treatment/Drehbuch - Episode NNNN" lines
-  // that appear after the cover page (footers from pdftotext)
-  let pastCover = false
+  // Second pass: strip standalone "Treatment/Drehbuch - Episode NNNN" lines everywhere
+  // (these are page footers from pdftotext — appear on every page including before first scene)
   const final: string[] = []
   for (const line of result) {
     const t = line.trim()
-    if (SCENE_NUM_RE.test(t)) pastCover = true
-    if (pastCover && FOOTER_DOC_RE.test(t)) continue
+    if (FOOTER_DOC_RE.test(t)) continue
     final.push(line)
   }
   return final
 }
 
 function cleanText(raw: string): string[] {
-  // Strip form feed characters (pdftotext page breaks) before any processing
-  const noFF = raw.replace(/\f/g, '')
+  // Replace form feed characters (pdftotext page breaks) with newline to preserve paragraph boundaries
+  const noFF = raw.replace(/\f/g, '\n')
   const preprocessed = preprocessPdfText(noFF)
   const lines = preprocessed.split(/\r?\n/)
   const stripped = stripFooterLines(lines)
@@ -293,11 +291,12 @@ function findContentStart(lines: string[]): number {
 // ─── Parse synopsis & memo ──────────────────────────────
 
 function parseSynopsisAndMemo(lines: string[], startIdx: number): {
-  synopsis: string; recaps: string[]; precaps: string[]; scenesStart: number
+  synopsis: string; recaps: string[]; precaps: string[]; scenesStart: number; folgeHeading: string | null
 } {
   let synopsis = ''
   const recaps: string[] = []
   const precaps: string[] = []
+  let folgeHeading: string | null = null
   let i = startIdx
   let inSection: string | null = null
 
@@ -308,7 +307,7 @@ function parseSynopsisAndMemo(lines: string[], startIdx: number): {
     if (t === 'Recaps') { inSection = 'recaps'; continue }
     if (/^Precaps/.test(t)) { inSection = 'precaps'; continue }
     if (t === 'Synopse') { inSection = 'synopse_header'; continue }
-    if (/^FOLGE\s+\d+$/.test(t)) { inSection = 'synopsis'; continue }
+    if (/^FOLGE\s+\d+$/i.test(t)) { folgeHeading = t; inSection = 'synopsis'; continue }
     if (!t) continue
 
     if (inSection === 'recaps') recaps.push(t)
@@ -316,7 +315,7 @@ function parseSynopsisAndMemo(lines: string[], startIdx: number): {
     else if (inSection === 'synopsis' || inSection === 'synopse_header') synopsis += (synopsis ? '\n' : '') + t
   }
 
-  return { synopsis, recaps, precaps, scenesStart: i }
+  return { synopsis, recaps, precaps, scenesStart: i, folgeHeading }
 }
 
 // ─── Scene Header Parser ────────────────────────────────
@@ -856,7 +855,7 @@ export function parseRoteRosen(rawText: string): ImportResult {
   const coverMeta = parseCoverMeta(lines)
   const docType = coverMeta.typ
   const contentStart = findContentStart(lines)
-  const { synopsis, recaps, precaps, scenesStart } = parseSynopsisAndMemo(lines, contentStart)
+  const { synopsis, recaps, precaps, scenesStart, folgeHeading } = parseSynopsisAndMemo(lines, contentStart)
 
   const szenen: ParsedScene[] = []
   const allCharaktere = new Map<string, string>() // UPPER → display name
@@ -999,6 +998,11 @@ export function parseRoteRosen(rawText: string): ImportResult {
     }
 
     i = blockEnd
+  }
+
+  // Prepend "FOLGE XXXX" heading to first scene's textelemente
+  if (folgeHeading && szenen.length > 0) {
+    szenen[0].textelemente.unshift({ id: nextId(), type: 'heading', text: folgeHeading })
   }
 
   if (szenen.length === 0) {

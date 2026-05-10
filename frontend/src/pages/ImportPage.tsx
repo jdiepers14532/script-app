@@ -333,7 +333,9 @@ export default function ImportPage() {
           last_szene_id: null,
         },
       }).catch(() => {})
-      navigate('/')
+      // Dispatch event to force ScriptPage data refresh (works if already mounted via SPA)
+      window.dispatchEvent(new Event('script-import-complete'))
+      navigate('/?imported=' + Date.now())
     } catch (err) {
       setError(String(err))
     } finally {
