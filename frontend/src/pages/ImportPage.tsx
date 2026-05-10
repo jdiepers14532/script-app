@@ -244,7 +244,7 @@ export default function ImportPage() {
       if (rrMeta?.document_type) {
         if (rrMeta.document_type === 'treatment') setStageType('treatment')
         else if (rrMeta.document_type === 'drehbuch') setStageType('draft')
-        setEditDocType(rrMeta.document_type === 'treatment' ? 'Treatment' : 'Drehbuch')
+        setEditDocType(rrMeta.document_type === 'treatment' ? treatmentLabel : 'Drehbuch')
       }
 
       // Stand-Datum from filename
@@ -668,12 +668,12 @@ export default function ImportPage() {
 
                   {/* Metadata fields (always editable) */}
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
-                    <select value={editDocType || (stageType === 'treatment' ? 'Treatment' : 'Drehbuch')} onChange={e => {
+                    <select value={editDocType || (stageType === 'treatment' ? treatmentLabel : 'Drehbuch')} onChange={e => {
                       setEditDocType(e.target.value)
-                      setStageType(e.target.value === 'Treatment' ? 'treatment' : 'draft')
+                      setStageType(e.target.value === treatmentLabel ? 'treatment' : 'draft')
                     }} style={{ ...compactSelectStyle, color: '#1565C0', fontWeight: 600 }}>
                       <option value="Drehbuch">Drehbuch</option>
-                      <option value="Treatment">Treatment</option>
+                      <option value={treatmentLabel}>{treatmentLabel}</option>
                     </select>
                     <span style={{ color: '#999' }}>—</span>
                     <select value={editEpisode ?? selectedFolgeNummer ?? ''} onChange={e => {
