@@ -150,7 +150,9 @@ export default function ImportPage() {
 
   // PDF extraction options
   const [pdfMethod, setPdfMethod] = useState<'pdftotext' | 'mistral'>('pdftotext')
-  const [pdfCropPercent, setPdfCropPercent] = useState(85) // default: crop 15% right margin
+  const [pdfCropLeft, setPdfCropLeft] = useState(0)
+  const [pdfCropRight, setPdfCropRight] = useState(0)
+  const [pdfCropBottom, setPdfCropBottom] = useState(0)
   const [ocrAvailable, setOcrAvailable] = useState(false)
 
   // Check OCR availability on mount
@@ -223,7 +225,11 @@ export default function ImportPage() {
       fd.append('file', file)
       if (isPdf) {
         fd.append('pdf_method', pdfMethod)
-        if (pdfMethod === 'pdftotext') fd.append('pdf_crop_percent', String(pdfCropPercent))
+        if (pdfMethod === 'pdftotext') {
+          if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
+          if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
+          if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
+        }
       }
       const res = await fetch('/api/import/preview', { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
@@ -304,7 +310,11 @@ export default function ImportPage() {
       if (standDatum) fd.append('stand_datum', standDatum)
       if (isPdf) {
         fd.append('pdf_method', pdfMethod)
-        if (pdfMethod === 'pdftotext') fd.append('pdf_crop_percent', String(pdfCropPercent))
+        if (pdfMethod === 'pdftotext') {
+          if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
+          if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
+          if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
+        }
       }
       if (nonSceneElements.length > 0) fd.append('non_scene_elements', JSON.stringify(nonSceneElements))
       if (Object.keys(sceneOverrides).length > 0) fd.append('scene_overrides', JSON.stringify(sceneOverrides))
@@ -467,20 +477,26 @@ export default function ImportPage() {
               </div>
             )}
 
-            {/* PDF OCR Toggle (only shown on step 1 — crop is in step 2 with visual overlay) */}
-            {isPdf && detectResult && ocrAvailable && (
+            {/* PDF OCR Toggle — always shown for PDFs, disabled when Mistral not configured */}
+            {isPdf && detectResult && (
               <div style={{
                 border: '1px solid #e0e0e0', borderRadius: 8, padding: 16,
-                marginBottom: 16,
+                marginBottom: 16, opacity: ocrAvailable ? 1 : 0.6,
               }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: ocrAvailable ? 'pointer' : 'not-allowed' }}>
                   <input
                     type="checkbox"
                     checked={pdfMethod === 'mistral'}
                     onChange={e => setPdfMethod(e.target.checked ? 'mistral' : 'pdftotext')}
+                    disabled={!ocrAvailable}
                   />
                   Mistral OCR verwenden (bessere Texterkennung)
                 </label>
+                {!ocrAvailable && (
+                  <span style={{ fontSize: 11, color: '#999', marginTop: 4, display: 'block' }}>
+                    Nicht verfügbar — Mistral API-Key muss in der Drehbuchkoordination unter KI-Einstellungen hinterlegt werden.
+                  </span>
+                )}
               </div>
             )}
 
@@ -515,35 +531,59 @@ export default function ImportPage() {
                 width: '50%', flexShrink: 0, borderRight: '1px solid #e0e0e0',
                 display: 'flex', flexDirection: 'column', background: '#f5f5f5',
               }}>
-                <div style={{
-                  padding: '8px 12px', borderBottom: '1px solid #e0e0e0',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  background: '#fff', flexShrink: 0,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <FileText size={14} color="#757575" />
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>
-                      {file?.name}
-                    </span>
-                  </div>
-                  <button onClick={() => setShowDocPreview(false)} title="Vorschau schließen"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
-                    <X size={14} />
-                  </button>
-                </div>
-                {/* Crop slider for PDF — visual feedback via overlay */}
+                {/* Crop controls for PDF — visual feedback via overlays */}
                 {isPdf && pdfMethod === 'pdftotext' && (
                   <div style={{
-                    padding: '6px 12px', borderBottom: '1px solid #e0e0e0',
-                    background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+                    padding: '8px 12px', borderBottom: '1px solid #e0e0e0',
+                    background: '#fff', flexShrink: 0,
                   }}>
-                    <Scissors size={12} color="#757575" />
-                    <span style={{ fontSize: 11, color: '#757575', whiteSpace: 'nowrap' }}>Beschnitt: {pdfCropPercent}%</span>
-                    <input
-                      type="range" min={50} max={100} value={pdfCropPercent}
-                      onChange={e => setPdfCropPercent(parseInt(e.target.value))}
-                      style={{ flex: 1, height: 4 }}
-                    />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                      <Scissors size={12} color="#757575" />
+                      <span style={{ fontSize: 11, color: '#757575', fontWeight: 600 }}>Beschneiden</span>
+                      <span title="Sollte der Import fehlerhaft sein, kann es daran liegen, dass die OCR durch Fußzeilen oder Zeilennummern irritiert ist. In diesem Fall kann das Wegschneiden der selbigen helfen." style={{ cursor: 'help', fontSize: 11, color: '#999' }}>ⓘ</span>
+                      <span style={{ marginLeft: 'auto' }}>
+                        <button onClick={() => setShowDocPreview(false)} title="Vorschau schließen"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
+                          <X size={14} />
+                        </button>
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 11, color: '#757575' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+                        <span style={{ whiteSpace: 'nowrap' }}>L {pdfCropLeft}%</span>
+                        <input type="range" min={0} max={30} value={pdfCropLeft}
+                          onChange={e => setPdfCropLeft(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+                        <span style={{ whiteSpace: 'nowrap' }}>R {pdfCropRight}%</span>
+                        <input type="range" min={0} max={30} value={pdfCropRight}
+                          onChange={e => setPdfCropRight(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+                        <span style={{ whiteSpace: 'nowrap' }}>U {pdfCropBottom}%</span>
+                        <input type="range" min={0} max={30} value={pdfCropBottom}
+                          onChange={e => setPdfCropBottom(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                      </label>
+                    </div>
+                  </div>
+                )}
+                {/* Header with close button (only for non-PDF or when crop controls are hidden) */}
+                {!(isPdf && pdfMethod === 'pdftotext') && (
+                  <div style={{
+                    padding: '8px 12px', borderBottom: '1px solid #e0e0e0',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    background: '#fff', flexShrink: 0,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <FileText size={14} color="#757575" />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>
+                        {file?.name}
+                      </span>
+                    </div>
+                    <button onClick={() => setShowDocPreview(false)} title="Vorschau schließen"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
+                      <X size={14} />
+                    </button>
                   </div>
                 )}
                 <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
@@ -554,20 +594,33 @@ export default function ImportPage() {
                         style={{ width: '100%', height: '100%', border: 'none' }}
                         title="Dokument-Vorschau"
                       />
-                      {/* Crop overlay — shows the area that will be cut */}
-                      {pdfMethod === 'pdftotext' && pdfCropPercent < 100 && (
+                      {/* Crop overlays — left, right, bottom */}
+                      {pdfMethod === 'pdftotext' && pdfCropLeft > 0 && (
+                        <div style={{
+                          position: 'absolute', top: 0, left: 0, bottom: 0,
+                          width: `${pdfCropLeft}%`,
+                          background: 'rgba(255, 59, 48, 0.12)',
+                          borderRight: '2px dashed rgba(255, 59, 48, 0.6)',
+                          pointerEvents: 'none',
+                        }} />
+                      )}
+                      {pdfMethod === 'pdftotext' && pdfCropRight > 0 && (
                         <div style={{
                           position: 'absolute', top: 0, right: 0, bottom: 0,
-                          width: `${100 - pdfCropPercent}%`,
+                          width: `${pdfCropRight}%`,
                           background: 'rgba(255, 59, 48, 0.12)',
                           borderLeft: '2px dashed rgba(255, 59, 48, 0.6)',
                           pointerEvents: 'none',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <span style={{ fontSize: 10, color: 'rgba(255,59,48,0.8)', fontWeight: 600, writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
-                            Beschnitten
-                          </span>
-                        </div>
+                        }} />
+                      )}
+                      {pdfMethod === 'pdftotext' && pdfCropBottom > 0 && (
+                        <div style={{
+                          position: 'absolute', left: 0, right: 0, bottom: 0,
+                          height: `${pdfCropBottom}%`,
+                          background: 'rgba(255, 59, 48, 0.12)',
+                          borderTop: '2px dashed rgba(255, 59, 48, 0.6)',
+                          pointerEvents: 'none',
+                        }} />
                       )}
                     </>
                   ) : fileTextContent ? (

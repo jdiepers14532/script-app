@@ -2,7 +2,7 @@ import { detectFormat } from './autodetect'
 import { parseFdx } from './fdx'
 import { parseFountain } from './fountain'
 import { parseDocx } from './docx'
-import { parsePdf, PdfExtractOptions } from './pdf'
+import { parsePdf, PdfExtractOptions, PdftextCropOptions } from './pdf'
 import { parseCeltx } from './celtx'
 import { parseWriterDuet } from './writerduet'
 import { ImportResult } from './types'
@@ -13,7 +13,8 @@ export type { ImportResult, ParsedScene, Textelement, TextelementType, NonSceneE
 
 export interface ParseOptions {
   pdfMethod?: 'pdftotext' | 'mistral'
-  pdfCropPercent?: number
+  pdfCropPercent?: number // legacy — use pdfCrop instead
+  pdfCrop?: PdftextCropOptions
 }
 
 export async function parseScript(filename: string, buffer: Buffer, options?: ParseOptions): Promise<ImportResult> {
@@ -33,7 +34,8 @@ export async function parseScript(filename: string, buffer: Buffer, options?: Pa
     case 'pdf': {
       const pdfOpts: PdfExtractOptions = {}
       if (options?.pdfMethod) pdfOpts.method = options.pdfMethod
-      if (options?.pdfCropPercent) pdfOpts.cropPercent = options.pdfCropPercent
+      if (options?.pdfCrop) pdfOpts.crop = options.pdfCrop
+      else if (options?.pdfCropPercent) pdfOpts.cropPercent = options.pdfCropPercent
       return parsePdf(buffer, pdfOpts)
     }
     case 'celtx':

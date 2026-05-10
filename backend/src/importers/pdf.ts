@@ -8,20 +8,30 @@ import { isRoteRosenFormat, parseRoteRosen } from './roteRosen'
 import { ImportResult } from './types'
 import { getProviderApiKey, recordUsage } from '../routes/ki'
 
+export interface PdftextCropOptions {
+  cropLeft?: number   // percentage to cut from left (0-50)
+  cropRight?: number  // percentage to cut from right (0-50)
+  cropBottom?: number // percentage to cut from bottom (0-50)
+}
+
 /** Try pdftotext (poppler) first — much more reliable than pdf-parse.
  *  Uses spawnSync instead of execFileSync because pdftotext may exit
  *  with non-zero code on font warnings while still producing valid text. */
-function extractWithPdftotext(buffer: Buffer, cropPercent?: number): string | null {
+function extractWithPdftotext(buffer: Buffer, crop?: PdftextCropOptions): string | null {
   const tmpFile = path.join(os.tmpdir(), `script-import-${Date.now()}.pdf`)
   try {
     fs.writeFileSync(tmpFile, buffer)
     const args: string[] = []
-    // Crop: limit extraction width to cut off right-margin line numbers
-    if (cropPercent && cropPercent > 0 && cropPercent < 100) {
-      // pdftotext -x 0 -y 0 -W <width> -H <height> uses points (72 per inch)
-      // A4 = 595pt wide. Crop to percentage of page width.
-      const cropWidth = Math.round(595 * (cropPercent / 100))
-      args.push('-x', '0', '-y', '0', '-W', String(cropWidth), '-H', '842')
+    // Crop: pdftotext -x <left> -y 0 -W <width> -H <height> uses points (72/inch)
+    // A4 = 595pt wide, 842pt tall.
+    const left = crop?.cropLeft || 0
+    const right = crop?.cropRight || 0
+    const bottom = crop?.cropBottom || 0
+    if (left > 0 || right > 0 || bottom > 0) {
+      const xOffset = Math.round(595 * (left / 100))
+      const cropWidth = Math.round(595 * ((100 - left - right) / 100))
+      const cropHeight = Math.round(842 * ((100 - bottom) / 100))
+      args.push('-x', String(xOffset), '-y', '0', '-W', String(cropWidth), '-H', String(cropHeight))
     }
     args.push(tmpFile, '-')
     const result = spawnSync('pdftotext', args, {
@@ -91,7 +101,8 @@ export async function extractWithMistral(buffer: Buffer): Promise<string | null>
 
 export interface PdfExtractOptions {
   method?: 'pdftotext' | 'mistral'
-  cropPercent?: number // only for pdftotext (default: no crop)
+  cropPercent?: number // DEPRECATED — use crop instead
+  crop?: PdftextCropOptions // left/right/bottom crop percentages
 }
 
 export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Promise<ImportResult> {
@@ -108,7 +119,13 @@ export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Pro
   }
 
   if (!text) {
-    text = extractWithPdftotext(buffer, options?.cropPercent)
+    // Support new crop object or legacy cropPercent (right-only)
+    const crop: PdftextCropOptions | undefined = options?.crop
+      ? options.crop
+      : options?.cropPercent
+        ? { cropRight: 100 - options.cropPercent }
+        : undefined
+    text = extractWithPdftotext(buffer, crop)
     usedMethod = 'pdftotext'
   }
 
