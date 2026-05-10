@@ -245,8 +245,7 @@ export function buildTextFromLayout(layout: BboxLayout): string {
     }
     out.push(li.text)
   }
-  return out.join('
-')
+  return out.join(String.fromCharCode(10))
 }
 
 export interface PdfExtractOptions {
