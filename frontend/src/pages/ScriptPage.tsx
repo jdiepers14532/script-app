@@ -217,7 +217,7 @@ const DEFAULT_WIDTH = 276
 export default function ScriptPage() {
   const { t } = useTerminologie()
   const { focus } = useFocus()
-  const { selectedProduction, loading } = useSelectedProduction()
+  const { selectedProduction, productions, loading } = useSelectedProduction()
   const [bloecke, setBloecke] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
@@ -702,6 +702,8 @@ export default function ScriptPage() {
         currentWerkstufenId={undefined}
         currentFolgeId={selectedFolgeNummer ?? undefined}
         currentProduktionId={selectedProduktionId || undefined}
+        currentBlockNummer={selectedBlock?.block_nummer}
+        productions={productions?.map((p: any) => ({ id: p.id, titel: p.titel, is_active: p.is_active }))}
         editorActiveIndex={searchReplace.state.editorActiveIndex}
         editorTotal={searchReplace.state.editorTotal}
         onEditorSearch={searchReplace.searchInEditor}

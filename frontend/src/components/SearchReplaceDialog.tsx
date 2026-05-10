@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, Replace, ChevronUp, ChevronDown, X, AlertTriangle, Lock } from 'lucide-react'
+import { Search, ChevronUp, ChevronDown, X, AlertTriangle, Lock } from 'lucide-react'
 import { useTerminologie } from '../sw-ui/TerminologieContext'
 import type { SearchScope, SearchOptions } from '../hooks/useSearchReplace'
 
@@ -11,6 +11,9 @@ interface Props {
   currentWerkstufenId?: string
   currentFolgeId?: number
   currentProduktionId?: string
+  currentBlockNummer?: number
+  // All productions (Staffeln) for the dropdown
+  productions?: { id: string; titel: string; is_active: boolean }[]
   // Editor search (scope: szene)
   editorActiveIndex: number
   editorTotal: number
@@ -52,23 +55,10 @@ interface Props {
   bloecke?: { block_nummer: number; folge_von: number; folge_bis: number }[]
 }
 
-const SCOPE_LABELS: Record<SearchScope, (t: any) => string> = {
-  szene: (t) => `Aktuelle ${t('szene')}`,
-  episode: (t) => `${t('episode')}`,
-  block: () => 'Block',
-  produktion: (t) => `${t('staffel')}`,
-  alle: () => 'Alle Produktionen',
-}
-
-const CONTENT_TYPE_LABELS: Record<string, string> = {
-  storyline: 'Beschreibung',
-  treatment: 'Treatment',
-  drehbuch: 'Drehbuch',
-}
-
 export default function SearchReplaceDialog({
   open, onClose,
   currentSzeneId, currentWerkstufenId, currentFolgeId, currentProduktionId,
+  currentBlockNummer, productions,
   editorActiveIndex, editorTotal,
   onEditorSearch, onFindNext, onFindPrev, onReplaceCurrent, onReplaceAllEditor,
   onBackendSearch, onBackendReplace,
@@ -83,16 +73,23 @@ export default function SearchReplaceDialog({
   const [replacement, setReplacement] = useState('')
   const [scope, setScope] = useState<SearchScope>('szene')
   const [werkstufenTyp, setWerkstufenTyp] = useState('drehbuch')
-  const [contentTypes, setContentTypes] = useState(['drehbuch', 'storyline', 'treatment'])
   const [options, setOptions] = useState<SearchOptions>({
     caseSensitive: false,
     wholeWords: false,
     regex: false,
   })
   const [selectedBlock, setSelectedBlock] = useState<string | undefined>(undefined)
+  const [selectedStaffel, setSelectedStaffel] = useState<string>('current')
   const [showPreview, setShowPreview] = useState(false)
   const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set())
   const [replaceResult, setReplaceResult] = useState<{ replaced_count: number; skipped_locked: number } | null>(null)
+
+  // Auto-select current block when switching to block scope
+  useEffect(() => {
+    if (scope === 'block' && currentBlockNummer != null && !selectedBlock) {
+      setSelectedBlock(String(currentBlockNummer))
+    }
+  }, [scope, currentBlockNummer, selectedBlock])
 
   // Focus input on open
   useEffect(() => {
@@ -111,13 +108,14 @@ export default function SearchReplaceDialog({
       if (scope === 'szene') {
         onEditorSearch(query, options)
       } else {
+        const eScope = scope === 'produktion' && selectedStaffel === 'alle' ? 'alle' as SearchScope : scope
         const scopeId = getScopeId()
-        onBackendSearch({ query, scope, scopeId, werkstufenTyp, contentTypes, options })
+        onBackendSearch({ query, scope: eScope, scopeId, werkstufenTyp, options })
       }
     }, 300)
     return () => clearTimeout(searchTimerRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, scope, options, werkstufenTyp, contentTypes, selectedBlock])
+  }, [query, scope, options, werkstufenTyp, selectedBlock, selectedStaffel])
 
   const getScopeId = useCallback((): string | undefined => {
     switch (scope) {
@@ -129,18 +127,17 @@ export default function SearchReplaceDialog({
         if (!block) return undefined
         return `${currentProduktionId}:${block.folge_von}:${block.folge_bis}`
       }
-      case 'produktion': return currentProduktionId
+      case 'produktion': {
+        if (selectedStaffel === 'alle') return undefined
+        if (selectedStaffel === 'current') return currentProduktionId
+        return selectedStaffel
+      }
       case 'alle': return undefined
     }
-  }, [scope, currentSzeneId, currentWerkstufenId, currentProduktionId, selectedBlock, bloecke])
+  }, [scope, currentSzeneId, currentWerkstufenId, currentProduktionId, selectedBlock, bloecke, selectedStaffel])
 
-  const toggleContentType = (typ: string) => {
-    setContentTypes(prev =>
-      prev.includes(typ)
-        ? prev.filter(t => t !== typ)
-        : [...prev, typ]
-    )
-  }
+  const getEffectiveScope = (): SearchScope =>
+    scope === 'produktion' && selectedStaffel === 'alle' ? 'alle' : scope
 
   const handleReplace = async () => {
     if (scope === 'szene') {
@@ -150,19 +147,19 @@ export default function SearchReplaceDialog({
         setShowPreview(true)
         return
       }
+      const eScope = getEffectiveScope()
       const result = await onBackendReplace({
-        query, replacement, scope,
+        query, replacement, scope: eScope,
         scopeId: getScopeId(),
-        werkstufenTyp, contentTypes, options,
+        werkstufenTyp, options,
         excludeIds: Array.from(excludeIds),
       })
       if (result) {
         setReplaceResult(result)
-        // Re-search to update results
         onBackendSearch({
-          query, scope,
+          query, scope: eScope,
           scopeId: getScopeId(),
-          werkstufenTyp, contentTypes, options,
+          werkstufenTyp, options,
         })
       }
     }
@@ -172,18 +169,19 @@ export default function SearchReplaceDialog({
     if (scope === 'szene') {
       onReplaceAllEditor(replacement)
     } else {
+      const eScope = getEffectiveScope()
       const result = await onBackendReplace({
-        query, replacement, scope,
+        query, replacement, scope: eScope,
         scopeId: getScopeId(),
-        werkstufenTyp, contentTypes, options,
+        werkstufenTyp, options,
         excludeIds: Array.from(excludeIds),
       })
       if (result) {
         setReplaceResult(result)
         onBackendSearch({
-          query, scope,
+          query, scope: eScope,
           scopeId: getScopeId(),
-          werkstufenTyp, contentTypes, options,
+          werkstufenTyp, options,
         })
       }
     }
@@ -212,7 +210,15 @@ export default function SearchReplaceDialog({
   if (!open) return null
 
   const isSzeneScope = scope === 'szene'
-  const showWerkstufenSelector = scope === 'block' || scope === 'produktion' || scope === 'alle'
+  const showWerkstufenSelector = scope === 'block' || scope === 'produktion'
+
+  // Scope buttons: szene, episode, block, staffel (with dropdown)
+  const scopeButtons: { key: SearchScope; label: string }[] = [
+    { key: 'szene', label: `Aktuelle ${t('szene')}` },
+    { key: 'episode', label: t('episode') },
+    { key: 'block', label: 'Block' },
+    { key: 'produktion', label: t('staffel') },
+  ]
 
   return (
     <div style={{
@@ -305,23 +311,55 @@ export default function SearchReplaceDialog({
             Ersetzen in
           </label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {(['szene', 'episode', 'block', 'produktion', 'alle'] as SearchScope[]).map(s => (
+            {scopeButtons.map(({ key, label }) => (
               <button
-                key={s}
-                onClick={() => setScope(s)}
+                key={key}
+                onClick={() => setScope(key)}
                 style={{
                   padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                  border: scope === s ? '1px solid var(--text-primary)' : '1px solid var(--border)',
-                  background: scope === s ? 'var(--text-primary)' : 'var(--bg-surface)',
-                  color: scope === s ? 'var(--bg-primary)' : 'var(--text-primary)',
+                  border: scope === key ? '1px solid var(--text-primary)' : '1px solid var(--border)',
+                  background: scope === key ? 'var(--text-primary)' : 'var(--bg-surface)',
+                  color: scope === key ? 'var(--bg-surface)' : 'var(--text-primary)',
                   cursor: 'pointer',
                 }}
               >
-                {SCOPE_LABELS[s](t)}
+                {label}
               </button>
             ))}
           </div>
         </div>
+
+        {/* Staffel dropdown (when produktion scope is selected) */}
+        {scope === 'produktion' && productions && productions.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
+              {t('staffel')}
+            </label>
+            <select
+              value={selectedStaffel}
+              onChange={e => setSelectedStaffel(e.target.value)}
+              style={{
+                width: '100%', padding: '6px 10px', borderRadius: 8,
+                border: '1px solid var(--border)', background: 'var(--bg-surface)',
+                color: 'var(--text-primary)', fontSize: 12,
+              }}
+            >
+              {productions.filter(p => p.is_active).map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.titel}{p.id === currentProduktionId ? ' (aktuell)' : ''}
+                </option>
+              ))}
+              <option value="alle">Alle {t('staffel', 'p')}</option>
+              {productions.some(p => !p.is_active) && (
+                <optgroup label="Archiviert">
+                  {productions.filter(p => !p.is_active).map(p => (
+                    <option key={p.id} value={p.id}>{p.titel}</option>
+                  ))}
+                </optgroup>
+              )}
+            </select>
+          </div>
+        )}
 
         {/* Block selector */}
         {scope === 'block' && bloecke && bloecke.length > 0 && (
@@ -370,30 +408,6 @@ export default function SearchReplaceDialog({
             </select>
           </div>
         )}
-
-        {/* Content type filter */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>
-            In folgenden Typen suchen
-          </label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            {Object.entries(CONTENT_TYPE_LABELS).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => toggleContentType(key)}
-                style={{
-                  padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 500,
-                  border: contentTypes.includes(key) ? '1px solid #007AFF' : '1px solid var(--border)',
-                  background: contentTypes.includes(key) ? '#007AFF' : 'var(--bg-surface)',
-                  color: contentTypes.includes(key) ? '#fff' : 'var(--text-primary)',
-                  cursor: 'pointer',
-                }}
-              >
-                {contentTypes.includes(key) && '✓ '}{label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         {/* Options */}
         <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
