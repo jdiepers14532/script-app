@@ -6,6 +6,7 @@ import {
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
   Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
+  Clapperboard, Tv,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext } from '../contexts'
 import type { TweakState } from '../contexts'
@@ -285,6 +286,11 @@ export default function AppShell({
     rainPct: number | null
     hasDst: boolean
     dstDate: string | null
+  } | null>(null)
+  const [dailyRegeln, setDailyRegeln] = useState<{
+    enabled: boolean
+    nachtbild_dauer_min: number
+    drehschluss_zeit: string
   } | null>(null)
 
   // ── Offline-Modal ──────────────────────────────────────────────────────────
@@ -634,6 +640,15 @@ export default function AppShell({
     return () => { cancelled = true }
   }, [selectedBlock?.dreh_von, selectedBlock?.dreh_bis, selectedProdId, productions])
 
+  // ── Daily-Regeln laden (für Sommer/Winter-Anzeige) ──────────────────────────
+  useEffect(() => {
+    if (!selectedProdId) { setDailyRegeln(null); return }
+    fetch(`/api/weather/daily-regeln/${encodeURIComponent(selectedProdId)}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setDailyRegeln(data))
+      .catch(() => setDailyRegeln(null))
+  }, [selectedProdId])
+
   const allFolgen = useMemo(() => {
     const result: { nr: number; block: any }[] = []
     for (const b of bloecke) {
@@ -656,10 +671,7 @@ export default function AppShell({
   const selectedProduktion = productions.find(p => p.id === selectedProduktionId)
   const selectedStage = stages.find(s => s.id === selectedStageId)
   const crumbProduktion = selectedProduktion
-    ? (() => {
-        const title = selectedProduktion.staffelnummer ? `${selectedProduktion.title} ${t('staffel')} ${selectedProduktion.staffelnummer}` : selectedProduktion.title
-        return selectedProduktion.projektnummer ? `${selectedProduktion.projektnummer} · ${title}` : title
-      })()
+    ? (selectedProduktion.staffelnummer ? `${selectedProduktion.title} ${t('staffel')} ${selectedProduktion.staffelnummer}` : selectedProduktion.title)
     : selectedProduktionId ?? 'Script'
   const crumbStage = selectedStage ? selectedStage.stage_type : null
 
@@ -741,7 +753,7 @@ export default function AppShell({
               </select>
               <select className="block-compact" style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
                 {bloecke.map(b => (
-                  <option key={b.proddb_id} value={b.proddb_id}>Block {b.block_nummer}</option>
+                  <option key={b.proddb_id} value={b.proddb_id}>{b.block_nummer}</option>
                 ))}
               </select>
             </>
@@ -753,7 +765,7 @@ export default function AppShell({
               <select style={selectStyle} value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))}>
                 {allFolgen.map(({ nr, block }) => (
                   <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
-                    {folgenMitDaten.includes(nr) ? '● ' : ''}{t('episode')} {nr}
+                    {folgenMitDaten.includes(nr) ? '● ' : ''}{nr}
                   </option>
                 ))}
               </select>
@@ -761,59 +773,63 @@ export default function AppShell({
           )}
 
           {selectedBlock?.dreh_von && selectedBlock?.dreh_bis && (() => {
-            const wd = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short' })
             const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
-            const yr = new Date(selectedBlock.dreh_bis + 'T00:00:00').getFullYear()
-            return <span className="chip topbar-extra chip-drehzeit">Drehzeit: {wd(selectedBlock.dreh_von)} {fmt(selectedBlock.dreh_von)} – {wd(selectedBlock.dreh_bis)} {fmt(selectedBlock.dreh_bis)}.{yr}</span>
-          })()}
-          {sunWeather && (() => {
-            const hasSun  = !!(sunWeather.avgSunrise && sunWeather.avgSunset)
-            const hasTemp = sunWeather.avgTemp != null
-            const hasRain = sunWeather.rainPct != null
-            const hasParts = hasSun || hasTemp || hasRain
-            const tempColor = hasTemp
-              ? sunWeather.avgTemp! < 12   ? '#4A9EF5'
-              : sunWeather.avgTemp! >= 26  ? '#FF3B30'
-              : sunWeather.avgTemp! > 20   ? '#FF8C7A'
-              : undefined : undefined
-            const rainColor = hasRain
-              ? sunWeather.rainPct! > 50 ? '#007AFF'
-              : sunWeather.rainPct! > 40 ? '#6DB8F5'
-              : undefined : undefined
+            const fmtFull = (d: string) => {
+              const dt = new Date(d + 'T00:00:00')
+              return `${dt.toLocaleDateString('de-DE', { weekday: 'short' })} ${dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+            }
+            const yr = new Date(selectedBlock.dreh_bis + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
+            // Weather tooltip
+            const weatherParts: string[] = []
+            if (sunWeather?.avgTemp != null) weatherParts.push(`Ø ${sunWeather.avgTemp}°C`)
+            if (sunWeather?.rainPct != null) weatherParts.push(`${sunWeather.rainPct}% Regen`)
+            if (sunWeather?.hasDst && sunWeather.dstDate) weatherParts.push(`⚠ Zeitumstellung ${sunWeather.dstDate}`)
+            const weatherTip = weatherParts.length > 0
+              ? `${fmtFull(selectedBlock.dreh_von)} – ${fmtFull(selectedBlock.dreh_bis)}\n${weatherParts.join(' · ')}`
+              : `${fmtFull(selectedBlock.dreh_von)} – ${fmtFull(selectedBlock.dreh_bis)}`
             return (
-              <>
-                {hasParts && (
-                  <span className="chip topbar-extra chip-weather">
-                    {hasSun && (
-                      <>
-                        <span style={{ color: '#F5C842' }}>☀ {sunWeather.avgSunrise}</span>
-                        {' – '}
-                        <span style={{ color: '#C264E8' }}>{sunWeather.avgSunset} Uhr</span>
-                      </>
-                    )}
-                    {hasSun && hasTemp && ' · '}
-                    {hasTemp && (
-                      <span style={tempColor ? { color: tempColor } : undefined}>Ø {sunWeather.avgTemp}°C</span>
-                    )}
-                    {(hasSun || hasTemp) && hasRain && ' · '}
-                    {hasRain && (
-                      <span style={rainColor ? { color: rainColor } : undefined}>{sunWeather.rainPct}% Regen</span>
-                    )}
-                  </span>
-                )}
-                {sunWeather.hasDst && (
-                  <span className="chip topbar-extra" style={{ color: 'var(--sw-warning)', borderColor: 'var(--sw-warning)' }}>
-                    ⚠ Zeitumstellung {sunWeather.dstDate}
-                  </span>
-                )}
-              </>
+              <Tooltip text={weatherTip}>
+                <span className="chip topbar-extra chip-drehzeit" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Clapperboard size={12} />
+                  {fmt(selectedBlock.dreh_von)} – {yr}
+                </span>
+              </Tooltip>
+            )
+          })()}
+          {dailyRegeln?.enabled && sunWeather?.avgSunset && (() => {
+            const [ssH, ssM] = sunWeather.avgSunset!.split(':').map(Number)
+            const sunsetMins = ssH * 60 + ssM
+            const [dsH, dsM] = (dailyRegeln.drehschluss_zeit || '18:30').split(':').map(Number)
+            const drehschlussMins = dsH * 60 + dsM
+            const isWinter = sunsetMins < drehschlussMins
+            const nachtbilder = isWinter
+              ? Math.floor((drehschlussMins - sunsetMins) / (dailyRegeln.nachtbild_dauer_min || 20))
+              : 0
+            const sunTip = [
+              sunWeather.avgSunrise ? `Sonnenaufgang: ${sunWeather.avgSunrise}` : null,
+              `Sonnenuntergang: ${sunWeather.avgSunset}`,
+              isWinter ? `Drehschluss: ${dailyRegeln.drehschluss_zeit} · ${nachtbilder} Nachtbild${nachtbilder !== 1 ? 'er' : ''}` : null,
+            ].filter(Boolean).join('\n')
+            return (
+              <Tooltip text={sunTip}>
+                <span className="chip topbar-extra chip-season">
+                  {isWinter ? `Winter + ${nachtbilder}` : 'Sommer'}
+                </span>
+              </Tooltip>
             )
           })()}
           {sendedatum?.datum && (() => {
             const dt = new Date(sendedatum.datum + 'T00:00:00')
             const wd = dt.toLocaleDateString('de-DE', { weekday: 'short' })
             const d = dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            return <span className="chip topbar-extra chip-sendedatum">vorauss.: {wd} {d}{sendedatum.ist_ki_prognose ? ' (Prognose)' : ''}</span>
+            return (
+              <Tooltip text={sendedatum.ist_ki_prognose ? 'KI-Prognose' : 'Sendedatum'}>
+                <span className="chip topbar-extra chip-sendedatum" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Tv size={12} />
+                  {wd} {d}
+                </span>
+              </Tooltip>
+            )
           })()}
         </div>
 

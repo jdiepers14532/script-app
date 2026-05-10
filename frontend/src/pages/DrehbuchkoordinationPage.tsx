@@ -23,6 +23,7 @@ const DK_TABS = [
   { id: 'benachrichtigungen',    label: 'Benachrichtigungen' },
   { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
+  { id: 'daily-regeln',            label: 'Daily-Regeln' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -2023,6 +2024,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId
           ? <StatistikPanelTab productionId={produktionId} sections={statSections} onSectionsChange={setStatSections} />
           : <NoProduction />
+      case 'daily-regeln':
+        return produktionId ? <DailyRegelnTab productionId={produktionId} /> : <NoProduction />
       default:
         return <Placeholder label={activeTab} />
     }

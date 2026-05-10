@@ -76,7 +76,10 @@ function preprocessPdfText(text: string): string {
   const result: string[] = []
 
   for (const line of lines) {
-    let l = line
+    // Strip inline margin line numbers (multiples of 5, range 5-40) that pdftotext
+    // renders inline where they appear on the page margin.
+    // Only strip when between non-digit characters (avoids "5 von 33", "Block 882" etc.)
+    let l = line.replace(/([a-zA-ZäöüÄÖÜß.,;:!?)])\s+(5|10|15|20|25|30|35|40)\s+([a-zA-ZäöüÄÖÜß(])/g, '$1 $3')
 
     // 1. Footer: "Stand: DD.MM.YYYY HH:MMTreatment - Episode NNNNN von M" (pdf-parse)
     l = l.replace(/(Stand:\s+\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2})((?:Treatment|Drehbuch)\s*-\s*Episode)/, '$1\n$2')
@@ -702,24 +705,41 @@ function parseSubSceneHeader(
 
 // ─── Content Parsers ────────────────────────────────────
 
+// Textbaustein keywords that should start a new paragraph if found mid-text.
+// Only split when preceded by sentence-end punctuation (. ! ?) to avoid false positives.
+const TEXTBAUSTEIN_SPLIT_RE = /[.!?]\s+(Anmerkung(?:en)?|Status\s+[Qq]uo\s*:)/
+
 function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number): Textelement[] {
   const elems: Textelement[] = []
   const contentLines: string[] = []
 
+  function flushContent() {
+    if (contentLines.length === 0) return
+    const joined = contentLines.join(' ')
+    contentLines.length = 0
+    // Check if a textbaustein keyword appears mid-text (after sentence-end) and split there
+    const m = TEXTBAUSTEIN_SPLIT_RE.exec(joined)
+    if (m && m.index > 0) {
+      // Split after the punctuation mark (include it in "before" part)
+      const splitAt = m.index + 1 // after the . ! or ?
+      const before = joined.slice(0, splitAt).trim()
+      if (before) elems.push({ id: nextId(), type: 'action', text: before })
+      // Text from the keyword onwards
+      const after = joined.slice(splitAt).trim()
+      if (after) elems.push({ id: nextId(), type: 'action', text: after })
+    } else {
+      elems.push({ id: nextId(), type: 'action', text: joined })
+    }
+  }
+
   for (let i = startIdx; i < endIdx; i++) {
     const t = lines[i].trim()
     if (!t) {
-      if (contentLines.length > 0) {
-        elems.push({ id: nextId(), type: 'action', text: contentLines.join(' ') })
-        contentLines.length = 0
-      }
+      flushContent()
       continue
     }
     if (/^Anm(erkungen?|\.)/i.test(t)) {
-      if (contentLines.length > 0) {
-        elems.push({ id: nextId(), type: 'action', text: contentLines.join(' ') })
-        contentLines.length = 0
-      }
+      flushContent()
       const anmParts = [t]
       let j = i + 1
       while (j < endIdx) {
@@ -734,19 +754,14 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
     }
     // Crosscut location labels: "Pferdehof:" or "WG:"
     if (/^[A-ZÄÖÜ][a-zäöü]+:$/.test(t) || /^WG:$/.test(t)) {
-      if (contentLines.length > 0) {
-        elems.push({ id: nextId(), type: 'action', text: contentLines.join(' ') })
-        contentLines.length = 0
-      }
+      flushContent()
       elems.push({ id: nextId(), type: 'shot', text: t })
       continue
     }
     contentLines.push(t)
   }
 
-  if (contentLines.length > 0) {
-    elems.push({ id: nextId(), type: 'action', text: contentLines.join(' ') })
-  }
+  flushContent()
   return elems
 }
 

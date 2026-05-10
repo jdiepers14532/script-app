@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { authMiddleware } from '../auth'
+import { pool } from '../db'
 
 const router = Router()
 
@@ -39,6 +40,29 @@ router.get('/archive', authMiddleware, async (req, res) => {
     res.json(data)
   } catch (err) {
     res.status(502).json({ error: 'archive error' })
+  }
+})
+
+// GET /api/weather/daily-regeln/:productionId — Daily-Regeln config (read-only, any authenticated user)
+router.get('/daily-regeln/:productionId', authMiddleware, async (req, res) => {
+  const { productionId } = req.params
+  try {
+    // Production-level override first
+    const { rows } = await pool.query(
+      `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'daily_regeln'`,
+      [productionId]
+    )
+    if (rows.length) {
+      try { res.json(JSON.parse(rows[0].value)); return } catch { /* parse error → fallback */ }
+    }
+    // Global fallback
+    const { rows: global } = await pool.query(`SELECT value FROM app_settings WHERE key = 'daily_regeln'`)
+    if (global.length) {
+      try { res.json(JSON.parse(global[0].value)); return } catch { /* parse error → default */ }
+    }
+    res.json({ enabled: false, nachtbild_dauer_min: 20, drehschluss_zeit: '18:30' })
+  } catch {
+    res.json({ enabled: false, nachtbild_dauer_min: 20, drehschluss_zeit: '18:30' })
   }
 })
 
