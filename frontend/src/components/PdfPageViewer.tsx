@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
@@ -14,8 +14,6 @@ interface PdfPageViewerProps {
 }
 
 export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cropBottom = 0 }: PdfPageViewerProps) {
-  // outerRef measures available space. Canvas is position:absolute inside it,
-  // so it never affects clientWidth/clientHeight → no resize feedback loop.
   const outerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null)
@@ -24,20 +22,23 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
 
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
+  // zoomTop: show only the top half of the page, scaled to fill the container
+  const [zoomTop, setZoomTop] = useState(false)
 
-  const renderPage = useCallback(async (pageNum: number) => {
+  // canvasDisplayH is used to clip the canvas wrapper in zoom mode
+  const [canvasDisplayH, setCanvasDisplayH] = useState(0)
+
+  const renderPage = useCallback(async (pageNum: number, zoom: boolean) => {
     const pdf = pdfRef.current
     const canvas = canvasRef.current
     const outer = outerRef.current
     if (!pdf || !canvas || !outer) return
 
-    // If already rendering, queue the latest request
     if (renderingRef.current) {
       pendingPageRef.current = pageNum
       return
     }
 
-    // Read container dimensions directly — safe because canvas is absolutely positioned
     const w = outer.clientWidth
     const h = outer.clientHeight
     const availW = w - PAD * 2
@@ -49,9 +50,20 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
       const pdfPage = await pdf.getPage(pageNum)
       const baseViewport = pdfPage.getViewport({ scale: 1 })
 
-      const scale = Math.min(availW / baseViewport.width, availH / baseViewport.height)
-      const dpr = window.devicePixelRatio || 1
+      let scale: number
+      if (zoom) {
+        // Zoom mode: scale so that the top half fills the available area
+        // (top half height = viewport.height/2, so we need scale such that
+        //  scale * viewport.height/2 = availH  → scale = 2*availH/viewport.height)
+        // Also respect width constraint
+        const scaleByH = (availH * 2) / baseViewport.height
+        const scaleByW = availW / baseViewport.width
+        scale = Math.min(scaleByH, scaleByW)
+      } else {
+        scale = Math.min(availW / baseViewport.width, availH / baseViewport.height)
+      }
 
+      const dpr = window.devicePixelRatio || 1
       const displayW = Math.round(baseViewport.width * scale)
       const displayH = Math.round(baseViewport.height * scale)
 
@@ -66,15 +78,16 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
         canvasContext: ctx,
         viewport: pdfPage.getViewport({ scale: scale * dpr }),
       }).promise
+
+      setCanvasDisplayH(displayH)
     } catch (err) {
       console.error('[PdfPageViewer] render error:', err)
     } finally {
       renderingRef.current = false
-      // Drain pending request (e.g. page changed while rendering)
       const pending = pendingPageRef.current
       if (pending !== null) {
         pendingPageRef.current = null
-        renderPage(pending)
+        renderPage(pending, zoom)
       }
     }
   }, [])
@@ -94,53 +107,63 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
     return () => { cancelled = true; task.destroy() }
   }, [fileUrl])
 
-  // Render when page or PDF changes
+  // Render when page / pdf / zoomTop changes
   useEffect(() => {
-    if (totalPages > 0) renderPage(page)
-  }, [page, totalPages, renderPage])
+    if (totalPages > 0) renderPage(page, zoomTop)
+  }, [page, totalPages, zoomTop, renderPage])
 
   // Re-render on container resize
   useEffect(() => {
     const el = outerRef.current
     if (!el) return
     const ro = new ResizeObserver(() => {
-      if (pdfRef.current && totalPages > 0) renderPage(page)
+      if (pdfRef.current && totalPages > 0) renderPage(page, zoomTop)
     })
     ro.observe(el)
     return () => ro.disconnect()
-  }, [page, totalPages, renderPage])
+  }, [page, totalPages, zoomTop, renderPage])
+
+  // Height of the visible clip in zoom mode (top ~50%)
+  const clipH = zoomTop ? Math.round(canvasDisplayH / 2) : canvasDisplayH
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#6b6b6b' }}>
 
-      {/* Viewer: outerRef is the measuring element, canvas is absolutely positioned */}
+      {/* Viewer */}
       <div ref={outerRef} style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
         <div style={{
           position: 'absolute', inset: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: PAD,
+          display: 'flex', alignItems: zoomTop ? 'flex-start' : 'center',
+          justifyContent: 'center',
+          padding: zoomTop ? `${PAD}px ${PAD}px 0` : PAD,
         }}>
+          {/* Clip wrapper — limits visible area in zoom mode */}
           <div style={{
             position: 'relative', lineHeight: 0,
-            boxShadow: '0 4px 32px rgba(0,0,0,0.65), 0 1px 6px rgba(0,0,0,0.4)',
+            overflow: 'hidden',
+            height: clipH > 0 ? clipH : undefined,
+            boxShadow: zoomTop
+              ? '0 4px 32px rgba(0,0,0,0.65), 0 1px 6px rgba(0,0,0,0.4), 0 8px 0 #6b6b6b'
+              : '0 4px 32px rgba(0,0,0,0.65), 0 1px 6px rgba(0,0,0,0.4)',
           }}>
             <canvas ref={canvasRef} style={{ display: 'block', background: '#fff' }} />
 
-            {cropLeft > 0 && (
+            {/* Crop overlays — only in normal mode */}
+            {!zoomTop && cropLeft > 0 && (
               <div style={{
                 position: 'absolute', top: 0, left: 0, bottom: 0, width: `${cropLeft}%`,
                 background: 'rgba(255,59,48,0.18)', borderRight: '2px dashed rgba(255,59,48,0.85)',
                 pointerEvents: 'none',
               }} />
             )}
-            {cropRight > 0 && (
+            {!zoomTop && cropRight > 0 && (
               <div style={{
                 position: 'absolute', top: 0, right: 0, bottom: 0, width: `${cropRight}%`,
                 background: 'rgba(255,59,48,0.18)', borderLeft: '2px dashed rgba(255,59,48,0.85)',
                 pointerEvents: 'none',
               }} />
             )}
-            {cropBottom > 0 && (
+            {!zoomTop && cropBottom > 0 && (
               <div style={{
                 position: 'absolute', left: 0, right: 0, bottom: 0, height: `${cropBottom}%`,
                 background: 'rgba(255,59,48,0.18)', borderTop: '2px dashed rgba(255,59,48,0.85)',
@@ -151,11 +174,11 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
         </div>
       </div>
 
-      {/* Navigation */}
+      {/* Navigation + Zoom toggle */}
       {totalPages > 0 && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
-          padding: '6px 0', background: 'rgba(0,0,0,0.4)', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          padding: '5px 12px', background: 'rgba(0,0,0,0.4)', flexShrink: 0,
         }}>
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
@@ -167,7 +190,7 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
           >
             <ChevronLeft size={16} />
           </button>
-          <span style={{ fontSize: 12, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ fontSize: 12, color: '#fff', fontVariantNumeric: 'tabular-nums', minWidth: 48, textAlign: 'center' }}>
             {page} / {totalPages}
           </span>
           <button
@@ -179,6 +202,24 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
             }}
           >
             <ChevronRight size={16} />
+          </button>
+
+          {/* Separator */}
+          <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.25)', margin: '0 4px' }} />
+
+          {/* Zoom toggle */}
+          <button
+            onClick={() => setZoomTop(z => !z)}
+            title={zoomTop ? 'Zoom aus — ganze Seite' : 'Zoom ein — obere Hälfte vergrößert'}
+            style={{
+              background: zoomTop ? 'rgba(255,255,255,0.2)' : 'none',
+              border: zoomTop ? '1px solid rgba(255,255,255,0.4)' : '1px solid transparent',
+              borderRadius: 4, cursor: 'pointer', padding: '2px 6px',
+              display: 'flex', alignItems: 'center', gap: 4, color: '#fff',
+            }}
+          >
+            {zoomTop ? <ZoomOut size={14} /> : <ZoomIn size={14} />}
+            <span style={{ fontSize: 11 }}>{zoomTop ? 'Zoom' : 'Zoom'}</span>
           </button>
         </div>
       )}

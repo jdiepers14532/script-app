@@ -813,6 +813,11 @@ function parseSubSceneHeader(
 // Only split when preceded by sentence-end punctuation (. ! ?) to avoid false positives.
 const TEXTBAUSTEIN_SPLIT_RE = /[.!?]\s+(Anmerkung(?:en)?|Status\s+[Qq]uo\s*:)/
 
+// Keywords that ALWAYS force a new paragraph when they appear at the start of a line.
+// pdftotext does not report font changes (italic→regular) or larger spacing —
+// so we detect these structural markers explicitly.
+const TEXTBAUSTEIN_LINE_START_RE = /^(Status\s+[Qq]uo\s*:|Haupthandlung\s*:|Anmerkung(?:en)?\s*:)/i
+
 function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number): Textelement[] {
   const elems: Textelement[] = []
   const contentLines: string[] = []
@@ -841,6 +846,11 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
     if (!t) {
       flushContent()
       continue
+    }
+    // Force paragraph break before known section headers (e.g. "Status Quo:", "Haupthandlung:").
+    // pdftotext loses font-change and extra-spacing cues, so we detect these explicitly.
+    if (TEXTBAUSTEIN_LINE_START_RE.test(t)) {
+      flushContent()
     }
     if (/^Anm(erkungen?|\.)/i.test(t)) {
       flushContent()
