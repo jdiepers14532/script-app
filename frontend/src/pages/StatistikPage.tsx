@@ -240,7 +240,7 @@ function ReportView({ report, title }: { report: any; title: string }) {
               <tr>
                 <th style={{ ...thStyle, width: 50 }}>#</th>
                 <th style={thStyle}>Rolle</th>
-                <th style={thStyle}>Darsteller:in</th>
+                <th style={thStyle}>{t('darsteller')}:in</th>
                 <th style={thStyle}>Bilder</th>
               </tr>
             </thead>

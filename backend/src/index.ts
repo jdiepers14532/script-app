@@ -49,6 +49,7 @@ import { dokumentVorlagenRouter } from './routes/dokument-vorlagen'
 import { absatzformateRouter, absatzformatPresetsRouter } from './routes/absatzformate'
 import { editorUploadsRouter } from './routes/editor-uploads'
 import { spellcheckRouter } from './routes/spellcheck'
+import searchRouter from './routes/search'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -156,6 +157,9 @@ app.use('/api/absatzformat-presets', absatzformatPresetsRouter)
 // Dokument-Szenen
 app.use('/api/dokument-szenen', dokumentSzenenRouter)
 app.use('/api/scene-identities', sceneIdentitiesRouter)
+
+// Suchen & Ersetzen
+app.use('/api/search', searchRouter)
 
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)

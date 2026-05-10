@@ -10,8 +10,8 @@ export interface Production {
   buero_adresse: string | null
 }
 
-export function productionLabel(p: Production): string {
-  if (p.staffelnummer) return `${p.title} Staffel ${p.staffelnummer}`
+export function productionLabel(p: Production, staffelLabel = 'Staffel'): string {
+  if (p.staffelnummer) return `${p.title} ${staffelLabel} ${p.staffelnummer}`
   return p.title
 }
 

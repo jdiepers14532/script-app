@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Search, X } from 'lucide-react'
 import { productionLabel, Production } from '../hooks/useProduction'
+import { useTerminologie } from '../sw-ui'
 
 interface Props {
   onSelect: (id: string) => void
@@ -9,6 +10,8 @@ interface Props {
 }
 
 export default function ProductionSelector({ onSelect, selectedId, productions }: Props) {
+  const { t } = useTerminologie()
+  const pl = (p: Production) => productionLabel(p, t('staffel'))
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [dropPos, setDropPos] = useState<{ top: number; left: number } | null>(null)
@@ -24,7 +27,7 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
 
   const filter = (list: Production[]) =>
     query.trim()
-      ? list.filter(p => productionLabel(p).toLowerCase().includes(query.toLowerCase()) ||
+      ? list.filter(p => pl(p).toLowerCase().includes(query.toLowerCase()) ||
           (p.projektnummer || '').includes(query))
       : list
 
@@ -89,10 +92,10 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
           {selected ? (
             <>
               <span className="prod-label-full">
-                {selected.projektnummer ? `${selected.projektnummer} · ${productionLabel(selected)}` : productionLabel(selected)}
+                {selected.projektnummer ? `${selected.projektnummer} · ${pl(selected)}` : pl(selected)}
               </span>
               <span className="prod-label-compact">
-                {selected.projektnummer || productionLabel(selected)}
+                {selected.projektnummer || pl(selected)}
               </span>
             </>
           ) : '— Produktion waehlen —'}
@@ -182,7 +185,7 @@ function ProdOption({ p, selected, onSelect }: { p: Production; selected: boolea
       onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)' }}
       onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
     >
-      <span style={{ fontWeight: selected ? 600 : 400 }}>{productionLabel(p)}</span>
+      <span style={{ fontWeight: selected ? 600 : 400 }}>{pl(p)}</span>
     </button>
   )
 }
