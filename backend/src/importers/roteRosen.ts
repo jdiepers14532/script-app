@@ -553,6 +553,29 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   }
   i = skipBlanks(lines, i)
 
+  // Mistral OCR sometimes puts characters AFTER I/E (reversed from pdftotext order).
+  // If no characters found yet, check again after I/E.
+  if (charaktere.length === 0 && i < lines.length && isCharacterLine(lines[i])) {
+    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    i = skipBlanks(lines, i + 1)
+  } else if (charaktere.length === 0 && i < lines.length) {
+    // Single-character check (no commas)
+    const candidate = lines[i].trim()
+    if (candidate && !DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate) &&
+        !INT_EXT_SPIELTAG_RE.test(candidate) && !KOMPARSEN_RE.test(candidate) &&
+        !WECHSELSCHNITT_RE.test(candidate) && !/^Bild aus Block/i.test(candidate) &&
+        candidate.length < 40 && candidate.split(/\s+/).length <= 4 &&
+        /^[A-ZÄÖÜ]/.test(candidate)) {
+      // Lookahead: next non-blank should be zusammenfassung text (long line) or duration
+      const nextIdx = skipBlanks(lines, i + 1)
+      const nextLine = lines[nextIdx]?.trim() || ''
+      if (nextLine.length > 40 || DURATION_RE.test(nextLine)) {
+        charaktere = candidate.split(',').map(c => c.trim()).filter(Boolean)
+        i = skipBlanks(lines, i + 1)
+      }
+    }
+  }
+
   // Zusammenfassung: collect lines until duration, next scene, or post-header metadata
   const zusammenfassungParts: string[] = []
   while (i < lines.length) {
@@ -625,10 +648,9 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
       isWechselschnitt = true
       wechselschnittPartner.push(parseInt(wsM[2], 10))
       hinweise.push(line)
-      // In crosscut blocks, DON'T consume the marker — leave it for the
-      // sub-scene splitter in the main loop to find as a split point.
-      if (crosscutDurationEntries.size > 0) break
-      i++; continue
+      // DON'T consume the marker — leave it for the sub-scene splitter
+      // in the main loop to find as a split point.
+      break
     }
     if (/^Bild aus Block/i.test(line) || /^Bitte.*Memo/i.test(line)) {
       hinweise.push(line); i++; continue
