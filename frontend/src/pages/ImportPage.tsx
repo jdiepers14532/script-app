@@ -158,7 +158,7 @@ export default function ImportPage() {
   // Check OCR availability on mount
   useEffect(() => {
     api.getOcrStatus().then(data => {
-      if (data?.available) setOcrAvailable(true)
+      if (data?.mistral_available) setOcrAvailable(true)
     }).catch(() => {})
   }, [])
 
