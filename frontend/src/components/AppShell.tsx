@@ -782,13 +782,16 @@ export default function AppShell({
             }
             const yr = new Date(selectedBlock.dreh_bis + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
             // Weather tooltip
+            const tipLines: string[] = []
+            tipLines.push(`${fmtFull(selectedBlock.dreh_von)} – ${fmtFull(selectedBlock.dreh_bis)}`)
+            if (sunWeather?.avgSunrise) tipLines.push(`☀ Sonnenaufgang: ${sunWeather.avgSunrise}`)
+            if (sunWeather?.avgSunset) tipLines.push(`☾ Sonnenuntergang: ${sunWeather.avgSunset}`)
             const weatherParts: string[] = []
             if (sunWeather?.avgTemp != null) weatherParts.push(`Ø ${sunWeather.avgTemp}°C`)
             if (sunWeather?.rainPct != null) weatherParts.push(`${sunWeather.rainPct}% Regen`)
-            if (sunWeather?.hasDst && sunWeather.dstDate) weatherParts.push(`⚠ Zeitumstellung ${sunWeather.dstDate}`)
-            const weatherTip = weatherParts.length > 0
-              ? `${fmtFull(selectedBlock.dreh_von)} – ${fmtFull(selectedBlock.dreh_bis)}\n${weatherParts.join(' · ')}`
-              : `${fmtFull(selectedBlock.dreh_von)} – ${fmtFull(selectedBlock.dreh_bis)}`
+            if (weatherParts.length) tipLines.push(weatherParts.join(' · '))
+            if (sunWeather?.hasDst && sunWeather.dstDate) tipLines.push(`⚠ Zeitumstellung ${sunWeather.dstDate}`)
+            const weatherTip = tipLines.join('\n')
             return (
               <Tooltip text={weatherTip} placement="bottom">
                 <span className="chip topbar-extra chip-drehzeit" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
