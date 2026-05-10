@@ -17,7 +17,7 @@ const TITLE_RE = /(?:Rote Rosen|Sturm der Liebe)\s+(?:Produktion|Staffel)\s+(\d+
 const DOC_TYPE_RE = /(Treatment|Drehbuch)\s+-\s+Episode\s+(\d+)/
 
 export function isRoteRosenFormat(text: string): boolean {
-  const header = text.slice(0, 2000)
+  const header = text.slice(0, 3000) // Mistral OCR may have more preamble
   return TITLE_RE.test(header) && DOC_TYPE_RE.test(header)
 }
 
@@ -60,11 +60,50 @@ const PAREN_RE = /^\(.*\)$/
 const KOMPARSEN_RE = /^Komparsen:\s*(.*)/i
 const CROSSCUT_LOCATION_RE = /^\/\/\s+(.+)/
 
-function isMarginNumber(line: string): boolean {
+function isMarginNumber(line: string, ocrMode = false): boolean {
   const t = line.trim()
   if (!/^\d+$/.test(t)) return false
   const n = parseInt(t, 10)
+  // pdftotext: only multiples of 5 appear in the margin
+  // Mistral OCR: all line numbers 1-99 can appear
+  if (ocrMode) return n > 0 && n <= 99
   return n > 0 && n <= 100 && n % 5 === 0
+}
+
+// ─── Mistral OCR Preprocessor ────────────────────────────
+// Mistral OCR returns Markdown. Strip formatting artifacts and
+// inline line numbers that the OCR reads from the page margin.
+
+function preprocessMistralOcr(text: string): string {
+  let lines = text.split(/\r?\n/)
+  const result: string[] = []
+
+  for (let line of lines) {
+    // Strip Markdown bold/italic markers
+    line = line.replace(/\*\*(.+?)\*\*/g, '$1')
+    line = line.replace(/\*(.+?)\*/g, '$1')
+    line = line.replace(/__(.+?)__/g, '$1')
+    line = line.replace(/_(.+?)_/g, '$1')
+
+    // Strip Markdown headings (## Title → Title)
+    line = line.replace(/^#{1,6}\s+/, '')
+
+    // Strip Markdown horizontal rules
+    if (/^[-*_]{3,}\s*$/.test(line.trim())) continue
+
+    // Strip leading line numbers from OCR (e.g. "5  Lou und Daniel..." or "10 gerade als...")
+    // Pattern: 1-2 digit number at start of line followed by 2+ spaces, then text content
+    // But NOT scene numbers (4402.1), durations (1:33), or footer pages (5 von 33)
+    line = line.replace(/^(\d{1,2})\s{2,}(?!von\s|\d{4}\.)/, '')
+
+    // Strip inline margin numbers (OCR reads them between words)
+    // Same as pdftotext but more aggressive: any 1-2 digit number between text
+    line = line.replace(/([a-zA-ZäöüÄÖÜß.,;:!?)])\s+(\d{1,2})\s+([a-zA-ZäöüÄÖÜß(])/g, '$1 $3')
+
+    result.push(line)
+  }
+
+  return result.join('\n')
 }
 
 // ─── PDF Text Preprocessor ──────────────────────────────
@@ -154,9 +193,11 @@ function stripFooterLines(lines: string[]): string[] {
   return final
 }
 
-function cleanText(raw: string): string[] {
+function cleanText(raw: string, ocrMode = false): string[] {
+  // Mistral OCR: strip Markdown + inline line numbers first
+  let text = ocrMode ? preprocessMistralOcr(raw) : raw
   // Replace form feed characters (pdftotext page breaks) with newline to preserve paragraph boundaries
-  const noFF = raw.replace(/\f/g, '\n')
+  const noFF = text.replace(/\f/g, '\n')
   const preprocessed = preprocessPdfText(noFF)
   const lines = preprocessed.split(/\r?\n/)
   const stripped = stripFooterLines(lines)
@@ -164,7 +205,7 @@ function cleanText(raw: string): string[] {
   return stripped.filter(l => {
     const t = l.trim()
     if (!t) return true
-    if (isMarginNumber(t)) return false
+    if (isMarginNumber(t, ocrMode)) return false
     return true
   })
 }
@@ -863,8 +904,8 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
 
 // ─── Main Parser ────────────────────────────────────────
 
-export function parseRoteRosen(rawText: string): ImportResult {
-  const lines = cleanText(rawText)
+export function parseRoteRosen(rawText: string, ocrMode = false): ImportResult {
+  const lines = cleanText(rawText, ocrMode)
   const warnings: string[] = []
 
   const coverMeta = parseCoverMeta(lines)
@@ -940,8 +981,25 @@ export function parseRoteRosen(rawText: string): ImportResult {
     if (!header) { i++; continue }
 
     // Find end of this scene's entire block (next scene number not consumed
-    // by the crosscut duration table, or EOF)
+    // by the crosscut duration table or referenced by Wechselschnitt markers, or EOF)
     const crosscutPartnerNrs = new Set(header.crosscutDurationEntries.keys())
+
+    // Also collect scene numbers referenced by "Wechselschnitt mit Bild NNNN.X" markers
+    // (needed for Mistral OCR where the duration table may not be detected)
+    for (let j = header.headerEndIdx; j < lines.length; j++) {
+      const wsM = WECHSELSCHNITT_RE.exec(lines[j]?.trim() || '')
+      if (wsM) {
+        const refNr = parseInt(wsM[2], 10)
+        crosscutPartnerNrs.add(refNr)
+      }
+      // Stop scanning at next scene that's clearly a new scene (not a partner)
+      const scM = SCENE_NUM_RE.exec(lines[j]?.trim() || '')
+      if (scM && j > header.headerEndIdx + 5) {
+        const nr = parseInt(scM[2], 10)
+        if (nr !== header.sceneNr && !crosscutPartnerNrs.has(nr)) break
+      }
+    }
+
     let blockEnd = lines.length
     for (let j = header.headerEndIdx; j < lines.length; j++) {
       const lineJ = lines[j]?.trim() || ''
@@ -956,57 +1014,54 @@ export function parseRoteRosen(rawText: string): ImportResult {
     }
 
     // ── Handle crosscut sub-scenes within the block ──
-    if (header.isWechselschnitt && crosscutPartnerNrs.size > 0) {
-      // Find "Wechselschnitt mit Bild NNNN.X" markers in the content.
-      // Each marker means "cut to scene X" — the next section contains scene X's header.
-      const subSceneSplits: { idx: number; targetNr: number }[] = []
-      for (let j = header.headerEndIdx; j < blockEnd; j++) {
-        const wsM = WECHSELSCHNITT_RE.exec(lines[j]?.trim() || '')
-        if (wsM) {
-          subSceneSplits.push({ idx: j, targetNr: parseInt(wsM[2], 10) })
-        }
+    // Scan for "Wechselschnitt mit Bild NNNN.X" markers in the content.
+    // These exist both with pdftotext (duration table detected) and Mistral OCR (no table).
+    const subSceneSplits: { idx: number; targetNr: number }[] = []
+    for (let j = header.headerEndIdx; j < blockEnd; j++) {
+      const wsM = WECHSELSCHNITT_RE.exec(lines[j]?.trim() || '')
+      if (wsM) {
+        subSceneSplits.push({ idx: j, targetNr: parseInt(wsM[2], 10) })
       }
+    }
 
-      if (subSceneSplits.length > 0) {
-        const processedNrs = new Set<number>([header.sceneNr])
+    if (subSceneSplits.length > 0) {
+      // This is a crosscut scene (even if not detected via duration table)
+      header.isWechselschnitt = true
+      const processedNrs = new Set<number>([header.sceneNr])
 
-        // Find main scene's dialog content (from "back to main" marker)
-        // and parse sub-scenes from their markers
-        let mainDialogStart = header.headerEndIdx
-        let mainDialogEnd = subSceneSplits[0].idx
-        const subSceneResults: ParsedScene[] = []
+      // Find main scene's dialog content (from "back to main" marker)
+      // and parse sub-scenes from their markers
+      let mainDialogStart = header.headerEndIdx
+      let mainDialogEnd = subSceneSplits[0].idx
+      const subSceneResults: ParsedScene[] = []
 
-        for (let s = 0; s < subSceneSplits.length; s++) {
-          const { idx: markerIdx, targetNr } = subSceneSplits[s]
-          const sectionEnd = s + 1 < subSceneSplits.length ? subSceneSplits[s + 1].idx : blockEnd
+      for (let s = 0; s < subSceneSplits.length; s++) {
+        const { idx: markerIdx, targetNr } = subSceneSplits[s]
+        const sectionEnd = s + 1 < subSceneSplits.length ? subSceneSplits[s + 1].idx : blockEnd
 
-          if (targetNr === header.sceneNr) {
-            // "Wechselschnitt mit Bild 4402.8" = back to main scene's dialog
-            mainDialogStart = markerIdx + 1
-            mainDialogEnd = sectionEnd
-          } else if (!processedNrs.has(targetNr)) {
-            // New sub-scene (e.g. scene 9)
-            const subHeader = parseSubSceneHeader(lines, markerIdx + 1, sectionEnd, header)
-            if (subHeader) {
-              subHeader.sceneNr = targetNr
-              subHeader.dauer_sekunden = header.crosscutDurationEntries.get(targetNr) || subHeader.dauer_sekunden
-              subHeader.isWechselschnitt = true
-              subHeader.wechselschnittPartner = [header.sceneNr]
-              // Auto-generate szeneninfo for crosscut partner
-              subHeader.hinweise.push(`Wechselschnitt mit Bild ${header.episodeNr}.${header.sceneNr}`)
-              subSceneResults.push(buildScene(subHeader, subHeader.headerEndIdx, sectionEnd))
-              processedNrs.add(targetNr)
-            }
+        if (targetNr === header.sceneNr) {
+          // "Wechselschnitt mit Bild 4402.8" = back to main scene's dialog
+          mainDialogStart = markerIdx + 1
+          mainDialogEnd = sectionEnd
+        } else if (!processedNrs.has(targetNr)) {
+          // New sub-scene (e.g. scene 9)
+          const subHeader = parseSubSceneHeader(lines, markerIdx + 1, sectionEnd, header)
+          if (subHeader) {
+            subHeader.sceneNr = targetNr
+            subHeader.dauer_sekunden = header.crosscutDurationEntries.get(targetNr) || subHeader.dauer_sekunden
+            subHeader.isWechselschnitt = true
+            subHeader.wechselschnittPartner = [header.sceneNr]
+            // Auto-generate szeneninfo for crosscut partner
+            subHeader.hinweise.push(`Wechselschnitt mit Bild ${header.episodeNr}.${header.sceneNr}`)
+            subSceneResults.push(buildScene(subHeader, subHeader.headerEndIdx, sectionEnd))
+            processedNrs.add(targetNr)
           }
         }
-
-        // Push main scene first (dialog from "back to main" section), then sub-scenes
-        szenen.push(buildScene(header, mainDialogStart, mainDialogEnd))
-        szenen.push(...subSceneResults)
-      } else {
-        // No Wechselschnitt markers found — just create the main scene
-        szenen.push(buildScene(header, header.headerEndIdx, blockEnd))
       }
+
+      // Push main scene first (dialog from "back to main" section), then sub-scenes
+      szenen.push(buildScene(header, mainDialogStart, mainDialogEnd))
+      szenen.push(...subSceneResults)
     } else {
       // Normal (non-crosscut) scene
       szenen.push(buildScene(header, header.headerEndIdx, blockEnd))

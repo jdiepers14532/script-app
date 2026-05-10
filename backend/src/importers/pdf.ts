@@ -139,7 +139,7 @@ export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Pro
 
   // Try Rote Rosen format first (structured production PDF)
   if (isRoteRosenFormat(text)) {
-    return parseRoteRosen(text)
+    return parseRoteRosen(text, usedMethod === 'mistral')
   }
 
   // Fallback: parse extracted text like Fountain
