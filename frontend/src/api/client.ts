@@ -654,6 +654,24 @@ export const api = {
   rasterGenerieren: (strangId: string, folgeIds: number[]) =>
     request<{ created: any[]; count: number }>('POST', `/straenge/${strangId}/raster-generieren`, { folge_ids: folgeIds }),
 
+  // ── Sonderszenen: Wechselschnitt-Partner ──
+  getWechselschnittPartner: (szeneId: string) =>
+    request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-partner`),
+  setWechselschnittPartner: (szeneId: string, partners: { partner_identity_id: string; position: number }[]) =>
+    request<any[]>('PUT', `/dokument-szenen/${szeneId}/wechselschnitt-partner`, { partners }),
+  getWechselschnittBeteiligt: (sceneIdentityId: string) =>
+    request<any[]>('GET', `/dokument-szenen/wechselschnitt-beteiligt/${sceneIdentityId}`),
+
+  // ── Sonderszenen: Stockshot-Archiv ──
+  getStockshotArchiv: (produktionId: string) =>
+    request<any[]>('GET', `/stockshot-archiv/${produktionId}`),
+  checkStockshotArchiv: (produktionId: string, motiv: string, lichtstimmung: string) =>
+    request<{ exists: boolean }>('GET', `/stockshot-archiv/${produktionId}/check?motiv=${encodeURIComponent(motiv)}&lichtstimmung=${encodeURIComponent(lichtstimmung)}`),
+
+  // ── Sonderszenen: Stockshot-Templates ──
+  getStockshotTemplates: (produktionId: string) =>
+    request<any[]>('GET', `/stockshot-templates/${produktionId}`),
+
   replace: (params: {
     query: string
     replacement: string

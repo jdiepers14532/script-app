@@ -467,42 +467,20 @@ export default function ImportPage() {
               </div>
             )}
 
-            {/* PDF-specific extraction options */}
-            {isPdf && detectResult && (
+            {/* PDF OCR Toggle (only shown on step 1 — crop is in step 2 with visual overlay) */}
+            {isPdf && detectResult && ocrAvailable && (
               <div style={{
                 border: '1px solid #e0e0e0', borderRadius: 8, padding: 16,
-                marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 12,
+                marginBottom: 16,
               }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>PDF-Extraktionsoptionen</div>
-
-                {/* OCR Toggle */}
-                {ocrAvailable && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={pdfMethod === 'mistral'}
-                      onChange={e => setPdfMethod(e.target.checked ? 'mistral' : 'pdftotext')}
-                    />
-                    Mistral OCR verwenden (bessere Texterkennung)
-                  </label>
-                )}
-
-                {/* Crop slider — only for pdftotext */}
-                {pdfMethod === 'pdftotext' && (
-                  <div>
-                    <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
-                      Seitenbreite beschneiden: {pdfCropPercent}% (schneidet Zeilennummern am rechten Rand ab)
-                    </label>
-                    <input
-                      type="range" min={50} max={100} value={pdfCropPercent}
-                      onChange={e => setPdfCropPercent(parseInt(e.target.value))}
-                      style={{ width: '100%' }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#999' }}>
-                      <span>50%</span><span>100% (kein Crop)</span>
-                    </div>
-                  </div>
-                )}
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={pdfMethod === 'mistral'}
+                    onChange={e => setPdfMethod(e.target.checked ? 'mistral' : 'pdftotext')}
+                  />
+                  Mistral OCR verwenden (bessere Texterkennung)
+                </label>
               </div>
             )}
 
@@ -553,13 +531,45 @@ export default function ImportPage() {
                     <X size={14} />
                   </button>
                 </div>
-                <div style={{ flex: 1, overflow: 'hidden' }}>
-                  {isPdf && fileUrl ? (
-                    <iframe
-                      src={fileUrl}
-                      style={{ width: '100%', height: '100%', border: 'none' }}
-                      title="Dokument-Vorschau"
+                {/* Crop slider for PDF — visual feedback via overlay */}
+                {isPdf && pdfMethod === 'pdftotext' && (
+                  <div style={{
+                    padding: '6px 12px', borderBottom: '1px solid #e0e0e0',
+                    background: '#fff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+                  }}>
+                    <Scissors size={12} color="#757575" />
+                    <span style={{ fontSize: 11, color: '#757575', whiteSpace: 'nowrap' }}>Beschnitt: {pdfCropPercent}%</span>
+                    <input
+                      type="range" min={50} max={100} value={pdfCropPercent}
+                      onChange={e => setPdfCropPercent(parseInt(e.target.value))}
+                      style={{ flex: 1, height: 4 }}
                     />
+                  </div>
+                )}
+                <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+                  {isPdf && fileUrl ? (
+                    <>
+                      <iframe
+                        src={fileUrl}
+                        style={{ width: '100%', height: '100%', border: 'none' }}
+                        title="Dokument-Vorschau"
+                      />
+                      {/* Crop overlay — shows the area that will be cut */}
+                      {pdfMethod === 'pdftotext' && pdfCropPercent < 100 && (
+                        <div style={{
+                          position: 'absolute', top: 0, right: 0, bottom: 0,
+                          width: `${100 - pdfCropPercent}%`,
+                          background: 'rgba(255, 59, 48, 0.12)',
+                          borderLeft: '2px dashed rgba(255, 59, 48, 0.6)',
+                          pointerEvents: 'none',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <span style={{ fontSize: 10, color: 'rgba(255,59,48,0.8)', fontWeight: 600, writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                            Beschnitten
+                          </span>
+                        </div>
+                      )}
+                    </>
                   ) : fileTextContent ? (
                     <pre style={{
                       margin: 0, padding: 16, height: '100%', overflowY: 'auto',
