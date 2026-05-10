@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Search, ChevronUp, ChevronDown, X, AlertTriangle, Lock } from 'lucide-react'
 import { useTerminologie } from '../sw-ui/TerminologieContext'
+import { useAppSettings } from '../contexts'
 import type { SearchScope, SearchOptions } from '../hooks/useSearchReplace'
 
 interface Props {
@@ -67,6 +68,7 @@ export default function SearchReplaceDialog({
   onNavigateToScene, bloecke,
 }: Props) {
   const { t } = useTerminologie()
+  const { treatmentLabel } = useAppSettings()
   const inputRef = useRef<HTMLInputElement>(null)
 
   const prodLabel = (p: { title: string; staffelnummer?: number; projektnummer?: string }) => {
@@ -401,7 +403,7 @@ export default function SearchReplaceDialog({
               style={selectStyle}
             >
               <option value="drehbuch">Drehbuch</option>
-              <option value="treatment">Treatment</option>
+              <option value="treatment">{treatmentLabel}</option>
               <option value="storyline">Beschreibung</option>
               <option value="notiz">Notiz</option>
             </select>
