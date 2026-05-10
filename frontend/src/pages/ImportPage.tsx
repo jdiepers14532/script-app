@@ -494,7 +494,7 @@ export default function ImportPage() {
                 </label>
                 {!ocrAvailable && (
                   <span style={{ fontSize: 11, color: '#999', marginTop: 4, display: 'block' }}>
-                    Nicht verfügbar — Mistral API-Key muss in der Drehbuchkoordination unter KI-Einstellungen hinterlegt werden.
+                    Nicht verfügbar — Mistral API-Key muss in den Admin-Einstellungen hinterlegt werden.
                   </span>
                 )}
               </div>
