@@ -9,7 +9,8 @@ export const lineNumberPluginKey = new PluginKey('lineNumbers')
  * Only every 5th line shows the number; counting resets per scene
  * (each scene is a separate editor instance, so reset is automatic).
  *
- * Uses node decorations with ::before pseudo-elements for reliable positioning.
+ * Widget is placed INSIDE the block node (offset+1) so it can be
+ * absolutely positioned relative to the block element.
  */
 export function createLineNumberPlugin() {
   return new Plugin({
@@ -36,11 +37,14 @@ function buildDecorations(doc: any): DecorationSet {
   doc.forEach((node: any, offset: number) => {
     lineNum++
     if (lineNum % 5 === 0) {
+      const num = lineNum
       decos.push(
-        Decoration.node(offset, offset + node.nodeSize, {
-          class: 'has-line-num',
-          'data-line-num': String(lineNum),
-        })
+        Decoration.widget(offset + 1, () => {
+          const el = document.createElement('span')
+          el.className = 'line-number-gutter'
+          el.textContent = String(num)
+          return el
+        }, { side: -1, key: `ln-${num}` })
       )
     }
   })
@@ -52,19 +56,19 @@ export const LINE_NUMBER_CSS = `
 .ProseMirror.has-line-numbers {
   padding-left: 44px !important;
 }
-.ProseMirror.has-line-numbers .has-line-num {
+.ProseMirror.has-line-numbers > * {
   position: relative;
 }
-.ProseMirror.has-line-numbers .has-line-num::before {
-  content: attr(data-line-num);
+.line-number-gutter {
   position: absolute;
   left: -40px;
+  top: 0;
   width: 32px;
   text-align: right;
   font-family: 'Courier Prime', 'Courier New', monospace;
   font-size: 9px;
   line-height: inherit;
-  color: var(--text-muted, #999);
+  color: var(--text-secondary);
   pointer-events: none;
   user-select: none;
 }
