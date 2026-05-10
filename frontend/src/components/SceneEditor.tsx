@@ -559,8 +559,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   cursor: 'default',
                 }}>
                   {scene.page_length % 8 === 0
-                    ? `${scene.page_length / 8} S.`
-                    : `${Math.floor(scene.page_length / 8)} ${scene.page_length % 8}/8 S.`}
+                    ? `${scene.page_length / 8}`
+                    : `${Math.floor(scene.page_length / 8)} ${scene.page_length % 8}/8`}
                 </span>
               </Tooltip>
             )}
