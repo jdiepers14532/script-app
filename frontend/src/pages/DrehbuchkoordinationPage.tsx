@@ -24,6 +24,7 @@ const DK_TABS = [
   { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
+  { id: 'stockshot-templates',    label: 'Stockshot-Vorlagen' },
   { id: 'vorlagen',               label: 'Vorlagen' },
   { id: 'ki-einstellungen',       label: 'KI-Einstellungen' },
 ]
@@ -2030,6 +2031,8 @@ export default function DrehbuchkoordinationPage() {
           : <NoProduction />
       case 'daily-regeln':
         return produktionId ? <DailyRegelnTab productionId={produktionId} /> : <NoProduction />
+      case 'stockshot-templates':
+        return produktionId ? <StockshotTemplatesTab productionId={produktionId} /> : <NoProduction />
       case 'vorlagen':
         return produktionId ? <VorlagenTab productionId={produktionId} /> : <NoProduction />
       case 'ki-einstellungen':
@@ -2453,6 +2456,112 @@ const META_PLACEHOLDERS = [
   { key: '{{fassung}}', label: 'Fassung' },
   { key: '{{version}}', label: 'Version' },
 ]
+
+function StockshotTemplatesTab({ productionId }: { productionId: string }) {
+  const [templates, setTemplates] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editKat, setEditKat] = useState('ortswechsel')
+  const [editName, setEditName] = useState('')
+  const [editOneliner, setEditOneliner] = useState('')
+
+  useEffect(() => {
+    api.getStockshotTemplates(productionId).then(setTemplates).finally(() => setLoading(false))
+  }, [productionId])
+
+  const save = async () => {
+    if (!editName.trim()) return
+    if (editId) {
+      const res = await fetch(`/api/stockshot-templates/${productionId}/${editId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name: editName.trim(), oneliner_vorlage: editOneliner.trim(), kategorie: editKat }),
+      })
+      if (res.ok) {
+        const updated = await res.json()
+        setTemplates(prev => prev.map(t => t.id === editId ? updated : t))
+      }
+    } else {
+      const res = await fetch(`/api/stockshot-templates/${productionId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ kategorie: editKat, name: editName.trim(), oneliner_vorlage: editOneliner.trim() }),
+      })
+      if (res.ok) {
+        const created = await res.json()
+        setTemplates(prev => [...prev, created])
+      }
+    }
+    setEditId(null); setEditName(''); setEditOneliner('')
+  }
+
+  const remove = async (id: string) => {
+    await fetch(`/api/stockshot-templates/${productionId}/${id}`, { method: 'DELETE', credentials: 'include' })
+    setTemplates(prev => prev.filter(t => t.id !== id))
+  }
+
+  const katLabel: Record<string, string> = { ortswechsel: 'Ortswechsel', zeit_vergeht: 'Zeit vergeht', stimmungswechsel: 'Stimmungswechsel' }
+  const katColor: Record<string, string> = { ortswechsel: '#007AFF', zeit_vergeht: '#FF9500', stimmungswechsel: '#AF52DE' }
+
+  if (loading) return <div style={{ padding: 24, color: '#757575' }}>Laden…</div>
+
+  return (
+    <div style={{ padding: 24, maxWidth: 700 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Stockshot-Vorlagen</h2>
+      <p style={{ fontSize: 12, color: '#757575', marginBottom: 20, lineHeight: 1.6 }}>
+        Vorlagen fuer Stockshot-Oneliner nach Kategorie. Platzhalter: <code>{'{motiv}'}</code>, <code>{'{stimmung}'}</code>
+      </p>
+
+      {['ortswechsel', 'zeit_vergeht', 'stimmungswechsel'].map(kat => {
+        const items = templates.filter(t => t.kategorie === kat)
+        return (
+          <div key={kat} style={{ marginBottom: 24 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: katColor[kat], marginBottom: 8 }}>{katLabel[kat]}</div>
+            {items.length === 0 && <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic', marginBottom: 8 }}>Keine Vorlagen</div>}
+            {items.map(t => (
+              <div key={t.id} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 4,
+                border: '1px solid var(--border)', borderRadius: 6, fontSize: 12,
+              }}>
+                <span style={{ fontWeight: 600, minWidth: 100 }}>{t.name}</span>
+                <span style={{ flex: 1, color: '#757575', fontStyle: 'italic' }}>{t.oneliner_vorlage || '—'}</span>
+                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#007AFF', fontSize: 11 }}
+                  onClick={() => { setEditId(t.id); setEditKat(t.kategorie); setEditName(t.name); setEditOneliner(t.oneliner_vorlage ?? '') }}>
+                  Bearbeiten
+                </button>
+                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FF3B30', fontSize: 11 }}
+                  onClick={() => remove(t.id)}>
+                  Loeschen
+                </button>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--bg-surface)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{editId ? 'Vorlage bearbeiten' : 'Neue Vorlage'}</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={editKat} onChange={e => setEditKat(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
+            <option value="ortswechsel">Ortswechsel</option>
+            <option value="zeit_vergeht">Zeit vergeht</option>
+            <option value="stimmungswechsel">Stimmungswechsel</option>
+          </select>
+          <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Name" style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', width: 120 }} />
+          <input value={editOneliner} onChange={e => setEditOneliner(e.target.value)} placeholder="Oneliner-Vorlage…" style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', flex: 1, minWidth: 160 }} />
+          <button onClick={save} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 4, background: '#007AFF', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            {editId ? 'Speichern' : 'Hinzufuegen'}
+          </button>
+          {editId && (
+            <button onClick={() => { setEditId(null); setEditName(''); setEditOneliner('') }} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, background: 'transparent', color: '#757575', border: '1px solid var(--border)', cursor: 'pointer' }}>
+              Abbrechen
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function VorlagenTab({ productionId }: { productionId: string }) {
   const [vorlagen, setVorlagen] = useState<any[]>([])
