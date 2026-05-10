@@ -145,9 +145,6 @@
 /* Focus-mode: hide extras */
 [data-mode='focus'] .topbar-extra { display:none; }
 
-/* Block label: compact (just number) always visible, full (with range) hidden */
-.topbar .block-full { display:none; }
-
 /* Responsive hide/shorten — priority order */
 /* 1. Sommer/Winter-Chip */
 @media (max-width: 1200px) { .topbar .chip-season { display:none; } }

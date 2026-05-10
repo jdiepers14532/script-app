@@ -141,7 +141,7 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
                   Aktive Produktionen
                 </div>
                 {filteredActive.map(p => (
-                  <ProdOption key={p.id} p={p} selected={p.id === selectedId} onSelect={handleSelect} />
+                  <ProdOption key={p.id} label={p.projektnummer ? `${p.projektnummer} · ${pl(p)}` : pl(p)} selected={p.id === selectedId} onSelect={() => handleSelect(p.id)} />
                 ))}
               </>
             )}
@@ -151,7 +151,7 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
                   Inaktive Produktionen
                 </div>
                 {filteredInactive.map(p => (
-                  <ProdOption key={p.id} p={p} selected={p.id === selectedId} onSelect={handleSelect} />
+                  <ProdOption key={p.id} label={p.projektnummer ? `${p.projektnummer} · ${pl(p)}` : pl(p)} selected={p.id === selectedId} onSelect={() => handleSelect(p.id)} />
                 ))}
               </>
             )}
@@ -162,10 +162,10 @@ export default function ProductionSelector({ onSelect, selectedId, productions }
   )
 }
 
-function ProdOption({ p, selected, onSelect }: { p: Production; selected: boolean; onSelect: (id: string) => void }) {
+function ProdOption({ label, selected, onSelect }: { label: string; selected: boolean; onSelect: () => void }) {
   return (
     <button
-      onClick={() => onSelect(p.id)}
+      onClick={onSelect}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         width: '100%', padding: '7px 16px', background: selected ? 'var(--bg-active)' : 'transparent',
@@ -176,7 +176,7 @@ function ProdOption({ p, selected, onSelect }: { p: Production; selected: boolea
       onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)' }}
       onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
     >
-      <span style={{ fontWeight: selected ? 600 : 400 }}>{pl(p)}</span>
+      <span style={{ fontWeight: selected ? 600 : 400 }}>{label}</span>
     </button>
   )
 }

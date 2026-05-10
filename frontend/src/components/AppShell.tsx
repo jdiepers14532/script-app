@@ -12,6 +12,7 @@ import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, User
 import type { TweakState } from '../contexts'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
+import HeaderSelect from './HeaderSelect'
 import { CompanyInfoModal, useTerminologie } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
@@ -744,31 +745,32 @@ export default function AppShell({
           {bloecke.length > 0 && onSelectBlock && (
             <>
               <span>·</span>
-              <select className="block-full" style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
-                {bloecke.map(b => (
-                  <option key={b.proddb_id} value={b.proddb_id}>
-                    Block {b.block_nummer}{b.folge_von != null && b.folge_bis != null ? ` (${b.folge_von}–${b.folge_bis}) · ${b.folge_bis - b.folge_von + 1} Folgen` : ''}
-                  </option>
-                ))}
-              </select>
-              <select className="block-compact" style={selectStyle} value={selectedBlock?.proddb_id ?? ''} onChange={e => onSelectBlock(bloecke.find(b => b.proddb_id === e.target.value))}>
-                {bloecke.map(b => (
-                  <option key={b.proddb_id} value={b.proddb_id}>{b.block_nummer}</option>
-                ))}
-              </select>
+              <HeaderSelect
+                options={bloecke.map(b => ({
+                  value: b.proddb_id,
+                  label: `Block ${b.block_nummer}${b.folge_von != null && b.folge_bis != null ? ` (${b.folge_von}–${b.folge_bis}) · ${b.folge_bis - b.folge_von + 1} Folgen` : ''}`,
+                  compactLabel: String(b.block_nummer),
+                }))}
+                value={selectedBlock?.proddb_id ?? ''}
+                onChange={val => onSelectBlock(bloecke.find(b => b.proddb_id === val))}
+              />
             </>
           )}
 
           {allFolgen.length > 0 && onSelectFolge && (
             <>
               <span>·</span>
-              <select style={selectStyle} value={selectedFolgeNummer ?? ''} onChange={e => handleFolgeSelect(Number(e.target.value))}>
-                {allFolgen.map(({ nr, block }) => (
-                  <option key={nr} value={nr} style={{ fontWeight: block.proddb_id === selectedBlock?.proddb_id ? 700 : 400 }}>
-                    {folgenMitDaten.includes(nr) ? '● ' : ''}{nr}
-                  </option>
-                ))}
-              </select>
+              <HeaderSelect
+                options={allFolgen.map(({ nr, block }) => ({
+                  value: String(nr),
+                  label: `${t('episode')} ${nr}`,
+                  compactLabel: String(nr),
+                  bold: block.proddb_id === selectedBlock?.proddb_id,
+                  dot: folgenMitDaten.includes(nr),
+                }))}
+                value={String(selectedFolgeNummer ?? '')}
+                onChange={val => handleFolgeSelect(Number(val))}
+              />
             </>
           )}
 
@@ -788,7 +790,7 @@ export default function AppShell({
               ? `${fmtFull(selectedBlock.dreh_von)} – ${fmtFull(selectedBlock.dreh_bis)}\n${weatherParts.join(' · ')}`
               : `${fmtFull(selectedBlock.dreh_von)} – ${fmtFull(selectedBlock.dreh_bis)}`
             return (
-              <Tooltip text={weatherTip}>
+              <Tooltip text={weatherTip} placement="bottom">
                 <span className="chip topbar-extra chip-drehzeit" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <Clapperboard size={12} />
                   {fmt(selectedBlock.dreh_von)} – {yr}
@@ -811,7 +813,7 @@ export default function AppShell({
               isWinter ? `Drehschluss: ${dailyRegeln.drehschluss_zeit} · ${nachtbilder} Nachtbild${nachtbilder !== 1 ? 'er' : ''}` : null,
             ].filter(Boolean).join('\n')
             return (
-              <Tooltip text={sunTip}>
+              <Tooltip text={sunTip} placement="bottom">
                 <span className="chip topbar-extra chip-season">
                   {isWinter ? `Winter + ${nachtbilder}` : 'Sommer'}
                 </span>
@@ -823,7 +825,7 @@ export default function AppShell({
             const wd = dt.toLocaleDateString('de-DE', { weekday: 'short' })
             const d = dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
             return (
-              <Tooltip text={sendedatum.ist_ki_prognose ? 'KI-Prognose' : 'Sendedatum'}>
+              <Tooltip text={sendedatum.ist_ki_prognose ? 'KI-Prognose' : 'Sendedatum'} placement="bottom">
                 <span className="chip topbar-extra chip-sendedatum" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   <Tv size={12} />
                   {wd} {d}
