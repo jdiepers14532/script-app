@@ -50,6 +50,7 @@ import { absatzformateRouter, absatzformatPresetsRouter } from './routes/absatzf
 import { editorUploadsRouter } from './routes/editor-uploads'
 import { spellcheckRouter } from './routes/spellcheck'
 import searchRouter from './routes/search'
+import { straengeRouter } from './routes/straenge'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -161,6 +162,9 @@ app.use('/api/scene-identities', sceneIdentitiesRouter)
 // Suchen & Ersetzen
 app.use('/api/search', searchRouter)
 
+// Story-Straenge
+app.use('/api/straenge', straengeRouter)
+
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
@@ -245,6 +249,9 @@ async function runMigrations() {
     'v56_absatzformate.sql',
     'v57_page_length.sql',
     'v58_replik_nummern.sql',
+    'v59_terminologie.sql',
+    'v60_shortcut_headline.sql',
+    'v61_straenge.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
