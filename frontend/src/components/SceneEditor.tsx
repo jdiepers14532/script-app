@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useContext, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
 import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2 } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
@@ -135,6 +135,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [allSceneIdentities, setAllSceneIdentities] = useState<any[]>([])
   const [wsDropdownOpen, setWsDropdownOpen] = useState(false)
   const [wsSearch, setWsSearch] = useState('')
+  const [compactHover, setCompactHover] = useState(false)
+  const [compactCharDropdown, setCompactCharDropdown] = useState(false)
+  const [compactCharSearch, setCompactCharSearch] = useState('')
+  const compactCharRef = useRef<HTMLDivElement | null>(null)
+  const compactHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const wsDropdownRef = useRef<HTMLDivElement | null>(null)
   const strangDropdownRef = useRef<HTMLDivElement | null>(null)
   const motivDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -817,6 +822,128 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             </button>
           </span>
         </div>
+
+        {/* Compact mode: row 2 with characters + hover popover */}
+        {compact && scene && (
+          <div
+            className="compact-r2"
+            onMouseEnter={() => { if (compactHoverTimer.current) clearTimeout(compactHoverTimer.current); compactHoverTimer.current = setTimeout(() => setCompactHover(true), 400) }}
+            onMouseLeave={() => { if (compactHoverTimer.current) clearTimeout(compactHoverTimer.current); setCompactHover(false) }}
+          >
+            <span className="compact-chars">
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').length > 0 && (
+                <span className="compact-char-group">
+                  <span className="compact-char-label">R</span>
+                  {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any, i: number, arr: any[]) => (
+                    <span key={c.character_id} className="compact-char-name">{c.name}{i < arr.length - 1 ? ', ' : ''}</span>
+                  ))}
+                </span>
+              )}
+              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').length > 0 && (
+                <span className="compact-char-group">
+                  <span className="compact-char-label">K</span>
+                  {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any, i: number, arr: any[]) => (
+                    <span key={c.character_id} className="compact-char-name">{c.name}{i < arr.length - 1 ? ', ' : ''}</span>
+                  ))}
+                </span>
+              )}
+              {sceneChars.length === 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Keine Rollen</span>}
+              <span className="compact-char-add-wrap" ref={compactCharRef}>
+                <button
+                  className="compact-char-add-btn"
+                  onClick={e => { e.stopPropagation(); setCompactCharDropdown(v => !v); setCompactCharSearch('') }}
+                >+</button>
+                {compactCharDropdown && (
+                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(compactCharRef)}>
+                    <input
+                      className="compact-char-filter"
+                      value={compactCharSearch}
+                      onChange={e => setCompactCharSearch(e.target.value)}
+                      placeholder="Suchen…"
+                      autoFocus
+                      onBlur={() => setTimeout(() => {
+                        if (!compactCharRef.current?.contains(document.activeElement)) setCompactCharDropdown(false)
+                      }, 150)}
+                    />
+                    {[...rolleCharacters, ...komparseCharacters]
+                      .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
+                      .filter(ch => !compactCharSearch || ch.name.toLowerCase().includes(compactCharSearch.toLowerCase()))
+                      .slice(0, 15)
+                      .map(ch => {
+                        const isRolle = ch.kategorie_typ === 'rolle'
+                        return (
+                          <div key={ch.id} className="sf-dropdown-item"
+                            onMouseDown={e => {
+                              e.preventDefault()
+                              handleAddCharacter(ch, isRolle ? rolleKatId : komparseKatId)
+                              setCompactCharSearch('')
+                              setCompactCharDropdown(false)
+                            }}>
+                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', marginRight: 4 }}>{isRolle ? 'R' : 'K'}</span>
+                            {ch.name}
+                          </div>
+                        )
+                      })}
+                  </div>
+                )}
+              </span>
+            </span>
+
+            {/* Hover popover with full details */}
+            {compactHover && (
+              <div className="compact-hover-pop" onMouseEnter={() => { if (compactHoverTimer.current) clearTimeout(compactHoverTimer.current) }} onMouseLeave={() => setCompactHover(false)}>
+                {scene.zusammenfassung && (
+                  <div className="compact-hover-row">
+                    <span className="compact-hover-label">Oneliner</span>
+                    <span>{scene.zusammenfassung}</span>
+                  </div>
+                )}
+                {sceneStraenge.length > 0 && (
+                  <div className="compact-hover-row">
+                    <span className="compact-hover-label">Stränge</span>
+                    <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {sceneStraenge.map((s: any) => (
+                        <span key={s.strang_id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.farbe || '#888', flexShrink: 0 }} />
+                          {s.strang_name}
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                )}
+                {scene.szeneninfo && (
+                  <div className="compact-hover-row">
+                    <span className="compact-hover-label">{t('szene','c')}info</span>
+                    <span style={{ color: '#90CAF9', fontStyle: 'italic' }}>{scene.szeneninfo}</span>
+                  </div>
+                )}
+                {scene.notiz && (
+                  <div className="compact-hover-row">
+                    <span className="compact-hover-label">Notiz</span>
+                    <span>{scene.notiz}</span>
+                  </div>
+                )}
+                {scene.sondertyp && (
+                  <div className="compact-hover-row">
+                    <span className="compact-hover-label">Sondertyp</span>
+                    <span style={{ fontWeight: 600, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}>
+                      {scene.sondertyp === 'wechselschnitt' ? 'Wechselschnitt' : scene.sondertyp === 'stockshot' ? t('stockshot') : t('flashback')}
+                    </span>
+                  </div>
+                )}
+                {scene.spielzeit && (
+                  <div className="compact-hover-row">
+                    <span className="compact-hover-label">Spielzeit</span>
+                    <span>{scene.spielzeit}</span>
+                  </div>
+                )}
+                {!scene.zusammenfassung && sceneStraenge.length === 0 && !scene.szeneninfo && !scene.notiz && !scene.sondertyp && !scene.spielzeit && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Keine weiteren Details</div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Zeilen 2–5: Felder eingerückt unter Motiv-Position (hidden in compact mode) */}
         {!compact && <div className="scene-fields" key={szeneId}>
