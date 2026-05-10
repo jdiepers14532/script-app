@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import * as pdfjsLib from 'pdfjs-dist'
 
-// Use CDN worker to avoid MIME type issues with self-hosted .mjs files
-const PDFJS_VERSION = pdfjsLib.version
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${PDFJS_VERSION}/pdf.worker.min.mjs`
+// Use locally bundled worker (copied to public/ at build time) to avoid CSP issues
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 
 interface PdfPageViewerProps {
   fileUrl: string
