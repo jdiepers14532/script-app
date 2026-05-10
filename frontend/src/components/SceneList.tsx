@@ -67,6 +67,7 @@ export default function SceneList({
   const [bulkStrangDropdown, setBulkStrangDropdown] = useState(false)
   const [straenge, setStraenge] = useState<any[]>([])
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
+  const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
   const effectiveColorMode = farbModus === 'aus' || colorOff ? 'off' as const : colorMode
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
@@ -92,6 +93,18 @@ export default function SceneList({
     if (!werkstufId || farbModus !== 'strang') { setWerkstufeStraenge({}); return }
     api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
   }, [werkstufId, farbModus])
+
+  // Load stimmung warnings if any stockshot scenes exist
+  useEffect(() => {
+    if (!werkstufId) { setStimmungWarnings({}); return }
+    const hasStockshot = szenen.some(s => s.sondertyp === 'stockshot' && s.stockshot_kategorie === 'stimmungswechsel')
+    if (!hasStockshot) { setStimmungWarnings({}); return }
+    api.getStimmungCheck(werkstufId).then(res => {
+      const map: Record<string, string> = {}
+      res.warnings.forEach(w => { map[w.scene_id] = w.message })
+      setStimmungWarnings(map)
+    }).catch(() => setStimmungWarnings({}))
+  }, [werkstufId, szenen])
 
   const handleBulkAssign = async (strangId: string) => {
     if (selectedIds.size === 0) return
@@ -536,6 +549,11 @@ export default function SceneList({
                       <MessageCircle size={11} />
                       <span>{unreadCount > 99 ? '99+' : unreadCount}</span>
                     </div>
+                  )}
+                  {stimmungWarnings[scene.id] && (
+                    <Tooltip text={stimmungWarnings[scene.id]}>
+                      <span style={{ color: '#FF9500', fontSize: 11, cursor: 'default' }}>⚠</span>
+                    </Tooltip>
                   )}
                   {scene.is_locked && <Lock size={11} className="lock-ico" />}
                 </div>

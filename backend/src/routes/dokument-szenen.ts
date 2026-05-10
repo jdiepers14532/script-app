@@ -779,3 +779,42 @@ stockshotTemplatesRouter.delete('/:produktionId/:id', async (req, res) => {
     res.status(500).json({ error: String(err) })
   }
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Stimmungs-Validierung
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/dokument-szenen/stimmung-check/:werkstufId — check mood consistency
+dokumentSzenenRouter.get('/stimmung-check/:werkstufId', async (req, res) => {
+  try {
+    const scenes = await query(
+      `SELECT id, scene_nummer, scene_nummer_suffix, ort_name, tageszeit, sondertyp, stockshot_kategorie, stockshot_stimmung
+       FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
+       ORDER BY sort_order`,
+      [req.params.werkstufId]
+    )
+    const warnings: { scene_id: string; scene_nummer: number; message: string }[] = []
+    let currentStimmung: string | null = null
+    let stimmungSource: number | null = null
+
+    for (const s of scenes) {
+      if (s.sondertyp === 'stockshot' && s.stockshot_kategorie === 'stimmungswechsel' && s.stockshot_stimmung) {
+        currentStimmung = s.stockshot_stimmung.toUpperCase()
+        stimmungSource = s.scene_nummer
+      } else if (currentStimmung && s.sondertyp !== 'stockshot') {
+        const sceneTz = (s.tageszeit ?? '').toUpperCase()
+        if (sceneTz && sceneTz !== currentStimmung) {
+          warnings.push({
+            scene_id: s.id,
+            scene_nummer: s.scene_nummer,
+            message: `Tageszeit "${sceneTz}" widerspricht Stimmungswechsel "${currentStimmung}" (ab Sz. ${stimmungSource})`,
+          })
+        }
+      }
+    }
+    res.json({ warnings, scene_count: scenes.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})

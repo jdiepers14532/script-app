@@ -672,6 +672,10 @@ export const api = {
   getStockshotTemplates: (produktionId: string) =>
     request<any[]>('GET', `/stockshot-templates/${produktionId}`),
 
+  // ── Sonderszenen: Stimmungs-Validierung ──
+  getStimmungCheck: (werkstufId: string) =>
+    request<{ warnings: { scene_id: string; scene_nummer: number; message: string }[]; scene_count: number }>('GET', `/dokument-szenen/stimmung-check/${werkstufId}`),
+
   replace: (params: {
     query: string
     replacement: string
