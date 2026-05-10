@@ -499,6 +499,14 @@ export default function SceneList({
                 <div className="env-stripe" style={{ background: envColor.stripe }} />
               )}
               <div className="num">{scene.format !== 'notiz' ? sceneLabel : '·'}</div>
+              {scene.sondertyp && (
+                <span className="sl-sondertyp" style={{
+                  fontSize: 10, lineHeight: 1, flexShrink: 0, marginRight: 2,
+                  color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE',
+                }} title={scene.sondertyp === 'wechselschnitt' ? 'Wechselschnitt' : scene.sondertyp === 'stockshot' ? 'Stockshot' : 'Flashback'}>
+                  {scene.sondertyp === 'wechselschnitt' ? '⇄' : scene.sondertyp === 'stockshot' ? '📷' : '⏪'}
+                </span>
+              )}
               <div className="body">
                 <div className="sl-line">
                   <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
