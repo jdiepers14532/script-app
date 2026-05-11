@@ -71,7 +71,7 @@ export default function EditorPanelHeader({
   const sichtbarkeit = selectedWerk?.sichtbarkeit ?? 'team'
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
+    <div className="editor-panel-header" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
 
       {/* Werkstufen-Selector */}
       <div style={{ position: 'relative' }}>

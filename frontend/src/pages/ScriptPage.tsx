@@ -607,7 +607,7 @@ export default function ScriptPage() {
 
         {/* Collapsible + resizable scene list */}
         {!sidebarCollapsed && (
-          <div style={{ width: sidebarWidth, flexShrink: 0, overflow: 'hidden', display: 'flex' }}>
+          <div className="scene-list-sidebar" style={{ width: sidebarWidth, flexShrink: 0, overflow: 'hidden', display: 'flex' }}>
             <SceneList
               szenen={szenen}
               selectedSzeneId={selectedSzeneId}

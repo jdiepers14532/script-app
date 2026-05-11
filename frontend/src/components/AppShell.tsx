@@ -867,6 +867,13 @@ export default function AppShell({
         </button>
       </header>
 
+      {/* Floating focus exit button — visible only when header is hidden (CSS-controlled) */}
+      <Tooltip text="Fokus-Modus beenden (F10 oder Esc)" placement="bottom">
+        <button className="focus-exit-btn" onClick={toggle}>
+          <Maximize2 size={14} />
+        </button>
+      </Tooltip>
+
       {/* Main content */}
       <main
         className="app-main app-main-full"

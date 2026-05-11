@@ -636,7 +636,7 @@ export default function UniversalEditor({
       />
 
       {!readOnly && (
-        <>
+        <div className="universal-editor-toolbar">
           {/* ── Row 1: Format Toolbar (Absatzformate / Screenplay types) ──── */}
           {toolbarPrefs.formatBar && (
             <div style={{
@@ -892,7 +892,7 @@ export default function UniversalEditor({
           )}
 
           {/* (Fokus toggle is inside each toolbar row via the minimize button) */}
-        </>
+        </div>
       )}
 
       {/* Page area */}

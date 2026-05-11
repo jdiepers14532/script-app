@@ -21,7 +21,7 @@
   background: var(--bg-page);
 }
 [data-mode='focus'] .app {
-  grid-template-rows: 44px 1fr;
+  grid-template-rows: 0 1fr;
 }
 
 /* ── Topbar ── */
@@ -37,7 +37,29 @@
   height: 48px;
   transition: height 0.25s ease;
 }
-[data-mode='focus'] .topbar { height: 44px; }
+[data-mode='focus'] .topbar { display: none; }
+
+/* Focus exit button — floating top-right, only visible in focus mode */
+.focus-exit-btn {
+  display: none;
+  position: fixed;
+  top: 10px;
+  right: 12px;
+  z-index: 9000;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--sw-green);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s, color 0.15s;
+}
+.focus-exit-btn:hover { background: var(--bg-subtle); color: var(--text-primary); }
+[data-mode='focus'] .focus-exit-btn { display: flex; }
 
 /* Brand area: just the S·script button */
 .topbar .brand-area {
@@ -192,6 +214,14 @@
 .nav .item.active { background:var(--bg-active); color:var(--text-primary); font-weight:500; }
 .nav .item .i { width:16px; height:16px; flex:0 0 16px; color:currentColor; }
 .nav .item .count { margin-left:auto; font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+/* Focus mode: hide scene list, scene editor, editor panel header + toolbar */
+[data-mode='focus'] .scene-list-sidebar { display: none; }
+[data-mode='focus'] .scene-list-handle { display: none; }
+[data-mode='focus'] .detail { display: none; }
+[data-mode='focus'] .editor-panel-header { display: none; }
+[data-mode='focus'] .editor-last-edited { display: none; }
+[data-mode='focus'] .universal-editor-toolbar { display: none; }
+
 /* Focus mode: icon-only nav */
 [data-mode='focus'] .nav { padding:8px 4px; }
 [data-mode='focus'] .nav .section { display:none; }
