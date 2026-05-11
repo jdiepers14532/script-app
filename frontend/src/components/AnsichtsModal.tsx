@@ -93,35 +93,31 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             <legend style={legendStyle}>Editor</legend>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Dokument-Editor</span>
-              <div className="seg">
-                <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={8} /></button></Tooltip>
-                <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={8} /></button></Tooltip>
-                <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={8} /></button></Tooltip>
-              </div>
-            </div>
-
-            <div style={rowStyle}>
-              <span style={labelStyle}>{t('szene', 'c')}kopf-Modus</span>
-              <div className="seg">
-                <Tooltip text={`Ein ${t('szene', 'c')}kopf (aktuelle Fassung)`}><button className={tweaks.sceneEditorMode === 'single' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'single')}><Square size={8} /></button></Tooltip>
-                <Tooltip text={`Pro Panel ein ${t('szene', 'c')}kopf (Fassungsvergleich)`}><button className={tweaks.sceneEditorMode === 'mirror' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'mirror')}><Columns2 size={8} /></button></Tooltip>
-              </div>
-            </div>
-
-            <div style={rowStyle}>
               <span style={labelStyle}>{t('szene', 'c')}kopf</span>
-              <div className="seg">
-                <Tooltip text="Alle Felder"><button className={!tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', false)}><Maximize2 size={8} /></button></Tooltip>
-                <Tooltip text="Kompakt (eine Zeile)"><button className={tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', true)}><Minimize2 size={8} /></button></Tooltip>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div className="seg">
+                  <Tooltip text={`Ein ${t('szene', 'c')}kopf (aktuelle Fassung)`}><button className={tweaks.sceneEditorMode === 'single' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'single')}><Square size={8} /></button></Tooltip>
+                  <Tooltip text={`Pro Panel ein ${t('szene', 'c')}kopf (Fassungsvergleich)`}><button className={tweaks.sceneEditorMode === 'mirror' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'mirror')}><Columns2 size={8} /></button></Tooltip>
+                </div>
+                <div className="seg">
+                  <Tooltip text="Alle Felder"><button className={!tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', false)}><Maximize2 size={8} /></button></Tooltip>
+                  <Tooltip text="Kompakt (eine Zeile)"><button className={tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', true)}><Minimize2 size={8} /></button></Tooltip>
+                </div>
               </div>
             </div>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Editor-Ansicht</span>
-              <div className="seg">
-                <Tooltip text="Blatt mit Schatten"><button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)}><BookOpen size={8} /></button></Tooltip>
-                <Tooltip text="Fliesstext"><button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)}><AlignLeft size={8} /></button></Tooltip>
+              <span style={labelStyle}>Dokument-Editor</span>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div className="seg">
+                  <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={8} /></button></Tooltip>
+                  <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={8} /></button></Tooltip>
+                  <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={8} /></button></Tooltip>
+                </div>
+                <div className="seg">
+                  <Tooltip text="Blatt mit Schatten"><button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)}><BookOpen size={8} /></button></Tooltip>
+                  <Tooltip text="Fließtext"><button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)}><AlignLeft size={8} /></button></Tooltip>
+                </div>
               </div>
             </div>
 
@@ -134,37 +130,6 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Rechtschreibpruefung</span>
-              <div className="seg">
-                <Tooltip text="Aus"><button className={tweaks.spellcheck === 'off' ? 'on' : ''} onClick={() => set('spellcheck', 'off')}>Aus</button></Tooltip>
-                <Tooltip text="Browser-Spellcheck (rote Wellenlinien)"><button className={tweaks.spellcheck === 'browser' ? 'on' : ''} onClick={() => set('spellcheck', 'browser')}>Browser</button></Tooltip>
-                <Tooltip text="LanguageTool (Grammatik + Stil)"><button className={tweaks.spellcheck === 'languagetool' ? 'on' : ''} onClick={() => set('spellcheck', 'languagetool')}>LanguageTool</button></Tooltip>
-              </div>
-            </div>
-
-            <div style={rowStyle}>
-              <Tooltip text="Sprache für LanguageTool und Spellcheck-Korrekturen">
-                <span style={labelStyle}>Sprache</span>
-              </Tooltip>
-              <div className="seg">
-                <Tooltip text="Deutsch (Deutschland)"><button className={tweaks.spellcheckLang === 'de-DE' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-DE')}>de-DE</button></Tooltip>
-                <Tooltip text="Deutsch (Österreich)"><button className={tweaks.spellcheckLang === 'de-AT' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-AT')}>de-AT</button></Tooltip>
-                <Tooltip text="Englisch (UK)"><button className={tweaks.spellcheckLang === 'en-GB' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-GB')}>en-GB</button></Tooltip>
-                <Tooltip text="Englisch (US)"><button className={tweaks.spellcheckLang === 'en-US' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-US')}>en-US</button></Tooltip>
-              </div>
-            </div>
-
-            <div style={rowStyle}>
-              <Tooltip text="Tastaturlayout — beeinflusst Anzeige der Tastaturkürzel in Tooltips und Hilfe">
-                <span style={labelStyle}>Tastaturlayout</span>
-              </Tooltip>
-              <div className="seg">
-                <Tooltip text="QWERTZ — Deutsch, Österreich, Schweiz"><button className={tweaks.keyboardLayout === 'qwertz' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwertz')}>QWERTZ</button></Tooltip>
-                <Tooltip text="QWERTY — Englisch, US, International"><button className={tweaks.keyboardLayout === 'qwerty' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwerty')}>QWERTY</button></Tooltip>
-              </div>
-            </div>
-
-            <div style={rowStyle}>
               <span style={labelStyle}>Zeilennummern</span>
               <div className="seg">
                 <button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button>
@@ -173,7 +138,7 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={rowStyle}>
-              <span style={labelStyle}>Repliken-Nummern</span>
+              <span style={labelStyle}>Replikennummern</span>
               <div className="seg">
                 <button className={tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', true)}>An</button>
                 <button className={!tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', false)}>Aus</button>
@@ -181,7 +146,7 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={{ ...rowStyle, borderBottom: 'none' }}>
-              <span style={labelStyle}>Scroll-Nav Verzogerung</span>
+              <span style={labelStyle}>Scroll-Nav Verzögerung</span>
               <div className="seg">
                 {[500, 1000, 1500, 2000, 3000].map(ms => (
                   <button key={ms} className={tweaks.scrollNavDelay === ms ? 'on' : ''} onClick={() => set('scrollNavDelay', ms)}>
@@ -250,6 +215,42 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
               <div className="seg">
                 <button className={tweaks.showTooltips ? 'on' : ''} onClick={() => set('showTooltips', true)}>An</button>
                 <button className={!tweaks.showTooltips ? 'on' : ''} onClick={() => set('showTooltips', false)}>Aus</button>
+              </div>
+            </div>
+          </fieldset>
+
+          {/* Sprache */}
+          <fieldset style={fieldsetStyle}>
+            <legend style={legendStyle}>Sprache</legend>
+
+            <div style={rowStyle}>
+              <span style={labelStyle}>Rechtschreibprüfung</span>
+              <div className="seg">
+                <Tooltip text="Aus"><button className={tweaks.spellcheck === 'off' ? 'on' : ''} onClick={() => set('spellcheck', 'off')}>Aus</button></Tooltip>
+                <Tooltip text="Browser-Spellcheck (rote Wellenlinien)"><button className={tweaks.spellcheck === 'browser' ? 'on' : ''} onClick={() => set('spellcheck', 'browser')}>Browser</button></Tooltip>
+                <Tooltip text="LanguageTool (Grammatik + Stil)"><button className={tweaks.spellcheck === 'languagetool' ? 'on' : ''} onClick={() => set('spellcheck', 'languagetool')}>LanguageTool</button></Tooltip>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
+              <Tooltip text="Sprache für LanguageTool und Spellcheck-Korrekturen">
+                <span style={labelStyle}>Sprache</span>
+              </Tooltip>
+              <div className="seg">
+                <Tooltip text="Deutsch (Deutschland)"><button className={tweaks.spellcheckLang === 'de-DE' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-DE')}>de-DE</button></Tooltip>
+                <Tooltip text="Deutsch (Österreich)"><button className={tweaks.spellcheckLang === 'de-AT' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-AT')}>de-AT</button></Tooltip>
+                <Tooltip text="Englisch (UK)"><button className={tweaks.spellcheckLang === 'en-GB' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-GB')}>en-GB</button></Tooltip>
+                <Tooltip text="Englisch (US)"><button className={tweaks.spellcheckLang === 'en-US' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-US')}>en-US</button></Tooltip>
+              </div>
+            </div>
+
+            <div style={{ ...rowStyle, borderBottom: 'none' }}>
+              <Tooltip text="Tastaturlayout — beeinflusst Anzeige der Tastaturkürzel in Tooltips und Hilfe">
+                <span style={labelStyle}>Tastaturlayout</span>
+              </Tooltip>
+              <div className="seg">
+                <Tooltip text="QWERTZ — Deutsch, Österreich, Schweiz"><button className={tweaks.keyboardLayout === 'qwertz' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwertz')}>QWERTZ</button></Tooltip>
+                <Tooltip text="QWERTY — Englisch, US, International"><button className={tweaks.keyboardLayout === 'qwerty' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwerty')}>QWERTY</button></Tooltip>
               </div>
             </div>
           </fieldset>
