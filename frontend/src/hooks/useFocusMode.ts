@@ -60,7 +60,7 @@ export function useFocusMode() {
   // F10 / Ctrl+\ toggle focus | Escape exit
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F10' || (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === '\\')) {
+      if (e.key === 'F10' || (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === 'Backslash')) {
         e.preventDefault()
         toggle()
       } else if (e.key === 'Escape') {

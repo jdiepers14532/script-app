@@ -216,11 +216,13 @@
 .nav .item .count { margin-left:auto; font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
 /* ── Focus mode overlays ─────────────────────────────────────────────────── */
 
-/* Hover strip at top of canvas — triggers SceneEditor panel */
+/* Hover strip at top of canvas — triggers SceneEditor panel, limited to page width */
 .focus-hover-strip {
   display: none;
   position: absolute;
-  top: 0; left: 0; right: 0;
+  top: 0;
+  left: var(--sw-focus-page-cont-left, 0);
+  width: var(--sw-focus-page-w, 100%);
   height: 48px;
   z-index: 10;
   cursor: default;
@@ -250,15 +252,14 @@
 [data-mode='focus'] .focus-toolbar-trigger { display: flex; }
 [data-focus-toolbar='true'][data-mode='focus'] .focus-toolbar-trigger { color: var(--sw-green); border-color: var(--sw-green); }
 
-/* SceneEditor: hidden by default in focus mode; shows centered at top on hover */
+/* SceneEditor: hidden by default in focus mode; shows aligned to page on hover */
 [data-mode='focus'] .detail { display: none !important; }
 [data-focus-hover='true'][data-mode='focus'] .detail {
   display: flex !important;
   flex-direction: column;
   position: fixed;
   top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: var(--sw-focus-page-vp-left, 50%);
   width: var(--sw-focus-page-w, min(660px, 92vw));
   max-height: 85vh;
   overflow-y: auto;
@@ -277,13 +278,15 @@
   display: flex !important;
   flex-direction: column;
   /* position/left/top set via React inline style (draggable) */
+  min-width: 280px;
   max-width: calc(100vw - 60px);
   background: #1c1c1e;
   border: 1px solid #3a3a3c;
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.6);
   z-index: 5001;
-  overflow: hidden;
+  overflow: auto;
+  resize: horizontal;
   color: #e5e5ea;
 }
 [data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar button { color: #aeaeb2; }

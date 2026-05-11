@@ -203,7 +203,10 @@ export default function UniversalEditor({
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos } = useFocus()
 
-  // ResizeObserver: track .page element width → CSS variable for floating SceneEditor panel
+  // ResizeObserver: track .page element dimensions for focus-mode floating panels
+  // --sw-focus-page-w        = page width (used by SceneEditor hover panel + toolbar)
+  // --sw-focus-page-vp-left  = page left edge in viewport (SceneEditor panel: position:fixed)
+  // --sw-focus-page-cont-left= page left edge within scroll container (hover strip: position:absolute)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -211,7 +214,11 @@ export default function UniversalEditor({
     const update = () => {
       const page = container.querySelector('.page') as HTMLElement | null
       if (page) {
+        const pageRect = page.getBoundingClientRect()
+        const contRect = container.getBoundingClientRect()
         document.documentElement.style.setProperty('--sw-focus-page-w', page.offsetWidth + 'px')
+        document.documentElement.style.setProperty('--sw-focus-page-vp-left', pageRect.left + 'px')
+        document.documentElement.style.setProperty('--sw-focus-page-cont-left', (pageRect.left - contRect.left) + 'px')
       }
     }
     const ro = new ResizeObserver(update)
