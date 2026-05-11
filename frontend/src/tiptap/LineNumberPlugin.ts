@@ -1,72 +1,124 @@
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import type { EditorView } from '@tiptap/pm/view'
 
 export const lineNumberPluginKey = new PluginKey('lineNumbers')
 
 /**
- * ProseMirror plugin: line numbers in the left gutter.
+ * ProseMirror plugin: line numbers via a SEPARATE gutter element.
  *
- * Uses Decoration.node() to add a data-line-num attribute + CSS class
- * to every 5th block node. The number is rendered via ::after pseudo-element.
- * This is the most reliable approach because it modifies existing DOM elements
- * rather than inserting new ones (no contenteditable/widget issues).
+ * Inspired by CodeMirror's architecture: the gutter is a sibling DOM element
+ * placed next to the editor, NOT inside contenteditable. Numbers are
+ * positioned absolutely to match each block node's vertical position.
+ *
+ * References:
+ * - https://discuss.prosemirror.net/t/line-numbers/849
+ * - https://discuss.prosemirror.net/t/what-would-it-take-to-implement-line-numbers/4989
+ * - CodeMirror gutter architecture (separate DOM layer)
  */
 export function createLineNumberPlugin() {
   return new Plugin({
     key: lineNumberPluginKey,
-    state: {
-      init(_, state) { return buildDecorations(state.doc) },
-      apply(tr, old) {
-        if (tr.docChanged) return buildDecorations(tr.doc)
-        return old
-      },
-    },
-    props: {
-      decorations(state) {
-        return this.getState(state)
-      },
+    view(editorView) {
+      return new LineNumberGutter(editorView)
     },
   })
 }
 
-function buildDecorations(doc: any): DecorationSet {
-  const decos: Decoration[] = []
-  let lineNum = 0
+class LineNumberGutter {
+  private gutter: HTMLDivElement
+  private view: EditorView
+  private raf: number | null = null
 
-  doc.forEach((node: any, offset: number) => {
-    lineNum++
-    if (lineNum % 5 === 0) {
-      decos.push(
-        Decoration.node(offset, offset + node.nodeSize, {
-          class: 'ln-numbered',
-          'data-line-num': String(lineNum),
-        })
-      )
+  constructor(view: EditorView) {
+    this.view = view
+
+    // Create gutter element as overlay on the editor's padding area
+    this.gutter = document.createElement('div')
+    this.gutter.className = 'pm-line-gutter'
+    this.gutter.setAttribute('contenteditable', 'false')
+    this.gutter.setAttribute('aria-hidden', 'true')
+
+    // Insert into DOM: place gutter as sibling before the editor
+    const parent = view.dom.parentElement
+    if (parent) {
+      parent.style.position = 'relative'
+      parent.insertBefore(this.gutter, view.dom)
     }
-  })
 
-  return DecorationSet.create(doc, decos)
+    this.renderNumbers()
+  }
+
+  update(view: EditorView) {
+    this.view = view
+    this.scheduleRender()
+  }
+
+  destroy() {
+    if (this.raf) cancelAnimationFrame(this.raf)
+    this.gutter.remove()
+  }
+
+  private scheduleRender() {
+    if (this.raf) cancelAnimationFrame(this.raf)
+    this.raf = requestAnimationFrame(() => {
+      this.raf = null
+      this.renderNumbers()
+    })
+  }
+
+  private renderNumbers() {
+    const { view } = this
+    const doc = view.state.doc
+    const editorRect = view.dom.getBoundingClientRect()
+
+    let html = ''
+    let lineNum = 0
+
+    doc.forEach((node: any, offset: number) => {
+      lineNum++
+      if (lineNum % 5 !== 0) return
+
+      try {
+        // Get the DOM element for this block node
+        const domNode = view.nodeDOM(offset)
+        if (!domNode || !(domNode instanceof HTMLElement)) return
+
+        const blockRect = domNode.getBoundingClientRect()
+        const top = blockRect.top - editorRect.top
+
+        html += `<div class="pm-ln" style="top:${Math.round(top)}px">${lineNum}</div>`
+      } catch {
+        // nodeDOM can throw for some positions — skip silently
+      }
+    })
+
+    this.gutter.innerHTML = html
+  }
 }
 
 export const LINE_NUMBER_CSS = `
 .ProseMirror.has-line-numbers {
   padding-left: 52px !important;
 }
-.ProseMirror.has-line-numbers .ln-numbered {
-  position: relative;
-}
-.ProseMirror.has-line-numbers .ln-numbered::after {
-  content: attr(data-line-num);
+.pm-line-gutter {
   position: absolute;
-  left: -48px;
   top: 0;
-  width: 32px;
+  left: 0;
+  width: 52px;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+.pm-ln {
+  position: absolute;
+  left: 0;
+  width: 36px;
   text-align: right;
   font-family: 'Courier Prime', 'Courier New', monospace;
   font-size: 10px;
-  line-height: inherit;
+  line-height: 1;
   color: var(--text-primary);
-  opacity: 0.4;
-  pointer-events: none;
+  opacity: 0.35;
 }
 `
