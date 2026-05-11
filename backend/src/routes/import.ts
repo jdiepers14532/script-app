@@ -513,6 +513,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         const fmt = absatzformate.find((f: any) => f.name === name)
         if (fmt) elementTypeToFormatId.set(name.toLowerCase().replace(/ /g, '_'), fmt.id)
       }
+      // Episodenende format
+      const episodenendeFmt = absatzformate.find((f: any) => f.name === 'Episodenende')
+      if (episodenendeFmt) elementTypeToFormatId.set('episodenende', episodenendeFmt.id)
     }
     const useAbsatzNodes = elementTypeToFormatId.size > 0
 
@@ -523,7 +526,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     // Create scene_identities + dokument_szenen for each scene
-    const sceneIdentityIds: { identityId: string; szeneIdx: number }[] = []
+    const sceneIdentityIds: { identityId: string; szeneIdx: number; dokSzeneId: string; sceneNummer: number }[] = []
     for (const [idx, szene] of result.szenen.entries()) {
       const ov = sceneOverrides[idx] || {}
       const intExt = ov.int_ext ?? szene.int_ext
@@ -648,8 +651,12 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           }
 
           if (!matchedTextbaustein) {
-            // For storyline format: always use Haupttext (Arial 11pt), never drehbuch formats (Courier)
-            if (docTyp === 'storyline') {
+            // Detect "Ende der Folge/Episode nn" → Episodenende format
+            const episodenendeFmtId = elementTypeToFormatId.get('episodenende')
+            if (episodenendeFmtId && /^Ende\s+der\s+(Folge|Episode)\s+\d+/i.test(firstText)) {
+              fmtId = episodenendeFmtId
+            } else if (docTyp === 'storyline') {
+              // For storyline format: always use Haupttext (Arial 11pt), never drehbuch formats (Courier)
               fmtId = elementTypeToFormatId.get('haupttext')
                 || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
                 || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
@@ -679,13 +686,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
       const pl = calcPageLength(pmNodes)
       const sondertyp = isWechselschnitt ? 'wechselschnitt' : null
-      await queryOne(
+      const insertedScene = await queryOne(
         `INSERT INTO dokument_szenen
            (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
             int_ext, tageszeit, ort_name, zusammenfassung, content,
             spieltag, stoppzeit_sek, is_wechselschnitt, szeneninfo,
             format, geloescht, updated_by, page_length, sondertyp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15, $16, $17)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15, $16, $17)
+         RETURNING id`,
         [
           werkstufe.id, identity.id, idx, szene.nummer,
           intExt, tageszeit, ortName || null,
@@ -695,10 +703,32 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           pl, sondertyp,
         ]
       )
-      sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx })
+      sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx, dokSzeneId: insertedScene.id, sceneNummer: szene.nummer })
     }
 
     const scenesImported = sceneIdentityIds.length
+
+    // ── Wechselschnitt partner linking ──
+    const nummerToIdentity = new Map<number, string>()
+    for (const entry of sceneIdentityIds) {
+      nummerToIdentity.set(entry.sceneNummer, entry.identityId)
+    }
+    for (const entry of sceneIdentityIds) {
+      const szene = result.szenen[entry.szeneIdx]
+      if (!szene.wechselschnittPartner || szene.wechselschnittPartner.length === 0) continue
+      for (let pos = 0; pos < szene.wechselschnittPartner.length; pos++) {
+        const partnerNr = szene.wechselschnittPartner[pos]
+        const partnerIdentityId = nummerToIdentity.get(partnerNr)
+        if (!partnerIdentityId) continue
+        try {
+          await query(
+            `INSERT INTO wechselschnitt_partner (dokument_szene_id, partner_identity_id, position)
+             VALUES ($1, $2, $3) ON CONFLICT (dokument_szene_id, partner_identity_id) DO NOTHING`,
+            [entry.dokSzeneId, partnerIdentityId, pos]
+          )
+        } catch { /* ignore constraint violations */ }
+      }
+    }
 
     // ── Non-scene elements (titelseite, synopsis, recap, precap, memo) ──
     let nonSceneCount = 0
