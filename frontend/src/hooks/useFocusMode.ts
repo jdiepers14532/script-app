@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 function setDataAttr(key: string, val: string) {
   document.documentElement.setAttribute(key, val)
@@ -10,10 +10,20 @@ export function useFocusMode() {
   })
   const [hoverOpen, setHoverOpenState] = useState(false)
   const [toolbarOpen, setToolbarOpenState] = useState(false)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Open immediately / close with 200ms grace period (mouse gap tolerance)
   const setHoverOpen = useCallback((v: boolean) => {
-    setHoverOpenState(v)
-    setDataAttr('data-focus-hover', v ? 'true' : 'false')
+    if (hoverTimer.current) clearTimeout(hoverTimer.current)
+    if (v) {
+      setHoverOpenState(true)
+      setDataAttr('data-focus-hover', 'true')
+    } else {
+      hoverTimer.current = setTimeout(() => {
+        setHoverOpenState(false)
+        setDataAttr('data-focus-hover', 'false')
+      }, 200)
+    }
   }, [])
 
   const setToolbarOpen = useCallback((v: boolean) => {
@@ -43,12 +53,15 @@ export function useFocusMode() {
     setDataAttr('data-mode', focus ? 'focus' : 'normal')
   }, [focus])
 
-  // F10 toggle / Escape exit
+  // F10 toggle focus / F9 toggle toolbar (in focus mode) / Escape exit
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'F10') {
         e.preventDefault()
         toggle()
+      } else if (e.key === 'F9') {
+        e.preventDefault()
+        setToolbarOpen(!document.documentElement.getAttribute('data-focus-toolbar') || document.documentElement.getAttribute('data-focus-toolbar') !== 'true')
       } else if (e.key === 'Escape') {
         setFocus(f => {
           if (!f) return f
@@ -61,7 +74,7 @@ export function useFocusMode() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [toggle, closeOverlays])
+  }, [toggle, closeOverlays, setToolbarOpen])
 
   return { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen }
 }

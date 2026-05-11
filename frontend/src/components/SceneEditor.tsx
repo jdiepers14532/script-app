@@ -580,7 +580,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const isNotiz = scene.format === 'notiz'
 
   return (
-    <div className="detail" onMouseLeave={() => { if (focus) setHoverOpen(false) }}>
+    <div
+      className="detail"
+      onMouseEnter={() => { if (focus) setHoverOpen(true) }}
+      onMouseLeave={() => { if (focus) setHoverOpen(false) }}
+    >
       {/* Notiz header — template dropdown + label */}
       {isNotiz && (
         <NotizHeader scene={scene} produktionId={produktionId} onUpdate={(s) => { setScene(s); onSzeneUpdated?.(s) }} saveScene={saveScene} />

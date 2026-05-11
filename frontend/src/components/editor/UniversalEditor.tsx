@@ -201,7 +201,7 @@ export default function UniversalEditor({
   injectGutterCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
-  const { toolbarOpen, setToolbarOpen } = useFocus()
+  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen } = useFocus()
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
@@ -901,6 +901,12 @@ export default function UniversalEditor({
 
       {/* Page area */}
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }} onWheel={handleScrollWheel}>
+        {/* Focus mode: hover strip at top of canvas triggers SceneEditor panel */}
+        <div
+          className="focus-hover-strip"
+          onMouseEnter={() => { if (focus) setHoverOpen(true) }}
+          onMouseLeave={() => { if (focus) setHoverOpen(false) }}
+        />
         <PageWrapper seitenformat={seitenformat} showShadow={showShadow}>
           <EditorContent
             editor={editor}

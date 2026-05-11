@@ -217,7 +217,7 @@ const DEFAULT_WIDTH = 276
 
 export default function ScriptPage() {
   const { t } = useTerminologie()
-  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen } = useFocus()
+  const { focus } = useFocus()
   const { selectedProduction, productions, loading } = useSelectedProduction()
   const [bloecke, setBloecke] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
@@ -666,20 +666,7 @@ export default function ScriptPage() {
         )}
 
         {/* Drag handle + collapse arrow */}
-        <div
-          className="scene-list-handle"
-          onMouseDown={(e) => {
-            if (focus && e.ctrlKey) {
-              e.preventDefault()
-              e.stopPropagation()
-              setToolbarOpen(!toolbarOpen)
-              return
-            }
-            if (!sidebarCollapsed) onDragStart(e)
-          }}
-          onMouseEnter={() => { if (focus) setHoverOpen(true) }}
-          onMouseLeave={() => { if (focus) setHoverOpen(false) }}
-        >
+        <div className="scene-list-handle" onMouseDown={!sidebarCollapsed ? onDragStart : undefined}>
           <button
             className="scene-list-collapse-btn"
             onClick={toggleCollapse}

@@ -259,7 +259,7 @@ export default function AppShell({
   hideProductionSelector = false,
 }: AppShellProps) {
   const location = useLocation()
-  const { focus, toggle } = useFocus()
+  const { focus, toggle, toolbarOpen, setToolbarOpen } = useFocus()
   const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
   const { treatmentLabel, figurenLabel } = useAppSettings()
@@ -866,6 +866,13 @@ export default function AppShell({
             : <User size={14} />}
         </button>
       </header>
+
+      {/* Floating toolbar toggle — visible only in focus mode (CSS-controlled) */}
+      <Tooltip text="Werkzeugleiste ein-/ausblenden (F9)" placement="bottom">
+        <button className="focus-toolbar-trigger" onClick={() => setToolbarOpen(!toolbarOpen)}>
+          <AlignLeft size={14} />
+        </button>
+      </Tooltip>
 
       {/* Floating focus exit button — visible only when header is hidden (CSS-controlled) */}
       <Tooltip text="Fokus-Modus beenden (F10 oder Esc)" placement="bottom">

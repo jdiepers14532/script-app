@@ -216,19 +216,50 @@
 .nav .item .count { margin-left:auto; font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
 /* ── Focus mode overlays ─────────────────────────────────────────────────── */
 
-/* Handle wider + hover-hint in focus mode */
-[data-mode='focus'] .scene-list-handle { width: 24px; cursor: default; }
-[data-mode='focus'] .scene-list-handle:hover::before { background: var(--sw-info); opacity: 0.5; }
+/* Hover strip at top of canvas — triggers SceneEditor panel */
+.focus-hover-strip {
+  display: none;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 48px;
+  z-index: 10;
+  cursor: default;
+}
+[data-mode='focus'] .focus-hover-strip { display: block; }
 
-/* SceneEditor: hidden by default in focus mode; shows as floating panel on hover */
+/* Floating toolbar trigger button — top-right, left of focus-exit-btn */
+.focus-toolbar-trigger {
+  display: none;
+  position: fixed;
+  top: 10px;
+  right: 48px;
+  z-index: 9000;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.15s, color 0.15s;
+}
+.focus-toolbar-trigger:hover { background: var(--bg-subtle); color: var(--text-primary); }
+[data-mode='focus'] .focus-toolbar-trigger { display: flex; }
+[data-focus-toolbar='true'][data-mode='focus'] .focus-toolbar-trigger { color: var(--sw-green); border-color: var(--sw-green); }
+
+/* SceneEditor: hidden by default in focus mode; shows centered at top on hover */
 [data-mode='focus'] .detail { display: none !important; }
 [data-focus-hover='true'][data-mode='focus'] .detail {
   display: flex !important;
   flex-direction: column;
   position: fixed;
-  left: 28px;
   top: 8px;
-  width: 360px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
   max-height: 85vh;
   overflow-y: auto;
   background: var(--bg-surface);
@@ -238,7 +269,7 @@
   z-index: 5000;
 }
 
-/* Editor toolbar: hidden by default in focus mode; shows as floating dark panel on Ctrl+Click */
+/* Editor toolbar: hidden by default in focus mode; floating dark panel via trigger button */
 [data-mode='focus'] .editor-panel-header { display: none !important; }
 [data-mode='focus'] .editor-last-edited { display: none !important; }
 [data-mode='focus'] .universal-editor-toolbar { display: none !important; }
@@ -246,8 +277,9 @@
   display: flex !important;
   flex-direction: column;
   position: fixed;
-  left: 28px;
-  top: 8px;
+  top: 46px;
+  left: 50%;
+  transform: translateX(-50%);
   max-width: calc(100vw - 60px);
   background: #1c1c1e;
   border: 1px solid #3a3a3c;
@@ -257,17 +289,13 @@
   overflow: hidden;
   color: #e5e5ea;
 }
-[data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar button {
-  color: #aeaeb2;
-}
+[data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar button { color: #aeaeb2; }
 [data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar button:hover {
   background: rgba(255,255,255,0.08) !important;
   color: #fff !important;
 }
 [data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar select {
-  background: #2c2c2e;
-  color: #e5e5ea;
-  border-color: #3a3a3c;
+  background: #2c2c2e; color: #e5e5ea; border-color: #3a3a3c;
 }
 
 /* Focus mode: icon-only nav */
