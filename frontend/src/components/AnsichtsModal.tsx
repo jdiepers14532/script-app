@@ -146,7 +146,9 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={{ ...rowStyle, borderBottom: 'none' }}>
-              <span style={labelStyle}>Scroll-Nav Verzögerung</span>
+              <Tooltip text="Wartezeit nach dem letzten Tastendruck, bevor automatisch zur nächsten Szene gescrollt wird">
+                <span style={labelStyle}>Scroll-Nav Verzögerung</span>
+              </Tooltip>
               <div className="seg">
                 {[500, 1000, 1500, 2000, 3000].map(ms => (
                   <button key={ms} className={tweaks.scrollNavDelay === ms ? 'on' : ''} onClick={() => set('scrollNavDelay', ms)}>
