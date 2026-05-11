@@ -50,6 +50,13 @@ function invalidateCache(path: string) {
   }
 }
 
+/** Force-clear all cache entries whose path starts with the given prefix. */
+export function clearCacheByPrefix(prefix: string) {
+  for (const key of getCache.keys()) {
+    if (key.startsWith(prefix)) getCache.delete(key)
+  }
+}
+
 async function doRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,

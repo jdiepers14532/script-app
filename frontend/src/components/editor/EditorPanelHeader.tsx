@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ChevronDown, Plus, Lock, Users, Globe, Eye, Tag } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
-import { api } from '../../api/client'
+import { api, clearCacheByPrefix } from '../../api/client'
 
 const SICHTBARKEIT_ICONS: Record<string, React.ReactNode> = {
   privat: <Lock size={11} />,
@@ -51,6 +51,7 @@ export default function EditorPanelHeader({
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLabelMenu, setShowLabelMenu] = useState(false)
+  const [labelError, setLabelError] = useState<string | null>(null)
   const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
 
   useEffect(() => {
@@ -183,10 +184,14 @@ export default function EditorPanelHeader({
                     onClick={async (e) => {
                       e.stopPropagation()
                       const newLabel = selectedWerk.label === sl.name ? '' : sl.name
+                      setLabelError(null)
                       try {
                         await api.updateWerkstufe(selectedWerk.id, { label: newLabel })
                         onReloadWerkstufen()
-                      } catch (err) {
+                      } catch (err: any) {
+                        clearCacheByPrefix('/v2/folgen/')
+                        onReloadWerkstufen()
+                        setLabelError('Fassung nicht mehr vorhanden – Ansicht wurde aktualisiert.')
                         console.error('Label update failed:', err)
                       }
                       setShowLabelMenu(false)
@@ -212,10 +217,14 @@ export default function EditorPanelHeader({
                       onMouseDown={e => e.preventDefault()}
                       onClick={async (e) => {
                         e.stopPropagation()
+                        setLabelError(null)
                         try {
                           await api.updateWerkstufe(selectedWerk.id, { label: '' })
                           onReloadWerkstufen()
-                        } catch (err) {
+                        } catch (err: any) {
+                          clearCacheByPrefix('/v2/folgen/')
+                          onReloadWerkstufen()
+                          setLabelError('Fassung nicht mehr vorhanden – Ansicht wurde aktualisiert.')
                           console.error('Label remove failed:', err)
                         }
                         setShowLabelMenu(false)
@@ -232,6 +241,11 @@ export default function EditorPanelHeader({
                 )}
               </div>
             </>
+          )}
+          {labelError && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 100, marginTop: 4, background: '#FF3B30', color: '#fff', fontSize: 11, padding: '4px 8px', borderRadius: 6, whiteSpace: 'nowrap', maxWidth: 300 }}>
+              {labelError}
+            </div>
           )}
         </div>
       )}
