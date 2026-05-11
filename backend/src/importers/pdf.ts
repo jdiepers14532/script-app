@@ -234,10 +234,13 @@ function parseBboxHtml(html: string, crop?: PdftextCropOptions): BboxLayout | nu
 }
 
 /** Reconstruct plain text from bbox layout.
- *  Inserts blank lines where the gap to the previous line exceeds 1.6× median
- *  (= real paragraph gap, not just normal line spacing). */
+ *  Inserts blank lines where the gap to the previous line exceeds 2.0× median
+ *  AND is at least 4pt larger than median — this avoids treating regular
+ *  line-wrapped text as paragraph breaks in documents with uniform spacing. */
 export function buildTextFromLayout(layout: BboxLayout): string {
-  const threshold = layout.medianLineSpacing * 1.6
+  // Require both a relative ratio (2.0×) AND an absolute minimum delta (4pt).
+  // Using only a ratio was too aggressive for tight-spaced treatment documents.
+  const threshold = Math.max(layout.medianLineSpacing * 2.0, layout.medianLineSpacing + 4)
   const out: string[] = []
   for (const li of layout.lines) {
     if (li.gapBefore > threshold && out.length > 0 && out[out.length - 1] !== '') {

@@ -710,10 +710,11 @@ function parseSubSceneHeader(
   }
   if (i >= endIdx) return null
 
-  // Location
+  // Location — only take as ort_name if it doesn't look like a character list.
+  // Crosscut sub-scenes sometimes have no explicit location, leading with characters directly.
   let ort_name = ''
   const locCandidate = lines[i]?.trim() || ''
-  if (!DURATION_RE.test(locCandidate) && !INT_EXT_SPIELTAG_RE.test(locCandidate)) {
+  if (!DURATION_RE.test(locCandidate) && !INT_EXT_SPIELTAG_RE.test(locCandidate) && !isCharacterLine(locCandidate)) {
     ort_name = locCandidate
     i++
   }
