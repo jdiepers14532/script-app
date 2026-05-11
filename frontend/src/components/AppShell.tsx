@@ -259,7 +259,7 @@ export default function AppShell({
   hideProductionSelector = false,
 }: AppShellProps) {
   const location = useLocation()
-  const { focus, toggle, toolbarOpen, setToolbarOpen, setToolbarPos } = useFocus()
+  const { focus, toggle, toolbarOpen, setToolbarOpen, setToolbarPos, setToolbarOpenedVia } = useFocus()
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
   const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
@@ -873,6 +873,7 @@ export default function AppShell({
         <button className="focus-toolbar-trigger" onClick={() => {
           if (!toolbarOpen) {
             setToolbarPos({ x: Math.max(60, window.innerWidth / 2 - 200), y: 50 })
+            setToolbarOpenedVia('button')
           }
           setToolbarOpen(!toolbarOpen)
         }}>

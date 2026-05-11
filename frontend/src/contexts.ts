@@ -11,6 +11,8 @@ interface FocusContextValue {
   setToolbarOpen: (v: boolean) => void
   toolbarPos: { x: number; y: number }
   setToolbarPos: (pos: { x: number; y: number }) => void
+  toolbarOpenedVia: 'button' | 'click' | null
+  setToolbarOpenedVia: (via: 'button' | 'click' | null) => void
 }
 export const FocusContext = createContext<FocusContextValue>({
   focus: false,
@@ -21,6 +23,8 @@ export const FocusContext = createContext<FocusContextValue>({
   setToolbarOpen: () => {},
   toolbarPos: { x: 300, y: 50 },
   setToolbarPos: () => {},
+  toolbarOpenedVia: null,
+  setToolbarOpenedVia: () => {},
 })
 export function useFocus() {
   return useContext(FocusContext)

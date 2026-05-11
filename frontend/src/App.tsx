@@ -25,7 +25,7 @@ import { TerminologieProvider, TERM_DEFAULTS } from './sw-ui'
 import type { TerminologieConfig } from './sw-ui'
 
 export default function App() {
-  const { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos } = useFocusMode()
+  const { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocusMode()
   const productionCtx = useProduction()
   const [treatmentLabel, setTreatmentLabel] = useState('Treatment')
   const [sceneKuerzel, setSceneKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
@@ -71,7 +71,7 @@ export default function App() {
     <TerminologieProvider config={terminologie}>
     <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors }}>
       <ProductionContext.Provider value={productionCtx}>
-        <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos }}>
+        <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<ScriptPage />} />

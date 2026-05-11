@@ -10,6 +10,7 @@ export function useFocusMode() {
   })
   const [hoverOpen, setHoverOpenState] = useState(false)
   const [toolbarOpen, setToolbarOpenState] = useState(false)
+  const [toolbarOpenedVia, setToolbarOpenedVia] = useState<'button' | 'click' | null>(null)
   const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>(() => ({
     x: (typeof window !== 'undefined' ? window.innerWidth : 800) / 2 - 200,
     y: 50,
@@ -33,6 +34,7 @@ export function useFocusMode() {
   const setToolbarOpen = useCallback((v: boolean) => {
     setToolbarOpenState(v)
     setDataAttr('data-focus-toolbar', v ? 'true' : 'false')
+    if (!v) setToolbarOpenedVia(null)
   }, [])
 
   const closeOverlays = useCallback(() => {
@@ -77,5 +79,5 @@ export function useFocusMode() {
     return () => window.removeEventListener('keydown', handler)
   }, [toggle, closeOverlays])
 
-  return { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos }
+  return { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }
 }

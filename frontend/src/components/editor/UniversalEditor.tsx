@@ -201,7 +201,23 @@ export default function UniversalEditor({
   injectGutterCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
-  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos } = useFocus()
+  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
+
+  // Auto-close toolbar when opened via click and cursor moves > 50px away
+  const toolbarRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!toolbarOpen || toolbarOpenedVia !== 'click') return
+    const handler = (e: MouseEvent) => {
+      const el = toolbarRef.current
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      const dx = Math.max(r.left - e.clientX, 0, e.clientX - r.right)
+      const dy = Math.max(r.top - e.clientY, 0, e.clientY - r.bottom)
+      if (Math.sqrt(dx * dx + dy * dy) > 50) setToolbarOpen(false)
+    }
+    document.addEventListener('mousemove', handler)
+    return () => document.removeEventListener('mousemove', handler)
+  }, [toolbarOpen, toolbarOpenedVia, setToolbarOpen])
 
   // ResizeObserver: track .page element dimensions for focus-mode floating panels
   // --sw-focus-page-w        = page width (used by SceneEditor hover panel + toolbar)
@@ -680,6 +696,7 @@ export default function UniversalEditor({
 
       {!readOnly && (
         <div
+          ref={toolbarRef}
           className="universal-editor-toolbar"
           style={focus && toolbarOpen ? { position: 'fixed', left: toolbarPos.x, top: toolbarPos.y } : undefined}
         >
@@ -968,6 +985,7 @@ export default function UniversalEditor({
           if (focus && e.altKey) {
             e.preventDefault()
             setToolbarPos({ x: e.clientX, y: e.clientY })
+            setToolbarOpenedVia('click')
             setToolbarOpen(true)
           }
         }}
