@@ -248,9 +248,10 @@ function parseBboxHtml(html: string, crop?: PdftextCropOptions): BboxLayout | nu
  *  AND is at least 4pt larger than median — this avoids treating regular
  *  line-wrapped text as paragraph breaks in documents with uniform spacing. */
 export function buildTextFromLayout(layout: BboxLayout): string {
-  // Require both a relative ratio (2.0×) AND an absolute minimum delta (4pt).
-  // Using only a ratio was too aggressive for tight-spaced treatment documents.
-  const threshold = Math.max(layout.medianLineSpacing * 2.0, layout.medianLineSpacing + 4)
+  // Paragraph gaps in Rote Rosen treatments are ~2× the line spacing.
+  // Using 1.8× (not 2.0×) gives a 10% margin so we don't miss gaps that are
+  // fractionally below the 2× mark due to floating-point rounding.
+  const threshold = Math.max(layout.medianLineSpacing * 1.8, layout.medianLineSpacing + 4)
   const out: string[] = []
   for (const li of layout.lines) {
     if (li.gapBefore > threshold && out.length > 0 && out[out.length - 1] !== '') {
