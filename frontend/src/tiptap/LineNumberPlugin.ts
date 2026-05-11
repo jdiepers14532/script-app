@@ -36,6 +36,7 @@ function buildLineDecorations(doc: any): DecorationSet {
     lineNum++
     if (lineNum % 5 !== 0) return
 
+    const num = lineNum // capture value for closure
     decos.push(
       Decoration.widget(offset, () => {
         const wrapper = document.createElement('div')
@@ -43,11 +44,11 @@ function buildLineDecorations(doc: any): DecorationSet {
 
         const span = document.createElement('span')
         span.className = 'pm-ln'
-        span.textContent = String(lineNum)
+        span.textContent = String(num)
 
         wrapper.appendChild(span)
         return wrapper
-      }, { side: -1, key: `ln-${lineNum}` })
+      }, { side: -1, key: `ln-${num}` })
     )
   })
 
