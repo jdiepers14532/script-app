@@ -7,7 +7,7 @@ import {
   Info, ChevronDown, ChevronUp,
   Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
   AlignLeft, AlignCenter, AlignRight,
-  List, ListOrdered, ImageIcon, Maximize2, Minimize2,
+  List, ListOrdered, ImageIcon, Maximize2, Minimize2, X as XIcon,
 } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -201,7 +201,42 @@ export default function UniversalEditor({
   injectGutterCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
-  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen } = useFocus()
+  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos } = useFocus()
+
+  // ResizeObserver: track .page element width → CSS variable for floating SceneEditor panel
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+    const update = () => {
+      const page = container.querySelector('.page') as HTMLElement | null
+      if (page) {
+        document.documentElement.style.setProperty('--sw-focus-page-w', page.offsetWidth + 'px')
+      }
+    }
+    const ro = new ResizeObserver(update)
+    ro.observe(container)
+    update()
+    return () => ro.disconnect()
+  }, [])
+
+  // Drag state for floating toolbar
+  const dragRef = useRef<{ dragging: boolean; offsetX: number; offsetY: number }>({ dragging: false, offsetX: 0, offsetY: 0 })
+  const handleToolbarDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    dragRef.current = { dragging: true, offsetX: e.clientX - toolbarPos.x, offsetY: e.clientY - toolbarPos.y }
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current.dragging) return
+      setToolbarPos({ x: ev.clientX - dragRef.current.offsetX, y: ev.clientY - dragRef.current.offsetY })
+    }
+    const onUp = () => {
+      dragRef.current.dragging = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [toolbarPos, setToolbarPos])
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
@@ -639,8 +674,26 @@ export default function UniversalEditor({
       {!readOnly && (
         <div
           className="universal-editor-toolbar"
-          onMouseLeave={() => { if (toolbarOpen) setToolbarOpen(false) }}
+          style={focus && toolbarOpen ? { position: 'fixed', left: toolbarPos.x, top: toolbarPos.y } : undefined}
         >
+          {/* Drag header — only visible in focus mode toolbar */}
+          {focus && toolbarOpen && (
+            <div
+              onMouseDown={handleToolbarDragStart}
+              style={{
+                display: 'flex', alignItems: 'center', padding: '4px 8px 4px 10px',
+                borderBottom: '1px solid #3a3a3c', cursor: 'grab', userSelect: 'none', flexShrink: 0,
+              }}
+            >
+              <span style={{ flex: 1, fontSize: 10, color: '#6e6e73', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Werkzeuge</span>
+              <button
+                onClick={() => setToolbarOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6e6e73', padding: '2px 2px', display: 'flex', alignItems: 'center', lineHeight: 1 }}
+              >
+                <XIcon size={12} />
+              </button>
+            </div>
+          )}
           {/* ── Row 1: Format Toolbar (Absatzformate / Screenplay types) ──── */}
           {toolbarPrefs.formatBar && (
             <div style={{
@@ -900,7 +953,18 @@ export default function UniversalEditor({
       )}
 
       {/* Page area */}
-      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }} onWheel={handleScrollWheel}>
+      <div
+        ref={scrollContainerRef}
+        style={{ flex: 1, overflow: 'auto', position: 'relative' }}
+        onWheel={handleScrollWheel}
+        onClick={e => {
+          if (focus && e.altKey) {
+            e.preventDefault()
+            setToolbarPos({ x: e.clientX, y: e.clientY })
+            setToolbarOpen(true)
+          }
+        }}
+      >
         {/* Focus mode: hover strip at top of canvas triggers SceneEditor panel */}
         <div
           className="focus-hover-strip"

@@ -9,6 +9,8 @@ interface FocusContextValue {
   setHoverOpen: (v: boolean) => void
   toolbarOpen: boolean
   setToolbarOpen: (v: boolean) => void
+  toolbarPos: { x: number; y: number }
+  setToolbarPos: (pos: { x: number; y: number }) => void
 }
 export const FocusContext = createContext<FocusContextValue>({
   focus: false,
@@ -17,6 +19,8 @@ export const FocusContext = createContext<FocusContextValue>({
   setHoverOpen: () => {},
   toolbarOpen: false,
   setToolbarOpen: () => {},
+  toolbarPos: { x: 300, y: 50 },
+  setToolbarPos: () => {},
 })
 export function useFocus() {
   return useContext(FocusContext)

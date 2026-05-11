@@ -259,7 +259,7 @@ export default function AppShell({
   hideProductionSelector = false,
 }: AppShellProps) {
   const location = useLocation()
-  const { focus, toggle, toolbarOpen, setToolbarOpen } = useFocus()
+  const { focus, toggle, toolbarOpen, setToolbarOpen, setToolbarPos } = useFocus()
   const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
   const { treatmentLabel, figurenLabel } = useAppSettings()
@@ -868,14 +868,19 @@ export default function AppShell({
       </header>
 
       {/* Floating toolbar toggle — visible only in focus mode (CSS-controlled) */}
-      <Tooltip text="Werkzeugleiste ein-/ausblenden (F9)" placement="bottom">
-        <button className="focus-toolbar-trigger" onClick={() => setToolbarOpen(!toolbarOpen)}>
+      <Tooltip text={`Werkzeugleiste ein-/ausblenden\nAlt+Klick auf Canvas (Win)\n⌥+Klick auf Canvas (Mac)`} placement="bottom">
+        <button className="focus-toolbar-trigger" onClick={() => {
+          if (!toolbarOpen) {
+            setToolbarPos({ x: Math.max(60, window.innerWidth / 2 - 200), y: 50 })
+          }
+          setToolbarOpen(!toolbarOpen)
+        }}>
           <AlignLeft size={14} />
         </button>
       </Tooltip>
 
       {/* Floating focus exit button — visible only when header is hidden (CSS-controlled) */}
-      <Tooltip text="Fokus-Modus beenden (F10 oder Esc)" placement="bottom">
+      <Tooltip text={`Fokus-Modus beenden\nF10 oder Ctrl+\\ (Win)\nF10 oder Ctrl+\\ (Mac)\noder Esc`} placement="bottom">
         <button className="focus-exit-btn" onClick={toggle}>
           <Maximize2 size={14} />
         </button>

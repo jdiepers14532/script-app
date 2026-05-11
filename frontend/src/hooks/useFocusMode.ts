@@ -10,6 +10,10 @@ export function useFocusMode() {
   })
   const [hoverOpen, setHoverOpenState] = useState(false)
   const [toolbarOpen, setToolbarOpenState] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number }>(() => ({
+    x: (typeof window !== 'undefined' ? window.innerWidth : 800) / 2 - 200,
+    y: 50,
+  }))
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Open immediately / close with 200ms grace period (mouse gap tolerance)
@@ -53,15 +57,12 @@ export function useFocusMode() {
     setDataAttr('data-mode', focus ? 'focus' : 'normal')
   }, [focus])
 
-  // F10 toggle focus / F9 toggle toolbar (in focus mode) / Escape exit
+  // F10 / Ctrl+\ toggle focus | Escape exit
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F10') {
+      if (e.key === 'F10' || (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === '\\')) {
         e.preventDefault()
         toggle()
-      } else if (e.key === 'F9') {
-        e.preventDefault()
-        setToolbarOpen(!document.documentElement.getAttribute('data-focus-toolbar') || document.documentElement.getAttribute('data-focus-toolbar') !== 'true')
       } else if (e.key === 'Escape') {
         setFocus(f => {
           if (!f) return f
@@ -74,7 +75,7 @@ export function useFocusMode() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [toggle, closeOverlays, setToolbarOpen])
+  }, [toggle, closeOverlays])
 
-  return { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen }
+  return { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos }
 }

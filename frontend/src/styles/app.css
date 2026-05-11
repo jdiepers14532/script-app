@@ -259,7 +259,7 @@
   top: 8px;
   left: 50%;
   transform: translateX(-50%);
-  width: 400px;
+  width: var(--sw-focus-page-w, min(660px, 92vw));
   max-height: 85vh;
   overflow-y: auto;
   background: var(--bg-surface);
@@ -276,10 +276,7 @@
 [data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar {
   display: flex !important;
   flex-direction: column;
-  position: fixed;
-  top: 46px;
-  left: 50%;
-  transform: translateX(-50%);
+  /* position/left/top set via React inline style (draggable) */
   max-width: calc(100vw - 60px);
   background: #1c1c1e;
   border: 1px solid #3a3a3c;
