@@ -409,6 +409,8 @@ interface SceneHeader {
   spieltag: number
   charaktere: string[]
   zusammenfassung: string
+  /** Raw lines of the treatment text, blank strings = paragraph breaks (for content conversion). */
+  zusammenfassungLines: string[]
   dauer_sekunden: number
   komparsen: string[]
   hinweise: string[]
@@ -576,20 +578,25 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     }
   }
 
-  // Zusammenfassung: collect lines until duration, next scene, or post-header metadata
-  const zusammenfassungParts: string[] = []
+  // Zusammenfassung: collect lines until duration, next scene, or post-header metadata.
+  // Blank lines are preserved as '' so paragraph boundaries survive for content conversion.
+  const zusammenfassungLines: string[] = []
   while (i < lines.length) {
     const line = lines[i].trim()
-    if (!line) { i++; continue }
+    if (!line) { zusammenfassungLines.push(''); i++; continue }
     if (DURATION_RE.test(line)) break
     if (SCENE_NUM_RE.test(line)) break
     if (INT_EXT_SPIELTAG_RE.test(line)) break
     if (KOMPARSEN_RE.test(line)) break
     if (/^Bild aus Block/i.test(line) || WECHSELSCHNITT_RE.test(line) || /^Bitte.*Memo/i.test(line)) break
-    zusammenfassungParts.push(line)
+    zusammenfassungLines.push(line)
     i++
   }
-  const zusammenfassung = zusammenfassungParts.join(' ')
+  // Strip trailing blanks
+  while (zusammenfassungLines.length > 0 && zusammenfassungLines[zusammenfassungLines.length - 1] === '') {
+    zusammenfassungLines.pop()
+  }
+  const zusammenfassung = zusammenfassungLines.filter(l => l).join(' ')
 
   // If zusammenfassung loop broke on INT/EXT, parse it now
   i = skipBlanks(lines, i)
@@ -683,7 +690,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
 
   return {
     episodeNr, sceneNr, ort_name, int_ext, tageszeit, spieltag,
-    charaktere, zusammenfassung: finalZusammenfassung, dauer_sekunden, komparsen, hinweise,
+    charaktere, zusammenfassung: finalZusammenfassung, zusammenfassungLines, dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
     isWechselschnitt,
     wechselschnittPartner,
@@ -867,7 +874,7 @@ function parseSubSceneHeader(
   return {
     episodeNr: parent.episodeNr, sceneNr: 0,
     ort_name, int_ext, tageszeit, spieltag,
-    charaktere, zusammenfassung: finalZusammenfassung,
+    charaktere, zusammenfassung: finalZusammenfassung, zusammenfassungLines: [],
     dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
     isWechselschnitt: true,
@@ -1094,7 +1101,15 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     let sceneChars: string[] = []
 
     if (docType === 'treatment') {
-      textelemente = parseTreatmentContent(lines, contentStartIdx, contentEndIdx, layout)
+      // For treatment: the scene text was consumed by parseSceneHeader into zusammenfassungLines
+      // (with blank strings as paragraph breaks). Feed those directly to parseTreatmentContent.
+      if (header.zusammenfassungLines.length > 0) {
+        textelemente = parseTreatmentContent(header.zusammenfassungLines, 0, header.zusammenfassungLines.length, layout)
+      }
+      // Fall back to remaining content range (e.g. dialog in crosscut sections)
+      if (textelemente.length === 0) {
+        textelemente = parseTreatmentContent(lines, contentStartIdx, contentEndIdx, layout)
+      }
     } else {
       const parsed = parseDrehbuchContent(lines, contentStartIdx, contentEndIdx)
       textelemente = parsed.elems
