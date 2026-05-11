@@ -143,6 +143,28 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             <div style={rowStyle}>
+              <Tooltip text="Sprache für LanguageTool und Spellcheck-Korrekturen">
+                <span style={labelStyle}>Sprache</span>
+              </Tooltip>
+              <div className="seg">
+                <Tooltip text="Deutsch (Deutschland)"><button className={tweaks.spellcheckLang === 'de-DE' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-DE')}>de-DE</button></Tooltip>
+                <Tooltip text="Deutsch (Österreich)"><button className={tweaks.spellcheckLang === 'de-AT' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-AT')}>de-AT</button></Tooltip>
+                <Tooltip text="Englisch (UK)"><button className={tweaks.spellcheckLang === 'en-GB' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-GB')}>en-GB</button></Tooltip>
+                <Tooltip text="Englisch (US)"><button className={tweaks.spellcheckLang === 'en-US' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-US')}>en-US</button></Tooltip>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
+              <Tooltip text="Tastaturlayout — beeinflusst Anzeige der Tastaturkürzel in Tooltips und Hilfe">
+                <span style={labelStyle}>Tastaturlayout</span>
+              </Tooltip>
+              <div className="seg">
+                <Tooltip text="QWERTZ — Deutsch, Österreich, Schweiz"><button className={tweaks.keyboardLayout === 'qwertz' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwertz')}>QWERTZ</button></Tooltip>
+                <Tooltip text="QWERTY — Englisch, US, International"><button className={tweaks.keyboardLayout === 'qwerty' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwerty')}>QWERTY</button></Tooltip>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
               <span style={labelStyle}>Zeilennummern</span>
               <div className="seg">
                 <button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button>

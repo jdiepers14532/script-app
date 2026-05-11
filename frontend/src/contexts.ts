@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { KeyboardLayout } from './shortcuts'
 import type { Production } from './hooks/useProduction'
 
 // Focus Context
@@ -62,8 +63,18 @@ export const AppSettingsContext = createContext<AppSettingsContextType>({ treatm
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context
-interface UserPrefsContextType { scrollNavDelay: number; showPageShadow: boolean; showTooltips: boolean; spellcheck: 'off' | 'browser' | 'languagetool' }
-export const UserPrefsContext = createContext<UserPrefsContextType>({ scrollNavDelay: 1000, showPageShadow: true, showTooltips: true, spellcheck: 'off' })
+interface UserPrefsContextType {
+  scrollNavDelay: number
+  showPageShadow: boolean
+  showTooltips: boolean
+  spellcheck: 'off' | 'browser' | 'languagetool'
+  keyboardLayout: KeyboardLayout
+  spellcheckLang: string
+}
+export const UserPrefsContext = createContext<UserPrefsContextType>({
+  scrollNavDelay: 1000, showPageShadow: true, showTooltips: true, spellcheck: 'off',
+  keyboardLayout: 'qwertz', spellcheckLang: 'de-DE',
+})
 export function useUserPrefs() { return useContext(UserPrefsContext) }
 
 // Tweaks Context (user-level view settings, managed by AppShell)
@@ -90,6 +101,10 @@ export interface TweakState {
   spellcheck: 'off' | 'browser' | 'languagetool'
   showLineNumbers: boolean
   showReplikNumbers: boolean
+  /** Keyboard layout for shortcut labels — see src/shortcuts.ts */
+  keyboardLayout: KeyboardLayout
+  /** Language code for LanguageTool spellcheck, e.g. 'de-DE', 'en-US' */
+  spellcheckLang: string
 }
 interface TweaksContextType {
   tweaks: TweakState

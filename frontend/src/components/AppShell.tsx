@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext } from '../contexts'
 import type { TweakState } from '../contexts'
+import { getShortcutLabel } from '../shortcuts'
 import { useOfflineQueue } from '../hooks/useOfflineQueue'
 import ProductionSelector from './ProductionSelector'
 import HeaderSelect from './HeaderSelect'
@@ -159,6 +160,8 @@ export const DEFAULT_TWEAKS: TweakState = {
   spellcheck: 'off',
   showLineNumbers: false,
   showReplikNumbers: false,
+  keyboardLayout: 'qwertz',  // German app default — QWERTZ
+  spellcheckLang: 'de-DE',
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -261,6 +264,9 @@ export default function AppShell({
   const location = useLocation()
   const { focus, toggle, toolbarOpen, setToolbarOpen, setToolbarPos, setToolbarOpenedVia } = useFocus()
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
+  // AppShell IS the TweaksContext provider → can't use useShortcut() hook here.
+  // Use getShortcutLabel(id, tweaks.keyboardLayout, isMac) directly instead.
+  const sc = (id: string) => getShortcutLabel(id, tweaks.keyboardLayout, isMac)
   const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
   const { treatmentLabel, figurenLabel } = useAppSettings()
@@ -498,6 +504,8 @@ export default function AppShell({
           spellcheck:        s.spellcheck ?? prev.spellcheck,
           showLineNumbers:   typeof s.showLineNumbers === 'boolean' ? s.showLineNumbers : false,
           showReplikNumbers: typeof s.showReplikNumbers === 'boolean' ? s.showReplikNumbers : false,
+          keyboardLayout:    s.keyboardLayout ?? 'qwertz',
+          spellcheckLang:    s.spellcheckLang ?? 'de-DE',
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -853,7 +861,7 @@ export default function AppShell({
             <Bell size={14} />
           </button>
         </Tooltip>
-        <Tooltip text={`Fokus-Modus (${isMac ? '⌥' : 'Alt'}+Z)`} placement="bottom">
+        <Tooltip text={`Fokus-Modus (${sc('focusMode')})`} placement="bottom">
           <button className="focus-toggle" onClick={toggle}>
             {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
           </button>
@@ -869,7 +877,7 @@ export default function AppShell({
       </header>
 
       {/* Floating toolbar toggle — visible only in focus mode (CSS-controlled) */}
-      <Tooltip text={`Werkzeugleiste ein-/ausblenden\n${isMac ? '⌥+Klick auf Canvas' : 'Alt+Klick auf Canvas'}`} placement="bottom">
+      <Tooltip text={`Werkzeugleiste ein-/ausblenden\n${sc('toolbarOpen')} auf Canvas`} placement="bottom">
         <button className="focus-toolbar-trigger" onClick={() => {
           if (!toolbarOpen) {
             setToolbarPos({ x: Math.max(60, window.innerWidth / 2 - 200), y: 50 })
@@ -882,7 +890,7 @@ export default function AppShell({
       </Tooltip>
 
       {/* Floating focus exit button — visible only when header is hidden (CSS-controlled) */}
-      <Tooltip text={`Fokus-Modus beenden\n${isMac ? '⌥' : 'Alt'}+Z oder Esc`} placement="bottom">
+      <Tooltip text={`Fokus-Modus beenden\n${sc('focusMode')} oder Esc`} placement="bottom">
         <button className="focus-exit-btn" onClick={toggle}>
           <Maximize2 size={14} />
         </button>
@@ -898,7 +906,7 @@ export default function AppShell({
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
         <TweaksContext.Provider value={{ tweaks, set, reset: () => setTweaks(DEFAULT_TWEAKS) }}>
-          <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips, spellcheck: tweaks.spellcheck }}>
+          <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips, spellcheck: tweaks.spellcheck, keyboardLayout: tweaks.keyboardLayout, spellcheckLang: tweaks.spellcheckLang }}>
             <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
               {children}
             </PanelModeContext.Provider>

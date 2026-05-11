@@ -28,6 +28,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
 import { useUserPrefs, useFocus } from '../../contexts'
+// Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
+// See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
 import { createLineNumberPlugin, lineNumberPluginKey, LINE_NUMBER_CSS } from '../../tiptap/LineNumberPlugin'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 
