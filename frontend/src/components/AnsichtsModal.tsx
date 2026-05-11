@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import {
   Columns2, PanelLeft, PanelRight, BookOpen, AlignLeft, X,
   Minimize2, Maximize2, Square,
@@ -17,6 +17,32 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
   const { t } = useTerminologie()
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef = useRef<HTMLInputElement>(null)
+
+  const [pos, setPos] = useState(() => ({
+    left: Math.max(0, Math.round((window.innerWidth - 520) / 2)),
+    top: Math.max(0, Math.round(window.innerHeight * 0.075)),
+  }))
+  const dragStart = useRef<{ mouseX: number; mouseY: number; posX: number; posY: number } | null>(null)
+
+  function handleHeaderMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if ((e.target as HTMLElement).closest('button')) return
+    e.preventDefault()
+    dragStart.current = { mouseX: e.clientX, mouseY: e.clientY, posX: pos.left, posY: pos.top }
+    function onMove(ev: MouseEvent) {
+      if (!dragStart.current) return
+      setPos({
+        left: Math.max(0, dragStart.current.posX + ev.clientX - dragStart.current.mouseX),
+        top: Math.max(0, dragStart.current.posY + ev.clientY - dragStart.current.mouseY),
+      })
+    }
+    function onUp() {
+      dragStart.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
 
   const isDark = tweaks.theme === 'dark'
   const palettes = isDark ? DARK_PALETTES : LIGHT_PALETTES
@@ -57,20 +83,22 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
         }}
       />
       <div style={{
-        position: 'fixed', top: '50%', left: '50%',
-        transform: 'translate(-50%, -50%)',
-        width: 520, maxWidth: '92vw', maxHeight: '85vh',
+        position: 'fixed', left: pos.left, top: pos.top,
+        width: 520, minWidth: 360, minHeight: 300,
         background: 'var(--bg-page)', border: '1px solid var(--border)',
         borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
         zIndex: 9999, display: 'flex', flexDirection: 'column',
-        overflow: 'hidden',
+        overflow: 'hidden', resize: 'both',
       }}>
         {/* Header */}
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '14px 20px', borderBottom: '1px solid var(--border)',
-          flexShrink: 0,
-        }}>
+        <div
+          onMouseDown={handleHeaderMouseDown}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '14px 20px', borderBottom: '1px solid var(--border)',
+            flexShrink: 0, cursor: 'grab', userSelect: 'none',
+          }}
+        >
           <h2 style={{ fontSize: 15, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
             Ansicht
           </h2>
