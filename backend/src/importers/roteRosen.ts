@@ -696,30 +696,43 @@ function parseSubSceneHeader(
   lines: string[], startIdx: number, endIdx: number, parent: SceneHeader
 ): SceneHeader | null {
   let i = startIdx
-  // Skip blank lines or scene numbers (partner ref from pdftotext)
+  let dauer_sekunden = 0
+
+  // Skip blank lines and scene-number lines (partner ref from pdftotext).
+  // pdftotext sometimes merges scene number + duration on one line: "4402.9 1:10"
+  // SCENE_NUM_RE group 3 captures the rest — extract duration if present.
   while (i < endIdx) {
     const t = lines[i]?.trim()
     if (!t) { i++; continue }
-    // If we hit a scene number from the crosscut entries, skip it + its duration
     if (SCENE_NUM_RE.test(t)) {
+      const numM = SCENE_NUM_RE.exec(t)!
+      const rest = numM[3].trim()
+      if (rest && DURATION_RE.test(rest)) {
+        dauer_sekunden = parseDurationToSeconds(rest)
+      }
       i++
-      if (i < endIdx && DURATION_RE.test(lines[i]?.trim() || '')) i++
+      if (i < endIdx && DURATION_RE.test(lines[i]?.trim() || '')) {
+        if (dauer_sekunden === 0) dauer_sekunden = parseDurationToSeconds(lines[i].trim())
+        i++
+      }
       continue
     }
     break
   }
   if (i >= endIdx) return null
 
-  // Location — only take as ort_name if it doesn't look like a character list.
-  // Crosscut sub-scenes sometimes have no explicit location, leading with characters directly.
+  // Location — skip blanks; don't take character lists as ort_name
+  i = skipBlanks(lines, i)
   let ort_name = ''
   const locCandidate = lines[i]?.trim() || ''
-  if (!DURATION_RE.test(locCandidate) && !INT_EXT_SPIELTAG_RE.test(locCandidate) && !isCharacterLine(locCandidate)) {
+  if (locCandidate && !DURATION_RE.test(locCandidate) &&
+      !INT_EXT_SPIELTAG_RE.test(locCandidate) && !isCharacterLine(locCandidate)) {
     ort_name = locCandidate
     i++
   }
 
   // Characters
+  i = skipBlanks(lines, i)
   let charaktere: string[] = []
   if (i < endIdx && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
@@ -727,6 +740,7 @@ function parseSubSceneHeader(
   }
 
   // INT/EXT
+  i = skipBlanks(lines, i)
   let int_ext = parent.int_ext
   let tageszeit = parent.tageszeit
   let spieltag = parent.spieltag
@@ -738,14 +752,22 @@ function parseSubSceneHeader(
     i++
   }
 
-  // Mistral OCR: characters can appear AFTER I/E (reversed from pdftotext order)
+  // Mistral OCR: characters can appear AFTER I/E
   i = skipBlanks(lines, i)
   if (charaktere.length === 0 && i < endIdx && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
     i++
   }
 
-  // Zusammenfassung
+  // Duration may appear after INT/EXT
+  i = skipBlanks(lines, i)
+  if (i < endIdx && DURATION_RE.test(lines[i]?.trim() || '')) {
+    if (dauer_sekunden === 0) dauer_sekunden = parseDurationToSeconds(lines[i].trim())
+    i++
+  }
+
+  // Zusammenfassung — also break on INT/EXT (some layouts place it after chars)
+  i = skipBlanks(lines, i)
   const parts: string[] = []
   while (i < endIdx) {
     const line = lines[i]?.trim() || ''
@@ -754,14 +776,25 @@ function parseSubSceneHeader(
     if (SCENE_NUM_RE.test(line)) break
     if (KOMPARSEN_RE.test(line)) break
     if (WECHSELSCHNITT_RE.test(line)) break
+    if (INT_EXT_SPIELTAG_RE.test(line)) break
     if (/^Bild aus Block/i.test(line) || /^Bitte.*Memo/i.test(line)) break
     parts.push(line)
     i++
   }
 
-  let dauer_sekunden = 0
+  // INT/EXT may appear after zusammenfassung (edge case)
+  i = skipBlanks(lines, i)
+  if (i < endIdx && INT_EXT_SPIELTAG_RE.test(lines[i]?.trim() || '')) {
+    const parsed = parseIntExtCode(lines[i].trim())
+    int_ext = parsed.int_ext
+    tageszeit = parsed.tageszeit
+    spieltag = parsed.spieltag
+    i++
+  }
+
+  // Duration after zusammenfassung
   if (i < endIdx && DURATION_RE.test(lines[i]?.trim() || '')) {
-    dauer_sekunden = parseDurationToSeconds(lines[i].trim())
+    if (dauer_sekunden === 0) dauer_sekunden = parseDurationToSeconds(lines[i].trim())
     i++
   }
 
@@ -796,10 +829,29 @@ function parseSubSceneHeader(
     break
   }
 
+  // pdftotext merges character list + oneliner on one line when there are no blank lines
+  // between them: "Toni, Ellie, Michael ...erfahrt Ellie..."
+  let finalZusammenfassung = parts.join(' ')
+  if (charaktere.length === 0 && finalZusammenfassung) {
+    const charMatch = finalZusammenfassung.match(
+      /^([A-Z\xC4\xD6\xDC][a-z\xe4\xf6\xfc\xdf]+(?:\.,?\s*[A-Z\xC4\xD6\xDC][a-z\xe4\xf6\xfc\xdf]+)?(?:,\s*[A-Z\xC4\xD6\xDC][a-z\xe4\xf6\xfc\xdf]+(?:\.,?\s*[A-Z\xC4\xD6\xDC][a-z\xe4\xf6\xfc\xdf]+)?)+)\s+([A-Z\xC4\xD6\xDC].*)/
+    )
+    if (charMatch) {
+      charaktere = charMatch[1].split(',').map(c => c.trim()).filter(Boolean)
+      finalZusammenfassung = charMatch[2]
+    } else {
+      const singleMatch = finalZusammenfassung.match(/^([A-Z\xC4\xD6\xDC][a-z\xe4\xf6\xfc\xdf]+)\s+\1\s+(.*)/)
+      if (singleMatch) {
+        charaktere = [singleMatch[1]]
+        finalZusammenfassung = singleMatch[1] + ' ' + singleMatch[2]
+      }
+    }
+  }
+
   return {
     episodeNr: parent.episodeNr, sceneNr: 0,
     ort_name, int_ext, tageszeit, spieltag,
-    charaktere, zusammenfassung: parts.join(' '),
+    charaktere, zusammenfassung: finalZusammenfassung,
     dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
     isWechselschnitt: true,
