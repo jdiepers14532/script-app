@@ -941,11 +941,10 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
         flushContent()
       }
     }
-    // Fallback heuristic (no bbox or bbox missed the gap):
-    // If the previous content line ends with sentence-final punctuation (not an abbreviation)
-    // AND this line starts uppercase, treat it as a new paragraph.
-    // With bbox-enhanced text, real gaps are already blank lines, so this fires much less.
-    else if (contentLines.length > 0) {
+    // Fallback heuristic — only when no bbox layout is available.
+    // With bbox, paragraph gaps are already represented as blank lines above,
+    // so the heuristic would cause false splits within flowing text.
+    else if (!layout && contentLines.length > 0) {
       const prev = contentLines[contentLines.length - 1]
       if (SENTENCE_END_RE.test(prev) && !ABBREV_END_RE.test(prev) && UPPER_START_RE.test(t)) {
         flushContent()
