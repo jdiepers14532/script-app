@@ -124,36 +124,36 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             <div style={rowStyle}>
               <span style={labelStyle}>Breakdown-Sidebar</span>
               <div className="seg">
-                <button className={tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', true)}>An</button>
-                <button className={!tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', false)}>Aus</button>
+                <Tooltip text="Szenen-Breakdown-Panel einblenden"><button className={tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', true)}>An</button></Tooltip>
+                <Tooltip text="Szenen-Breakdown-Panel ausblenden"><button className={!tweaks.breakdown ? 'on' : ''} onClick={() => set('breakdown', false)}>Aus</button></Tooltip>
               </div>
             </div>
 
             <div style={rowStyle}>
               <span style={labelStyle}>Zeilennummern</span>
               <div className="seg">
-                <button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button>
-                <button className={!tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', false)}>Aus</button>
+                <Tooltip text="Zeilennummern im Editor anzeigen"><button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button></Tooltip>
+                <Tooltip text="Zeilennummern ausblenden"><button className={!tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', false)}>Aus</button></Tooltip>
               </div>
             </div>
 
             <div style={rowStyle}>
               <span style={labelStyle}>Replikennummern</span>
               <div className="seg">
-                <button className={tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', true)}>An</button>
-                <button className={!tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', false)}>Aus</button>
+                <Tooltip text="Fortlaufende Nummern pro Replik anzeigen"><button className={tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', true)}>An</button></Tooltip>
+                <Tooltip text="Replikennummern ausblenden"><button className={!tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', false)}>Aus</button></Tooltip>
               </div>
             </div>
 
             <div style={{ ...rowStyle, borderBottom: 'none' }}>
-              <Tooltip text="Wartezeit nach dem letzten Tastendruck, bevor automatisch zur nächsten Szene gescrollt wird">
-                <span style={labelStyle}>Scroll-Nav Verzögerung</span>
-              </Tooltip>
+              <span style={labelStyle}>Scroll-Nav Verzögerung</span>
               <div className="seg">
                 {[500, 1000, 1500, 2000, 3000].map(ms => (
-                  <button key={ms} className={tweaks.scrollNavDelay === ms ? 'on' : ''} onClick={() => set('scrollNavDelay', ms)}>
-                    {ms / 1000}s
-                  </button>
+                  <Tooltip key={ms} text={`${ms / 1000}s Wartezeit nach dem letzten Tastendruck, bevor automatisch zur nächsten Szene gescrollt wird`}>
+                    <button className={tweaks.scrollNavDelay === ms ? 'on' : ''} onClick={() => set('scrollNavDelay', ms)}>
+                      {ms / 1000}s
+                    </button>
+                  </Tooltip>
                 ))}
               </div>
             </div>
