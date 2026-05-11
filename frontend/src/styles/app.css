@@ -277,7 +277,7 @@
 [data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar {
   display: flex !important;
   flex-direction: column;
-  /* position/left/top set via React inline style (draggable) */
+  /* position/left/top/width set via React inline style (draggable + resizable) */
   min-width: 280px;
   max-width: calc(100vw - 60px);
   background: #1c1c1e;
@@ -285,8 +285,8 @@
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.6);
   z-index: 5001;
-  overflow: auto;
-  resize: horizontal;
+  overflow: hidden;
+  position: relative;
   color: #e5e5ea;
 }
 [data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar button { color: #aeaeb2; }

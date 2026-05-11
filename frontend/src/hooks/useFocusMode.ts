@@ -16,6 +16,7 @@ export function useFocusMode() {
     y: 50,
   }))
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const fullscreenByFocus = useRef(false)
 
   // Open immediately / close with 200ms grace period (mouse gap tolerance)
   const setHoverOpen = useCallback((v: boolean) => {
@@ -49,7 +50,19 @@ export function useFocusMode() {
       const next = !f
       localStorage.setItem('sw-focus-mode', String(next))
       setDataAttr('data-mode', next ? 'focus' : 'normal')
-      if (!next) closeOverlays()
+      if (next) {
+        // Enter fullscreen
+        document.documentElement.requestFullscreen?.().then(() => {
+          fullscreenByFocus.current = true
+        }).catch(() => {})
+      } else {
+        // Exit fullscreen if we caused it
+        if (document.fullscreenElement && fullscreenByFocus.current) {
+          fullscreenByFocus.current = false
+          document.exitFullscreen?.()
+        }
+        closeOverlays()
+      }
       return next
     })
   }, [closeOverlays])
@@ -59,10 +72,29 @@ export function useFocusMode() {
     setDataAttr('data-mode', focus ? 'focus' : 'normal')
   }, [focus])
 
-  // F10 / Ctrl+\ toggle focus | Escape exit
+  // If user exits fullscreen externally (F11 / browser button), also exit focus mode
+  useEffect(() => {
+    const onFSChange = () => {
+      if (!document.fullscreenElement && fullscreenByFocus.current) {
+        fullscreenByFocus.current = false
+        setFocus(f => {
+          if (!f) return f
+          localStorage.setItem('sw-focus-mode', 'false')
+          setDataAttr('data-mode', 'normal')
+          closeOverlays()
+          return false
+        })
+      }
+    }
+    document.addEventListener('fullscreenchange', onFSChange)
+    return () => document.removeEventListener('fullscreenchange', onFSChange)
+  }, [closeOverlays])
+
+  // F10 toggle focus | Escape exit focus
+  // Note: Ctrl+\ removed — German keyboards have no physical Backslash key (requires AltGr+ß)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F10' || (e.ctrlKey && !e.shiftKey && !e.altKey && e.code === 'Backslash')) {
+      if (e.key === 'F10') {
         e.preventDefault()
         toggle()
       } else if (e.key === 'Escape') {
@@ -70,6 +102,10 @@ export function useFocusMode() {
           if (!f) return f
           localStorage.setItem('sw-focus-mode', 'false')
           setDataAttr('data-mode', 'normal')
+          if (document.fullscreenElement && fullscreenByFocus.current) {
+            fullscreenByFocus.current = false
+            document.exitFullscreen?.()
+          }
           closeOverlays()
           return false
         })

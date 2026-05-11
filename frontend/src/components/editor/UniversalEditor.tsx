@@ -243,6 +243,24 @@ export default function UniversalEditor({
     return () => ro.disconnect()
   }, [])
 
+  // Toolbar width state (null = auto)
+  const [toolbarWidth, setToolbarWidth] = useState<number | null>(null)
+  const handleToolbarResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const startX = e.clientX
+    const startW = toolbarRef.current?.offsetWidth ?? 420
+    const onMove = (ev: MouseEvent) => {
+      setToolbarWidth(Math.max(280, startW + (ev.clientX - startX)))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
   // Drag state for floating toolbar
   const dragRef = useRef<{ dragging: boolean; offsetX: number; offsetY: number }>({ dragging: false, offsetX: 0, offsetY: 0 })
   const handleToolbarDragStart = useCallback((e: React.MouseEvent) => {
@@ -698,7 +716,10 @@ export default function UniversalEditor({
         <div
           ref={toolbarRef}
           className="universal-editor-toolbar"
-          style={focus && toolbarOpen ? { position: 'fixed', left: toolbarPos.x, top: toolbarPos.y } : undefined}
+          style={focus && toolbarOpen ? {
+            position: 'fixed', left: toolbarPos.x, top: toolbarPos.y,
+            ...(toolbarWidth !== null ? { width: toolbarWidth } : {}),
+          } : undefined}
         >
           {/* Drag header — only visible in focus mode toolbar */}
           {focus && toolbarOpen && (
@@ -973,6 +994,17 @@ export default function UniversalEditor({
           )}
 
           {/* (Fokus toggle is inside each toolbar row via the minimize button) */}
+
+          {/* Custom right-edge resize handle — active on full height of right border */}
+          {focus && toolbarOpen && (
+            <div
+              onMouseDown={handleToolbarResizeStart}
+              style={{
+                position: 'absolute', top: 0, right: 0, bottom: 0, width: 6,
+                cursor: 'ew-resize',
+              }}
+            />
+          )}
         </div>
       )}
 
@@ -996,7 +1028,7 @@ export default function UniversalEditor({
           onMouseEnter={() => { if (focus) setHoverOpen(true) }}
           onMouseLeave={() => { if (focus) setHoverOpen(false) }}
         />
-        <PageWrapper seitenformat={seitenformat} showShadow={showShadow}>
+        <PageWrapper className="page" seitenformat={seitenformat} showShadow={showShadow}>
           <EditorContent
             editor={editor}
             style={{ outline: 'none', minHeight: '100%' }}
