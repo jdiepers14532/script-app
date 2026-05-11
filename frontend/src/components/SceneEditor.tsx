@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2 } from 'lucide-react'
+import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
@@ -101,6 +101,53 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const { focus, setHoverOpen } = useFocus()
   const { t } = useTerminologie()
   const compact = compactProp ?? tweaks.sceneHeaderCompact
+
+  // Focus-mode: pin, drag, resize
+  const [focusPinned, setFocusPinned] = useState(false)
+  const [focusDragPos, setFocusDragPos] = useState<{ x: number; y: number } | null>(null)
+  const [focusWidth, setFocusWidth] = useState<number | null>(null)
+  const focusDragRef = useRef<{ dragging: boolean; offsetX: number; offsetY: number }>({ dragging: false, offsetX: 0, offsetY: 0 })
+  const detailRef = useRef<HTMLDivElement | null>(null)
+
+  // Reset drag/resize/pin state when leaving focus mode
+  useEffect(() => {
+    if (!focus) { setFocusPinned(false); setFocusDragPos(null); setFocusWidth(null) }
+  }, [focus])
+
+  const handleFocusDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    const el = detailRef.current
+    const startPos = focusDragPos ?? (el ? { x: el.getBoundingClientRect().left, y: el.getBoundingClientRect().top } : { x: window.innerWidth / 2 - 300, y: 8 })
+    focusDragRef.current = { dragging: true, offsetX: e.clientX - startPos.x, offsetY: e.clientY - startPos.y }
+    const onMove = (ev: MouseEvent) => {
+      if (!focusDragRef.current.dragging) return
+      setFocusDragPos({ x: ev.clientX - focusDragRef.current.offsetX, y: ev.clientY - focusDragRef.current.offsetY })
+    }
+    const onUp = () => {
+      focusDragRef.current.dragging = false
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [focusDragPos])
+
+  const handleFocusResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    const startX = e.clientX
+    const startW = detailRef.current?.offsetWidth ?? 500
+    const onMove = (ev: MouseEvent) => setFocusWidth(Math.max(320, startW + (ev.clientX - startX)))
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp) }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [])
+
+  const toggleFocusPin = useCallback(() => {
+    setFocusPinned(p => {
+      if (p) setHoverOpen(false) // unpinning → close panel
+      return !p
+    })
+  }, [setHoverOpen])
   const [scene, setScene] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
   const [saving, setSaving] = useState(false)
@@ -579,12 +626,49 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const contentTextelemente: any[] = Array.isArray(scene.content) ? scene.content : []
   const isNotiz = scene.format === 'notiz'
 
+  // Inline style overrides for focus-mode drag/resize
+  const focusStyle = focus && (focusDragPos || focusWidth) ? {
+    ...(focusDragPos ? { left: focusDragPos.x, top: focusDragPos.y } : {}),
+    ...(focusWidth ? { width: focusWidth } : {}),
+  } : undefined
+
   return (
     <div
+      ref={detailRef}
       className="detail"
+      style={focusStyle}
       onMouseEnter={() => { if (focus) setHoverOpen(true) }}
-      onMouseLeave={() => { if (focus) setHoverOpen(false) }}
+      onMouseLeave={() => { if (focus && !focusPinned) setHoverOpen(false) }}
     >
+      {/* Focus mode drag header */}
+      {focus && (
+        <div
+          onMouseDown={handleFocusDragStart}
+          style={{
+            display: 'flex', alignItems: 'center', padding: '4px 8px 4px 10px',
+            borderBottom: '1px solid var(--border)', cursor: 'grab', userSelect: 'none',
+            flexShrink: 0, background: 'var(--bg-surface)',
+          }}
+        >
+          <span style={{ flex: 1, fontSize: 10, color: 'var(--text-muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Szenenkopf</span>
+          <Tooltip text={focusPinned ? 'Lösen — schließt bei Mausverlassen' : 'Anheften — bleibt geöffnet'}>
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleFocusPin() }}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center', color: focusPinned ? 'var(--sw-green)' : 'var(--text-muted)', lineHeight: 1 }}
+            >
+              {focusPinned ? <Pin size={12} /> : <PinOff size={12} />}
+            </button>
+          </Tooltip>
+        </div>
+      )}
+      {/* Focus mode right-edge resize handle */}
+      {focus && (
+        <div
+          onMouseDown={handleFocusResizeStart}
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 6, cursor: 'ew-resize' }}
+        />
+      )}
       {/* Notiz header — template dropdown + label */}
       {isNotiz && (
         <NotizHeader scene={scene} produktionId={produktionId} onUpdate={(s) => { setScene(s); onSzeneUpdated?.(s) }} saveScene={saveScene} />

@@ -98,7 +98,10 @@ export function useFocusMode() {
   // Note: e.altKey alone is NOT AltGr (AltGr = e.altKey && e.ctrlKey simultaneously)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.altKey && !e.ctrlKey && !e.shiftKey && e.code === 'KeyZ') {
+      // KeyZ = physical Z position (US: 'Z', German: 'Y' label)
+      // KeyY = physical Y position (US: 'Y', German: 'Z' label)
+      // Both are accepted so Alt+Z works on QWERTY and QWERTZ keyboards
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && (e.code === 'KeyZ' || e.code === 'KeyY')) {
         e.preventDefault()
         toggle()
       } else if (e.key === 'Escape') {

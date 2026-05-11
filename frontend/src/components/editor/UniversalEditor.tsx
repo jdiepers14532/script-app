@@ -7,7 +7,7 @@ import {
   Info, ChevronDown, ChevronUp,
   Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
   AlignLeft, AlignCenter, AlignRight,
-  List, ListOrdered, ImageIcon, Maximize2, Minimize2, X as XIcon,
+  List, ListOrdered, ImageIcon, Maximize2, Minimize2, Pin, PinOff,
 } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -203,10 +203,17 @@ export default function UniversalEditor({
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
-  // Auto-close toolbar when opened via click and cursor moves > 50px away
+  // Toolbar pin state: button-open = pinned, click-open = not pinned
+  const [toolbarPinned, setToolbarPinned] = useState(false)
+  useEffect(() => {
+    if (toolbarOpenedVia === 'button') setToolbarPinned(true)
+    else if (toolbarOpenedVia === 'click') setToolbarPinned(false)
+  }, [toolbarOpenedVia])
+
+  // Auto-close toolbar when NOT pinned and cursor moves > 50px away
   const toolbarRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    if (!toolbarOpen || toolbarOpenedVia !== 'click') return
+    if (!toolbarOpen || toolbarPinned) return
     const handler = (e: MouseEvent) => {
       const el = toolbarRef.current
       if (!el) return
@@ -217,7 +224,7 @@ export default function UniversalEditor({
     }
     document.addEventListener('mousemove', handler)
     return () => document.removeEventListener('mousemove', handler)
-  }, [toolbarOpen, toolbarOpenedVia, setToolbarOpen])
+  }, [toolbarOpen, toolbarPinned, setToolbarOpen])
 
   // ResizeObserver: track .page element dimensions for focus-mode floating panels
   // --sw-focus-page-w        = page width (used by SceneEditor hover panel + toolbar)
@@ -731,12 +738,15 @@ export default function UniversalEditor({
               }}
             >
               <span style={{ flex: 1, fontSize: 10, color: '#6e6e73', letterSpacing: '0.04em', textTransform: 'uppercase' }}>Werkzeuge</span>
-              <button
-                onClick={() => setToolbarOpen(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6e6e73', padding: '2px 2px', display: 'flex', alignItems: 'center', lineHeight: 1 }}
-              >
-                <XIcon size={12} />
-              </button>
+              <Tooltip text={toolbarPinned ? 'Lösen — schließt bei Mausverlassen' : 'Anheften — bleibt geöffnet'}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setToolbarPinned(p => !p) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: toolbarPinned ? '#30d158' : '#6e6e73', padding: '2px 4px', display: 'flex', alignItems: 'center', lineHeight: 1 }}
+                >
+                  {toolbarPinned ? <Pin size={12} /> : <PinOff size={12} />}
+                </button>
+              </Tooltip>
             </div>
           )}
           {/* ── Row 1: Format Toolbar (Absatzformate / Screenplay types) ──── */}
