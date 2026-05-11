@@ -51,12 +51,15 @@ export function useFocusMode() {
       localStorage.setItem('sw-focus-mode', String(next))
       setDataAttr('data-mode', next ? 'focus' : 'normal')
       if (next) {
-        // Enter fullscreen
-        document.documentElement.requestFullscreen?.().then(() => {
-          fullscreenByFocus.current = true
-        }).catch(() => {})
+        if (!document.fullscreenElement) {
+          // Not already fullscreen — request it and remember we caused it
+          document.documentElement.requestFullscreen?.().then(() => {
+            fullscreenByFocus.current = true
+          }).catch(() => {})
+        }
+        // If already fullscreen: leave it as-is, fullscreenByFocus stays false
       } else {
-        // Exit fullscreen if we caused it
+        // Exit fullscreen only if we triggered it
         if (document.fullscreenElement && fullscreenByFocus.current) {
           fullscreenByFocus.current = false
           document.exitFullscreen?.()
@@ -90,11 +93,12 @@ export function useFocusMode() {
     return () => document.removeEventListener('fullscreenchange', onFSChange)
   }, [closeOverlays])
 
-  // F10 toggle focus | Escape exit focus
-  // Note: Ctrl+\ removed — German keyboards have no physical Backslash key (requires AltGr+ß)
+  // Alt+Z toggle focus | Escape exit focus
+  // Alt+Z: not taken by any browser, layout-independent (e.code), works on German keyboards
+  // Note: e.altKey alone is NOT AltGr (AltGr = e.altKey && e.ctrlKey simultaneously)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F10') {
+      if (e.altKey && !e.ctrlKey && !e.shiftKey && e.code === 'KeyZ') {
         e.preventDefault()
         toggle()
       } else if (e.key === 'Escape') {

@@ -853,7 +853,7 @@ export default function AppShell({
             <Bell size={14} />
           </button>
         </Tooltip>
-        <Tooltip text="Fokus-Modus (F10)" placement="bottom">
+        <Tooltip text={`Fokus-Modus (${isMac ? '⌥' : 'Alt'}+Z)`} placement="bottom">
           <button className="focus-toggle" onClick={toggle}>
             {focus ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
           </button>
@@ -882,7 +882,7 @@ export default function AppShell({
       </Tooltip>
 
       {/* Floating focus exit button — visible only when header is hidden (CSS-controlled) */}
-      <Tooltip text={`Fokus-Modus beenden\nF10 oder Esc`} placement="bottom">
+      <Tooltip text={`Fokus-Modus beenden\n${isMac ? '⌥' : 'Alt'}+Z oder Esc`} placement="bottom">
         <button className="focus-exit-btn" onClick={toggle}>
           <Maximize2 size={14} />
         </button>
