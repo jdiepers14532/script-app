@@ -36,7 +36,7 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
   }
   const rowStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '8px 0',
+    padding: '6px 0',
     borderBottom: '1px solid var(--border-subtle)',
     fontSize: 13,
   }
@@ -215,33 +215,33 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
             <div style={rowStyle}>
               <span style={labelStyle}>Dokument-Editor</span>
               <div className="seg">
-                <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={13} /></button></Tooltip>
-                <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={13} /></button></Tooltip>
-                <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={13} /></button></Tooltip>
+                <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={10} /></button></Tooltip>
+                <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={10} /></button></Tooltip>
+                <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={10} /></button></Tooltip>
               </div>
             </div>
 
             <div style={rowStyle}>
               <span style={labelStyle}>{t('szene', 'c')}kopf-Modus</span>
               <div className="seg">
-                <Tooltip text={`Ein ${t('szene', 'c')}kopf (aktuelle Fassung)`}><button className={tweaks.sceneEditorMode === 'single' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'single')}><Square size={13} /></button></Tooltip>
-                <Tooltip text={`Pro Panel ein ${t('szene', 'c')}kopf (Fassungsvergleich)`}><button className={tweaks.sceneEditorMode === 'mirror' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'mirror')}><Columns2 size={13} /></button></Tooltip>
+                <Tooltip text={`Ein ${t('szene', 'c')}kopf (aktuelle Fassung)`}><button className={tweaks.sceneEditorMode === 'single' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'single')}><Square size={10} /></button></Tooltip>
+                <Tooltip text={`Pro Panel ein ${t('szene', 'c')}kopf (Fassungsvergleich)`}><button className={tweaks.sceneEditorMode === 'mirror' ? 'on' : ''} onClick={() => set('sceneEditorMode', 'mirror')}><Columns2 size={10} /></button></Tooltip>
               </div>
             </div>
 
             <div style={rowStyle}>
               <span style={labelStyle}>{t('szene', 'c')}kopf</span>
               <div className="seg">
-                <Tooltip text="Alle Felder"><button className={!tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', false)}><Maximize2 size={13} /></button></Tooltip>
-                <Tooltip text="Kompakt (eine Zeile)"><button className={tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', true)}><Minimize2 size={13} /></button></Tooltip>
+                <Tooltip text="Alle Felder"><button className={!tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', false)}><Maximize2 size={10} /></button></Tooltip>
+                <Tooltip text="Kompakt (eine Zeile)"><button className={tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', true)}><Minimize2 size={10} /></button></Tooltip>
               </div>
             </div>
 
             <div style={rowStyle}>
               <span style={labelStyle}>Editor-Ansicht</span>
               <div className="seg">
-                <Tooltip text="Blatt mit Schatten"><button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)}><BookOpen size={13} /></button></Tooltip>
-                <Tooltip text="Fliesstext"><button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)}><AlignLeft size={13} /></button></Tooltip>
+                <Tooltip text="Blatt mit Schatten"><button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)}><BookOpen size={10} /></button></Tooltip>
+                <Tooltip text="Fliesstext"><button className={!tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', false)}><AlignLeft size={10} /></button></Tooltip>
               </div>
             </div>
 
