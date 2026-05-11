@@ -721,13 +721,32 @@ function parseSubSceneHeader(
   }
   if (i >= endIdx) return null
 
-  // Location — skip blanks; don't take character lists as ort_name
+  // INT/EXT (will be set below; defaults from parent)
+  let int_ext = parent.int_ext
+  let tageszeit = parent.tageszeit
+  let spieltag = parent.spieltag
+
+  // Location — skip blanks; don't take character lists as ort_name.
+  // bbox mode: location and INT/EXT code may be merged on one line:
+  // "Stu. 02 / Wohngemeinschaft I/T4"
   i = skipBlanks(lines, i)
   let ort_name = ''
   const locCandidate = lines[i]?.trim() || ''
   if (locCandidate && !DURATION_RE.test(locCandidate) &&
       !INT_EXT_SPIELTAG_RE.test(locCandidate) && !isCharacterLine(locCandidate)) {
-    ort_name = locCandidate
+    // Check if an INT/EXT code is embedded at end of the location line
+    const mergedM = locCandidate.match(/^(.*?)\s+([IE]\/[TNAD]\d+)$/)
+    if (mergedM) {
+      // Strip optional "Stu. NN /" studio prefix, keep just the set name
+      ort_name = mergedM[1].replace(/^Stu\.\s*\d+\s*\/\s*/i, '').trim()
+      const parsed = parseIntExtCode(mergedM[2])
+      int_ext = parsed.int_ext
+      tageszeit = parsed.tageszeit
+      spieltag = parsed.spieltag
+    } else {
+      // Strip "Stu. NN /" prefix even without embedded INT/EXT
+      ort_name = locCandidate.replace(/^Stu\.\s*\d+\s*\/\s*/i, '').trim()
+    }
     i++
   }
 
@@ -739,11 +758,8 @@ function parseSubSceneHeader(
     i++
   }
 
-  // INT/EXT
+  // INT/EXT (explicit line overrides inline value parsed above)
   i = skipBlanks(lines, i)
-  let int_ext = parent.int_ext
-  let tageszeit = parent.tageszeit
-  let spieltag = parent.spieltag
   if (i < endIdx && INT_EXT_SPIELTAG_RE.test(lines[i]?.trim() || '')) {
     const parsed = parseIntExtCode(lines[i].trim())
     int_ext = parsed.int_ext

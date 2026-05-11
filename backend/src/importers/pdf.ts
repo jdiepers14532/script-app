@@ -124,6 +124,16 @@ export function extractBboxLayout(buffer: Buffer, crop?: PdftextCropOptions): Bb
   }
 }
 
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
+}
+
 function parseBboxHtml(html: string, crop?: PdftextCropOptions): BboxLayout | null {
   // Parse page dimensions from first <page> element
   const pageMatch = html.match(/<page width="([\d.]+)" height="([\d.]+)"/)
@@ -151,7 +161,7 @@ function parseBboxHtml(html: string, crop?: PdftextCropOptions): BboxLayout | nu
     while ((m = wordRe.exec(pageBlocks[pi])) !== null) {
       const xMin = parseFloat(m[1]), yMin = parseFloat(m[2])
       const xMax = parseFloat(m[3]), yMax = parseFloat(m[4])
-      const text = m[5].trim()
+      const text = decodeHtmlEntities(m[5]).trim()
       if (!text) continue
       // Apply crop filter (only when crop is specified)
       if ((left > 0 || right > 0) && (xMin < xOffset || xMax > cropMaxX)) continue
