@@ -159,6 +159,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   sceneEditorMode: 'single',
   spellcheck: 'off',
   showLineNumbers: false,
+  lineNumberMarginCm: 1,
   showReplikNumbers: false,
   keyboardLayout: 'qwertz',  // German app default — QWERTZ
   spellcheckLang: 'de-DE',
@@ -503,6 +504,7 @@ export default function AppShell({
           showTooltips:      typeof s.showTooltips === 'boolean' ? s.showTooltips : true,
           spellcheck:        s.spellcheck ?? prev.spellcheck,
           showLineNumbers:   typeof s.showLineNumbers === 'boolean' ? s.showLineNumbers : false,
+          lineNumberMarginCm: typeof s.lineNumberMarginCm === 'number' ? s.lineNumberMarginCm : 1,
           showReplikNumbers: typeof s.showReplikNumbers === 'boolean' ? s.showReplikNumbers : false,
           keyboardLayout:    s.keyboardLayout ?? 'qwertz',
           spellcheckLang:    s.spellcheckLang ?? 'de-DE',

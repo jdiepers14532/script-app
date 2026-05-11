@@ -19,6 +19,8 @@ import {
   ProductionContext,
   AppSettingsContext,
   DEFAULT_KUERZEL,
+  LN_SETTINGS_DEFAULTS,
+  type LnSettings,
 } from './contexts'
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 import { TerminologieProvider, TERM_DEFAULTS } from './sw-ui'
@@ -32,6 +34,7 @@ export default function App() {
   const [figurenLabel, setFigurenLabel] = useState('Rollen')
   const [sceneEnvColors, setSceneEnvColors] = useState<Record<string, any> | null>(null)
   const [terminologie, setTerminologie] = useState<TerminologieConfig>({ ...TERM_DEFAULTS })
+  const [lnSettings, setLnSettings] = useState<LnSettings>(LN_SETTINGS_DEFAULTS)
 
   useEffect(() => {
     const loadSettings = () => {
@@ -59,6 +62,9 @@ export default function App() {
           if (data?.terminologie) {
             try { setTerminologie({ ...TERM_DEFAULTS, ...JSON.parse(data.terminologie) }) } catch {}
           }
+          if (data?.ln_settings) {
+            try { setLnSettings({ ...LN_SETTINGS_DEFAULTS, ...JSON.parse(data.ln_settings) }) } catch {}
+          }
         })
         .catch(() => {})
     }
@@ -69,7 +75,7 @@ export default function App() {
 
   return (
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>

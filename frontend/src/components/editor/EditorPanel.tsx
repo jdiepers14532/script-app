@@ -278,6 +278,7 @@ export default function EditorPanel({
               onNavigateNext={onNavigateNext}
               onNavigatePrev={onNavigatePrev}
               showLineNumbers={tweaks.showLineNumbers}
+              lineNumberMarginCm={tweaks.lineNumberMarginCm}
               showReplikNumbers={tweaks.showReplikNumbers}
               replikOffset={currentReplikOffset}
               replikBaseline={replikBaseline}

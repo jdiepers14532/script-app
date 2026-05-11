@@ -27,10 +27,10 @@ import { SearchHighlightExtension } from '../../tiptap/SearchHighlightExtension'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
-import { useUserPrefs, useFocus } from '../../contexts'
+import { useUserPrefs, useFocus, useAppSettings } from '../../contexts'
 // Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
-import { createLineNumberPlugin, lineNumberPluginKey, LINE_NUMBER_CSS } from '../../tiptap/LineNumberPlugin'
+import { createLineNumberPlugin, lineNumberPluginKey, generateLineNumberCSS } from '../../tiptap/LineNumberPlugin'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 
 // ── Platform detection ──────────────────────────────────────────────────────
@@ -60,14 +60,24 @@ function injectScreenplayCSS() {
   spCssInjected = true
 }
 
-let gutterCssInjected = false
-function injectGutterCSS() {
-  if (gutterCssInjected) return
-  gutterCssInjected = true
+let replikCssInjected = false
+function injectReplikCSS() {
+  if (replikCssInjected) return
+  replikCssInjected = true
   const style = document.createElement('style')
-  style.id = 'gutter-css'
-  style.textContent = LINE_NUMBER_CSS + REPLIK_NUMBER_CSS
+  style.id = 'replik-css'
+  style.textContent = REPLIK_NUMBER_CSS
   document.head.appendChild(style)
+}
+
+function updateLineNumberCSS(opts: { fontFamily: string; fontSizePt: number; color: string; marginCm: number }) {
+  let style = document.getElementById('line-number-css') as HTMLStyleElement | null
+  if (!style) {
+    style = document.createElement('style')
+    style.id = 'line-number-css'
+    document.head.appendChild(style)
+  }
+  style.textContent = generateLineNumberCSS(opts)
 }
 
 // ── Constants ───────────────────────────────────────────────────────────────
@@ -167,6 +177,7 @@ interface UniversalEditorProps {
   onNavigateNext?: () => void
   onNavigatePrev?: () => void
   showLineNumbers?: boolean
+  lineNumberMarginCm?: number
   showReplikNumbers?: boolean
   replikOffset?: number
   replikBaseline?: any[] | null
@@ -192,6 +203,7 @@ export default function UniversalEditor({
   onNavigateNext,
   onNavigatePrev,
   showLineNumbers = false,
+  lineNumberMarginCm = 1,
   showReplikNumbers = false,
   replikOffset = 0,
   replikBaseline = null,
@@ -200,7 +212,7 @@ export default function UniversalEditor({
   injectScreenplayCSS()
   loadCourierPrime()
   injectLTCSS()
-  injectGutterCSS()
+  injectReplikCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
@@ -414,11 +426,20 @@ export default function UniversalEditor({
   }, [editor, readOnly])
 
   // ── Line number plugin (register/unregister based on toggle) ──────────────
+  const { lnSettings } = useAppSettings()
+  const effectiveLn = {
+    fontFamily: lnSettings.fontFamily,
+    fontSizePt: lnSettings.fontSizePt,
+    color: lnSettings.color,
+    marginCm: lineNumberMarginCm,
+  }
+
   useEffect(() => {
     if (!editor) return
     try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
     const el = editor.view.dom as HTMLElement
     if (showLineNumbers) {
+      updateLineNumberCSS(effectiveLn)
       try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
       el.classList.add('has-line-numbers')
     } else {
@@ -428,7 +449,7 @@ export default function UniversalEditor({
       try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
       el.classList.remove('has-line-numbers')
     }
-  }, [editor, showLineNumbers])
+  }, [editor, showLineNumbers, lineNumberMarginCm, lnSettings])
 
   // ── Replik number plugin ──────────────────────────────────────────────────
   useEffect(() => {

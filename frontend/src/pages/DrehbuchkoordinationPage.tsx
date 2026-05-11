@@ -1593,21 +1593,55 @@ function BenachrichtigungenTab() {
 
 // ── Tab: Dokument-Einstellungen ──────────────────────────────────────────────────
 
+const LN_FONT_OPTIONS = [
+  { label: 'Courier Prime', value: "'Courier Prime', 'Courier New', monospace" },
+  { label: 'Courier New', value: "'Courier New', monospace" },
+  { label: 'Inter', value: "'Inter', system-ui, sans-serif" },
+  { label: 'Arial', value: "Arial, sans-serif" },
+]
+
 function DokumentEinstellungenTab() {
+  const { selectedProduction } = useSelectedProduction()
+  const produktionId = selectedProduction?.id ?? null
   const [overrideRollen, setOverrideRollen] = useState<string[]>([])
   const [numModus, setNumModus] = useState<'global' | 'per_typ'>('global')
   const [newRolle, setNewRolle] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
 
+  // Line number settings
+  const [lnFont, setLnFont] = useState("'Courier Prime', 'Courier New', monospace")
+  const [lnSize, setLnSize] = useState(10)
+  const [lnColor, setLnColor] = useState('#999999')
+  const [lnMargin, setLnMargin] = useState(1)
+
   useEffect(() => {
     api.getOverrideRollen().then((d: any) => setOverrideRollen(d.rollen ?? [])).catch(() => {})
     api.getFassungsNummerierung().then((d: any) => setNumModus((d.modus ?? 'global') as 'global' | 'per_typ')).catch(() => {})
-  }, [])
+    if (produktionId) {
+      api.getDkAppSettings(produktionId).then((data: any) => {
+        if (data?.ln_settings) {
+          try {
+            const s = JSON.parse(data.ln_settings)
+            if (s.fontFamily) setLnFont(s.fontFamily)
+            if (typeof s.fontSizePt === 'number') setLnSize(s.fontSizePt)
+            if (s.color) setLnColor(s.color)
+            if (typeof s.marginCm === 'number') setLnMargin(s.marginCm)
+          } catch {}
+        }
+      }).catch(() => {})
+    }
+  }, [produktionId])
 
   const handleSave = async () => {
     try {
       await api.updateOverrideRollen(overrideRollen)
       await api.updateFassungsNummerierung(numModus)
+      if (produktionId) {
+        await api.updateDkAppSetting(produktionId, 'ln_settings', JSON.stringify({
+          fontFamily: lnFont, fontSizePt: lnSize, color: lnColor, marginCm: lnMargin,
+        }))
+        window.dispatchEvent(new Event('app-settings-changed'))
+      }
       setMsg('Gespeichert.')
     } catch (e: any) { setMsg(e.message) }
   }
@@ -1664,6 +1698,56 @@ function DokumentEinstellungenTab() {
             </span>
           ))}
           {overrideRollen.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Override-Rollen.</span>}
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Zeilennummern (Standard-Einstellungen)</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          Standard-Darstellung der Zeilennummern fuer alle Nutzer dieser Produktion.
+          Nutzer koennen den Abstand in ihren Ansichts-Einstellungen individuell ueberschreiben.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+          <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Schriftart</span>
+            <select value={lnFont} onChange={e => setLnFont(e.target.value)}
+              style={{ fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)' }}>
+              {LN_FONT_OPTIONS.map(f => (
+                <option key={f.value} value={f.value}>{f.label}</option>
+              ))}
+            </select>
+          </label>
+
+          <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Groesse (pt)</span>
+            <input type="number" min={6} max={16} step={1} value={lnSize}
+              onChange={e => setLnSize(Math.max(6, Math.min(16, parseInt(e.target.value) || 10)))}
+              style={{ width: 60, fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', textAlign: 'center' }} />
+          </label>
+
+          <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Farbe</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="color" value={lnColor} onChange={e => setLnColor(e.target.value)}
+                style={{ width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: 0, background: 'none' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{lnColor}</span>
+            </div>
+          </label>
+
+          <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Abstand vom Textrand (cm)</span>
+            <input type="number" min={0.5} max={3} step={0.1} value={lnMargin}
+              onChange={e => setLnMargin(Math.max(0.5, Math.min(3, parseFloat(e.target.value) || 1)))}
+              style={{ width: 60, fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', textAlign: 'center' }} />
+          </label>
+        </div>
+
+        <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vorschau:</span>
+          <div style={{ marginTop: 6, fontFamily: lnFont, fontSize: `${lnSize}pt`, color: lnColor }}>
+            5 &nbsp;&nbsp; 10 &nbsp;&nbsp; 15 &nbsp;&nbsp; 20
+          </div>
         </div>
       </section>
 

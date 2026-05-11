@@ -63,7 +63,7 @@ router.put('/:productionId/app-settings/:key',
       const { productionId, key } = req.params
       const { value } = req.body
       if (!value) return res.status(400).json({ error: 'value required' })
-      const allowed = ['treatment_label', 'scene_kuerzel', 'scene_logging_stage', 'figuren_label', 'scene_env_colors', 'scene_env_colors_dark', 'statistik_modal_config', 'seitenformat', 'terminologie', 'daily_regeln', 'stockshot_suffix', 'stimmung_config']
+      const allowed = ['treatment_label', 'scene_kuerzel', 'scene_logging_stage', 'figuren_label', 'scene_env_colors', 'scene_env_colors_dark', 'statistik_modal_config', 'seitenformat', 'terminologie', 'daily_regeln', 'stockshot_suffix', 'stimmung_config', 'ln_settings']
       if (!allowed.includes(key)) return res.status(400).json({ error: 'Unknown setting' })
       await pool.query(
         `INSERT INTO production_app_settings (production_id, key, value, updated_at)

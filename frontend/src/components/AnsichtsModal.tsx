@@ -159,9 +159,28 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
 
             <div style={rowStyle}>
               <span style={labelStyle}>Zeilennummern</span>
-              <div className="seg">
-                <Tooltip text="Zeilennummern im Editor anzeigen"><button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button></Tooltip>
-                <Tooltip text="Zeilennummern ausblenden"><button className={!tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', false)}>Aus</button></Tooltip>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div className="seg">
+                  <Tooltip text="Zeilennummern im Editor anzeigen"><button className={tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', true)}>An</button></Tooltip>
+                  <Tooltip text="Zeilennummern ausblenden"><button className={!tweaks.showLineNumbers ? 'on' : ''} onClick={() => set('showLineNumbers', false)}>Aus</button></Tooltip>
+                </div>
+                {tweaks.showLineNumbers && (
+                  <Tooltip text="Abstand vom Textrand (cm)">
+                    <input
+                      type="number"
+                      min={0.5}
+                      max={3}
+                      step={0.1}
+                      value={tweaks.lineNumberMarginCm}
+                      onChange={e => set('lineNumberMarginCm', Math.max(0.5, Math.min(3, parseFloat(e.target.value) || 1)))}
+                      style={{
+                        width: 52, fontSize: 12, padding: '3px 6px', borderRadius: 6,
+                        border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                        color: 'var(--text-primary)', textAlign: 'center',
+                      }}
+                    />
+                  </Tooltip>
+                )}
               </div>
             </div>
 

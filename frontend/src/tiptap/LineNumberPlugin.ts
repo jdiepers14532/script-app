@@ -55,9 +55,29 @@ function buildLineDecorations(doc: any): DecorationSet {
   return DecorationSet.create(doc, decos)
 }
 
-export const LINE_NUMBER_CSS = `
+export interface LineNumberSettings {
+  fontFamily: string
+  fontSizePt: number
+  color: string
+  marginCm: number
+}
+
+export const LN_DEFAULTS: LineNumberSettings = {
+  fontFamily: "'Courier Prime', 'Courier New', monospace",
+  fontSizePt: 10,
+  color: '#999999',
+  marginCm: 1,
+}
+
+/**
+ * Generate dynamic CSS for line numbers based on settings.
+ * marginCm = distance from the left edge of text to the right edge of the number column.
+ */
+export function generateLineNumberCSS(opts: LineNumberSettings): string {
+  const gutterWidthCm = opts.marginCm + 0.3 // extra gap between number and text
+  return `
 .ProseMirror.has-line-numbers {
-  padding-left: 48px !important;
+  padding-left: ${gutterWidthCm}cm !important;
 }
 .pm-ln-wrap {
   height: 0;
@@ -71,15 +91,15 @@ export const LINE_NUMBER_CSS = `
 }
 .pm-ln {
   position: absolute;
-  left: -44px;
+  left: -${gutterWidthCm}cm;
   top: 2px;
   display: block;
-  width: 32px;
+  width: ${opts.marginCm}cm;
   text-align: right;
-  font-family: 'Courier Prime', 'Courier New', monospace;
-  font-size: 10px;
+  font-family: ${opts.fontFamily};
+  font-size: ${opts.fontSizePt}pt;
   line-height: 1;
-  color: var(--text-primary);
-  opacity: 0.35;
+  color: ${opts.color};
 }
 `
+}
