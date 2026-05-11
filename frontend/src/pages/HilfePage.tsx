@@ -126,7 +126,7 @@ function DokumentEditorHilfeTab() {
       <Section title="1. Dokument-System (Folgen-Dokumente)">
         <div style={{ fontSize: 12, lineHeight: 1.7, color: C.muted }}>
           <p style={{ marginBottom: 8 }}>
-            Jede Folge kann mehrere <strong>Dokument-Typen</strong> haben: Drehbuch, Storyline, Notiz, Abstrakt sowie
+            Jede Folge kann mehrere <strong>Absatzformat-Vorlagen</strong> haben: Drehbuch, Storyline, Notiz, Abstrakt sowie
             admin-definierte Custom-Typen. Jeder Typ hat exakt ein Dokument pro Folge.
           </p>
           <p style={{ marginBottom: 8 }}>

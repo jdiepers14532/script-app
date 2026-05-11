@@ -17,7 +17,7 @@ const DK_TABS = [
   { id: 'produktion',            label: 'Produktion' },
   { id: 'export-vorlagen',       label: 'Export-Vorlagen' },
   { id: 'lock-regeln',           label: 'Lock-Regeln' },
-  { id: 'dokument-typen',        label: 'Dokument-Typen' },
+  { id: 'dokument-typen',        label: 'Absatzformat-Vorlagen' },
   { id: 'colab-gruppen',         label: 'Colab-Gruppen' },
   { id: 'format-templates',      label: 'Format-Templates' },
   { id: 'benachrichtigungen',    label: 'Benachrichtigungen' },
