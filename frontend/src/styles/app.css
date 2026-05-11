@@ -214,12 +214,61 @@
 .nav .item.active { background:var(--bg-active); color:var(--text-primary); font-weight:500; }
 .nav .item .i { width:16px; height:16px; flex:0 0 16px; color:currentColor; }
 .nav .item .count { margin-left:auto; font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
-/* Focus mode: hide scene list content (handle/collapse-btn stays visible), scene editor, header rows, toolbar */
-[data-mode='focus'] .scene-list-sidebar { display: none !important; }
+/* ── Focus mode overlays ─────────────────────────────────────────────────── */
+
+/* Handle wider + hover-hint in focus mode */
+[data-mode='focus'] .scene-list-handle { width: 24px; cursor: default; }
+[data-mode='focus'] .scene-list-handle:hover::before { background: var(--sw-info); opacity: 0.5; }
+
+/* SceneEditor: hidden by default in focus mode; shows as floating panel on hover */
 [data-mode='focus'] .detail { display: none !important; }
+[data-focus-hover='true'][data-mode='focus'] .detail {
+  display: flex !important;
+  flex-direction: column;
+  position: fixed;
+  left: 28px;
+  top: 8px;
+  width: 360px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  z-index: 5000;
+}
+
+/* Editor toolbar: hidden by default in focus mode; shows as floating dark panel on Ctrl+Click */
 [data-mode='focus'] .editor-panel-header { display: none !important; }
 [data-mode='focus'] .editor-last-edited { display: none !important; }
 [data-mode='focus'] .universal-editor-toolbar { display: none !important; }
+[data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar {
+  display: flex !important;
+  flex-direction: column;
+  position: fixed;
+  left: 28px;
+  top: 8px;
+  max-width: calc(100vw - 60px);
+  background: #1c1c1e;
+  border: 1px solid #3a3a3c;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+  z-index: 5001;
+  overflow: hidden;
+  color: #e5e5ea;
+}
+[data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar button {
+  color: #aeaeb2;
+}
+[data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar button:hover {
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+}
+[data-focus-toolbar='true'][data-mode='focus'] .universal-editor-toolbar select {
+  background: #2c2c2e;
+  color: #e5e5ea;
+  border-color: #3a3a3c;
+}
 
 /* Focus mode: icon-only nav */
 [data-mode='focus'] .nav { padding:8px 4px; }

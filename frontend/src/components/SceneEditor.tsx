@@ -4,7 +4,7 @@ import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2 } from 'lu
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
-import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks } from '../contexts'
+import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 
 interface SceneEditorProps {
@@ -98,6 +98,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const { treatmentLabel } = useAppSettings()
   const { scrollNavDelay } = useUserPrefs()
   const { tweaks } = useTweaks()
+  const { focus, setHoverOpen } = useFocus()
   const { t } = useTerminologie()
   const compact = compactProp ?? tweaks.sceneHeaderCompact
   const [scene, setScene] = useState<any | null>(null)
@@ -579,7 +580,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const isNotiz = scene.format === 'notiz'
 
   return (
-    <div className="detail">
+    <div className="detail" onMouseLeave={() => { if (focus) setHoverOpen(false) }}>
       {/* Notiz header — template dropdown + label */}
       {isNotiz && (
         <NotizHeader scene={scene} produktionId={produktionId} onUpdate={(s) => { setScene(s); onSzeneUpdated?.(s) }} saveScene={saveScene} />

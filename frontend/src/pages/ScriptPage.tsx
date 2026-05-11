@@ -217,7 +217,7 @@ const DEFAULT_WIDTH = 276
 
 export default function ScriptPage() {
   const { t } = useTerminologie()
-  const { focus } = useFocus()
+  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen } = useFocus()
   const { selectedProduction, productions, loading } = useSelectedProduction()
   const [bloecke, setBloecke] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
@@ -287,6 +287,10 @@ export default function ScriptPage() {
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isDragging = useRef(false)
+  // Track sidebar state before entering focus mode so it can be restored on exit
+  const sidebarCollapsedRef = useRef(sidebarCollapsed)
+  sidebarCollapsedRef.current = sidebarCollapsed
+  const prevSidebarCollapseRef = useRef(false)
   const dragStartX = useRef(0)
   const dragStartWidth = useRef(0)
   // Holds saved nav values during initial cascading restore; cleared after use
@@ -350,6 +354,17 @@ export default function ScriptPage() {
       setSettingsLoaded(true)
     }).catch(() => setSettingsLoaded(true))
   }, [deepLink, refreshKey])
+
+  // Collapse sidebar on focus-mode enter; restore on exit
+  useEffect(() => {
+    if (!settingsLoaded) return
+    if (focus) {
+      prevSidebarCollapseRef.current = sidebarCollapsedRef.current
+      setSidebarCollapsed(true)
+    } else {
+      setSidebarCollapsed(prevSidebarCollapseRef.current)
+    }
+  }, [focus, settingsLoaded])
 
   // Debounced save layout to backend
   const saveSettings = useCallback((collapsed: boolean) => {
@@ -651,7 +666,20 @@ export default function ScriptPage() {
         )}
 
         {/* Drag handle + collapse arrow */}
-        <div className="scene-list-handle" onMouseDown={!sidebarCollapsed ? onDragStart : undefined}>
+        <div
+          className="scene-list-handle"
+          onMouseDown={(e) => {
+            if (focus && e.ctrlKey) {
+              e.preventDefault()
+              e.stopPropagation()
+              setToolbarOpen(!toolbarOpen)
+              return
+            }
+            if (!sidebarCollapsed) onDragStart(e)
+          }}
+          onMouseEnter={() => { if (focus) setHoverOpen(true) }}
+          onMouseLeave={() => { if (focus) setHoverOpen(false) }}
+        >
           <button
             className="scene-list-collapse-btn"
             onClick={toggleCollapse}

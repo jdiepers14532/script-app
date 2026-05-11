@@ -27,7 +27,7 @@ import { SearchHighlightExtension } from '../../tiptap/SearchHighlightExtension'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
-import { useUserPrefs } from '../../contexts'
+import { useUserPrefs, useFocus } from '../../contexts'
 import { createLineNumberPlugin, lineNumberPluginKey, LINE_NUMBER_CSS } from '../../tiptap/LineNumberPlugin'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 
@@ -201,6 +201,7 @@ export default function UniversalEditor({
   injectGutterCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
+  const { toolbarOpen, setToolbarOpen } = useFocus()
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onSaveRef = useRef(onSave)
@@ -636,7 +637,10 @@ export default function UniversalEditor({
       />
 
       {!readOnly && (
-        <div className="universal-editor-toolbar">
+        <div
+          className="universal-editor-toolbar"
+          onMouseLeave={() => { if (toolbarOpen) setToolbarOpen(false) }}
+        >
           {/* ── Row 1: Format Toolbar (Absatzformate / Screenplay types) ──── */}
           {toolbarPrefs.formatBar && (
             <div style={{

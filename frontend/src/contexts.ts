@@ -5,10 +5,18 @@ import type { Production } from './hooks/useProduction'
 interface FocusContextValue {
   focus: boolean
   toggle: () => void
+  hoverOpen: boolean
+  setHoverOpen: (v: boolean) => void
+  toolbarOpen: boolean
+  setToolbarOpen: (v: boolean) => void
 }
 export const FocusContext = createContext<FocusContextValue>({
   focus: false,
   toggle: () => {},
+  hoverOpen: false,
+  setHoverOpen: () => {},
+  toolbarOpen: false,
+  setToolbarOpen: () => {},
 })
 export function useFocus() {
   return useContext(FocusContext)

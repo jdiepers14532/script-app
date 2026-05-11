@@ -1,22 +1,46 @@
 import { useState, useEffect, useCallback } from 'react'
 
+function setDataAttr(key: string, val: string) {
+  document.documentElement.setAttribute(key, val)
+}
+
 export function useFocusMode() {
   const [focus, setFocus] = useState<boolean>(() => {
     return localStorage.getItem('sw-focus-mode') === 'true'
   })
+  const [hoverOpen, setHoverOpenState] = useState(false)
+  const [toolbarOpen, setToolbarOpenState] = useState(false)
+
+  const setHoverOpen = useCallback((v: boolean) => {
+    setHoverOpenState(v)
+    setDataAttr('data-focus-hover', v ? 'true' : 'false')
+  }, [])
+
+  const setToolbarOpen = useCallback((v: boolean) => {
+    setToolbarOpenState(v)
+    setDataAttr('data-focus-toolbar', v ? 'true' : 'false')
+  }, [])
+
+  const closeOverlays = useCallback(() => {
+    setHoverOpenState(false)
+    setToolbarOpenState(false)
+    setDataAttr('data-focus-hover', 'false')
+    setDataAttr('data-focus-toolbar', 'false')
+  }, [])
 
   const toggle = useCallback(() => {
     setFocus(f => {
       const next = !f
       localStorage.setItem('sw-focus-mode', String(next))
-      document.documentElement.setAttribute('data-mode', next ? 'focus' : 'normal')
+      setDataAttr('data-mode', next ? 'focus' : 'normal')
+      if (!next) closeOverlays()
       return next
     })
-  }, [])
+  }, [closeOverlays])
 
   // Set initial data-mode attribute
   useEffect(() => {
-    document.documentElement.setAttribute('data-mode', focus ? 'focus' : 'normal')
+    setDataAttr('data-mode', focus ? 'focus' : 'normal')
   }, [focus])
 
   // F10 toggle / Escape exit
@@ -29,14 +53,15 @@ export function useFocusMode() {
         setFocus(f => {
           if (!f) return f
           localStorage.setItem('sw-focus-mode', 'false')
-          document.documentElement.setAttribute('data-mode', 'normal')
+          setDataAttr('data-mode', 'normal')
+          closeOverlays()
           return false
         })
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [toggle])
+  }, [toggle, closeOverlays])
 
-  return { focus, toggle }
+  return { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen }
 }
