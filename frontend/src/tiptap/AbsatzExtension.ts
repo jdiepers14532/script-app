@@ -85,14 +85,24 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
     const getFormatById = (id: string | null) =>
       id ? this.options.formate.find(f => f.id === id) : null
 
-    // Build Alt+1 through Alt+9 shortcuts for format selection
+    // Build Alt+1 through Alt+9 shortcuts for format selection.
+    // Works on both 'absatz' nodes (updateAttributes) and plain 'paragraph' nodes
+    // (setNode converts them). Use a copy of formate to avoid mutating the options array.
     const altShortcuts: Record<string, () => boolean> = {}
     for (let i = 1; i <= 9; i++) {
       altShortcuts[`Alt-${i}`] = () => {
-        const fmt = this.options.formate.sort((a, b) => a.sort_order - b.sort_order)[i - 1]
+        const fmt = [...this.options.formate].sort((a, b) => a.sort_order - b.sort_order)[i - 1]
         if (!fmt) return false
+        const { $from } = this.editor.state.selection
+        const nodeType = $from.node().type.name
+        if (nodeType === 'absatz') {
+          return this.editor.chain()
+            .updateAttributes('absatz', { format_id: fmt.id, format_name: fmt.name })
+            .run()
+        }
+        // paragraph or other block: convert to absatz node
         return this.editor.chain()
-          .updateAttributes('absatz', { format_id: fmt.id, format_name: fmt.name })
+          .setNode('absatz', { format_id: fmt.id, format_name: fmt.name })
           .run()
       }
     }

@@ -10,7 +10,7 @@ import {
   List, ListOrdered, ImageIcon, Maximize2, Minimize2, Pin, PinOff,
 } from 'lucide-react'
 import Tooltip from '../Tooltip'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, Extension } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
@@ -37,6 +37,19 @@ import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/Replik
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? '\u2318' : 'Ctrl'
 const altKey = isMac ? '\u2325' : 'Alt'
+const shiftKey = 'Shift'
+
+// ── Alignment keyboard shortcuts (Mod+Shift+L/E/R, mirrors MS Word) ─────────
+const AlignmentShortcuts = Extension.create({
+  name: 'alignmentShortcuts',
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Shift-l': () => this.editor.chain().focus().setTextAlign('left').run(),
+      'Mod-Shift-e': () => this.editor.chain().focus().setTextAlign('center').run(),
+      'Mod-Shift-r': () => this.editor.chain().focus().setTextAlign('right').run(),
+    }
+  },
+})
 
 // ── Courier Prime font ──────────────────────────────────────────────────────
 let fontLoaded = false
@@ -402,6 +415,7 @@ export default function UniversalEditor({
       Image.configure({ inline: false, allowBase64: true }),
       ScreenplayExtension.configure({ formatElements }),
       AbsatzExtension.configure({ formate: relevantFormats }),
+      AlignmentShortcuts,
       AnnotationMark,
       SearchHighlightExtension,
       Placeholder.configure({
@@ -882,21 +896,21 @@ export default function UniversalEditor({
               <ToolbarBtn
                 active={editor.isActive({ textAlign: 'left' })}
                 onClick={() => editor.chain().focus().setTextAlign('left').run()}
-                tooltip="Linksbuendig"
+                tooltip={`Linksbuendig (${modKey}+${shiftKey}+L)`}
               >
                 <AlignLeft size={13} />
               </ToolbarBtn>
               <ToolbarBtn
                 active={editor.isActive({ textAlign: 'center' })}
                 onClick={() => editor.chain().focus().setTextAlign('center').run()}
-                tooltip="Zentriert"
+                tooltip={`Zentriert (${modKey}+${shiftKey}+E)`}
               >
                 <AlignCenter size={13} />
               </ToolbarBtn>
               <ToolbarBtn
                 active={editor.isActive({ textAlign: 'right' })}
                 onClick={() => editor.chain().focus().setTextAlign('right').run()}
-                tooltip="Rechtsbuendig"
+                tooltip={`Rechtsbuendig (${modKey}+${shiftKey}+R)`}
               >
                 <AlignRight size={13} />
               </ToolbarBtn>
