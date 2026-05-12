@@ -1,0 +1,126 @@
+import { Node, mergeAttributes } from '@tiptap/core'
+import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
+import type { NodeViewProps } from '@tiptap/react'
+import { useRef, useState } from 'react'
+
+// ── TypeScript augmentation ───────────────────────────────────────────────────
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    resizableImage: {
+      setResizableImage: (attrs: { src: string; alt?: string; width?: number }) => ReturnType
+    }
+  }
+}
+
+// ── NodeView — renders image with drag-to-resize handle ───────────────────────
+function ResizableImageNodeView({ node, updateAttributes, selected }: NodeViewProps) {
+  const { src, alt, width } = node.attrs
+  const [resizing, setResizing] = useState(false)
+  const startData = useRef({ x: 0, w: 0 })
+  const w = Number(width) || 120
+
+  const onResizeStart = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setResizing(true)
+    startData.current = { x: e.clientX, w }
+
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startData.current.x
+      const newW = Math.max(24, Math.min(800, Math.round(startData.current.w + delta)))
+      updateAttributes({ width: newW })
+    }
+    const onUp = () => {
+      setResizing(false)
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <NodeViewWrapper
+      as="span"
+      contentEditable={false}
+      style={{ display: 'inline-block', position: 'relative', verticalAlign: 'middle', cursor: 'default' }}
+    >
+      <img
+        src={src}
+        alt={alt || ''}
+        style={{
+          width: w,
+          maxWidth: '100%',
+          display: 'block',
+          outline: selected ? '2px solid #007AFF' : '1px solid transparent',
+          outlineOffset: 2,
+        }}
+        draggable={false}
+      />
+      {/* Resize handle — bottom-right corner, always visible on select */}
+      <span
+        onMouseDown={onResizeStart}
+        style={{
+          position: 'absolute', right: -5, bottom: -5,
+          width: 10, height: 10,
+          background: selected || resizing ? '#007AFF' : '#bbb',
+          border: '2px solid #fff',
+          borderRadius: 2,
+          cursor: 'se-resize',
+          display: selected || resizing ? 'block' : 'none',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+        }}
+      />
+      {resizing && (
+        <span style={{
+          position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
+          background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10,
+          padding: '2px 6px', borderRadius: 3, pointerEvents: 'none', whiteSpace: 'nowrap',
+        }}>
+          {w}px
+        </span>
+      )}
+    </NodeViewWrapper>
+  )
+}
+
+// ── Tiptap Node extension ─────────────────────────────────────────────────────
+export const ResizableImageExtension = Node.create({
+  name: 'resizable_image',
+  group: 'inline',
+  inline: true,
+  atom: true,
+
+  addAttributes() {
+    return {
+      src:   { default: null },
+      alt:   { default: '' },
+      width: {
+        default: 120,
+        parseHTML: el => parseInt((el as HTMLElement).getAttribute('data-width') || '120') || 120,
+      },
+    }
+  },
+
+  parseHTML() {
+    return [{ tag: 'img[data-width]' }]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ['img', mergeAttributes(HTMLAttributes, {
+      'data-width': HTMLAttributes.width,
+      style: `width:${HTMLAttributes.width || 120}px;max-width:100%;vertical-align:middle`,
+    })]
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ResizableImageNodeView)
+  },
+
+  addCommands() {
+    return {
+      setResizableImage: (attrs: { src: string; alt?: string; width?: number }) =>
+        ({ commands }: any) => commands.insertContent({ type: 'resizable_image', attrs }),
+    } as any
+  },
+})

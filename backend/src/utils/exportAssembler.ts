@@ -70,6 +70,12 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
     return `<img src="${src}"${w}${h} style="${style}">`
   }
 
+  if (node.type === 'resizable_image') {
+    const src = node.attrs?.src ?? ''
+    const w   = node.attrs?.width ? `width:${node.attrs.width}px;` : 'width:120px;'
+    return `<img src="${src}" style="${w}max-width:100%;vertical-align:middle">`
+  }
+
   if (node.type === 'text') {
     let html = escapeHtml(node.text ?? '')
     for (const mark of (node.marks ?? [])) {
@@ -131,6 +137,32 @@ export function renderPmJson(json: any, ctx: ExportContext): string {
   const doc = typeof json === 'string' ? JSON.parse(json) : json
   const content: any[] = doc.type === 'doc' ? (doc.content ?? []) : [doc]
   return content.map(n => renderNode(n, ctx)).join('\n')
+}
+
+/**
+ * Render a header/footer zone content.
+ * Handles both the new 3-column format { links, mitte, rechts }
+ * and the legacy single ProseMirror doc format.
+ */
+export function renderZeilenContent(content: any, ctx: ExportContext): string {
+  if (!content) return ''
+
+  // New 3-column format
+  if ('links' in content || 'mitte' in content || 'rechts' in content) {
+    const l = content.links  ? renderPmJson(content.links,  ctx) : ''
+    const m = content.mitte  ? renderPmJson(content.mitte,  ctx) : ''
+    const r = content.rechts ? renderPmJson(content.rechts, ctx) : ''
+    // Only render if at least one column has content
+    if (!l && !m && !r) return ''
+    return `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;align-items:center;width:100%">` +
+      `<div style="text-align:left">${l}</div>` +
+      `<div style="text-align:center">${m}</div>` +
+      `<div style="text-align:right">${r}</div>` +
+      `</div>`
+  }
+
+  // Legacy single-doc format
+  return renderPmJson(content, ctx)
 }
 
 // ── Export filename builder ────────────────────────────────────────────────────
@@ -197,10 +229,10 @@ export function buildPdfHtml(params: {
 
   // Extra body margin to avoid overlap with fixed header/footer
   const headerHtml = kzFz?.kopfzeile_aktiv && kzFz.kopfzeile_content
-    ? renderPmJson(kzFz.kopfzeile_content, ctx)
+    ? renderZeilenContent(kzFz.kopfzeile_content, ctx)
     : ''
   const footerHtml = kzFz?.fusszeile_aktiv && kzFz.fusszeile_content
-    ? renderPmJson(kzFz.fusszeile_content, ctx)
+    ? renderZeilenContent(kzFz.fusszeile_content, ctx)
     : ''
 
   const hasHeader = headerHtml.trim().length > 0
