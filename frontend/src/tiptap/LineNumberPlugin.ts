@@ -87,7 +87,7 @@ export function generateLineNumberCSS(opts: LineNumberSettings): string {
 .pm-ln::after {
   content: attr(data-ln);
   position: absolute;
-  left: ${opts.marginCm}cm;
+  left: calc(-1 * var(--page-padding, 96px) + ${opts.marginCm}cm);
   width: calc(var(--page-padding, 96px) - ${opts.marginCm}cm - 4px);
   text-align: right;
   font-family: ${opts.fontFamily};
