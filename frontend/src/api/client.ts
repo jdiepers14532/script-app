@@ -506,6 +506,16 @@ export const api = {
   deleteDokumentVorlage: (produktionId: string, id: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
 
+  // ── Kopf-/Fußzeilen-Defaults ──────────────────────────────────────────────
+  getKopfFusszeilen: (produktionId: string) =>
+    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen`),
+  getKopfFusszeilenTyp: (produktionId: string, typ: string) =>
+    request<any | null>('GET', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`),
+  saveKopfFusszeilenTyp: (produktionId: string, typ: string, data: any) =>
+    request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`, data),
+  deleteKopfFusszeilenTyp: (produktionId: string, typ: string) =>
+    request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`),
+
   // ── Absatzformate ─────────────────────────────────────────────────────────
   getAbsatzformate: (produktionId: string) =>
     request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate`),

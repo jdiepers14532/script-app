@@ -27,6 +27,7 @@ const DK_TABS = [
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
   { id: 'stockshot-templates',    label: 'Stockshot-Vorlagen' },
   { id: 'vorlagen',               label: 'Vorlagen' },
+  { id: 'kopf-fusszeilen',        label: 'Kopf-/Fußzeilen' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -2194,6 +2195,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <StockshotTemplatesTab productionId={produktionId} /> : <NoProduction />
       case 'vorlagen':
         return produktionId ? <VorlagenTab productionId={produktionId} /> : <NoProduction />
+      case 'kopf-fusszeilen':
+        return produktionId ? <KopfFusszeileTab productionId={produktionId} /> : <NoProduction />
       default:
         return <Placeholder label={activeTab} />
     }
@@ -2860,6 +2863,143 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   )
 }
 
+
+// ── Kopf-/Fußzeilen Tab ──────────────────────────────────────────────────────
+
+const KF_TYPEN = [
+  { id: 'drehbuch',  label: 'Drehbuch',  color: '#007AFF' },
+  { id: 'storyline', label: 'Storyline', color: '#FF9500' },
+  { id: 'notiz',     label: 'Notiz',     color: '#757575' },
+] as const
+
+function KopfFusszeileTab({ productionId }: { productionId: string }) {
+  const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
+  const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [dirty, setDirty] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    setLoading(true)
+    api.getKopfFusszeilen(productionId)
+      .then(rows => {
+        const map: Record<string, DokumentVorlagenEditorValue> = {}
+        for (const row of rows) {
+          map[row.werkstufe_typ] = {
+            body_content:            null,
+            kopfzeile_content:       row.kopfzeile_content,
+            fusszeile_content:       row.fusszeile_content,
+            kopfzeile_aktiv:         row.kopfzeile_aktiv ?? false,
+            fusszeile_aktiv:         row.fusszeile_aktiv ?? false,
+            erste_seite_kein_header: row.erste_seite_kein_header ?? true,
+            seiten_layout:           row.seiten_layout ?? emptyVorlagenEditorValue().seiten_layout,
+          }
+        }
+        setConfigs(map)
+      })
+      .finally(() => setLoading(false))
+  }, [productionId])
+
+  const getCurrentValue = (): DokumentVorlagenEditorValue =>
+    configs[activeTyp] ?? { ...emptyVorlagenEditorValue(), body_content: null }
+
+  const handleChange = (v: DokumentVorlagenEditorValue) => {
+    setConfigs(prev => ({ ...prev, [activeTyp]: v }))
+    setDirty(prev => ({ ...prev, [activeTyp]: true }))
+  }
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const v = getCurrentValue()
+      await api.saveKopfFusszeilenTyp(productionId, activeTyp, {
+        kopfzeile_content:       v.kopfzeile_content,
+        fusszeile_content:       v.fusszeile_content,
+        kopfzeile_aktiv:         v.kopfzeile_aktiv,
+        fusszeile_aktiv:         v.fusszeile_aktiv,
+        erste_seite_kein_header: v.erste_seite_kein_header,
+        erste_seite_kein_footer: false,
+        seiten_layout:           v.seiten_layout,
+      })
+      setDirty(prev => ({ ...prev, [activeTyp]: false }))
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
+
+  const currentConfig = getCurrentValue()
+  const isDirty = dirty[activeTyp] ?? false
+  const activeColor = KF_TYPEN.find(t => t.id === activeTyp)?.color ?? '#007AFF'
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
+      {/* Sub-tab bar + save button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {KF_TYPEN.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTyp(t.id)}
+              style={{
+                fontSize: 13, padding: '6px 16px', borderRadius: 7, cursor: 'pointer',
+                fontFamily: 'inherit', fontWeight: activeTyp === t.id ? 600 : 400,
+                border: `1px solid ${activeTyp === t.id ? t.color : 'var(--border)'}`,
+                background: activeTyp === t.id ? t.color + '15' : 'transparent',
+                color: activeTyp === t.id ? t.color : 'var(--text-secondary)',
+              }}
+            >
+              {t.label}
+              {dirty[t.id] && <span style={{ marginLeft: 5, color: t.color, fontSize: 10 }}>●</span>}
+            </button>
+          ))}
+        </div>
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={save}
+          disabled={saving || !isDirty}
+          style={{
+            fontSize: 13, padding: '6px 18px', borderRadius: 7,
+            border: 'none', cursor: isDirty ? 'pointer' : 'default',
+            background: isDirty ? activeColor : 'var(--bg-subtle)',
+            color: isDirty ? '#fff' : 'var(--text-muted)',
+            fontWeight: 600, fontFamily: 'inherit', transition: 'background 0.15s',
+          }}
+        >
+          {saving ? 'Speichere...' : 'Speichern'}
+        </button>
+      </div>
+
+      {/* Hint */}
+      <div style={{
+        fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
+        marginBottom: 16, padding: '8px 12px',
+        background: 'var(--bg-subtle)', borderRadius: 7,
+        border: `1px solid ${activeColor}33`,
+      }}>
+        <strong style={{ color: activeColor }}>
+          {KF_TYPEN.find(t => t.id === activeTyp)?.label}
+        </strong>
+        {' '}— Globale Kopf-/Fußzeile für alle{' '}
+        {activeTyp === 'drehbuch' ? 'Drehbuch-' : activeTyp === 'storyline' ? 'Storyline-' : 'Notiz-'}
+        Fassungen dieser Produktion. Gilt auf jeder Seite des Exports (außer ggf. erste Seite).
+      </div>
+
+      {/* Editor — noBody=true, only KZ + FZ zones */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <DokumentVorlagenEditor
+          key={activeTyp}
+          value={currentConfig}
+          onChange={handleChange}
+          noBody
+        />
+      </div>
+    </div>
+  )
+}
 
 function NoProduction() {
   return (
