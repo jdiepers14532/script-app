@@ -6,9 +6,7 @@ export const lineNumberPluginKey = new PluginKey('lineNumbers')
 /**
  * ProseMirror plugin: line numbers using Decoration.widget().
  *
- * Reference: ReplikNumberPlugin.ts in this codebase (proven working pattern).
- * Uses the same Decoration.widget approach — creates a zero-height flow element
- * between blocks, with the number positioned into the left padding area.
+ * Uses the proven Decoration.widget pattern from ReplikNumberPlugin.ts.
  */
 export function createLineNumberPlugin() {
   return new Plugin({
@@ -39,15 +37,10 @@ function buildLineDecorations(doc: any): DecorationSet {
     const num = lineNum // capture value for closure
     decos.push(
       Decoration.widget(offset, () => {
-        const wrapper = document.createElement('div')
-        wrapper.className = 'pm-ln-wrap'
-
-        const span = document.createElement('span')
-        span.className = 'pm-ln'
-        span.textContent = String(num)
-
-        wrapper.appendChild(span)
-        return wrapper
+        const el = document.createElement('div')
+        el.className = 'pm-ln'
+        el.dataset.ln = String(num)
+        return el
       }, { side: -1, key: `ln-${num}` })
     )
   })
@@ -72,30 +65,30 @@ export const LN_DEFAULTS: LineNumberSettings = {
 /**
  * Generate dynamic CSS for line numbers based on settings.
  *
- * Numbers are positioned in the left margin area of the PageWrapper.
- * Uses CSS variable --page-padding (set by PageWrapper) so line numbers
- * automatically adapt when the page margin changes.
+ * Numbers sit in the page margin area. The .pm-ln div is zero-height (no layout
+ * impact) while its ::after pseudo renders the visible number via position:absolute
+ * anchored to the page div (which has position:relative from PageWrapper).
  *
- * marginCm = distance from the physical paper left edge to the left edge of the number column.
+ * marginCm = distance from the physical paper left edge to the right edge
+ * of the number column.
  */
 export function generateLineNumberCSS(opts: LineNumberSettings): string {
   return `
-.pm-ln-wrap {
+.pm-ln {
   height: 0;
-  overflow: visible;
-  position: relative;
-  pointer-events: none;
-  user-select: none;
   line-height: 0;
+  overflow: visible;
   margin: 0;
   padding: 0;
+  pointer-events: none;
+  user-select: none;
+  position: static;
 }
-.pm-ln {
+.pm-ln::after {
+  content: attr(data-ln);
   position: absolute;
-  left: calc(-1 * var(--page-padding, 96px) + ${opts.marginCm}cm);
-  top: 2px;
-  display: block;
-  width: 1cm;
+  left: ${opts.marginCm}cm;
+  width: calc(var(--page-padding, 96px) - ${opts.marginCm}cm - 4px);
   text-align: right;
   font-family: ${opts.fontFamily};
   font-size: ${opts.fontSizePt}pt;
