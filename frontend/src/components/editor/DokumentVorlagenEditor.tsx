@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import { ResizableImageExtension } from '../../tiptap/ResizableImageExtension'
-import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone } from '../../tiptap/PlaceholderChipExtension'
+import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel } from '../../tiptap/PlaceholderChipExtension'
 import type { PlaceholderZone } from '../../tiptap/PlaceholderChipExtension'
 
 // ── CSS injection ─────────────────────────────────────────────────────────────
@@ -44,6 +44,21 @@ export interface DokumentVorlagenEditorValue {
   seiten_layout:           SeitenLayout
 }
 
+/** Real values shown in the preview strip instead of placeholder keys */
+export interface PreviewContext {
+  produktion?:    string
+  staffel?:       string
+  block?:         string
+  folge?:         string | number
+  folgentitel?:   string
+  fassung?:       string
+  version?:       string
+  stand_datum?:   string
+  autor?:         string
+  regie?:         string
+  firmenname?:    string
+}
+
 interface DokumentVorlagenEditorProps {
   value:    DokumentVorlagenEditorValue
   onChange: (v: DokumentVorlagenEditorValue) => void
@@ -52,6 +67,8 @@ interface DokumentVorlagenEditorProps {
   readOnly?: boolean
   /** URL of production logo (from produktion.serienwerft.studio) */
   produktionsLogoUrl?: string | null
+  /** Values shown in the preview strip to replace placeholders */
+  previewContext?: PreviewContext
 }
 
 const DEFAULT_LAYOUT: SeitenLayout = {
@@ -220,7 +237,7 @@ function SharedColumnToolbar({
 // ── Three-column zone editor (for KZ / FZ) ───────────────────────────────────
 function ThreeColumnZone({
   label, color, aktiv, ersteSeiteOhne, ersteSeiteOhneLabel,
-  content, readOnly, produktionsLogoUrl, zone,
+  content, readOnly, produktionsLogoUrl, zone, previewContext,
   onAktivChange, onErsteSeiteOhneChange, onChange,
 }: {
   label: string
@@ -232,6 +249,7 @@ function ThreeColumnZone({
   readOnly?: boolean
   produktionsLogoUrl?: string | null
   zone: PlaceholderZone
+  previewContext?: PreviewContext
   onAktivChange: (v: boolean) => void
   onErsteSeiteOhneChange?: (v: boolean) => void
   onChange: (c: ZeilenContent) => void
@@ -341,9 +359,9 @@ function ThreeColumnZone({
               gap: 4, background: 'white', border: `1px solid ${color}22`,
               borderRadius: 3, padding: '4px 8px', minHeight: 24, fontSize: 11,
             }}>
-              <PreviewCell content={content.links}  align="left"   color={color} />
-              <PreviewCell content={content.mitte}  align="center" color={color} />
-              <PreviewCell content={content.rechts} align="right"  color={color} />
+              <PreviewCell content={content.links}  align="left"   color={color} ctx={previewContext} />
+              <PreviewCell content={content.mitte}  align="center" color={color} ctx={previewContext} />
+              <PreviewCell content={content.rechts} align="right"  color={color} ctx={previewContext} />
             </div>
           </div>
         </div>
@@ -353,8 +371,8 @@ function ThreeColumnZone({
 }
 
 // ── Preview cell: renders ProseMirror JSON as plain text (simplified) ─────────
-function PreviewCell({ content, align, color }: { content: any; align: string; color: string }) {
-  const text = extractPlainText(content)
+function PreviewCell({ content, align, color, ctx }: { content: any; align: string; color: string; ctx?: PreviewContext }) {
+  const text = extractPlainText(content, ctx)
   return (
     <div style={{ textAlign: align as any, fontSize: 10, color: text ? '#000' : `${color}44`, lineHeight: 1.4, minHeight: 16 }}>
       {text || '—'}
@@ -362,12 +380,33 @@ function PreviewCell({ content, align, color }: { content: any; align: string; c
   )
 }
 
-function extractPlainText(doc: any): string {
+const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
+  '{{produktion}}':   'produktion',
+  '{{staffel}}':      'staffel',
+  '{{block}}':        'block',
+  '{{folge}}':        'folge',
+  '{{folgentitel}}':  'folgentitel',
+  '{{fassung}}':      'fassung',
+  '{{version}}':      'version',
+  '{{stand_datum}}':  'stand_datum',
+  '{{autor}}':        'autor',
+  '{{regie}}':        'regie',
+  '{{firmenname}}':   'firmenname',
+}
+
+function resolveChipForPreview(key: string, ctx?: PreviewContext): string {
+  const field = PREVIEW_CONTEXT_MAP[key]
+  if (field && ctx?.[field] != null) return String(ctx[field])
+  // For dynamic page counters, show descriptive label in brackets
+  return `[${getPlaceholderLabel(key)}]`
+}
+
+function extractPlainText(doc: any, ctx?: PreviewContext): string {
   if (!doc) return ''
   const parts: string[] = []
   function walk(node: any) {
     if (node.type === 'text') { parts.push(node.text ?? '') }
-    else if (node.type === 'placeholder_chip') { parts.push(node.attrs?.key ?? '') }
+    else if (node.type === 'placeholder_chip') { parts.push(resolveChipForPreview(node.attrs?.key ?? '', ctx)) }
     else if (node.type === 'hardBreak') { parts.push(' ') }
     else if (node.type === 'resizable_image') { parts.push('[Bild]') }
     for (const child of (node.content ?? [])) walk(child)
@@ -439,7 +478,7 @@ function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function DokumentVorlagenEditor({
-  value, onChange, noBody = false, readOnly = false, produktionsLogoUrl,
+  value, onChange, noBody = false, readOnly = false, produktionsLogoUrl, previewContext,
 }: DokumentVorlagenEditorProps) {
   useEffect(() => { injectChipCss() }, [])
 
@@ -508,6 +547,7 @@ export default function DokumentVorlagenEditor({
             readOnly={readOnly}
             produktionsLogoUrl={produktionsLogoUrl}
             zone="kopfzeile"
+            previewContext={previewContext}
             onAktivChange={v => update({ kopfzeile_aktiv: v })}
             onErsteSeiteOhneChange={v => update({ erste_seite_kein_header: v })}
             onChange={c => update({ kopfzeile_content: c })}
@@ -550,6 +590,7 @@ export default function DokumentVorlagenEditor({
             readOnly={readOnly}
             produktionsLogoUrl={produktionsLogoUrl}
             zone="fusszeile"
+            previewContext={previewContext}
             onAktivChange={v => update({ fusszeile_aktiv: v })}
             onChange={c => update({ fusszeile_content: c })}
           />

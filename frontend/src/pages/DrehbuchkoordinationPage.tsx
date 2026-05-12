@@ -7,7 +7,7 @@ import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor
 import { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
-import DokumentVorlagenEditor, { emptyVorlagenEditorValue, type DokumentVorlagenEditorValue } from '../components/editor/DokumentVorlagenEditor'
+import DokumentVorlagenEditor, { emptyVorlagenEditorValue, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -2716,6 +2716,12 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
+  const previewContext: PreviewContext = {
+    produktion:  selectedProduction?.title ?? 'Produktion',
+    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
+    fassung:     'Vorlage',
+    stand_datum: new Date().toISOString().slice(0, 10),
+  }
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState<string | null>(null)
@@ -2823,6 +2829,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
           value={editEditorValue}
           onChange={setEditEditorValue}
           produktionsLogoUrl={produktionsLogoUrl}
+          previewContext={previewContext}
         />
       </div>
     )
@@ -2882,6 +2889,16 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
+  const previewContext: PreviewContext = {
+    produktion:   selectedProduction?.title ?? 'Produktion',
+    staffel:      selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
+    folge:        'Folge-Nr.',
+    fassung:      'Drehbuch',
+    version:      'V1',
+    stand_datum:  new Date().toISOString().slice(0, 10),
+    autor:        'Autor',
+    seite:        '1',
+  } as any
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})
   const [loading, setLoading] = useState(true)
@@ -3005,6 +3022,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
           onChange={handleChange}
           noBody
           produktionsLogoUrl={produktionsLogoUrl}
+          previewContext={previewContext}
         />
       </div>
     </div>
