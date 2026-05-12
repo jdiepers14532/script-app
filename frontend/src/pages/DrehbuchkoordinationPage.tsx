@@ -7,6 +7,9 @@ import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor
 import { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import UnderlineExt from '@tiptap/extension-underline'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -2586,6 +2589,57 @@ function Placeholder({ label }: { label: string }) {
 
 // ── Vorlagen Tab ────────────────────────────────────────────────────────────────
 
+function VorlagenSektionEditor({
+  content,
+  onChange,
+  editorRef,
+}: {
+  content: any
+  onChange: (c: any) => void
+  editorRef: React.MutableRefObject<any>
+}) {
+  const editor = useEditor({
+    extensions: [StarterKit, UnderlineExt],
+    content: content || { type: 'doc', content: [{ type: 'paragraph' }] },
+    onUpdate: ({ editor }) => onChange(editor.getJSON()),
+  })
+
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
+
+  if (!editor) return null
+
+  const toolbarBtn = (active: boolean, onClick: () => void, label: string, style?: React.CSSProperties) => (
+    <button
+      key={label}
+      onMouseDown={e => { e.preventDefault(); onClick() }}
+      style={{
+        width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer',
+        background: active ? 'var(--text-primary)' : 'transparent',
+        color: active ? 'var(--text-inverse)' : 'var(--text-secondary)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12,
+        ...style,
+      }}
+    >{label}</button>
+  )
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', gap: 4, padding: '4px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+        {toolbarBtn(editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), 'B', { fontWeight: 700 })}
+        {toolbarBtn(editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), 'I', { fontStyle: 'italic' })}
+        {toolbarBtn(editor.isActive('underline'), () => editor.chain().focus().toggleUnderline().run(), 'U', { textDecoration: 'underline' })}
+        {toolbarBtn(editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), '•')}
+      </div>
+      <EditorContent
+        editor={editor}
+        style={{ minHeight: 140, padding: '8px 12px', fontSize: 13, cursor: 'text', lineHeight: 1.6 }}
+      />
+    </div>
+  )
+}
+
 const VORLAGE_TYPES = [
   { id: 'titelseite', label: 'Titelseite' },
   { id: 'synopsis', label: 'Synopsis' },
@@ -2721,6 +2775,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [editSektionen, setEditSektionen] = useState<any[]>([])
   const [editMetaFields, setEditMetaFields] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
+  const editorRef = useRef<any>(null)
 
   const load = () => {
     setLoading(true)
@@ -2769,16 +2824,9 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   }
 
   const insertPlaceholder = (key: string) => {
-    // Insert placeholder into the first sektion's content (simplified — richtext editing in Phase 7)
-    setEditSektionen(prev => {
-      if (!prev.length) return prev
-      const copy = [...prev]
-      const sec = { ...copy[0] }
-      // Append placeholder text to the label for now
-      sec.label = (sec.label || '') + ' ' + key
-      copy[0] = sec
-      return copy
-    })
+    if (editorRef.current) {
+      editorRef.current.chain().focus().insertContent(key).run()
+    }
   }
 
   const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }
@@ -2822,15 +2870,17 @@ function VorlagenTab({ productionId }: { productionId: string }) {
         </div>
 
         <div>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Sektionen (Vorschau)</label>
-          {editSektionen.map((s, i) => (
-            <div key={i} style={{ padding: '8px 12px', background: 'var(--bg-subtle)', borderRadius: 6, marginBottom: 6, fontSize: 12 }}>
-              <strong>{s.element_type}</strong>: {s.label || '(kein Label)'}
-            </div>
-          ))}
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-            Rich-Text-Editor fuer Sektionen-Inhalt folgt in Phase 7.
-          </p>
+          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Inhalt</label>
+          <VorlagenSektionEditor
+            key={editId}
+            content={editSektionen[0]?.content}
+            onChange={c => setEditSektionen(prev => {
+              const copy = prev.length ? [...prev] : [{ element_type: 'notiz', label: 'Inhalt', content: null }]
+              copy[0] = { ...copy[0], content: c }
+              return copy
+            })}
+            editorRef={editorRef}
+          />
         </div>
 
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
