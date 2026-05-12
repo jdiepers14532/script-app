@@ -1128,8 +1128,9 @@ function DokumentTypenTab() {
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Ausr.</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug L</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug R</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Abst.↑</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Abst.↓</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Abstand vor dem Absatz (pt)">Ab.v.</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Abstand nach dem Absatz (pt)">Ab.n.</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Zeilenabstand (1.0 = einfach)">ZA</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Enter→</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Tab→</th>
           <th style={{ padding: '6px 4px' }} />
@@ -1151,7 +1152,7 @@ function DokumentTypenTab() {
                   {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
                 </select>
               </td>
-              <td style={{ padding: '4px 4px' }}><input type="number" value={editData.font_size} onChange={e => setEditData({ ...editData, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} /></td>
+              <td style={{ padding: '4px 4px' }}><input type="number" className="no-spin" value={editData.font_size} onChange={e => setEditData({ ...editData, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} /></td>
               <td style={{ padding: '4px 4px', textAlign: 'center' }}>
                 <label style={{ fontSize: 10, marginRight: 4 }}><input type="checkbox" checked={editData.bold} onChange={e => setEditData({ ...editData, bold: e.target.checked })} /> B</label>
                 <label style={{ fontSize: 10, marginRight: 4 }}><input type="checkbox" checked={editData.italic} onChange={e => setEditData({ ...editData, italic: e.target.checked })} /> I</label>
@@ -1163,16 +1164,19 @@ function DokumentTypenTab() {
                 </select>
               </td>
               <td style={{ padding: '4px 4px' }}>
-                <input type="number" step="0.1" min="0" value={editData.margin_left ?? 0} onChange={e => setEditData({ ...editData, margin_left: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
+                <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_left ?? 0} onChange={e => setEditData({ ...editData, margin_left: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
               </td>
               <td style={{ padding: '4px 4px' }}>
-                <input type="number" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
+                <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
               </td>
               <td style={{ padding: '4px 4px' }}>
-                <input type="number" step="1" min="0" value={editData.space_before ?? 0} onChange={e => setEditData({ ...editData, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
+                <input type="number" className="no-spin" step="1" min="0" value={editData.space_before ?? 0} onChange={e => setEditData({ ...editData, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
               </td>
               <td style={{ padding: '4px 4px' }}>
-                <input type="number" step="1" min="0" value={editData.space_after ?? 0} onChange={e => setEditData({ ...editData, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
+                <input type="number" className="no-spin" step="1" min="0" value={editData.space_after ?? 0} onChange={e => setEditData({ ...editData, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
+              </td>
+              <td style={{ padding: '4px 4px' }}>
+                <input type="number" className="no-spin" step="0.1" min="0.5" max="4" value={editData.line_height ?? 1.0} onChange={e => setEditData({ ...editData, line_height: parseFloat(e.target.value) || 1.0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
               </td>
               <td style={{ padding: '4px 4px' }}>
                 <select value={editData.enter_next_format ?? ''} onChange={e => setEditData({ ...editData, enter_next_format: e.target.value || null })} style={{ ...selectStyle, fontSize: 10 }}>
@@ -1228,6 +1232,7 @@ function DokumentTypenTab() {
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_right ? f.margin_right + '"' : '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.space_before || '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.space_after || '-'}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.line_height ?? 1.0}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>
                 {formate.find(x => x.id === f.enter_next_format)?.kuerzel || formate.find(x => x.id === f.enter_next_format)?.name || '-'}
               </td>
@@ -1241,7 +1246,7 @@ function DokumentTypenTab() {
             </tr>
           ))}
           {filtered.length === 0 && !loading && (
-            <tr><td colSpan={16} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
+            <tr><td colSpan={17} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
               Keine Absatzformate. Waehle ein Preset aus, um zu starten.
             </td></tr>
           )}
@@ -1319,7 +1324,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
             {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
           </select></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Groesse (pt)</label>
-          <input type="number" value={data.font_size} onChange={e => setData({ ...data, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
+          <input type="number" className="no-spin" value={data.font_size} onChange={e => setData({ ...data, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Ausrichtung</label>
           <select value={data.text_align} onChange={e => setData({ ...data, text_align: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
             <option value="left">Links</option><option value="center">Mitte</option><option value="right">Rechts</option>
@@ -1341,13 +1346,15 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
             {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
           </select></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Einzug L (inch)</label>
-          <input type="number" step="0.1" value={data.margin_left} onChange={e => setData({ ...data, margin_left: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
+          <input type="number" className="no-spin" step="0.1" value={data.margin_left} onChange={e => setData({ ...data, margin_left: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Einzug R (inch)</label>
-          <input type="number" step="0.1" value={data.margin_right} onChange={e => setData({ ...data, margin_right: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
-        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Abstand vor (pt)</label>
-          <input type="number" step="1" value={data.space_before} onChange={e => setData({ ...data, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: '100%' }} /></div>
-        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Abstand nach (pt)</label>
-          <input type="number" step="1" value={data.space_after} onChange={e => setData({ ...data, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: '100%' }} /></div>
+          <input type="number" className="no-spin" step="0.1" value={data.margin_right} onChange={e => setData({ ...data, margin_right: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Abstand vor Absatz (pt)</label>
+          <input type="number" className="no-spin" step="1" value={data.space_before} onChange={e => setData({ ...data, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Abstand nach Absatz (pt)</label>
+          <input type="number" className="no-spin" step="1" value={data.space_after} onChange={e => setData({ ...data, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: '100%' }} /></div>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Zeilenabstand (1.0 = einfach)</label>
+          <input type="number" className="no-spin" step="0.1" min="0.5" max="4" value={data.line_height} onChange={e => setData({ ...data, line_height: parseFloat(e.target.value) || 1.0 })} style={{ ...inputStyle, width: '100%' }} /></div>
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
         <button onClick={onCancel}

@@ -433,6 +433,8 @@
 .stopp-inp::placeholder { color:var(--text-muted); }
 .stopp-inp::-webkit-inner-spin-button, .stopp-inp::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .stopp-inp { -moz-appearance:textfield; }
+.no-spin::-webkit-inner-spin-button, .no-spin::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.no-spin { -moz-appearance:textfield; }
 
 /* Spielzeit — Label + Input */
 .spielzeit-wrap { display:inline-flex; align-items:center; gap:2px; flex-shrink:0; }
