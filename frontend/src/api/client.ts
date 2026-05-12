@@ -515,6 +515,14 @@ export const api = {
     request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`, data),
   deleteKopfFusszeilenTyp: (produktionId: string, typ: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`),
+  getExportFilename: (werkId: string) =>
+    request<{ filename: string }>('GET', `/werkstufe/${werkId}/export/filename`),
+  exportPdf: (werkId: string) =>
+    fetch(`${BASE}/werkstufe/${werkId}/export/pdf`, { credentials: 'include' }),
+  exportFountain: (werkId: string) =>
+    fetch(`${BASE}/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
+  exportFdx: (werkId: string) =>
+    fetch(`${BASE}/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
 
   // ── Absatzformate ─────────────────────────────────────────────────────────
   getAbsatzformate: (produktionId: string) =>

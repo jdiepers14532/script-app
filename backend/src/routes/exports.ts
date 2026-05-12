@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { buildPayload, injectIntoText } from '../utils/watermark'
+import { buildPdfHtml, buildExportFilename, type ExportContext } from '../utils/exportAssembler'
 
 const router = Router()
 router.use(authMiddleware)
@@ -113,6 +114,56 @@ function contentToFdx(szenen: any[], episodeTitel: string, formatMap: Map<string
 }
 
 
+// ── Export context helpers ────────────────────────────────────────────────────
+
+async function loadExportContext(ws: any, userId: string, userName: string): Promise<ExportContext> {
+  const folge = await queryOne(
+    'SELECT folge_nummer, folgen_titel FROM folgen WHERE id = $1',
+    [ws.folge_id]
+  )
+  const prod = await queryOne(
+    'SELECT titel FROM produktionen WHERE id = $1',
+    [ws.produktion_id]
+  )
+  // terminologie setting → episode label
+  const setting = await queryOne(
+    "SELECT value FROM app_settings WHERE key = 'terminologie'",
+    []
+  )
+  let episodeTerminus = 'Folge'
+  try {
+    const t = typeof setting?.value === 'string' ? JSON.parse(setting.value) : setting?.value
+    if (t?.episode) episodeTerminus = t.episode
+  } catch {}
+
+  const datum = ws.stand_datum
+    ? String(ws.stand_datum).slice(0, 10)
+    : new Date().toISOString().slice(0, 10)
+
+  return {
+    produktion:       prod?.titel ?? '',
+    staffel:          null,
+    block:            null,
+    folge:            folge?.folge_nummer ?? null,
+    folgentitel:      folge?.folgen_titel ?? null,
+    fassung:          ws.label ?? null,
+    version:          ws.version_nummer ?? null,
+    stand_datum:      datum,
+    autor:            userName,
+    regie:            null,
+    firmenname:       null,
+    episode_terminus: episodeTerminus,
+  }
+}
+
+async function loadKzFzConfig(produktionId: string, werkstufeTyp: string) {
+  return queryOne(
+    `SELECT * FROM kopf_fusszeilen_defaults
+     WHERE produktion_id = $1 AND werkstufe_typ = $2`,
+    [produktionId, werkstufeTyp]
+  )
+}
+
 // ── Werkstufe-based exports (v43 Werkstufen-Modell) ─────────────────────────
 
 /** Load absatzformate for a production as Map<id, {name, textbaustein}> */
@@ -147,24 +198,29 @@ function formatStoppzeit(sek: number | null): string {
 router.get('/werkstufe/:werkId/export/fountain', async (req, res) => {
   try {
     const ws = await queryOne(
-      `SELECT w.*, f.produktion_id, f.folge_nummer FROM werkstufen w
-       JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      `SELECT w.*, f.produktion_id, f.folge_nummer, f.folgen_titel, p.titel AS prod_titel FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       JOIN produktionen p ON p.id = f.produktion_id
+       WHERE w.id = $1`,
       [req.params.werkId]
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const [szenen, formatMap] = await Promise.all([
+    const [szenen, formatMap, ctx] = await Promise.all([
       query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
       loadFormatMap(ws.produktion_id),
+      loadExportContext(ws, req.user!.user_id, req.user!.name),
     ])
 
     const exportId = await logWerkstufenExport(req.user!.user_id, req.user!.name, ws.id, 'fountain')
     const payload = buildPayload(req.user!.user_id, exportId)
     const fountain = injectIntoText(contentToFountain(szenen, formatMap), payload)
 
-    const label = (ws.label || `${ws.typ}_V${ws.version_nummer}`).replace(/[^a-zA-Z0-9_-]/g, '_')
+    const filename = buildExportFilename(ws,
+      { folge_nummer: ws.folge_nummer, folgen_titel: ws.folgen_titel },
+      { titel: ws.prod_titel }, ctx.episode_terminus, 'fountain')
     res.setHeader('Content-Type', 'text/plain; charset=utf-8')
-    res.setHeader('Content-Disposition', `attachment; filename="${label}.fountain"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.send(fountain)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -175,15 +231,18 @@ router.get('/werkstufe/:werkId/export/fountain', async (req, res) => {
 router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
   try {
     const ws = await queryOne(
-      `SELECT w.*, f.produktion_id FROM werkstufen w
-       JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      `SELECT w.*, f.produktion_id, f.folge_nummer, f.folgen_titel, p.titel AS prod_titel FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       JOIN produktionen p ON p.id = f.produktion_id
+       WHERE w.id = $1`,
       [req.params.werkId]
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const [szenen, formatMap] = await Promise.all([
+    const [szenen, formatMap, ctx] = await Promise.all([
       query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
       loadFormatMap(ws.produktion_id),
+      loadExportContext(ws, req.user!.user_id, req.user!.name),
     ])
 
     const exportId = await logWerkstufenExport(req.user!.user_id, req.user!.name, ws.id, 'fdx')
@@ -192,9 +251,11 @@ router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
     let fdx = contentToFdx(szenen, ws.label || 'Drehbuch', formatMap)
     fdx = fdx.replace('<Content>', `<!-- ${wm} -->\n<Content>`)
 
-    const label = (ws.label || `${ws.typ}_V${ws.version_nummer}`).replace(/[^a-zA-Z0-9_-]/g, '_')
+    const filename = buildExportFilename(ws,
+      { folge_nummer: ws.folge_nummer, folgen_titel: ws.folgen_titel },
+      { titel: ws.prod_titel }, ctx.episode_terminus, 'fdx')
     res.setHeader('Content-Type', 'application/xml')
-    res.setHeader('Content-Disposition', `attachment; filename="${label}.fdx"`)
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.send(fdx)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -205,57 +266,87 @@ router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
 router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
   try {
     const ws = await queryOne(
-      `SELECT w.*, f.produktion_id FROM werkstufen w
-       JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      `SELECT w.*, f.produktion_id, f.folge_id, f.folge_nummer, f.folgen_titel, p.titel AS prod_titel FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       JOIN produktionen p ON p.id = f.produktion_id
+       WHERE w.id = $1`,
       [req.params.werkId]
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const [szenen, formatMap] = await Promise.all([
+    const [szenen, formatMap, ctx, kzFz] = await Promise.all([
       query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
       loadFormatMap(ws.produktion_id),
+      loadExportContext(ws, req.user!.user_id, req.user!.name),
+      loadKzFzConfig(ws.produktion_id, ws.typ),
     ])
 
     const exportId = await logWerkstufenExport(req.user!.user_id, req.user!.name, ws.id, 'pdf')
     const payload = buildPayload(req.user!.user_id, exportId)
     const wm = require('../utils/watermark').encodeWatermark(payload)
 
-    const title = ws.label || `${ws.typ} V${ws.version_nummer}`
-    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="wm" content="${wm}">
-<style>
-  body { font-family: "Courier New", monospace; font-size: 12pt; margin: 1.5cm 2.5cm; line-height: 1.5; }
-  .heading { font-weight: bold; text-transform: uppercase; margin: 20px 0 10px; }
-  .action { margin: 0 0 10px; }
-  .character { margin-left: 40%; margin-bottom: 0; font-weight: bold; }
-  .parenthetical { margin-left: 30%; margin-right: 30%; font-style: italic; }
-  .dialogue { margin-left: 20%; margin-right: 20%; }
-  .transition { text-align: right; font-weight: bold; }
-  .shot { font-weight: bold; }
-  h1 { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; }
-  .scene-heading { font-weight: bold; text-transform: uppercase; background: #f0f0f0; padding: 5px; margin: 20px 0 10px; }
-  .stoppzeit { float: right; color: #666; font-weight: normal; }
-</style></head><body>
-<h1>${title}</h1>`
+    const title = ws.label || `${ctx.episode_terminus} ${ctx.folge} ${ws.typ === 'drehbuch' ? 'Drehbuch' : ws.typ} V${ws.version_nummer}`
 
+    // Build scene body HTML
+    let bodyHtml = ''
     for (const szene of szenen) {
       const intExt = szene.int_ext || 'INT'
-      const ort = szene.ort_name || 'UNBEKANNT'
-      const zeit = szene.tageszeit || 'TAG'
-      const stoppzeit = szene.stoppzeit_sek ? `<span class="stoppzeit">${formatStoppzeit(szene.stoppzeit_sek)}</span>` : ''
-      html += `<div class="scene-heading">${szene.scene_nummer}. ${intExt}. ${ort} - ${zeit}${stoppzeit}</div>`
-
+      const ort    = szene.ort_name || 'UNBEKANNT'
+      const zeit   = szene.tageszeit || 'TAG'
+      const stoppzeit = szene.stoppzeit_sek
+        ? `<span class="stoppzeit">${formatStoppzeit(szene.stoppzeit_sek)}</span>`
+        : ''
+      bodyHtml += `<div class="scene-heading">${szene.scene_nummer ? szene.scene_nummer + '. ' : ''}${intExt}. ${ort} - ${zeit}${stoppzeit}</div>`
       const blocks = resolveBlocks(szene, formatMap)
       for (const block of blocks) {
         const cls = block.type === 'heading' ? 'heading' : block.type
         const escaped = String(block.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        html += `<div class="${cls}">${escaped}</div>`
+        bodyHtml += `<div class="${cls}">${escaped}</div>`
       }
     }
 
-    html += '</body></html>'
+    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, watermarkMeta: wm })
+
+    const filename = buildExportFilename(ws,
+      { folge_nummer: ws.folge_nummer, folgen_titel: ws.folgen_titel },
+      { titel: ws.prod_titel }, ctx.episode_terminus, 'html')
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.setHeader('X-Export-Type', 'pdf-source')
     res.send(html)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/werkstufe/:werkId/export/filename — returns suggested filename for a Werkstufe
+router.get('/werkstufe/:werkId/export/filename', async (req, res) => {
+  try {
+    const ws = await queryOne(
+      `SELECT w.*, f.produktion_id, f.folge_nummer, f.folgen_titel, p.titel AS prod_titel
+       FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       JOIN produktionen p ON p.id = f.produktion_id
+       WHERE w.id = $1`,
+      [req.params.werkId]
+    )
+    if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+
+    const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'terminologie'", [])
+    let episodeTerminus = 'Folge'
+    try {
+      const t = typeof setting?.value === 'string' ? JSON.parse(setting.value) : setting?.value
+      if (t?.episode) episodeTerminus = t.episode
+    } catch {}
+
+    const base = buildExportFilename(
+      ws,
+      { folge_nummer: ws.folge_nummer, folgen_titel: ws.folgen_titel },
+      { titel: ws.prod_titel },
+      episodeTerminus,
+      'pdf'
+    )
+    res.json({ filename: base })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
