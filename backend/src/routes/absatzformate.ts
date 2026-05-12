@@ -150,6 +150,37 @@ absatzformateRouter.delete('/:id', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// POST /api/produktionen/:produktionId/absatzformate/reorder
+// ══════════════════════════════════════════════════════════════════════════════
+absatzformateRouter.post('/reorder', async (req, res) => {
+  const pid = (req.params as any).produktionId
+  const { order } = req.body // [{ id: string, sort_order: number }]
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' })
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    for (const entry of order) {
+      await client.query(
+        'UPDATE absatzformate SET sort_order = $1 WHERE id = $2 AND produktion_id = $3',
+        [entry.sort_order, entry.id, pid]
+      )
+    }
+    await client.query('COMMIT')
+    const rows = await query(
+      'SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order, name',
+      [pid]
+    )
+    res.json(rows)
+  } catch (err) {
+    await client.query('ROLLBACK')
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // POST /api/produktionen/:produktionId/absatzformate/from-preset
 // Applies a preset: deletes existing formats and inserts preset formats
 // ══════════════════════════════════════════════════════════════════════════════

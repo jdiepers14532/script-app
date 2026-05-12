@@ -527,6 +527,8 @@ export const api = {
     request<void>('DELETE', `/absatzformat-presets/${id}`),
   migrateAbsatzformatContent: (produktionId: string) =>
     request<{ migrated_scenes: number; total_scenes: number }>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/migrate-content`),
+  reorderAbsatzformate: (produktionId: string, order: { id: string; sort_order: number }[]) =>
+    request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/reorder`, { order }),
 
   // ── Statistik ──────────────────────────────────────────────────────────────
   getStatOverview: (werkId: string) =>

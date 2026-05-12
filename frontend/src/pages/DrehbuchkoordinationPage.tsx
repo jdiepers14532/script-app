@@ -1037,6 +1037,21 @@ function DokumentTypenTab() {
 
   const filtered = filterKat === 'alle' ? formate : formate.filter(f => f.kategorie === filterKat || f.kategorie === 'alle')
 
+  const dragFormatIdx = useRef<number | null>(null)
+  const overFormatIdx = useRef<number | null>(null)
+
+  const handleReorderFormate = async (newOrder: any[]) => {
+    setFormate(newOrder)
+    const orderPayload = newOrder.map((f, i) => ({ id: f.id, sort_order: i + 1 }))
+    try {
+      const result = await api.reorderAbsatzformate(produktionId, orderPayload)
+      setFormate(result)
+    } catch (e: any) {
+      setMsg(e.message ?? 'Fehler beim Speichern der Reihenfolge')
+      await load()
+    }
+  }
+
   const inputStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, width: '100%', background: 'var(--bg-surface)', color: 'var(--text-primary)' } as const
   const selectStyle = { ...inputStyle, width: 'auto' } as const
 
@@ -1079,6 +1094,7 @@ function DokumentTypenTab() {
           <option value="alle">Alle</option>
           <option value="drehbuch">Drehbuch</option>
           <option value="storyline">Storyline</option>
+          <option value="notiz">Notiz</option>
         </select>
       </section>
 
@@ -1088,6 +1104,7 @@ function DokumentTypenTab() {
       {/* Absatzformate-Tabelle */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead><tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <th style={{ padding: '6px 2px', width: 16 }} />
           <th style={{ textAlign: 'left', padding: '6px 6px', fontWeight: 600 }}>Name</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Prefix</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kuerzel</th>
@@ -1108,12 +1125,13 @@ function DokumentTypenTab() {
         <tbody>
           {filtered.map(f => editId === f.id ? (
             <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+              <td style={{ padding: '4px 2px' }} />
               <td style={{ padding: '4px 6px' }}><input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} style={inputStyle} /></td>
               <td style={{ padding: '4px 4px' }}><input value={editData.textbaustein ?? ''} onChange={e => setEditData({ ...editData, textbaustein: e.target.value || null })} placeholder="—" style={{ ...inputStyle, width: 80 }} /></td>
               <td style={{ padding: '4px 4px' }}><input value={editData.kuerzel ?? ''} onChange={e => setEditData({ ...editData, kuerzel: e.target.value })} style={{ ...inputStyle, width: 50 }} /></td>
               <td style={{ padding: '4px 4px' }}>
                 <select value={editData.kategorie} onChange={e => setEditData({ ...editData, kategorie: e.target.value })} style={{ ...selectStyle, fontSize: 10 }}>
-                  <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option>
+                  <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="notiz">notiz</option>
                 </select>
               </td>
               <td style={{ padding: '4px 4px' }}><input value={editData.font_family} onChange={e => setEditData({ ...editData, font_family: e.target.value })} style={{ ...inputStyle, width: 100 }} /></td>
@@ -1161,13 +1179,31 @@ function DokumentTypenTab() {
               </td>
             </tr>
           ) : (
-            <tr key={f.id} style={{ borderBottom: '1px solid var(--border)' }}>
+            <tr
+              key={f.id}
+              draggable={filterKat === 'alle'}
+              onDragStart={() => { dragFormatIdx.current = formate.findIndex(x => x.id === f.id) }}
+              onDragOver={e => { e.preventDefault(); overFormatIdx.current = formate.findIndex(x => x.id === f.id) }}
+              onDrop={e => {
+                e.preventDefault()
+                if (dragFormatIdx.current === null || dragFormatIdx.current === overFormatIdx.current) return
+                const arr = [...formate]
+                const [moved] = arr.splice(dragFormatIdx.current, 1)
+                arr.splice(overFormatIdx.current!, 0, moved)
+                handleReorderFormate(arr)
+                dragFormatIdx.current = null; overFormatIdx.current = null
+              }}
+              style={{ borderBottom: '1px solid var(--border)', cursor: filterKat === 'alle' ? 'grab' : undefined }}
+            >
+              <td style={{ padding: '6px 2px', color: 'var(--text-muted)', userSelect: 'none', textAlign: 'center', fontSize: 13 }}>
+                {filterKat === 'alle' ? '⠇' : ''}
+              </td>
               <td style={{ padding: '6px 6px', fontWeight: f.ist_standard ? 600 : 400 }}>
                 {f.name}
               </td>
               <td style={{ padding: '6px 4px', color: f.textbaustein ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: f.textbaustein ? 600 : 400, fontSize: 10 }}>{f.textbaustein ?? '—'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kuerzel ?? '-'}</td>
-              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kategorie === 'alle' ? '*' : f.kategorie === 'drehbuch' ? 'DB' : 'SL'}</td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kategorie === 'alle' ? '*' : f.kategorie === 'drehbuch' ? 'DB' : f.kategorie === 'notiz' ? 'NZ' : 'SL'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>{f.font_family} {f.font_size}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)' }}>{f.font_size}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', fontSize: 10 }}>
@@ -1195,7 +1231,7 @@ function DokumentTypenTab() {
             </tr>
           ))}
           {filtered.length === 0 && !loading && (
-            <tr><td colSpan={16} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
+            <tr><td colSpan={17} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
               Keine Absatzformate. Waehle ein Preset aus, um zu starten.
             </td></tr>
           )}
@@ -1264,7 +1300,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
           <input value={data.kuerzel} onChange={e => setData({ ...data, kuerzel: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Kategorie</label>
           <select value={data.kategorie} onChange={e => setData({ ...data, kategorie: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
-            <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option>
+            <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="notiz">notiz</option>
           </select></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Prefix (fett vorangestellt, Import-Erkennung)</label>
           <input value={data.textbaustein} onChange={e => setData({ ...data, textbaustein: e.target.value })} placeholder="z.B. Status Quo:" style={{ ...inputStyle, width: '100%' }} /></div>
