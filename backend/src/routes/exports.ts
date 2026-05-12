@@ -9,7 +9,7 @@ router.use(authMiddleware)
 
 
 interface Block {
-  id: string
+  id?: string
   type: 'action' | 'dialogue' | 'parenthetical' | 'transition' | 'shot' | 'direction' | 'character' | 'heading'
   text: string
   character?: string
@@ -46,7 +46,7 @@ function resolveBlocks(szene: any, formatMap: Map<string, any>): Block[] {
         'Action': 'action', 'Character': 'character', 'Dialogue': 'dialogue',
         'Parenthetical': 'parenthetical', 'Transition': 'transition', 'Shot': 'shot',
       }
-      const blockType = nameToType[node.attrs?.format_name] ?? 'action'
+      const blockType = (nameToType[node.attrs?.format_name] ?? 'action') as Block['type']
       blocks.push({ type: blockType, text: prefix + text })
     } else if (node.type === 'screenplay_element') {
       const typeMap: Record<string, Block['type']> = {
