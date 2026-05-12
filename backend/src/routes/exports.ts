@@ -291,7 +291,7 @@ router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
 router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
   try {
     const ws = await queryOne(
-      `SELECT w.*, f.produktion_id, f.folge_id, f.folge_nummer, f.folgen_titel, p.titel AS prod_titel FROM werkstufen w
+      `SELECT w.*, f.produktion_id, f.folge_nummer, f.folgen_titel, p.titel AS prod_titel FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id
        JOIN produktionen p ON p.id = f.produktion_id
        WHERE w.id = $1`,
