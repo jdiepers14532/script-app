@@ -6,6 +6,7 @@ export default defineConfig({
   retries: 1,
   use: {
     baseURL: process.env.BASE_URL || 'https://script.serienwerft.studio',
+    ignoreHTTPSErrors: true,
     extraHTTPHeaders: {
       'Accept': 'application/json',
     },

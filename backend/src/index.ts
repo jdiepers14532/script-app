@@ -106,7 +106,8 @@ app.use('/api', healthRouter)
 app.use('/api/produktionen', produktionenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
-app.use('/api/stages', exportsRouter)     // werkstufe export routes are mounted here
+app.use('/api/stages', exportsRouter)     // legacy stage export routes
+app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 // Internal webhook — no auth, must be registered BEFORE the catch-all /api entitiesRouter
 app.use('/api/internal', commentWebhookRouter)
 
