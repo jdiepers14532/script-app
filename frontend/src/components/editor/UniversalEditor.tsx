@@ -453,12 +453,7 @@ export default function UniversalEditor({
     try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
     if (showLineNumbers) {
       updateLineNumberCSS(effectiveLn)
-      try {
-        editor.registerPlugin(createLineNumberPlugin())
-        console.warn('[LN] plugin registered, blocks:', editor.state.doc.childCount)
-      } catch (err) {
-        console.error('[LN] registerPlugin failed:', err)
-      }
+      try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
     }
     return () => {
       try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
