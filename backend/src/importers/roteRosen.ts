@@ -409,11 +409,8 @@ interface SceneHeader {
   spieltag: number
   charaktere: string[]
   zusammenfassung: string
-  /** Index range in the original `lines` array covering only the treatment body text
-   *  (after ort/chars/int_ext, before duration/komparsen). Used by buildScene to feed
-   *  parseTreatmentContent with the correct slice including bbox blank-line separators. */
-  treatmentStart: number
-  treatmentEnd: number
+  /** Raw lines of the treatment text, blank strings = paragraph breaks (for content conversion). */
+  zusammenfassungLines: string[]
   dauer_sekunden: number
   komparsen: string[]
   hinweise: string[]
@@ -582,23 +579,24 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   }
 
   // Zusammenfassung: collect lines until duration, next scene, or post-header metadata.
-  // treatmentStart/treatmentEnd mark the range in `lines` for parseTreatmentContent
-  // (includes bbox blank-line separators for paragraph detection).
-  const treatmentStart = i
-  const zusammenfassungParts: string[] = []
+  // Blank lines are preserved as '' so paragraph boundaries survive for content conversion.
+  const zusammenfassungLines: string[] = []
   while (i < lines.length) {
     const line = lines[i].trim()
-    if (!line) { i++; continue }
+    if (!line) { zusammenfassungLines.push(''); i++; continue }
     if (DURATION_RE.test(line)) break
     if (SCENE_NUM_RE.test(line)) break
     if (INT_EXT_SPIELTAG_RE.test(line)) break
     if (KOMPARSEN_RE.test(line)) break
     if (/^Bild aus Block/i.test(line) || WECHSELSCHNITT_RE.test(line) || /^Bitte.*Memo/i.test(line)) break
-    zusammenfassungParts.push(line)
+    zusammenfassungLines.push(line)
     i++
   }
-  const treatmentEnd = i
-  const zusammenfassung = zusammenfassungParts.join(' ')
+  // Strip trailing blanks
+  while (zusammenfassungLines.length > 0 && zusammenfassungLines[zusammenfassungLines.length - 1] === '') {
+    zusammenfassungLines.pop()
+  }
+  const zusammenfassung = zusammenfassungLines.filter(l => l).join(' ')
 
   // If zusammenfassung loop broke on INT/EXT, parse it now
   i = skipBlanks(lines, i)
@@ -692,7 +690,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
 
   return {
     episodeNr, sceneNr, ort_name, int_ext, tageszeit, spieltag,
-    charaktere, zusammenfassung: finalZusammenfassung, treatmentStart, treatmentEnd, dauer_sekunden, komparsen, hinweise,
+    charaktere, zusammenfassung: finalZusammenfassung, zusammenfassungLines, dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
     isWechselschnitt,
     wechselschnittPartner,
@@ -876,7 +874,7 @@ function parseSubSceneHeader(
   return {
     episodeNr: parent.episodeNr, sceneNr: 0,
     ort_name, int_ext, tageszeit, spieltag,
-    charaktere, zusammenfassung: finalZusammenfassung, treatmentStart: 0, treatmentEnd: 0,
+    charaktere, zusammenfassung: finalZusammenfassung, zusammenfassungLines: [],
     dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
     isWechselschnitt: true,
@@ -1103,12 +1101,12 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     let sceneChars: string[] = []
 
     if (docType === 'treatment') {
-      // For treatment: use the treatmentStart/treatmentEnd range recorded by parseSceneHeader.
-      // This slice of `lines` contains bbox blank-line separators for paragraph detection.
-      if (header.treatmentEnd > header.treatmentStart) {
-        textelemente = parseTreatmentContent(lines, header.treatmentStart, header.treatmentEnd, layout)
+      // For treatment: the scene text was consumed by parseSceneHeader into zusammenfassungLines
+      // (with blank strings as paragraph breaks). Feed those directly to parseTreatmentContent.
+      if (header.zusammenfassungLines.length > 0) {
+        textelemente = parseTreatmentContent(header.zusammenfassungLines, 0, header.zusammenfassungLines.length, layout)
       }
-      // Fall back to remaining content range (e.g. crosscut sub-scenes)
+      // Fall back to remaining content range (e.g. dialog in crosscut sections)
       if (textelemente.length === 0) {
         textelemente = parseTreatmentContent(lines, contentStartIdx, contentEndIdx, layout)
       }
