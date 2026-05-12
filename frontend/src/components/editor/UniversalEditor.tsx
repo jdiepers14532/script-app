@@ -426,7 +426,7 @@ export default function UniversalEditor({
   }, [editor, readOnly])
 
   // ── Line number plugin (register/unregister based on toggle) ──────────────
-  const { lnSettings } = useAppSettings()
+  const { lnSettings, pageMarginMm } = useAppSettings()
   const effectiveLn = {
     fontFamily: lnSettings.fontFamily,
     fontSizePt: lnSettings.fontSizePt,
@@ -1056,7 +1056,7 @@ export default function UniversalEditor({
           onMouseEnter={() => { if (focus) setHoverOpen(true) }}
           onMouseLeave={() => { if (focus) setHoverOpen(false) }}
         />
-        <PageWrapper className="page" seitenformat={seitenformat} showShadow={showShadow}>
+        <PageWrapper className="page" seitenformat={seitenformat} showShadow={showShadow} pageMarginMm={pageMarginMm}>
           <EditorContent
             editor={editor}
             style={{ outline: 'none', minHeight: '100%' }}

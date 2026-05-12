@@ -60,8 +60,8 @@ export function usePanelMode() { return useContext(PanelModeContext) }
 export const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
 export interface LnSettings { fontFamily: string; fontSizePt: number; color: string; marginCm: number }
 export const LN_SETTINGS_DEFAULTS: LnSettings = { fontFamily: "'Courier Prime', 'Courier New', monospace", fontSizePt: 10, color: '#999999', marginCm: 1 }
-interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS })
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMarginMm: number }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMarginMm: 25 })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context

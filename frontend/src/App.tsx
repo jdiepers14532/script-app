@@ -35,6 +35,7 @@ export default function App() {
   const [sceneEnvColors, setSceneEnvColors] = useState<Record<string, any> | null>(null)
   const [terminologie, setTerminologie] = useState<TerminologieConfig>({ ...TERM_DEFAULTS })
   const [lnSettings, setLnSettings] = useState<LnSettings>(LN_SETTINGS_DEFAULTS)
+  const [pageMarginMm, setPageMarginMm] = useState(25)
 
   useEffect(() => {
     const loadSettings = () => {
@@ -65,6 +66,10 @@ export default function App() {
           if (data?.ln_settings) {
             try { setLnSettings({ ...LN_SETTINGS_DEFAULTS, ...JSON.parse(data.ln_settings) }) } catch {}
           }
+          if (data?.page_margin_mm) {
+            const v = parseFloat(data.page_margin_mm)
+            if (v >= 10 && v <= 50) setPageMarginMm(v)
+          }
         })
         .catch(() => {})
     }
@@ -75,7 +80,7 @@ export default function App() {
 
   return (
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMarginMm }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>

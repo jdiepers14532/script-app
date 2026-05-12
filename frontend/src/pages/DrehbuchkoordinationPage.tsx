@@ -1614,6 +1614,9 @@ function DokumentEinstellungenTab() {
   const [lnColor, setLnColor] = useState('#999999')
   const [lnMargin, setLnMargin] = useState(1)
 
+  // Page margin
+  const [pageMarginMm, setPageMarginMm] = useState(25)
+
   useEffect(() => {
     api.getOverrideRollen().then((d: any) => setOverrideRollen(d.rollen ?? [])).catch(() => {})
     api.getFassungsNummerierung().then((d: any) => setNumModus((d.modus ?? 'global') as 'global' | 'per_typ')).catch(() => {})
@@ -1628,6 +1631,10 @@ function DokumentEinstellungenTab() {
             if (typeof s.marginCm === 'number') setLnMargin(s.marginCm)
           } catch {}
         }
+        if (data?.page_margin_mm) {
+          const v = parseFloat(data.page_margin_mm)
+          if (v >= 10 && v <= 50) setPageMarginMm(v)
+        }
       }).catch(() => {})
     }
   }, [produktionId])
@@ -1640,6 +1647,7 @@ function DokumentEinstellungenTab() {
         await api.updateDkAppSetting(produktionId, 'ln_settings', JSON.stringify({
           fontFamily: lnFont, fontSizePt: lnSize, color: lnColor, marginCm: lnMargin,
         }))
+        await api.updateDkAppSetting(produktionId, 'page_margin_mm', String(pageMarginMm))
         window.dispatchEvent(new Event('app-settings-changed'))
       }
       setMsg('Gespeichert.')
@@ -1748,6 +1756,23 @@ function DokumentEinstellungenTab() {
           <div style={{ marginTop: 6, fontFamily: lnFont, fontSize: `${lnSize}pt`, color: lnColor }}>
             5 &nbsp;&nbsp; 10 &nbsp;&nbsp; 15 &nbsp;&nbsp; 20
           </div>
+        </div>
+      </section>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Seitenrand</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+          Abstand vom physischen Papierrand zum Textbereich (alle Seiten).
+          Standard: 25 mm (≈ 1 Zoll). Gilt fuer alle Editoren dieser Produktion.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input type="number" min={10} max={50} step={1} value={pageMarginMm}
+            onChange={e => setPageMarginMm(Math.max(10, Math.min(50, parseInt(e.target.value) || 25)))}
+            style={{ width: 60, fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', textAlign: 'center' }} />
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>mm</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
+            ({Math.round(pageMarginMm * 96 / 25.4)} px)
+          </span>
         </div>
       </section>
 

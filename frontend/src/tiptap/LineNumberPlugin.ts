@@ -72,11 +72,11 @@ export const LN_DEFAULTS: LineNumberSettings = {
 /**
  * Generate dynamic CSS for line numbers based on settings.
  *
- * Numbers are positioned in the left margin area of the PageWrapper (96px padding).
- * They do NOT affect text layout (no padding-left on ProseMirror).
+ * Numbers are positioned in the left margin area of the PageWrapper.
+ * Uses CSS variable --page-padding (set by PageWrapper) so line numbers
+ * automatically adapt when the page margin changes.
  *
  * marginCm = distance from the physical paper left edge to the left edge of the number column.
- * The 96px (≈2.54cm) PageWrapper padding provides the margin space.
  */
 export function generateLineNumberCSS(opts: LineNumberSettings): string {
   return `
@@ -92,7 +92,7 @@ export function generateLineNumberCSS(opts: LineNumberSettings): string {
 }
 .pm-ln {
   position: absolute;
-  left: calc(-96px + ${opts.marginCm}cm);
+  left: calc(-1 * var(--page-padding, 96px) + ${opts.marginCm}cm);
   top: 2px;
   display: block;
   width: 1cm;
