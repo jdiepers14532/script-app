@@ -449,11 +449,33 @@ export default function UniversalEditor({
   }
 
   useEffect(() => {
+    console.warn('[LN] useEffect fired — editor:', !!editor, 'showLineNumbers:', showLineNumbers)
     if (!editor) return
     try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
     if (showLineNumbers) {
       updateLineNumberCSS(effectiveLn)
-      try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
+      console.warn('[LN] CSS injected. style tag:', !!document.getElementById('line-number-css'))
+      try {
+        editor.registerPlugin(createLineNumberPlugin())
+        console.warn('[LN] plugin registered OK. doc blocks:', editor.state.doc.childCount)
+        // Check decorations
+        setTimeout(() => {
+          const lnEls = document.querySelectorAll('.pm-ln')
+          console.warn('[LN] .pm-ln elements in DOM:', lnEls.length)
+          if (lnEls.length > 0) {
+            const first = lnEls[0] as HTMLElement
+            const cs = getComputedStyle(first, '::after')
+            console.warn('[LN] first ::after — content:', cs.content, 'left:', cs.left, 'position:', cs.position, 'color:', cs.color)
+            console.warn('[LN] first el rect:', JSON.stringify(first.getBoundingClientRect()))
+          }
+          const pmEl = document.querySelector('.ProseMirror')
+          if (pmEl) {
+            console.warn('[LN] .ProseMirror children:', pmEl.children.length, 'innerHTML snippet:', pmEl.innerHTML.substring(0, 300))
+          }
+        }, 500)
+      } catch (err) {
+        console.error('[LN] registerPlugin FAILED:', err)
+      }
     }
     return () => {
       try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
