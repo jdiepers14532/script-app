@@ -941,10 +941,13 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
     if (TEXTBAUSTEIN_LINE_START_RE.test(t)) {
       flushContent()
     }
-    // bbox layout: centered or large-font lines are likely headings/section titles
+    // bbox layout: large-font lines are likely section headings → new paragraph.
+    // NOTE: isCentered is NOT used here — indented treatment text (xMin > page margin)
+    // accidentally appears "centered" because its midpoint falls near the page center.
+    // Blank lines inserted by buildTextFromLayout already handle real paragraph breaks.
     else if (layout && contentLines.length > 0) {
       const li = lineInfoMap.get(t)
-      if (li && (li.isCentered || li.isLargeFont)) {
+      if (li && li.isLargeFont) {
         flushContent()
       }
     }
