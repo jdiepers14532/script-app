@@ -454,14 +454,27 @@ export default function UniversalEditor({
   }, [showLineNumbers, lineNumberMarginCm, lnSettings]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    console.warn('[LN] effect fired — editor:', !!editor, 'showLineNumbers:', showLineNumbers)
     if (!editor) return
     try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
     if (showLineNumbers) {
-      try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
+      try {
+        editor.registerPlugin(createLineNumberPlugin())
+        console.warn('[LN] registered. blocks:', editor.state.doc.childCount)
+        setTimeout(() => {
+          const els = document.querySelectorAll('.pm-ln')
+          console.warn('[LN] .pm-ln in DOM:', els.length)
+          if (els.length > 0) {
+            const cs = getComputedStyle(els[0], '::after')
+            console.warn('[LN] ::after content:', cs.content, 'left:', cs.left, 'pos:', cs.position)
+          }
+          console.warn('[LN] style tag:', !!document.getElementById('line-number-css'))
+          const pm = document.querySelector('.ProseMirror')
+          if (pm) console.warn('[LN] PM children:', pm.children.length, 'snippet:', pm.innerHTML.substring(0, 200))
+        }, 500)
+      } catch (err) { console.error('[LN] FAILED:', err) }
     }
-    return () => {
-      try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
-    }
+    return () => { try { editor.unregisterPlugin(lineNumberPluginKey) } catch {} }
   }, [editor, showLineNumbers])
 
   // ── Replik number plugin ──────────────────────────────────────────────────
