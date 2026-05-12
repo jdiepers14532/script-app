@@ -4,7 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import { ResizableImageExtension } from '../../tiptap/ResizableImageExtension'
-import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel } from '../../tiptap/PlaceholderChipExtension'
+import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel, getPlaceholderColor } from '../../tiptap/PlaceholderChipExtension'
 import type { PlaceholderZone } from '../../tiptap/PlaceholderChipExtension'
 
 // ── CSS injection ─────────────────────────────────────────────────────────────
