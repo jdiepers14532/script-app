@@ -1104,15 +1104,15 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     let sceneChars: string[] = []
 
     if (docType === 'treatment') {
-      // For treatment: the scene text was consumed by parseSceneHeader into zusammenfassungLines
-      // (with blank strings as paragraph breaks). Feed those directly to parseTreatmentContent.
+      // Oneliner (header-consumed text) + Status Quo / Anmerkungen / remainder (contentStartIdx..contentEndIdx)
+      // Both ranges are needed: zusammenfassungLines holds the 1–2 line oneliner,
+      // and [contentStartIdx, contentEndIdx) holds the longer Status Quo + narrative sections.
       if (header.zusammenfassungLines.length > 0) {
         textelemente = parseTreatmentContent(header.zusammenfassungLines, 0, header.zusammenfassungLines.length, layout)
       }
-      // Fall back to remaining content range (e.g. dialog in crosscut sections)
-      if (textelemente.length === 0) {
-        textelemente = parseTreatmentContent(lines, contentStartIdx, contentEndIdx, layout)
-      }
+      // Always also parse the remaining content range and append
+      const remainder = parseTreatmentContent(lines, contentStartIdx, contentEndIdx, layout)
+      textelemente = [...textelemente, ...remainder]
     } else {
       const parsed = parseDrehbuchContent(lines, contentStartIdx, contentEndIdx)
       textelemente = parsed.elems
