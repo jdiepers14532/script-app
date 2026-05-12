@@ -51,6 +51,7 @@ import { editorUploadsRouter } from './routes/editor-uploads'
 import { spellcheckRouter } from './routes/spellcheck'
 import searchRouter from './routes/search'
 import { straengeRouter } from './routes/straenge'
+import kopfFusszeilen from './routes/kopf-fusszeilen'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -150,6 +151,9 @@ app.use('/api/werkstufen/:werkId/szenen', (req, _res, next) => {
 
 // Dokument-Vorlagen (Templates)
 app.use('/api/produktionen/:produktionId/dokument-vorlagen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, dokumentVorlagenRouter)
+
+// Kopf-/Fußzeilen-Defaults
+app.use('/api/produktionen', kopfFusszeilen)
 
 // Absatzformate
 app.use('/api/produktionen/:produktionId/absatzformate', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, absatzformateRouter)
@@ -258,6 +262,7 @@ async function runMigrations() {
     'v63_sonderszenen.sql',
     'v64_datei_archiv_hash.sql',
     'v65_episodenende_format.sql',
+    'v66_kopf_fusszeilen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
