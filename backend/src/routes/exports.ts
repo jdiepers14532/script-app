@@ -177,8 +177,8 @@ async function loadFormatMap(produktionId: string): Promise<Map<string, any>> {
 
 async function logWerkstufenExport(userId: string, userName: string, werkId: string, format: string): Promise<string> {
   const result = await queryOne(
-    `INSERT INTO export_logs (user_id, user_name, stage_label, produktion_id, format)
-     SELECT $1, $2, COALESCE(w.label, w.typ || ' V' || w.version_nummer), f.produktion_id, $3
+    `INSERT INTO export_logs (user_id, user_name, stage_label, staffel_id, format, werkstufe_id)
+     SELECT $1, $2, COALESCE(w.label, w.typ || ' V' || w.version_nummer), f.produktion_id, $3, w.id
      FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
      WHERE w.id = $4
      RETURNING id`,
