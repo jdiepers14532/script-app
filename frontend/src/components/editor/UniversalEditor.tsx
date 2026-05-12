@@ -437,17 +437,12 @@ export default function UniversalEditor({
   useEffect(() => {
     if (!editor) return
     try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
-    const el = editor.view.dom as HTMLElement
     if (showLineNumbers) {
       updateLineNumberCSS(effectiveLn)
       try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
-      el.classList.add('has-line-numbers')
-    } else {
-      el.classList.remove('has-line-numbers')
     }
     return () => {
       try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
-      el.classList.remove('has-line-numbers')
     }
   }, [editor, showLineNumbers, lineNumberMarginCm, lnSettings])
 

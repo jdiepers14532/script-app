@@ -71,14 +71,15 @@ export const LN_DEFAULTS: LineNumberSettings = {
 
 /**
  * Generate dynamic CSS for line numbers based on settings.
- * marginCm = distance from the left edge of text to the right edge of the number column.
+ *
+ * Numbers are positioned in the left margin area of the PageWrapper (96px padding).
+ * They do NOT affect text layout (no padding-left on ProseMirror).
+ *
+ * marginCm = distance from the physical paper left edge to the left edge of the number column.
+ * The 96px (≈2.54cm) PageWrapper padding provides the margin space.
  */
 export function generateLineNumberCSS(opts: LineNumberSettings): string {
-  const gutterWidthCm = opts.marginCm + 0.3 // extra gap between number and text
   return `
-.ProseMirror.has-line-numbers {
-  padding-left: ${gutterWidthCm}cm !important;
-}
 .pm-ln-wrap {
   height: 0;
   overflow: visible;
@@ -91,15 +92,16 @@ export function generateLineNumberCSS(opts: LineNumberSettings): string {
 }
 .pm-ln {
   position: absolute;
-  left: -${gutterWidthCm}cm;
+  left: calc(-96px + ${opts.marginCm}cm);
   top: 2px;
   display: block;
-  width: ${opts.marginCm}cm;
+  width: 1cm;
   text-align: right;
   font-family: ${opts.fontFamily};
   font-size: ${opts.fontSizePt}pt;
   line-height: 1;
   color: ${opts.color};
+  pointer-events: none;
 }
 `
 }
