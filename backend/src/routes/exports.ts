@@ -21,26 +21,51 @@ function inlineToText(content: any[]): string {
   return content.map((n: any) => n.text ?? '').join('')
 }
 
-/** Resolve content blocks, prepending textbaustein for absatz nodes */
+/** Resolve content blocks, prepending textbaustein for absatz nodes.
+ *  Also handles ProseMirror 'paragraph', 'screenplay_element', 'doc' nodes. */
 function resolveBlocks(szene: any, formatMap: Map<string, any>): Block[] {
-  const raw = Array.isArray(szene.content) ? szene.content : []
-  return raw.map((node: any) => {
+  // szene.content may be a ProseMirror doc, an array of nodes, or already flat blocks
+  let raw: any[]
+  if (Array.isArray(szene.content)) {
+    raw = szene.content
+  } else if (szene.content?.type === 'doc' && Array.isArray(szene.content.content)) {
+    raw = szene.content.content
+  } else {
+    return []
+  }
+
+  const blocks: Block[] = []
+  for (const node of raw) {
     if (node.type === 'absatz') {
       const fmtId = node.attrs?.format_id
       const fmt = fmtId ? formatMap.get(fmtId) : null
       const text = inlineToText(node.content)
       const prefix = fmt?.textbaustein ? `${fmt.textbaustein} ` : ''
-      // Map format_name to block type
       const nameToType: Record<string, string> = {
         'Szenenueberschrift': 'heading', 'Scene Heading': 'heading',
         'Action': 'action', 'Character': 'character', 'Dialogue': 'dialogue',
         'Parenthetical': 'parenthetical', 'Transition': 'transition', 'Shot': 'shot',
       }
       const blockType = nameToType[node.attrs?.format_name] ?? 'action'
-      return { type: blockType, text: prefix + text } as Block
+      blocks.push({ type: blockType, text: prefix + text })
+    } else if (node.type === 'screenplay_element') {
+      const typeMap: Record<string, Block['type']> = {
+        action: 'action', character: 'character', dialogue: 'dialogue',
+        parenthetical: 'parenthetical', transition: 'transition', shot: 'shot',
+        heading: 'heading', scene_heading: 'heading',
+      }
+      const blockType = typeMap[node.attrs?.element_type ?? node.attrs?.type] ?? 'action'
+      const text = inlineToText(node.content)
+      blocks.push({ type: blockType, text })
+    } else if (node.type === 'paragraph' || node.type === 'heading') {
+      const text = inlineToText(node.content)
+      if (text.trim()) blocks.push({ type: 'action', text })
+    } else if (typeof node.text === 'string') {
+      // legacy flat block
+      blocks.push({ type: (node.type as Block['type']) || 'action', text: node.text })
     }
-    return node as Block
-  })
+  }
+  return blocks
 }
 
 function contentToFountain(szenen: any[], formatMap: Map<string, any>): string {
@@ -56,13 +81,13 @@ function contentToFountain(szenen: any[], formatMap: Map<string, any>): string {
     for (const block of blocks) {
       switch (block.type) {
         case 'heading':
-          out += `\n${block.text.toUpperCase()}\n\n`
+          out += `\n${(block.text ?? '').toUpperCase()}\n\n`
           break
         case 'action':
           out += `${block.text}\n\n`
           break
         case 'character':
-          out += `${' '.repeat(20)}${block.text.toUpperCase()}\n`
+          out += `${' '.repeat(20)}${(block.text ?? '').toUpperCase()}\n`
           break
         case 'parenthetical':
           out += `${' '.repeat(15)}(${block.text})\n`
