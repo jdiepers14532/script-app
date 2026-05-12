@@ -7,9 +7,7 @@ import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor
 import { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
-import { useEditor, EditorContent } from '@tiptap/react'
-import StarterKit from '@tiptap/starter-kit'
-import UnderlineExt from '@tiptap/extension-underline'
+import DokumentVorlagenEditor, { emptyVorlagenEditorValue, type DokumentVorlagenEditorValue } from '../components/editor/DokumentVorlagenEditor'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -2596,75 +2594,12 @@ function Placeholder({ label }: { label: string }) {
 
 // ── Vorlagen Tab ────────────────────────────────────────────────────────────────
 
-function VorlagenSektionEditor({
-  content,
-  onChange,
-  editorRef,
-}: {
-  content: any
-  onChange: (c: any) => void
-  editorRef: React.MutableRefObject<any>
-}) {
-  const editor = useEditor({
-    extensions: [StarterKit, UnderlineExt],
-    content: content || { type: 'doc', content: [{ type: 'paragraph' }] },
-    onUpdate: ({ editor }) => onChange(editor.getJSON()),
-  })
-
-  useEffect(() => {
-    editorRef.current = editor
-  }, [editor])
-
-  if (!editor) return null
-
-  const toolbarBtn = (active: boolean, onClick: () => void, label: string, style?: React.CSSProperties) => (
-    <button
-      key={label}
-      onMouseDown={e => { e.preventDefault(); onClick() }}
-      style={{
-        width: 26, height: 26, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer',
-        background: active ? 'var(--text-primary)' : 'transparent',
-        color: active ? 'var(--text-inverse)' : 'var(--text-secondary)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12,
-        ...style,
-      }}
-    >{label}</button>
-  )
-
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
-      <div style={{ display: 'flex', gap: 4, padding: '4px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-        {toolbarBtn(editor.isActive('bold'), () => editor.chain().focus().toggleBold().run(), 'B', { fontWeight: 700 })}
-        {toolbarBtn(editor.isActive('italic'), () => editor.chain().focus().toggleItalic().run(), 'I', { fontStyle: 'italic' })}
-        {toolbarBtn(editor.isActive('underline'), () => editor.chain().focus().toggleUnderline().run(), 'U', { textDecoration: 'underline' })}
-        {toolbarBtn(editor.isActive('bulletList'), () => editor.chain().focus().toggleBulletList().run(), '•')}
-      </div>
-      <EditorContent
-        editor={editor}
-        style={{ minHeight: 140, padding: '8px 12px', fontSize: 13, cursor: 'text', lineHeight: 1.6 }}
-      />
-    </div>
-  )
-}
-
 const VORLAGE_TYPES = [
   { id: 'titelseite', label: 'Titelseite' },
   { id: 'synopsis', label: 'Synopsis' },
   { id: 'recap', label: 'Recap' },
   { id: 'precap', label: 'Precap' },
   { id: 'custom', label: 'Benutzerdefiniert' },
-]
-
-const META_PLACEHOLDERS = [
-  { key: '{{autor}}', label: 'Autor' },
-  { key: '{{block}}', label: 'Block' },
-  { key: '{{folge}}', label: 'Folge' },
-  { key: '{{folgentitel}}', label: 'Folgentitel' },
-  { key: '{{staffel}}', label: 'Staffel' },
-  { key: '{{produktion}}', label: 'Produktion' },
-  { key: '{{datum}}', label: 'Datum' },
-  { key: '{{fassung}}', label: 'Fassung' },
-  { key: '{{version}}', label: 'Version' },
 ]
 
 function StockshotTemplatesTab({ productionId }: { productionId: string }) {
@@ -2779,10 +2714,8 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [editId, setEditId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editTyp, setEditTyp] = useState('custom')
-  const [editSektionen, setEditSektionen] = useState<any[]>([])
-  const [editMetaFields, setEditMetaFields] = useState<any[]>([])
+  const [editEditorValue, setEditEditorValue] = useState<DokumentVorlagenEditorValue>(emptyVorlagenEditorValue())
   const [saving, setSaving] = useState(false)
-  const editorRef = useRef<any>(null)
 
   const load = () => {
     setLoading(true)
@@ -2794,22 +2727,38 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     setEditId(v.id)
     setEditName(v.name)
     setEditTyp(v.typ || 'custom')
-    setEditSektionen(v.sektionen || [])
-    setEditMetaFields(v.meta_fields || [])
+    setEditEditorValue({
+      body_content:            v.body_content   ?? v.sektionen?.[0]?.content ?? emptyVorlagenEditorValue().body_content,
+      kopfzeile_content:       v.kopfzeile_content ?? null,
+      fusszeile_content:       v.fusszeile_content ?? null,
+      kopfzeile_aktiv:         v.kopfzeile_aktiv ?? false,
+      fusszeile_aktiv:         v.fusszeile_aktiv ?? false,
+      erste_seite_kein_header: v.erste_seite_kein_header ?? true,
+      seiten_layout:           v.seiten_layout ?? emptyVorlagenEditorValue().seiten_layout,
+    })
   }
 
   const startNew = () => {
     setEditId('__new__')
     setEditName('')
     setEditTyp('custom')
-    setEditSektionen([{ element_type: 'notiz', label: 'Inhalt', content: { type: 'doc', content: [{ type: 'paragraph' }] } }])
-    setEditMetaFields([])
+    setEditEditorValue(emptyVorlagenEditorValue())
   }
 
   const saveVorlage = async () => {
     setSaving(true)
     try {
-      const data = { name: editName, typ: editTyp, sektionen: editSektionen, meta_fields: editMetaFields }
+      const data = {
+        name: editName,
+        typ: editTyp,
+        body_content:            editEditorValue.body_content,
+        kopfzeile_content:       editEditorValue.kopfzeile_content,
+        fusszeile_content:       editEditorValue.fusszeile_content,
+        kopfzeile_aktiv:         editEditorValue.kopfzeile_aktiv,
+        fusszeile_aktiv:         editEditorValue.fusszeile_aktiv,
+        erste_seite_kein_header: editEditorValue.erste_seite_kein_header,
+        seiten_layout:           editEditorValue.seiten_layout,
+      }
       if (editId === '__new__') {
         await api.createDokumentVorlageManual(productionId, data)
       } else {
@@ -2830,12 +2779,6 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     load()
   }
 
-  const insertPlaceholder = (key: string) => {
-    if (editorRef.current) {
-      editorRef.current.chain().focus().insertContent(key).run()
-    }
-  }
-
   const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
 
@@ -2844,58 +2787,35 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   // Edit mode
   if (editId) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 600 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>
-          {editId === '__new__' ? 'Neue Vorlage' : 'Vorlage bearbeiten'}
-        </h3>
-
-        <div>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Name</label>
-          <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite" />
-        </div>
-
-        <div>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Typ</label>
-          <select
-            style={{ ...inputStyle, cursor: 'pointer' }}
-            value={editTyp}
-            onChange={e => setEditTyp(e.target.value)}
-          >
-            {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Meta-Platzhalter einfuegen</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {META_PLACEHOLDERS.map(p => (
-              <button key={p.key} onClick={() => insertPlaceholder(p.key)} style={{ ...btnStyle, fontSize: 11, padding: '3px 8px' }}>
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Inhalt</label>
-          <VorlagenSektionEditor
-            key={editId}
-            content={editSektionen[0]?.content}
-            onChange={c => setEditSektionen(prev => {
-              const copy = prev.length ? [...prev] : [{ element_type: 'notiz', label: 'Inhalt', content: null }]
-              copy[0] = { ...copy[0], content: c }
-              return copy
-            })}
-            editorRef={editorRef}
-          />
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, flex: 1 }}>
+            {editId === '__new__' ? 'Neue Vorlage' : 'Vorlage bearbeiten'}
+          </h3>
           <button onClick={saveVorlage} disabled={saving || !editName.trim()} style={{ ...btnStyle, background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600 }}>
             {saving ? 'Speichere...' : 'Speichern'}
           </button>
           <button onClick={() => setEditId(null)} style={btnStyle}>Abbrechen</button>
         </div>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Name</label>
+            <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite Rote Rosen" />
+          </div>
+          <div style={{ width: 200 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Typ</label>
+            <select style={{ ...inputStyle, cursor: 'pointer' }} value={editTyp} onChange={e => setEditTyp(e.target.value)}>
+              {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <DokumentVorlagenEditor
+          key={editId}
+          value={editEditorValue}
+          onChange={setEditEditorValue}
+        />
       </div>
     )
   }
