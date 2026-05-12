@@ -82,11 +82,12 @@ export function generateLineNumberCSS(opts: LineNumberSettings): string {
   padding: 0;
   pointer-events: none;
   user-select: none;
-  position: static;
+  position: relative;
 }
 .pm-ln::after {
   content: attr(data-ln);
   position: absolute;
+  top: 0;
   left: calc(-1 * var(--page-padding, 96px) + ${opts.marginCm}cm);
   width: calc(var(--page-padding, 96px) - ${opts.marginCm}cm - 4px);
   text-align: right;
