@@ -235,6 +235,8 @@ function SharedColumnToolbar({
 }
 
 // ── Three-column zone editor (for KZ / FZ) ───────────────────────────────────
+// Tab-based: each zone (Links / Mitte / Rechts) gets the full page width.
+// A preview strip at the bottom shows the 3-column result.
 function ThreeColumnZone({
   label, color, aktiv, ersteSeiteOhne, ersteSeiteOhneLabel,
   content, readOnly, produktionsLogoUrl, zone, previewContext,
@@ -254,45 +256,53 @@ function ThreeColumnZone({
   onErsteSeiteOhneChange?: (v: boolean) => void
   onChange: (c: ZeilenContent) => void
 }) {
+  const [activeCol, setActiveCol] = useState<ColKey>('links')
   const editorsRef = useRef<Record<ColKey, Editor | null>>({ links: null, mitte: null, rechts: null })
-  const [activeCol, setActiveCol] = useState<ColKey | null>(null)
   const [, setTick] = useState(0)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleEditorReady = (col: ColKey, ed: Editor) => {
     editorsRef.current[col] = ed
-    ed.on('focus', () => setActiveCol(col))
-    ed.on('blur', () => setActiveCol(prev => prev === col ? null : prev))
     ed.on('selectionUpdate', () => setTick(n => n + 1))
-    ed.on('transaction', () => setTick(n => n + 1))
+    ed.on('transaction',     () => setTick(n => n + 1))
   }
 
-  const activeEditor = activeCol ? editorsRef.current[activeCol] : null
+  const switchCol = (col: ColKey) => {
+    setActiveCol(col)
+    // Focus after paint so the newly visible editor can receive focus
+    setTimeout(() => editorsRef.current[col]?.commands.focus(), 30)
+  }
+
+  const activeEditor = editorsRef.current[activeCol]
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !activeEditor) return
+    if (!file) return
+    const ed = editorsRef.current[activeCol]
+    if (!ed) return
     const reader = new FileReader()
     reader.onloadend = () => {
-      ;(activeEditor as any).chain().focus().setResizableImage({ src: reader.result as string, width: 120 }).run()
+      ;(ed as any).chain().focus().setResizableImage({ src: reader.result as string, width: 200 }).run()
     }
     reader.readAsDataURL(file)
     e.target.value = ''
   }
 
   const cols: ColKey[] = ['links', 'mitte', 'rechts']
+  const COL_ALIGN: Record<ColKey, React.CSSProperties['textAlign']> = { links: 'left', mitte: 'center', rechts: 'right' }
+  const toggleStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer' }
 
   return (
     <div style={{ marginBottom: 8 }}>
       {/* Zone header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
         <label style={{ fontSize: 11, fontWeight: 600, color, flex: 1 }}>{label}</label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer' }}>
+        <label style={toggleStyle}>
           <input type="checkbox" checked={aktiv} onChange={e => onAktivChange(e.target.checked)} />
           Aktiv
         </label>
         {ersteSeiteOhneLabel && onErsteSeiteOhneChange && (
-          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer' }}>
+          <label style={toggleStyle}>
             <input type="checkbox" checked={!!ersteSeiteOhne} onChange={e => onErsteSeiteOhneChange(e.target.checked)} />
             {ersteSeiteOhneLabel}
           </label>
@@ -301,7 +311,30 @@ function ThreeColumnZone({
 
       {aktiv && (
         <div style={{ border: `1px solid ${color}44`, borderRadius: 6, overflow: 'hidden' }}>
-          {/* Shared toolbar — shows tools for the focused column */}
+
+          {/* Zone tabs — Links / Mitte / Rechts */}
+          <div style={{ display: 'flex', background: 'var(--bg-subtle)', borderBottom: `1px solid ${color}22` }}>
+            {cols.map(col => (
+              <button
+                key={col}
+                onMouseDown={e => { e.preventDefault(); switchCol(col) }}
+                style={{
+                  flex: 1, padding: '7px 8px', border: 'none', cursor: 'pointer',
+                  fontFamily: 'inherit', fontSize: 11,
+                  fontWeight: activeCol === col ? 700 : 400,
+                  background: activeCol === col ? `${color}12` : 'transparent',
+                  color:      activeCol === col ? color : 'var(--text-secondary)',
+                  borderBottom: `2px solid ${activeCol === col ? color : 'transparent'}`,
+                  textAlign: COL_ALIGN[col],
+                  transition: 'all 0.12s',
+                }}
+              >
+                {COL_LABELS[col]}
+              </button>
+            ))}
+          </div>
+
+          {/* Toolbar for active zone */}
           <SharedColumnToolbar
             editor={activeEditor}
             zone={zone}
@@ -310,60 +343,43 @@ function ThreeColumnZone({
           />
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
-          {/* Three-column editor grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', background: 'white' }}>
-            {cols.map((col, i) => (
-              <div
+          {/* Zone editors — all mounted (Tiptap stays alive), only active is visible */}
+          {cols.map(col => (
+            <div
+              key={col}
+              style={{
+                display: activeCol === col ? 'block' : 'none',
+                padding: '10px 14px',
+                minHeight: 56,
+                background: 'white',
+              }}
+            >
+              <ZoneEditor
                 key={col}
-                style={{
-                  borderLeft: i > 0 ? `1px dashed ${color}33` : 'none',
-                  minHeight: 48,
-                  position: 'relative',
-                  background: activeCol === col ? `${color}08` : 'transparent',
-                  transition: 'background 0.15s',
-                }}
-              >
-                {/* Column label */}
-                <div style={{
-                  fontSize: 9, color: `${color}88`, padding: '3px 8px 1px',
-                  fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4,
-                  textAlign: col === 'rechts' ? 'right' : col === 'mitte' ? 'center' : 'left',
-                }}>
-                  {COL_LABELS[col]}
-                </div>
-                {/* Column editor */}
-                <div style={{ padding: '2px 8px 6px' }}>
-                  <ZoneEditor
-                    key={col}
-                    initialContent={content[col]}
-                    onChange={doc => onChange({ ...content, [col]: doc })}
-                    readOnly={readOnly}
-                    onEditorReady={ed => handleEditorReady(col, ed)}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+                initialContent={content[col]}
+                onChange={doc => onChange({ ...content, [col]: doc })}
+                readOnly={readOnly}
+                onEditorReady={ed => handleEditorReady(col, ed)}
+              />
+            </div>
+          ))}
 
-          {/* WYSIWYG preview strip */}
-          <div style={{
-            borderTop: `1px solid ${color}22`,
-            background: `${color}05`,
-            padding: '4px 8px',
-          }}>
-            <div style={{ fontSize: 9, color: `${color}66`, marginBottom: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+          {/* Preview strip — shows all 3 zones as final output */}
+          <div style={{ borderTop: `1px solid ${color}22`, background: `${color}05`, padding: '6px 10px' }}>
+            <div style={{ fontSize: 9, color: `${color}77`, marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               Vorschau
             </div>
             <div style={{
               display: 'grid', gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 4, background: 'white', border: `1px solid ${color}22`,
-              borderRadius: 3, padding: '4px 8px', minHeight: 24, fontSize: 11,
+              background: 'white', border: `1px solid ${color}22`,
+              borderRadius: 3, padding: '5px 10px', minHeight: 28,
             }}>
               <PreviewCell content={content.links}  align="left"   color={color} ctx={previewContext} />
               <PreviewCell content={content.mitte}  align="center" color={color} ctx={previewContext} />
               <PreviewCell content={content.rechts} align="right"  color={color} ctx={previewContext} />
             </div>
           </div>
+
         </div>
       )}
     </div>
