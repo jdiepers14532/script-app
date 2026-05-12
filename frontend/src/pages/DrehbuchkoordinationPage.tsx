@@ -2712,6 +2712,10 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
 }
 
 function VorlagenTab({ productionId }: { productionId: string }) {
+  const { selectedProduction } = useSelectedProduction()
+  const produktionsLogoUrl = selectedProduction?.logo_filename
+    ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
+    : null
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState<string | null>(null)
@@ -2818,6 +2822,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
           key={editId}
           value={editEditorValue}
           onChange={setEditEditorValue}
+          produktionsLogoUrl={produktionsLogoUrl}
         />
       </div>
     )
@@ -2873,6 +2878,10 @@ const KF_TYPEN = [
 ] as const
 
 function KopfFusszeileTab({ productionId }: { productionId: string }) {
+  const { selectedProduction } = useSelectedProduction()
+  const produktionsLogoUrl = selectedProduction?.logo_filename
+    ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
+    : null
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})
   const [loading, setLoading] = useState(true)
@@ -2995,6 +3004,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
           value={currentConfig}
           onChange={handleChange}
           noBody
+          produktionsLogoUrl={produktionsLogoUrl}
         />
       </div>
     </div>
