@@ -419,7 +419,7 @@ export default function UniversalEditor({
         onSaveRef.current?.(editor.getJSON())
       }, autoSaveMs)
     },
-  }, [processedContent, hasAbsatzFormate])
+  }, [processedContent, hasAbsatzFormate, kategorie])
 
   useEffect(() => {
     editor?.setEditable(!readOnly)
