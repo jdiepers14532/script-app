@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('line numbers debug — check DOM and visibility', async ({ page }) => {
+test('line number CSS rendering test', async ({ page }) => {
   // Auth
   const res = await page.request.post('https://auth.serienwerft.studio/api/auth/login', {
     data: { email: 'noreply@serienwerft.studio', password: 'Claude2026' }
@@ -9,119 +9,125 @@ test('line numbers debug — check DOM and visibility', async ({ page }) => {
   if (!match) { console.log('AUTH FAILED'); return; }
   await page.context().addCookies([{ name: 'access_token', value: match[1], domain: '.serienwerft.studio', path: '/' }]);
 
-  // Navigate to script app
   await page.goto('https://script.serienwerft.studio');
   await page.waitForTimeout(2000);
 
-  // Enable line numbers
-  await page.evaluate(() => {
-    const raw = localStorage.getItem('script_tweaks');
-    const t = raw ? JSON.parse(raw) : {};
-    t.showLineNumbers = true;
-    t.lineNumberMarginCm = 1;
-    localStorage.setItem('script_tweaks', JSON.stringify(t));
-  });
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(3000);
+  // Inject a test DOM that mimics the exact hierarchy of PageWrapper + ProseMirror + line numbers
+  const result = await page.evaluate(() => {
+    // Inject the line number CSS (same as generateLineNumberCSS would produce)
+    const style = document.createElement('style');
+    style.id = 'ln-test-css';
+    style.textContent = `
+.pm-ln {
+  height: 0;
+  line-height: 0;
+  overflow: visible;
+  margin: 0;
+  padding: 0;
+  pointer-events: none;
+  user-select: none;
+  position: static;
+}
+.pm-ln::after {
+  content: attr(data-ln);
+  position: absolute;
+  left: calc(-1 * 96px + 1cm);
+  width: calc(96px - 1cm - 4px);
+  text-align: right;
+  font-family: 'Courier Prime', 'Courier New', monospace;
+  font-size: 10pt;
+  line-height: 1;
+  color: #FF0000;
+  pointer-events: none;
+}`;
+    document.head.appendChild(style);
 
-  // Check if there's a production selector — pick production if needed
-  const productionSelect = page.locator('select').first();
-  const selectCount = await page.locator('select').count();
-  console.log('Select elements:', selectCount);
+    // Create the DOM hierarchy (mimicking actual editor structure)
+    const testArea = document.createElement('div');
+    testArea.id = 'ln-test-area';
+    testArea.style.cssText = 'position:fixed; top:20px; left:20px; z-index:99999; width:900px; height:600px;';
 
-  // Check page state
-  const bodyText = await page.evaluate(() => document.body.innerText.substring(0, 300));
-  console.log('Page text:', bodyText.replace(/\n/g, ' | '));
+    // EditorPanel wrapper (overflow:hidden)
+    const panelWrapper = document.createElement('div');
+    panelWrapper.style.cssText = 'flex:1; overflow:hidden; width:100%; height:100%;';
 
-  // Try clicking on scene list items
-  const sceneListItems = await page.locator('[data-scene-id]').count();
-  console.log('Scene list items:', sceneListItems);
+    // UniversalEditor root
+    const ueRoot = document.createElement('div');
+    ueRoot.style.cssText = 'display:flex; flex-direction:column; height:100%;';
 
-  // If no scenes, try clicking on scene list entries by text content
-  const listItems = await page.locator('.scene-list-item, [class*="scene"], [class*="Scene"]').count();
-  console.log('Scene-related elements:', listItems);
+    // Scroll container
+    const scrollContainer = document.createElement('div');
+    scrollContainer.style.cssText = 'flex:1; overflow:auto; position:relative;';
 
-  // Check if there's already a ProseMirror editor
-  let editorFound = await page.locator('.ProseMirror').count();
-  console.log('ProseMirror initially:', editorFound);
+    // PageWrapper outer
+    const pwOuter = document.createElement('div');
+    pwOuter.style.cssText = 'background:#f5f5f5; padding:32px 24px; min-height:100%; overflow-y:auto;';
 
-  // If no editor, we need to select something - let's look at the DOM
-  if (editorFound === 0) {
-    // Try to find and click something in the left panel
-    const leftPanelItems = await page.evaluate(() => {
-      // Find clickable items in the first 300px of the page
-      const items: string[] = [];
-      document.querySelectorAll('div, li, button, a').forEach(el => {
-        const rect = el.getBoundingClientRect();
-        if (rect.left < 300 && rect.width > 10 && rect.height > 20 && rect.height < 60) {
-          items.push(`${el.tagName}.${el.className?.substring(0, 30)} "${el.textContent?.substring(0, 40)}" at ${Math.round(rect.left)},${Math.round(rect.top)}`);
-        }
-      });
-      return items.slice(0, 20);
-    });
-    console.log('Left panel items:', leftPanelItems);
-  }
+    // PageWrapper inner (page div) — position:relative is KEY
+    const pwInner = document.createElement('div');
+    pwInner.className = 'page';
+    pwInner.style.cssText = '--page-padding:96px; width:794px; min-height:400px; max-width:100%; margin:0 auto; background:white; box-shadow:0 4px 24px rgba(0,0,0,0.15); border-radius:2px; padding:96px; position:relative;';
 
-  // Screenshot current state
-  await page.screenshot({ path: '/tmp/script-ln-debug2.png' });
-  console.log('Screenshot 1 saved');
+    // ProseMirror (position:relative from Tiptap defaults)
+    const prosemirror = document.createElement('div');
+    prosemirror.className = 'ProseMirror';
+    prosemirror.style.cssText = 'position:relative; word-wrap:break-word; white-space:pre-wrap; outline:none; min-height:100%;';
+    prosemirror.contentEditable = 'true';
 
-  // Wait and check for editor after any selection
-  if (editorFound === 0) {
-    // Try to click on the first scene-like item in left panel
-    const clicked = await page.evaluate(() => {
-      const items = document.querySelectorAll('[data-scene-id], [data-szene-id]');
-      if (items.length > 0) {
-        (items[0] as HTMLElement).click();
-        return `clicked data-scene-id: ${items.length} items`;
+    // Add 15 paragraphs with line number widgets every 5th
+    for (let i = 1; i <= 15; i++) {
+      if (i % 5 === 0) {
+        const ln = document.createElement('div');
+        ln.className = 'pm-ln';
+        ln.dataset.ln = String(i);
+        prosemirror.appendChild(ln);
       }
-      // Try text that looks like scene numbers
-      const allDivs = document.querySelectorAll('div');
-      for (const d of allDivs) {
-        const text = d.textContent?.trim() || '';
-        if (/^(SZ|Sz|sz)\s*\d/.test(text) && d.getBoundingClientRect().left < 280) {
-          (d as HTMLElement).click();
-          return `clicked: "${text.substring(0, 30)}"`;
-        }
-      }
-      return 'nothing to click';
-    });
-    console.log('Click result:', clicked);
-    await page.waitForTimeout(2000);
-    editorFound = await page.locator('.ProseMirror').count();
-    console.log('ProseMirror after click:', editorFound);
-  }
-
-  if (editorFound > 0) {
-    const blockCount = await page.evaluate(() => {
-      const pm = document.querySelector('.ProseMirror');
-      return pm ? pm.children.length : 0;
-    });
-    console.log('Editor block count:', blockCount);
-
-    const styleTag = await page.evaluate(() => {
-      const el = document.getElementById('line-number-css');
-      return el ? { found: true, content: el.textContent?.substring(0, 200) } : { found: false };
-    });
-    console.log('STYLE TAG:', JSON.stringify(styleTag));
-
-    const lnWrapCount = await page.locator('.pm-ln-wrap').count();
-    const lnCount = await page.locator('.pm-ln').count();
-    console.log('.pm-ln-wrap:', lnWrapCount, '.pm-ln:', lnCount);
-
-    if (lnCount > 0) {
-      const texts = await page.locator('.pm-ln').allTextContents();
-      console.log('.pm-ln texts:', texts);
+      const p = document.createElement('p');
+      p.style.cssText = 'margin:0; padding:0; font-family:Courier Prime, monospace; font-size:12pt; line-height:1.5;';
+      p.textContent = `Zeile ${i}: Lorem ipsum dolor sit amet, consectetur adipiscing elit.`;
+      prosemirror.appendChild(p);
     }
 
-    // Check the tweaks state as seen by the component
-    const tweakState = await page.evaluate(() => {
-      const raw = localStorage.getItem('script_tweaks');
-      return raw ? JSON.parse(raw) : null;
-    });
-    console.log('Tweaks state:', JSON.stringify(tweakState));
-  }
+    pwInner.appendChild(prosemirror);
+    pwOuter.appendChild(pwInner);
+    scrollContainer.appendChild(pwOuter);
+    ueRoot.appendChild(scrollContainer);
+    panelWrapper.appendChild(ueRoot);
+    testArea.appendChild(panelWrapper);
+    document.body.appendChild(testArea);
 
-  await page.screenshot({ path: '/tmp/script-ln-debug3.png' });
-  console.log('Screenshot 2 saved');
+    // Now check the .pm-ln::after elements
+    const lnElements = document.querySelectorAll('#ln-test-area .pm-ln');
+    const results: any[] = [];
+
+    lnElements.forEach(el => {
+      const afterStyle = getComputedStyle(el, '::after');
+      const elRect = el.getBoundingClientRect();
+      results.push({
+        dataLn: (el as HTMLElement).dataset.ln,
+        elRect: { top: Math.round(elRect.top), left: Math.round(elRect.left), width: Math.round(elRect.width), height: Math.round(elRect.height) },
+        afterContent: afterStyle.content,
+        afterPosition: afterStyle.position,
+        afterLeft: afterStyle.left,
+        afterColor: afterStyle.color,
+        afterFontSize: afterStyle.fontSize,
+        afterDisplay: afterStyle.display,
+        afterWidth: afterStyle.width,
+      });
+    });
+
+    return { count: lnElements.length, results };
+  });
+
+  console.log('Line number elements found:', result.count);
+  result.results.forEach((r: any) => {
+    console.log(`  LN ${r.dataLn}: el@(${r.elRect.top},${r.elRect.left}) ${r.elRect.width}x${r.elRect.height} | ::after content=${r.afterContent} pos=${r.afterPosition} left=${r.afterLeft} color=${r.afterColor} display=${r.afterDisplay}`);
+  });
+
+  await page.screenshot({ path: '/tmp/script-ln-css-test.png' });
+  console.log('Screenshot saved to /tmp/script-ln-css-test.png');
+
+  // Verify at least one ::after has content
+  expect(result.count).toBeGreaterThan(0);
+  expect(result.results[0].afterContent).toContain('5');
 });

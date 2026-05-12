@@ -503,9 +503,9 @@ export default function AppShell({
           showPageShadow:    typeof s.showPageShadow === 'boolean' ? s.showPageShadow : true,
           showTooltips:      typeof s.showTooltips === 'boolean' ? s.showTooltips : true,
           spellcheck:        s.spellcheck ?? prev.spellcheck,
-          showLineNumbers:   typeof s.showLineNumbers === 'boolean' ? s.showLineNumbers : false,
+          showLineNumbers:   typeof s.showLineNumbers === 'boolean' ? s.showLineNumbers : prev.showLineNumbers,
           lineNumberMarginCm: typeof s.lineNumberMarginCm === 'number' ? s.lineNumberMarginCm : 1,
-          showReplikNumbers: typeof s.showReplikNumbers === 'boolean' ? s.showReplikNumbers : false,
+          showReplikNumbers: typeof s.showReplikNumbers === 'boolean' ? s.showReplikNumbers : prev.showReplikNumbers,
           keyboardLayout:    s.keyboardLayout ?? 'qwertz',
           spellcheckLang:    s.spellcheckLang ?? 'de-DE',
         }))

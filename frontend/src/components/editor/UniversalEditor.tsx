@@ -448,39 +448,21 @@ export default function UniversalEditor({
     marginCm: lineNumberMarginCm,
   }
 
+  // Update CSS whenever settings change (independent of plugin registration)
   useEffect(() => {
-    console.warn('[LN] useEffect fired — editor:', !!editor, 'showLineNumbers:', showLineNumbers)
+    if (showLineNumbers) updateLineNumberCSS(effectiveLn)
+  }, [showLineNumbers, lineNumberMarginCm, lnSettings]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     if (!editor) return
     try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
     if (showLineNumbers) {
-      updateLineNumberCSS(effectiveLn)
-      console.warn('[LN] CSS injected. style tag:', !!document.getElementById('line-number-css'))
-      try {
-        editor.registerPlugin(createLineNumberPlugin())
-        console.warn('[LN] plugin registered OK. doc blocks:', editor.state.doc.childCount)
-        // Check decorations
-        setTimeout(() => {
-          const lnEls = document.querySelectorAll('.pm-ln')
-          console.warn('[LN] .pm-ln elements in DOM:', lnEls.length)
-          if (lnEls.length > 0) {
-            const first = lnEls[0] as HTMLElement
-            const cs = getComputedStyle(first, '::after')
-            console.warn('[LN] first ::after — content:', cs.content, 'left:', cs.left, 'position:', cs.position, 'color:', cs.color)
-            console.warn('[LN] first el rect:', JSON.stringify(first.getBoundingClientRect()))
-          }
-          const pmEl = document.querySelector('.ProseMirror')
-          if (pmEl) {
-            console.warn('[LN] .ProseMirror children:', pmEl.children.length, 'innerHTML snippet:', pmEl.innerHTML.substring(0, 300))
-          }
-        }, 500)
-      } catch (err) {
-        console.error('[LN] registerPlugin FAILED:', err)
-      }
+      try { editor.registerPlugin(createLineNumberPlugin()) } catch {}
     }
     return () => {
       try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
     }
-  }, [editor, showLineNumbers, lineNumberMarginCm, lnSettings])
+  }, [editor, showLineNumbers])
 
   // ── Replik number plugin ──────────────────────────────────────────────────
   useEffect(() => {
