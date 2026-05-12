@@ -62,6 +62,16 @@ function useEreignisLabels() {
   } as Record<string, string>
 }
 
+const FONT_FAMILIES = [
+  'Courier Prime',
+  'Courier New',
+  'Inter',
+  'Arial',
+  'Helvetica',
+  'Times New Roman',
+  'Georgia',
+]
+
 const COPY_SECTIONS = [
   { id: 'kategorien', label: 'Charakter-Kategorien' },
   { id: 'labels',     label: 'Fassungs-Labels' },
@@ -1134,7 +1144,11 @@ function DokumentTypenTab() {
                   <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="notiz">notiz</option>
                 </select>
               </td>
-              <td style={{ padding: '4px 4px' }}><input value={editData.font_family} onChange={e => setEditData({ ...editData, font_family: e.target.value })} style={{ ...inputStyle, width: 100 }} /></td>
+              <td style={{ padding: '4px 4px' }}>
+                <select value={editData.font_family} onChange={e => setEditData({ ...editData, font_family: e.target.value })} style={{ ...selectStyle, fontSize: 10, minWidth: 110 }}>
+                  {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </td>
               <td style={{ padding: '4px 4px' }}><input type="number" value={editData.font_size} onChange={e => setEditData({ ...editData, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} /></td>
               <td style={{ padding: '4px 4px', textAlign: 'center' }}>
                 <label style={{ fontSize: 10, marginRight: 4 }}><input type="checkbox" checked={editData.bold} onChange={e => setEditData({ ...editData, bold: e.target.checked })} /> B</label>
@@ -1305,7 +1319,9 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Prefix (fett vorangestellt, Import-Erkennung)</label>
           <input value={data.textbaustein} onChange={e => setData({ ...data, textbaustein: e.target.value })} placeholder="z.B. Status Quo:" style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Schrift</label>
-          <input value={data.font_family} onChange={e => setData({ ...data, font_family: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
+          <select value={data.font_family} onChange={e => setData({ ...data, font_family: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
+            {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+          </select></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Groesse (pt)</label>
           <input type="number" value={data.font_size} onChange={e => setData({ ...data, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Ausrichtung</label>
