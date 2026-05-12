@@ -370,15 +370,7 @@ function ThreeColumnZone({
   )
 }
 
-// ── Preview cell: renders ProseMirror JSON as plain text (simplified) ─────────
-function PreviewCell({ content, align, color, ctx }: { content: any; align: string; color: string; ctx?: PreviewContext }) {
-  const text = extractPlainText(content, ctx)
-  return (
-    <div style={{ textAlign: align as any, fontSize: 10, color: text ? '#000' : `${color}44`, lineHeight: 1.4, minHeight: 16 }}>
-      {text || '—'}
-    </div>
-  )
-}
+// ── Preview: ProseMirror JSON → HTML with real images + resolved chips ────────
 
 const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{produktion}}':   'produktion',
@@ -394,25 +386,72 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{firmenname}}':   'firmenname',
 }
 
-function resolveChipForPreview(key: string, ctx?: PreviewContext): string {
-  const field = PREVIEW_CONTEXT_MAP[key]
-  if (field && ctx?.[field] != null) return String(ctx[field])
-  // For dynamic page counters, show descriptive label in brackets
-  return `[${getPlaceholderLabel(key)}]`
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function extractPlainText(doc: any, ctx?: PreviewContext): string {
+function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   if (!doc) return ''
-  const parts: string[] = []
-  function walk(node: any) {
-    if (node.type === 'text') { parts.push(node.text ?? '') }
-    else if (node.type === 'placeholder_chip') { parts.push(resolveChipForPreview(node.attrs?.key ?? '', ctx)) }
-    else if (node.type === 'hardBreak') { parts.push(' ') }
-    else if (node.type === 'resizable_image') { parts.push('[Bild]') }
-    for (const child of (node.content ?? [])) walk(child)
+
+  function renderInline(node: any): string {
+    if (!node) return ''
+    if (node.type === 'text') {
+      let t = escHtml(node.text ?? '')
+      for (const mark of (node.marks ?? [])) {
+        if (mark.type === 'bold')      t = `<strong>${t}</strong>`
+        if (mark.type === 'italic')    t = `<em>${t}</em>`
+        if (mark.type === 'underline') t = `<u>${t}</u>`
+      }
+      return t
+    }
+    if (node.type === 'placeholder_chip') {
+      const key   = node.attrs?.key ?? ''
+      const field = PREVIEW_CONTEXT_MAP[key]
+      const color = getPlaceholderColor(key)
+      const label = getPlaceholderLabel(key)
+      // Real value available → show as styled text
+      if (field && ctx?.[field] != null) {
+        return `<span style="color:${color};font-weight:600">${escHtml(String(ctx[field]))}</span>`
+      }
+      // Dynamic (seite/seiten_gesamt) or no value → show as chip
+      return `<span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;font-size:9px;font-weight:600;padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
+    }
+    if (node.type === 'hardBreak') return '<br>'
+    if (node.type === 'resizable_image') {
+      const src = node.attrs?.src ?? ''
+      const w   = Math.min(Number(node.attrs?.width) || 60, 80) // max 80px in preview
+      return `<img src="${src}" style="width:${w}px;max-width:100%;vertical-align:middle" />`
+    }
+    return (node.content ?? []).map(renderInline).join('')
   }
-  walk(doc)
-  return parts.join('').trim()
+
+  function renderBlock(node: any): string {
+    if (node.type === 'paragraph') {
+      const align = node.attrs?.textAlign
+      const style = align && align !== 'left' ? ` style="text-align:${align}"` : ''
+      const inner = (node.content ?? []).map(renderInline).join('')
+      return inner ? `<div${style}>${inner}</div>` : ''
+    }
+    return (node.content ?? []).map(renderBlock).join('')
+  }
+
+  const root = doc.type === 'doc' ? doc : { content: [doc] }
+  return (root.content ?? []).map(renderBlock).join('')
+}
+
+function PreviewCell({ content, align, color, ctx }: {
+  content: any; align: string; color: string; ctx?: PreviewContext
+}) {
+  const html = renderPmToPreviewHtml(content, ctx)
+  if (!html) {
+    return <div style={{ textAlign: align as any, fontSize: 10, color: `${color}44`, minHeight: 16 }}>—</div>
+  }
+  return (
+    <div
+      style={{ textAlign: align as any, fontSize: 10, lineHeight: 1.5, minHeight: 16 }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
 }
 
 // ── Body zone toolbar (single editor) ────────────────────────────────────────

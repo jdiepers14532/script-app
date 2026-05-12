@@ -13,9 +13,10 @@ declare module '@tiptap/core' {
 }
 
 // ── NodeView — renders image with drag-to-resize handle ───────────────────────
-function ResizableImageNodeView({ node, updateAttributes, selected }: NodeViewProps) {
+function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
   const { src, alt, width } = node.attrs
   const [resizing, setResizing] = useState(false)
+  const [hovered, setHovered] = useState(false)
   const startData = useRef({ x: 0, w: 0 })
   const w = Number(width) || 120
 
@@ -39,10 +40,14 @@ function ResizableImageNodeView({ node, updateAttributes, selected }: NodeViewPr
     window.addEventListener('mouseup', onUp)
   }
 
+  const showHandle = hovered || resizing
+
   return (
     <NodeViewWrapper
       as="span"
       contentEditable={false}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { if (!resizing) setHovered(false) }}
       style={{ display: 'inline-block', position: 'relative', verticalAlign: 'middle', cursor: 'default' }}
     >
       <img
@@ -52,32 +57,35 @@ function ResizableImageNodeView({ node, updateAttributes, selected }: NodeViewPr
           width: w,
           maxWidth: '100%',
           display: 'block',
-          outline: selected ? '2px solid #007AFF' : '1px solid transparent',
-          outlineOffset: 2,
+          outline: showHandle ? '2px solid #007AFF88' : 'none',
+          outlineOffset: 1,
+          transition: 'outline 0.1s',
         }}
         draggable={false}
       />
-      {/* Resize handle — bottom-right corner, always visible on select */}
+      {/* Resize handle — always visible on hover */}
       <span
         onMouseDown={onResizeStart}
         style={{
           position: 'absolute', right: -5, bottom: -5,
-          width: 10, height: 10,
-          background: selected || resizing ? '#007AFF' : '#bbb',
+          width: 12, height: 12,
+          background: resizing ? '#007AFF' : '#007AFFCC',
           border: '2px solid #fff',
           borderRadius: 2,
           cursor: 'se-resize',
-          display: selected || resizing ? 'block' : 'none',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+          display: showHandle ? 'flex' : 'none',
+          alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
         }}
       />
+      {/* Width tooltip while resizing */}
       {resizing && (
         <span style={{
           position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: 10,
+          background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 10,
           padding: '2px 6px', borderRadius: 3, pointerEvents: 'none', whiteSpace: 'nowrap',
         }}>
-          {w}px
+          {w} px
         </span>
       )}
     </NodeViewWrapper>

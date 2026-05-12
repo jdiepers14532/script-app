@@ -2890,15 +2890,10 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
   const previewContext: PreviewContext = {
-    produktion:   selectedProduction?.title ?? 'Produktion',
-    staffel:      selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
-    folge:        'Folge-Nr.',
-    fassung:      'Drehbuch',
-    version:      'V1',
-    stand_datum:  new Date().toISOString().slice(0, 10),
-    autor:        'Autor',
-    seite:        '1',
-  } as any
+    produktion:  selectedProduction?.title ?? 'Produktion',
+    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
+    stand_datum: new Date().toISOString().slice(0, 10),
+  }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})
   const [loading, setLoading] = useState(true)
