@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api, preloadScene } from '../api/client'
 import AppShell from '../components/AppShell'
@@ -218,23 +219,25 @@ const DEFAULT_WIDTH = 276
 export default function ScriptPage() {
   const { t } = useTerminologie()
   const { focus } = useFocus()
+  const location = useLocation()
   const { selectedProduction, productions, loading } = useSelectedProduction()
   const [bloecke, setBloecke] = useState<any[]>([])
   const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
   const [folgenMitDaten, setFolgenMitDaten] = useState<number[]>([])
-  const [refreshKey, setRefreshKey] = useState(0)
+  // refreshKey: increment to force all data re-fetches
+  // Initialize from Date.now() so every mount gets a unique key (forces fresh load)
+  const [refreshKey, setRefreshKey] = useState(() => Date.now())
 
-  // Auto-refresh after import (event from SPA navigation + URL param for fresh mount)
+  // Auto-refresh after import event
   useEffect(() => {
-    const handler = () => setRefreshKey(k => k + 1)
+    const handler = () => setRefreshKey(Date.now())
     window.addEventListener('script-import-complete', handler)
-    // If navigated from import with ?imported= param, force re-read settings
+    // If navigated from import with ?imported= param, clean URL
     const params = new URLSearchParams(window.location.search)
     if (params.has('imported')) {
       window.history.replaceState({}, '', window.location.pathname)
-      setRefreshKey(k => k + 1)
     }
     return () => window.removeEventListener('script-import-complete', handler)
   }, [])
