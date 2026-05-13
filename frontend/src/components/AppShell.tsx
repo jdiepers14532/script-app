@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Minimize2, Maximize2, Columns2, PanelLeft, PanelRight,
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
-  Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone,
+  Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone, Trash2, Zap,
   Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
   Clapperboard, Tv,
 } from 'lucide-react'
@@ -304,7 +304,7 @@ export default function AppShell({
 
   // ── Offline-Modal ──────────────────────────────────────────────────────────
   const [offlineOpen, setOfflineOpen] = useState(false)
-  const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import'>('main')
+  const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import' | 'uninstall'>('main')
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -312,6 +312,12 @@ export default function AppShell({
   )
   const [cacheStats, setCacheStats] = useState<{ name: string; count: number; label: string }[]>([])
   const [cacheLoading, setCacheLoading] = useState(false)
+  // Uninstall-Flow
+  const [uninstallClearStorage, setUninstallClearStorage] = useState(false)
+  const [uninstallLoading, setUninstallLoading] = useState(false)
+  const [uninstallDone, setUninstallDone] = useState(false)
+  // Update-Toast
+  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
 
   // Export sub-view
   const [exportStageId, setExportStageId] = useState<number | null>(null)
@@ -334,7 +340,23 @@ export default function AppShell({
     const handler = (e: Event) => { e.preventDefault(); setInstallPrompt(e) }
     window.addEventListener('beforeinstallprompt', handler)
     window.addEventListener('appinstalled', () => setIsInstalled(true))
-    return () => { window.removeEventListener('beforeinstallprompt', handler) }
+
+    // Update-Toast: neuer SW wartet auf Aktivierung
+    const onSwWaiting = () => setSwUpdateAvailable(true)
+    window.addEventListener('sw-update-waiting', onSwWaiting)
+
+    // Admin-gesteuertes Deinstallieren (pwa_update_action = 'uninstall' in app_settings)
+    const onAdminUninstall = () => {
+      setOfflineOpen(true)
+      setOfflineView('uninstall')
+    }
+    window.addEventListener('pwa-admin-uninstall', onAdminUninstall)
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler)
+      window.removeEventListener('sw-update-waiting', onSwWaiting)
+      window.removeEventListener('pwa-admin-uninstall', onAdminUninstall)
+    }
   }, [])
 
   const openOfflineModal = useCallback(async () => {
@@ -421,6 +443,34 @@ export default function AppShell({
     } catch { /* ignore */ } finally { setCacheLoading(false) }
   }
 
+
+  const handleUninstall = useCallback(async () => {
+    setUninstallLoading(true)
+    try {
+      // 1. Service Worker deregistrieren
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(registrations.map(r => r.unregister()))
+      }
+      // 2. Alle Caches leeren
+      if ('caches' in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map(k => caches.delete(k)))
+      }
+      // 3. Optional: localStorage + sessionStorage leeren (Checkbox-gesteuert)
+      if (uninstallClearStorage) {
+        localStorage.clear()
+        sessionStorage.clear()
+      }
+      setIsInstalled(false)
+      setCacheStats([])
+      setUninstallDone(true)
+    } catch (err) {
+      console.warn('[PWA Uninstall] Fehler:', err)
+    } finally {
+      setUninstallLoading(false)
+    }
+  }, [uninstallClearStorage])
 
   const settingsReady = useRef(false)
   const saveTimer = useRef<number>()
@@ -1290,6 +1340,37 @@ export default function AppShell({
               </Link>
             )}
             <div className="um-divider" />
+            {/* PWA Install / Uninstall */}
+            {isInstalled ? (
+              <button
+                className="um-item"
+                onClick={() => {
+                  setUserMenuOpen(false)
+                  setUninstallDone(false)
+                  setUninstallClearStorage(false)
+                  setOfflineView('uninstall')
+                  setOfflineOpen(true)
+                }}
+              >
+                <Trash2 size={14} />
+                Offline-Version deinstallieren
+              </button>
+            ) : installPrompt ? (
+              <button
+                className="um-item"
+                onClick={async () => {
+                  setUserMenuOpen(false)
+                  if (!installPrompt) return
+                  installPrompt.prompt()
+                  const { outcome } = await installPrompt.userChoice
+                  if (outcome === 'accepted') { setIsInstalled(true); setInstallPrompt(null) }
+                }}
+              >
+                <Download size={14} />
+                Offline-Version installieren
+              </button>
+            ) : null}
+            <div className="um-divider" />
             <button
               className="um-item um-item-danger"
               onClick={async () => {
@@ -1323,7 +1404,8 @@ export default function AppShell({
                   </button>
                 )}
                 {isOnline ? <Wifi size={15} /> : <WifiOff size={15} style={{ color: 'var(--sw-danger)' }} />}
-                {offlineView === 'main'   ? 'Offline-Modus'
+                {offlineView === 'main'     ? 'Offline-Modus'
+                : offlineView === 'uninstall' ? 'App deinstallieren'
                 : offlineView === 'export' ? 'Fassung exportieren'
                 : 'Fassung importieren'}
               </span>
@@ -1557,6 +1639,95 @@ export default function AppShell({
                     )}
                   </div>
                 )}
+              </div>
+            )}
+
+            {offlineView === 'uninstall' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {!uninstallDone ? (<>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+                    Dadurch werden der Service Worker und alle lokalen Caches entfernt.
+                    Das App-Icon auf deinem Desktop oder Home-Screen bleibt erhalten —
+                    du kannst es danach jederzeit wieder zum Installieren nutzen.
+                  </p>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={uninstallClearStorage}
+                      onChange={e => setUninstallClearStorage(e.target.checked)}
+                      style={{ width: 15, height: 15, cursor: 'pointer' }}
+                    />
+                    Auch Registrierungsdaten löschen (Ansichts-Einstellungen, Theme)
+                  </label>
+                  <button
+                    onClick={handleUninstall}
+                    disabled={uninstallLoading}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      padding: '10px 16px', borderRadius: 8,
+                      background: 'var(--sw-danger)', color: '#fff',
+                      border: 'none', cursor: uninstallLoading ? 'not-allowed' : 'pointer',
+                      fontWeight: 700, fontSize: 13, opacity: uninstallLoading ? 0.6 : 1,
+                    }}
+                  >
+                    <Trash2 size={14} />
+                    {uninstallLoading ? 'Wird deinstalliert…' : 'Jetzt deinstallieren'}
+                  </button>
+                </>) : (<>
+                  {/* Erfolgsmeldung */}
+                  <div style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 12,
+                    padding: '12px 14px', borderRadius: 8,
+                    border: '1px solid var(--sw-green)',
+                    background: 'rgba(0,200,83,0.06)',
+                  }}>
+                    <Check size={16} style={{ color: 'var(--sw-green)', flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>Service Worker und Cache entfernt</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.5 }}>
+                        Die App läuft ab jetzt wieder als normale Website im Browser.
+                        Du musst dich nicht neu einloggen.
+                      </div>
+                    </div>
+                  </div>
+                  {/* Icon-Hinweis */}
+                  <div style={{
+                    padding: '12px 14px', borderRadius: 8,
+                    border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                    fontSize: 12, lineHeight: 1.6,
+                  }}>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>Das App-Icon</div>
+                    <p style={{ margin: '0 0 8px', color: 'var(--text-secondary)' }}>
+                      Du musst das Icon <strong>nicht</strong> löschen — es ist nur eine Verknüpfung zur URL.
+                      Wenn du es anklickst, öffnet die App wieder normal im Browser.
+                      Möchtest du die Offline-Version erneut installieren, klicke einfach wieder auf
+                      "Offline-Version installieren" im Benutzer-Menü.
+                    </p>
+                    <details style={{ color: 'var(--text-secondary)' }}>
+                      <summary style={{ cursor: 'pointer', fontWeight: 500, marginBottom: 4 }}>
+                        Icon manuell entfernen
+                      </summary>
+                      <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Chrome / Edge (Desktop)</div>
+                          Einstellungen → Apps → Script-App → Deinstallieren. Oder: Menü oben rechts im App-Fenster → "Script-App deinstallieren".
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Safari (macOS)</div>
+                          Rechtsklick auf das Dock-Icon → Optionen → "Aus dem Dock entfernen". Das Fenster einfach schließen genügt auch.
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>iOS / iPadOS</div>
+                          Langes Drücken auf das Home-Screen-Icon → "App entfernen" → "Lesezeichen löschen".
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 2 }}>Android</div>
+                          Langes Drücken auf das Icon → "Deinstallieren" oder in den Einstellungen unter Apps.
+                        </div>
+                      </div>
+                    </details>
+                  </div>
+                </>)}
               </div>
             )}
 
@@ -1806,6 +1977,53 @@ export default function AppShell({
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Update-Toast (Phase 4) ── */}
+      {swUpdateAvailable && (
+        <div style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 99999,
+          display: 'flex', alignItems: 'center', gap: 12,
+          padding: '12px 16px', borderRadius: 10,
+          background: '#111', color: '#fff',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          fontSize: 13, maxWidth: 340,
+          animation: 'slideInRight 0.3s ease',
+        }}>
+          <Zap size={15} style={{ color: '#00C853', flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 600, marginBottom: 2 }}>Neue Version verfügbar</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>
+              Jetzt neu laden, um die aktuellste Version zu nutzen.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button
+              onClick={() => setSwUpdateAvailable(false)}
+              style={{
+                background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff',
+                borderRadius: 6, padding: '5px 9px', cursor: 'pointer', fontSize: 11,
+              }}
+            >
+              Später
+            </button>
+            <button
+              onClick={() => {
+                const bc = new BroadcastChannel('sw-update')
+                bc.postMessage({ type: 'SKIP_WAITING' })
+                bc.close()
+                setTimeout(() => window.location.reload(), 300)
+              }}
+              style={{
+                background: '#00C853', border: 'none', color: '#fff',
+                borderRadius: 6, padding: '5px 10px', cursor: 'pointer',
+                fontSize: 11, fontWeight: 700,
+              }}
+            >
+              Jetzt aktualisieren
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -264,6 +264,7 @@ async function runMigrations() {
     'v64_datei_archiv_hash.sql',
     'v65_episodenende_format.sql',
     'v66_kopf_fusszeilen.sql',
+    'v67_pwa_settings.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

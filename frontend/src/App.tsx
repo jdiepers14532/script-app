@@ -70,6 +70,27 @@ export default function App() {
             const v = parseFloat(data.page_margin_mm)
             if (v >= 10 && v <= 50) setPageMarginMm(v)
           }
+          // PWA Admin-Steuerung (v67): einmalig ausführen, dann sofort zurücksetzen
+          if (data?.pwa_update_action === 'update') {
+            fetch('/api/admin/app-settings/pwa_update_action', {
+              method: 'PUT', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: '' }),
+            }).catch(() => {})
+            // Neuen SW aktivieren (falls einer wartet) und neu laden
+            const bc = new BroadcastChannel('sw-update')
+            bc.postMessage({ type: 'SKIP_WAITING' })
+            bc.close()
+            setTimeout(() => window.location.reload(), 400)
+          }
+          if (data?.pwa_update_action === 'uninstall') {
+            fetch('/api/admin/app-settings/pwa_update_action', {
+              method: 'PUT', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ value: '' }),
+            }).catch(() => {})
+            window.dispatchEvent(new CustomEvent('pwa-admin-uninstall'))
+          }
         })
         .catch(() => {})
     }

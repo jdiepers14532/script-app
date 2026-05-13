@@ -12,6 +12,7 @@ const ADMIN_TABS = [
   { id: 'dk-zugriff',     label: 'DK-Zugriff' },
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
+  { id: 'pwa',            label: 'App / PWA' },
 ]
 
 // ── Wasserzeichen Tab ─────────────────────────────────────────────────────────
@@ -374,6 +375,147 @@ function DkZugriffTab() {
 
 // ── Main AdminPage ────────────────────────────────────────────────────────────
 
+// ── PWA / App Tab ─────────────────────────────────────────────────────────────
+
+function PwaAdminTab() {
+  const [action, setAction] = useState<'' | 'update' | 'uninstall'>('')
+  const [current, setCurrent] = useState<string>('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/app-settings', { credentials: 'include' })
+      .then(r => r.json())
+      .then((d: any) => setCurrent(d?.pwa_update_action ?? ''))
+      .catch(() => {})
+  }, [])
+
+  const save = async (value: '' | 'update' | 'uninstall') => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      await fetch('/api/admin/app-settings/pwa_update_action', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      })
+      setCurrent(value)
+      setAction(value)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch {}
+    finally { setSaving(false) }
+  }
+
+  const statusLabel = current === 'update'
+    ? 'Update erzwingen (wartet auf nächstes Öffnen)'
+    : current === 'uninstall'
+    ? 'Deinstallation erzwingen (wartet auf nächstes Öffnen)'
+    : 'Kein Befehl aktiv'
+
+  const statusColor = current === '' ? 'var(--text-secondary)' : '#FF9500'
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 600 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>PWA-Steuerung</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6 }}>
+        Befehle, die beim <strong>nächsten Öffnen</strong> der App durch jeden Nutzer automatisch ausgeführt werden.
+        Der Befehl wird nach einmaliger Ausführung automatisch zurückgesetzt.
+        <br />
+        <span style={{ color: '#FF9500' }}>
+          Hinweis: Funktioniert nur wenn der User die App aktiv öffnet — nicht wenn sie geschlossen ist.
+        </span>
+      </p>
+
+      {/* Aktueller Status */}
+      <div style={{
+        padding: '10px 14px', borderRadius: 8,
+        border: `1px solid ${current === '' ? 'var(--border)' : '#FF950066'}`,
+        background: current === '' ? 'var(--bg-subtle)' : 'rgba(255,149,0,0.06)',
+        marginBottom: 20, fontSize: 12,
+        display: 'flex', alignItems: 'center', gap: 10,
+      }}>
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+          background: statusColor,
+        }} />
+        <div>
+          <span style={{ fontWeight: 600 }}>Aktueller Status: </span>
+          <span style={{ color: statusColor }}>{statusLabel}</span>
+        </div>
+        {current !== '' && (
+          <button
+            onClick={() => save('')}
+            disabled={saving}
+            style={{
+              marginLeft: 'auto', background: 'none', border: '1px solid var(--border)',
+              borderRadius: 5, padding: '3px 8px', cursor: 'pointer',
+              fontSize: 11, color: 'var(--text-secondary)',
+            }}
+          >
+            Zurücksetzen
+          </button>
+        )}
+      </div>
+
+      {/* Buttons */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{
+          padding: '16px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+        }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Update erzwingen</div>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+            Aktiviert einen wartenden Service Worker und lädt die App neu — nützlich nach Deployments,
+            wenn User die App lange offen haben.
+          </p>
+          <button
+            onClick={() => save('update')}
+            disabled={saving || current === 'update'}
+            style={{
+              padding: '8px 16px', borderRadius: 7, border: 'none',
+              background: current === 'update' ? 'var(--bg-subtle)' : '#007AFF',
+              color: current === 'update' ? 'var(--text-secondary)' : '#fff',
+              fontWeight: 600, fontSize: 12, cursor: saving || current === 'update' ? 'default' : 'pointer',
+            }}
+          >
+            {current === 'update' ? 'Bereits gesetzt' : 'Update-Befehl setzen'}
+          </button>
+        </div>
+
+        <div style={{
+          padding: '16px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+        }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Deinstallation erzwingen</div>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+            Entfernt Service Worker und lokale Caches bei allen Usern — nützlich nach
+            grundlegenden Architektur-Änderungen am SW oder Cache-Schema.
+          </p>
+          <button
+            onClick={() => save('uninstall')}
+            disabled={saving || current === 'uninstall'}
+            style={{
+              padding: '8px 16px', borderRadius: 7, border: 'none',
+              background: current === 'uninstall' ? 'var(--bg-subtle)' : 'var(--sw-danger)',
+              color: current === 'uninstall' ? 'var(--text-secondary)' : '#fff',
+              fontWeight: 600, fontSize: 12, cursor: saving || current === 'uninstall' ? 'default' : 'pointer',
+            }}
+          >
+            {current === 'uninstall' ? 'Bereits gesetzt' : 'Deinstallations-Befehl setzen'}
+          </button>
+        </div>
+      </div>
+
+      {saved && (
+        <p style={{ fontSize: 12, color: 'var(--sw-green)', marginTop: 12 }}>
+          Gespeichert. Wird beim nächsten Öffnen der App durch Nutzer ausgeführt.
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
   const navigate = useNavigate()
@@ -448,6 +590,7 @@ export default function AdminPage() {
               Dieser Bereich ist noch in Entwicklung.
             </div>
           )}
+          {activeTab === 'pwa'            && <PwaAdminTab />}
         </div>
       </div>
     </AppShell>
