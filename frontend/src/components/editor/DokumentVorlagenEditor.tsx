@@ -3,7 +3,10 @@ import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
+import TextStyle from '@tiptap/extension-text-style'
+import FontFamily from '@tiptap/extension-font-family'
 import { ResizableImageExtension } from '../../tiptap/ResizableImageExtension'
+import { FontSizeExtension } from '../../tiptap/FontSizeExtension'
 import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel, getPlaceholderColor } from '../../tiptap/PlaceholderChipExtension'
 import type { PlaceholderZone } from '../../tiptap/PlaceholderChipExtension'
 
@@ -92,10 +95,23 @@ function normalizeZeile(c: any): ZeilenContent {
   return { links: null, mitte: null, rechts: null }
 }
 
+const FONT_FAMILIES = [
+  { value: 'Courier New', label: 'Courier New' },
+  { value: 'Arial', label: 'Arial' },
+  { value: 'Helvetica', label: 'Helvetica' },
+  { value: 'Times New Roman', label: 'Times New Roman' },
+  { value: 'Georgia', label: 'Georgia' },
+  { value: 'Inter', label: 'Inter' },
+]
+const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24]
+
 const TIPTAP_EXTENSIONS = [
   StarterKit,
   UnderlineExt,
   TextAlign.configure({ types: ['paragraph', 'heading'] }),
+  TextStyle,
+  FontFamily,
+  FontSizeExtension,
   ResizableImageExtension,
   PlaceholderChipExtension,
 ]
@@ -191,6 +207,37 @@ function SharedColumnToolbar({
       {fmtBtn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
       {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
       {fmtBtn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
+      {sep}
+      {/* Font family */}
+      <select
+        value={editor?.getAttributes('textStyle').fontFamily ?? ''}
+        onChange={e => {
+          const v = e.target.value
+          if (v) editor?.chain().setFontFamily(v).run()
+          else editor?.chain().unsetFontFamily().run()
+        }}
+        disabled={!editor}
+        title="Schriftart"
+        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', maxWidth: 96, flexShrink: 0 }}
+      >
+        <option value="">— Schrift —</option>
+        {FONT_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+      </select>
+      {/* Font size */}
+      <select
+        value={editor?.getAttributes('textStyle').fontSize ?? ''}
+        onChange={e => {
+          const v = e.target.value
+          if (v) editor?.chain().setFontSize(v).run()
+          else editor?.chain().unsetFontSize().run()
+        }}
+        disabled={!editor}
+        title="Schriftgröße"
+        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 60, flexShrink: 0 }}
+      >
+        <option value="">— Pt —</option>
+        {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s} pt</option>)}
+      </select>
       {sep}
       {/* Images */}
       <button
@@ -523,6 +570,33 @@ function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef }: {
       {btn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
       {btn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
       {btn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
+      {sep}
+      <select
+        value={editor?.getAttributes('textStyle').fontFamily ?? ''}
+        onChange={e => {
+          const v = e.target.value
+          if (v) editor?.chain().setFontFamily(v).run()
+          else editor?.chain().unsetFontFamily().run()
+        }}
+        title="Schriftart"
+        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', maxWidth: 96, flexShrink: 0 }}
+      >
+        <option value="">— Schrift —</option>
+        {FONT_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+      </select>
+      <select
+        value={editor?.getAttributes('textStyle').fontSize ?? ''}
+        onChange={e => {
+          const v = e.target.value
+          if (v) editor?.chain().setFontSize(v).run()
+          else editor?.chain().unsetFontSize().run()
+        }}
+        title="Schriftgröße"
+        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 60, flexShrink: 0 }}
+      >
+        <option value="">— Pt —</option>
+        {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s} pt</option>)}
+      </select>
       {sep}
       <button style={imgBtnStyle} onMouseDown={e => { e.preventDefault(); loadFirmenlogo() }} disabled={!!imgLoading}>{imgLoading === 'firma' ? '…' : 'Firmenlogo'}</button>
       <button style={{ ...imgBtnStyle, opacity: produktionsLogoUrl ? 1 : 0.4 }} disabled={!produktionsLogoUrl || !!imgLoading} onMouseDown={e => { e.preventDefault(); if (produktionsLogoUrl) insertImg(produktionsLogoUrl) }}>{imgLoading === 'prod' ? '…' : 'Produktionslogo'}</button>

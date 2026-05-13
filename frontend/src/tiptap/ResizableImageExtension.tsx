@@ -1,7 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
 import type { NodeViewProps } from '@tiptap/react'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 // ── TypeScript augmentation ───────────────────────────────────────────────────
 declare module '@tiptap/core' {
@@ -17,19 +17,26 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
   const { src, alt, width } = node.attrs
   const [resizing, setResizing] = useState(false)
   const [hovered, setHovered] = useState(false)
+  // Local display width for immediate visual feedback during drag
+  const [displayWidth, setDisplayWidth] = useState(() => Number(width) || 120)
   const startData = useRef({ x: 0, w: 0 })
-  const w = Number(width) || 120
+
+  // Sync from node attrs when not actively resizing (undo/redo, external changes)
+  useEffect(() => {
+    if (!resizing) setDisplayWidth(Number(width) || 120)
+  }, [width, resizing])
 
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setResizing(true)
-    startData.current = { x: e.clientX, w }
+    startData.current = { x: e.clientX, w: displayWidth }
 
     const onMove = (ev: MouseEvent) => {
       const delta = ev.clientX - startData.current.x
       const newW = Math.max(24, Math.min(800, Math.round(startData.current.w + delta)))
-      updateAttributes({ width: newW })
+      setDisplayWidth(newW)        // instant visual update
+      updateAttributes({ width: newW })  // persist to document
     }
     const onUp = () => {
       setResizing(false)
@@ -54,7 +61,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
         src={src}
         alt={alt || ''}
         style={{
-          width: w,
+          width: displayWidth,
           maxWidth: '100%',
           display: 'block',
           outline: showHandle ? '2px solid #007AFF88' : 'none',
@@ -85,7 +92,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
           background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 10,
           padding: '2px 6px', borderRadius: 3, pointerEvents: 'none', whiteSpace: 'nowrap',
         }}>
-          {w} px
+          {displayWidth} px
         </span>
       )}
     </NodeViewWrapper>

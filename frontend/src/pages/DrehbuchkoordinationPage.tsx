@@ -159,6 +159,8 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline' | null>(null)
   const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
   const [seitenformatSaving, setSeitenformatSaving] = useState(false)
+  const [datumsformat, setDatumsformat] = useState<'de' | 'en'>('de')
+  const [datumsformatSaving, setDatumsformatSaving] = useState(false)
   const [kuerzel, setKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
   const [roles, setRoles] = useState<string[] | null>(null)
   const [saving, setSaving] = useState(false)
@@ -175,6 +177,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       .then((data: any) => {
         if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
         if (data?.seitenformat === 'letter') setSeitenformat('letter')
+        if (data?.datumsformat === 'en') setDatumsformat('en')
         if (data?.scene_kuerzel) {
           try { setKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
         }
@@ -234,6 +237,18 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       body: JSON.stringify({ value: val }),
     }).catch(() => {})
     setSeitenformatSaving(false)
+  }
+
+  const saveDatumsformat = async (val: 'de' | 'en') => {
+    setDatumsformat(val)
+    setDatumsformatSaving(true)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/datumsformat`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setDatumsformatSaving(false)
   }
 
   const saveTreatmentLabel = async (val: 'Treatment' | 'Storylines' | 'Outline') => {
@@ -337,6 +352,30 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
           ))}
         </div>
         {seitenformatSaving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Datumsformat</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Format fuer Datumsangaben in Kopf-/Fusszeilen und Exporten dieser Produktion.
+        </p>
+        <div className="seg" style={{ display: 'inline-flex' }}>
+          {([
+            { val: 'de', label: 'Deutsch  (TT.MM.JJJJ)', example: '13.05.2026' },
+            { val: 'en', label: 'Englisch (MM/DD/YYYY)', example: '05/13/2026' },
+          ] as const).map(opt => (
+            <button
+              key={opt.val}
+              className={datumsformat === opt.val ? 'on' : ''}
+              onClick={() => saveDatumsformat(opt.val)}
+              disabled={datumsformatSaving}
+              title={opt.example}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {datumsformatSaving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
       </section>
 
       <section>
@@ -2716,11 +2755,14 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
+  const [previewMeta, setPreviewMeta] = useState<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }>({ folgeNummer: null, datumsformat: 'de' })
+  useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
     produktion:  selectedProduction?.title ?? 'Produktion',
     staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
     fassung:     'Vorlage',
-    stand_datum: new Date().toISOString().slice(0, 10),
+    folge:       previewMeta.folgeNummer ?? undefined,
+    stand_datum: formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
   }
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -2884,15 +2926,44 @@ const KF_TYPEN = [
   { id: 'notiz',     label: 'Notiz',     color: '#757575' },
 ] as const
 
+function formatDatum(iso: string, fmt: 'de' | 'en'): string {
+  const [y, m, d] = iso.slice(0, 10).split('-')
+  return fmt === 'en' ? `${m}/${d}/${y}` : `${d}.${m}.${y}`
+}
+
+async function loadPreviewMeta(productionId: string): Promise<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }> {
+  const [folgenRes, settingsRes] = await Promise.allSettled([
+    fetch(`/api/v2/folgen?produktion_id=${encodeURIComponent(productionId)}`, { credentials: 'include' }),
+    fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' }),
+  ])
+  let folgeNummer: number | null = null
+  if (folgenRes.status === 'fulfilled' && folgenRes.value.ok) {
+    const list: any[] = await folgenRes.value.json()
+    if (list.length > 0) {
+      const sorted = [...list].sort((a, b) => (b.folge_nummer ?? 0) - (a.folge_nummer ?? 0))
+      folgeNummer = sorted[0].folge_nummer ?? null
+    }
+  }
+  let datumsformat: 'de' | 'en' = 'de'
+  if (settingsRes.status === 'fulfilled' && settingsRes.value.ok) {
+    const s: any = await settingsRes.value.json()
+    if (s?.datumsformat === 'en') datumsformat = 'en'
+  }
+  return { folgeNummer, datumsformat }
+}
+
 function KopfFusszeileTab({ productionId }: { productionId: string }) {
   const { selectedProduction } = useSelectedProduction()
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
+  const [previewMeta, setPreviewMeta] = useState<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }>({ folgeNummer: null, datumsformat: 'de' })
+  useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
     produktion:  selectedProduction?.title ?? 'Produktion',
     staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
-    stand_datum: new Date().toISOString().slice(0, 10),
+    folge:       previewMeta.folgeNummer ?? undefined,
+    stand_datum: formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
   }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})

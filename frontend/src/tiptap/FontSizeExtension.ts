@@ -14,27 +14,29 @@ export const FontSizeExtension = Extension.create({
   name: 'fontSize',
 
   addGlobalAttributes() {
-    return [{
-      types: ['textStyle'],
-      attributes: {
-        fontSize: {
-          default: null,
-          parseHTML: (el) => el.style.fontSize?.replace(/['"]+/g, '') || null,
-          renderHTML: (attrs) => {
-            if (!attrs.fontSize) return {}
-            return { style: `font-size: ${attrs.fontSize}` }
+    return [
+      {
+        types: ['textStyle'],
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: el => (el as HTMLElement).style.fontSize || null,
+            renderHTML: attrs => {
+              if (!attrs.fontSize) return {}
+              return { style: `font-size:${attrs.fontSize}` }
+            },
           },
         },
       },
-    }]
+    ]
   },
 
   addCommands() {
     return {
-      setFontSize: (size: string) => ({ chain }) =>
+      setFontSize: (size: string) => ({ chain }: any) =>
         chain().setMark('textStyle', { fontSize: size }).run(),
-      unsetFontSize: () => ({ chain }) =>
+      unsetFontSize: () => ({ chain }: any) =>
         chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run(),
-    }
+    } as any
   },
 })
