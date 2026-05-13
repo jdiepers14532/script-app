@@ -318,6 +318,9 @@ export default function AppShell({
   const [uninstallDone, setUninstallDone] = useState(false)
   // Update-Toast
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
+  // Install-Modal
+  const [installModalOpen, setInstallModalOpen] = useState(false)
+  const [installStep, setInstallStep] = useState<'intro' | 'success' | 'declined'>('intro')
 
   // Export sub-view
   const [exportStageId, setExportStageId] = useState<number | null>(null)
@@ -443,6 +446,24 @@ export default function AppShell({
     } catch { /* ignore */ } finally { setCacheLoading(false) }
   }
 
+
+  const openInstallModal = useCallback(() => {
+    setInstallStep('intro')
+    setInstallModalOpen(true)
+  }, [])
+
+  const triggerInstallPrompt = useCallback(async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') {
+      setIsInstalled(true)
+      setInstallPrompt(null)
+      setInstallStep('success')
+    } else {
+      setInstallStep('declined')
+    }
+  }, [installPrompt])
 
   const handleUninstall = useCallback(async () => {
     setUninstallLoading(true)
@@ -1358,13 +1379,7 @@ export default function AppShell({
             ) : installPrompt ? (
               <button
                 className="um-item"
-                onClick={async () => {
-                  setUserMenuOpen(false)
-                  if (!installPrompt) return
-                  installPrompt.prompt()
-                  const { outcome } = await installPrompt.userChoice
-                  if (outcome === 'accepted') { setIsInstalled(true); setInstallPrompt(null) }
-                }}
+                onClick={() => { setUserMenuOpen(false); openInstallModal() }}
               >
                 <Download size={14} />
                 Offline-Version installieren
@@ -1905,12 +1920,7 @@ export default function AppShell({
                       auch ohne Browser-Chrome, und ist offline vollständig nutzbar.
                     </p>
                     <button
-                      onClick={async () => {
-                        if (!installPrompt) return
-                        installPrompt.prompt()
-                        const { outcome } = await installPrompt.userChoice
-                        if (outcome === 'accepted') { setIsInstalled(true); setInstallPrompt(null) }
-                      }}
+                      onClick={() => { setOfflineOpen(false); openInstallModal() }}
                       style={{
                         display: 'flex', alignItems: 'center', gap: 8,
                         padding: '10px 16px', borderRadius: 8,
@@ -1975,6 +1985,148 @@ export default function AppShell({
                 Schließen
               </button>
             </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Install-Modal ── */}
+      {installModalOpen && (
+        <>
+          <div className="modal-backdrop" onClick={() => setInstallModalOpen(false)} />
+          <div className="admin-modal" style={{ maxWidth: 420 }}>
+
+            {installStep === 'intro' && (<>
+              <div className="admin-modal-head">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
+                  <Download size={15} />
+                  App installieren
+                </span>
+                <button className="close" onClick={() => setInstallModalOpen(false)}><X size={14} /></button>
+              </div>
+
+              <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {/* Vorteile */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  {[
+                    { icon: '🚀', title: 'Schneller Start', desc: 'Kein Browser-Ladebildschirm' },
+                    { icon: '📴', title: 'Offline nutzbar', desc: 'Szenen ohne Internet lesen' },
+                    { icon: '🖥️', title: 'Eigenes Fenster', desc: 'Wie eine native App' },
+                  ].map(item => (
+                    <div key={item.title} style={{
+                      padding: '12px 10px', borderRadius: 8, textAlign: 'center',
+                      border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                    }}>
+                      <div style={{ fontSize: 22, marginBottom: 6 }}>{item.icon}</div>
+                      <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 3 }}>{item.title}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{item.desc}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Schritte */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    So läuft die Installation
+                  </div>
+                  {[
+                    { n: '1', label: 'Klicke "Jetzt installieren"' },
+                    { n: '2', label: 'Bestätige den Browser-Dialog (erscheint kurz)' },
+                    { n: '3', label: 'Fertig — App startet direkt vom Desktop' },
+                  ].map(step => (
+                    <div key={step.n} style={{
+                      display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '8px 12px', borderRadius: 7,
+                      background: 'var(--bg-subtle)',
+                    }}>
+                      <span style={{
+                        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                        background: 'var(--sw-green)', color: '#fff',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11, fontWeight: 700,
+                      }}>{step.n}</span>
+                      <span style={{ fontSize: 13 }}>{step.label}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                  Kein App-Store nötig. Die Installation erfolgt direkt im Browser — ohne Admin-Rechte.
+                  Du kannst die App jederzeit wieder deinstallieren.
+                </p>
+              </div>
+
+              <div className="admin-modal-foot" style={{ justifyContent: 'space-between' }}>
+                <button
+                  onClick={() => setInstallModalOpen(false)}
+                  style={{
+                    background: 'none', border: '1px solid var(--border)',
+                    borderRadius: 7, padding: '7px 14px', cursor: 'pointer',
+                    fontSize: 13, color: 'var(--text-secondary)',
+                  }}
+                >
+                  Vielleicht später
+                </button>
+                <button
+                  onClick={triggerInstallPrompt}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 18px', borderRadius: 7,
+                    background: 'var(--sw-green)', color: '#fff',
+                    border: 'none', cursor: 'pointer',
+                    fontWeight: 700, fontSize: 13,
+                  }}
+                >
+                  <Download size={14} />
+                  Jetzt installieren
+                </button>
+              </div>
+            </>)}
+
+            {installStep === 'success' && (<>
+              <div className="admin-modal-head">
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}>
+                  <Check size={15} style={{ color: 'var(--sw-green)' }} />
+                  Installiert
+                </span>
+                <button className="close" onClick={() => setInstallModalOpen(false)}><X size={14} /></button>
+              </div>
+              <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '28px 24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 52 }}>✅</div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Script-App ist installiert</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    Die App ist jetzt auf deinem Gerät verfügbar.<br />
+                    Du findest sie in deiner Taskbar, dem Dock oder dem Home-Screen.
+                  </div>
+                </div>
+              </div>
+              <div className="admin-modal-foot" style={{ justifyContent: 'flex-end' }}>
+                <button className="admin-save-btn" onClick={() => setInstallModalOpen(false)}>
+                  <Check size={13} />
+                  Schließen
+                </button>
+              </div>
+            </>)}
+
+            {installStep === 'declined' && (<>
+              <div className="admin-modal-head">
+                <span style={{ fontWeight: 700 }}>Installation abgebrochen</span>
+                <button className="close" onClick={() => setInstallModalOpen(false)}><X size={14} /></button>
+              </div>
+              <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '24px', textAlign: 'center' }}>
+                <div style={{ fontSize: 40 }}>👍</div>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Kein Problem — du kannst die App jederzeit über das Benutzer-Menü installieren.
+                </div>
+              </div>
+              <div className="admin-modal-foot" style={{ justifyContent: 'flex-end' }}>
+                <button className="admin-save-btn" onClick={() => setInstallModalOpen(false)}>
+                  <Check size={13} />
+                  OK
+                </button>
+              </div>
+            </>)}
+
           </div>
         </>
       )}
