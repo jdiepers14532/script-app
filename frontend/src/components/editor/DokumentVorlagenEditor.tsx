@@ -7,6 +7,7 @@ import TextStyle from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
 import { ResizableImageExtension } from '../../tiptap/ResizableImageExtension'
 import { FontSizeExtension } from '../../tiptap/FontSizeExtension'
+import { ParagraphStyleExtension } from '../../tiptap/ParagraphStyleExtension'
 import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel, getPlaceholderColor } from '../../tiptap/PlaceholderChipExtension'
 import type { PlaceholderZone } from '../../tiptap/PlaceholderChipExtension'
 
@@ -96,14 +97,19 @@ function normalizeZeile(c: any): ZeilenContent {
 }
 
 const FONT_FAMILIES = [
-  { value: 'Courier New', label: 'Courier New' },
-  { value: 'Arial', label: 'Arial' },
-  { value: 'Helvetica', label: 'Helvetica' },
+  { value: 'Courier New',   label: 'Courier New' },
+  { value: 'Arial',         label: 'Arial' },
+  { value: 'Helvetica',     label: 'Helvetica' },
   { value: 'Times New Roman', label: 'Times New Roman' },
-  { value: 'Georgia', label: 'Georgia' },
-  { value: 'Inter', label: 'Inter' },
+  { value: 'Georgia',       label: 'Georgia' },
+  { value: 'Inter',         label: 'Inter' },
 ]
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24]
+const SPECIAL_CHARS = [
+  { char: '©', title: 'Copyright' },
+  { char: '®', title: 'Registered Trademark' },
+  { char: '™', title: 'Trademark' },
+]
 
 const TIPTAP_EXTENSIONS = [
   StarterKit,
@@ -112,6 +118,7 @@ const TIPTAP_EXTENSIONS = [
   TextStyle,
   FontFamily,
   FontSizeExtension,
+  ParagraphStyleExtension,
   ResizableImageExtension,
   PlaceholderChipExtension,
 ]
@@ -146,14 +153,15 @@ function ZoneEditor({
   )
 }
 
-// ── Shared toolbar for the active column ─────────────────────────────────────
-function SharedColumnToolbar({
-  editor, zone, produktionsLogoUrl, fileInputRef,
+// ── Shared toolbar ─────────────────────────────────────────────────────────────
+function ToolbarContent({
+  editor, zone, produktionsLogoUrl, fileInputRef, isBody,
 }: {
   editor: Editor | null
-  zone: PlaceholderZone
+  zone?: PlaceholderZone
   produktionsLogoUrl?: string | null
   fileInputRef: React.RefObject<HTMLInputElement | null>
+  isBody?: boolean
 }) {
   const [imgLoading, setImgLoading] = useState<string | null>(null)
 
@@ -173,11 +181,14 @@ function SharedColumnToolbar({
     finally { setImgLoading(null) }
   }
 
-  const chips = getPlaceholdersForZone(zone)
+  const chips = zone ? getPlaceholdersForZone(zone) : []
+
+  const curFontFamily = editor?.getAttributes('paragraph').fontFamily ?? ''
+  const curFontSize   = editor?.getAttributes('paragraph').fontSize   ?? ''
 
   const fmtBtn = (label: string, active: boolean, cb: () => void, title: string, extra?: React.CSSProperties) => (
     <button
-      key={label}
+      key={title}
       title={title}
       disabled={!editor}
       onMouseDown={e => { e.preventDefault(); cb() }}
@@ -186,77 +197,80 @@ function SharedColumnToolbar({
         background: active ? 'var(--text-primary)' : 'transparent',
         color: active ? 'var(--text-inverse)' : editor ? 'var(--text-secondary)' : 'var(--text-muted)',
         cursor: editor ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, flexShrink: 0, ...extra,
+        fontSize: 11, flexShrink: 0, fontFamily: 'inherit', ...extra,
       }}
     >{label}</button>
   )
 
-  const sep = <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 3px', flexShrink: 0 }} />
+  const sep = <div key={Math.random()} style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 3px', flexShrink: 0 }} />
+  const imgBtnStyle: React.CSSProperties = {
+    fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)',
+    background: 'var(--bg-subtle)', cursor: editor ? 'pointer' : 'default',
+    fontFamily: 'inherit', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0,
+  }
 
   return (
-    <div style={{
-      display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px',
-      borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
-      alignItems: 'center', minHeight: 36,
-    }}>
-      {/* Formatting */}
-      {fmtBtn('B', editor?.isActive('bold') ?? false,      () => editor?.chain().focus().toggleBold().run(),      'Fett',          { fontWeight: 700 })}
-      {fmtBtn('I', editor?.isActive('italic') ?? false,    () => editor?.chain().focus().toggleItalic().run(),    'Kursiv',        { fontStyle: 'italic' })}
+    <>
+      {/* Bold / Italic / Underline */}
+      {fmtBtn('B', editor?.isActive('bold')      ?? false, () => editor?.chain().focus().toggleBold().run(),      'Fett',          { fontWeight: 700 })}
+      {fmtBtn('I', editor?.isActive('italic')    ?? false, () => editor?.chain().focus().toggleItalic().run(),    'Kursiv',        { fontStyle: 'italic' })}
       {fmtBtn('U', editor?.isActive('underline') ?? false, () => editor?.chain().focus().toggleUnderline().run(), 'Unterstrichen', { textDecoration: 'underline' })}
       {sep}
+      {/* Alignment */}
       {fmtBtn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
       {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
       {fmtBtn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
       {sep}
-      {/* Font family */}
+      {/* Font family — paragraph-level so chips inherit it */}
       <select
-        value={editor?.getAttributes('textStyle').fontFamily ?? ''}
+        value={curFontFamily}
         onChange={e => {
-          const v = e.target.value
-          if (v) editor?.chain().setFontFamily(v).run()
-          else editor?.chain().unsetFontFamily().run()
+          editor?.chain().setParagraphFont(e.target.value || null).run()
         }}
         disabled={!editor}
-        title="Schriftart"
-        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', maxWidth: 96, flexShrink: 0 }}
+        title="Schriftart (gilt für gesamte Zeile inkl. Chips)"
+        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', maxWidth: 100, flexShrink: 0 }}
       >
         <option value="">— Schrift —</option>
-        {FONT_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+        {FONT_FAMILIES.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
       </select>
-      {/* Font size */}
+      {/* Font size — paragraph-level */}
       <select
-        value={editor?.getAttributes('textStyle').fontSize ?? ''}
+        value={curFontSize}
         onChange={e => {
-          const v = e.target.value
-          if (v) editor?.chain().setFontSize(v).run()
-          else editor?.chain().unsetFontSize().run()
+          editor?.chain().setParagraphFontSize(e.target.value || null).run()
         }}
         disabled={!editor}
-        title="Schriftgröße"
+        title="Schriftgröße (gilt für gesamte Zeile inkl. Chips)"
         style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 60, flexShrink: 0 }}
       >
         <option value="">— Pt —</option>
         {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s} pt</option>)}
       </select>
       {sep}
+      {/* Special characters */}
+      {SPECIAL_CHARS.map(({ char, title }) =>
+        fmtBtn(char, false, () => editor?.chain().focus().insertContent(char).run(), title, { fontWeight: 400, fontSize: 12 })
+      )}
+      {sep}
       {/* Images */}
       <button
         disabled={!editor || !!imgLoading}
         onMouseDown={e => { e.preventDefault(); loadFirmenlogo() }}
-        style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}
+        style={imgBtnStyle}
       >{imgLoading === 'firma' ? '…' : 'Firmenlogo'}</button>
       <button
         disabled={!editor || !produktionsLogoUrl || !!imgLoading}
         onMouseDown={e => { e.preventDefault(); if (produktionsLogoUrl) insertImg(produktionsLogoUrl) }}
-        style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: editor && produktionsLogoUrl ? 'pointer' : 'default', fontFamily: 'inherit', color: editor && produktionsLogoUrl ? 'var(--text-secondary)' : 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0, opacity: produktionsLogoUrl ? 1 : 0.4 }}
+        style={{ ...imgBtnStyle, opacity: produktionsLogoUrl ? 1 : 0.4, color: editor && produktionsLogoUrl ? 'var(--text-secondary)' : 'var(--text-muted)' }}
       >{imgLoading === 'prod' ? '…' : 'Produktionslogo'}</button>
       <button
         disabled={!editor}
         onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click() }}
-        style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}
+        style={imgBtnStyle}
       >↑ Bild</button>
-      {sep}
-      {/* Placeholder chips */}
+      {/* Placeholder chips (only for KZ/FZ zones, not body unless zone is provided) */}
+      {chips.length > 0 && sep}
       {chips.map(p => (
         <button
           key={p.key}
@@ -272,18 +286,56 @@ function SharedColumnToolbar({
           }}
         >{p.label}</button>
       ))}
-      {!editor && (
+      {!editor && !isBody && (
         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
           ← Bereich anklicken
         </span>
       )}
+    </>
+  )
+}
+
+// ── Toolbar wrapper ────────────────────────────────────────────────────────────
+function SharedColumnToolbar({
+  editor, zone, produktionsLogoUrl, fileInputRef,
+}: {
+  editor: Editor | null
+  zone: PlaceholderZone
+  produktionsLogoUrl?: string | null
+  fileInputRef: React.RefObject<HTMLInputElement | null>
+}) {
+  return (
+    <div style={{
+      display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px',
+      borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
+      alignItems: 'center', minHeight: 36,
+    }}>
+      <ToolbarContent editor={editor} zone={zone} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={fileInputRef} />
+    </div>
+  )
+}
+
+function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef }: {
+  editor: Editor | null
+  produktionsLogoUrl?: string | null
+  fileInputRef: React.RefObject<HTMLInputElement | null>
+}) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!editor) return
+    const h = () => setTick(n => n + 1)
+    editor.on('selectionUpdate', h); editor.on('transaction', h)
+    return () => { editor.off('selectionUpdate', h); editor.off('transaction', h) }
+  }, [editor])
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)', alignItems: 'center' }}>
+      <ToolbarContent editor={editor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={fileInputRef} isBody />
     </div>
   )
 }
 
 // ── Three-column zone editor (for KZ / FZ) ───────────────────────────────────
-// Tab-based: each zone (Links / Mitte / Rechts) gets the full page width.
-// A preview strip at the bottom shows the 3-column result.
 function ThreeColumnZone({
   label, color, aktiv, ersteSeiteOhne, ersteSeiteOhneLabel,
   content, readOnly, produktionsLogoUrl, zone, previewContext,
@@ -316,7 +368,6 @@ function ThreeColumnZone({
 
   const switchCol = (col: ColKey) => {
     setActiveCol(col)
-    // Focus after paint so the newly visible editor can receive focus
     setTimeout(() => editorsRef.current[col]?.commands.focus(), 30)
   }
 
@@ -359,7 +410,7 @@ function ThreeColumnZone({
       {aktiv && (
         <div style={{ border: `1px solid ${color}44`, borderRadius: 6, overflow: 'hidden' }}>
 
-          {/* Zone tabs — Links / Mitte / Rechts */}
+          {/* Zone tabs */}
           <div style={{ display: 'flex', background: 'var(--bg-subtle)', borderBottom: `1px solid ${color}22` }}>
             {cols.map(col => (
               <button
@@ -381,7 +432,7 @@ function ThreeColumnZone({
             ))}
           </div>
 
-          {/* Toolbar for active zone */}
+          {/* Toolbar */}
           <SharedColumnToolbar
             editor={activeEditor}
             zone={zone}
@@ -390,7 +441,7 @@ function ThreeColumnZone({
           />
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
-          {/* Zone editors — all mounted (Tiptap stays alive), only active is visible */}
+          {/* Zone editors — all mounted, only active visible */}
           {cols.map(col => (
             <div
               key={col}
@@ -411,7 +462,7 @@ function ThreeColumnZone({
             </div>
           ))}
 
-          {/* Preview strip — shows all 3 zones as final output */}
+          {/* Preview strip */}
           <div style={{ borderTop: `1px solid ${color}22`, background: `${color}05`, padding: '6px 10px' }}>
             <div style={{ fontSize: 9, color: `${color}77`, marginBottom: 3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
               Vorschau
@@ -433,7 +484,7 @@ function ThreeColumnZone({
   )
 }
 
-// ── Preview: ProseMirror JSON → HTML with real images + resolved chips ────────
+// ── Preview: ProseMirror JSON → HTML ──────────────────────────────────────────
 
 const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{produktion}}':   'produktion',
@@ -456,43 +507,63 @@ function escHtml(s: string): string {
 function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   if (!doc) return ''
 
-  function renderInline(node: any): string {
+  function renderInline(node: any, paraFont?: { ff?: string | null; fs?: string | null }): string {
     if (!node) return ''
+
     if (node.type === 'text') {
       let t = escHtml(node.text ?? '')
+      const inlineStyles: string[] = []
       for (const mark of (node.marks ?? [])) {
-        if (mark.type === 'bold')      t = `<strong>${t}</strong>`
-        if (mark.type === 'italic')    t = `<em>${t}</em>`
-        if (mark.type === 'underline') t = `<u>${t}</u>`
+        if (mark.type === 'bold')           t = `<strong>${t}</strong>`
+        else if (mark.type === 'italic')    t = `<em>${t}</em>`
+        else if (mark.type === 'underline') t = `<u>${t}</u>`
+        else if (mark.type === 'textStyle') {
+          if (mark.attrs?.fontFamily) inlineStyles.push(`font-family:${mark.attrs.fontFamily}`)
+          if (mark.attrs?.fontSize)   inlineStyles.push(`font-size:${mark.attrs.fontSize}`)
+        }
       }
+      if (inlineStyles.length) t = `<span style="${inlineStyles.join(';')}">${t}</span>`
       return t
     }
+
     if (node.type === 'placeholder_chip') {
       const key   = node.attrs?.key ?? ''
       const field = PREVIEW_CONTEXT_MAP[key]
       const color = getPlaceholderColor(key)
       const label = getPlaceholderLabel(key)
-      // Real value available → show as styled text
+      // Apply paragraph-level font to chip if set
+      const fontStyles: string[] = []
+      if (paraFont?.ff) fontStyles.push(`font-family:${paraFont.ff}`)
+      if (paraFont?.fs) fontStyles.push(`font-size:${paraFont.fs}`)
+      const fStr = fontStyles.length ? fontStyles.join(';') + ';' : ''
       if (field && ctx?.[field] != null) {
-        return `<span style="color:${color};font-weight:600">${escHtml(String(ctx[field]))}</span>`
+        return `<span style="${fStr}color:${color};font-weight:600">${escHtml(String(ctx[field]))}</span>`
       }
-      // Dynamic (seite/seiten_gesamt) or no value → show as chip
-      return `<span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;font-size:9px;font-weight:600;padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
+      return `<span style="${fStr}background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;font-weight:600;padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
     }
+
     if (node.type === 'hardBreak') return '<br>'
+
     if (node.type === 'resizable_image') {
       const src = node.attrs?.src ?? ''
-      const w   = Math.min(Number(node.attrs?.width) || 60, 80) // max 80px in preview
+      const w   = Number(node.attrs?.width) || 60  // no artificial cap — show actual size
       return `<img src="${src}" style="width:${w}px;max-width:100%;vertical-align:middle" />`
     }
-    return (node.content ?? []).map(renderInline).join('')
+
+    return (node.content ?? []).map((n: any) => renderInline(n, paraFont)).join('')
   }
 
   function renderBlock(node: any): string {
     if (node.type === 'paragraph') {
       const align = node.attrs?.textAlign
-      const style = align && align !== 'left' ? ` style="text-align:${align}"` : ''
-      const inner = (node.content ?? []).map(renderInline).join('')
+      const ff    = node.attrs?.fontFamily || null
+      const fs    = node.attrs?.fontSize   || null
+      const styles: string[] = []
+      if (align && align !== 'left') styles.push(`text-align:${align}`)
+      if (ff) styles.push(`font-family:${ff}`)
+      if (fs) styles.push(`font-size:${fs}`)
+      const style = styles.length ? ` style="${styles.join(';')}"` : ''
+      const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs })).join('')
       return inner ? `<div${style}>${inner}</div>` : ''
     }
     return (node.content ?? []).map(renderBlock).join('')
@@ -514,94 +585,6 @@ function PreviewCell({ content, align, color, ctx }: {
       style={{ textAlign: align as any, fontSize: 10, lineHeight: 1.5, minHeight: 16 }}
       dangerouslySetInnerHTML={{ __html: html }}
     />
-  )
-}
-
-// ── Body zone toolbar (single editor) ────────────────────────────────────────
-function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef }: {
-  editor: Editor | null
-  produktionsLogoUrl?: string | null
-  fileInputRef: React.RefObject<HTMLInputElement | null>
-}) {
-  const [imgLoading, setImgLoading] = useState<string | null>(null)
-  const [, setTick] = useState(0)
-
-  useEffect(() => {
-    if (!editor) return
-    const h = () => setTick(n => n + 1)
-    editor.on('selectionUpdate', h); editor.on('transaction', h)
-    return () => { editor.off('selectionUpdate', h); editor.off('transaction', h) }
-  }, [editor])
-
-  const insertImg = (src: string) => {
-    ;(editor as any)?.chain().focus().setResizableImage({ src, width: 120 }).run()
-  }
-
-  const loadFirmenlogo = async () => {
-    setImgLoading('firma')
-    try {
-      const res = await fetch('https://auth.serienwerft.studio/api/public/company-info')
-      const data = await res.json()
-      const url = data?.logos?.light ?? data?.logo_url
-      if (!url) { alert('Kein Firmenlogo konfiguriert.'); return }
-      insertImg(url)
-    } catch { alert('Firmenlogo konnte nicht geladen werden.') }
-    finally { setImgLoading(null) }
-  }
-
-  const btn = (label: string, active: boolean, cb: () => void, title: string, extra?: React.CSSProperties) => (
-    <button key={label} title={title} onMouseDown={e => { e.preventDefault(); cb() }} style={{
-      width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4,
-      background: active ? 'var(--text-primary)' : 'transparent',
-      color: active ? 'var(--text-inverse)' : 'var(--text-secondary)',
-      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: 11, flexShrink: 0, ...extra,
-    }}>{label}</button>
-  )
-  const sep = <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 3px', flexShrink: 0 }} />
-  const imgBtnStyle: React.CSSProperties = { fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }
-
-  return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)', alignItems: 'center' }}>
-      {btn('B', editor?.isActive('bold')      ?? false, () => editor?.chain().focus().toggleBold().run(),      'Fett',          { fontWeight: 700 })}
-      {btn('I', editor?.isActive('italic')    ?? false, () => editor?.chain().focus().toggleItalic().run(),    'Kursiv',        { fontStyle: 'italic' })}
-      {btn('U', editor?.isActive('underline') ?? false, () => editor?.chain().focus().toggleUnderline().run(), 'Unterstrichen', { textDecoration: 'underline' })}
-      {sep}
-      {btn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
-      {btn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
-      {btn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
-      {sep}
-      <select
-        value={editor?.getAttributes('textStyle').fontFamily ?? ''}
-        onChange={e => {
-          const v = e.target.value
-          if (v) editor?.chain().setFontFamily(v).run()
-          else editor?.chain().unsetFontFamily().run()
-        }}
-        title="Schriftart"
-        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', maxWidth: 96, flexShrink: 0 }}
-      >
-        <option value="">— Schrift —</option>
-        {FONT_FAMILIES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-      </select>
-      <select
-        value={editor?.getAttributes('textStyle').fontSize ?? ''}
-        onChange={e => {
-          const v = e.target.value
-          if (v) editor?.chain().setFontSize(v).run()
-          else editor?.chain().unsetFontSize().run()
-        }}
-        title="Schriftgröße"
-        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 60, flexShrink: 0 }}
-      >
-        <option value="">— Pt —</option>
-        {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s} pt</option>)}
-      </select>
-      {sep}
-      <button style={imgBtnStyle} onMouseDown={e => { e.preventDefault(); loadFirmenlogo() }} disabled={!!imgLoading}>{imgLoading === 'firma' ? '…' : 'Firmenlogo'}</button>
-      <button style={{ ...imgBtnStyle, opacity: produktionsLogoUrl ? 1 : 0.4 }} disabled={!produktionsLogoUrl || !!imgLoading} onMouseDown={e => { e.preventDefault(); if (produktionsLogoUrl) insertImg(produktionsLogoUrl) }}>{imgLoading === 'prod' ? '…' : 'Produktionslogo'}</button>
-      <button style={imgBtnStyle} onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click() }}>↑ Bild</button>
-    </div>
   )
 }
 

@@ -84,9 +84,14 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
         case 'italic':    html = `<em>${html}</em>`; break
         case 'underline': html = `<u>${html}</u>`; break
         case 'strike':    html = `<s>${html}</s>`; break
-        case 'textStyle':
-          if (mark.attrs?.color) html = `<span style="color:${mark.attrs.color}">${html}</span>`
+        case 'textStyle': {
+          const inlineStyles: string[] = []
+          if (mark.attrs?.color)      inlineStyles.push(`color:${mark.attrs.color}`)
+          if (mark.attrs?.fontFamily) inlineStyles.push(`font-family:${mark.attrs.fontFamily}`)
+          if (mark.attrs?.fontSize)   inlineStyles.push(`font-size:${mark.attrs.fontSize}`)
+          if (inlineStyles.length) html = `<span style="${inlineStyles.join(';')}">${html}</span>`
           break
+        }
       }
     }
     return html
@@ -100,7 +105,13 @@ function renderNode(node: any, ctx: ExportContext): string {
 
   if (node.type === 'paragraph') {
     const align = node.attrs?.textAlign
-    const style = align && align !== 'left' ? ` style="text-align:${align}"` : ''
+    const ff    = node.attrs?.fontFamily
+    const fs    = node.attrs?.fontSize
+    const styles: string[] = []
+    if (align && align !== 'left') styles.push(`text-align:${align}`)
+    if (ff) styles.push(`font-family:${ff}`)
+    if (fs) styles.push(`font-size:${fs}`)
+    const style = styles.length ? ` style="${styles.join(';')}"` : ''
     const inner = renderInlineNodes(node.content ?? [], ctx)
     return `<p${style}>${inner || '&nbsp;'}</p>`
   }

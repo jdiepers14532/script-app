@@ -2758,11 +2758,17 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [previewMeta, setPreviewMeta] = useState<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }>({ folgeNummer: null, datumsformat: 'de' })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
-    produktion:  selectedProduction?.title ?? 'Produktion',
-    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
+    produktion:  selectedProduction?.title ?? 'Rote Rosen',
+    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : '22',
+    block:       '5',
+    folge:       previewMeta.folgeNummer ?? 3841,
+    folgentitel: 'Beispieltitel',
     fassung:     'Vorlage',
-    folge:       previewMeta.folgeNummer ?? undefined,
+    version:     'V1',
     stand_datum: formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
+    autor:       'Max Mustermann',
+    regie:       'Erika Muster',
+    firmenname:  'Serienwerft GmbH',
   }
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -2960,10 +2966,17 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
   const [previewMeta, setPreviewMeta] = useState<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }>({ folgeNummer: null, datumsformat: 'de' })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
-    produktion:  selectedProduction?.title ?? 'Produktion',
-    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
-    folge:       previewMeta.folgeNummer ?? undefined,
+    produktion:  selectedProduction?.title ?? 'Rote Rosen',
+    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : '22',
+    block:       '5',
+    folge:       previewMeta.folgeNummer ?? 3841,
+    folgentitel: 'Beispieltitel',
+    fassung:     'Drehbuch',
+    version:     'V1',
     stand_datum: formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
+    autor:       'Max Mustermann',
+    regie:       'Erika Muster',
+    firmenname:  'Serienwerft GmbH',
   }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})
