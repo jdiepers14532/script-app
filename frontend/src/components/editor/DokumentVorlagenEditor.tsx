@@ -296,6 +296,15 @@ function ToolbarContent({
 }
 
 // ── Toolbar wrapper ────────────────────────────────────────────────────────────
+const TOOLBAR_STYLE: React.CSSProperties = {
+  display: 'flex', flexWrap: 'nowrap', gap: 3, padding: '5px 8px',
+  borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
+  alignItems: 'center', minHeight: 36,
+  overflowX: 'auto', overflowY: 'hidden',
+  // hide scrollbar visually but keep it functional
+  scrollbarWidth: 'none',
+}
+
 function SharedColumnToolbar({
   editor, zone, produktionsLogoUrl, fileInputRef,
 }: {
@@ -305,11 +314,7 @@ function SharedColumnToolbar({
   fileInputRef: React.RefObject<HTMLInputElement | null>
 }) {
   return (
-    <div style={{
-      display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px',
-      borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
-      alignItems: 'center', minHeight: 36,
-    }}>
+    <div style={TOOLBAR_STYLE}>
       <ToolbarContent editor={editor} zone={zone} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={fileInputRef} />
     </div>
   )
@@ -329,7 +334,7 @@ function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef }: {
   }, [editor])
 
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)', alignItems: 'center' }}>
+    <div style={TOOLBAR_STYLE}>
       <ToolbarContent editor={editor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={fileInputRef} isBody />
     </div>
   )
@@ -450,6 +455,7 @@ function ThreeColumnZone({
                 padding: '10px 14px',
                 minHeight: 56,
                 background: 'white',
+                overflow: 'hidden',  // prevent wide images from breaking toolbar layout
               }}
             >
               <ZoneEditor
@@ -674,7 +680,7 @@ export default function DokumentVorlagenEditor({
               <div style={{ border: '1px solid #00C85344', borderRadius: 6, overflow: 'hidden' }}>
                 <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} />
                 <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
-                <div style={{ padding: '8px 12px', minHeight: 200, background: '#00C85308' }}>
+                <div style={{ padding: '8px 12px', minHeight: 200, background: '#00C85308', overflow: 'hidden' }}>
                   <ZoneEditor
                     key="body"
                     initialContent={value.body_content}
