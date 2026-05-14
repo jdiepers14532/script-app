@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 
@@ -5152,6 +5152,21 @@ function HilfePage() {
     { id: 'export-kopfzeilen', label: 'Export & Kopf-/Fußzeilen', icon: '📤' },
     { id: 'datensicherheit',   label: 'Datensicherheit',          icon: '🔒' },
   ] as const
+
+  // Arrow key navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      const idx = NAV_ITEMS.findIndex(item => item.id === activeSection)
+      if (idx === -1) return
+      if (e.key === 'ArrowLeft' && idx > 0) setActiveSection(NAV_ITEMS[idx - 1].id)
+      if (e.key === 'ArrowRight' && idx < NAV_ITEMS.length - 1) setActiveSection(NAV_ITEMS[idx + 1].id)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [activeSection])
 
   return (
     <AppShell hideProductionSelector>

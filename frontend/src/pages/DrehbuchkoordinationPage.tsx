@@ -2177,6 +2177,21 @@ export default function DrehbuchkoordinationPage() {
       .catch(() => {})
   }, [produktionId])
 
+  // Arrow key tab navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      const idx = DK_TABS.findIndex(t => t.id === activeTab)
+      if (idx === -1) return
+      if (e.key === 'ArrowLeft' && idx > 0) setActiveTab(DK_TABS[idx - 1].id)
+      if (e.key === 'ArrowRight' && idx < DK_TABS.length - 1) setActiveTab(DK_TABS[idx + 1].id)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [activeTab])
+
   const prodLabel = selectedProduction
     ? [
         selectedProduction.projektnummer,
