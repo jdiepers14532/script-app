@@ -22,6 +22,10 @@ interface EntitySidebarProps {
   onAktivieren?: (id: string) => void
   loading?: boolean
   numberKey?: 'rollen_nummer' | 'komparsen_nummer'
+  /** Rendered between search bar and entity list */
+  belowSearch?: React.ReactNode
+  /** When true, hides the entity list (e.g. when a different view mode is active) */
+  hideList?: boolean
 }
 
 const MIN_WIDTH = 180
@@ -36,6 +40,8 @@ export default function EntitySidebar({
   onAktivieren,
   loading = false,
   numberKey = 'rollen_nummer',
+  belowSearch,
+  hideList = false,
 }: EntitySidebarProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [search, setSearch] = useState('')
@@ -82,8 +88,11 @@ export default function EntitySidebar({
         </button>
       </div>
 
+      {/* Slot below search */}
+      {belowSearch}
+
       {/* List */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={{ flex: 1, overflowY: 'auto', display: hideList ? 'none' : undefined }}>
         {loading && <div style={{ padding: '12px 10px', fontSize: 12, color: 'var(--text-secondary)' }}>Lädt…</div>}
 
         {active.map(e => (

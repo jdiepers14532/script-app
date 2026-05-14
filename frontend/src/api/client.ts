@@ -699,6 +699,12 @@ export const api = {
     request<any[]>('GET', `/stockshot-archiv/${produktionId}`),
   checkStockshotArchiv: (produktionId: string, motiv: string, lichtstimmung: string) =>
     request<{ exists: boolean }>('GET', `/stockshot-archiv/${produktionId}/check?motiv=${encodeURIComponent(motiv)}&lichtstimmung=${encodeURIComponent(lichtstimmung)}`),
+  createStockshotArchivEntry: (produktionId: string, data: { motiv_name: string; motiv_id?: string | null; lichtstimmung: string; quelle_folge_nr?: number | null }) =>
+    request<any>('POST', `/stockshot-archiv/${produktionId}`, data),
+  deleteStockshotArchivEntry: (produktionId: string, id: string) =>
+    request<{ ok: boolean }>('DELETE', `/stockshot-archiv/${produktionId}/${id}`),
+  importStockshotArchivFrom: (produktionId: string, sourceProduktionId: string) =>
+    request<{ imported: number }>('POST', `/stockshot-archiv/${produktionId}/import-from/${sourceProduktionId}`),
 
   // ── Sonderszenen: Stockshot-Templates ──
   getStockshotTemplates: (produktionId: string) =>

@@ -694,6 +694,18 @@ stockshotArchivRouter.post('/:produktionId', async (req, res) => {
   }
 })
 
+// DELETE /api/stockshot-archiv/:produktionId/:id
+stockshotArchivRouter.delete('/:produktionId/:id', async (req, res) => {
+  try {
+    const row = await queryOne('SELECT id FROM stockshot_archiv WHERE id = $1 AND produktion_id = $2', [req.params.id, req.params.produktionId])
+    if (!row) return res.status(404).json({ error: 'Not found' })
+    await query('DELETE FROM stockshot_archiv WHERE id = $1', [req.params.id])
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // POST /api/stockshot-archiv/:produktionId/import-from/:sourceProduktionId
 stockshotArchivRouter.post('/:produktionId/import-from/:sourceProduktionId', async (req, res) => {
   try {

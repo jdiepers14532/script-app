@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense, useContext } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import EntitySidebar from '../components/figuren/EntitySidebar'
 import FotoGalerie from '../components/figuren/FotoGalerie'
 const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import { api } from '../api/client'
-import { useSelectedProduction } from '../contexts'
+import { useSelectedProduction, ProductionContext } from '../contexts'
 import { useTerminologie } from '../sw-ui'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Trash2, Download } from 'lucide-react'
+
+type PageView = 'motive' | 'stockshots'
 
 const TYP_LABELS: Record<string, string> = {
   interior: 'INT',
@@ -26,9 +28,11 @@ const THUMB_BASE = '/uploads/script-fotos/thumbnails/'
 
 export default function MotivenPage() {
   const { selectedProduction } = useSelectedProduction()
+  const { productions } = useContext(ProductionContext)
   const { t } = useTerminologie()
   const produktionId = selectedProduction?.id ?? null
   const [searchParams, setSearchParams] = useSearchParams()
+  const [view, setView] = useState<PageView>('motive')
 
   const [motive, setMotive] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -218,23 +222,54 @@ export default function MotivenPage() {
     borderRadius: 8, background: 'var(--bg)', color: 'var(--text)',
   }
 
+  const viewToggle = (
+    <div style={{ display: 'flex', margin: '6px 10px 0', borderRadius: 7, overflow: 'hidden', border: '1px solid var(--border)' }}>
+      {(['motive', 'stockshots'] as PageView[]).map(v => (
+        <button
+          key={v}
+          onClick={() => setView(v)}
+          style={{
+            flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            background: view === v ? 'var(--text)' : 'var(--bg-subtle)',
+            color: view === v ? 'var(--bg)' : 'var(--text-secondary)',
+            transition: 'all 0.12s',
+          }}
+        >
+          {v === 'motive' ? t('motiv') + 'e' : 'Stockshots'}
+        </button>
+      ))}
+    </div>
+  )
+
   return (
     <AppShell hideProductionSelector={false}>
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
         <EntitySidebar
           entities={motivEntities}
-          selectedId={selectedId}
-          onSelect={handleSelect}
+          selectedId={view === 'motive' ? selectedId : null}
+          onSelect={view === 'motive' ? handleSelect : () => {}}
           onNew={() => { setShowNewForm(true); setSelectedId(null); setSearchParams({}) }}
           loading={loading}
+          belowSearch={viewToggle}
+          hideList={view === 'stockshots'}
         />
 
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-          {!produktionId && (
+          {view === 'stockshots' && produktionId && (
+            <StockshotArchivPanel
+              produktionId={produktionId}
+              motive={motive}
+              alleProduktionen={productions.filter(p => p.id !== produktionId)}
+            />
+          )}
+          {view === 'stockshots' && !produktionId && (
+            <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Bitte eine Produktion auswählen.</div>
+          )}
+          {view === 'motive' && !produktionId && (
             <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>Bitte eine Produktion auswählen.</div>
           )}
 
-          {produktionId && !selected && !showNewForm && (
+          {view === 'motive' && produktionId && !selected && !showNewForm && (
             <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
               Motiv aus der Liste auswählen oder{' '}
               <button
@@ -246,7 +281,7 @@ export default function MotivenPage() {
             </div>
           )}
 
-          {showNewForm && (
+          {view === 'motive' && showNewForm && (
             <div style={{ maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Neues {t('motiv')}</h2>
               <input
@@ -275,7 +310,7 @@ export default function MotivenPage() {
             </div>
           )}
 
-          {selected && (
+          {view === 'motive' && selected && (
             <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
               {/* Left: Fotos */}
               <div style={{ flexShrink: 0 }}>
@@ -419,5 +454,252 @@ export default function MotivenPage() {
         </div>
       </div>
     </AppShell>
+  )
+}
+
+// ── Stockshot-Archiv Panel ────────────────────────────────────────────────────
+
+function StockshotArchivPanel({ produktionId, motive, alleProduktionen }: {
+  produktionId: string
+  motive: any[]
+  alleProduktionen: any[]
+}) {
+  const [archiv, setArchiv] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const [importSourceId, setImportSourceId] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [addMotivId, setAddMotivId] = useState('')
+  const [addMotivName, setAddMotivName] = useState('')
+  const [addLicht, setAddLicht] = useState('')
+  const [addFolge, setAddFolge] = useState('')
+  const [adding, setAdding] = useState(false)
+
+  const loadArchiv = useCallback(async () => {
+    setLoading(true)
+    try { setArchiv(await api.getStockshotArchiv(produktionId)) }
+    finally { setLoading(false) }
+  }, [produktionId])
+
+  useEffect(() => { loadArchiv() }, [loadArchiv])
+
+  const handleAdd = async () => {
+    const name = addMotivId
+      ? (motive.find(m => m.id === addMotivId)?.name ?? addMotivName)
+      : addMotivName.trim()
+    if (!name || !addLicht.trim()) return
+    setAdding(true)
+    try {
+      await api.createStockshotArchivEntry(produktionId, {
+        motiv_name: name,
+        motiv_id: addMotivId || null,
+        lichtstimmung: addLicht.trim(),
+        quelle_folge_nr: addFolge ? Number(addFolge) : null,
+      })
+      await loadArchiv()
+      setShowAddForm(false)
+      setAddMotivId(''); setAddMotivName(''); setAddLicht(''); setAddFolge('')
+    } finally { setAdding(false) }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Eintrag löschen?')) return
+    await api.deleteStockshotArchivEntry(produktionId, id)
+    setArchiv(prev => prev.filter(e => e.id !== id))
+  }
+
+  const handleImport = async () => {
+    if (!importSourceId) return
+    setImporting(true)
+    try {
+      const res = await api.importStockshotArchivFrom(produktionId, importSourceId)
+      alert(`${res.imported} Einträge importiert.`)
+      await loadArchiv()
+      setShowImport(false)
+      setImportSourceId('')
+    } finally { setImporting(false) }
+  }
+
+  // Deduplicate lichtstimmung values for autocomplete
+  const lichtstimmungen = [...new Set(archiv.map(e => e.lichtstimmung))].sort()
+
+  const thStyle: React.CSSProperties = {
+    padding: '6px 12px', fontSize: 11, fontWeight: 600, textAlign: 'left',
+    color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em',
+    borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+  }
+  const tdStyle: React.CSSProperties = {
+    padding: '7px 12px', fontSize: 13, borderBottom: '1px solid var(--border)',
+    verticalAlign: 'middle',
+  }
+
+  return (
+    <div style={{ maxWidth: 760 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+        <div>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Stockshot-Archiv</h2>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+            Bereits gedrehte Stockshots — neue Szenen prüfen automatisch dagegen.
+          </p>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => { setShowImport(v => !v); setShowAddForm(false) }}
+            style={{ fontSize: 12, padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', background: 'transparent', color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 5 }}
+          >
+            <Download size={12} /> Aus Staffel importieren
+          </button>
+          <button
+            onClick={() => { setShowAddForm(v => !v); setShowImport(false) }}
+            style={{ fontSize: 12, padding: '6px 12px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--text)', color: 'var(--bg)', display: 'flex', alignItems: 'center', gap: 5 }}
+          >
+            <Plus size={12} /> Eintrag hinzufügen
+          </button>
+        </div>
+      </div>
+
+      {/* Import form */}
+      {showImport && (
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Quell-Staffel</label>
+            <select
+              value={importSourceId}
+              onChange={e => setImportSourceId(e.target.value)}
+              style={{ width: '100%', fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}
+            >
+              <option value="">— Staffel wählen —</option>
+              {alleProduktionen.map(p => (
+                <option key={p.id} value={p.id}>{p.titel ?? p.name ?? p.id}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={handleImport}
+            disabled={!importSourceId || importing}
+            style={{ fontSize: 12, padding: '7px 14px', border: 'none', borderRadius: 7, cursor: importSourceId ? 'pointer' : 'default', background: 'var(--text)', color: 'var(--bg)' }}
+          >
+            {importing ? 'Importiere…' : 'Importieren'}
+          </button>
+          <button
+            onClick={() => setShowImport(false)}
+            style={{ fontSize: 12, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Add form */}
+      {showAddForm && (
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            <div style={{ flex: 2, minWidth: 160 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Motiv</label>
+              <select
+                value={addMotivId}
+                onChange={e => { setAddMotivId(e.target.value); if (e.target.value) setAddMotivName('') }}
+                style={{ width: '100%', fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}
+              >
+                <option value="">— aus Liste —</option>
+                {motive.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+              {!addMotivId && (
+                <input
+                  value={addMotivName}
+                  onChange={e => setAddMotivName(e.target.value)}
+                  placeholder="oder Freitext…"
+                  style={{ marginTop: 4, width: '100%', fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
+                />
+              )}
+            </div>
+            <div style={{ flex: 1, minWidth: 120 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Lichtstimmung</label>
+              <input
+                list="licht-options"
+                value={addLicht}
+                onChange={e => setAddLicht(e.target.value)}
+                placeholder="z. B. TAG, NACHT…"
+                style={{ width: '100%', fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
+              />
+              <datalist id="licht-options">
+                {lichtstimmungen.map(l => <option key={l} value={l} />)}
+              </datalist>
+            </div>
+            <div style={{ width: 80 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Folge</label>
+              <input
+                type="number"
+                value={addFolge}
+                onChange={e => setAddFolge(e.target.value)}
+                placeholder="—"
+                style={{ width: '100%', fontSize: 13, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
+              />
+            </div>
+            <button
+              onClick={handleAdd}
+              disabled={adding || (!addMotivId && !addMotivName.trim()) || !addLicht.trim()}
+              style={{ fontSize: 12, padding: '7px 14px', border: 'none', borderRadius: 7, cursor: 'pointer', background: 'var(--text)', color: 'var(--bg)' }}
+            >
+              {adding ? 'Speichern…' : 'Hinzufügen'}
+            </button>
+            <button
+              onClick={() => setShowAddForm(false)}
+              style={{ fontSize: 12, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      {loading ? (
+        <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Lädt…</div>
+      ) : archiv.length === 0 ? (
+        <div style={{ color: 'var(--text-secondary)', fontSize: 13, padding: '20px 0' }}>
+          Noch keine Stockshots im Archiv. Einträge entstehen automatisch wenn eine Szene als "gefilmt" markiert wird, oder manuell über "Eintrag hinzufügen".
+        </div>
+      ) : (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead style={{ background: 'var(--bg-subtle)' }}>
+              <tr>
+                <th style={thStyle}>Motiv</th>
+                <th style={thStyle}>Lichtstimmung</th>
+                <th style={thStyle}>Quelle (Folge)</th>
+                <th style={{ ...thStyle, width: 40 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {archiv.map(e => (
+                <tr key={e.id} style={{ background: 'transparent' }}>
+                  <td style={tdStyle}>{e.motiv_name}</td>
+                  <td style={tdStyle}>
+                    <span style={{ fontSize: 11, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 7px', fontWeight: 600 }}>
+                      {e.lichtstimmung}
+                    </span>
+                  </td>
+                  <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>
+                    {e.quelle_folge_nr ? `Folge ${e.quelle_folge_nr}` : '—'}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    <button
+                      onClick={() => handleDelete(e.id)}
+                      title="Eintrag löschen"
+                      style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   )
 }
