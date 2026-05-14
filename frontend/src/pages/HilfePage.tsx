@@ -5151,6 +5151,7 @@ function HilfePage() {
     { id: 'vorlagen-ocr',     label: 'Vorlagen & OCR',          icon: '📄' },
     { id: 'export-kopfzeilen', label: 'Export & Kopf-/Fußzeilen', icon: '📤' },
     { id: 'datensicherheit',   label: 'Datensicherheit',          icon: '🔒' },
+    { id: 'team-work',         label: 'Team-Work',                icon: '👥' },
   ] as const
 
   // Arrow key navigation
@@ -5247,6 +5248,7 @@ function HilfePage() {
           {activeSection === 'vorlagen-ocr' && <VorlagenOcrTab />}
           {activeSection === 'export-kopfzeilen' && <ExportKopfzeilen />}
           {activeSection === 'datensicherheit' && <DatensicherheitTab />}
+          {activeSection === 'team-work' && <TeamWorkTab />}
         </div>
       </div>
     </AppShell>
@@ -6413,6 +6415,135 @@ function DatensicherheitTab() {
           <li>MDN: <em>Background Synchronization API</em></li>
           <li>Google Workbox: <em>workbox-background-sync</em></li>
         </ul>
+      </div>
+    </div>
+  )
+}
+
+// ── Team-Work Tab ──────────────────────────────────────────────────────────
+function TeamWorkTab() {
+  const C = {
+    blue: '#007AFF', orange: '#FF9500', green: '#00C853', purple: '#AF52DE',
+    red: '#FF3B30', gray: '#757575',
+  }
+
+  return (
+    <div style={{ padding: '32px 0' }}>
+      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Team-Work</h2>
+      <p style={{ color: C.gray, fontSize: 14, lineHeight: 1.6, marginBottom: 32 }}>
+        Team-Work ermöglicht es, Werkstufen für bestimmte Personen sichtbar zu machen und
+        den Privat-Modus zu verwalten — ohne Surveillance, mit DSGVO-Konformität.
+      </p>
+
+      {/* Gruppen */}
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Colab-Gruppen</h3>
+      <p style={{ fontSize: 13, color: C.gray, lineHeight: 1.6, marginBottom: 16 }}>
+        Jeder Autor kann Gruppen anlegen — kein Admin-Zugriff nötig. Einstieg über:
+        <strong> User-Menü → Team-Work</strong>
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 28 }}>
+        {[
+          { title: 'Gruppe erstellen', desc: 'Name + optionale Beschreibung' },
+          { title: 'Mitglieder verwalten', desc: 'Hinzufügen, Entfernen, Beitreten' },
+          { title: 'Gruppe löschen', desc: 'Nur der Ersteller oder ein Admin' },
+        ].map(item => (
+          <div key={item.title} style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border-subtle)' }}>
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{item.title}</div>
+            <div style={{ fontSize: 12, color: C.gray }}>{item.desc}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Sichtbarkeits-Ebenen */}
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Sichtbarkeits-Ebenen</h3>
+      <p style={{ fontSize: 13, color: C.gray, lineHeight: 1.6, marginBottom: 16 }}>
+        Die Sichtbarkeit wird pro Werkstufe im Editor-Header eingestellt (klickbares Badge).
+      </p>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 28 }}>
+        <thead>
+          <tr style={{ borderBottom: '2px solid var(--border)' }}>
+            {['Einstellung', 'Bedeutung', 'Yjs aktiv?'].map(h => (
+              <th key={h} style={{ textAlign: 'left', padding: '6px 10px', color: C.gray, fontWeight: 600 }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            { val: 'Nur ich (Privat)', color: C.orange, desc: 'Niemand außer dir kann die Werkstufe sehen', yjs: 'Nein' },
+            { val: 'Alle Autoren', color: C.blue, desc: 'Standard — alle Autoren der Produktion', yjs: 'Nein' },
+            { val: 'Gesamte Produktion', color: C.green, desc: 'Alle Produktionsmitglieder', yjs: 'Nein' },
+            { val: 'Colab-Team', color: C.purple, desc: 'Nur Mitglieder der gewählten Gruppe', yjs: 'Ja' },
+          ].map((row, i) => (
+            <tr key={row.val} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
+              <td style={{ padding: '8px 10px' }}>
+                <span style={{ color: row.color, fontWeight: 600 }}>{row.val}</span>
+              </td>
+              <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{row.desc}</td>
+              <td style={{ padding: '8px 10px', color: row.yjs === 'Ja' ? C.green : C.gray }}>{row.yjs}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Privat-Modus */}
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Privat-Modus</h3>
+      <p style={{ fontSize: 13, color: C.gray, lineHeight: 1.6, marginBottom: 16 }}>
+        Der Privat-Modus schützt deine Arbeit, solange du noch nicht fertig bist.
+        Er läuft automatisch ab, wenn du längere Zeit inaktiv warst.
+      </p>
+
+      <div style={{ background: 'rgba(255,149,0,0.08)', border: '1px solid rgba(255,149,0,0.3)', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: C.orange, marginBottom: 6 }}>Auto-Ablauf (Standard: 4 Stunden)</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          Wenn du seit der konfigurierten Zeit nicht mehr aktiv warst, erhältst du eine Email mit zwei Optionen:
+          <ul style={{ margin: '8px 0 0', paddingLeft: 20 }}>
+            <li><strong>Verlängern</strong> — Privat-Modus läuft weiter</li>
+            <li><strong>Freigeben</strong> — Werkstufe wird wieder sichtbar (zurück zum letzten Stand)</li>
+          </ul>
+        </div>
+      </div>
+
+      {/* Warnungen / Szenarien */}
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Editor-Warnungen</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 28 }}>
+        {[
+          {
+            color: C.orange,
+            title: 'Anderer User aktiv',
+            desc: 'Wenn ein anderer Autor dieselbe Werkstufe in den letzten 15 Minuten bearbeitet hat, erscheint ein Hinweis im Editor.',
+          },
+        ].map(item => (
+          <div key={item.title} style={{ display: 'flex', gap: 12, padding: '12px 14px', background: 'var(--bg-subtle)', borderRadius: 10, border: `1px solid ${item.color}33` }}>
+            <div style={{ width: 4, borderRadius: 4, background: item.color, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{item.title}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{item.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* DSGVO */}
+      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Datenschutz</h3>
+      <div style={{ background: 'var(--bg-subtle)', borderRadius: 10, padding: '14px 16px', border: '1px solid var(--border-subtle)', fontSize: 12, lineHeight: 1.7 }}>
+        <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 13 }}>Was gespeichert wird:</div>
+        <ul style={{ margin: 0, paddingLeft: 20, color: 'var(--text-secondary)' }}>
+          <li><strong>Nur last_active_at</strong> — ein einziger Zeitstempel der letzten Aktivität</li>
+          <li>Kein Aktivitätslog, keine Tastenprotokollierung</li>
+          <li>Keine permanente Session-Historie</li>
+        </ul>
+        <div style={{ marginTop: 12, fontWeight: 600, marginBottom: 8, fontSize: 13 }}>Framing:</div>
+        <div style={{ color: 'var(--text-secondary)' }}>
+          Warnungen schützen den Autoren (nicht Überwachung) — sie verhindern, dass Änderungen
+          durch parallele Bearbeitung überschrieben werden.
+        </div>
+        <div style={{ marginTop: 12, fontWeight: 600, marginBottom: 8, fontSize: 13 }}>Email-Links:</div>
+        <div style={{ color: 'var(--text-secondary)' }}>
+          One-Click-Token-Links in Ablauf-Emails sind 48h gültig, erfordern keinen Login
+          und sind nur einmal verwendbar.
+        </div>
       </div>
     </div>
   )
