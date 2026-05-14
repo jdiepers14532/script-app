@@ -525,7 +525,9 @@ function ThreeColumnZone({
           />
           <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
-          {/* Zone editors — all mounted, only active visible */}
+          {/* Zone editors — all mounted, only active visible.
+              maxHeight + overflowY: editor scrolls internally → toolbar position is
+              fully independent of editor content height (image resize, typing, etc.) */}
           {cols.map(col => (
             <div
               key={col}
@@ -533,8 +535,9 @@ function ThreeColumnZone({
                 display: activeCol === col ? 'block' : 'none',
                 padding: '10px 14px',
                 minHeight: 56,
+                maxHeight: 160,
+                overflowY: 'auto',
                 background: 'white',
-                overflow: 'hidden',  // prevent wide images from breaking toolbar layout
                 minWidth: 0,
                 maxWidth: '100%',
                 boxSizing: 'border-box',
@@ -772,7 +775,7 @@ export default function DokumentVorlagenEditor({
             <div style={{ border: noHeaderFooter ? 'none' : '1px solid #00C85344', borderRadius: 6, overflow: 'hidden' }}>
               <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} zone="alle" />
               <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
-              <div style={{ padding: '8px 12px', minHeight: 200, background: noHeaderFooter ? 'transparent' : '#00C85308', overflow: 'hidden' }}>
+              <div style={{ padding: '8px 12px', minHeight: 200, maxHeight: 500, overflowY: 'auto', background: noHeaderFooter ? 'transparent' : '#00C85308' }}>
                 <ZoneEditor
                   key="body"
                   initialContent={value.body_content}
