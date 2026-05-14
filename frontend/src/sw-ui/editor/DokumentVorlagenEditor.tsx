@@ -86,17 +86,20 @@ export interface DokumentVorlagenEditorValue {
 
 /** Real values shown in the preview strip instead of placeholder keys */
 export interface PreviewContext {
-  produktion?:    string
-  staffel?:       string
-  block?:         string
-  folge?:         string | number
-  folgentitel?:   string
-  fassung?:       string
-  version?:       string
-  stand_datum?:   string
-  autor?:         string
-  regie?:         string
-  firmenname?:    string
+  produktion?:     string
+  staffel?:        string
+  block?:          string
+  folge?:          string | number
+  folgentitel?:    string
+  fassung?:        string
+  version?:        string
+  stand_datum?:    string
+  autor?:          string
+  regie?:          string
+  firmenname?:     string
+  sender?:         string
+  buero_adresse?:  string
+  prod_autoren?:   string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -739,17 +742,20 @@ function ThreeColumnZone({
 // ── Preview: ProseMirror JSON → HTML ──────────────────────────────────────────
 
 const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
-  '{{produktion}}':   'produktion',
-  '{{staffel}}':      'staffel',
-  '{{block}}':        'block',
-  '{{folge}}':        'folge',
-  '{{folgentitel}}':  'folgentitel',
-  '{{fassung}}':      'fassung',
-  '{{version}}':      'version',
-  '{{stand_datum}}':  'stand_datum',
-  '{{autor}}':        'autor',
-  '{{regie}}':        'regie',
-  '{{firmenname}}':   'firmenname',
+  '{{produktion}}':    'produktion',
+  '{{staffel}}':       'staffel',
+  '{{block}}':         'block',
+  '{{folge}}':         'folge',
+  '{{folgentitel}}':   'folgentitel',
+  '{{fassung}}':       'fassung',
+  '{{version}}':       'version',
+  '{{stand_datum}}':   'stand_datum',
+  '{{autor}}':         'autor',
+  '{{regie}}':         'regie',
+  '{{firmenname}}':    'firmenname',
+  '{{sender}}':        'sender',
+  '{{buero_adresse}}': 'buero_adresse',
+  '{{prod_autoren}}':  'prod_autoren',
 }
 
 function escHtml(s: string): string {

@@ -147,7 +147,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     [ws.folge_id]
   )
   const prod = await queryOne(
-    'SELECT titel FROM produktionen WHERE id = $1',
+    'SELECT titel, produktion_db_id FROM produktionen WHERE id = $1',
     [ws.produktion_id]
   )
   // terminologie setting → episode label
@@ -165,9 +165,42 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     ? String(ws.stand_datum).slice(0, 10)
     : new Date().toISOString().slice(0, 10)
 
+  // Fetch company info from auth.app (public endpoint, no auth required)
+  let firmenname: string | null = null
+  try {
+    const r = await fetch('http://127.0.0.1:3002/api/public/company-info', { signal: AbortSignal.timeout(3000) })
+    if (r.ok) {
+      const d = await r.json() as any
+      firmenname = d?.company_name ?? null
+    }
+  } catch { /* non-fatal */ }
+
+  // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer, autoren)
+  let sender: string | null = null
+  let bueroAdresse: string | null = null
+  let prodAutoren: string | null = null
+  let staffel: string | null = null
+  const produktionDbId = prod?.produktion_db_id
+  if (produktionDbId) {
+    try {
+      const secret = process.env.PRODUKTION_INTERNAL_SECRET ?? 'prod-internal-2026'
+      const r = await fetch(
+        `http://127.0.0.1:3005/api/internal/productions/${produktionDbId}/script-context`,
+        { headers: { 'x-internal-key': secret }, signal: AbortSignal.timeout(3000) }
+      )
+      if (r.ok) {
+        const d = await r.json() as any
+        sender      = d?.sender        ?? null
+        bueroAdresse = d?.buero_adresse ?? null
+        prodAutoren  = d?.autoren       ?? null
+        staffel      = d?.staffelnummer != null ? String(d.staffelnummer) : null
+      }
+    } catch { /* non-fatal */ }
+  }
+
   return {
     produktion:       prod?.titel ?? '',
-    staffel:          null,
+    staffel,
     block:            null,
     folge:            folge?.folge_nummer ?? null,
     folgentitel:      folge?.folgen_titel ?? null,
@@ -176,7 +209,10 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     stand_datum:      datum,
     autor:            userName,
     regie:            null,
-    firmenname:       null,
+    firmenname,
+    sender,
+    buero_adresse:    bueroAdresse,
+    prod_autoren:     prodAutoren,
     episode_terminus: episodeTerminus,
   }
 }

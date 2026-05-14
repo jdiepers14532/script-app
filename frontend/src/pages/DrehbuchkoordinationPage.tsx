@@ -2861,20 +2861,23 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
-  const [previewMeta, setPreviewMeta] = useState<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }>({ folgeNummer: null, datumsformat: 'de' })
+  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, datumsformat: 'de', firmenname: null, sender: null, bueroAdresse: null, prodAutoren: null })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
-    produktion:  selectedProduction?.title ?? 'Rote Rosen',
-    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : '22',
-    block:       '5',
-    folge:       previewMeta.folgeNummer ?? 3841,
-    folgentitel: 'Beispieltitel',
-    fassung:     'Vorlage',
-    version:     'V1',
-    stand_datum: formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
-    autor:       'Max Mustermann',
-    regie:       'Erika Muster',
-    firmenname:  'Serienwerft GmbH',
+    produktion:    selectedProduction?.title ?? 'Rote Rosen',
+    staffel:       selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
+    block:         undefined,
+    folge:         previewMeta.folgeNummer ?? undefined,
+    folgentitel:   undefined,
+    fassung:       'Drehbuch',
+    version:       'V1',
+    stand_datum:   formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
+    autor:         'Max Mustermann',
+    regie:         undefined,
+    firmenname:    previewMeta.firmenname ?? undefined,
+    sender:        selectedProduction?.sender ?? undefined,
+    buero_adresse: selectedProduction?.buero_adresse ?? undefined,
+    prod_autoren:  selectedProduction?.autoren ?? undefined,
   }
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -3232,10 +3235,20 @@ function formatDatum(iso: string, fmt: 'de' | 'en'): string {
   return fmt === 'en' ? `${m}/${d}/${y}` : `${d}.${m}.${y}`
 }
 
-async function loadPreviewMeta(productionId: string): Promise<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }> {
-  const [folgenRes, settingsRes] = await Promise.allSettled([
+interface PreviewMeta {
+  folgeNummer:  number | null
+  datumsformat: 'de' | 'en'
+  firmenname:   string | null
+  sender:       string | null
+  bueroAdresse: string | null
+  prodAutoren:  string | null
+}
+
+async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
+  const [folgenRes, settingsRes, companyRes] = await Promise.allSettled([
     fetch(`/api/v2/folgen?produktion_id=${encodeURIComponent(productionId)}`, { credentials: 'include' }),
     fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' }),
+    fetch('https://auth.serienwerft.studio/api/public/company-info'),
   ])
   let folgeNummer: number | null = null
   if (folgenRes.status === 'fulfilled' && folgenRes.value.ok) {
@@ -3250,7 +3263,12 @@ async function loadPreviewMeta(productionId: string): Promise<{ folgeNummer: num
     const s: any = await settingsRes.value.json()
     if (s?.datumsformat === 'en') datumsformat = 'en'
   }
-  return { folgeNummer, datumsformat }
+  let firmenname: string | null = null
+  if (companyRes.status === 'fulfilled' && companyRes.value.ok) {
+    const c: any = await companyRes.value.json()
+    firmenname = c?.company_name ?? null
+  }
+  return { folgeNummer, datumsformat, firmenname, sender: null, bueroAdresse: null, prodAutoren: null }
 }
 
 function KopfFusszeileTab({ productionId }: { productionId: string }) {
@@ -3258,20 +3276,23 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
-  const [previewMeta, setPreviewMeta] = useState<{ folgeNummer: number | null; datumsformat: 'de' | 'en' }>({ folgeNummer: null, datumsformat: 'de' })
+  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, datumsformat: 'de', firmenname: null, sender: null, bueroAdresse: null, prodAutoren: null })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
-    produktion:  selectedProduction?.title ?? 'Rote Rosen',
-    staffel:     selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : '22',
-    block:       '5',
-    folge:       previewMeta.folgeNummer ?? 3841,
-    folgentitel: 'Beispieltitel',
-    fassung:     'Drehbuch',
-    version:     'V1',
-    stand_datum: formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
-    autor:       'Max Mustermann',
-    regie:       'Erika Muster',
-    firmenname:  'Serienwerft GmbH',
+    produktion:    selectedProduction?.title ?? 'Rote Rosen',
+    staffel:       selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
+    block:         undefined,
+    folge:         previewMeta.folgeNummer ?? undefined,
+    folgentitel:   undefined,
+    fassung:       'Drehbuch',
+    version:       'V1',
+    stand_datum:   formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
+    autor:         'Max Mustermann',
+    regie:         undefined,
+    firmenname:    previewMeta.firmenname ?? undefined,
+    sender:        selectedProduction?.sender ?? undefined,
+    buero_adresse: selectedProduction?.buero_adresse ?? undefined,
+    prod_autoren:  selectedProduction?.autoren ?? undefined,
   }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})

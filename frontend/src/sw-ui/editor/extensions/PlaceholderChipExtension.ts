@@ -30,9 +30,12 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   { key: '{{stand_datum}}',   label: 'Stand-Datum',  zone: 'alle',      color: '#007AFF' },
   { key: '{{autor}}',         label: 'Autor',        zone: 'alle',      color: '#007AFF' },
   { key: '{{regie}}',         label: 'Regie',        zone: 'alle',      color: '#007AFF' },
-  { key: '{{firmenname}}',    label: 'Firmenname',   zone: 'alle',      color: '#5856D6' },
-  { key: '{{seite}}',         label: 'Seitenzahl',   zone: 'fusszeile', color: '#FF9500' },
-  { key: '{{seiten_gesamt}}', label: 'Seiten gesamt',zone: 'fusszeile', color: '#FF9500' },
+  { key: '{{firmenname}}',    label: 'Firmenname',    zone: 'alle',      color: '#5856D6' },
+  { key: '{{sender}}',        label: 'Sender',        zone: 'alle',      color: '#FF9500' },
+  { key: '{{buero_adresse}}', label: 'Büro-Adresse',  zone: 'alle',      color: '#5856D6' },
+  { key: '{{prod_autoren}}',  label: 'Buch-Autoren',  zone: 'alle',      color: '#5856D6' },
+  { key: '{{seite}}',         label: 'Seitenzahl',    zone: 'fusszeile', color: '#FF9500' },
+  { key: '{{seiten_gesamt}}', label: 'Seiten gesamt', zone: 'fusszeile', color: '#FF9500' },
 ]
 
 export function getPlaceholdersForZone(zone: PlaceholderZone): PlaceholderDef[] {
