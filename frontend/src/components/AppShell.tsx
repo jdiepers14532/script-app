@@ -1420,7 +1420,7 @@ export default function AppShell({
                 <Trash2 size={14} />
                 Offline-Version deinstallieren
               </button>
-            ) : installPrompt ? (
+            ) : (
               <button
                 className="um-item"
                 onClick={() => { setUserMenuOpen(false); openInstallModal() }}
@@ -1428,7 +1428,7 @@ export default function AppShell({
                 <Download size={14} />
                 Offline-Version installieren
               </button>
-            ) : null}
+            )}
             <div className="um-divider" />
             <button
               className="um-item um-item-danger"
@@ -2101,30 +2101,56 @@ export default function AppShell({
                 </div>
 
                 {/* Schritte */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    So läuft die Installation
-                  </div>
-                  {[
-                    { n: '1', label: 'Klicke "Jetzt installieren"' },
-                    { n: '2', label: 'Bestätige den Browser-Dialog (erscheint kurz)' },
-                    { n: '3', label: 'Fertig — App startet direkt vom Desktop' },
-                  ].map(step => (
-                    <div key={step.n} style={{
-                      display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '8px 12px', borderRadius: 7,
-                      background: 'var(--bg-subtle)',
-                    }}>
-                      <span style={{
-                        width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
-                        background: 'var(--sw-green)', color: '#fff',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 700,
-                      }}>{step.n}</span>
-                      <span style={{ fontSize: 13 }}>{step.label}</span>
+                {installPrompt ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      So läuft die Installation
                     </div>
-                  ))}
-                </div>
+                    {[
+                      { n: '1', label: 'Klicke "Jetzt installieren"' },
+                      { n: '2', label: 'Bestätige den Browser-Dialog (erscheint kurz)' },
+                      { n: '3', label: 'Fertig — App startet direkt vom Desktop' },
+                    ].map(step => (
+                      <div key={step.n} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '8px 12px', borderRadius: 7,
+                        background: 'var(--bg-subtle)',
+                      }}>
+                        <span style={{
+                          width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                          background: 'var(--sw-green)', color: '#fff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 11, fontWeight: 700,
+                        }}>{step.n}</span>
+                        <span style={{ fontSize: 13 }}>{step.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{
+                      padding: '10px 14px', borderRadius: 8,
+                      background: 'rgba(255,149,0,0.08)', border: '1px solid rgba(255,149,0,0.3)',
+                      fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
+                    }}>
+                      Der Browser-Installationsdialog ist momentan nicht verfügbar (mögliche Ursachen: App wurde kürzlich installiert/deinstalliert, oder Browser-Cooldown aktiv). Manuelle Installation:
+                    </div>
+                    {[
+                      { browser: 'Edge', steps: 'Adressleiste → ⊕-Symbol → "Script-App installieren"  oder  Menü (…) → Apps → Diese Website als App installieren' },
+                      { browser: 'Chrome', steps: 'Adressleiste → ⊕-Symbol → "Installieren"  oder  Menü (⋮) → Script-App installieren' },
+                      { browser: 'Safari (iOS)', steps: 'Teilen-Symbol → "Zum Home-Bildschirm"' },
+                    ].map(b => (
+                      <div key={b.browser} style={{
+                        display: 'grid', gridTemplateColumns: '60px 1fr', gap: 10,
+                        padding: '10px 12px', borderRadius: 7, background: 'var(--bg-subtle)',
+                        fontSize: 12,
+                      }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{b.browser}</span>
+                        <span style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>{b.steps}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
                   Kein App-Store nötig. Die Installation erfolgt direkt im Browser — ohne Admin-Rechte.
@@ -2141,21 +2167,23 @@ export default function AppShell({
                     fontSize: 13, color: 'var(--text-secondary)',
                   }}
                 >
-                  Vielleicht später
+                  Schließen
                 </button>
-                <button
-                  onClick={triggerInstallPrompt}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '8px 18px', borderRadius: 7,
-                    background: 'var(--sw-green)', color: '#fff',
-                    border: 'none', cursor: 'pointer',
-                    fontWeight: 700, fontSize: 13,
-                  }}
-                >
-                  <Download size={14} />
-                  Jetzt installieren
-                </button>
+                {installPrompt && (
+                  <button
+                    onClick={triggerInstallPrompt}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '8px 18px', borderRadius: 7,
+                      background: 'var(--sw-green)', color: '#fff',
+                      border: 'none', cursor: 'pointer',
+                      fontWeight: 700, fontSize: 13,
+                    }}
+                  >
+                    <Download size={14} />
+                    Jetzt installieren
+                  </button>
+                )}
               </div>
             </>)}
 
