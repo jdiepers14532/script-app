@@ -2877,7 +2877,6 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     firmenname:    previewMeta.firmenname ?? undefined,
     sender:        selectedProduction?.sender ?? undefined,
     buero_adresse: selectedProduction?.buero_adresse ?? undefined,
-    prod_autoren:  selectedProduction?.autoren ?? undefined,
   }
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -3292,7 +3291,6 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     firmenname:    previewMeta.firmenname ?? undefined,
     sender:        selectedProduction?.sender ?? undefined,
     buero_adresse: selectedProduction?.buero_adresse ?? undefined,
-    prod_autoren:  selectedProduction?.autoren ?? undefined,
   }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})

@@ -175,10 +175,9 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     }
   } catch { /* non-fatal */ }
 
-  // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer, autoren)
+  // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer)
   let sender: string | null = null
   let bueroAdresse: string | null = null
-  let prodAutoren: string | null = null
   let staffel: string | null = null
   const produktionDbId = prod?.produktion_db_id
   if (produktionDbId) {
@@ -192,7 +191,6 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
         const d = await r.json() as any
         sender      = d?.sender        ?? null
         bueroAdresse = d?.buero_adresse ?? null
-        prodAutoren  = d?.autoren       ?? null
         staffel      = d?.staffelnummer != null ? String(d.staffelnummer) : null
       }
     } catch { /* non-fatal */ }
@@ -212,7 +210,6 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     firmenname,
     sender,
     buero_adresse:    bueroAdresse,
-    prod_autoren:     prodAutoren,
     episode_terminus: episodeTerminus,
   }
 }

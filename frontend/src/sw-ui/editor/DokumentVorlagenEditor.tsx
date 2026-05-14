@@ -99,7 +99,6 @@ export interface PreviewContext {
   firmenname?:     string
   sender?:         string
   buero_adresse?:  string
-  prod_autoren?:   string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -755,7 +754,6 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{firmenname}}':    'firmenname',
   '{{sender}}':        'sender',
   '{{buero_adresse}}': 'buero_adresse',
-  '{{prod_autoren}}':  'prod_autoren',
 }
 
 function escHtml(s: string): string {

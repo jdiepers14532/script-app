@@ -18,7 +18,6 @@ export interface ExportContext {
   firmenname:    string | null
   sender:        string | null
   buero_adresse: string | null
-  prod_autoren:  string | null
   episode_terminus: string  // e.g. "Folge" or "Episode"
 }
 
@@ -39,7 +38,6 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{firmenname}}':    return ctx.firmenname ?? ''
     case '{{sender}}':        return ctx.sender ?? ''
     case '{{buero_adresse}}': return ctx.buero_adresse ?? ''
-    case '{{prod_autoren}}':  return ctx.prod_autoren ?? ''
     case '{{seite}}':         return '<span class="ph-seite"></span>'
     case '{{seiten_gesamt}}': return '<span class="ph-seiten-gesamt"></span>'
     default:                  return key

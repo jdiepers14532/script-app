@@ -42,8 +42,11 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
     // Correct for CSS zoom: delta from clientX is in viewport px; width is stored in CSS px.
     const zoom       = wrapperRef.current ? getAncestorZoom(wrapperRef.current) : 1
     const cssW       = Number(node.attrs.width) || displayWidth   // always CSS px, zoom-independent
-    const parentBcr  = wrapperRef.current?.parentElement?.getBoundingClientRect()
-    const containerW = parentBcr ? parentBcr.width / zoom : 800   // parent width in CSS px
+    // Use the ProseMirror editor content area as max-width reference.
+    // parentElement is ProseMirror's atom wrapper span (same width as image) — too narrow.
+    const editorEl   = wrapperRef.current?.closest('.ProseMirror') as HTMLElement | null
+    const editorBcr  = editorEl?.getBoundingClientRect()
+    const containerW = editorBcr ? editorBcr.width / zoom : 800   // editor width in CSS px
 
     startData.current = { x: e.clientX, w: cssW, zoom, containerW }
 
