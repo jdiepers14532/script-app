@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { ChevronDown, Plus, Lock, Users, Globe, Eye, Tag } from 'lucide-react'
+import { ChevronDown, Plus, Lock, Users, Globe, Tag } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
@@ -195,6 +195,7 @@ export default function EditorPanelHeader({
                       setSichtbarkeitSaving(true)
                       try {
                         await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: opt.value })
+                        clearCacheByPrefix('/v2/folgen/')
                         onReloadWerkstufen()
                       } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
                     }}
@@ -223,6 +224,7 @@ export default function EditorPanelHeader({
                           setSichtbarkeitSaving(true)
                           try {
                             await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: `colab:${g.id}` })
+                            clearCacheByPrefix('/v2/folgen/')
                             onReloadWerkstufen()
                           } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
                         }}

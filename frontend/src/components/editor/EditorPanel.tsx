@@ -242,7 +242,7 @@ export default function EditorPanel({
   const isReadOnly = selectedWerk?.bearbeitung_status === 'gesperrt' || selectedWerk?.abgegeben
 
   // Collaboration
-  const collabEnabled = selectedWerk?.sichtbarkeit === 'colab' && !isReadOnly
+  const collabEnabled = (selectedWerk?.sichtbarkeit?.startsWith('colab:') ?? false) && !isReadOnly
   const { ydoc, provider, status: collabStatus, users: collabUsers, idbReady } = useCollaboration({
     fassungId: collabEnabled ? selectedWerkId : null,
     enabled: collabEnabled,
