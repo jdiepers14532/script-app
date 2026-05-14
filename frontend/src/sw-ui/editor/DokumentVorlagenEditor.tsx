@@ -359,10 +359,6 @@ export function ToolbarContent({
     editor?.chain().focus().toggleUnderline().updateAttributes('paragraph', { textDecoration: next ? 'underline' : null }).run()
   }
 
-  // Image float controls — visible when cursor/selection is on a resizable_image
-  const isImgSelected = editor?.isActive('resizable_image') ?? false
-  const imgFloat      = editor?.getAttributes('resizable_image')?.float ?? 'none'
-
   const fmtBtn = (label: string, active: boolean, cb: () => void, title: string, extra?: React.CSSProperties) => (
     <button
       key={title}
@@ -456,14 +452,6 @@ export function ToolbarContent({
         >↑ Bild</button>
         {sep('sep-table')}
         {fmtBtn('⊞', false, () => editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: false }).run(), 'Tabelle einfügen (3×2)', { fontSize: 14 })}
-        {/* Float alignment — only shown when a resizable_image is selected */}
-        {isImgSelected && sep('sep-imgfloat')}
-        {isImgSelected && fmtBtn('⇐', imgFloat === 'left',
-          () => editor?.chain().focus().updateAttributes('resizable_image', { float: imgFloat === 'left' ? 'none' : 'left' }).run(),
-          'Bild links (Text umfließt rechts)')}
-        {isImgSelected && fmtBtn('⇒', imgFloat === 'right',
-          () => editor?.chain().focus().updateAttributes('resizable_image', { float: imgFloat === 'right' ? 'none' : 'right' }).run(),
-          'Bild rechts (Text umfließt links)')}
         {!editor && !isBody && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, flexShrink: 0 }}>
             ← Bereich anklicken

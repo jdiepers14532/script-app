@@ -11,12 +11,24 @@ declare module '@tiptap/core' {
   }
 }
 
+/** Accumulate CSS zoom of all ancestors to convert viewport px ↔ CSS px */
+function getAncestorZoom(el: HTMLElement): number {
+  let zoom = 1
+  let cur: HTMLElement | null = el.parentElement
+  while (cur) {
+    const z = parseFloat(getComputedStyle(cur).zoom || '1')
+    if (!isNaN(z) && z > 0 && z !== 1) zoom *= z
+    cur = cur.parentElement
+  }
+  return zoom
+}
+
 function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
   const { src, alt, width, float: imgFloat } = node.attrs
-  const [resizing, setResizing]       = useState(false)
-  const [hovered, setHovered]         = useState(false)
+  const [resizing, setResizing] = useState(false)
+  const [hovered, setHovered]   = useState(false)
   const [displayWidth, setDisplayWidth] = useState(() => Number(width) || 120)
-  const startData  = useRef({ x: 0, w: 0 })
+  const startData = useRef({ x: 0, w: 0, zoom: 1, containerW: 800 })
   const wrapperRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
@@ -26,14 +38,19 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation()
     setResizing(true)
-    // Use actual rendered (visual) width as starting point — stored displayWidth may differ
-    // from visual if CSS max-width constraints have capped it (e.g. in narrow columns)
-    const actualW = wrapperRef.current?.offsetWidth ?? displayWidth
-    startData.current = { x: e.clientX, w: actualW }
-    const containerW = wrapperRef.current?.parentElement?.clientWidth ?? 800
+
+    // Correct for CSS zoom: delta from clientX is in viewport px; width is stored in CSS px.
+    const zoom       = wrapperRef.current ? getAncestorZoom(wrapperRef.current) : 1
+    const cssW       = Number(node.attrs.width) || displayWidth   // always CSS px, zoom-independent
+    const parentBcr  = wrapperRef.current?.parentElement?.getBoundingClientRect()
+    const containerW = parentBcr ? parentBcr.width / zoom : 800   // parent width in CSS px
+
+    startData.current = { x: e.clientX, w: cssW, zoom, containerW }
+
     const onMove = (ev: MouseEvent) => {
-      const delta = ev.clientX - startData.current.x
-      const newW  = Math.max(24, Math.min(containerW, Math.round(startData.current.w + delta)))
+      // Convert viewport-pixel delta → CSS-pixel delta
+      const delta = (ev.clientX - startData.current.x) / startData.current.zoom
+      const newW  = Math.max(24, Math.min(startData.current.containerW, Math.round(startData.current.w + delta)))
       setDisplayWidth(newW)
       updateAttributes({ width: newW })
     }
@@ -46,14 +63,14 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
     window.addEventListener('mouseup', onUp)
   }
 
-  const showHandle = hovered || resizing
+  const showOverlay = hovered || resizing
 
-  // Float-based wrapper style — decouples image from text line height
+  // Float wrapper: floated → shrink-wraps image. Non-floated → inline-block (doesn't span full width).
   const wrapperStyle: React.CSSProperties = imgFloat === 'left'
-    ? { display: 'block', float: 'left',  marginRight: 10, position: 'relative', cursor: 'default', maxWidth: '100%' }
+    ? { display: 'block', float: 'left',  marginRight: 10, position: 'relative', maxWidth: '100%' }
     : imgFloat === 'right'
-    ? { display: 'block', float: 'right', marginLeft:  10, position: 'relative', cursor: 'default', maxWidth: '100%' }
-    : { display: 'block', margin: '4px 0',               position: 'relative', cursor: 'default', maxWidth: '100%' }
+    ? { display: 'block', float: 'right', marginLeft:  10, position: 'relative', maxWidth: '100%' }
+    : { display: 'inline-block', margin: '4px 0', position: 'relative', maxWidth: '100%', verticalAlign: 'top' }
 
   return (
     <NodeViewWrapper
@@ -66,24 +83,64 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
     >
       <img
         src={src} alt={alt || ''}
-        style={{ width: displayWidth, maxWidth: '100%', display: 'block',
-          outline: showHandle ? '2px solid #007AFF88' : 'none', outlineOffset: 1, transition: 'outline 0.1s' }}
+        style={{
+          width: displayWidth, maxWidth: '100%', display: 'block',
+          outline: showOverlay ? '2px solid #007AFF88' : 'none',
+          outlineOffset: 1, transition: 'outline 0.1s',
+        }}
         draggable={false}
       />
-      {/* Resize handle — INSIDE image bounds (right:3,bottom:3) so overflow:auto on
-          parent scroll containers doesn't clip it (negative offsets would be clipped) */}
-      <span
-        onMouseDown={onResizeStart}
-        style={{
-          position: 'absolute', right: 3, bottom: 3, width: 12, height: 12,
-          background: resizing ? '#007AFF' : '#007AFFCC', border: '2px solid #fff', borderRadius: 2,
-          cursor: 'se-resize', display: showHandle ? 'flex' : 'none',
-          alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
-        }}
-      />
+
+      {/* ── Float / position controls — visible on hover ── */}
+      {showOverlay && (
+        <div style={{
+          position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)',
+          display: 'flex', gap: 3, pointerEvents: 'all',
+        }}>
+          {([
+            ['◁', 'left',  'Links'],
+            ['▣', 'none',  'Block'],
+            ['▷', 'right', 'Rechts'],
+          ] as [string, string, string][]).map(([icon, val, title]) => (
+            <button
+              key={val}
+              title={title}
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateAttributes({ float: val }) }}
+              style={{
+                width: 22, height: 22,
+                border: `1.5px solid ${imgFloat === val ? '#007AFF' : 'rgba(0,0,0,0.35)'}`,
+                borderRadius: 3,
+                background: imgFloat === val ? '#007AFF' : 'rgba(255,255,255,0.92)',
+                color: imgFloat === val ? '#fff' : '#333',
+                cursor: 'pointer', fontSize: 11,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+              }}
+            >{icon}</button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Resize handle — bottom-right corner ── */}
+      {showOverlay && (
+        <span
+          onMouseDown={onResizeStart}
+          title="Größe ändern"
+          style={{
+            position: 'absolute', right: 3, bottom: 3, width: 14, height: 14,
+            background: resizing ? '#007AFF' : '#007AFFCC',
+            border: '2px solid #fff', borderRadius: 2,
+            cursor: 'se-resize',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
+          }}
+        />
+      )}
+
+      {/* ── Width tooltip while resizing ── */}
       {resizing && (
         <span style={{
-          position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute', bottom: 20, right: 3,
           background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 10,
           padding: '2px 6px', borderRadius: 3, pointerEvents: 'none', whiteSpace: 'nowrap',
         }}>
