@@ -6258,9 +6258,9 @@ function DatensicherheitTab() {
               desc: 'Beim Sync wird X-Client-Version (updated_at bei Laden der Szene) an den Server gesendet. Wurde die Szene inzwischen von jemand anderem geändert, antwortet der Server mit 409. Der User kann dann "Überschreiben" oder "Verwerfen" wählen.',
             },
             {
-              tier: 'Tier 3', color: '#FF9500', status: 'Geplant',
+              tier: 'Tier 3', color: '#AF52DE', status: 'Aktiv',
               title: 'Yjs IndexedDB Persistence',
-              desc: 'Kollaborative Änderungen (Hocuspocus) werden via y-indexeddb lokal persistiert. Schützt auch bei Browser-Absturz während einer aktiven Kollaboration.',
+              desc: 'Kollaborative Änderungen (Hocuspocus/Yjs) werden via y-indexeddb automatisch lokal persistiert. Bei Browser-Absturz oder Offline-Reload wird der letzte Stand sofort aus IndexedDB wiederhergestellt — bevor der WebSocket-Sync beginnt. Editor zeigt "Lädt lokalen Stand…" während die IDB-Daten gelesen werden.',
             },
           ].map(t => (
             <div key={t.tier} style={{
@@ -6301,7 +6301,7 @@ function DatensicherheitTab() {
             <tbody>
               {[
                 ['Online, Save ok', '✅ Server gespeichert', '✅ Server gespeichert'],
-                ['Offline, tippe Szene', '✅ Änderungen bleiben (React-State + Tier-3 geplant)', '⚠️ Änderungen bleiben in React-State (RAM)'],
+                ['Offline, tippe Szene (Collab-Modus)', '✅ Yjs-Updates in IDB (Tier 3) + React-State', '⚠️ Änderungen nur in React-State (RAM)'],
                 ['Offline, Save fehlgeschlagen', '✅ In IndexedDB-Queue → Retry on Online', '✅ In IndexedDB-Queue → Retry on Online'],
                 ['Browser-Tab schließen (offline)', '⚠️ Queue bleibt in IndexedDB, Tab-State geht verloren', '⚠️ Queue bleibt, aber nicht gespeicherter Tipp-State geht verloren'],
                 ['Szenenwechsel (offline)', '⚠️ Ungesaved Tipp-State der alten Szene verloren', '⚠️ Ungesaved Tipp-State der alten Szene verloren'],
