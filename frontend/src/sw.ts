@@ -34,8 +34,9 @@ registerRoute(
 const bc = new BroadcastChannel('sw-update')
 
 self.addEventListener('install', () => {
-  // Warte auf explizites skipWaiting via Message — KEIN self.skipWaiting() hier!
-  // Der User (oder Admin) entscheidet wann der neue SW aktiviert wird.
+  // Sofort aktivieren — kein Warten auf explizites skipWaiting.
+  // Deploys werden dadurch sofort wirksam nach einem Reload.
+  self.skipWaiting()
   bc.postMessage({ type: 'SW_WAITING' })
 })
 
