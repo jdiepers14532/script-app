@@ -26,15 +26,19 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
     if (!resizing) setDisplayWidth(Number(width) || 120)
   }, [width, resizing])
 
+  const wrapperRef = useRef<HTMLSpanElement>(null)
+
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setResizing(true)
     startData.current = { x: e.clientX, w: displayWidth }
+    // Cap to container width so images can't push the parent layout
+    const containerW = wrapperRef.current?.parentElement?.clientWidth ?? 800
 
     const onMove = (ev: MouseEvent) => {
       const delta = ev.clientX - startData.current.x
-      const newW = Math.max(24, Math.min(800, Math.round(startData.current.w + delta)))
+      const newW = Math.max(24, Math.min(containerW, Math.round(startData.current.w + delta)))
       setDisplayWidth(newW)        // instant visual update
       updateAttributes({ width: newW })  // persist to document
     }
@@ -51,6 +55,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
 
   return (
     <NodeViewWrapper
+      ref={wrapperRef}
       as="span"
       contentEditable={false}
       onMouseEnter={() => setHovered(true)}

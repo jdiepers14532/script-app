@@ -303,7 +303,7 @@ function ToolbarContent({
 const TOOLBAR_STYLE: React.CSSProperties = {
   display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px',
   borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
-  alignItems: 'center', minHeight: 36,
+  alignItems: 'center', minHeight: 36, flexShrink: 0,
 }
 
 function SharedColumnToolbar({
@@ -414,10 +414,10 @@ function ThreeColumnZone({
       </div>
 
       {aktiv && (
-        <div style={{ border: `1px solid ${color}44`, borderRadius: 6, overflow: 'hidden' }}>
+        <div style={{ border: `1px solid ${color}44`, borderRadius: 6, overflow: 'hidden', display: 'flex', flexDirection: 'column', maxWidth: '100%' }}>
 
           {/* Zone tabs */}
-          <div style={{ display: 'flex', background: 'var(--bg-subtle)', borderBottom: `1px solid ${color}22` }}>
+          <div style={{ display: 'flex', flexShrink: 0, background: 'var(--bg-subtle)', borderBottom: `1px solid ${color}22` }}>
             {cols.map(col => (
               <button
                 key={col}
@@ -457,6 +457,9 @@ function ThreeColumnZone({
                 minHeight: 56,
                 background: 'white',
                 overflow: 'hidden',  // prevent wide images from breaking toolbar layout
+                minWidth: 0,
+                maxWidth: '100%',
+                boxSizing: 'border-box',
               }}
             >
               <ZoneEditor
