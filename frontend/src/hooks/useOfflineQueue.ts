@@ -9,7 +9,7 @@ interface QueuedRequest {
   timestamp: number
 }
 
-export type ReconnectResult = 'online' | 'no-internet' | 'sw-stuck' | 'server-down'
+export type ReconnectResult = 'online' | 'no-internet' | 'sw-reset' | 'server-down'
 
 const DB_NAME = 'script-offline-queue'
 const STORE_NAME = 'requests'
@@ -124,12 +124,14 @@ export function useOfflineQueue() {
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations()
       if (regs.length > 0) {
-        // SW ist präsent und Fetch ist fehlgeschlagen → SW deregistrieren und neu laden.
-        // Worst-case echter Offline + SW: nach Reload kein Asset-Cache, aber SW war
-        // ohnehin offline. Für interne Apps akzeptabler Trade-off.
+        // SW ist präsent und Fetch ist fehlgeschlagen → SW deregistrieren, KEIN Reload.
+        // Reload würde ERR_INTERNET_DISCONNECTED zeigen: Edge/Chrome setzen zusätzlich
+        // zur SW-Offline-Flag auch navigator.onLine=false, was Reloads blockiert.
+        // Nach Deregistrierung gehen alle Fetches direkt ans Netz (kein SW-Intercept mehr).
+        // Sobald der Nutzer die DevTools-Offline-Checkbox deaktiviert, feuert der Browser
+        // das 'online'-Event → isOnline wird automatisch true.
         await Promise.all(regs.map(r => r.unregister()))
-        window.location.reload()
-        return 'sw-stuck' // wird nicht erreicht (Reload)
+        return 'sw-reset'
       }
     }
 

@@ -303,17 +303,20 @@ export default function AppShell({
   } | null>(null)
 
   // ── Offline-Modal ──────────────────────────────────────────────────────────
-  const [reconnectStatus, setReconnectStatus] = useState<'idle' | 'checking' | 'no-internet' | 'server-down'>('idle')
+  const [reconnectStatus, setReconnectStatus] = useState<'idle' | 'checking' | 'sw-reset' | 'no-internet' | 'server-down'>('idle')
 
   const handleReconnect = useCallback(async () => {
     if (reconnectStatus === 'checking') return
     setReconnectStatus('checking')
     const result = await reconnect()
-    // 'sw-stuck' → Seite wird neu geladen, kein State-Update nötig
-    if (result !== 'sw-stuck') {
-      setReconnectStatus(result === 'online' ? 'idle' : result)
-      // Fehlermeldung nach 4s automatisch zurücksetzen
-      if (result !== 'online') setTimeout(() => setReconnectStatus('idle'), 4000)
+    if (result === 'online') {
+      setReconnectStatus('idle')
+    } else if (result === 'sw-reset') {
+      // SW wurde deregistriert — kein Reload, warten auf natürliches 'online'-Event
+      setReconnectStatus('sw-reset')
+    } else {
+      setReconnectStatus(result)
+      setTimeout(() => setReconnectStatus('idle'), 4000)
     }
   }, [reconnect, reconnectStatus])
 
@@ -964,6 +967,7 @@ export default function AppShell({
           }} />
           <span>
             {reconnectStatus === 'checking' ? 'Verbindung wird geprüft…'
+              : reconnectStatus === 'sw-reset' ? 'Browser-Cache zurückgesetzt — warte auf Netz…'
               : reconnectStatus === 'no-internet' ? 'Kein Internetzugang'
               : reconnectStatus === 'server-down' ? 'Server nicht erreichbar'
               : !isOnline ? `Offline · Antippen zum Verbinden${pendingCount > 0 ? ` · ${pendingCount} ausstehend` : ''}`
@@ -1878,6 +1882,12 @@ export default function AppShell({
                       <RefreshCw size={13} style={{ animation: reconnectStatus === 'checking' ? 'spin 1s linear infinite' : undefined }} />
                       {reconnectStatus === 'checking' ? 'Verbindung wird geprüft…' : 'Verbindung wiederherstellen'}
                     </button>
+                    {reconnectStatus === 'sw-reset' && (
+                      <p style={{ fontSize: 12, color: '#FF9500', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                        <span style={{ flexShrink: 0 }}>↻</span>
+                        Browser-Cache zurückgesetzt. Die Verbindung wird automatisch hergestellt, sobald das Netz verfügbar ist.
+                      </p>
+                    )}
                     {reconnectStatus === 'no-internet' && (
                       <p style={{ fontSize: 12, color: 'var(--sw-danger)', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
                         <span style={{ flexShrink: 0 }}>✕</span>
