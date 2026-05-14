@@ -306,11 +306,16 @@ export default function AppShell({
   const [reconnectStatus, setReconnectStatus] = useState<'idle' | 'checking' | 'no-internet' | 'server-down'>('idle')
 
   const handleReconnect = useCallback(async () => {
+    if (reconnectStatus === 'checking') return
     setReconnectStatus('checking')
     const result = await reconnect()
     // 'sw-stuck' → Seite wird neu geladen, kein State-Update nötig
-    if (result !== 'sw-stuck') setReconnectStatus(result === 'online' ? 'idle' : result)
-  }, [reconnect])
+    if (result !== 'sw-stuck') {
+      setReconnectStatus(result === 'online' ? 'idle' : result)
+      // Fehlermeldung nach 4s automatisch zurücksetzen
+      if (result !== 'online') setTimeout(() => setReconnectStatus('idle'), 4000)
+    }
+  }, [reconnect, reconnectStatus])
 
   const [offlineOpen, setOfflineOpen] = useState(false)
   const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import' | 'uninstall'>('main')
@@ -932,10 +937,27 @@ export default function AppShell({
 
         <div className="spacer" />
 
-        <div className="status-pill topbar-extra" style={{ borderColor: isOnline ? undefined : 'var(--sw-warning)' }}>
-          <span className="dot" style={{ background: isOnline && pendingCount === 0 ? 'var(--sw-green)' : isOnline ? 'var(--sw-warning)' : 'var(--sw-danger)' }} />
+        <div
+          className="status-pill topbar-extra"
+          onClick={!isOnline ? handleReconnect : undefined}
+          style={{
+            borderColor: isOnline ? undefined : reconnectStatus === 'no-internet' || reconnectStatus === 'server-down' ? 'var(--sw-danger)' : 'var(--sw-warning)',
+            cursor: !isOnline ? 'pointer' : 'default',
+            userSelect: 'none',
+          }}
+        >
+          <span className="dot" style={{
+            background: isOnline && pendingCount === 0 ? 'var(--sw-green)' : isOnline ? 'var(--sw-warning)' : 'var(--sw-danger)',
+            animation: reconnectStatus === 'checking' ? 'pulse 1s ease-in-out infinite' : undefined,
+          }} />
           <span>
-            {!isOnline ? `Offline${pendingCount > 0 ? ` · ${pendingCount} ausstehend` : ''}` : isSyncing ? 'Synchronisiert…' : pendingCount > 0 ? `${pendingCount} ausstehende Änderungen` : 'Online · Synced'}
+            {reconnectStatus === 'checking' ? 'Verbindung wird geprüft…'
+              : reconnectStatus === 'no-internet' ? 'Kein Internetzugang'
+              : reconnectStatus === 'server-down' ? 'Server nicht erreichbar'
+              : !isOnline ? `Offline · Antippen zum Verbinden${pendingCount > 0 ? ` · ${pendingCount} ausstehend` : ''}`
+              : isSyncing ? 'Synchronisiert…'
+              : pendingCount > 0 ? `${pendingCount} ausstehende Änderungen`
+              : 'Online · Synced'}
           </span>
         </div>
 
