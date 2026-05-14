@@ -19,11 +19,13 @@ function fmtSek(sek: number | null | undefined): string {
 }
 
 interface Props {
-  szeneId: number
-  produktionId?: string | null
+  /** Old system (legacy szenen) */
+  szeneId?: number
+  /** New system (dokument_szenen via scene_identity) */
+  sceneIdentityId?: string
 }
 
-export default function VorstoppPanel({ szeneId, produktionId: _produktionId }: Props) {
+export default function VorstoppPanel({ szeneId, sceneIdentityId }: Props) {
   const [latest, setLatest] = useState<Partial<Record<StageKey, any>>>({})
   const [loading, setLoading] = useState(true)
   const [autoLoading, setAutoLoading] = useState(false)
@@ -33,13 +35,17 @@ export default function VorstoppPanel({ szeneId, produktionId: _produktionId }: 
 
   const load = () => {
     setLoading(true)
-    api.getVorstopp(szeneId)
-      .then(data => setLatest(data.latest_per_stage ?? {}))
+    const p = sceneIdentityId
+      ? api.getSceneIdentityVorstopp(sceneIdentityId)
+      : szeneId != null
+        ? api.getVorstopp(szeneId)
+        : Promise.reject(new Error('no id'))
+    p.then(data => setLatest(data.latest_per_stage ?? {}))
       .catch(() => setLatest({}))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [szeneId])
+  useEffect(() => { load() }, [szeneId, sceneIdentityId])
 
   useEffect(() => {
     if (editStage) inputRef.current?.focus()
@@ -56,12 +62,17 @@ export default function VorstoppPanel({ szeneId, produktionId: _produktionId }: 
     setEditStage(null)
     if (!editVal.trim() || isNaN(sek) || sek < 0) return
     try {
-      await api.addVorstopp(szeneId, { stage: key, dauer_sekunden: sek, methode: 'manuell' })
+      if (sceneIdentityId) {
+        await api.addSceneIdentityVorstopp(sceneIdentityId, { stage: key, dauer_sekunden: sek, methode: 'manuell' })
+      } else if (szeneId != null) {
+        await api.addVorstopp(szeneId, { stage: key, dauer_sekunden: sek, methode: 'manuell' })
+      }
       load()
     } catch {}
   }
 
   const handleAuto = async () => {
+    if (!szeneId) return // auto only supported for legacy szenen
     setAutoLoading(true)
     try {
       await api.autoVorstopp(szeneId)
@@ -70,6 +81,8 @@ export default function VorstoppPanel({ szeneId, produktionId: _produktionId }: 
       setAutoLoading(false)
     }
   }
+
+  const canAuto = szeneId != null
 
   return (
     <div className="vorstopp-bar">
@@ -83,7 +96,7 @@ export default function VorstoppPanel({ szeneId, produktionId: _produktionId }: 
               key={key}
               className={`vorstopp-cell${entry ? ' has-value' : ''}`}
               onClick={() => !isEditing && startEdit(key)}
-              title={`${label} manuell setzen`}
+              title={`${label} — Klicken zum Eingeben (Sekunden)`}
             >
               <span className="vs-label">{label}</span>
               {isEditing ? (
@@ -109,15 +122,17 @@ export default function VorstoppPanel({ szeneId, produktionId: _produktionId }: 
           )
         })}
       </div>
-      <button
-        className="vorstopp-auto-btn"
-        onClick={handleAuto}
-        disabled={autoLoading}
-        title="Vorstopp aus Seiten-Zahl berechnen"
-      >
-        <Zap size={11} />
-        {autoLoading ? '…' : 'Auto'}
-      </button>
+      {canAuto && (
+        <button
+          className="vorstopp-auto-btn"
+          onClick={handleAuto}
+          disabled={autoLoading}
+          title="Vorstopp aus Seiten-Zahl berechnen"
+        >
+          <Zap size={11} />
+          {autoLoading ? '…' : 'Auto'}
+        </button>
+      )}
     </div>
   )
 }

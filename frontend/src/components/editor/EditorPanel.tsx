@@ -143,6 +143,31 @@ export default function EditorPanel({
   const sceneFormat = currentSzene?.format
   const kategorie = sceneFormat ?? selectedWerk?.typ ?? 'drehbuch'
 
+  // ── Revision data ─────────────────────────────────────────────────────────
+  const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
+  const [revisionColor, setRevisionColor] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!selectedSzeneId) { setChangedBlocks(new Set()); setRevisionColor(null); return }
+    const loadRevisions = useDokumentSzenen && typeof selectedSzeneId === 'string'
+      ? api.getDokumentSzeneRevisionen(selectedSzeneId)
+      : typeof selectedSzeneId === 'number'
+        ? api.getSzeneRevisionen(selectedSzeneId)
+        : null
+    if (!loadRevisions) { setChangedBlocks(new Set()); setRevisionColor(null); return }
+    loadRevisions
+      .then(deltas => {
+        const changed = new Set<number>()
+        deltas.forEach((d: any) => {
+          if (d.field_type === 'content_block' && d.block_index != null) changed.add(d.block_index)
+        })
+        setChangedBlocks(changed)
+        const colorDelta = deltas.find((d: any) => d.revision_color)
+        setRevisionColor(colorDelta?.revision_color ?? null)
+      })
+      .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
+  }, [selectedSzeneId, useDokumentSzenen])
+
   // ── Replik offsets for numbering ──────────────────────────────────────────
   const [replikOffsets, setReplikOffsets] = useState<Record<string, number>>({})
   const [replikBaseline, setReplikBaseline] = useState<any[] | null>(null)
@@ -310,6 +335,8 @@ export default function EditorPanel({
               replikOffset={currentReplikOffset}
               replikBaseline={replikBaseline}
               isLocked={!!isReadOnly}
+              changedBlocks={changedBlocks}
+              revisionColor={revisionColor}
             />
           </Suspense>
         )}

@@ -32,6 +32,7 @@ import { useUserPrefs, useFocus, useAppSettings } from '../../contexts'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
 import { LineNumberOverlay } from './LineNumberOverlay'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
+import { createRevisionMarginPlugin, REVISION_MARGIN_CSS } from '../../tiptap/RevisionMarginPlugin'
 
 // ── Platform detection ──────────────────────────────────────────────────────
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
@@ -80,6 +81,16 @@ function injectReplikCSS() {
   const style = document.createElement('style')
   style.id = 'replik-css'
   style.textContent = REPLIK_NUMBER_CSS
+  document.head.appendChild(style)
+}
+
+let revisionCssInjected = false
+function injectRevisionCSS() {
+  if (revisionCssInjected) return
+  revisionCssInjected = true
+  const style = document.createElement('style')
+  style.id = 'revision-margin-css'
+  style.textContent = REVISION_MARGIN_CSS
   document.head.appendChild(style)
 }
 
@@ -186,6 +197,8 @@ interface UniversalEditorProps {
   replikOffset?: number
   replikBaseline?: any[] | null
   isLocked?: boolean
+  changedBlocks?: Set<number>
+  revisionColor?: string | null
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -212,6 +225,8 @@ export default function UniversalEditor({
   replikOffset = 0,
   replikBaseline = null,
   isLocked = false,
+  changedBlocks,
+  revisionColor = null,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
@@ -446,6 +461,20 @@ export default function UniversalEditor({
     }
     return () => { try { editor.unregisterPlugin('replikNumbers') } catch {} }
   }, [editor, showReplikNumbers, replikOffset, replikBaseline, isLocked])
+
+  // ── Revision margin plugin ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!editor) return
+    try { editor.unregisterPlugin('revisionMargin') } catch {}
+    if (changedBlocks?.size && revisionColor) {
+      injectRevisionCSS()
+      try { editor.registerPlugin(createRevisionMarginPlugin({
+        changedBlocks: changedBlocks ?? new Set(),
+        revisionColor,
+      })) } catch {}
+    }
+    return () => { try { editor.unregisterPlugin('revisionMargin') } catch {} }
+  }, [editor, changedBlocks, revisionColor])
 
   useEffect(() => () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)

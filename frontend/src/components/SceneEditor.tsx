@@ -6,6 +6,7 @@ import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus } from '../contexts'
 import { useTerminologie } from '../sw-ui'
+import VorstoppPanel from './VorstoppPanel'
 
 interface SceneEditorProps {
   szeneId: number | string
@@ -1414,6 +1415,30 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               }}
             />
           </div>
+
+          {/* Revision badge — when this scene/stage has revision markings */}
+          {changedBlocks.size > 0 && revisionColor && (
+            <div className="sf-row" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                background: `${revisionColor}22`, border: `1px solid ${revisionColor}66`,
+                color: revisionColor,
+              }}>
+                <span style={{ fontWeight: 900 }}>*</span>
+                Revision · {changedBlocks.size} geänd. {changedBlocks.size === 1 ? 'Block' : 'Blöcke'}
+              </span>
+            </div>
+          )}
+
+          {/* Vorstopp */}
+          <div className="sf-row" style={{ padding: 0 }}>
+            <VorstoppPanel
+              szeneId={typeof szeneId === 'number' ? szeneId : undefined}
+              sceneIdentityId={scene?.scene_identity_id ?? undefined}
+            />
+          </div>
+
           </div>{/* end scene-fields-rows */}
         </div>}
       </div>}
