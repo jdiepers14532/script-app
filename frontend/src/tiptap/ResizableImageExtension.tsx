@@ -55,7 +55,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
       contentEditable={false}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { if (!resizing) setHovered(false) }}
-      style={{ display: 'inline-block', position: 'relative', verticalAlign: 'middle', cursor: 'default' }}
+      style={{ display: 'inline-block', position: 'relative', verticalAlign: 'middle', cursor: 'default', maxWidth: '100%' }}
     >
       <img
         src={src}

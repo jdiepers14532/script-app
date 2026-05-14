@@ -18,7 +18,11 @@ function injectChipCss() {
   chipCssInjected = true
   const style = document.createElement('style')
   style.id = 'placeholder-chip-css'
-  style.textContent = PLACEHOLDER_CHIP_CSS
+  style.textContent = PLACEHOLDER_CHIP_CSS + `
+/* Prevent editor content from expanding its container horizontally */
+.ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; }
+.ProseMirror img { max-width: 100% !important; }
+`
   document.head.appendChild(style)
 }
 
@@ -145,9 +149,9 @@ function ZoneEditor({
   })
   useEffect(() => { if (editor) onEditorReady?.(editor) }, [editor])
   return (
-    <div style={{ minHeight: minHeight ?? 60 }}>
+    <div style={{ minHeight: minHeight ?? 60, overflowX: 'hidden', width: '100%' }}>
       {editor && (
-        <EditorContent editor={editor} style={{ minHeight: minHeight ?? 60, fontSize: 13, lineHeight: 1.7, cursor: 'text', outline: 'none' }} />
+        <EditorContent editor={editor} style={{ minHeight: minHeight ?? 60, fontSize: 13, lineHeight: 1.7, cursor: 'text', outline: 'none', overflowX: 'hidden', maxWidth: '100%' }} />
       )}
     </div>
   )
