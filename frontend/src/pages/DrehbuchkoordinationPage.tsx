@@ -2974,8 +2974,18 @@ function VorlagenTab({ productionId }: { productionId: string }) {
         {label}
       </div>
     )
+    // Preview modal vars
+    const pvFmt  = editEditorValue.seiten_layout?.format ?? 'a4'
+    const pvW    = pvFmt === 'letter' ? 816 : 794
+    const pvH    = pvFmt === 'letter' ? 1056 : 1123
+    const pvMl   = (editEditorValue.seiten_layout?.margin_left   ?? 30) * (96 / 25.4)
+    const pvMr   = (editEditorValue.seiten_layout?.margin_right  ?? 25) * (96 / 25.4)
+    const pvMt   = (editEditorValue.seiten_layout?.margin_top    ?? 25) * (96 / 25.4)
+    const pvMb   = (editEditorValue.seiten_layout?.margin_bottom ?? 25) * (96 / 25.4)
+    const pvHtml = renderPmToPreviewHtml(editEditorValue.body_content, previewContext)
 
     return (
+      <>
       <div style={{ display: 'flex', alignItems: 'flex-start', margin: '-24px -16px', minHeight: '85vh' }}>
 
         {/* ── Left sidebar ── */}
@@ -3112,62 +3122,51 @@ function VorlagenTab({ productionId }: { productionId: string }) {
       </div>
 
       {/* ── Preview Modal ── */}
-      {showPreview && (() => {
-        const fmt = editEditorValue.seiten_layout?.format ?? 'a4'
-        const wPx = fmt === 'letter' ? 816 : 794
-        const hPx = fmt === 'letter' ? 1056 : 1123
-        const ml  = editEditorValue.seiten_layout?.margin_left   ?? 30
-        const mr  = editEditorValue.seiten_layout?.margin_right  ?? 25
-        const mt  = editEditorValue.seiten_layout?.margin_top    ?? 25
-        const mb  = editEditorValue.seiten_layout?.margin_bottom ?? 25
-        const bodyHtml = renderPmToPreviewHtml(editEditorValue.body_content, previewContext)
-        return (
-          <div
-            onClick={() => setShowPreview(false)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 24px' }}
-          >
-            <div onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+      {showPreview && (
+        <div
+          onClick={() => setShowPreview(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 24px' }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
 
-              {/* Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#fff', fontSize: 13, width: wPx }}>
-                <span style={{ flex: 1, fontWeight: 600 }}>Vorschau — Chips durch Beispieldaten ersetzt</span>
-                <button
-                  onClick={() => setShowPreview(false)}
-                  style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
-                >Schließen</button>
-              </div>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#fff', fontSize: 13, width: pvW }}>
+              <span style={{ flex: 1, fontWeight: 600 }}>Vorschau — Chips durch Beispieldaten ersetzt</span>
+              <button
+                onClick={() => setShowPreview(false)}
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
+              >Schließen</button>
+            </div>
 
-              {/* A4 / Letter page */}
-              <div style={{
-                width: wPx, minHeight: hPx, background: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-                borderRadius: 2, color: '#000',
-                paddingTop: mt * (96 / 25.4), paddingBottom: mb * (96 / 25.4),
-                paddingLeft: ml * (96 / 25.4), paddingRight: mr * (96 / 25.4),
-                boxSizing: 'border-box',
-                fontFamily: '"Courier New", monospace', fontSize: 12, lineHeight: 1.5,
-              }}>
-                {/* Format badge */}
-                <div style={{ position: 'absolute', top: 56, right: 24 + (mr * (96 / 25.4)), fontSize: 9, color: '#bbb', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                  {fmt === 'a4' ? 'A4 — 210×297 mm' : 'US Letter — 8.5×11 in'}
-                </div>
-                <div
-                  dangerouslySetInnerHTML={{ __html: bodyHtml || '<p style="color:#aaa;font-style:italic">Kein Inhalt.</p>' }}
-                  style={{ minHeight: 200 }}
-                />
+            {/* A4 / Letter page */}
+            <div style={{
+              width: pvW, minHeight: pvH, background: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              borderRadius: 2, color: '#000',
+              paddingTop: pvMt, paddingBottom: pvMb, paddingLeft: pvMl, paddingRight: pvMr,
+              boxSizing: 'border-box', position: 'relative',
+              fontFamily: '"Courier New", monospace', fontSize: 12, lineHeight: 1.5,
+            }}>
+              <div style={{ position: 'absolute', top: 8, right: 14, fontSize: 9, color: '#ccc', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {pvFmt === 'a4' ? 'A4 — 210×297 mm' : 'US Letter — 8.5×11 in'}
               </div>
+              <div
+                dangerouslySetInnerHTML={{ __html: pvHtml || '<p style="color:#aaa;font-style:italic">Kein Inhalt.</p>' }}
+                style={{ minHeight: 200 }}
+              />
+            </div>
 
-              {/* Context values shown */}
-              <div style={{ width: wPx, background: 'rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-                {Object.entries(previewContext).filter(([,v]) => v).map(([k, v]) => (
-                  <span key={k} style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
-                    <span style={{ color: 'rgba(255,255,255,0.4)' }}>{'{{' + k + '}}'} </span>{v}
-                  </span>
-                ))}
-              </div>
+            {/* Context legend */}
+            <div style={{ width: pvW, background: 'rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+              {Object.entries(previewContext).filter(([, v]) => v).map(([k, v]) => (
+                <span key={k} style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.4)' }}>{`{{${k}}}`} </span>{String(v)}
+                </span>
+              ))}
             </div>
           </div>
-        )
-      })()}
+        </div>
+      )}
+      </>
     )
   }
 
