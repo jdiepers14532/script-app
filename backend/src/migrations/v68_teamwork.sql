@@ -10,7 +10,7 @@ ALTER TABLE werkstufen ADD COLUMN IF NOT EXISTS previous_sichtbarkeit TEXT;
 -- 2. Colab-Gruppen (Teams + Kollaboration — beide nutzen dieselbe Tabelle)
 CREATE TABLE IF NOT EXISTS colab_gruppen (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  produktion_id UUID NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
+  produktion_id TEXT NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   beschreibung TEXT,
   erstellt_von TEXT NOT NULL,
