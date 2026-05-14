@@ -5,6 +5,10 @@ import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
+import Table from '@tiptap/extension-table'
+import TableRow from '@tiptap/extension-table-row'
+import TableCell from '@tiptap/extension-table-cell'
+import TableHeader from '@tiptap/extension-table-header'
 import { ResizableImageExtension } from '../../tiptap/ResizableImageExtension'
 import { FontSizeExtension } from '../../tiptap/FontSizeExtension'
 import { ParagraphStyleExtension } from '../../tiptap/ParagraphStyleExtension'
@@ -22,6 +26,20 @@ function injectChipCss() {
 /* Prevent editor content from expanding its container horizontally */
 .ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; }
 .ProseMirror img { max-width: 100% !important; }
+
+/* ── Table styles ── */
+.ProseMirror table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 4px 0; }
+.ProseMirror td, .ProseMirror th {
+  border: 1px solid #d0d0d0; padding: 5px 10px; vertical-align: top;
+  min-width: 32px; position: relative; box-sizing: border-box;
+}
+.ProseMirror th { background: #f5f5f5; font-weight: 600; }
+.ProseMirror .selectedCell { background: rgba(0,122,255,0.08) !important; outline: 2px solid #007AFF55; }
+.ProseMirror .column-resize-handle {
+  position: absolute; right: -2px; top: 0; bottom: 0; width: 4px;
+  background: #007AFF; pointer-events: none; z-index: 20;
+}
+.ProseMirror .tableWrapper { overflow-x: auto; }
 `
   document.head.appendChild(style)
 }
@@ -127,6 +145,10 @@ const TIPTAP_EXTENSIONS = [
   ParagraphStyleExtension,
   ResizableImageExtension,
   PlaceholderChipExtension,
+  Table.configure({ resizable: true }),
+  TableRow,
+  TableCell,
+  TableHeader,
 ]
 
 // ── Single-zone editor (used for body) ───────────────────────────────────────
@@ -276,6 +298,16 @@ function ToolbarContent({
           style={imgBtnStyle}
           title="Bild aus Datei einfügen"
         >↑ Bild</button>
+        {sep('sep-table')}
+        <button
+          disabled={!editor}
+          onMouseDown={e => {
+            e.preventDefault()
+            editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: false }).run()
+          }}
+          style={imgBtnStyle}
+          title="Tabelle einfügen (3×2)"
+        >⊞ Tabelle</button>
         {!editor && !isBody && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, flexShrink: 0 }}>
             ← Bereich anklicken
@@ -283,7 +315,39 @@ function ToolbarContent({
         )}
       </div>
 
-      {/* ── Row 2: Placeholder chips — own row, wraps freely, only for KZ/FZ zones ── */}
+      {/* ── Row 2: Table controls — only when cursor is inside a table ── */}
+      {editor?.isActive('table') && (
+        <div style={{
+          display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 3,
+          padding: '4px 8px', borderTop: '1px solid var(--border)', background: '#007AFF08',
+        }}>
+          <span style={{ fontSize: 10, color: '#007AFF', fontWeight: 600, flexShrink: 0, marginRight: 2 }}>Tabelle:</span>
+          {([
+            ['+ Zeile oben',   () => editor.chain().focus().addRowBefore().run()],
+            ['+ Zeile unten',  () => editor.chain().focus().addRowAfter().run()],
+            ['− Zeile',        () => editor.chain().focus().deleteRow().run()],
+            ['+ Spalte li.',   () => editor.chain().focus().addColumnBefore().run()],
+            ['+ Spalte re.',   () => editor.chain().focus().addColumnAfter().run()],
+            ['− Spalte',       () => editor.chain().focus().deleteColumn().run()],
+            ['Verbinden',      () => editor.chain().focus().mergeCells().run()],
+            ['Trennen',        () => editor.chain().focus().splitCell().run()],
+          ] as [string, () => void][]).map(([label, action]) => (
+            <button
+              key={label}
+              onMouseDown={e => { e.preventDefault(); action() }}
+              style={{ ...imgBtnStyle, color: '#007AFF', borderColor: '#007AFF44' }}
+              title={label}
+            >{label}</button>
+          ))}
+          <button
+            onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteTable().run() }}
+            style={{ ...imgBtnStyle, color: '#FF3B30', borderColor: '#FF3B3044', marginLeft: 4 }}
+            title="Tabelle löschen"
+          >✕ Tabelle</button>
+        </div>
+      )}
+
+      {/* ── Row 3: Placeholder chips — own row, wraps freely ── */}
       {chips.length > 0 && (
         <div style={{
           display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 3,

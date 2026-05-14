@@ -2637,7 +2637,6 @@ function Placeholder({ label }: { label: string }) {
 // ── Titelseite Default Content ──────────────────────────────────────────────────
 
 function titelseiteDefaultVorlage(): DokumentVorlagenEditorValue {
-  // Minimal valid ProseMirror JSON — only include attrs when non-default
   const chip = (key: string) => ({ type: 'placeholder_chip', attrs: { key } })
   const txt  = (s: string)   => ({ type: 'text', text: s })
   const bold = (s: string)   => ({ type: 'text', text: s, marks: [{ type: 'bold' }] })
@@ -2650,40 +2649,67 @@ function titelseiteDefaultVorlage(): DokumentVorlagenEditorValue {
     if (Object.keys(attrs).length) node.attrs = attrs
     return node
   }
-  const row   = (label: string, value: any[]) => para([bold(label + ':  '), ...value])
+
+  // Two-column table row: bold label left, content right
+  const cell = (content: any[]): any => ({
+    type: 'tableCell',
+    attrs: { colspan: 1, rowspan: 1, colwidth: null },
+    content: [{ type: 'paragraph', content }],
+  })
+  const tableRow = (label: string, value: any[]): any => ({
+    type: 'tableRow',
+    content: [cell([bold(label)]), cell(value)],
+  })
+  const table = (rows: any[]): any => ({
+    type: 'table',
+    content: rows,
+  })
+
   const hr    = { type: 'horizontalRule' }
   const empty = { type: 'paragraph' }
 
   const body_content = {
     type: 'doc',
     content: [
+      // Titel
       para([chip('{{produktion}}'), txt('  –  Staffel '), chip('{{staffel}}')], 'center', '20pt'),
       para([chip('{{fassung}}'),    txt('  –  Episode '), chip('{{folge}}')],   'center', '13pt'),
       empty, hr,
 
-      row('Block',                  [chip('{{block}}')]),
-      row('Produktionsbesprechung', [txt('TT.MM.JJJJ')]),
-      row('Vorauss. Drehtermin',    [txt('TT.MM. – TT.MM.JJJJ')]),
-      row('Vorauss. Sendetermin',   [txt('JJJJ')]),
-      row('Gesamtlänge',            [txt('MM:SS')]),
+      // Produktionsdaten-Tabelle
+      table([
+        tableRow('Block',                  [chip('{{block}}')]),
+        tableRow('Produktionsbesprechung', [txt('TT.MM.JJJJ')]),
+        tableRow('Vorauss. Drehtermin',    [txt('TT.MM. – TT.MM.JJJJ')]),
+        tableRow('Vorauss. Sendetermin',   [txt('JJJJ')]),
+        tableRow('Gesamtlänge',            [txt('MM:SS')]),
+      ]),
       empty,
 
-      row('Regie',           [chip('{{regie}}')]),
-      row('Writer Producer', [txt('Name')]),
-      row('Head of Story',   [txt('Name')]),
-      row('Storyliner',      [txt('Name, Name, Name')]),
-      row('Story Edit',      [txt('Name')]),
-      row('Autor',           [chip('{{autor}}')]),
-      row('Script Edit',     [txt('Name')]),
-      row('Dialogautor',     [txt('Name')]),
-      row('Dialog Edit',     [txt('Name')]),
+      // Crew-Tabelle
+      table([
+        tableRow('Regie',           [chip('{{regie}}')]),
+        tableRow('Writer Producer', [txt('Name')]),
+        tableRow('Head of Story',   [txt('Name')]),
+        tableRow('Storyliner',      [txt('Name, Name, Name')]),
+        tableRow('Story Edit',      [txt('Name')]),
+        tableRow('Autor',           [chip('{{autor}}')]),
+        tableRow('Script Edit',     [txt('Name')]),
+        tableRow('Dialogautor',     [txt('Name')]),
+        tableRow('Dialog Edit',     [txt('Name')]),
+      ]),
+
       empty, hr, empty,
 
+      // Vertraulichkeits-Hinweis
       para(
         [bold('DIE BÜCHER SIND BIS ZUR AUSSTRAHLUNG DER EPISODEN STRENG VERTRAULICH ZU BEHANDELN. JEDER VERSTOSS WIRD ALS VERTRAGSBRUCH GEAHNDET!')],
         'center',
       ),
+
       empty, hr, empty,
+
+      // Copyright
       para([txt('© 2026  '), chip('{{firmenname}}')]),
     ],
   }
