@@ -612,6 +612,18 @@ export default function AppShell({
     return () => clearTimeout(saveTimer.current)
   }, [tweaks])
 
+  // ── DK-Settings-Speichern → Ansicht-Override zurücksetzen ────────────────
+  // Wenn DK-Settings einen neuen marginCm-Standard speichern, wird der
+  // per-User-Override auf den neuen Default zurückgesetzt (App.tsx dispatcht ln-default-changed).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const marginCm = (e as CustomEvent).detail?.marginCm
+      if (typeof marginCm === 'number') set('lineNumberMarginCm', marginCm)
+    }
+    window.addEventListener('ln-default-changed', handler)
+    return () => window.removeEventListener('ln-default-changed', handler)
+  }, [])
+
   // ── CSS-Variablen bei Änderung sofort anwenden ────────────────────────────
   useEffect(() => {
     applyViewSettings(tweaks)

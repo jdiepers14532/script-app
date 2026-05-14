@@ -70,7 +70,15 @@ export default function App() {
             try { setTerminologie({ ...TERM_DEFAULTS, ...JSON.parse(data.terminologie) }) } catch {}
           }
           if (data?.ln_settings) {
-            try { setLnSettings({ ...LN_SETTINGS_DEFAULTS, ...JSON.parse(data.ln_settings) }) } catch {}
+            try {
+              const parsed = JSON.parse(data.ln_settings)
+              setLnSettings({ ...LN_SETTINGS_DEFAULTS, ...parsed })
+              // When triggered by a DK-Settings save (productionId present), reset the
+              // per-user margin override to the new production default.
+              if (productionId && typeof parsed.marginCm === 'number') {
+                window.dispatchEvent(new CustomEvent('ln-default-changed', { detail: { marginCm: parsed.marginCm } }))
+              }
+            } catch {}
           }
           if (data?.page_margin_mm) {
             const v = parseFloat(data.page_margin_mm)
