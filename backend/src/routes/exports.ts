@@ -228,10 +228,13 @@ interface LnInjectCfg {
  */
 function injectLineNumbers(html: string, cfg: LnInjectCfg): string {
   let count = 0
+  // marginCm = gap between number's right edge and text's left edge.
+  // The span's parent is a position:relative div inside the text flow (left edge = text left).
+  // We go back to the physical page edge, then use (pageMargin - gap) as column width.
   const spanStyle =
     `position:absolute;` +
-    `left:calc(${cfg.marginCm}cm - ${cfg.ml}mm);` +
-    `width:calc(${cfg.ml}mm - ${cfg.marginCm}cm - 4px);` +
+    `left:calc(-${cfg.ml}mm);` +
+    `width:calc(${cfg.ml}mm - ${cfg.marginCm}cm);` +
     `text-align:right;` +
     `font-family:${cfg.fontFamily};` +
     `font-size:${cfg.fontSizePt}pt;` +

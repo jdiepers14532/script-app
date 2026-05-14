@@ -38,8 +38,14 @@ export default function App() {
   const [pageMarginMm, setPageMarginMm] = useState(25)
 
   useEffect(() => {
-    const loadSettings = () => {
-      fetch('/api/admin/app-settings', { credentials: 'include' })
+    const loadSettings = (e?: Event) => {
+      // If triggered by a CustomEvent with productionId, load merged production-specific settings.
+      // Otherwise fall back to global app_settings.
+      const productionId = (e as CustomEvent | undefined)?.detail?.productionId
+      const url = productionId
+        ? `/api/dk-settings/${encodeURIComponent(productionId)}/app-settings`
+        : '/api/admin/app-settings'
+      fetch(url, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null)
         .then((data: any) => {
           if (data?.treatment_label) setTreatmentLabel(data.treatment_label)

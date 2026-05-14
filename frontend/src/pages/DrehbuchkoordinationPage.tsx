@@ -274,7 +274,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       body: JSON.stringify({ value: JSON.stringify(next) }),
     }).catch(() => {})
     setEnvColorsSaving(false)
-    window.dispatchEvent(new Event('app-settings-changed'))
+    window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId } }))
   }
 
   const saveEnvColorsDark = async (next: Record<EnvKey, EnvColor>) => {
@@ -287,7 +287,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       body: JSON.stringify({ value: JSON.stringify(next) }),
     }).catch(() => {})
     setEnvColorsSaving(false)
-    window.dispatchEvent(new Event('app-settings-changed'))
+    window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId } }))
   }
 
   const resetEnvColorsToDefault = async () => {
@@ -308,7 +308,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       }),
     ]).catch(() => {})
     setEnvColorsSaving(false)
-    window.dispatchEvent(new Event('app-settings-changed'))
+    window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId } }))
   }
 
   return (
@@ -1739,7 +1739,7 @@ function DokumentEinstellungenTab() {
           fontFamily: lnFont, fontSizePt: lnSize, color: lnColor, marginCm: lnMargin,
         }))
         await api.updateDkAppSetting(produktionId, 'page_margin_mm', String(pageMarginMm))
-        window.dispatchEvent(new Event('app-settings-changed'))
+        window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId: produktionId } }))
       }
       setMsg('Gespeichert.')
     } catch (e: any) { setMsg(e.message) }

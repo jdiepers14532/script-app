@@ -114,8 +114,10 @@ export function LineNumberOverlay({ show, marginCm, fontFamily, fontSizePt, colo
     if (show) scheduleMeasure()
   }, [marginCm, show, scheduleMeasure])
 
-  const marginPx = marginCm * CM_TO_PX
-  const colWidth  = Math.max(0, pmLeft - marginPx - 4)
+  // marginCm = gap between the right edge of the number and the left edge of the text.
+  // Numbers are right-aligned in the column that ends (marginPx) before the text starts.
+  const gapPx    = marginCm * CM_TO_PX
+  const colWidth = Math.max(0, pmLeft - gapPx)
 
   return (
     <div
@@ -128,7 +130,7 @@ export function LineNumberOverlay({ show, marginCm, fontFamily, fontSizePt, colo
           style={{
             position: 'absolute',
             top: e.top,
-            left: marginPx,
+            left: 0,
             width: colWidth,
             textAlign: 'right',
             fontFamily,
