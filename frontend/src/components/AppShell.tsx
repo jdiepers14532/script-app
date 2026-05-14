@@ -19,6 +19,7 @@ import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
 import ConflictDialog from './ConflictDialog'
+import TeamWorkModal from './TeamWorkModal'
 
 interface AppShellProps {
   children: ReactNode
@@ -287,7 +288,7 @@ export default function AppShell({
   const [isAdmin, setIsAdmin] = useState(false)
   const [hasDkAccess, setHasDkAccess] = useState(false)
   const [ansichtsModalOpen, setAnsichtsModalOpen] = useState(false)
-  const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string } | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string; user_id?: string } | null>(null)
   const [sendedatum, setSendedatum] = useState<{ datum: string; ist_ki_prognose: boolean } | null>(null)
   const [sunWeather, setSunWeather] = useState<{
     avgSunrise: string | null
@@ -323,6 +324,7 @@ export default function AppShell({
 
   const [offlineOpen, setOfflineOpen] = useState(false)
   const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import' | 'uninstall'>('main')
+  const [teamWorkOpen, setTeamWorkOpen] = useState(false)
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -548,7 +550,7 @@ export default function AppShell({
         return r.ok ? r.json() : null
       })
       .then((data: any) => {
-        if (data) setCurrentUser({ username: data.name, email: data.email })
+        if (data) setCurrentUser({ username: data.name, email: data.email, user_id: data.user_id })
       })
       .catch(() => {})
 
@@ -1040,6 +1042,16 @@ export default function AppShell({
       </main>
       <ConflictDialog />
 
+      {/* ── Team-Work Modal ── */}
+      {teamWorkOpen && selectedProdId && (
+        <TeamWorkModal
+          produktionId={selectedProdId}
+          currentUserId={currentUser?.user_id}
+          currentUserName={currentUser?.username}
+          onClose={() => setTeamWorkOpen(false)}
+        />
+      )}
+
       {/* ── Ansichtsoptionen-Panel ── */}
       <div className={`tweaks${tweaksOpen ? ' open' : ''}`}>
         <div className="th">
@@ -1373,6 +1385,10 @@ export default function AppShell({
                   borderRadius: 10, padding: '1px 6px',
                 }}>{pendingCount}</span>
               )}
+            </button>
+            <button className="um-item" onClick={() => { setUserMenuOpen(false); setTeamWorkOpen(true) }}>
+              <Users size={14} />
+              Team-Work
             </button>
             <Link
               to="/hilfe"
