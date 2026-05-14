@@ -433,7 +433,268 @@ router.get('/werkstufe/:werkId/export/filename', async (req, res) => {
       episodeTerminus,
       'pdf'
     )
-    res.json({ filename: base })
+    res.json({ filename: base, folge_id: ws.folge_id, typ: ws.typ, version_nummer: ws.version_nummer })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── Replacement Pages Export ──────────────────────────────────────────────────
+
+/**
+ * Extract plain text from a ProseMirror node tree (recursive).
+ */
+function nodeText(node: any): string {
+  if (!node) return ''
+  if (node.text) return node.text
+  if (Array.isArray(node.content)) return node.content.map(nodeText).join('')
+  return ''
+}
+
+/**
+ * Get flat list of { text } objects from a dokument_szene's content.
+ */
+function contentBlocks(content: any): { text: string }[] {
+  const raw: any[] = Array.isArray(content)
+    ? content
+    : (content?.content ?? [])
+  return raw.map((n: any) => ({ text: nodeText(n).trim() }))
+}
+
+/**
+ * Returns indices of blocks that differ between oldBlocks and newBlocks.
+ * New blocks without an old counterpart are always marked changed.
+ */
+function diffBlockIndices(oldBlocks: { text: string }[], newBlocks: { text: string }[]): Set<number> {
+  const changed = new Set<number>()
+  for (let i = 0; i < newBlocks.length; i++) {
+    if ((oldBlocks[i]?.text ?? '') !== newBlocks[i].text) changed.add(i)
+  }
+  return changed
+}
+
+function escHtml(s: string): string {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function buildReplacementPagesHtml(opts: {
+  changedScenes: Array<{
+    szene: any
+    blocks: Array<{ text: string; type: string }>
+    changedIdx: Set<number>
+    isNew: boolean
+  }>
+  memos: Array<{ szene: any; changedIdx: Set<number>; blocks: Array<{ text: string; type: string }> }>
+  newWs: any
+  compareWs: any
+  revisionColor: string
+  revisionLabel: string
+  prodTitel: string
+  folgeNummer: number | null
+  episodeTerminus: string
+  formatMap: Map<string, any>
+}): string {
+  const { changedScenes, memos, newWs, compareWs, revisionColor, revisionLabel,
+    prodTitel, folgeNummer, episodeTerminus } = opts
+
+  const date = new Date().toLocaleDateString('de-DE')
+  const colorSafe = escHtml(revisionColor)
+  const labelSafe = escHtml(revisionLabel)
+
+  const css = `
+    @page { margin: 25mm 30mm 20mm 30mm; }
+    body { font-family: 'Courier New', monospace; font-size: 12pt; color: #000; margin: 0; }
+    .rp-cover { text-align: center; padding-top: 40mm; page-break-after: always; }
+    .rp-cover h1 { font-size: 18pt; color: ${colorSafe}; letter-spacing: 0.1em; margin-bottom: 8pt; }
+    .rp-cover .meta { font-size: 11pt; color: #555; margin-top: 4pt; }
+    .rp-scene { page-break-before: always; padding-right: 20px; position: relative; }
+    .rp-scene-heading { font-weight: bold; text-transform: uppercase; margin-bottom: 6pt; border-bottom: 1px solid #ccc; padding-bottom: 3pt; }
+    .rp-scene-heading .scene-nr { color: ${colorSafe}; margin-right: 6px; font-weight: 900; }
+    .rp-scene-heading .new-tag { font-size: 9pt; color: ${colorSafe}; border: 1px solid ${colorSafe}; padding: 0 4px; border-radius: 3px; margin-left: 6px; font-weight: normal; }
+    .rp-block { margin-bottom: 3pt; position: relative; }
+    .rp-block.character { text-align: center; font-weight: bold; margin-top: 6pt; }
+    .rp-block.parenthetical { text-align: center; font-style: italic; }
+    .rp-block.dialogue { margin: 0 15%; }
+    .rp-block.transition { text-align: right; }
+    .rp-changed { }
+    .rp-changed::after {
+      content: '*';
+      position: absolute;
+      right: -14px;
+      top: 0;
+      color: ${colorSafe};
+      font-weight: 900;
+      font-size: 14pt;
+      line-height: 1;
+    }
+    .rp-memo-section { page-break-before: always; }
+    .rp-memo-section h2 { font-size: 13pt; color: ${colorSafe}; border-bottom: 2px solid ${colorSafe}; padding-bottom: 4pt; }
+    .rp-memo { margin-bottom: 14pt; padding: 8pt 12pt; border-left: 3px solid ${colorSafe}; background: #fafafa; }
+    .rp-memo .memo-head { font-weight: bold; font-size: 10pt; margin-bottom: 4pt; }
+    .rp-memo .memo-old { text-decoration: line-through; color: #999; font-size: 10pt; }
+    .rp-memo .memo-new { font-weight: bold; color: ${colorSafe}; font-size: 10pt; }
+    .rp-no-changes { text-align: center; padding: 40mm 0; color: #888; font-size: 13pt; }
+  `
+
+  let body = `<!DOCTYPE html>\n<html lang="de">\n<head>\n<meta charset="UTF-8">\n<title>Revisionsseiten — ${labelSafe}</title>\n<style>${css}</style>\n</head>\n<body>\n`
+
+  // Cover page
+  body += `<div class="rp-cover">
+    <h1>REVISIONSSEITEN</h1>
+    <div class="meta">${labelSafe}</div>
+    <div class="meta">${escHtml(prodTitel)} · ${escHtml(episodeTerminus)} ${folgeNummer ?? ''}</div>
+    <div class="meta" style="margin-top:8pt">${escHtml(newWs.typ || '')} V${newWs.version_nummer} vs. V${compareWs.version_nummer}</div>
+    <div class="meta">${date}</div>
+    <div class="meta" style="margin-top:24pt;color:${colorSafe};font-size:10pt">${changedScenes.length} geänderte Szene${changedScenes.length !== 1 ? 'n' : ''}${memos.length > 0 ? ` · ${memos.length} Memo${memos.length !== 1 ? 's' : ''}` : ''}</div>
+  </div>\n`
+
+  if (changedScenes.length === 0 && memos.length === 0) {
+    body += `<div class="rp-no-changes">Keine Änderungen gefunden.</div>\n`
+  }
+
+  // Full changed scenes
+  for (const { szene, blocks, changedIdx, isNew } of changedScenes) {
+    const ie = szene.int_ext || 'INT'
+    const ort = szene.ort_name || 'UNBEKANNT'
+    const zeit = szene.tageszeit || 'TAG'
+    const nr = szene.scene_nummer ? String(szene.scene_nummer) : ''
+    body += `<div class="rp-scene">
+    <div class="rp-scene-heading"><span class="scene-nr">${escHtml(nr)}.</span>${escHtml(ie)}. ${escHtml(ort)} — ${escHtml(zeit)}${isNew ? '<span class="new-tag">NEU</span>' : ''}</div>\n`
+    for (let i = 0; i < blocks.length; i++) {
+      const b = blocks[i]
+      const changed = changedIdx.has(i)
+      const cls = `rp-block ${b.type}${changed ? ' rp-changed' : ''}`
+      body += `  <div class="${cls}">${escHtml(b.text)}</div>\n`
+    }
+    body += `</div>\n`
+  }
+
+  // MEMO section
+  if (memos.length > 0) {
+    body += `<div class="rp-memo-section"><h2>Änderungsmemos</h2>\n`
+    for (const { szene, changedIdx, blocks } of memos) {
+      const ie = szene.int_ext || 'INT'
+      const ort = szene.ort_name || 'UNBEKANNT'
+      const nr = szene.scene_nummer ? `${szene.scene_nummer}. ` : ''
+      body += `<div class="rp-memo"><div class="memo-head">${escHtml(nr)}${escHtml(ie)}. ${escHtml(ort)}</div>\n`
+      for (const idx of changedIdx) {
+        const b = blocks[idx]
+        if (!b) continue
+        body += `  <div class="memo-new">+ ${escHtml(b.text)}</div>\n`
+      }
+      body += `</div>\n`
+    }
+    body += `</div>\n`
+  }
+
+  body += `</body>\n</html>`
+  return body
+}
+
+// GET /api/werkstufe/:werkId/export/replacement-pages
+router.get('/werkstufe/:werkId/export/replacement-pages', async (req, res) => {
+  const compareWerkId = req.query.compareWerkId as string | undefined
+  if (!compareWerkId) return res.status(400).json({ error: 'compareWerkId query param required' })
+
+  const threshold = Math.max(0, parseInt((req.query.threshold as string) || '100') || 100)
+  const revisionColor = (req.query.revisionColor as string) || '#FF3B30'
+  const revisionLabel = (req.query.revisionLabel as string) || 'Revision'
+
+  try {
+    // Load both werkstufen
+    const [newWs, compareWs] = await Promise.all([
+      queryOne(
+        `SELECT w.*, f.produktion_id, f.folge_nummer, f.folgen_titel, p.titel AS prod_titel
+         FROM werkstufen w JOIN folgen f ON f.id = w.folge_id JOIN produktionen p ON p.id = f.produktion_id
+         WHERE w.id = $1`,
+        [req.params.werkId]
+      ),
+      queryOne(
+        `SELECT w.*, f.produktion_id, f.folge_id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+        [compareWerkId]
+      ),
+    ])
+    if (!newWs) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    if (!compareWs) return res.status(404).json({ error: 'Vergleichs-Werkstufe nicht gefunden' })
+    if (newWs.folge_id !== compareWs.folge_id) {
+      return res.status(400).json({ error: 'Werkstufen gehören nicht zur selben Folge' })
+    }
+
+    // Load scenes for both werkstufen
+    const [newScenes, oldScenes, formatMap] = await Promise.all([
+      query(
+        `SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer`,
+        [req.params.werkId]
+      ),
+      query(
+        `SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false`,
+        [compareWerkId]
+      ),
+      loadFormatMap(newWs.produktion_id),
+    ])
+
+    // Index old scenes by scene_identity_id
+    const oldByIdentity = new Map<string, any>()
+    for (const s of oldScenes) {
+      if (s.scene_identity_id) oldByIdentity.set(s.scene_identity_id, s)
+    }
+
+    const changedScenes: Array<{
+      szene: any; blocks: Array<{ text: string; type: string }>
+      changedIdx: Set<number>; isNew: boolean
+    }> = []
+    const memos: Array<{
+      szene: any; changedIdx: Set<number>; blocks: Array<{ text: string; type: string }>
+    }> = []
+
+    for (const szene of newScenes) {
+      const oldSzene = szene.scene_identity_id ? oldByIdentity.get(szene.scene_identity_id) : null
+      const newBlocks = resolveBlocks(szene, formatMap).map(b => ({ text: b.text, type: b.type }))
+      const oldSimple = oldSzene ? resolveBlocks(oldSzene, formatMap).map(b => ({ text: b.text })) : []
+
+      const isNew = !oldSzene
+      const changedIdx = isNew
+        ? new Set<number>(newBlocks.map((_, i) => i))
+        : diffBlockIndices(oldSimple, newBlocks.map(b => ({ text: b.text })))
+
+      if (changedIdx.size === 0) continue
+
+      // Measure changed characters
+      let changedChars = 0
+      for (const idx of changedIdx) {
+        changedChars += (newBlocks[idx]?.text ?? '').length
+      }
+
+      if (!isNew && changedChars < threshold) {
+        memos.push({ szene, changedIdx, blocks: newBlocks })
+      } else {
+        changedScenes.push({ szene, blocks: newBlocks, changedIdx, isNew })
+      }
+    }
+
+    const setting = await queryOne("SELECT value FROM app_settings WHERE key = 'terminologie'", [])
+    let episodeTerminus = 'Folge'
+    try {
+      const t = typeof setting?.value === 'string' ? JSON.parse(setting.value) : setting?.value
+      if (t?.episode) episodeTerminus = t.episode
+    } catch {}
+
+    const html = buildReplacementPagesHtml({
+      changedScenes, memos, newWs, compareWs,
+      revisionColor, revisionLabel,
+      prodTitel: newWs.prod_titel ?? '',
+      folgeNummer: newWs.folge_nummer,
+      episodeTerminus,
+      formatMap,
+    })
+
+    await logWerkstufenExport(req.user!.user_id, req.user!.name, newWs.id, 'replacement-pages')
+
+    const safeLabel = revisionLabel.replace(/[^a-zA-Z0-9äöüÄÖÜß\-_ ]/g, '').trim() || 'Revision'
+    const filename = `${newWs.prod_titel ?? 'Export'} - Folge ${newWs.folge_nummer ?? ''} - ${safeLabel} - Revisionsseiten.html`
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(html)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

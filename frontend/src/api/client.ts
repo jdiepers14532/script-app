@@ -516,7 +516,7 @@ export const api = {
   deleteKopfFusszeilenTyp: (produktionId: string, typ: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`),
   getExportFilename: (werkId: string) =>
-    request<{ filename: string }>('GET', `/werkstufe/${werkId}/export/filename`),
+    request<{ filename: string; folge_id: string; typ: string; version_nummer: number }>('GET', `/werkstufe/${werkId}/export/filename`),
   exportPdf: (werkId: string, opts?: { lineNumbers?: boolean; lnMarginCm?: number }) => {
     const p = new URLSearchParams()
     if (opts?.lineNumbers)         p.set('lineNumbers', '1')
@@ -528,6 +528,20 @@ export const api = {
     fetch(`${BASE}/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
   exportFdx: (werkId: string) =>
     fetch(`${BASE}/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
+  exportReplacementPages: (werkId: string, opts: {
+    compareWerkId: string
+    threshold?: number
+    revisionColor?: string
+    revisionLabel?: string
+  }) => {
+    const p = new URLSearchParams({ compareWerkId: opts.compareWerkId })
+    if (opts.threshold != null)    p.set('threshold', String(opts.threshold))
+    if (opts.revisionColor)        p.set('revisionColor', opts.revisionColor)
+    if (opts.revisionLabel)        p.set('revisionLabel', opts.revisionLabel)
+    return fetch(`${BASE}/werkstufe/${werkId}/export/replacement-pages?${p}`, { credentials: 'include' })
+  },
+  getFolgeWerkstufen: (folgeId: string) =>
+    request<any[]>('GET', `/folgen/${encodeURIComponent(folgeId)}/werkstufen`),
 
   // ── Absatzformate ─────────────────────────────────────────────────────────
   getAbsatzformate: (produktionId: string) =>
