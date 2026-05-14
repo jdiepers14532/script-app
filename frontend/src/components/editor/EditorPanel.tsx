@@ -129,7 +129,11 @@ export default function EditorPanel({
           ? `/api/dokument-szenen/${selectedSzeneId}`
           : `/api/szenen/${selectedSzeneId}`
         const client_version = currentSzene?.updated_at
-        enqueue('PUT', url, { content }, client_version)
+        // _meta wird vom Server ignoriert — nur für den Konflikt-Dialog
+        enqueue('PUT', url, {
+          content,
+          _meta: { szene: currentSzene?.scene_nummer, ort: currentSzene?.ort_name },
+        }, client_version)
         setSaveStatus('queued')
       }
     }, 1500)

@@ -23,6 +23,7 @@ export interface QueuedRequest {
   timestamp: number
   attempts: number          // Anzahl fehlgeschlagener Sync-Versuche (für Backoff)
   client_version?: string   // ISO-Timestamp updated_at des Clients (Tier 2: Conflict Detection)
+  server_version?: string   // ISO-Timestamp vom Server bei 409 — für Konflikt-Dialog
   status: 'pending' | 'conflict' | 'failed'
 }
 
@@ -72,6 +73,7 @@ export function useOfflineQueue(options: UseOfflineQueueOptions = {}) {
   const { dbName = DB_NAME, onConflict, onSyncSuccess } = options
   const [pendingCount, setPendingCount] = useState(0)
   const [conflictCount, setConflictCount] = useState(0)
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([])
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isSyncing, setIsSyncing] = useState(false)
   const optionsRef = useRef({ onConflict, onSyncSuccess })
@@ -81,8 +83,17 @@ export function useOfflineQueue(options: UseOfflineQueueOptions = {}) {
     try {
       const db = await getDB(dbName)
       const all: QueuedRequest[] = await db.getAll(STORE_NAME)
+      const conflictReqs = all.filter(r => r.status === 'conflict')
       setPendingCount(all.filter(r => r.status === 'pending').length)
-      setConflictCount(all.filter(r => r.status === 'conflict').length)
+      setConflictCount(conflictReqs.length)
+      // Rebuild conflicts array from IDB (inkl. nach App-Neustart)
+      setConflicts(conflictReqs.map(r => ({
+        queueId: r.id,
+        url: r.url,
+        clientBody: r.body,
+        serverVersion: r.server_version ?? '',
+        clientVersion: r.client_version,
+      })))
     } catch { /* ignore */ }
   }, [dbName])
 
@@ -141,14 +152,15 @@ export function useOfflineQueue(options: UseOfflineQueueOptions = {}) {
             await db.delete(STORE_NAME, req.id)
             optionsRef.current.onSyncSuccess?.(req.url)
           } else if (res.status === 409) {
-            // Tier 2: Conflict — markieren und Callback aufrufen
+            // Tier 2: Conflict — markieren, server_version speichern, Callback aufrufen
             const body = await res.json().catch(() => ({}))
-            await db.put(STORE_NAME, { ...req, status: 'conflict' as const })
+            const serverVersion = body.server_version ?? ''
+            await db.put(STORE_NAME, { ...req, status: 'conflict' as const, server_version: serverVersion })
             optionsRef.current.onConflict?.({
               queueId: req.id,
               url: req.url,
               clientBody: req.body,
-              serverVersion: body.server_version ?? '',
+              serverVersion,
               clientVersion: req.client_version,
             })
           } else if (req.attempts + 1 >= MAX_ATTEMPTS) {
@@ -234,6 +246,7 @@ export function useOfflineQueue(options: UseOfflineQueueOptions = {}) {
     isOnline,
     pendingCount,
     conflictCount,
+    conflicts,
     isSyncing,
     enqueue,
     syncQueue,

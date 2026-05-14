@@ -18,6 +18,7 @@ import { CompanyInfoModal, useTerminologie } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
+import ConflictDialog from './ConflictDialog'
 
 interface AppShellProps {
   children: ReactNode
@@ -1037,6 +1038,7 @@ export default function AppShell({
           </UserPrefsContext.Provider>
         </TweaksContext.Provider>
       </main>
+      <ConflictDialog />
 
       {/* ── Ansichtsoptionen-Panel ── */}
       <div className={`tweaks${tweaksOpen ? ' open' : ''}`}>

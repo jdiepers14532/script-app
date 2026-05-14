@@ -26,6 +26,7 @@ interface OfflineQueueContextValue {
   isOnline: boolean
   pendingCount: number
   conflictCount: number
+  conflicts: SyncConflict[]
   isSyncing: boolean
   enqueue: (method: string, url: string, body?: any, client_version?: string) => Promise<void>
   syncQueue: () => Promise<void>
