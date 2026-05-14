@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS privat_mode_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   werkstufe_id UUID NOT NULL REFERENCES werkstufen(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL,
-  token TEXT NOT NULL UNIQUE DEFAULT encode(gen_random_bytes(32), 'hex'),
+  token TEXT NOT NULL UNIQUE DEFAULT replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''),
   aktion TEXT NOT NULL CHECK (aktion IN ('verlaengern', 'freigeben')),
   erstellt_am TIMESTAMPTZ DEFAULT now(),
   benutzt_am TIMESTAMPTZ,
