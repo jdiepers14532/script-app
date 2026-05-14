@@ -477,6 +477,8 @@ export const api = {
   // Werkstufen-Szenen
   getWerkstufenSzenen: (werkId: string) =>
     request<any[]>('GET', `/werkstufen/${werkId}/szenen`),
+  getWerkstufenVorstoppUebersicht: (werkId: string) =>
+    request<any[]>('GET', `/werkstufen/${werkId}/szenen/vorstopp-uebersicht`),
   createWerkstufeSzene: (werkId: string, data: any) =>
     request<any>('POST', `/werkstufen/${werkId}/szenen`, data),
   reorderWerkstufeSzenen: (werkId: string, order: string[]) =>

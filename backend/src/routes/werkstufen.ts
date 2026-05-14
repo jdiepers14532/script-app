@@ -471,6 +471,40 @@ werkstufenSzenenRouter.post('/renumber', async (req, res) => {
   }
 })
 
+// GET /api/werkstufen/:werkId/szenen/vorstopp-uebersicht — bulk vorstopp per scene
+werkstufenSzenenRouter.get('/vorstopp-uebersicht', async (req, res) => {
+  const werkId = (req.params as any).werkId
+  try {
+    const szenen = await query(
+      `SELECT id, scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, stoppzeit_sek, scene_identity_id
+       FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer`,
+      [werkId]
+    )
+    const identityIds = szenen.map((s: any) => s.scene_identity_id).filter(Boolean)
+    let vorstoppMap: Record<string, Record<string, number | null>> = {}
+    if (identityIds.length > 0) {
+      const placeholders = identityIds.map((_: any, i: number) => `$${i + 1}`).join(',')
+      const vorstoppRows = await query(
+        `SELECT DISTINCT ON (scene_identity_id, stage) scene_identity_id, stage, dauer_sekunden
+         FROM szenen_vorstopp WHERE scene_identity_id IN (${placeholders})
+         ORDER BY scene_identity_id, stage, created_at DESC`,
+        identityIds
+      )
+      for (const row of vorstoppRows) {
+        if (!vorstoppMap[row.scene_identity_id]) vorstoppMap[row.scene_identity_id] = {}
+        vorstoppMap[row.scene_identity_id][row.stage] = row.dauer_sekunden
+      }
+    }
+    const result = szenen.map((s: any) => ({
+      ...s,
+      vorstopp: vorstoppMap[s.scene_identity_id] ?? {},
+    }))
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // GET /api/werkstufen/:a/szenen/diff/:b — diff between two Werkstufen
 werkstufenSzenenRouter.get('/diff/:rightId', async (req, res) => {
   const leftId = (req.params as any).werkId

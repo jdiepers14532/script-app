@@ -6,7 +6,6 @@ import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus } from '../contexts'
 import { useTerminologie } from '../sw-ui'
-import VorstoppPanel from './VorstoppPanel'
 
 interface SceneEditorProps {
   szeneId: number | string
@@ -158,7 +157,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(0.5)
-  const [vorstoppDrehbuch, setVorstoppDrehbuch] = useState<{ dauer_sekunden: number } | null>(null)
   const [showSpielzeitInfo, setShowSpielzeitInfo] = useState(false)
   const [sceneChars, setSceneChars] = useState<any[]>([])
   const [showAnnotations, setShowAnnotations] = useState(false)
@@ -441,9 +439,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             api.getSceneIdentityCharacters(data.scene_identity_id)
               .then(chars => setSceneChars(Array.isArray(chars) ? chars : []))
               .catch(() => setSceneChars([]))
-            api.getSceneIdentityVorstopp(data.scene_identity_id)
-              .then(v => setVorstoppDrehbuch(v?.latest_per_stage?.drehbuch ?? null))
-              .catch(() => setVorstoppDrehbuch(null))
           }
           api.getDokumentSzeneRevisionen(szeneId)
             .then(deltas => {
@@ -489,12 +484,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           setRevisionColor(colorDelta?.revision_color ?? null)
         })
         .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
-
-      // Load vorstopp (drehbuch stage)
-      setVorstoppDrehbuch(null)
-      api.getVorstopp(szeneId)
-        .then(data => setVorstoppDrehbuch(data?.latest_per_stage?.drehbuch ?? null))
-        .catch(() => setVorstoppDrehbuch(null))
 
       // Load scene characters
       setSceneChars([])
@@ -1432,14 +1421,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               </span>
             </div>
           )}
-
-          {/* Vorstopp */}
-          <div className="sf-row" style={{ padding: 0 }}>
-            <VorstoppPanel
-              szeneId={typeof szeneId === 'number' ? szeneId : undefined}
-              sceneIdentityId={scene?.scene_identity_id ?? undefined}
-            />
-          </div>
 
           </div>{/* end scene-fields-rows */}
         </div>}

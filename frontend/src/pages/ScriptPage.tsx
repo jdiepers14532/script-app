@@ -15,6 +15,7 @@ import SearchReplaceDialog from '../components/SearchReplaceDialog'
 import { useSearchReplace } from '../hooks/useSearchReplace'
 import StoryRadarPanel from '../components/StoryRadarPanel'
 import StrangVerwaltungModal from '../components/StrangVerwaltungModal'
+import StoppzeitenModal from '../components/StoppzeitenModal'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
@@ -264,6 +265,7 @@ export default function ScriptPage() {
   const [showStatModal, setShowStatModal] = useState(false)
   const [showRadar, setShowRadar] = useState(false)
   const [showStrangPanel, setShowStrangPanel] = useState(false)
+  const [showStoppzeiten, setShowStoppzeiten] = useState(false)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
   const [allFolgen, setAllFolgen] = useState<any[]>([])
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
@@ -663,6 +665,7 @@ export default function ScriptPage() {
               onOpenRadar={() => setShowRadar(v => !v)}
               onOpenSearch={() => setShowSearchReplace(true)}
               onOpenStrangPanel={() => setShowStrangPanel(v => !v)}
+              onOpenStoppzeiten={() => setShowStoppzeiten(true)}
               werkstufId={selectedStageId ? String(selectedStageId) : null}
             />
           </div>
@@ -770,6 +773,15 @@ export default function ScriptPage() {
           produktionId={selectedProduktionId}
           open={showRadar}
           onClose={() => setShowRadar(false)}
+        />
+      )}
+
+      {/* Stoppzeiten-Übersicht Modal */}
+      {selectedStageId && (
+        <StoppzeitenModal
+          open={showStoppzeiten}
+          onClose={() => setShowStoppzeiten(false)}
+          werkstufId={String(selectedStageId)}
         />
       )}
 

@@ -24,6 +24,7 @@ interface SceneListProps {
   onOpenRadar?: () => void
   onOpenSearch?: () => void
   onOpenStrangPanel?: () => void
+  onOpenStoppzeiten?: () => void
   werkstufId?: string | null
   allCharacters?: any[]
 }
@@ -44,6 +45,7 @@ export default function SceneList({
   onOpenRadar,
   onOpenSearch,
   onOpenStrangPanel,
+  onOpenStoppzeiten,
   werkstufId,
   allCharacters,
 }: SceneListProps) {
@@ -444,6 +446,15 @@ export default function SceneList({
                     Statistiken
                   </button>
                 </>
+              )}
+              {onOpenStoppzeiten && (
+                <button
+                  className="scene-ctx-item"
+                  disabled={!werkstufId}
+                  onClick={() => { onOpenStoppzeiten(); setHeaderMenuOpen(false) }}
+                >
+                  Stoppzeiten-Übersicht
+                </button>
               )}
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               <button
