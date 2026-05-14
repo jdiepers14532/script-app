@@ -143,7 +143,7 @@ function contentToFdx(szenen: any[], episodeTitel: string, formatMap: Map<string
 
 async function loadExportContext(ws: any, userId: string, userName: string): Promise<ExportContext> {
   const folge = await queryOne(
-    'SELECT folge_nummer, folgen_titel FROM folgen WHERE id = $1',
+    'SELECT folge_nummer, folgen_titel, air_date FROM folgen WHERE id = $1',
     [ws.folge_id]
   )
   const prod = await queryOne(
@@ -175,9 +175,21 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     }
   } catch { /* non-fatal */ }
 
-  // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer)
+  // Format air_date as "Mo. 12.05.2026"
+  function formatSendedatum(dateStr: string | null | undefined): string | null {
+    if (!dateStr) return null
+    try {
+      const d = new Date(String(dateStr).slice(0, 10) + 'T12:00:00Z')
+      const day  = new Intl.DateTimeFormat('de-DE', { weekday: 'short', timeZone: 'UTC' }).format(d)
+      const date = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(d)
+      return `${day} ${date}`
+    } catch { return null }
+  }
+
+  // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer, drehzeitraum)
   let sender: string | null = null
   let bueroAdresse: string | null = null
+  let produktionszeitraum: string | null = null
   let staffel: string | null = null
   const produktionDbId = prod?.produktion_db_id
   if (produktionDbId) {
@@ -189,9 +201,10 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
       )
       if (r.ok) {
         const d = await r.json() as any
-        sender      = d?.sender        ?? null
-        bueroAdresse = d?.buero_adresse ?? null
-        staffel      = d?.staffelnummer != null ? String(d.staffelnummer) : null
+        sender             = d?.sender        ?? null
+        bueroAdresse       = d?.buero_adresse ?? null
+        produktionszeitraum = d?.drehzeitraum ?? null
+        staffel            = d?.staffelnummer != null ? String(d.staffelnummer) : null
       }
     } catch { /* non-fatal */ }
   }
@@ -209,7 +222,9 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     regie:            null,
     firmenname,
     sender,
-    buero_adresse:    bueroAdresse,
+    buero_adresse:       bueroAdresse,
+    sendedatum:          formatSendedatum(folge?.air_date),
+    produktionszeitraum,
     episode_terminus: episodeTerminus,
   }
 }

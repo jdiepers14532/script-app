@@ -2861,7 +2861,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
-  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, datumsformat: 'de', firmenname: null, sender: null, bueroAdresse: null, prodAutoren: null })
+  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, airDate: null, datumsformat: 'de', firmenname: null })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
     produktion:    selectedProduction?.title ?? 'Rote Rosen',
@@ -2875,8 +2875,10 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     autor:         'Max Mustermann',
     regie:         undefined,
     firmenname:    previewMeta.firmenname ?? undefined,
-    sender:        selectedProduction?.sender ?? undefined,
-    buero_adresse: selectedProduction?.buero_adresse ?? undefined,
+    sender:              selectedProduction?.sender ?? undefined,
+    buero_adresse:       selectedProduction?.buero_adresse ?? undefined,
+    sendedatum:          formatSendedatum(previewMeta.airDate),
+    produktionszeitraum: selectedProduction?.drehzeitraum ?? undefined,
   }
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -3236,11 +3238,19 @@ function formatDatum(iso: string, fmt: 'de' | 'en'): string {
 
 interface PreviewMeta {
   folgeNummer:  number | null
+  airDate:      string | null
   datumsformat: 'de' | 'en'
   firmenname:   string | null
-  sender:       string | null
-  bueroAdresse: string | null
-  prodAutoren:  string | null
+}
+
+function formatSendedatum(dateStr: string | null | undefined): string | undefined {
+  if (!dateStr) return undefined
+  try {
+    const d = new Date(String(dateStr).slice(0, 10) + 'T12:00:00Z')
+    const day  = d.toLocaleDateString('de-DE', { weekday: 'short', timeZone: 'UTC' })
+    const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
+    return `${day} ${date}`
+  } catch { return undefined }
 }
 
 async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
@@ -3250,11 +3260,13 @@ async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
     fetch('https://auth.serienwerft.studio/api/public/company-info'),
   ])
   let folgeNummer: number | null = null
+  let airDate: string | null = null
   if (folgenRes.status === 'fulfilled' && folgenRes.value.ok) {
     const list: any[] = await folgenRes.value.json()
     if (list.length > 0) {
       const sorted = [...list].sort((a, b) => (b.folge_nummer ?? 0) - (a.folge_nummer ?? 0))
       folgeNummer = sorted[0].folge_nummer ?? null
+      airDate     = sorted[0].air_date     ?? null
     }
   }
   let datumsformat: 'de' | 'en' = 'de'
@@ -3267,7 +3279,7 @@ async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
     const c: any = await companyRes.value.json()
     firmenname = c?.company_name ?? null
   }
-  return { folgeNummer, datumsformat, firmenname, sender: null, bueroAdresse: null, prodAutoren: null }
+  return { folgeNummer, airDate, datumsformat, firmenname }
 }
 
 function KopfFusszeileTab({ productionId }: { productionId: string }) {
@@ -3275,7 +3287,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
-  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, datumsformat: 'de', firmenname: null, sender: null, bueroAdresse: null, prodAutoren: null })
+  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, airDate: null, datumsformat: 'de', firmenname: null })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
     produktion:    selectedProduction?.title ?? 'Rote Rosen',
@@ -3289,8 +3301,10 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     autor:         'Max Mustermann',
     regie:         undefined,
     firmenname:    previewMeta.firmenname ?? undefined,
-    sender:        selectedProduction?.sender ?? undefined,
-    buero_adresse: selectedProduction?.buero_adresse ?? undefined,
+    sender:              selectedProduction?.sender ?? undefined,
+    buero_adresse:       selectedProduction?.buero_adresse ?? undefined,
+    sendedatum:          formatSendedatum(previewMeta.airDate),
+    produktionszeitraum: selectedProduction?.drehzeitraum ?? undefined,
   }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})

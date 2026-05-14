@@ -25,7 +25,7 @@ function injectChipCss() {
   style.id = 'placeholder-chip-css'
   style.textContent = PLACEHOLDER_CHIP_CSS + `
 /* Prevent editor content from expanding its container horizontally */
-.ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; }
+.ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; font-family: "Courier New", monospace; }
 .ProseMirror img { max-width: 100% !important; }
 
 /* ── Table styles ── */
@@ -97,8 +97,10 @@ export interface PreviewContext {
   autor?:          string
   regie?:          string
   firmenname?:     string
-  sender?:         string
-  buero_adresse?:  string
+  sender?:              string
+  buero_adresse?:       string
+  sendedatum?:          string
+  produktionszeitraum?: string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -753,7 +755,9 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{regie}}':         'regie',
   '{{firmenname}}':    'firmenname',
   '{{sender}}':        'sender',
-  '{{buero_adresse}}': 'buero_adresse',
+  '{{buero_adresse}}':       'buero_adresse',
+  '{{sendedatum}}':          'sendedatum',
+  '{{produktionszeitraum}}': 'produktionszeitraum',
 }
 
 function escHtml(s: string): string {

@@ -7,7 +7,9 @@ export interface Production {
   projektnummer: string | null
   is_active: boolean
   logo_filename: string | null
-  buero_adresse: string | null
+  buero_adresse:  string | null
+  sender:         string | null
+  drehzeitraum:   string | null
 }
 
 export function productionLabel(p: Production, staffelLabel = 'Staffel'): string {

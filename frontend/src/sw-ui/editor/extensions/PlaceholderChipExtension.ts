@@ -32,7 +32,9 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   { key: '{{regie}}',         label: 'Regie',        zone: 'alle',      color: '#007AFF' },
   { key: '{{firmenname}}',    label: 'Firmenname',    zone: 'alle',      color: '#5856D6' },
   { key: '{{sender}}',        label: 'Sender',        zone: 'alle',      color: '#FF9500' },
-  { key: '{{buero_adresse}}', label: 'Büro-Adresse',  zone: 'alle',      color: '#5856D6' },
+  { key: '{{buero_adresse}}',       label: 'Büro-Adresse',        zone: 'alle',      color: '#5856D6' },
+  { key: '{{sendedatum}}',          label: 'Sendedatum',          zone: 'alle',      color: '#FF9500' },
+  { key: '{{produktionszeitraum}}', label: 'Produktionszeitraum', zone: 'alle',      color: '#34C759' },
   { key: '{{seite}}',         label: 'Seitenzahl',    zone: 'fusszeile', color: '#FF9500' },
   { key: '{{seiten_gesamt}}', label: 'Seiten gesamt', zone: 'fusszeile', color: '#FF9500' },
 ]

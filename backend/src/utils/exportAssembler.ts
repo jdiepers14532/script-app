@@ -16,9 +16,11 @@ export interface ExportContext {
   autor:         string
   regie:         string | null
   firmenname:    string | null
-  sender:        string | null
-  buero_adresse: string | null
-  episode_terminus: string  // e.g. "Folge" or "Episode"
+  sender:             string | null
+  buero_adresse:      string | null
+  sendedatum:         string | null
+  produktionszeitraum: string | null
+  episode_terminus:   string  // e.g. "Folge" or "Episode"
 }
 
 // ── Placeholder resolution ────────────────────────────────────────────────────
@@ -37,7 +39,9 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{regie}}':         return ctx.regie ?? ''
     case '{{firmenname}}':    return ctx.firmenname ?? ''
     case '{{sender}}':        return ctx.sender ?? ''
-    case '{{buero_adresse}}': return ctx.buero_adresse ?? ''
+    case '{{buero_adresse}}':       return ctx.buero_adresse ?? ''
+    case '{{sendedatum}}':          return ctx.sendedatum ?? ''
+    case '{{produktionszeitraum}}': return ctx.produktionszeitraum ?? ''
     case '{{seite}}':         return '<span class="ph-seite"></span>'
     case '{{seiten_gesamt}}': return '<span class="ph-seiten-gesamt"></span>'
     default:                  return key
