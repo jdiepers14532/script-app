@@ -30,7 +30,7 @@ import PageWrapper from './PageWrapper'
 import { useUserPrefs, useFocus, useAppSettings } from '../../contexts'
 // Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
-import { createLineNumberPlugin, lineNumberPluginKey, generateLineNumberCSS } from '../../tiptap/LineNumberPlugin'
+import { LineNumberOverlay } from './LineNumberOverlay'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 
 // ── Platform detection ──────────────────────────────────────────────────────
@@ -83,15 +83,6 @@ function injectReplikCSS() {
   document.head.appendChild(style)
 }
 
-function updateLineNumberCSS(opts: { fontFamily: string; fontSizePt: number; color: string; marginCm: number }) {
-  let style = document.getElementById('line-number-css') as HTMLStyleElement | null
-  if (!style) {
-    style = document.createElement('style')
-    style.id = 'line-number-css'
-    document.head.appendChild(style)
-  }
-  style.textContent = generateLineNumberCSS(opts)
-}
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -439,43 +430,8 @@ export default function UniversalEditor({
     editor?.setEditable(!readOnly)
   }, [editor, readOnly])
 
-  // ── Line number plugin (register/unregister based on toggle) ──────────────
+  // ── Line number settings (used by overlay rendered in PageWrapper) ────────
   const { lnSettings, pageMarginMm } = useAppSettings()
-  const effectiveLn = {
-    fontFamily: lnSettings.fontFamily,
-    fontSizePt: lnSettings.fontSizePt,
-    color: lnSettings.color,
-    marginCm: lineNumberMarginCm,
-  }
-
-  // Update CSS whenever settings change (independent of plugin registration)
-  useEffect(() => {
-    if (showLineNumbers) updateLineNumberCSS(effectiveLn)
-  }, [showLineNumbers, lineNumberMarginCm, lnSettings]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    console.warn('[LN] effect fired — editor:', !!editor, 'showLineNumbers:', showLineNumbers)
-    if (!editor) return
-    try { editor.unregisterPlugin(lineNumberPluginKey) } catch {}
-    if (showLineNumbers) {
-      try {
-        editor.registerPlugin(createLineNumberPlugin())
-        console.warn('[LN] registered. blocks:', editor.state.doc.childCount)
-        setTimeout(() => {
-          const els = document.querySelectorAll('.pm-ln')
-          console.warn('[LN] .pm-ln in DOM:', els.length)
-          if (els.length > 0) {
-            const cs = getComputedStyle(els[0], '::after')
-            console.warn('[LN] ::after content:', cs.content, 'left:', cs.left, 'pos:', cs.position)
-          }
-          console.warn('[LN] style tag:', !!document.getElementById('line-number-css'))
-          const pm = document.querySelector('.ProseMirror')
-          if (pm) console.warn('[LN] PM children:', pm.children.length, 'snippet:', pm.innerHTML.substring(0, 200))
-        }, 500)
-      } catch (err) { console.error('[LN] FAILED:', err) }
-    }
-    return () => { try { editor.unregisterPlugin(lineNumberPluginKey) } catch {} }
-  }, [editor, showLineNumbers])
 
   // ── Replik number plugin ──────────────────────────────────────────────────
   useEffect(() => {
@@ -1092,6 +1048,13 @@ export default function UniversalEditor({
             editor={editor}
             style={{ outline: 'none', minHeight: '100%' }}
             spellCheck={spellcheckMode === 'browser'}
+          />
+          <LineNumberOverlay
+            show={showLineNumbers}
+            marginCm={lineNumberMarginCm}
+            fontFamily={lnSettings.fontFamily}
+            fontSizePt={lnSettings.fontSizePt}
+            color={lnSettings.color}
           />
         </PageWrapper>
       </div>

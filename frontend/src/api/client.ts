@@ -517,8 +517,13 @@ export const api = {
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`),
   getExportFilename: (werkId: string) =>
     request<{ filename: string }>('GET', `/werkstufe/${werkId}/export/filename`),
-  exportPdf: (werkId: string) =>
-    fetch(`${BASE}/werkstufe/${werkId}/export/pdf`, { credentials: 'include' }),
+  exportPdf: (werkId: string, opts?: { lineNumbers?: boolean; lnMarginCm?: number }) => {
+    const p = new URLSearchParams()
+    if (opts?.lineNumbers)         p.set('lineNumbers', '1')
+    if (opts?.lnMarginCm != null)  p.set('lnMarginCm', String(opts.lnMarginCm))
+    const qs = p.toString()
+    return fetch(`${BASE}/werkstufe/${werkId}/export/pdf${qs ? '?' + qs : ''}`, { credentials: 'include' })
+  },
   exportFountain: (werkId: string) =>
     fetch(`${BASE}/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
   exportFdx: (werkId: string) =>

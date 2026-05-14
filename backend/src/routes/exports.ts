@@ -212,6 +212,43 @@ async function logWerkstufenExport(userId: string, userName: string, werkId: str
   return result?.id as string
 }
 
+interface LnInjectCfg {
+  marginCm: number
+  ml: number          // page left margin in mm
+  fontFamily: string
+  fontSizePt: number
+  color: string
+}
+
+/**
+ * Injects zero-height line-number markers before every 5th content block
+ * in the export HTML. Counts <div class="scene-heading|action|..."> elements.
+ * The marker uses position:relative + an absolute-positioned span that floats
+ * into the page's left margin area.
+ */
+function injectLineNumbers(html: string, cfg: LnInjectCfg): string {
+  let count = 0
+  const spanStyle =
+    `position:absolute;` +
+    `left:calc(${cfg.marginCm}cm - ${cfg.ml}mm);` +
+    `width:calc(${cfg.ml}mm - ${cfg.marginCm}cm - 4px);` +
+    `text-align:right;` +
+    `font-family:${cfg.fontFamily};` +
+    `font-size:${cfg.fontSizePt}pt;` +
+    `color:${cfg.color};` +
+    `top:0.2em;pointer-events:none`
+  const wrapStyle = `height:0;overflow:visible;position:relative`
+
+  return html.replace(
+    /<div class="(scene-heading|action|character|dialogue|parenthetical|transition|shot|heading)">/g,
+    (match) => {
+      count++
+      if (count % 5 !== 0) return match
+      return `<div style="${wrapStyle}"><span style="${spanStyle}">${count}</span></div>${match}`
+    }
+  )
+}
+
 function formatStoppzeit(sek: number | null): string {
   if (!sek) return ''
   const min = Math.floor(sek / 60)
@@ -328,6 +365,28 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
         const escaped = String(block.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         bodyHtml += `<div class="${cls}">${escaped}</div>`
       }
+    }
+
+    // Optional line numbers
+    if (req.query.lineNumbers === '1') {
+      const lnMarginCm = Math.max(0.5, Math.min(5, parseFloat(req.query.lnMarginCm as string || '1') || 1))
+      const ml = kzFz?.seiten_layout?.margin_left ?? 30
+      let fontFamily = "'Courier New', monospace"
+      let fontSizePt = 10
+      let color      = '#999999'
+      try {
+        const lnRow = await queryOne(
+          `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'ln_settings'`,
+          [ws.produktion_id]
+        )
+        if (lnRow?.value) {
+          const s = typeof lnRow.value === 'string' ? JSON.parse(lnRow.value) : lnRow.value
+          if (s.fontFamily) fontFamily = s.fontFamily
+          if (s.fontSizePt) fontSizePt = Number(s.fontSizePt)
+          if (s.color)      color      = s.color
+        }
+      } catch {}
+      bodyHtml = injectLineNumbers(bodyHtml, { marginCm: lnMarginCm, ml, fontFamily, fontSizePt, color })
     }
 
     const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, watermarkMeta: wm })

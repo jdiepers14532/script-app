@@ -426,7 +426,7 @@ export default function AppShell({
       let res: Response
       if (exportFormat === 'fountain') res = await api.exportFountain(stageId)
       else if (exportFormat === 'fdx')  res = await api.exportFdx(stageId)
-      else                              res = await api.exportPdf(stageId)
+      else                              res = await api.exportPdf(stageId, { lineNumbers: tweaks.showLineNumbers, lnMarginCm: tweaks.lineNumberMarginCm })
 
       const blob = await res.blob()
       const url  = URL.createObjectURL(blob)

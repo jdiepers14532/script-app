@@ -986,7 +986,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
             {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
-            <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId).then(r => r.blob()).then(b => {
+            <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId, { lineNumbers: tweaks.showLineNumbers, lnMarginCm: tweaks.lineNumberMarginCm }).then(r => r.blob()).then(b => {
               const url = URL.createObjectURL(b); window.open(url, '_blank')
             })}>
               <FileDown size={12} />PDF

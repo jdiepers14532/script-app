@@ -5,6 +5,8 @@ import { api } from '../api/client'
 interface ExportDialogProps {
   werkstufId: string
   onClose: () => void
+  showLineNumbers?: boolean
+  lineNumberMarginCm?: number
 }
 
 type Format = 'pdf' | 'fountain' | 'fdx'
@@ -15,7 +17,7 @@ const FORMAT_OPTIONS: { id: Format; label: string; ext: string; icon: React.FC<a
   { id: 'fdx',      label: 'Final Draft', ext: 'fdx', icon: Code,     desc: 'Final Draft XML-Format' },
 ]
 
-export default function ExportDialog({ werkstufId, onClose }: ExportDialogProps) {
+export default function ExportDialog({ werkstufId, onClose, showLineNumbers, lineNumberMarginCm }: ExportDialogProps) {
   const [formats, setFormats]   = useState<Set<Format>>(new Set(['pdf']))
   const [filename, setFilename] = useState('')
   const [loading, setLoading]   = useState(false)
@@ -51,7 +53,7 @@ export default function ExportDialog({ werkstufId, onClose }: ExportDialogProps)
         let response: Response
         if (fmt === 'fountain') response = await api.exportFountain(werkstufId)
         else if (fmt === 'fdx')  response = await api.exportFdx(werkstufId)
-        else                     response = await api.exportPdf(werkstufId)
+        else                     response = await api.exportPdf(werkstufId, { lineNumbers: showLineNumbers, lnMarginCm: lineNumberMarginCm })
 
         if (!response.ok) throw new Error(`Export ${fmt} fehlgeschlagen (${response.status})`)
 

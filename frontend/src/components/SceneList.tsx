@@ -646,6 +646,8 @@ export default function SceneList({
         <ExportDialog
           werkstufId={werkstufId}
           onClose={() => setExportDialogOpen(false)}
+          showLineNumbers={tweaks.showLineNumbers}
+          lineNumberMarginCm={tweaks.lineNumberMarginCm}
         />
       )}
     </div>
