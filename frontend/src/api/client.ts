@@ -318,18 +318,18 @@ export const api = {
   deleteDokumentTyp: (produktionId: string, id: number) =>
     request<void>('DELETE', `/admin/dokument-typen/${encodeURIComponent(produktionId)}/${id}`),
 
-  // Admin: Colab-Gruppen
-  getColabGruppen: (produktionId: string) =>
+  // Admin: Colab-Gruppen (legacy admin endpoints — superseded by /colab-gruppen API below)
+  adminGetColabGruppen: (produktionId: string) =>
     request<any[]>('GET', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}`),
-  createColabGruppe: (produktionId: string, data: { name: string; typ?: string }) =>
+  adminCreateColabGruppe: (produktionId: string, data: { name: string; typ?: string }) =>
     request<any>('POST', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}`, data),
-  updateColabGruppe: (produktionId: string, id: number, data: any) =>
+  adminUpdateColabGruppe: (produktionId: string, id: number, data: any) =>
     request<any>('PUT', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}/${id}`, data),
-  deleteColabGruppe: (produktionId: string, id: number) =>
+  adminDeleteColabGruppe: (produktionId: string, id: number) =>
     request<void>('DELETE', `/admin/colab-gruppen/${encodeURIComponent(produktionId)}/${id}`),
-  addColabMitglied: (gruppeId: number, data: { user_id: string; user_name?: string }) =>
+  adminAddColabMitglied: (gruppeId: number, data: { user_id: string; user_name?: string }) =>
     request<any>('POST', `/admin/colab-gruppen/${gruppeId}/mitglieder`, data),
-  removeColabMitglied: (gruppeId: number, userId: string) =>
+  adminRemoveColabMitglied: (gruppeId: number, userId: string) =>
     request<void>('DELETE', `/admin/colab-gruppen/${gruppeId}/mitglieder/${userId}`),
 
   // Admin: Format-Templates
