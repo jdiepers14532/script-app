@@ -9,6 +9,7 @@ import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs } from '../../contexts'
 import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
+import { useOfflineQueueContext } from '../../sw-ui'
 
 interface Props {
   produktionId: string
@@ -34,6 +35,7 @@ export default function EditorPanel({
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
   const { tweaks } = useTweaks()
+  const { enqueue } = useOfflineQueueContext()
 
   // Load absatzformate for this production
   const [absatzformate, setAbsatzformate] = useState<AbsatzFormat[]>([])
@@ -109,8 +111,8 @@ export default function EditorPanel({
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
 
     saveTimerRef.current = setTimeout(async () => {
+      const content = editorContent?.content ?? []
       try {
-        const content = editorContent?.content ?? []
         if (useDokumentSzenen && typeof selectedSzeneId === 'string') {
           await api.updateDokumentSzene(selectedSzeneId, { content })
         } else if (typeof selectedSzeneId === 'number') {
@@ -118,10 +120,16 @@ export default function EditorPanel({
         }
         setSaveStatus('saved')
       } catch {
-        setSaveStatus('error')
+        // Tier 1: Offline-Write-Schutz — Änderung in IndexedDB-Queue einreihen
+        const url = useDokumentSzenen && typeof selectedSzeneId === 'string'
+          ? `/api/dokument-szenen/${selectedSzeneId}`
+          : `/api/szenen/${selectedSzeneId}`
+        const client_version = currentSzene?.updated_at
+        enqueue('PUT', url, { content }, client_version)
+        setSaveStatus('queued')
       }
     }, 1500)
-  }, [selectedSzeneId, useDokumentSzenen])
+  }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue])
 
   // Determine kategorie for format filtering
   const sceneFormat = currentSzene?.format
@@ -215,10 +223,16 @@ export default function EditorPanel({
               )}
               {saveStatus !== 'idle' && (
                 <span style={{
-                  color: saveStatus === 'saved' ? 'var(--sw-green)' : saveStatus === 'error' ? 'var(--sw-danger)' : 'var(--text-muted)',
-                  fontWeight: saveStatus === 'saved' ? 500 : 400,
+                  color: saveStatus === 'saved' ? 'var(--sw-green)'
+                    : saveStatus === 'queued' ? '#FF9500'
+                    : saveStatus === 'error' ? 'var(--sw-danger)'
+                    : 'var(--text-muted)',
+                  fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400,
                 }}>
-                  {saveStatus === 'saving' ? 'Speichert…' : saveStatus === 'saved' ? '● Gespeichert' : '● Fehler'}
+                  {saveStatus === 'saving' ? 'Speichert…'
+                    : saveStatus === 'saved' ? '● Gespeichert'
+                    : saveStatus === 'queued' ? '⏸ Lokal gespeichert'
+                    : '● Fehler'}
                 </span>
               )}
             </div>

@@ -11,7 +11,7 @@ import {
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext } from '../contexts'
 import type { TweakState } from '../contexts'
 import { getShortcutLabel } from '../shortcuts'
-import { useOfflineQueue } from '../hooks/useOfflineQueue'
+import { useOfflineQueueContext } from '../sw-ui'
 import ProductionSelector from './ProductionSelector'
 import HeaderSelect from './HeaderSelect'
 import { CompanyInfoModal, useTerminologie } from '../sw-ui'
@@ -268,7 +268,7 @@ export default function AppShell({
   // AppShell IS the TweaksContext provider → can't use useShortcut() hook here.
   // Use getShortcutLabel(id, tweaks.keyboardLayout, isMac) directly instead.
   const sc = (id: string) => getShortcutLabel(id, tweaks.keyboardLayout, isMac)
-  const { isOnline, pendingCount, isSyncing, syncQueue, reconnect } = useOfflineQueue()
+  const { isOnline, pendingCount, isSyncing, syncQueue, reconnect } = useOfflineQueueContext()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
   const { treatmentLabel, figurenLabel } = useAppSettings()
   const { t } = useTerminologie()

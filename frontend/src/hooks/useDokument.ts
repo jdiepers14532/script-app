@@ -41,7 +41,7 @@ export interface FassungWithInhalt extends FassungMeta {
   plaintext_index: string | null
 }
 
-export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error' | 'queued'
 
 export function useDokument(produktionId: string | null, folgeNummer: number | null) {
   const [dokumente, setDokumente] = useState<DokumentMeta[]>([])

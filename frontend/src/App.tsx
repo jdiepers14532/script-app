@@ -23,7 +23,7 @@ import {
   type LnSettings,
 } from './contexts'
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
-import { TerminologieProvider, TERM_DEFAULTS } from './sw-ui'
+import { TerminologieProvider, TERM_DEFAULTS, OfflineQueueProvider } from './sw-ui'
 import type { TerminologieConfig } from './sw-ui'
 
 export default function App() {
@@ -114,6 +114,7 @@ export default function App() {
   }, [])
 
   return (
+    <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
     <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMarginMm }}>
       <ProductionContext.Provider value={productionCtx}>
@@ -139,5 +140,6 @@ export default function App() {
       </ProductionContext.Provider>
     </AppSettingsContext.Provider>
     </TerminologieProvider>
+    </OfflineQueueProvider>
   )
 }
