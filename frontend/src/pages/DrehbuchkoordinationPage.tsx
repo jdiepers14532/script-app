@@ -2694,18 +2694,12 @@ function titelseiteDefaultVorlage(): DokumentVorlagenEditorValue {
     ],
   }
 
-  const fzPm = (content: any[]) => ({ type: 'doc', content: [{ type: 'paragraph', content }] })
-
   return {
     body_content,
-    kopfzeile_content: null,
-    fusszeile_content: {
-      links:  fzPm([t('Stand: '), chip('{{stand_datum}}')]),
-      mitte:  fzPm([chip('{{fassung}}'), t(' – Episode '), chip('{{folge}}')]),
-      rechts: fzPm([t('Seite '), chip('{{seite}}'), t(' von '), chip('{{seiten_gesamt}}')]),
-    },
+    kopfzeile_content:       null,
+    fusszeile_content:       null,
     kopfzeile_aktiv:         false,
-    fusszeile_aktiv:         true,
+    fusszeile_aktiv:         false,
     erste_seite_kein_header: true,
     seiten_layout:           { format: 'a4', margin_top: 25, margin_bottom: 20, margin_left: 30, margin_right: 25 },
   }
@@ -2853,6 +2847,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [editName, setEditName] = useState('')
   const [editTyp, setEditTyp] = useState('custom')
   const [editEditorValue, setEditEditorValue] = useState<DokumentVorlagenEditorValue>(emptyVorlagenEditorValue())
+  const [editorKey, setEditorKey] = useState(0)
   const [saving, setSaving] = useState(false)
 
   const load = () => {
@@ -2960,7 +2955,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
               Platzhalter wie <strong>Produktion</strong>, <strong>Regie</strong>, <strong>Autor</strong> werden automatisch eingesetzt.
             </span>
             <button
-              onClick={() => setEditEditorValue(titelseiteDefaultVorlage())}
+              onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
               style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55', whiteSpace: 'nowrap' }}
             >
               Standard-Vorlage laden
@@ -2969,9 +2964,10 @@ function VorlagenTab({ productionId }: { productionId: string }) {
         )}
 
         <DokumentVorlagenEditor
-          key={editId}
+          key={`${editId}-${editorKey}`}
           value={editEditorValue}
           onChange={setEditEditorValue}
+          noHeaderFooter
           produktionsLogoUrl={produktionsLogoUrl}
           previewContext={previewContext}
         />

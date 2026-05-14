@@ -72,6 +72,8 @@ interface DokumentVorlagenEditorProps {
   onChange: (v: DokumentVorlagenEditorValue) => void
   /** Only KZ/FZ editors — no body zone (global DK-Settings) */
   noBody?: boolean
+  /** Only body — no KZ/FZ zones (Vorlagen-Tab context) */
+  noHeaderFooter?: boolean
   readOnly?: boolean
   /** URL of production logo (from produktion.serienwerft.studio) */
   produktionsLogoUrl?: string | null
@@ -601,7 +603,7 @@ function PreviewCell({ content, align, color, ctx }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function DokumentVorlagenEditor({
-  value, onChange, noBody = false, readOnly = false, produktionsLogoUrl, previewContext,
+  value, onChange, noBody = false, noHeaderFooter = false, readOnly = false, produktionsLogoUrl, previewContext,
 }: DokumentVorlagenEditorProps) {
   useEffect(() => { injectChipCss() }, [])
 
@@ -655,69 +657,78 @@ export default function DokumentVorlagenEditor({
         background: 'white', boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
         borderRadius: 2, overflow: 'hidden', color: '#000',
       }}>
-        {/* Kopfzeile zone */}
-        <div style={{
-          paddingTop: marginTopPx, paddingLeft: marginLeftPx, paddingRight: marginRightPx,
-          borderBottom: value.kopfzeile_aktiv ? '1px dashed #007AFF44' : undefined,
-        }}>
-          <ThreeColumnZone
-            label="Kopfzeile"
-            color="#007AFF"
-            aktiv={value.kopfzeile_aktiv}
-            ersteSeiteOhne={value.erste_seite_kein_header}
-            ersteSeiteOhneLabel="Erste Seite ohne"
-            content={kzContent}
-            readOnly={readOnly}
-            produktionsLogoUrl={produktionsLogoUrl}
-            zone="kopfzeile"
-            previewContext={previewContext}
-            onAktivChange={v => update({ kopfzeile_aktiv: v })}
-            onErsteSeiteOhneChange={v => update({ erste_seite_kein_header: v })}
-            onChange={c => update({ kopfzeile_content: c })}
-          />
-        </div>
+        {/* Kopfzeile zone — hidden when noHeaderFooter */}
+        {!noHeaderFooter && (
+          <div style={{
+            paddingTop: marginTopPx, paddingLeft: marginLeftPx, paddingRight: marginRightPx,
+            borderBottom: value.kopfzeile_aktiv ? '1px dashed #007AFF44' : undefined,
+          }}>
+            <ThreeColumnZone
+              label="Kopfzeile"
+              color="#007AFF"
+              aktiv={value.kopfzeile_aktiv}
+              ersteSeiteOhne={value.erste_seite_kein_header}
+              ersteSeiteOhneLabel="Erste Seite ohne"
+              content={kzContent}
+              readOnly={readOnly}
+              produktionsLogoUrl={produktionsLogoUrl}
+              zone="kopfzeile"
+              previewContext={previewContext}
+              onAktivChange={v => update({ kopfzeile_aktiv: v })}
+              onErsteSeiteOhneChange={v => update({ erste_seite_kein_header: v })}
+              onChange={c => update({ kopfzeile_content: c })}
+            />
+          </div>
+        )}
 
         {/* Body zone */}
         {!noBody && (
-          <div style={{ paddingLeft: marginLeftPx, paddingRight: marginRightPx, paddingTop: 16, paddingBottom: 16, minHeight: 400 }}>
-            <div style={{ marginBottom: 8 }}>
+          <div style={{
+            paddingLeft: marginLeftPx, paddingRight: marginRightPx,
+            paddingTop: noHeaderFooter ? marginTopPx : 16,
+            paddingBottom: noHeaderFooter ? marginBottomPx : 16,
+            minHeight: 400,
+          }}>
+            {!noHeaderFooter && (
               <div style={{ fontSize: 11, fontWeight: 600, color: '#00C853', marginBottom: 4 }}>Inhalt</div>
-              <div style={{ border: '1px solid #00C85344', borderRadius: 6, overflow: 'hidden' }}>
-                <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} zone="alle" />
-                <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
-                <div style={{ padding: '8px 12px', minHeight: 200, background: '#00C85308', overflow: 'hidden' }}>
-                  <ZoneEditor
-                    key="body"
-                    initialContent={value.body_content}
-                    onChange={c => update({ body_content: c })}
-                    readOnly={readOnly}
-                    minHeight={200}
-                    onEditorReady={setBodyEditor}
-                  />
-                </div>
+            )}
+            <div style={{ border: noHeaderFooter ? 'none' : '1px solid #00C85344', borderRadius: 6, overflow: 'hidden' }}>
+              <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} zone="alle" />
+              <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
+              <div style={{ padding: '8px 12px', minHeight: 200, background: noHeaderFooter ? 'transparent' : '#00C85308', overflow: 'hidden' }}>
+                <ZoneEditor
+                  key="body"
+                  initialContent={value.body_content}
+                  onChange={c => update({ body_content: c })}
+                  readOnly={readOnly}
+                  minHeight={200}
+                  onEditorReady={setBodyEditor}
+                />
               </div>
             </div>
           </div>
         )}
 
-        {/* Fußzeile zone */}
-        <div style={{
-          paddingBottom: marginBottomPx, paddingLeft: marginLeftPx, paddingRight: marginRightPx,
-          borderTop: value.fusszeile_aktiv ? '1px dashed #FF950044' : undefined,
-        }}>
-          <ThreeColumnZone
-            label="Fußzeile"
-            color="#FF9500"
-            aktiv={value.fusszeile_aktiv}
-            content={fzContent}
-            readOnly={readOnly}
-            produktionsLogoUrl={produktionsLogoUrl}
-            zone="fusszeile"
-            previewContext={previewContext}
-            onAktivChange={v => update({ fusszeile_aktiv: v })}
-            onChange={c => update({ fusszeile_content: c })}
-          />
-        </div>
+        {/* Fußzeile zone — hidden when noHeaderFooter */}
+        {!noHeaderFooter && (
+          <div style={{
+            paddingBottom: marginBottomPx, paddingLeft: marginLeftPx, paddingRight: marginRightPx,
+            borderTop: value.fusszeile_aktiv ? '1px dashed #FF950044' : undefined,
+          }}>
+            <ThreeColumnZone
+              label="Fußzeile"
+              color="#FF9500"
+              aktiv={value.fusszeile_aktiv}
+              content={fzContent}
+              readOnly={readOnly}
+              produktionsLogoUrl={produktionsLogoUrl}
+              zone="fusszeile"
+              previewContext={previewContext}
+              onAktivChange={v => update({ fusszeile_aktiv: v })}
+              onChange={c => update({ fusszeile_content: c })}
+            />
+          </div>
+        )}
       </div>
     </div>
   )
