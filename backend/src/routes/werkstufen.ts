@@ -18,14 +18,32 @@ werkstufenRouter.use(authMiddleware)
 folgeWerkstufenRouter.get('/', async (req, res) => {
   try {
     const folgeId = (req.params as any).folgeId
+    const userId = req.user!.user_id
     const rows = await query(
       `SELECT w.*,
               (SELECT COUNT(*)::int FROM dokument_szenen ds
                WHERE ds.werkstufe_id = w.id AND ds.geloescht = false) AS szenen_count
        FROM werkstufen w
        WHERE w.folge_id = $1
+         AND (
+           -- autoren / produktion: für alle sichtbar
+           w.sichtbarkeit IN ('autoren', 'produktion')
+           -- privat: nur der User der es privat gesetzt hat
+           OR (w.sichtbarkeit = 'privat' AND w.privat_gesetzt_von = $2)
+           -- eigene Werkstufe: Ersteller sieht immer seine Werkstufe
+           OR w.erstellt_von = $2
+           -- team: oder colab: — nur wenn User Mitglied der Gruppe ist
+           OR (
+             (w.sichtbarkeit LIKE 'team:%' OR w.sichtbarkeit LIKE 'colab:%')
+             AND EXISTS (
+               SELECT 1 FROM colab_gruppen_mitglieder cgm
+               WHERE cgm.gruppe_id = SPLIT_PART(w.sichtbarkeit, ':', 2)::uuid
+                 AND cgm.user_id = $2
+             )
+           )
+         )
        ORDER BY w.typ, w.version_nummer`,
-      [folgeId]
+      [folgeId, userId]
     )
     res.json(rows)
   } catch (err) {
