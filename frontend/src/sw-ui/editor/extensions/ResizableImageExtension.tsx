@@ -12,7 +12,7 @@ declare module '@tiptap/core' {
 }
 
 function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
-  const { src, alt, width } = node.attrs
+  const { src, alt, width, float: imgFloat } = node.attrs
   const [resizing, setResizing]       = useState(false)
   const [hovered, setHovered]         = useState(false)
   const [displayWidth, setDisplayWidth] = useState(() => Number(width) || 120)
@@ -26,7 +26,10 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
   const onResizeStart = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation()
     setResizing(true)
-    startData.current = { x: e.clientX, w: displayWidth }
+    // Use actual rendered (visual) width as starting point — stored displayWidth may differ
+    // from visual if CSS max-width constraints have capped it (e.g. in narrow columns)
+    const actualW = wrapperRef.current?.offsetWidth ?? displayWidth
+    startData.current = { x: e.clientX, w: actualW }
     const containerW = wrapperRef.current?.parentElement?.clientWidth ?? 800
     const onMove = (ev: MouseEvent) => {
       const delta = ev.clientX - startData.current.x
@@ -45,6 +48,13 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
 
   const showHandle = hovered || resizing
 
+  // Float-based wrapper style — decouples image from text line height
+  const wrapperStyle: React.CSSProperties = imgFloat === 'left'
+    ? { display: 'block', float: 'left',  marginRight: 10, position: 'relative', cursor: 'default', maxWidth: '100%' }
+    : imgFloat === 'right'
+    ? { display: 'block', float: 'right', marginLeft:  10, position: 'relative', cursor: 'default', maxWidth: '100%' }
+    : { display: 'block', margin: '4px 0',               position: 'relative', cursor: 'default', maxWidth: '100%' }
+
   return (
     <NodeViewWrapper
       ref={wrapperRef}
@@ -52,7 +62,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
       contentEditable={false}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { if (!resizing) setHovered(false) }}
-      style={{ display: 'inline-block', position: 'relative', verticalAlign: 'middle', cursor: 'default', maxWidth: '100%' }}
+      style={wrapperStyle}
     >
       <img
         src={src} alt={alt || ''}
@@ -60,10 +70,12 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
           outline: showHandle ? '2px solid #007AFF88' : 'none', outlineOffset: 1, transition: 'outline 0.1s' }}
         draggable={false}
       />
+      {/* Resize handle — INSIDE image bounds (right:3,bottom:3) so overflow:auto on
+          parent scroll containers doesn't clip it (negative offsets would be clipped) */}
       <span
         onMouseDown={onResizeStart}
         style={{
-          position: 'absolute', right: -5, bottom: -5, width: 12, height: 12,
+          position: 'absolute', right: 3, bottom: 3, width: 12, height: 12,
           background: resizing ? '#007AFF' : '#007AFFCC', border: '2px solid #fff', borderRadius: 2,
           cursor: 'se-resize', display: showHandle ? 'flex' : 'none',
           alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
@@ -71,7 +83,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
       />
       {resizing && (
         <span style={{
-          position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)',
+          position: 'absolute', top: 4, left: '50%', transform: 'translateX(-50%)',
           background: 'rgba(0,0,0,0.75)', color: '#fff', fontSize: 10,
           padding: '2px 6px', borderRadius: 3, pointerEvents: 'none', whiteSpace: 'nowrap',
         }}>
@@ -96,15 +108,24 @@ export const ResizableImageExtension = Node.create({
         default: 120,
         parseHTML: el => parseInt((el as HTMLElement).getAttribute('data-width') || '120') || 120,
       },
+      float: {
+        default: 'none',
+        parseHTML: el => (el as HTMLElement).getAttribute('data-float') || 'none',
+      },
     }
   },
 
   parseHTML()  { return [{ tag: 'img[data-width]' }] },
 
   renderHTML({ HTMLAttributes }) {
+    const flt = HTMLAttributes.float
+    const floatStyle = flt === 'left'  ? ';float:left;margin-right:10px'
+                     : flt === 'right' ? ';float:right;margin-left:10px'
+                     : ';display:block;margin:4px 0'
     return ['img', mergeAttributes(HTMLAttributes, {
       'data-width': HTMLAttributes.width,
-      style: `width:${HTMLAttributes.width || 120}px;max-width:100%;vertical-align:middle`,
+      'data-float': HTMLAttributes.float,
+      style: `width:${HTMLAttributes.width || 120}px;max-width:100%;vertical-align:middle${floatStyle}`,
     })]
   },
 

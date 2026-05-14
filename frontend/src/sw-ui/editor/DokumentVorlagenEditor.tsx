@@ -214,6 +214,30 @@ function ToolbarContent({
   const curFontFamily = editor?.getAttributes('paragraph').fontFamily ?? ''
   const curFontSize   = editor?.getAttributes('paragraph').fontSize   ?? ''
 
+  // B/I/U: check BOTH text marks AND paragraph-level attrs (chips can't carry marks)
+  const paraAttrs   = editor?.getAttributes('paragraph') ?? {}
+  const isBold      = (editor?.isActive('bold')      ?? false) || paraAttrs.fontWeight === 'bold'
+  const isItalic    = (editor?.isActive('italic')    ?? false) || paraAttrs.fontStyle  === 'italic'
+  const isUnderline = (editor?.isActive('underline') ?? false) || paraAttrs.textDecoration === 'underline'
+
+  // Toggle: applies both the text mark (selected text) AND paragraph attr (chips)
+  const toggleBold = () => {
+    const next = !isBold
+    editor?.chain().focus().toggleBold().updateAttributes('paragraph', { fontWeight: next ? 'bold' : null }).run()
+  }
+  const toggleItalic = () => {
+    const next = !isItalic
+    editor?.chain().focus().toggleItalic().updateAttributes('paragraph', { fontStyle: next ? 'italic' : null }).run()
+  }
+  const toggleUnderline = () => {
+    const next = !isUnderline
+    editor?.chain().focus().toggleUnderline().updateAttributes('paragraph', { textDecoration: next ? 'underline' : null }).run()
+  }
+
+  // Image float controls — visible when cursor/selection is on a resizable_image
+  const isImgSelected = editor?.isActive('resizable_image') ?? false
+  const imgFloat      = editor?.getAttributes('resizable_image')?.float ?? 'none'
+
   const fmtBtn = (label: string, active: boolean, cb: () => void, title: string, extra?: React.CSSProperties) => (
     <button
       key={title}
@@ -244,9 +268,9 @@ function ToolbarContent({
     <>
       {/* ── Row 1: Formatting tools ── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'nowrap', padding: '4px 8px', minHeight: 32 }}>
-        {fmtBtn('B', editor?.isActive('bold')      ?? false, () => editor?.chain().focus().toggleBold().run(),      'Fett',          { fontWeight: 700 })}
-        {fmtBtn('I', editor?.isActive('italic')    ?? false, () => editor?.chain().focus().toggleItalic().run(),    'Kursiv',        { fontStyle: 'italic' })}
-        {fmtBtn('U', editor?.isActive('underline') ?? false, () => editor?.chain().focus().toggleUnderline().run(), 'Unterstrichen', { textDecoration: 'underline' })}
+        {fmtBtn('B', isBold,      toggleBold,      'Fett',          { fontWeight: 700 })}
+        {fmtBtn('I', isItalic,    toggleItalic,    'Kursiv',        { fontStyle: 'italic' })}
+        {fmtBtn('U', isUnderline, toggleUnderline, 'Unterstrichen', { textDecoration: 'underline' })}
         {sep('sep-align')}
         {fmtBtn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
         {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
@@ -296,15 +320,15 @@ function ToolbarContent({
           title="Bild aus Datei einfügen"
         >↑ Bild</button>
         {sep('sep-table')}
-        <button
-          disabled={!editor}
-          onMouseDown={e => {
-            e.preventDefault()
-            editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: false }).run()
-          }}
-          style={imgBtnStyle}
-          title="Tabelle einfügen (3×2)"
-        >⊞ Tabelle</button>
+        {fmtBtn('⊞', false, () => editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: false }).run(), 'Tabelle einfügen (3×2)', { fontSize: 14 })}
+        {/* Float alignment — only shown when a resizable_image is selected */}
+        {isImgSelected && sep('sep-imgfloat')}
+        {isImgSelected && fmtBtn('⇐', imgFloat === 'left',
+          () => editor?.chain().focus().updateAttributes('resizable_image', { float: imgFloat === 'left' ? 'none' : 'left' }).run(),
+          'Bild links (Text umfließt rechts)')}
+        {isImgSelected && fmtBtn('⇒', imgFloat === 'right',
+          () => editor?.chain().focus().updateAttributes('resizable_image', { float: imgFloat === 'right' ? 'none' : 'right' }).run(),
+          'Bild rechts (Text umfließt links)')}
         {!editor && !isBody && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, flexShrink: 0 }}>
             ← Bereich anklicken
@@ -587,7 +611,9 @@ function escHtml(s: string): string {
 function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   if (!doc) return ''
 
-  function renderInline(node: any, paraFont?: { ff?: string | null; fs?: string | null }): string {
+  type ParaFont = { ff?: string|null; fs?: string|null; fw?: string|null; fst?: string|null; td?: string|null }
+
+  function renderInline(node: any, paraFont?: ParaFont): string {
     if (!node) return ''
 
     if (node.type === 'text') {
@@ -611,14 +637,18 @@ function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       const field = PREVIEW_CONTEXT_MAP[key]
       const color = getPlaceholderColor(key)
       const label = getPlaceholderLabel(key)
-      const fontStyles: string[] = []
-      if (paraFont?.ff) fontStyles.push(`font-family:${paraFont.ff}`)
-      if (paraFont?.fs) fontStyles.push(`font-size:${paraFont.fs}`)
-      const fStr = fontStyles.length ? fontStyles.join(';') + ';' : ''
+      // Chips inherit all paragraph-level styles (font, weight, style, decoration)
+      const chipStyles: string[] = []
+      if (paraFont?.ff)  chipStyles.push(`font-family:${paraFont.ff}`)
+      if (paraFont?.fs)  chipStyles.push(`font-size:${paraFont.fs}`)
+      if (paraFont?.fw)  chipStyles.push(`font-weight:${paraFont.fw}`)
+      if (paraFont?.fst) chipStyles.push(`font-style:${paraFont.fst}`)
+      if (paraFont?.td)  chipStyles.push(`text-decoration:${paraFont.td}`)
+      const fStr = chipStyles.length ? chipStyles.join(';') + ';' : ''
       if (field && ctx?.[field] != null) {
-        return `<span style="${fStr}color:${color};font-weight:600">${escHtml(String(ctx[field]))}</span>`
+        return `<span style="${fStr}color:${color};font-weight:${paraFont?.fw ?? '600'}">${escHtml(String(ctx[field]))}</span>`
       }
-      return `<span style="${fStr}background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;font-weight:600;padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
+      return `<span style="${fStr}background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;font-weight:${paraFont?.fw ?? '600'};padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
     }
 
     if (node.type === 'hardBreak') return '<br>'
@@ -626,7 +656,11 @@ function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
     if (node.type === 'resizable_image') {
       const src = node.attrs?.src ?? ''
       const w   = Number(node.attrs?.width) || 60
-      return `<img src="${src}" style="width:${w}px;max-width:100%;vertical-align:middle" />`
+      const flt = node.attrs?.float
+      const floatStyle = flt === 'left'  ? ';float:left;margin-right:8px'
+                       : flt === 'right' ? ';float:right;margin-left:8px'
+                       : ';display:block;margin:4px 0'
+      return `<img src="${src}" style="width:${w}px;max-width:100%;vertical-align:middle${floatStyle}" />`
     }
 
     return (node.content ?? []).map((n: any) => renderInline(n, paraFont)).join('')
@@ -635,14 +669,20 @@ function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   function renderBlock(node: any): string {
     if (node.type === 'paragraph') {
       const align = node.attrs?.textAlign
-      const ff    = node.attrs?.fontFamily || null
-      const fs    = node.attrs?.fontSize   || null
+      const ff    = node.attrs?.fontFamily    || null
+      const fs    = node.attrs?.fontSize      || null
+      const fw    = node.attrs?.fontWeight    || null
+      const fst   = node.attrs?.fontStyle     || null
+      const td    = node.attrs?.textDecoration || null
       const styles: string[] = []
       if (align && align !== 'left') styles.push(`text-align:${align}`)
-      if (ff) styles.push(`font-family:${ff}`)
-      if (fs) styles.push(`font-size:${fs}`)
+      if (ff)  styles.push(`font-family:${ff}`)
+      if (fs)  styles.push(`font-size:${fs}`)
+      if (fw)  styles.push(`font-weight:${fw}`)
+      if (fst) styles.push(`font-style:${fst}`)
+      if (td)  styles.push(`text-decoration:${td}`)
       const style = styles.length ? ` style="${styles.join(';')}"` : ''
-      const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs })).join('')
+      const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs, fw, fst, td })).join('')
       return inner ? `<div${style}>${inner}</div>` : ''
     }
     return (node.content ?? []).map(renderBlock).join('')

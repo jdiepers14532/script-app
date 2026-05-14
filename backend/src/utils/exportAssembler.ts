@@ -73,7 +73,11 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
   if (node.type === 'resizable_image') {
     const src = node.attrs?.src ?? ''
     const w   = node.attrs?.width ? `width:${node.attrs.width}px;` : 'width:120px;'
-    return `<img src="${src}" style="${w}max-width:100%;vertical-align:middle">`
+    const flt = node.attrs?.float
+    const floatStyle = flt === 'left'  ? 'float:left;margin-right:10px;'
+                     : flt === 'right' ? 'float:right;margin-left:10px;'
+                     : 'display:block;margin:4px 0;'
+    return `<img src="${src}" style="${w}max-width:100%;${floatStyle}">`
   }
 
   if (node.type === 'text') {
@@ -107,10 +111,16 @@ function renderNode(node: any, ctx: ExportContext): string {
     const align = node.attrs?.textAlign
     const ff    = node.attrs?.fontFamily
     const fs    = node.attrs?.fontSize
+    const fw    = node.attrs?.fontWeight
+    const fst   = node.attrs?.fontStyle
+    const td    = node.attrs?.textDecoration
     const styles: string[] = []
     if (align && align !== 'left') styles.push(`text-align:${align}`)
-    if (ff) styles.push(`font-family:${ff}`)
-    if (fs) styles.push(`font-size:${fs}`)
+    if (ff)  styles.push(`font-family:${ff}`)
+    if (fs)  styles.push(`font-size:${fs}`)
+    if (fw)  styles.push(`font-weight:${fw}`)
+    if (fst) styles.push(`font-style:${fst}`)
+    if (td)  styles.push(`text-decoration:${td}`)
     const style = styles.length ? ` style="${styles.join(';')}"` : ''
     const inner = renderInlineNodes(node.content ?? [], ctx)
     return `<p${style}>${inner || '&nbsp;'}</p>`
