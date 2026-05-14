@@ -97,6 +97,12 @@ interface DokumentVorlagenEditorProps {
   produktionsLogoUrl?: string | null
   /** Values shown in the preview strip to replace placeholders */
   previewContext?: PreviewContext
+  /** Hides inline toolbars; reports active editor via onActiveEditorChange */
+  sidebarMode?: boolean
+  /** CSS zoom applied to the A4 page (e.g. 0.85 = 85%) */
+  zoom?: number
+  /** Called when the active Tiptap editor changes */
+  onActiveEditorChange?: (editor: Editor | null, zone: PlaceholderZone) => void
 }
 
 const DEFAULT_LAYOUT: SeitenLayout = {
@@ -105,6 +111,7 @@ const DEFAULT_LAYOUT: SeitenLayout = {
 
 const MM_TO_PX = 96 / 25.4
 const A4_W_PX  = 794
+const A4_H_PX  = 1123
 
 type ColKey = 'links' | 'mitte' | 'rechts'
 const COL_LABELS: Record<ColKey, string> = { links: 'Links', mitte: 'Mitte', rechts: 'Rechts' }
@@ -182,14 +189,16 @@ function ZoneEditor({
 }
 
 // ── Shared toolbar ─────────────────────────────────────────────────────────────
-function ToolbarContent({
-  editor, zone, produktionsLogoUrl, fileInputRef, isBody,
+export function ToolbarContent({
+  editor, zone, produktionsLogoUrl, fileInputRef, isBody, wrap,
 }: {
   editor: Editor | null
   zone?: PlaceholderZone
   produktionsLogoUrl?: string | null
   fileInputRef: React.RefObject<HTMLInputElement | null>
   isBody?: boolean
+  /** Allow Row 1 to wrap (for sidebar layout) */
+  wrap?: boolean
 }) {
   const [imgLoading, setImgLoading] = useState<string | null>(null)
 
@@ -267,7 +276,7 @@ function ToolbarContent({
   return (
     <>
       {/* ── Row 1: Formatting tools ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'nowrap', padding: '4px 8px', minHeight: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: wrap ? 'wrap' : 'nowrap', padding: '4px 8px', minHeight: 32 }}>
         {fmtBtn('B', isBold,      toggleBold,      'Fett',          { fontWeight: 700 })}
         {fmtBtn('I', isItalic,    toggleItalic,    'Kursiv',        { fontStyle: 'italic' })}
         {fmtBtn('U', isUnderline, toggleUnderline, 'Unterstrichen', { textDecoration: 'underline' })}
@@ -709,7 +718,9 @@ function PreviewCell({ content, align, color, ctx }: {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function DokumentVorlagenEditor({
-  value, onChange, noBody = false, noHeaderFooter = false, readOnly = false, produktionsLogoUrl, previewContext,
+  value, onChange, noBody = false, noHeaderFooter = false, readOnly = false,
+  produktionsLogoUrl, previewContext,
+  sidebarMode = false, zoom, onActiveEditorChange,
 }: DokumentVorlagenEditorProps) {
   useEffect(() => { injectChipCss() }, [])
 
@@ -741,7 +752,7 @@ export default function DokumentVorlagenEditor({
   }
 
   return (
-    <div style={{ background: noHeaderFooter ? 'transparent' : 'var(--bg-subtle)', padding: noHeaderFooter ? '0' : '24px 16px', borderRadius: 8 }}>
+    <div style={{ background: noHeaderFooter || sidebarMode ? 'transparent' : 'var(--bg-subtle)', padding: noHeaderFooter || sidebarMode ? '0' : '24px 16px', borderRadius: 8 }}>
       {/* Page format + margins — hidden in body-only mode */}
       {!noHeaderFooter && (
         <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -761,9 +772,11 @@ export default function DokumentVorlagenEditor({
 
       {/* A4 sheet */}
       <div style={{
-        width: A4_W_PX, maxWidth: '100%', margin: '0 auto',
+        width: A4_W_PX, maxWidth: sidebarMode ? undefined : '100%', margin: '0 auto',
         background: 'white', boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
         borderRadius: 2, overflow: 'hidden', color: '#000',
+        minHeight: sidebarMode ? A4_H_PX : undefined,
+        ...(zoom ? { zoom: `${zoom}` } as React.CSSProperties : {}),
       }}>
         {/* Kopfzeile zone */}
         {!noHeaderFooter && (
@@ -797,20 +810,33 @@ export default function DokumentVorlagenEditor({
             paddingBottom: noHeaderFooter ? marginBottomPx : 16,
             minHeight: 400,
           }}>
-            {!noHeaderFooter && (
+            {!noHeaderFooter && !sidebarMode && (
               <div style={{ fontSize: 11, fontWeight: 600, color: '#00C853', marginBottom: 4 }}>Inhalt</div>
             )}
-            <div style={{ border: noHeaderFooter ? 'none' : '1px solid #00C85344', borderRadius: 6, overflow: 'hidden' }}>
-              <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} zone="alle" />
-              <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
-              <div style={{ padding: '8px 12px', minHeight: 200, maxHeight: 500, overflowY: 'auto', background: noHeaderFooter ? 'transparent' : '#00C85308' }}>
+            <div style={{ border: noHeaderFooter || sidebarMode ? 'none' : '1px solid #00C85344', borderRadius: 6, overflow: 'hidden' }}>
+              {!sidebarMode && (
+                <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} zone="alle" />
+              )}
+              {!sidebarMode && (
+                <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
+              )}
+              <div style={{
+                padding: '8px 12px',
+                minHeight: sidebarMode ? A4_H_PX - 200 : 200,
+                maxHeight: sidebarMode ? undefined : 500,
+                overflowY: sidebarMode ? undefined : 'auto',
+                background: noHeaderFooter || sidebarMode ? 'transparent' : '#00C85308',
+              }}>
                 <ZoneEditor
                   key="body"
                   initialContent={value.body_content}
                   onChange={c => update({ body_content: c })}
                   readOnly={readOnly}
-                  minHeight={200}
-                  onEditorReady={setBodyEditor}
+                  minHeight={sidebarMode ? A4_H_PX - 200 : 200}
+                  onEditorReady={ed => {
+                    setBodyEditor(ed)
+                    if (sidebarMode) onActiveEditorChange?.(ed, 'alle')
+                  }}
                 />
               </div>
             </div>

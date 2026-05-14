@@ -7,7 +7,7 @@ import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor
 import { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
-import DokumentVorlagenEditor, { emptyVorlagenEditorValue, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
+import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -2884,6 +2884,20 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [editEditorValue, setEditEditorValue] = useState<DokumentVorlagenEditorValue>(emptyVorlagenEditorValue())
   const [editorKey, setEditorKey] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [zoom, setZoom] = useState(0.9)
+  const [activeEditor, setActiveEditor] = useState<any>(null)
+  const sidebarFileRef = useRef<HTMLInputElement>(null)
+
+  const handleSidebarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !activeEditor) return
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      ;(activeEditor as any).chain().focus().setResizableImage({ src: reader.result as string, width: 200 }).run()
+    }
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
 
   const load = () => {
     setLoading(true)
@@ -2952,72 +2966,119 @@ function VorlagenTab({ productionId }: { productionId: string }) {
 
   if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
 
-  // Edit mode — side-by-side: form left (sticky), editor right
+  // Edit mode — sidebar left + A4 document right
   if (editId) {
+    const sidebarSep = (label: string) => (
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '6px 14px 2px' }}>
+        {label}
+      </div>
+    )
+
     return (
-      <div>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', margin: '-24px -16px', minHeight: '85vh' }}>
+
+        {/* ── Left sidebar ── */}
+        <div style={{
+          width: 236, flexShrink: 0,
+          position: 'sticky', top: 0, maxHeight: '100vh', overflowY: 'auto',
+          background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column',
+        }}>
+
+          {/* Title */}
+          <div style={{ padding: '14px 14px 10px', fontSize: 13, fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
             {editId === '__new__' ? 'Neue Vorlage' : 'Vorlage bearbeiten'}
-          </span>
-          <button onClick={saveVorlage} disabled={saving || !editName.trim()}
-            style={{ ...btnStyle, background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600 }}>
-            {saving ? 'Speichere...' : 'Speichern'}
-          </button>
-          <button onClick={() => setEditId(null)} style={btnStyle}>Abbrechen</button>
-        </div>
+          </div>
 
-        {/* Side-by-side */}
-        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-
-          {/* Left: form — sticky so it stays visible while scrolling the A4 page */}
-          <div style={{
-            width: 220, flexShrink: 0,
-            position: 'sticky', top: 0,
-            display: 'flex', flexDirection: 'column', gap: 14,
-          }}>
+          {/* Form */}
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Name</label>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Name</label>
               <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite" />
             </div>
             <div>
-              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Typ</label>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Typ</label>
               <select style={{ ...inputStyle, cursor: 'pointer' }} value={editTyp} onChange={e => setEditTyp(e.target.value)}>
                 {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
             </div>
             {editTyp === 'titelseite' && (
-              <div style={{
-                padding: '10px 12px', background: '#007AFF0A', border: '1px solid #007AFF33',
-                borderRadius: 8, fontSize: 12, display: 'flex', flexDirection: 'column', gap: 8,
-              }}>
-                <span style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Standard-Titelseite laden (Rote Rosen).
-                </span>
-                <button
-                  onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
-                  style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55' }}
-                >
-                  Vorlage laden
-                </button>
-              </div>
+              <button
+                onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
+                style={{ fontSize: 11, padding: '5px 10px', borderRadius: 5, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+              >
+                Titelseite-Vorlage laden
+              </button>
             )}
           </div>
 
-          {/* Right: editor */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <DokumentVorlagenEditor
-              key={`${editId}-${editorKey}`}
-              value={editEditorValue}
-              onChange={setEditEditorValue}
-              noHeaderFooter
+          {/* Toolbar — wraps in the narrow sidebar */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <ToolbarContent
+              editor={activeEditor}
+              zone="alle"
               produktionsLogoUrl={produktionsLogoUrl}
-              previewContext={previewContext}
+              fileInputRef={sidebarFileRef}
+              isBody
+              wrap
             />
           </div>
 
+          {/* Zoom */}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+            {sidebarSep('Zoom')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 0 2px' }}>
+              <button
+                onMouseDown={() => setZoom(z => Math.max(0.4, Math.round((z - 0.05) * 100) / 100))}
+                style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+              >−</button>
+              <span style={{ fontSize: 12, minWidth: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{Math.round(zoom * 100)}%</span>
+              <button
+                onMouseDown={() => setZoom(z => Math.min(1.5, Math.round((z + 0.05) * 100) / 100))}
+                style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+              >+</button>
+              <button
+                onMouseDown={() => setZoom(1)}
+                style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', background: Math.round(zoom * 100) === 100 ? 'var(--text-primary)' : 'transparent', color: Math.round(zoom * 100) === 100 ? 'var(--text-inverse)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}
+              >1:1</button>
+            </div>
+          </div>
+
+          {/* Save / Cancel */}
+          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button
+              onClick={saveVorlage}
+              disabled={saving || !editName.trim()}
+              style={{ padding: '8px 12px', borderRadius: 6, border: 'none', background: editName.trim() ? 'var(--text-primary)' : 'var(--bg-subtle)', color: editName.trim() ? 'var(--text-inverse)' : 'var(--text-muted)', fontWeight: 600, fontSize: 13, cursor: editName.trim() ? 'pointer' : 'default', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}
+            >
+              {saving ? 'Speichere...' : 'Speichern'}
+            </button>
+            <button
+              onClick={() => setEditId(null)}
+              style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Abbrechen
+            </button>
+          </div>
+
         </div>
+
+        {/* ── Right: gray paper area with A4 document ── */}
+        <div style={{ flex: 1, background: '#bebebe', padding: '40px 48px', minHeight: '100vh', overflowX: 'auto' }}>
+          <input ref={sidebarFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleSidebarFile} />
+          <DokumentVorlagenEditor
+            key={`${editId}-${editorKey}`}
+            value={editEditorValue}
+            onChange={setEditEditorValue}
+            noHeaderFooter
+            sidebarMode
+            zoom={zoom}
+            onActiveEditorChange={ed => setActiveEditor(ed)}
+            produktionsLogoUrl={produktionsLogoUrl}
+            previewContext={previewContext}
+          />
+        </div>
+
       </div>
     )
   }
