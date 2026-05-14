@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
+import { Extension } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
@@ -28,7 +29,7 @@ function injectChipCss() {
 .ProseMirror img { max-width: 100% !important; }
 
 /* ── Table styles ── */
-.ProseMirror table { border-collapse: collapse; width: 100%; table-layout: fixed; margin: 4px 0; }
+.ProseMirror table { border-collapse: collapse; width: 100%; margin: 4px 0; }
 .ProseMirror td, .ProseMirror th {
   border: 1px solid #d0d0d0; padding: 5px 10px; vertical-align: top;
   min-width: 32px; position: relative; box-sizing: border-box;
@@ -36,10 +37,23 @@ function injectChipCss() {
 .ProseMirror th { background: #f5f5f5; font-weight: 600; }
 .ProseMirror .selectedCell { background: rgba(0,122,255,0.08) !important; outline: 2px solid #007AFF55; }
 .ProseMirror .column-resize-handle {
-  position: absolute; right: -2px; top: 0; bottom: 0; width: 4px;
-  background: #007AFF; pointer-events: none; z-index: 20;
+  position: absolute; right: -2px; top: 0; bottom: 0; width: 6px;
+  background: #007AFF88; cursor: col-resize; z-index: 20;
 }
+.ProseMirror.resize-cursor * { cursor: col-resize !important; }
 .ProseMirror .tableWrapper { overflow-x: auto; }
+
+/* ── Table border style variants ── */
+.ProseMirror table[data-border-style="none"] td,
+.ProseMirror table[data-border-style="none"] th { border: none; }
+.ProseMirror table[data-border-style="thick"] td,
+.ProseMirror table[data-border-style="thick"] th { border: 2px solid #333; }
+.ProseMirror table[data-border-style="dashed"] td,
+.ProseMirror table[data-border-style="dashed"] th { border: 1px dashed #888; }
+.ProseMirror table[data-border-style="dotted"] td,
+.ProseMirror table[data-border-style="dotted"] th { border: 1px dotted #888; }
+.ProseMirror table[data-border-style="double"] td,
+.ProseMirror table[data-border-style="double"] th { border: 3px double #555; }
 `
   document.head.appendChild(style)
 }
@@ -136,11 +150,57 @@ const FONT_FAMILIES = [
   { value: 'Inter',         label: 'Inter' },
 ]
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24]
+const LINE_HEIGHTS = [
+  { value: '1',    label: '1,0' },
+  { value: '1.15', label: '1,15' },
+  { value: '1.5',  label: '1,5' },
+  { value: '1.75', label: '1,75' },
+  { value: '2',    label: '2,0' },
+  { value: '2.5',  label: '2,5' },
+  { value: '3',    label: '3,0' },
+]
+const TABLE_BORDER_OPTIONS = [
+  { value: 'default', label: 'Dünn (Standard)' },
+  { value: 'thick',   label: 'Dick (2px)' },
+  { value: 'dashed',  label: 'Gestrichelt' },
+  { value: 'dotted',  label: 'Gepunktet' },
+  { value: 'double',  label: 'Doppelt' },
+  { value: 'none',    label: 'Keine Linien' },
+]
 const SPECIAL_CHARS = [
   { char: '©', title: 'Copyright' },
   { char: '®', title: 'Registered Trademark' },
   { char: '™', title: 'Trademark' },
 ]
+
+// ── TableStyle extension — adds data-border-style attribute to table nodes ────
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    tableStyle: { setTableBorderStyle: (style: string) => ReturnType }
+  }
+}
+const TableStyleExtension = Extension.create({
+  name: 'tableStyle',
+  addGlobalAttributes() {
+    return [{
+      types: ['table'],
+      attributes: {
+        borderStyle: {
+          default: 'default',
+          parseHTML: el => (el as HTMLElement).getAttribute('data-border-style') || 'default',
+          renderHTML: attrs => attrs.borderStyle && attrs.borderStyle !== 'default'
+            ? { 'data-border-style': attrs.borderStyle } : {},
+        },
+      },
+    }]
+  },
+  addCommands() {
+    return {
+      setTableBorderStyle: (style: string) => ({ commands }: any) =>
+        commands.updateAttributes('table', { borderStyle: style }),
+    } as any
+  },
+})
 
 const TIPTAP_EXTENSIONS = [
   StarterKit,
@@ -156,6 +216,7 @@ const TIPTAP_EXTENSIONS = [
   TableRow,
   TableCell,
   TableHeader,
+  TableStyleExtension,
 ]
 
 // ── Single-zone editor (used for body) ───────────────────────────────────────
@@ -220,8 +281,9 @@ export function ToolbarContent({
 
   const chips = zone ? getPlaceholdersForZone(zone) : []
 
-  const curFontFamily = editor?.getAttributes('paragraph').fontFamily ?? ''
-  const curFontSize   = editor?.getAttributes('paragraph').fontSize   ?? ''
+  const curFontFamily  = editor?.getAttributes('paragraph').fontFamily  ?? ''
+  const curFontSize    = editor?.getAttributes('paragraph').fontSize    ?? ''
+  const curLineHeight  = editor?.getAttributes('paragraph').lineHeight  ?? ''
 
   // B/I/U: check BOTH text marks AND paragraph-level attrs (chips can't carry marks)
   const paraAttrs   = editor?.getAttributes('paragraph') ?? {}
@@ -305,6 +367,16 @@ export function ToolbarContent({
           <option value="">Pt</option>
           {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s}</option>)}
         </select>
+        <select
+          value={curLineHeight}
+          onChange={e => editor?.chain().setParagraphLineHeight(e.target.value || null).run()}
+          disabled={!editor}
+          title="Zeilenabstand"
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 54, flexShrink: 0 }}
+        >
+          <option value="">≡ Abs.</option>
+          {LINE_HEIGHTS.map(lh => <option key={lh.value} value={lh.value}>{lh.label}</option>)}
+        </select>
         {sep('sep-chars')}
         {SPECIAL_CHARS.map(({ char, title }) =>
           fmtBtn(char, false, () => editor?.chain().focus().insertContent(char).run(), title, { fontWeight: 400, fontSize: 12 })
@@ -374,6 +446,15 @@ export function ToolbarContent({
             style={{ fontSize: 10, padding: '2px 5px', borderRadius: 4, border: '1px solid #FF3B3044', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', color: '#FF3B30', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 4 }}
             title="Tabelle löschen"
           >✕ Tabelle</button>
+          <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />
+          <span style={{ fontSize: 10, color: '#007AFF', fontWeight: 600, flexShrink: 0 }}>Rahmen:</span>
+          <select
+            value={editor?.getAttributes('table').borderStyle ?? 'default'}
+            onChange={e => editor?.chain().focus().setTableBorderStyle(e.target.value).run()}
+            style={{ fontSize: 10, height: 22, borderRadius: 4, border: '1px solid #007AFF44', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', color: '#007AFF', flexShrink: 0 }}
+          >
+            {TABLE_BORDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
       )}
 
@@ -620,7 +701,7 @@ function escHtml(s: string): string {
 function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   if (!doc) return ''
 
-  type ParaFont = { ff?: string|null; fs?: string|null; fw?: string|null; fst?: string|null; td?: string|null }
+  type ParaFont = { ff?: string|null; fs?: string|null; fw?: string|null; fst?: string|null; td?: string|null; lh?: string|null }
 
   function renderInline(node: any, paraFont?: ParaFont): string {
     if (!node) return ''
@@ -678,11 +759,12 @@ function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   function renderBlock(node: any): string {
     if (node.type === 'paragraph') {
       const align = node.attrs?.textAlign
-      const ff    = node.attrs?.fontFamily    || null
-      const fs    = node.attrs?.fontSize      || null
-      const fw    = node.attrs?.fontWeight    || null
-      const fst   = node.attrs?.fontStyle     || null
+      const ff    = node.attrs?.fontFamily     || null
+      const fs    = node.attrs?.fontSize       || null
+      const fw    = node.attrs?.fontWeight     || null
+      const fst   = node.attrs?.fontStyle      || null
       const td    = node.attrs?.textDecoration || null
+      const lh    = node.attrs?.lineHeight     || null
       const styles: string[] = []
       if (align && align !== 'left') styles.push(`text-align:${align}`)
       if (ff)  styles.push(`font-family:${ff}`)
@@ -690,8 +772,9 @@ function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       if (fw)  styles.push(`font-weight:${fw}`)
       if (fst) styles.push(`font-style:${fst}`)
       if (td)  styles.push(`text-decoration:${td}`)
+      if (lh)  styles.push(`line-height:${lh}`)
       const style = styles.length ? ` style="${styles.join(';')}"` : ''
-      const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs, fw, fst, td })).join('')
+      const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs, fw, fst, td, lh })).join('')
       return inner ? `<div${style}>${inner}</div>` : ''
     }
     return (node.content ?? []).map(renderBlock).join('')
@@ -725,6 +808,10 @@ export default function DokumentVorlagenEditor({
   useEffect(() => { injectChipCss() }, [])
 
   const layout: SeitenLayout = value.seiten_layout ?? DEFAULT_LAYOUT
+  // Format-based page dimensions (96 DPI): A4 = 210×297mm, Letter = 8.5×11in
+  const pageDims = layout.format === 'letter'
+    ? { wPx: 816, hPx: 1056 }
+    : { wPx: 794, hPx: 1123 }
   const marginLeftPx   = Math.round(layout.margin_left   * MM_TO_PX)
   const marginRightPx  = Math.round(layout.margin_right  * MM_TO_PX)
   const marginTopPx    = Math.round(layout.margin_top    * MM_TO_PX)
@@ -772,10 +859,10 @@ export default function DokumentVorlagenEditor({
 
       {/* A4 sheet */}
       <div style={{
-        width: A4_W_PX, maxWidth: sidebarMode ? undefined : '100%', margin: '0 auto',
+        width: pageDims.wPx, maxWidth: sidebarMode ? undefined : '100%', margin: '0 auto',
         background: 'white', boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
         borderRadius: 2, overflow: 'hidden', color: '#000',
-        minHeight: sidebarMode ? A4_H_PX : undefined,
+        minHeight: sidebarMode ? pageDims.hPx : undefined,
         ...(zoom ? { zoom: `${zoom}` } as React.CSSProperties : {}),
       }}>
         {/* Kopfzeile zone */}
@@ -822,7 +909,7 @@ export default function DokumentVorlagenEditor({
               )}
               <div style={{
                 padding: '8px 12px',
-                minHeight: sidebarMode ? A4_H_PX - 200 : 200,
+                minHeight: sidebarMode ? pageDims.hPx - 200 : 200,
                 maxHeight: sidebarMode ? undefined : 500,
                 overflowY: sidebarMode ? undefined : 'auto',
                 background: noHeaderFooter || sidebarMode ? 'transparent' : '#00C85308',
@@ -832,7 +919,7 @@ export default function DokumentVorlagenEditor({
                   initialContent={value.body_content}
                   onChange={c => update({ body_content: c })}
                   readOnly={readOnly}
-                  minHeight={sidebarMode ? A4_H_PX - 200 : 200}
+                  minHeight={sidebarMode ? pageDims.hPx - 200 : 200}
                   onEditorReady={ed => {
                     setBodyEditor(ed)
                     if (sidebarMode) onActiveEditorChange?.(ed, 'alle')

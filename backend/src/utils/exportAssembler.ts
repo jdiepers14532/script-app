@@ -114,6 +114,7 @@ function renderNode(node: any, ctx: ExportContext): string {
     const fw    = node.attrs?.fontWeight
     const fst   = node.attrs?.fontStyle
     const td    = node.attrs?.textDecoration
+    const lh    = node.attrs?.lineHeight
     const styles: string[] = []
     if (align && align !== 'left') styles.push(`text-align:${align}`)
     if (ff)  styles.push(`font-family:${ff}`)
@@ -121,6 +122,7 @@ function renderNode(node: any, ctx: ExportContext): string {
     if (fw)  styles.push(`font-weight:${fw}`)
     if (fst) styles.push(`font-style:${fst}`)
     if (td)  styles.push(`text-decoration:${td}`)
+    if (lh)  styles.push(`line-height:${lh}`)
     const style = styles.length ? ` style="${styles.join(';')}"` : ''
     const inner = renderInlineNodes(node.content ?? [], ctx)
     return `<p${style}>${inner || '&nbsp;'}</p>`
@@ -147,6 +149,27 @@ function renderNode(node: any, ctx: ExportContext): string {
   }
 
   if (node.type === 'horizontalRule') return '<hr>'
+
+  if (node.type === 'table') {
+    const borderStyle = node.attrs?.borderStyle ?? 'default'
+    const cellBorder = borderStyle === 'none'   ? 'border:none'
+      : borderStyle === 'thick'  ? 'border:2px solid #333'
+      : borderStyle === 'dashed' ? 'border:1px dashed #888'
+      : borderStyle === 'dotted' ? 'border:1px dotted #888'
+      : borderStyle === 'double' ? 'border:3px double #555'
+      : 'border:1px solid #d0d0d0'
+    const rows = (node.content ?? []).map((row: any) => {
+      const cells = (row.content ?? []).map((cell: any) => {
+        const isHeader = cell.type === 'tableHeader'
+        const tag   = isHeader ? 'th' : 'td'
+        const extra = isHeader ? 'background:#f5f5f5;font-weight:600;' : ''
+        const inner = (cell.content ?? []).map((n: any) => renderNode(n, ctx)).join('')
+        return `<${tag} style="${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
+      }).join('')
+      return `<tr>${cells}</tr>`
+    }).join('')
+    return `<table style="border-collapse:collapse;width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
+  }
 
   // Fallback: treat content as block container
   return (node.content ?? []).map((c: any) => renderNode(c, ctx)).join('')

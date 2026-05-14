@@ -3002,6 +3002,25 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                 {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
               </select>
             </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Seitenformat</label>
+              <div style={{ display: 'flex', gap: 12 }}>
+                {(['a4', 'letter'] as const).map(f => (
+                  <label key={f} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="page-format"
+                      checked={(editEditorValue.seiten_layout?.format ?? 'a4') === f}
+                      onChange={() => setEditEditorValue(v => ({
+                        ...v,
+                        seiten_layout: { ...(v.seiten_layout ?? { format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 30, margin_right: 25 }), format: f },
+                      }))}
+                    />
+                    {f === 'a4' ? 'A4' : 'Letter'}
+                  </label>
+                ))}
+              </div>
+            </div>
             {editTyp === 'titelseite' && (
               <button
                 onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}

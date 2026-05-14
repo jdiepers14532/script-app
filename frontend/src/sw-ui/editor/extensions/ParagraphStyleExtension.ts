@@ -10,11 +10,12 @@ import { Extension } from '@tiptap/core'
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     paragraphStyle: {
-      setParagraphFont:       (fontFamily: string | null) => ReturnType
-      setParagraphFontSize:   (fontSize: string | null)   => ReturnType
-      setParagraphBold:       (bold: boolean)             => ReturnType
-      setParagraphItalic:     (italic: boolean)           => ReturnType
-      setParagraphUnderline:  (underline: boolean)        => ReturnType
+      setParagraphFont:       (fontFamily: string | null)   => ReturnType
+      setParagraphFontSize:   (fontSize: string | null)     => ReturnType
+      setParagraphBold:       (bold: boolean)               => ReturnType
+      setParagraphItalic:     (italic: boolean)             => ReturnType
+      setParagraphUnderline:  (underline: boolean)          => ReturnType
+      setParagraphLineHeight: (lineHeight: string | null)   => ReturnType
     }
   }
 }
@@ -52,6 +53,11 @@ export const ParagraphStyleExtension = Extension.create({
             parseHTML: el => (el as HTMLElement).style.textDecoration || null,
             renderHTML: attrs => attrs.textDecoration ? { style: `text-decoration:${attrs.textDecoration}` } : {},
           },
+          lineHeight: {
+            default: null,
+            parseHTML: el => (el as HTMLElement).style.lineHeight || null,
+            renderHTML: attrs => attrs.lineHeight ? { style: `line-height:${attrs.lineHeight}` } : {},
+          },
         },
       },
     ]
@@ -69,6 +75,8 @@ export const ParagraphStyleExtension = Extension.create({
         commands.updateAttributes('paragraph', { fontStyle: italic ? 'italic' : null }),
       setParagraphUnderline: (underline: boolean)        => ({ commands }: any) =>
         commands.updateAttributes('paragraph', { textDecoration: underline ? 'underline' : null }),
+      setParagraphLineHeight: (lineHeight: string | null) => ({ commands }: any) =>
+        commands.updateAttributes('paragraph', { lineHeight: lineHeight || null }),
     } as any
   },
 })
