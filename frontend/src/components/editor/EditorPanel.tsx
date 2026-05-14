@@ -114,7 +114,11 @@ export default function EditorPanel({
       const content = editorContent?.content ?? []
       try {
         if (useDokumentSzenen && typeof selectedSzeneId === 'string') {
-          await api.updateDokumentSzene(selectedSzeneId, { content })
+          const updated = await api.updateDokumentSzene(selectedSzeneId, { content })
+          // Track updated_at for conflict detection (Tier 2)
+          if (updated?.updated_at) {
+            setCurrentSzene((prev: any) => prev ? { ...prev, updated_at: updated.updated_at } : prev)
+          }
         } else if (typeof selectedSzeneId === 'number') {
           await api.updateSzene(selectedSzeneId, { content })
         }

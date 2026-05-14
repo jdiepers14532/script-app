@@ -230,6 +230,25 @@ dokumentSzenenRouter.get('/:id', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 dokumentSzenenRouter.put('/:id', async (req, res) => {
   try {
+    // Tier 2: Conflict Detection via X-Client-Version (ISO timestamp)
+    const clientVersion = req.headers['x-client-version'] as string | undefined
+    if (clientVersion) {
+      const current = await queryOne(
+        'SELECT updated_at FROM dokument_szenen WHERE id = $1',
+        [req.params.id]
+      )
+      if (current?.updated_at) {
+        const serverTs = new Date(current.updated_at).getTime()
+        const clientTs = new Date(clientVersion).getTime()
+        if (!isNaN(serverTs) && !isNaN(clientTs) && serverTs > clientTs) {
+          return res.status(409).json({
+            error: 'Konflikt: Szene wurde inzwischen von jemand anderem geändert',
+            server_version: current.updated_at,
+          })
+        }
+      }
+    }
+
     const {
       int_ext, tageszeit, ort_name, zusammenfassung, dauer_min, dauer_sek,
       sort_order, seiten, spieltag, spielzeit, szeneninfo, content,
