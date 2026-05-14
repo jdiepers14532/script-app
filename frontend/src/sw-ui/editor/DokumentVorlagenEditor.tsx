@@ -218,8 +218,19 @@ const TableStyleExtension = Extension.create({
     return {
       setTableBorderStyle: (style: string) => ({ commands }: any) =>
         commands.updateAttributes('table', { borderStyle: style }),
-      setTableRowHeight: (height: number | null) => ({ commands }: any) =>
-        commands.updateAttributes('tableRow', { rowHeight: height }),
+      // updateAttributes('tableRow') won't work because the cursor is inside tableCell.
+      // We must traverse up the node tree to find the enclosing tableRow.
+      setTableRowHeight: (height: number | null) => ({ editor: ed, tr, dispatch }: any) => {
+        const { $from } = ed.state.selection
+        for (let d = $from.depth; d > 0; d--) {
+          const node = $from.node(d)
+          if (node.type.name === 'tableRow') {
+            if (dispatch) dispatch(tr.setNodeMarkup($from.before(d), undefined, { ...node.attrs, rowHeight: height }))
+            return true
+          }
+        }
+        return false
+      },
     } as any
   },
 })
@@ -316,6 +327,17 @@ export function ToolbarContent({
   const curFontFamily  = editor?.getAttributes('paragraph').fontFamily  ?? ''
   const curFontSize    = editor?.getAttributes('paragraph').fontSize    ?? ''
   const curLineHeight  = editor?.getAttributes('paragraph').lineHeight  ?? ''
+
+  // getAttributes('tableRow') won't work (cursor is in tableCell) — traverse up instead
+  const curRowHeight = (() => {
+    if (!editor) return ''
+    const { $from } = editor.state.selection
+    for (let d = $from.depth; d > 0; d--) {
+      const node = $from.node(d)
+      if (node.type.name === 'tableRow') return node.attrs.rowHeight ?? ''
+    }
+    return ''
+  })()
 
   // B/I/U: check BOTH text marks AND paragraph-level attrs (chips can't carry marks)
   const paraAttrs   = editor?.getAttributes('paragraph') ?? {}
@@ -494,7 +516,7 @@ export function ToolbarContent({
             min={20}
             max={300}
             step={4}
-            value={editor?.getAttributes('tableRow').rowHeight ?? ''}
+            value={curRowHeight}
             onChange={e => {
               const v = e.target.value ? Number(e.target.value) : null
               editor?.chain().focus().setTableRowHeight(v).run()

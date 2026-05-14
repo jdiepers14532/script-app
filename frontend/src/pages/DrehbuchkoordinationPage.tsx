@@ -3042,8 +3042,8 @@ function VorlagenTab({ productionId }: { productionId: string }) {
             )}
           </div>
 
-          {/* Toolbar — wraps in the narrow sidebar */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          {/* Toolbar — wraps in the narrow sidebar; parent handles overflow */}
+          <div style={{ borderBottom: '1px solid var(--border)' }}>
             <ToolbarContent
               editor={activeEditor}
               zone="alle"
