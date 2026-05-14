@@ -673,9 +673,27 @@ function OfflineTab() {
             },
             {
               dot: C.red,
-              label: 'Offline · X ausstehend',
-              desc: 'Keine Internetverbindung. Deine Änderungen werden lokal gespeichert und übertragen, sobald die Verbindung zurückkehrt.',
+              label: 'Offline · Antippen zum Verbinden',
+              desc: 'Keine Verbindung zum Server. Klicke die Pill direkt an — die App versucht automatisch, die Verbindung wiederherzustellen.',
               icon: '✗',
+            },
+            {
+              dot: C.red,
+              label: 'Verbindung wird geprüft…',
+              desc: 'Der Reconnect-Check läuft: Die App prüft, ob der Server erreichbar ist, und ob ein Browser-Cache-Problem vorliegt.',
+              icon: '↻',
+            },
+            {
+              dot: C.red,
+              label: 'Kein Internetzugang',
+              desc: 'Kein Internetzugang auf OS-Ebene (WLAN/LAN getrennt). Die App arbeitet offline weiter und synchronisiert automatisch, wenn das Netz zurückkommt.',
+              icon: '✗',
+            },
+            {
+              dot: C.red,
+              label: 'Server nicht erreichbar',
+              desc: 'Das Gerät hat Internet, aber der Server antwortet nicht. Kann ein kurzer Server-Ausfall sein — nach einigen Minuten erneut versuchen.',
+              icon: '!',
             },
           ].map((s, i) => (
             <div key={i} style={{
@@ -951,10 +969,129 @@ function OfflineTab() {
         </div>
       </Section>
 
+      {/* Verbindung wiederherstellen */}
+      <Section title="5. Verbindung wiederherstellen">
+        <p style={{ fontSize: 13, color: C.muted, marginBottom: 16 }}>
+          Wenn die App offline ist, muss kein Nutzer die Browser-Entwicklertools öffnen.
+          Ein Klick auf die Status-Pill in der Topbar oder den Button im Offline-Modal reicht.
+        </p>
+
+        {/* Wie es funktioniert */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+          {[
+            {
+              step: '1',
+              color: C.blue,
+              title: 'Server-Ping',
+              desc: 'Die App sendet eine Testanfrage an den Server (/api/health) mit 4 Sekunden Timeout — unabhängig davon, was navigator.onLine meldet.',
+            },
+            {
+              step: '2a',
+              color: C.green,
+              title: 'Ping erfolgreich → Online',
+              desc: 'Der Verbindungsstatus wird sofort auf Online gesetzt und die Warteschlange synchronisiert. Kein Neuladen nötig.',
+            },
+            {
+              step: '2b',
+              color: C.orange,
+              title: 'Ping fehlgeschlagen + Service Worker vorhanden → Automatischer Reset',
+              desc: 'Der Service Worker wird deregistriert und die Seite neu geladen. Typische Ursache: Browser-Entwicklertools haben den Service Worker auf Offline gesetzt (häufig bei Chrome/Edge DevTools). Nach dem Reload ist die App wieder online.',
+            },
+            {
+              step: '2c',
+              color: C.red,
+              title: 'Ping fehlgeschlagen + kein Service Worker → Klare Fehlermeldung',
+              desc: '"Kein Internetzugang" wenn navigator.onLine=false (WLAN/LAN getrennt). "Server nicht erreichbar" wenn das Gerät Internet hat, der Server aber nicht antwortet.',
+            },
+          ].map((item, i) => (
+            <div key={i} style={{
+              display: 'flex', gap: 14,
+              padding: '14px 16px',
+              border: `1px solid ${item.color}33`,
+              borderRadius: 8,
+              background: item.color + '08',
+            }}>
+              <div style={{
+                width: 28, height: 28, borderRadius: '50%',
+                background: item.color, color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 700, fontSize: 11, flexShrink: 0,
+              }}>{item.step}</div>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>{item.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Browser-Kompatibilität */}
+        <div style={{
+          border: `1px solid ${C.border}`,
+          borderRadius: 8,
+          overflow: 'hidden',
+          marginBottom: 16,
+        }}>
+          <div style={{
+            padding: '10px 14px',
+            background: C.subtle,
+            fontWeight: 600, fontSize: 12,
+            borderBottom: `1px solid ${C.border}`,
+          }}>Browser-Kompatibilität</div>
+          <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { browser: 'Chrome / Edge', icon: '✓', color: C.green, note: 'Vollständig unterstützt. DevTools-SW-Offline-Bug wird erkannt und automatisch behoben.' },
+              { browser: 'Firefox', icon: '✓', color: C.green, note: 'Vollständig unterstützt. Network-Throttling "Offline" im DevTools wird ebenfalls korrekt behandelt.' },
+              { browser: 'Safari (macOS / iOS)', icon: '✓', color: C.green, note: 'Vollständig unterstützt. Safari hat keine SW-Offline-Checkbox in DevTools — der DevTools-Bug tritt hier nicht auf.' },
+            ].map((b, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ color: b.color, fontWeight: 700, fontSize: 14, flexShrink: 0 }}>{b.icon}</span>
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: 12 }}>{b.browser}</span>
+                  <span style={{ fontSize: 12, color: C.muted }}> — {b.note}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bekannte Einschränkung */}
+        <div style={{
+          padding: '14px 16px',
+          border: `1px solid ${C.orange}44`,
+          borderLeft: `3px solid ${C.orange}`,
+          borderRadius: 8,
+          background: C.orange + '08',
+        }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, color: C.orange }}>Bekannte Einschränkung</div>
+          <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>
+            Fetch-Anfragen lassen sich in JavaScript nicht am Service Worker vorbeischicken — der SW interceptiert alle Netzwerkanfragen der App.
+            Das bedeutet: Wenn der Server wirklich ausgefallen ist <em>und</em> gleichzeitig ein Service Worker registriert ist,
+            würde der Reconnect-Click den SW fälschlicherweise deregistrieren und die Seite neu laden.
+            Nach dem Reload ist kein Asset-Cache mehr vorhanden, die App lädt dann über das Netz.
+            <br /><br />
+            In der Praxis ist dieses Szenario (Server-Ausfall während aktiver Nutzung + SW registriert) sehr unwahrscheinlich.
+            Der SW registriert sich beim nächsten Online-Reload automatisch neu.
+          </div>
+        </div>
+      </Section>
+
       {/* Troubleshooting */}
-      <Section title="5. Probleme beheben">
+      <Section title="6. Probleme beheben">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
+            {
+              q: 'Die App zeigt "Offline", obwohl das Internet funktioniert',
+              a: 'Häufigste Ursache: Der Service Worker wurde in den Browser-Entwicklertools (DevTools → Application → Service Workers) auf "Offline" gesetzt. Einfach die Status-Pill in der Topbar anklicken — die App erkennt das Problem, setzt den Service Worker zurück und lädt neu. Kein manuelles DevTools-Öffnen nötig.',
+            },
+            {
+              q: 'Ich klicke "Verbindung wiederherstellen" und bekomme "Kein Internetzugang"',
+              a: 'Das bedeutet: navigator.onLine ist false UND kein Service Worker ist registriert — es handelt sich um ein echtes Netzproblem auf OS-Ebene (WLAN/LAN). WLAN-Verbindung prüfen, Router-Neustart, oder auf mobiles Netz wechseln.',
+            },
+            {
+              q: 'Ich klicke "Verbindung wiederherstellen" und bekomme "Server nicht erreichbar"',
+              a: 'Das Gerät hat Internet (navigator.onLine=true), der Server antwortet aber nicht. Mögliche Ursachen: kurzer Server-Neustart (PM2-Restart), Wartung, oder Netzpfad-Problem. Meist nach 1–2 Minuten wieder verfügbar. Alternativ: anderen Browser testen.',
+            },
             {
               q: 'Der Status bleibt "ausstehend", obwohl ich wieder online bin',
               a: 'Warte 15–30 Sekunden — die Sync läuft automatisch. Hilft das nicht, lade die Seite einmal neu (F5). Die Warteschlange bleibt erhalten und wird nach dem Neuladen fortgesetzt.',
@@ -1001,7 +1138,7 @@ function OfflineTab() {
       </Section>
 
       {/* Technische Details (collapsible) */}
-      <Section title="6. Technische Details">
+      <Section title="7. Technische Details">
         <details style={{ border: `1px solid ${C.border}`, borderRadius: 8, overflow: 'hidden' }}>
           <summary style={{
             padding: '12px 16px', cursor: 'pointer',
@@ -1027,6 +1164,18 @@ function OfflineTab() {
               <div><code style={{ color: C.blue }}>enqueue(method, url, body)</code> → speichert <code>{`{id, method, url, body, timestamp}`}</code></div>
               <div><code style={{ color: C.green }}>window.addEventListener('online')</code> → <code>syncQueue()</code> automatisch</div>
               <div>Sync: jede Anfrage der Reihe nach, erfolgreich → aus Queue löschen</div>
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 4 }}>
+              <strong style={{ color: C.text }}>Reconnect-Logik</strong> — <code>reconnect()</code> in <code>useOfflineQueue</code>
+            </div>
+            <div style={{ background: C.subtle, borderRadius: 6, padding: 12, fontFamily: 'monospace', fontSize: 11, lineHeight: 1.8 }}>
+              <div><span style={{ color: C.muted }}>// 1. Server-Ping (SW interceptiert, aber cache:no-store umgeht HTTP-Cache)</span></div>
+              <div><code style={{ color: C.blue }}>fetch('/api/health', {'{'} cache: 'no-store', signal: AbortSignal.timeout(4000) {'}'})</code></div>
+              <div style={{ marginTop: 4 }}><span style={{ color: C.muted }}>// 2a. Ping ok → isOnline=true, syncQueue()</span></div>
+              <div><span style={{ color: C.muted }}>// 2b. Ping fehlgeschlagen + SW vorhanden → unregister() + reload()</span></div>
+              <div><span style={{ color: C.muted }}>// 2c. Ping fehlgeschlagen + kein SW → navigator.onLine ? 'server-down' : 'no-internet'</span></div>
+              <div style={{ marginTop: 4 }}><span style={{ color: C.orange }}>⚠ Hinweis: navigator.onLine wird von Edge/Chrome auf false gesetzt wenn der SW in DevTools</span></div>
+              <div><span style={{ color: C.orange }}>  auf Offline gestellt wird → deshalb NICHT als erste Prüfung verwenden (frühzeitiger Fehlalarm).</span></div>
             </div>
           </div>
         </details>
