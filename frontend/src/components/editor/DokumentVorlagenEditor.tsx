@@ -646,21 +646,23 @@ export default function DokumentVorlagenEditor({
   }
 
   return (
-    <div style={{ background: 'var(--bg-subtle)', padding: '24px 16px', borderRadius: 8 }}>
-      {/* Page format + margins */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Seitenformat:</span>
-        {(['a4', 'letter'] as const).map(f => (
-          <label key={f} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-            <input type="radio" name="seitenformat" value={f} checked={layout.format === f}
-              onChange={() => update({ seiten_layout: { ...layout, format: f } })} />
-            {f === 'a4' ? 'A4' : 'US Letter'}
-          </label>
-        ))}
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-          Ränder: O {layout.margin_top} / R {layout.margin_right} / U {layout.margin_bottom} / L {layout.margin_left} mm
-        </span>
-      </div>
+    <div style={{ background: noHeaderFooter ? 'transparent' : 'var(--bg-subtle)', padding: noHeaderFooter ? '0' : '24px 16px', borderRadius: 8 }}>
+      {/* Page format + margins — hidden in body-only mode */}
+      {!noHeaderFooter && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>Seitenformat:</span>
+          {(['a4', 'letter'] as const).map(f => (
+            <label key={f} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+              <input type="radio" name="seitenformat" value={f} checked={layout.format === f}
+                onChange={() => update({ seiten_layout: { ...layout, format: f } })} />
+              {f === 'a4' ? 'A4' : 'US Letter'}
+            </label>
+          ))}
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+            Ränder: O {layout.margin_top} / R {layout.margin_right} / U {layout.margin_bottom} / L {layout.margin_left} mm
+          </span>
+        </div>
+      )}
 
       {/* A4 sheet */}
       <div style={{

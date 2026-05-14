@@ -2637,60 +2637,54 @@ function Placeholder({ label }: { label: string }) {
 // ── Titelseite Default Content ──────────────────────────────────────────────────
 
 function titelseiteDefaultVorlage(): DokumentVorlagenEditorValue {
+  // Minimal valid ProseMirror JSON — only include attrs when non-default
   const chip = (key: string) => ({ type: 'placeholder_chip', attrs: { key } })
-  const t    = (s: string, bold?: boolean) => ({ type: 'text', text: s, ...(bold ? { marks: [{ type: 'bold' }] } : {}) })
-  const p    = (content: any[], attrs?: Record<string, any>) => ({
-    type: 'paragraph',
-    attrs: { fontFamily: null, fontSize: null, textAlign: 'left', ...attrs },
-    content,
-  })
-  const metaRow = (label: string, value: any[]) =>
-    p([t(label + ':  ', true), ...value])
+  const txt  = (s: string)   => ({ type: 'text', text: s })
+  const bold = (s: string)   => ({ type: 'text', text: s, marks: [{ type: 'bold' }] })
+
+  const para = (content: any[], textAlign?: string, fontSize?: string) => {
+    const attrs: Record<string, string> = {}
+    if (textAlign && textAlign !== 'left') attrs.textAlign = textAlign
+    if (fontSize) attrs.fontSize = fontSize
+    const node: any = { type: 'paragraph', content }
+    if (Object.keys(attrs).length) node.attrs = attrs
+    return node
+  }
+  const row   = (label: string, value: any[]) => para([bold(label + ':  '), ...value])
   const hr    = { type: 'horizontalRule' }
-  const empty = { type: 'paragraph', content: [] }
+  const empty = { type: 'paragraph' }
 
   const body_content = {
     type: 'doc',
     content: [
-      // Titel
-      p([chip('{{produktion}}'), t('  –  Staffel '), chip('{{staffel}}')], { textAlign: 'center', fontSize: '20pt' }),
-      p([chip('{{fassung}}'), t('  –  Episode '), chip('{{folge}}')],      { textAlign: 'center', fontSize: '13pt' }),
-      empty,
-      hr,
+      para([chip('{{produktion}}'), txt('  –  Staffel '), chip('{{staffel}}')], 'center', '20pt'),
+      para([chip('{{fassung}}'),    txt('  –  Episode '), chip('{{folge}}')],   'center', '13pt'),
+      empty, hr,
 
-      // Produktionsdaten
-      metaRow('Block',                  [chip('{{block}}')]),
-      metaRow('Produktionsbesprechung', [t('TT.MM.JJJJ')]),
-      metaRow('Vorauss. Drehtermin',    [t('TT.MM. – TT.MM.JJJJ')]),
-      metaRow('Vorauss. Sendetermin',   [t('JJJJ')]),
-      metaRow('Gesamtlänge',            [t('MM:SS')]),
+      row('Block',                  [chip('{{block}}')]),
+      row('Produktionsbesprechung', [txt('TT.MM.JJJJ')]),
+      row('Vorauss. Drehtermin',    [txt('TT.MM. – TT.MM.JJJJ')]),
+      row('Vorauss. Sendetermin',   [txt('JJJJ')]),
+      row('Gesamtlänge',            [txt('MM:SS')]),
       empty,
 
-      // Crew
-      metaRow('Regie',           [chip('{{regie}}')]),
-      metaRow('Writer Producer', [t('Name')]),
-      metaRow('Head of Story',   [t('Name')]),
-      metaRow('Storyliner',      [t('Name, Name, Name')]),
-      metaRow('Story Edit',      [t('Name')]),
-      metaRow('Autor',           [chip('{{autor}}')]),
-      metaRow('Script Edit',     [t('Name')]),
-      metaRow('Dialogautor',     [t('Name')]),
-      metaRow('Dialog Edit',     [t('Name')]),
-      empty,
-      hr,
-      empty,
+      row('Regie',           [chip('{{regie}}')]),
+      row('Writer Producer', [txt('Name')]),
+      row('Head of Story',   [txt('Name')]),
+      row('Storyliner',      [txt('Name, Name, Name')]),
+      row('Story Edit',      [txt('Name')]),
+      row('Autor',           [chip('{{autor}}')]),
+      row('Script Edit',     [txt('Name')]),
+      row('Dialogautor',     [txt('Name')]),
+      row('Dialog Edit',     [txt('Name')]),
+      empty, hr, empty,
 
-      // Vertraulichkeits-Hinweis
-      p(
-        [t('DIE BÜCHER SIND BIS ZUR AUSSTRAHLUNG DER EPISODEN STRENG VERTRAULICH ZU BEHANDELN. JEDER VERSTOSS WIRD ALS VERTRAGSBRUCH GEAHNDET!', true)],
-        { textAlign: 'center' },
+      para(
+        [bold('DIE BÜCHER SIND BIS ZUR AUSSTRAHLUNG DER EPISODEN STRENG VERTRAULICH ZU BEHANDELN. JEDER VERSTOSS WIRD ALS VERTRAGSBRUCH GEAHNDET!')],
+        'center',
       ),
-      empty,
-      hr,
-      empty,
-
-      // Copyright
-      p([t('© 2026  '), chip('{{firmenname}}')]),
+      empty, hr, empty,
+      para([txt('© 2026  '), chip('{{firmenname}}')]),
     ],
   }
 
@@ -2917,60 +2911,72 @@ function VorlagenTab({ productionId }: { productionId: string }) {
 
   if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
 
-  // Edit mode
+  // Edit mode — side-by-side: form left (sticky), editor right
   if (editId) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0, flex: 1 }}>
+      <div>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, flex: 1 }}>
             {editId === '__new__' ? 'Neue Vorlage' : 'Vorlage bearbeiten'}
-          </h3>
-          <button onClick={saveVorlage} disabled={saving || !editName.trim()} style={{ ...btnStyle, background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600 }}>
+          </span>
+          <button onClick={saveVorlage} disabled={saving || !editName.trim()}
+            style={{ ...btnStyle, background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600 }}>
             {saving ? 'Speichere...' : 'Speichern'}
           </button>
           <button onClick={() => setEditId(null)} style={btnStyle}>Abbrechen</button>
         </div>
 
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Name</label>
-            <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite Rote Rosen" />
-          </div>
-          <div style={{ width: 200 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Typ</label>
-            <select style={{ ...inputStyle, cursor: 'pointer' }} value={editTyp} onChange={e => setEditTyp(e.target.value)}>
-              {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-            </select>
-          </div>
-        </div>
+        {/* Side-by-side */}
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
 
-        {editTyp === 'titelseite' && (
+          {/* Left: form — sticky so it stays visible while scrolling the A4 page */}
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '10px 14px', background: '#007AFF0A', border: '1px solid #007AFF33',
-            borderRadius: 8, fontSize: 12,
+            width: 220, flexShrink: 0,
+            position: 'sticky', top: 0,
+            display: 'flex', flexDirection: 'column', gap: 14,
           }}>
-            <span style={{ flex: 1, color: 'var(--text-secondary)' }}>
-              Titelseiten-Vorlage aus dem PDF-Standard laden (Rote Rosen)?
-              Platzhalter wie <strong>Produktion</strong>, <strong>Regie</strong>, <strong>Autor</strong> werden automatisch eingesetzt.
-            </span>
-            <button
-              onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
-              style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55', whiteSpace: 'nowrap' }}
-            >
-              Standard-Vorlage laden
-            </button>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Name</label>
+              <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite" />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Typ</label>
+              <select style={{ ...inputStyle, cursor: 'pointer' }} value={editTyp} onChange={e => setEditTyp(e.target.value)}>
+                {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            {editTyp === 'titelseite' && (
+              <div style={{
+                padding: '10px 12px', background: '#007AFF0A', border: '1px solid #007AFF33',
+                borderRadius: 8, fontSize: 12, display: 'flex', flexDirection: 'column', gap: 8,
+              }}>
+                <span style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  Standard-Titelseite laden (Rote Rosen).
+                </span>
+                <button
+                  onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
+                  style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55' }}
+                >
+                  Vorlage laden
+                </button>
+              </div>
+            )}
           </div>
-        )}
 
-        <DokumentVorlagenEditor
-          key={`${editId}-${editorKey}`}
-          value={editEditorValue}
-          onChange={setEditEditorValue}
-          noHeaderFooter
-          produktionsLogoUrl={produktionsLogoUrl}
-          previewContext={previewContext}
-        />
+          {/* Right: editor */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <DokumentVorlagenEditor
+              key={`${editId}-${editorKey}`}
+              value={editEditorValue}
+              onChange={setEditEditorValue}
+              noHeaderFooter
+              produktionsLogoUrl={produktionsLogoUrl}
+              previewContext={previewContext}
+            />
+          </div>
+
+        </div>
       </div>
     )
   }
