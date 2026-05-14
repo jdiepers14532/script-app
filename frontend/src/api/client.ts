@@ -759,6 +759,8 @@ export const api = {
     request<any>('POST', `/colab-gruppen/${gruppeId}/mitglieder`, data),
   removeColabMitglied: (gruppeId: string, userId: string) =>
     request<void>('DELETE', `/colab-gruppen/${gruppeId}/mitglieder/${encodeURIComponent(userId)}`),
+  searchAppUsers: (q: string) =>
+    request<Array<{ user_id: string; user_name: string; email: string }>>('GET', `/colab-gruppen/app-users?q=${encodeURIComponent(q)}`),
 
   // ── Team-Work: Werkstufen-Sessions (Heartbeat) ────────────────────────────
   sessionHeartbeat: (werkId: string) =>

@@ -213,32 +213,56 @@ export default function EditorPanelHeader({
                 {colabGruppen.length > 0 && (
                   <>
                     <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-                    <div style={{ padding: '3px 12px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
-                      GRUPPEN
-                    </div>
                     {colabGruppen.map(g => (
-                      <button
-                        key={g.id}
-                        onClick={async () => {
-                          setShowSichtbarkeitMenu(false)
-                          setSichtbarkeitSaving(true)
-                          try {
-                            await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: `colab:${g.id}` })
-                            clearCacheByPrefix('/v2/folgen/')
-                            onReloadWerkstufen()
-                          } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
-                        }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                          padding: '7px 12px', fontSize: 12,
-                          background: sichtbarkeit === `colab:${g.id}` ? 'var(--bg-active)' : 'transparent',
-                          border: 'none', cursor: 'pointer', textAlign: 'left',
-                          fontFamily: 'inherit', color: '#AF52DE', fontWeight: sichtbarkeit === `colab:${g.id}` ? 600 : 400,
-                        }}
-                      >
-                        <Users size={11} />
-                        {g.name}
-                      </button>
+                      <div key={g.id}>
+                        <div style={{ padding: '4px 12px 1px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                          {g.name}
+                        </div>
+                        {/* Team: nur sichtbar, kein Yjs */}
+                        <button
+                          onClick={async () => {
+                            setShowSichtbarkeitMenu(false)
+                            setSichtbarkeitSaving(true)
+                            try {
+                              await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: `team:${g.id}` })
+                              clearCacheByPrefix('/v2/folgen/')
+                              onReloadWerkstufen()
+                            } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                            padding: '5px 12px 5px 20px', fontSize: 12,
+                            background: sichtbarkeit === `team:${g.id}` ? 'var(--bg-active)' : 'transparent',
+                            border: 'none', cursor: 'pointer', textAlign: 'left',
+                            fontFamily: 'inherit', color: '#007AFF', fontWeight: sichtbarkeit === `team:${g.id}` ? 600 : 400,
+                          }}
+                        >
+                          <Users size={11} />
+                          Team (nur sichtbar)
+                        </button>
+                        {/* Colab: sichtbar + Yjs Echtzeit */}
+                        <button
+                          onClick={async () => {
+                            setShowSichtbarkeitMenu(false)
+                            setSichtbarkeitSaving(true)
+                            try {
+                              await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: `colab:${g.id}` })
+                              clearCacheByPrefix('/v2/folgen/')
+                              onReloadWerkstufen()
+                            } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                            padding: '5px 12px 5px 20px', fontSize: 12,
+                            background: sichtbarkeit === `colab:${g.id}` ? 'var(--bg-active)' : 'transparent',
+                            border: 'none', cursor: 'pointer', textAlign: 'left',
+                            fontFamily: 'inherit', color: '#AF52DE', fontWeight: sichtbarkeit === `colab:${g.id}` ? 600 : 400,
+                          }}
+                        >
+                          <Globe size={11} />
+                          Colab (Echtzeit)
+                        </button>
+                      </div>
                     ))}
                   </>
                 )}

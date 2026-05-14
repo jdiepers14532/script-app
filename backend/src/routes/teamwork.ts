@@ -130,6 +130,31 @@ colabGruppenRouter.delete('/:id/mitglieder/:userId', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// APP-USER SUCHE (für Mitglied-Hinzufügen)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/colab-gruppen/app-users?q=XY — User aus Auth-Service suchen
+colabGruppenRouter.get('/app-users', async (req, res) => {
+  const AUTH_URL = 'http://127.0.0.1:3002'
+  const INTERNAL_KEY = process.env.INTERNAL_SECRET || 'prod-internal-2026'
+  const q = (req.query.q as string ?? '').toLowerCase().trim()
+  try {
+    const r = await fetch(`${AUTH_URL}/api/internal/app-users/script`, {
+      headers: { 'x-internal-key': INTERNAL_KEY },
+    })
+    if (!r.ok) return res.status(502).json({ error: 'Auth-Service nicht erreichbar' })
+    const data = await r.json() as any
+    const users: { id: string; username: string; email: string }[] = data.users ?? []
+    const filtered = q
+      ? users.filter(u => u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      : users
+    res.json(filtered.slice(0, 20).map(u => ({ user_id: u.id, user_name: u.username, email: u.email })))
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // SICHTBARKEIT auf Werkstufen
 // ══════════════════════════════════════════════════════════════════════════════
 
