@@ -5,17 +5,30 @@ import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
 
 const SICHTBARKEIT_ICONS: Record<string, React.ReactNode> = {
-  privat: <Lock size={11} />,
-  team:   <Users size={11} />,
-  alle:   <Globe size={11} />,
-  colab:  <Users size={11} />,
+  privat:     <Lock size={11} />,
+  team:       <Users size={11} />,
+  autoren:    <Users size={11} />,
+  produktion: <Globe size={11} />,
+  alle:       <Globe size={11} />,
+  colab:      <Users size={11} />,
 }
 
 const SICHTBARKEIT_COLORS: Record<string, string> = {
-  privat: '#FF9500',
-  team:   '#007AFF',
-  alle:   '#00C853',
-  colab:  '#AF52DE',
+  privat:     '#FF9500',
+  team:       '#007AFF',
+  autoren:    '#007AFF',
+  produktion: '#00C853',
+  alle:       '#00C853',
+  colab:      '#AF52DE',
+}
+
+function getSichtbarkeitLabel(s: string) {
+  if (s === 'privat') return 'Nur ich'
+  if (s === 'autoren') return 'Alle Autoren'
+  if (s === 'produktion') return 'Gesamte Produktion'
+  if (s.startsWith('team:')) return 'Team'
+  if (s.startsWith('colab:')) return 'Colab-Team'
+  return s
 }
 
 const TYP_LABELS: Record<string, string> = {
@@ -51,12 +64,16 @@ export default function EditorPanelHeader({
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLabelMenu, setShowLabelMenu] = useState(false)
+  const [showSichtbarkeitMenu, setShowSichtbarkeitMenu] = useState(false)
   const [labelError, setLabelError] = useState<string | null>(null)
   const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
+  const [colabGruppen, setColabGruppen] = useState<Array<{ id: string; name: string }>>([])
+  const [sichtbarkeitSaving, setSichtbarkeitSaving] = useState(false)
 
   useEffect(() => {
     if (!produktionId) return
     api.getStageLabels(produktionId).then(setStageLabels).catch(() => {})
+    api.getColabGruppen(produktionId).then(gs => setColabGruppen(gs.map((g: any) => ({ id: g.id, name: g.name })))).catch(() => {})
   }, [produktionId])
 
   // Group werkstufen by typ
@@ -139,19 +156,105 @@ export default function EditorPanelHeader({
         </span>
       )}
 
-      {/* Sichtbarkeits-Badge */}
-      {selectedWerk && (
-        <Tooltip text={`Sichtbarkeit: ${sichtbarkeit}${selectedWerk.abgegeben ? ' · Abgegeben' : ''}`}>
-          <span
+      {/* Sichtbarkeits-Badge (klickbar) */}
+      {selectedWerk && !selectedWerk.abgegeben && (
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => { setShowSichtbarkeitMenu(v => !v); setShowMenu(false); setShowLabelMenu(false) }}
+            title={`Sichtbarkeit ändern (aktuell: ${getSichtbarkeitLabel(sichtbarkeit)})`}
             style={{
               display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
-              border: `1px solid ${SICHTBARKEIT_COLORS[sichtbarkeit] ?? '#ccc'}`,
+              border: `1px solid ${SICHTBARKEIT_COLORS[sichtbarkeit.split(':')[0]] ?? '#ccc'}`,
               borderRadius: 999, fontSize: 11, fontWeight: 500,
-              color: SICHTBARKEIT_COLORS[sichtbarkeit] ?? '#ccc',
+              color: SICHTBARKEIT_COLORS[sichtbarkeit.split(':')[0]] ?? '#ccc',
+              background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
-            {SICHTBARKEIT_ICONS[sichtbarkeit]}
-            {sichtbarkeit}
+            {SICHTBARKEIT_ICONS[sichtbarkeit.split(':')[0]] ?? SICHTBARKEIT_ICONS['autoren']}
+            {getSichtbarkeitLabel(sichtbarkeit)}
+            {sichtbarkeitSaving && <span style={{ marginLeft: 2, opacity: 0.6 }}>…</span>}
+          </button>
+
+          {showSichtbarkeitMenu && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowSichtbarkeitMenu(false)} />
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, zIndex: 99, marginTop: 4,
+                background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 200, padding: '4px 0',
+              }}>
+                {[
+                  { value: 'privat', label: 'Nur ich (Privat)', icon: <Lock size={11} />, color: '#FF9500' },
+                  { value: 'autoren', label: 'Alle Autoren', icon: <Users size={11} />, color: '#007AFF' },
+                  { value: 'produktion', label: 'Gesamte Produktion', icon: <Globe size={11} />, color: '#00C853' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    onClick={async () => {
+                      setShowSichtbarkeitMenu(false)
+                      setSichtbarkeitSaving(true)
+                      try {
+                        await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: opt.value })
+                        onReloadWerkstufen()
+                      } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '7px 12px', fontSize: 12, background: sichtbarkeit === opt.value ? 'var(--bg-active)' : 'transparent',
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'inherit', color: opt.color, fontWeight: sichtbarkeit === opt.value ? 600 : 400,
+                    }}
+                  >
+                    {opt.icon}
+                    {opt.label}
+                  </button>
+                ))}
+                {colabGruppen.length > 0 && (
+                  <>
+                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                    <div style={{ padding: '3px 12px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
+                      GRUPPEN
+                    </div>
+                    {colabGruppen.map(g => (
+                      <button
+                        key={g.id}
+                        onClick={async () => {
+                          setShowSichtbarkeitMenu(false)
+                          setSichtbarkeitSaving(true)
+                          try {
+                            await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: `colab:${g.id}` })
+                            onReloadWerkstufen()
+                          } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                          padding: '7px 12px', fontSize: 12,
+                          background: sichtbarkeit === `colab:${g.id}` ? 'var(--bg-active)' : 'transparent',
+                          border: 'none', cursor: 'pointer', textAlign: 'left',
+                          fontFamily: 'inherit', color: '#AF52DE', fontWeight: sichtbarkeit === `colab:${g.id}` ? 600 : 400,
+                        }}
+                      >
+                        <Users size={11} />
+                        {g.name}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      {selectedWerk?.abgegeben && (
+        <Tooltip text="Abgegeben — Sichtbarkeit kann nicht geändert werden">
+          <span style={{
+            display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
+            border: `1px solid ${SICHTBARKEIT_COLORS[sichtbarkeit.split(':')[0]] ?? '#ccc'}`,
+            borderRadius: 999, fontSize: 11, fontWeight: 500,
+            color: SICHTBARKEIT_COLORS[sichtbarkeit.split(':')[0]] ?? '#ccc',
+          }}>
+            {SICHTBARKEIT_ICONS[sichtbarkeit.split(':')[0]] ?? SICHTBARKEIT_ICONS['autoren']}
+            {getSichtbarkeitLabel(sichtbarkeit)}
           </span>
         </Tooltip>
       )}
