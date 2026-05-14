@@ -208,104 +208,115 @@ function ToolbarContent({
     >{label}</button>
   )
 
-  const sep = <div key={Math.random()} style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 3px', flexShrink: 0 }} />
+  // Stable key — no Math.random() to avoid DOM thrashing on each re-render during image drag
+  const sep = (key: string) => (
+    <div key={key} style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+  )
+
   const imgBtnStyle: React.CSSProperties = {
-    fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)',
-    background: 'var(--bg-subtle)', cursor: editor ? 'pointer' : 'default',
+    fontSize: 10, padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border)',
+    background: 'transparent', cursor: editor ? 'pointer' : 'default',
     fontFamily: 'inherit', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0,
   }
 
   return (
     <>
-      {/* Bold / Italic / Underline */}
-      {fmtBtn('B', editor?.isActive('bold')      ?? false, () => editor?.chain().focus().toggleBold().run(),      'Fett',          { fontWeight: 700 })}
-      {fmtBtn('I', editor?.isActive('italic')    ?? false, () => editor?.chain().focus().toggleItalic().run(),    'Kursiv',        { fontStyle: 'italic' })}
-      {fmtBtn('U', editor?.isActive('underline') ?? false, () => editor?.chain().focus().toggleUnderline().run(), 'Unterstrichen', { textDecoration: 'underline' })}
-      {sep}
-      {/* Alignment */}
-      {fmtBtn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
-      {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
-      {fmtBtn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
-      {sep}
-      {/* Font family — paragraph-level so chips inherit it */}
-      <select
-        value={curFontFamily}
-        onChange={e => {
-          editor?.chain().setParagraphFont(e.target.value || null).run()
-        }}
-        disabled={!editor}
-        title="Schriftart (gilt für gesamte Zeile inkl. Chips)"
-        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', maxWidth: 100, flexShrink: 0 }}
-      >
-        <option value="">— Schrift —</option>
-        {FONT_FAMILIES.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
-      </select>
-      {/* Font size — paragraph-level */}
-      <select
-        value={curFontSize}
-        onChange={e => {
-          editor?.chain().setParagraphFontSize(e.target.value || null).run()
-        }}
-        disabled={!editor}
-        title="Schriftgröße (gilt für gesamte Zeile inkl. Chips)"
-        style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 60, flexShrink: 0 }}
-      >
-        <option value="">— Pt —</option>
-        {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s} pt</option>)}
-      </select>
-      {sep}
-      {/* Special characters */}
-      {SPECIAL_CHARS.map(({ char, title }) =>
-        fmtBtn(char, false, () => editor?.chain().focus().insertContent(char).run(), title, { fontWeight: 400, fontSize: 12 })
-      )}
-      {sep}
-      {/* Images */}
-      <button
-        disabled={!editor || !!imgLoading}
-        onMouseDown={e => { e.preventDefault(); loadFirmenlogo() }}
-        style={imgBtnStyle}
-      >{imgLoading === 'firma' ? '…' : 'Firmenlogo'}</button>
-      <button
-        disabled={!editor || !produktionsLogoUrl || !!imgLoading}
-        onMouseDown={e => { e.preventDefault(); if (produktionsLogoUrl) insertImg(produktionsLogoUrl) }}
-        style={{ ...imgBtnStyle, opacity: produktionsLogoUrl ? 1 : 0.4, color: editor && produktionsLogoUrl ? 'var(--text-secondary)' : 'var(--text-muted)' }}
-      >{imgLoading === 'prod' ? '…' : 'Produktionslogo'}</button>
-      <button
-        disabled={!editor}
-        onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click() }}
-        style={imgBtnStyle}
-      >↑ Bild</button>
-      {/* Placeholder chips (only for KZ/FZ zones, not body unless zone is provided) */}
-      {chips.length > 0 && sep}
-      {chips.map(p => (
-        <button
-          key={p.key}
+      {/* ── Row 1: Formatting tools — nowrap, sized to fit the available A4 content width ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'nowrap', padding: '4px 8px', minHeight: 32 }}>
+        {fmtBtn('B', editor?.isActive('bold')      ?? false, () => editor?.chain().focus().toggleBold().run(),      'Fett',          { fontWeight: 700 })}
+        {fmtBtn('I', editor?.isActive('italic')    ?? false, () => editor?.chain().focus().toggleItalic().run(),    'Kursiv',        { fontStyle: 'italic' })}
+        {fmtBtn('U', editor?.isActive('underline') ?? false, () => editor?.chain().focus().toggleUnderline().run(), 'Unterstrichen', { textDecoration: 'underline' })}
+        {sep('sep-align')}
+        {fmtBtn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
+        {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
+        {fmtBtn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
+        {sep('sep-font')}
+        {/* Font family — paragraph-level so chips inherit it */}
+        <select
+          value={curFontFamily}
+          onChange={e => editor?.chain().setParagraphFont(e.target.value || null).run()}
           disabled={!editor}
-          onMouseDown={e => { e.preventDefault(); if (editor) editor.chain().focus().insertPlaceholderChip(p.key).run() }}
-          title={p.key}
-          style={{
-            display: 'inline-flex', alignItems: 'center',
-            background: p.color + '1A', color: p.color, border: `1px solid ${p.color}55`,
-            borderRadius: 4, fontSize: 10, fontWeight: 600, padding: '2px 6px',
-            cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit',
-            whiteSpace: 'nowrap', flexShrink: 0, opacity: editor ? 1 : 0.4,
-          }}
-        >{p.label}</button>
-      ))}
-      {!editor && !isBody && (
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
-          ← Bereich anklicken
-        </span>
+          title="Schriftart (gilt für gesamte Zeile inkl. Chips)"
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 88, flexShrink: 0 }}
+        >
+          <option value="">— Schrift —</option>
+          {FONT_FAMILIES.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
+        </select>
+        {/* Font size — paragraph-level */}
+        <select
+          value={curFontSize}
+          onChange={e => editor?.chain().setParagraphFontSize(e.target.value || null).run()}
+          disabled={!editor}
+          title="Schriftgröße (gilt für gesamte Zeile inkl. Chips)"
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 48, flexShrink: 0 }}
+        >
+          <option value="">Pt</option>
+          {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s}</option>)}
+        </select>
+        {sep('sep-chars')}
+        {SPECIAL_CHARS.map(({ char, title }) =>
+          fmtBtn(char, false, () => editor?.chain().focus().insertContent(char).run(), title, { fontWeight: 400, fontSize: 12 })
+        )}
+        {sep('sep-img')}
+        <button
+          disabled={!editor || !!imgLoading}
+          onMouseDown={e => { e.preventDefault(); loadFirmenlogo() }}
+          style={imgBtnStyle}
+          title="Firmenlogo einfügen"
+        >{imgLoading === 'firma' ? '…' : 'Logo'}</button>
+        <button
+          disabled={!editor || !produktionsLogoUrl || !!imgLoading}
+          onMouseDown={e => { e.preventDefault(); if (produktionsLogoUrl) insertImg(produktionsLogoUrl) }}
+          style={{ ...imgBtnStyle, opacity: produktionsLogoUrl ? 1 : 0.4 }}
+          title="Produktionslogo einfügen"
+        >{imgLoading === 'prod' ? '…' : 'Prod.'}</button>
+        <button
+          disabled={!editor}
+          onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click() }}
+          style={imgBtnStyle}
+          title="Bild aus Datei einfügen"
+        >↑ Bild</button>
+        {!editor && !isBody && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, flexShrink: 0 }}>
+            ← Bereich anklicken
+          </span>
+        )}
+      </div>
+
+      {/* ── Row 2: Placeholder chips — own row, wraps freely, only for KZ/FZ zones ── */}
+      {chips.length > 0 && (
+        <div style={{
+          display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 3,
+          padding: '4px 8px', borderTop: '1px solid var(--border)',
+        }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, userSelect: 'none' }}>Chips:</span>
+          {chips.map(p => (
+            <button
+              key={p.key}
+              disabled={!editor}
+              onMouseDown={e => { e.preventDefault(); if (editor) editor.chain().focus().insertPlaceholderChip(p.key).run() }}
+              title={p.key}
+              style={{
+                display: 'inline-flex', alignItems: 'center',
+                background: p.color + '1A', color: p.color, border: `1px solid ${p.color}55`,
+                borderRadius: 4, fontSize: 10, fontWeight: 600, padding: '2px 6px',
+                cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit',
+                whiteSpace: 'nowrap', flexShrink: 0, opacity: editor ? 1 : 0.4,
+              }}
+            >{p.label}</button>
+          ))}
+        </div>
       )}
     </>
   )
 }
 
 // ── Toolbar wrapper ────────────────────────────────────────────────────────────
+// flex-direction:column so ToolbarContent's two rows (formatting + chips) stack cleanly
 const TOOLBAR_STYLE: React.CSSProperties = {
-  display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px',
+  display: 'flex', flexDirection: 'column',
   borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
-  alignItems: 'center', minHeight: 36, flexShrink: 0,
+  flexShrink: 0,
 }
 
 function SharedColumnToolbar({
