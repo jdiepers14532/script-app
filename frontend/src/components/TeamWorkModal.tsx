@@ -43,7 +43,7 @@ export default function TeamWorkModal({
 
   const loadGruppen = useCallback(async () => {
     try {
-      const data = await api.get(`/api/colab-gruppen?produktion_id=${encodeURIComponent(produktionId)}`)
+      const data = await api.getColabGruppen(produktionId)
       setGruppen(Array.isArray(data) ? data : [])
     } catch {
       setError('Gruppen konnten nicht geladen werden.')
@@ -59,7 +59,7 @@ export default function TeamWorkModal({
     setSaving(true)
     setError(null)
     try {
-      const gruppe = await api.post('/api/colab-gruppen', {
+      const gruppe = await api.createColabGruppe({
         produktion_id: produktionId,
         name: newName.trim(),
         beschreibung: newBeschreibung.trim() || undefined,
@@ -79,7 +79,7 @@ export default function TeamWorkModal({
   async function deleteGruppe(id: string) {
     if (!confirm('Gruppe wirklich löschen?')) return
     try {
-      await api.delete(`/api/colab-gruppen/${id}`)
+      await api.deleteColabGruppeById(id)
       setGruppen(prev => prev.filter(g => g.id !== id))
       if (selectedGruppe?.id === id) {
         setSelectedGruppe(null)
@@ -94,7 +94,7 @@ export default function TeamWorkModal({
     if (!selectedGruppe || !currentUserId || !currentUserName) return
     setSaving(true)
     try {
-      const m = await api.post(`/api/colab-gruppen/${selectedGruppe.id}/mitglieder`, {
+      const m = await api.addColabMitglied(selectedGruppe.id, {
         user_id: currentUserId,
         user_name: currentUserName,
       })
@@ -119,7 +119,7 @@ export default function TeamWorkModal({
     const nameSlug = newMemberName.trim().toLowerCase().replace(/\s+/g, '-')
     setSaving(true)
     try {
-      const m = await api.post(`/api/colab-gruppen/${selectedGruppe.id}/mitglieder`, {
+      const m = await api.addColabMitglied(selectedGruppe.id, {
         user_id: nameSlug,
         user_name: newMemberName.trim(),
       })
@@ -142,7 +142,7 @@ export default function TeamWorkModal({
   async function removeMember(userId: string) {
     if (!selectedGruppe) return
     try {
-      await api.delete(`/api/colab-gruppen/${selectedGruppe.id}/mitglieder/${encodeURIComponent(userId)}`)
+      await api.removeColabMitglied(selectedGruppe.id, userId)
       setSelectedGruppe(prev => prev ? {
         ...prev,
         mitglieder: (prev.mitglieder ?? []).filter(m => m.user_id !== userId),

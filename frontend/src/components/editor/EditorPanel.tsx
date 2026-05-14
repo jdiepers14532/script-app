@@ -104,6 +104,38 @@ export default function EditorPanel({
   // Cleanup save timer
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
 
+  // ── Session Heartbeat (Szenario 1 + 3: Aktivitätserkennung) ──────────────
+  // DSGVO: nur last_active_at — kein Aktivitätslog. Framing: Autorenschutz.
+  const [otherActiveUsers, setOtherActiveUsers] = useState<Array<{ user_name: string; last_active_at: string }>>([])
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sendHeartbeat = useCallback(async () => {
+    if (!selectedWerkId) return
+    try { await api.sessionHeartbeat(selectedWerkId) } catch { /* non-critical */ }
+  }, [selectedWerkId])
+  const loadOtherUsers = useCallback(async () => {
+    if (!selectedWerkId) return
+    try {
+      const users = await api.getSessionUsers(selectedWerkId)
+      setOtherActiveUsers(Array.isArray(users) ? users : [])
+    } catch { /* non-critical */ }
+  }, [selectedWerkId])
+  useEffect(() => {
+    if (!selectedWerkId) {
+      setOtherActiveUsers([])
+      return
+    }
+    sendHeartbeat()
+    loadOtherUsers()
+    heartbeatRef.current = setInterval(() => { sendHeartbeat(); loadOtherUsers() }, 10 * 60 * 1000)
+    return () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current)
+      // End session on unmount (werkstufe deselected or page unloaded)
+      if (selectedWerkId) {
+        api.sessionEnd(selectedWerkId).catch(() => {})
+      }
+    }
+  }, [selectedWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Save: write content directly to the single selected scene
   const scheduleSave = useCallback((editorContent: any) => {
     if (!editorContent || !selectedSzeneId) return
@@ -280,6 +312,24 @@ export default function EditorPanel({
               <CollaborationPresence status={collabStatus} users={collabUsers} />
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Szenario 3: Andere User aktiv auf derselben Werkstufe ── */}
+      {otherActiveUsers.length > 0 && !collabEnabled && (
+        <div style={{
+          padding: '7px 14px',
+          background: 'rgba(255,149,0,0.08)',
+          borderBottom: '1px solid rgba(255,149,0,0.3)',
+          display: 'flex', alignItems: 'center', gap: 8, fontSize: 11,
+          color: '#FF9500',
+        }}>
+          <span style={{ fontWeight: 600 }}>⚠</span>
+          {otherActiveUsers.length === 1
+            ? `${otherActiveUsers[0].user_name} hat diese Werkstufe zuletzt bearbeitet und könnte offline sein.`
+            : `${otherActiveUsers.map(u => u.user_name).join(', ')} sind auf dieser Werkstufe aktiv.`
+          }
+          {' '}Deine Änderungen könnten beim nächsten Sync zu einem Konflikt führen.
         </div>
       )}
 

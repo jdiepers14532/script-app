@@ -745,6 +745,34 @@ export const api = {
     skipped_excluded: number
     affected_scenes: any[]
   }>('POST', '/search/replace', params),
+
+  // ── Team-Work: Colab-Gruppen ───────────────────────────────────────────────
+  getColabGruppen: (produktionId: string) =>
+    request<any[]>('GET', `/colab-gruppen?produktion_id=${encodeURIComponent(produktionId)}`),
+  createColabGruppe: (data: { produktion_id: string; name: string; beschreibung?: string }) =>
+    request<any>('POST', '/colab-gruppen', data),
+  updateColabGruppe: (id: string, data: { name: string; beschreibung?: string }) =>
+    request<any>('PUT', `/colab-gruppen/${id}`, data),
+  deleteColabGruppeById: (id: string) =>
+    request<void>('DELETE', `/colab-gruppen/${id}`),
+  addColabMitglied: (gruppeId: string, data: { user_id: string; user_name: string }) =>
+    request<any>('POST', `/colab-gruppen/${gruppeId}/mitglieder`, data),
+  removeColabMitglied: (gruppeId: string, userId: string) =>
+    request<void>('DELETE', `/colab-gruppen/${gruppeId}/mitglieder/${encodeURIComponent(userId)}`),
+
+  // ── Team-Work: Werkstufen-Sessions (Heartbeat) ────────────────────────────
+  sessionHeartbeat: (werkId: string) =>
+    request<any>('PUT', `/werkstufen-sessions/${werkId}`, {}),
+  sessionEnd: (werkId: string) =>
+    request<void>('DELETE', `/werkstufen-sessions/${werkId}`),
+  getSessionUsers: (werkId: string) =>
+    request<Array<{ user_id: string; user_name: string; last_active_at: string }>>('GET', `/werkstufen-sessions/${werkId}`),
+
+  // ── Generic helpers ───────────────────────────────────────────────────────
+  get: (path: string) => request<any>('GET', path),
+  post: (path: string, body?: any) => request<any>('POST', path, body),
+  put: (path: string, body?: any) => request<any>('PUT', path, body),
+  delete: (path: string) => request<void>('DELETE', path),
 }
 
 /**
