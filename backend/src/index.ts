@@ -58,6 +58,7 @@ import {
   sichtbarkeitRouter,
   privatModeTokensPublicRouter,
 } from './routes/teamwork'
+import { runPrivatModusWorker } from './workers/privatModusWorker'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -220,6 +221,9 @@ setInterval(async () => {
     console.error('Lock cleanup error:', err)
   }
 }, 5 * 60 * 1000)
+
+// Cron: Privat-Modus Auto-Ablauf Worker — alle 15 Minuten
+setInterval(runPrivatModusWorker, 15 * 60 * 1000)
 
 // Run migration on startup
 async function runMigrations() {
