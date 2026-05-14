@@ -99,7 +99,6 @@ export async function runPrivatModusWorker() {
         f.arbeitstitel AS folge_titel,
         p.id AS produktion_id,
         ws.last_active_at,
-        ws.ended_at
       FROM werkstufen w
       JOIN folgen f ON f.id = w.folge_id
       JOIN produktionen p ON p.id = f.produktion_id
@@ -108,10 +107,9 @@ export async function runPrivatModusWorker() {
         AND w.privat_permanent = false
         AND w.privat_gesetzt_von IS NOT NULL
         AND (
-          ws.last_active_at IS NULL
+          ws.id IS NULL
           OR ws.last_active_at < now() - ($1 || ' hours')::INTERVAL
         )
-        AND (ws.ended_at IS NOT NULL OR ws.id IS NULL)
     `, [ablaufStunden.toString()])
 
     for (const row of abgelaufene) {
@@ -139,7 +137,7 @@ export async function runPrivatModusWorker() {
 
       // User-Email aus auth.app holen
       const AUTH_URL = 'http://127.0.0.1:3002'
-      const INTERNAL_KEY = process.env.INTERNAL_SECRET || 'prod-internal-2026'
+      const INTERNAL_KEY = process.env.INTERNAL_SECRET ?? ''
       let userEmail: string | null = null
       let userName = row.user_id
       try {
@@ -176,8 +174,8 @@ export async function runPrivatModusWorker() {
         email: userEmail,
         userName,
         werkstufeName: werkName,
-        verlaengernUrl: `${APP_URL}/api/privat-mode-tokens/${tokenVerlaengern.token}`,
-        freigebenUrl: `${APP_URL}/api/privat-mode-tokens/${tokenFreigeben.token}`,
+        verlaengernUrl: `${APP_URL}/privat-mode-token/${tokenVerlaengern.token}`,
+        freigebenUrl: `${APP_URL}/privat-mode-token/${tokenFreigeben.token}`,
       }).catch(err => console.error(`[privatModus] Email-Fehler für ${userEmail}:`, err))
 
       console.log(`[privatModus] Email gesendet an ${userEmail} für Werkstufe ${row.werkstufe_id.slice(0, 8)}`)

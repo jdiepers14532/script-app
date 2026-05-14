@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, Search } from 'lucide-react'
-import { api } from '../api/client'
+import { X, Plus, Trash2, Users, UserPlus, UserMinus, ChevronRight, Search, Pencil, Check } from 'lucide-react'
+import { api, clearCacheByPrefix } from '../api/client'
 
 const BLUE = '#007AFF'
 const GREEN = '#00C853'
@@ -50,6 +50,9 @@ export default function TeamWorkModal({
   const [newBeschreibung, setNewBeschreibung] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Rename
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
   // Member search
   const [memberQuery, setMemberQuery] = useState('')
   const [memberResults, setMemberResults] = useState<AppUser[]>([])
@@ -57,6 +60,7 @@ export default function TeamWorkModal({
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadGruppen = useCallback(async () => {
+    clearCacheByPrefix('/colab-gruppen')
     try {
       const data = await api.getColabGruppen(produktionId)
       setGruppen(Array.isArray(data) ? data : [])
@@ -104,6 +108,22 @@ export default function TeamWorkModal({
       setNewBeschreibung('')
     } catch {
       setError('Gruppe konnte nicht erstellt werden.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function renameGruppe() {
+    if (!selectedGruppe || !renameValue.trim()) return
+    setSaving(true)
+    try {
+      const updated = await api.put(`/colab-gruppen/${selectedGruppe.id}`, { name: renameValue.trim(), beschreibung: selectedGruppe.beschreibung })
+      const updatedGruppe = { ...selectedGruppe, name: updated.name }
+      setSelectedGruppe(updatedGruppe)
+      setGruppen(prev => prev.map(g => g.id === selectedGruppe.id ? updatedGruppe : g))
+      setRenaming(false)
+    } catch {
+      setError('Gruppe konnte nicht umbenannt werden.')
     } finally {
       setSaving(false)
     }
@@ -177,11 +197,32 @@ export default function TeamWorkModal({
               </button>
             )}
             <Users size={16} style={{ color: BLUE }} />
-            <span style={{ fontWeight: 700, fontSize: 15 }}>
-              {view === 'list' && 'Team-Work'}
-              {view === 'new' && 'Neue Gruppe'}
-              {view === 'detail' && selectedGruppe?.name}
-            </span>
+            {view === 'detail' && renaming ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  value={renameValue}
+                  onChange={e => setRenameValue(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') renameGruppe(); if (e.key === 'Escape') setRenaming(false) }}
+                  autoFocus
+                  style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 14, fontWeight: 600, width: 200 }}
+                />
+                <button onClick={renameGruppe} disabled={saving} style={{ background: 'none', border: 'none', cursor: 'pointer', color: BLUE, padding: 4, display: 'flex' }}>
+                  <Check size={15} />
+                </button>
+              </div>
+            ) : (
+              <span style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
+                {view === 'list' && 'Team-Work'}
+                {view === 'new' && 'Neue Gruppe'}
+                {view === 'detail' && selectedGruppe?.name}
+                {view === 'detail' && selectedGruppe?.erstellt_von === currentUserId && (
+                  <button onClick={() => { setRenameValue(selectedGruppe?.name ?? ''); setRenaming(true) }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}>
+                    <Pencil size={12} />
+                  </button>
+                )}
+              </span>
+            )}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 4, display: 'flex' }}>
             <X size={16} />

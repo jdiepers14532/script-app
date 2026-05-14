@@ -126,7 +126,7 @@ export default function EditorPanel({
     }
     sendHeartbeat()
     loadOtherUsers()
-    heartbeatRef.current = setInterval(() => { sendHeartbeat(); loadOtherUsers() }, 10 * 60 * 1000)
+    heartbeatRef.current = setInterval(() => { sendHeartbeat(); loadOtherUsers() }, 7 * 60 * 1000)
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current)
       // End session on unmount (werkstufe deselected or page unloaded)

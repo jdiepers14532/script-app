@@ -61,12 +61,18 @@ colabGruppenRouter.post('/', async (req, res) => {
   }
 })
 
-// PUT /api/colab-gruppen/:id — Gruppe umbenennen
+// PUT /api/colab-gruppen/:id — Gruppe umbenennen (nur Ersteller oder Admin)
 colabGruppenRouter.put('/:id', async (req, res) => {
   const { id } = req.params
   const { name, beschreibung } = req.body
+  const user = req.user!
   if (!name?.trim()) return res.status(400).json({ error: 'name erforderlich' })
   try {
+    const gruppe = await queryOne('SELECT erstellt_von FROM colab_gruppen WHERE id = $1', [id])
+    if (!gruppe) return res.status(404).json({ error: 'Gruppe nicht gefunden' })
+    if (gruppe.erstellt_von !== user.user_id && user.role !== 'admin' && user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Nur der Ersteller kann die Gruppe umbenennen' })
+    }
     const row = await queryOne(
       `UPDATE colab_gruppen SET name = $1, beschreibung = $2, geaendert_am = now()
        WHERE id = $3 RETURNING *`,
@@ -96,12 +102,18 @@ colabGruppenRouter.delete('/:id', async (req, res) => {
   }
 })
 
-// POST /api/colab-gruppen/:id/mitglieder — Mitglied hinzufügen
+// POST /api/colab-gruppen/:id/mitglieder — Mitglied hinzufügen (nur Ersteller oder Admin)
 colabGruppenRouter.post('/:id/mitglieder', async (req, res) => {
   const { id } = req.params
   const { user_id, user_name } = req.body
+  const user = req.user!
   if (!user_id || !user_name) return res.status(400).json({ error: 'user_id und user_name erforderlich' })
   try {
+    const gruppe = await queryOne('SELECT erstellt_von FROM colab_gruppen WHERE id = $1', [id])
+    if (!gruppe) return res.status(404).json({ error: 'Gruppe nicht gefunden' })
+    if (gruppe.erstellt_von !== user.user_id && user.role !== 'admin' && user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Nur der Ersteller kann Mitglieder hinzufügen' })
+    }
     const row = await queryOne(
       `INSERT INTO colab_gruppen_mitglieder (gruppe_id, user_id, user_name)
        VALUES ($1, $2, $3)
@@ -116,9 +128,18 @@ colabGruppenRouter.post('/:id/mitglieder', async (req, res) => {
 })
 
 // DELETE /api/colab-gruppen/:id/mitglieder/:userId — Mitglied entfernen
+// Erlaubt: Ersteller, Admin, oder User der sich selbst entfernt
 colabGruppenRouter.delete('/:id/mitglieder/:userId', async (req, res) => {
   const { id, userId } = req.params
+  const user = req.user!
   try {
+    if (userId !== user.user_id && user.role !== 'admin' && user.role !== 'superadmin') {
+      const gruppe = await queryOne('SELECT erstellt_von FROM colab_gruppen WHERE id = $1', [id])
+      if (!gruppe) return res.status(404).json({ error: 'Gruppe nicht gefunden' })
+      if (gruppe.erstellt_von !== user.user_id) {
+        return res.status(403).json({ error: 'Keine Berechtigung' })
+      }
+    }
     await pool.query(
       'DELETE FROM colab_gruppen_mitglieder WHERE gruppe_id = $1 AND user_id = $2',
       [id, userId]
@@ -174,8 +195,11 @@ sichtbarkeitRouter.put('/:id/sichtbarkeit', async (req, res) => {
   if (!isValid) return res.status(400).json({ error: 'Ungültige Sichtbarkeit' })
 
   try {
-    const current = await queryOne('SELECT sichtbarkeit FROM werkstufen WHERE id = $1', [id])
+    const current = await queryOne('SELECT sichtbarkeit, erstellt_von FROM werkstufen WHERE id = $1', [id])
     if (!current) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    if (current.erstellt_von !== user.user_id && user.role !== 'admin' && user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Nur der Ersteller kann die Sichtbarkeit ändern' })
+    }
 
     const isPrivat = sichtbarkeit === 'privat'
     const wasPrivat = current.sichtbarkeit === 'privat'

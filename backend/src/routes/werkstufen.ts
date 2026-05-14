@@ -35,6 +35,7 @@ folgeWerkstufenRouter.get('/', async (req, res) => {
            -- team: oder colab: — nur wenn User Mitglied der Gruppe ist
            OR (
              (w.sichtbarkeit LIKE 'team:%' OR w.sichtbarkeit LIKE 'colab:%')
+             AND SPLIT_PART(w.sichtbarkeit, ':', 2) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
              AND EXISTS (
                SELECT 1 FROM colab_gruppen_mitglieder cgm
                WHERE cgm.gruppe_id = SPLIT_PART(w.sichtbarkeit, ':', 2)::uuid
@@ -95,7 +96,7 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
     const wsRes = await client.query(
       `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [folgeId, typ, nextVersion, label ?? null, sichtbarkeit ?? 'team', user.user_id]
+      [folgeId, typ, nextVersion, label ?? null, sichtbarkeit ?? 'autoren', user.user_id]
     )
     const werkstufe = wsRes.rows[0]
 
@@ -143,6 +144,7 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
 // GET /api/werkstufen/:id — single Werkstufe
 // ══════════════════════════════════════════════════════════════════════════════
 werkstufenRouter.get('/:id', async (req, res) => {
+  const userId = req.user!.user_id
   try {
     const row = await queryOne(
       `SELECT w.*,
@@ -151,8 +153,22 @@ werkstufenRouter.get('/:id', async (req, res) => {
               f.produktion_id, f.folge_nummer, f.folgen_titel
        FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id
-       WHERE w.id = $1`,
-      [req.params.id]
+       WHERE w.id = $1
+         AND (
+           w.sichtbarkeit IN ('autoren', 'produktion')
+           OR (w.sichtbarkeit = 'privat' AND w.privat_gesetzt_von = $2)
+           OR w.erstellt_von = $2
+           OR (
+             (w.sichtbarkeit LIKE 'team:%' OR w.sichtbarkeit LIKE 'colab:%')
+             AND SPLIT_PART(w.sichtbarkeit, ':', 2) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+             AND EXISTS (
+               SELECT 1 FROM colab_gruppen_mitglieder cgm
+               WHERE cgm.gruppe_id = SPLIT_PART(w.sichtbarkeit, ':', 2)::uuid
+                 AND cgm.user_id = $2
+             )
+           )
+         )`,
+      [req.params.id, userId]
     )
     if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
     res.json(row)

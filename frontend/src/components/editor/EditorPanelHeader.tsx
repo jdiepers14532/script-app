@@ -66,6 +66,8 @@ export default function EditorPanelHeader({
   const [showLabelMenu, setShowLabelMenu] = useState(false)
   const [showSichtbarkeitMenu, setShowSichtbarkeitMenu] = useState(false)
   const [activeSubmenu, setActiveSubmenu] = useState<'team' | 'colab' | null>(null)
+  const [submenuOpenLeft, setSubmenuOpenLeft] = useState(false)
+  const sichtbarkeitContainerRef = useRef<HTMLDivElement>(null)
   const [labelError, setLabelError] = useState<string | null>(null)
   const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
   const [colabGruppen, setColabGruppen] = useState<Array<{ id: string; name: string }>>([])
@@ -90,9 +92,15 @@ export default function EditorPanelHeader({
     api.getStageLabels(produktionId).then(setStageLabels).catch(() => {})
   }, [produktionId])
 
-  // Reload groups fresh every time the menu opens (clears cache so new groups appear)
+  // Reload groups fresh every time the menu opens + check viewport for submenu direction
   useEffect(() => {
-    if (!showSichtbarkeitMenu || !produktionId) return
+    if (!showSichtbarkeitMenu) { setActiveSubmenu(null); return }
+    if (!produktionId) return
+    // Detect if submenu would overflow right edge
+    if (sichtbarkeitContainerRef.current) {
+      const rect = sichtbarkeitContainerRef.current.getBoundingClientRect()
+      setSubmenuOpenLeft(rect.right + 200 > window.innerWidth)
+    }
     clearCacheByPrefix('/colab-gruppen')
     api.getColabGruppen(produktionId).then(gs => setColabGruppen(gs.map((g: any) => ({ id: g.id, name: g.name })))).catch(() => {})
   }, [showSichtbarkeitMenu, produktionId])
@@ -179,7 +187,7 @@ export default function EditorPanelHeader({
 
       {/* Sichtbarkeits-Badge (klickbar) */}
       {selectedWerk && !selectedWerk.abgegeben && (
-        <div style={{ position: 'relative' }}>
+        <div ref={sichtbarkeitContainerRef} style={{ position: 'relative' }}>
           <button
             onClick={() => { setShowSichtbarkeitMenu(v => !v); setShowMenu(false); setShowLabelMenu(false) }}
             title={`Sichtbarkeit ändern (aktuell: ${getSichtbarkeitLabel(sichtbarkeit)})`}
@@ -198,37 +206,43 @@ export default function EditorPanelHeader({
 
           {showSichtbarkeitMenu && (
             <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowSichtbarkeitMenu(false)} />
+              <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => { setShowSichtbarkeitMenu(false); setActiveSubmenu(null) }} />
               <div style={{
                 position: 'absolute', top: '100%', left: 0, zIndex: 99, marginTop: 4,
                 background: 'var(--bg-surface)', border: '1px solid var(--border)',
                 borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 200, padding: '4px 0',
               }}>
                 {[
-                  { value: 'privat', label: 'Nur ich (Privat)', icon: <Lock size={11} />, color: '#FF9500' },
-                  { value: 'autoren', label: 'Alle Autoren', icon: <Users size={11} />, color: '#007AFF' },
-                  { value: 'produktion', label: 'Gesamte Produktion', icon: <Globe size={11} />, color: '#00C853' },
-                ].map(opt => (
+                  { value: 'privat', label: 'Nur ich (Privat)', icon: <Lock size={11} />, color: '#FF9500', permanent: false },
+                  { value: 'privat', label: 'Nur ich (dauerhaft)', icon: <Lock size={11} />, color: '#FF9500', permanent: true },
+                  { value: 'autoren', label: 'Alle Autoren', icon: <Users size={11} />, color: '#007AFF', permanent: false },
+                  { value: 'produktion', label: 'Gesamte Produktion', icon: <Globe size={11} />, color: '#00C853', permanent: false },
+                ].map((opt, i) => (
                   <button
-                    key={opt.value}
+                    key={`${opt.value}-${i}`}
                     onClick={async () => {
                       setShowSichtbarkeitMenu(false)
                       setSichtbarkeitSaving(true)
                       try {
-                        await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: opt.value })
+                        await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: opt.value, privat_permanent: opt.permanent })
                         clearCacheByPrefix('/v2/folgen/')
                         onReloadWerkstufen()
                       } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
                     }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                      padding: '7px 12px', fontSize: 12, background: sichtbarkeit === opt.value ? 'var(--bg-active)' : 'transparent',
+                      padding: opt.permanent ? '5px 12px 5px 24px' : '7px 12px',
+                      fontSize: opt.permanent ? 11 : 12,
+                      background: sichtbarkeit === opt.value && (opt.permanent ? selectedWerk.privat_permanent : (!selectedWerk.privat_permanent || opt.value !== 'privat'))
+                        ? 'var(--bg-active)' : 'transparent',
                       border: 'none', cursor: 'pointer', textAlign: 'left',
-                      fontFamily: 'inherit', color: opt.color, fontWeight: sichtbarkeit === opt.value ? 600 : 400,
+                      fontFamily: 'inherit', color: opt.permanent ? '#FF950099' : opt.color,
+                      fontWeight: sichtbarkeit === opt.value ? 600 : 400,
                     }}
                   >
                     {opt.icon}
                     {opt.label}
+                    {opt.permanent && <span style={{ marginLeft: 'auto', fontSize: 9, color: '#FF950066' }}>kein Auto-Ablauf</span>}
                   </button>
                 ))}
                 {/* Team flyout */}
@@ -256,7 +270,8 @@ export default function EditorPanelHeader({
                   {activeSubmenu === 'team' && (
                     <div
                       style={{
-                        position: 'absolute', top: -4, left: '100%', zIndex: 100,
+                        position: 'absolute', top: -4,
+                        ...(submenuOpenLeft ? { right: '100%' } : { left: '100%' }), zIndex: 100,
                         background: 'var(--bg-surface)', border: '1px solid var(--border)',
                         borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 180, padding: '4px 0',
                       }}
@@ -325,7 +340,8 @@ export default function EditorPanelHeader({
                   {activeSubmenu === 'colab' && (
                     <div
                       style={{
-                        position: 'absolute', top: -4, left: '100%', zIndex: 100,
+                        position: 'absolute', top: -4,
+                        ...(submenuOpenLeft ? { right: '100%' } : { left: '100%' }), zIndex: 100,
                         background: 'var(--bg-surface)', border: '1px solid var(--border)',
                         borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 180, padding: '4px 0',
                       }}
