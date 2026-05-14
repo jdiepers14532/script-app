@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { HocuspocusProvider } from '@hocuspocus/provider'
 import * as Y from 'yjs'
+import { IndexeddbPersistence } from 'y-indexeddb'
 
 export type CollabStatus = 'connecting' | 'connected' | 'disconnected' | 'offline'
 
@@ -29,15 +30,21 @@ interface UseCollaborationOptions {
 export function useCollaboration({ fassungId, szeneId, enabled }: UseCollaborationOptions) {
   const providerRef = useRef<HocuspocusProvider | null>(null)
   const ydocRef = useRef<Y.Doc | null>(null)
+  const idbRef = useRef<IndexeddbPersistence | null>(null)
   const [status, setStatus] = useState<CollabStatus>('disconnected')
   const [users, setUsers] = useState<CollabUser[]>([])
+  // Tier 3: true sobald lokaler IDB-Stand in den Yjs-Doc geladen wurde
+  const [idbReady, setIdbReady] = useState(false)
 
   const destroy = useCallback(() => {
     providerRef.current?.destroy()
     providerRef.current = null
+    idbRef.current?.destroy()
+    idbRef.current = null
     ydocRef.current = null
     setStatus('disconnected')
     setUsers([])
+    setIdbReady(false)
   }, [])
 
   // Derive room name from props
@@ -62,6 +69,12 @@ export function useCollaboration({ fassungId, szeneId, enabled }: UseCollaborati
 
     const ydoc = new Y.Doc()
     ydocRef.current = ydoc
+
+    // Tier 3: IDB-Persistence — lädt gespeicherten Yjs-Stand sofort (auch offline)
+    const idbName = `collab-${roomPrefix}-${roomId}`
+    const idb = new IndexeddbPersistence(idbName, ydoc)
+    idbRef.current = idb
+    idb.whenSynced.then(() => setIdbReady(true)).catch(() => setIdbReady(true))
 
     const provider = new HocuspocusProvider({
       url: wsUrl,
@@ -123,5 +136,6 @@ export function useCollaboration({ fassungId, szeneId, enabled }: UseCollaborati
     provider: providerRef.current,
     status,
     users,
+    idbReady,
   }
 }

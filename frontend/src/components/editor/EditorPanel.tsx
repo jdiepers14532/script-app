@@ -186,7 +186,7 @@ export default function EditorPanel({
 
   // Collaboration
   const collabEnabled = selectedWerk?.sichtbarkeit === 'colab' && !isReadOnly
-  const { ydoc, provider, status: collabStatus, users: collabUsers } = useCollaboration({
+  const { ydoc, provider, status: collabStatus, users: collabUsers, idbReady } = useCollaboration({
     fassungId: collabEnabled ? selectedWerkId : null,
     enabled: collabEnabled,
   })
@@ -246,7 +246,12 @@ export default function EditorPanel({
             </div>
           </div>
           {collabEnabled && (
-            <div style={{ padding: '0 10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px' }}>
+              {!idbReady && (
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                  Lädt lokalen Stand…
+                </span>
+              )}
               <CollaborationPresence status={collabStatus} users={collabUsers} />
             </div>
           )}
