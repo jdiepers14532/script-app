@@ -2634,6 +2634,83 @@ function Placeholder({ label }: { label: string }) {
   )
 }
 
+// ── Titelseite Default Content ──────────────────────────────────────────────────
+
+function titelseiteDefaultVorlage(): DokumentVorlagenEditorValue {
+  const chip = (key: string) => ({ type: 'placeholder_chip', attrs: { key } })
+  const t    = (s: string, bold?: boolean) => ({ type: 'text', text: s, ...(bold ? { marks: [{ type: 'bold' }] } : {}) })
+  const p    = (content: any[], attrs?: Record<string, any>) => ({
+    type: 'paragraph',
+    attrs: { fontFamily: null, fontSize: null, textAlign: 'left', ...attrs },
+    content,
+  })
+  const metaRow = (label: string, value: any[]) =>
+    p([t(label + ':  ', true), ...value])
+  const hr    = { type: 'horizontalRule' }
+  const empty = { type: 'paragraph', content: [] }
+
+  const body_content = {
+    type: 'doc',
+    content: [
+      // Titel
+      p([chip('{{produktion}}'), t('  –  Staffel '), chip('{{staffel}}')], { textAlign: 'center', fontSize: '20pt' }),
+      p([chip('{{fassung}}'), t('  –  Episode '), chip('{{folge}}')],      { textAlign: 'center', fontSize: '13pt' }),
+      empty,
+      hr,
+
+      // Produktionsdaten
+      metaRow('Block',                  [chip('{{block}}')]),
+      metaRow('Produktionsbesprechung', [t('TT.MM.JJJJ')]),
+      metaRow('Vorauss. Drehtermin',    [t('TT.MM. – TT.MM.JJJJ')]),
+      metaRow('Vorauss. Sendetermin',   [t('JJJJ')]),
+      metaRow('Gesamtlänge',            [t('MM:SS')]),
+      empty,
+
+      // Crew
+      metaRow('Regie',           [chip('{{regie}}')]),
+      metaRow('Writer Producer', [t('Name')]),
+      metaRow('Head of Story',   [t('Name')]),
+      metaRow('Storyliner',      [t('Name, Name, Name')]),
+      metaRow('Story Edit',      [t('Name')]),
+      metaRow('Autor',           [chip('{{autor}}')]),
+      metaRow('Script Edit',     [t('Name')]),
+      metaRow('Dialogautor',     [t('Name')]),
+      metaRow('Dialog Edit',     [t('Name')]),
+      empty,
+      hr,
+      empty,
+
+      // Vertraulichkeits-Hinweis
+      p(
+        [t('DIE BÜCHER SIND BIS ZUR AUSSTRAHLUNG DER EPISODEN STRENG VERTRAULICH ZU BEHANDELN. JEDER VERSTOSS WIRD ALS VERTRAGSBRUCH GEAHNDET!', true)],
+        { textAlign: 'center' },
+      ),
+      empty,
+      hr,
+      empty,
+
+      // Copyright
+      p([t('© 2026  '), chip('{{firmenname}}')]),
+    ],
+  }
+
+  const fzPm = (content: any[]) => ({ type: 'doc', content: [{ type: 'paragraph', content }] })
+
+  return {
+    body_content,
+    kopfzeile_content: null,
+    fusszeile_content: {
+      links:  fzPm([t('Stand: '), chip('{{stand_datum}}')]),
+      mitte:  fzPm([chip('{{fassung}}'), t(' – Episode '), chip('{{folge}}')]),
+      rechts: fzPm([t('Seite '), chip('{{seite}}'), t(' von '), chip('{{seiten_gesamt}}')]),
+    },
+    kopfzeile_aktiv:         false,
+    fusszeile_aktiv:         true,
+    erste_seite_kein_header: true,
+    seiten_layout:           { format: 'a4', margin_top: 25, margin_bottom: 20, margin_left: 30, margin_right: 25 },
+  }
+}
+
 // ── Vorlagen Tab ────────────────────────────────────────────────────────────────
 
 const VORLAGE_TYPES = [
@@ -2799,11 +2876,11 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     })
   }
 
-  const startNew = () => {
+  const startNew = (typ?: string) => {
     setEditId('__new__')
-    setEditName('')
-    setEditTyp('custom')
-    setEditEditorValue(emptyVorlagenEditorValue())
+    setEditName(typ === 'titelseite' ? 'Titelseite' : '')
+    setEditTyp(typ ?? 'custom')
+    setEditEditorValue(typ === 'titelseite' ? titelseiteDefaultVorlage() : emptyVorlagenEditorValue())
   }
 
   const saveVorlage = async () => {
@@ -2872,6 +2949,25 @@ function VorlagenTab({ productionId }: { productionId: string }) {
           </div>
         </div>
 
+        {editTyp === 'titelseite' && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '10px 14px', background: '#007AFF0A', border: '1px solid #007AFF33',
+            borderRadius: 8, fontSize: 12,
+          }}>
+            <span style={{ flex: 1, color: 'var(--text-secondary)' }}>
+              Titelseiten-Vorlage aus dem PDF-Standard laden (Rote Rosen)?
+              Platzhalter wie <strong>Produktion</strong>, <strong>Regie</strong>, <strong>Autor</strong> werden automatisch eingesetzt.
+            </span>
+            <button
+              onClick={() => setEditEditorValue(titelseiteDefaultVorlage())}
+              style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55', whiteSpace: 'nowrap' }}
+            >
+              Standard-Vorlage laden
+            </button>
+          </div>
+        )}
+
         <DokumentVorlagenEditor
           key={editId}
           value={editEditorValue}
@@ -2888,7 +2984,15 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Dokument-Vorlagen</h3>
-        <button onClick={startNew} style={{ ...btnStyle, fontWeight: 500 }}>+ Neue Vorlage</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => startNew('titelseite')}
+            style={{ ...btnStyle, fontWeight: 500, color: '#007AFF', borderColor: '#007AFF55' }}
+          >
+            + Titelseite
+          </button>
+          <button onClick={() => startNew()} style={{ ...btnStyle, fontWeight: 500 }}>+ Neue Vorlage</button>
+        </div>
       </div>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
         Vorlagen fuer Titelseite, Synopsis, Recap und Precap. Beim Import werden passende Vorlagen automatisch zugewiesen.

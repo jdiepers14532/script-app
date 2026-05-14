@@ -321,10 +321,11 @@ function SharedColumnToolbar({
   )
 }
 
-function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef }: {
+function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef, zone }: {
   editor: Editor | null
   produktionsLogoUrl?: string | null
   fileInputRef: React.RefObject<HTMLInputElement | null>
+  zone?: PlaceholderZone
 }) {
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -336,7 +337,7 @@ function BodyToolbar({ editor, produktionsLogoUrl, fileInputRef }: {
 
   return (
     <div style={TOOLBAR_STYLE}>
-      <ToolbarContent editor={editor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={fileInputRef} isBody />
+      <ToolbarContent editor={editor} zone={zone} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={fileInputRef} isBody />
     </div>
   )
 }
@@ -682,7 +683,7 @@ export default function DokumentVorlagenEditor({
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: '#00C853', marginBottom: 4 }}>Inhalt</div>
               <div style={{ border: '1px solid #00C85344', borderRadius: 6, overflow: 'hidden' }}>
-                <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} />
+                <BodyToolbar editor={bodyEditor} produktionsLogoUrl={produktionsLogoUrl} fileInputRef={bodyFileRef} zone="alle" />
                 <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
                 <div style={{ padding: '8px 12px', minHeight: 200, background: '#00C85308', overflow: 'hidden' }}>
                   <ZoneEditor
