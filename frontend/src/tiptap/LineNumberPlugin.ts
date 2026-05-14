@@ -39,7 +39,9 @@ function buildLineDecorations(doc: any): DecorationSet {
       Decoration.widget(offset, () => {
         const el = document.createElement('div')
         el.className = 'pm-ln'
-        el.dataset.ln = String(num)
+        const span = document.createElement('span')
+        span.textContent = String(num)
+        el.appendChild(span)
         return el
       }, { side: -1, key: `ln-${num}` })
     )
@@ -66,8 +68,8 @@ export const LN_DEFAULTS: LineNumberSettings = {
  * Generate dynamic CSS for line numbers based on settings.
  *
  * Numbers sit in the page margin area. The .pm-ln div is zero-height (no layout
- * impact) while its ::after pseudo renders the visible number via position:absolute
- * anchored to the page div (which has position:relative from PageWrapper).
+ * impact) with position:relative so its child span can be absolutely positioned
+ * into the left margin. Uses a real DOM span (not ::after) for reliable rendering.
  *
  * marginCm = distance from the physical paper left edge to the right edge
  * of the number column.
@@ -84,8 +86,7 @@ export function generateLineNumberCSS(opts: LineNumberSettings): string {
   user-select: none;
   position: relative;
 }
-.pm-ln::after {
-  content: attr(data-ln);
+.pm-ln span {
   position: absolute;
   top: 0;
   left: calc(-1 * var(--page-padding, 96px) + ${opts.marginCm}cm);
