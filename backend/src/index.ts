@@ -110,6 +110,8 @@ app.use(generalLimiter)
 
 // Routes
 app.use('/api', healthRouter)
+// Public routes (no auth) — MUST be before the catch-all /api routers with auth middleware
+app.use('/api/privat-mode-tokens', privatModeTokensPublicRouter)
 app.use('/api/produktionen', produktionenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
@@ -183,8 +185,6 @@ app.use('/api/straenge', straengeRouter)
 app.use('/api/colab-gruppen', colabGruppenRouter)
 app.use('/api/werkstufen-sessions', werkstufenSessionsRouter)
 app.use('/api/werkstufen', sichtbarkeitRouter)
-// Privat-Modus Token-Einlösung (kein Auth — für Email-Links)
-app.use('/api/privat-mode-tokens', privatModeTokensPublicRouter)
 
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)
