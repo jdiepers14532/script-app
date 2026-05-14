@@ -301,12 +301,9 @@ function ToolbarContent({
 
 // ── Toolbar wrapper ────────────────────────────────────────────────────────────
 const TOOLBAR_STYLE: React.CSSProperties = {
-  display: 'flex', flexWrap: 'nowrap', gap: 3, padding: '5px 8px',
+  display: 'flex', flexWrap: 'wrap', gap: 3, padding: '5px 8px',
   borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
   alignItems: 'center', minHeight: 36,
-  overflowX: 'auto', overflowY: 'hidden',
-  // hide scrollbar visually but keep it functional
-  scrollbarWidth: 'none',
 }
 
 function SharedColumnToolbar({
