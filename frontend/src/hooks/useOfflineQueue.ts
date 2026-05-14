@@ -96,35 +96,45 @@ export function useOfflineQueue() {
   }, [updateCount, syncQueue])
 
   const reconnect = useCallback(async (): Promise<ReconnectResult> => {
-    // 1. OS meldet kein Netz → echtes Internet-Problem
-    if (!navigator.onLine) return 'no-internet'
+    // Hinweis: navigator.onLine wird von Edge/Chrome auf false gesetzt wenn der SW in den
+    // DevTools auf Offline gestellt wird — deshalb NICHT als erste Prüfung nutzen.
+    // Stattdessen immer zuerst den Fetch versuchen.
 
-    // 2. Ping-Versuch zum Server (umgeht SW-Cache durch no-store)
+    // 1. Server-Ping (cache: no-store umgeht HTTP-Cache, nicht aber den SW)
+    let fetchOk = false
     try {
-      await fetch('/api/health', {
+      const res = await fetch('/api/health', {
         cache: 'no-store',
-        signal: AbortSignal.timeout(5000),
+        signal: AbortSignal.timeout(4000),
       })
-      // Server erreichbar → State korrigieren und sync anstoßen
+      fetchOk = res.ok || res.status < 500
+    } catch { /* netzwerkfehler oder SW hat blockiert */ }
+
+    if (fetchOk) {
       setIsOnline(true)
       syncQueue()
       return 'online'
-    } catch {
-      // fetch schlug fehl obwohl navigator.onLine=true → vermutlich SW steckt offline
     }
 
-    // 3. Service Worker deregistrieren und neu laden
+    // 2. Fetch fehlgeschlagen — SW prüfen
+    //    navigator.onLine=false + SW vorhanden → klassischer DevTools-SW-Offline-Bug
+    //    navigator.onLine=false + kein SW      → echtes Netzproblem
+    //    navigator.onLine=true  + SW vorhanden → SW intercepted ohne offline-Flag (z.B. stuck)
+    //    navigator.onLine=true  + kein SW      → Server down
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations()
       if (regs.length > 0) {
+        // SW ist präsent und Fetch ist fehlgeschlagen → SW deregistrieren und neu laden.
+        // Worst-case echter Offline + SW: nach Reload kein Asset-Cache, aber SW war
+        // ohnehin offline. Für interne Apps akzeptabler Trade-off.
         await Promise.all(regs.map(r => r.unregister()))
         window.location.reload()
         return 'sw-stuck' // wird nicht erreicht (Reload)
       }
     }
 
-    // 4. Kein SW schuld → Server nicht erreichbar
-    return 'server-down'
+    // 3. Kein SW beteiligt → echter Offline oder Server down
+    return navigator.onLine ? 'server-down' : 'no-internet'
   }, [syncQueue])
 
   return { isOnline, pendingCount, isSyncing, enqueue, syncQueue, reconnect }
