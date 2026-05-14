@@ -107,6 +107,8 @@ export interface WerkstufeMeta {
   erstellt_von: string | null
   erstellt_am: string
   szenen_count: number
+  privat_permanent?: boolean
+  privat_gesetzt_von?: string | null
   produktion_id?: string
   folge_nummer?: number
 }

@@ -381,18 +381,21 @@ export default function TeamWorkModal({
                     </div>
                     <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{m.user_name}</span>
                     {m.user_id === currentUserId && <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: 4 }}>Du</span>}
-                    <button
-                      onClick={() => removeMember(m.user_id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex', borderRadius: 4 }}
-                      title="Mitglied entfernen"
-                    >
-                      <UserMinus size={13} />
-                    </button>
+                    {(m.user_id === currentUserId || selectedGruppe.erstellt_von === currentUserId) && (
+                      <button
+                        onClick={() => removeMember(m.user_id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex', borderRadius: 4 }}
+                        title={m.user_id === currentUserId ? 'Gruppe verlassen' : 'Mitglied entfernen'}
+                      >
+                        <UserMinus size={13} />
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
 
-              {/* Person suchen & hinzufügen */}
+              {/* Person suchen & hinzufügen — nur für Gruppen-Ersteller */}
+              {selectedGruppe.erstellt_von === currentUserId && (
               <div style={{ marginBottom: 20 }}>
                 <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 }}>
                   Person hinzufügen
@@ -436,6 +439,7 @@ export default function TeamWorkModal({
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 0' }}>Keine Person gefunden.</div>
                 )}
               </div>
+              )}
 
               {/* Gruppe löschen */}
               {selectedGruppe.erstellt_von === currentUserId && (

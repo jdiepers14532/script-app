@@ -333,7 +333,7 @@ export default function EditorPanelHeader({
                       fontWeight: sichtbarkeit.startsWith('colab:') ? 600 : 400,
                     }}
                   >
-                    <Globe size={11} />
+                    <Users size={11} />
                     Colab
                     <ChevronRight size={11} style={{ marginLeft: 'auto', opacity: 0.5 }} />
                   </button>

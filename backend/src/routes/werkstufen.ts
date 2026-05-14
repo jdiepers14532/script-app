@@ -206,9 +206,14 @@ werkstufenRouter.put('/:id', async (req, res) => {
 // DELETE /api/werkstufen/:id — delete Werkstufe
 // ══════════════════════════════════════════════════════════════════════════════
 werkstufenRouter.delete('/:id', async (req, res) => {
+  const user = req.user!
   try {
-    const row = await queryOne('DELETE FROM werkstufen WHERE id = $1 RETURNING id', [req.params.id])
-    if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    const ws = await queryOne('SELECT erstellt_von FROM werkstufen WHERE id = $1', [req.params.id])
+    if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    if (ws.erstellt_von !== user.user_id && user.role !== 'admin' && user.role !== 'superadmin') {
+      return res.status(403).json({ error: 'Nur der Ersteller kann diese Werkstufe löschen' })
+    }
+    await pool.query('DELETE FROM werkstufen WHERE id = $1', [req.params.id])
     res.status(204).send()
   } catch (err) {
     res.status(500).json({ error: String(err) })

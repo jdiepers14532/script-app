@@ -11,9 +11,6 @@ colabGruppenRouter.use(authMiddleware)
 export const werkstufenSessionsRouter = Router()
 werkstufenSessionsRouter.use(authMiddleware)
 
-export const privatModeRouter = Router()
-privatModeRouter.use(authMiddleware)
-
 // ══════════════════════════════════════════════════════════════════════════════
 // COLAB-GRUPPEN
 // ══════════════════════════════════════════════════════════════════════════════
@@ -102,7 +99,8 @@ colabGruppenRouter.delete('/:id', async (req, res) => {
   }
 })
 
-// POST /api/colab-gruppen/:id/mitglieder — Mitglied hinzufügen (nur Ersteller oder Admin)
+// POST /api/colab-gruppen/:id/mitglieder — Mitglied hinzufügen
+// Erlaubt: Ersteller/Admin (beliebiges Mitglied) ODER User der sich selbst hinzufügt
 colabGruppenRouter.post('/:id/mitglieder', async (req, res) => {
   const { id } = req.params
   const { user_id, user_name } = req.body
@@ -111,8 +109,10 @@ colabGruppenRouter.post('/:id/mitglieder', async (req, res) => {
   try {
     const gruppe = await queryOne('SELECT erstellt_von FROM colab_gruppen WHERE id = $1', [id])
     if (!gruppe) return res.status(404).json({ error: 'Gruppe nicht gefunden' })
-    if (gruppe.erstellt_von !== user.user_id && user.role !== 'admin' && user.role !== 'superadmin') {
-      return res.status(403).json({ error: 'Nur der Ersteller kann Mitglieder hinzufügen' })
+    const isSelf = user_id === user.user_id
+    const isCreatorOrAdmin = gruppe.erstellt_von === user.user_id || user.role === 'admin' || user.role === 'superadmin'
+    if (!isSelf && !isCreatorOrAdmin) {
+      return res.status(403).json({ error: 'Nur der Ersteller kann andere Mitglieder hinzufügen' })
     }
     const row = await queryOne(
       `INSERT INTO colab_gruppen_mitglieder (gruppe_id, user_id, user_name)
@@ -157,7 +157,7 @@ colabGruppenRouter.delete('/:id/mitglieder/:userId', async (req, res) => {
 // GET /api/colab-gruppen/app-users?q=XY — User aus Auth-Service suchen
 colabGruppenRouter.get('/app-users', async (req, res) => {
   const AUTH_URL = 'http://127.0.0.1:3002'
-  const INTERNAL_KEY = process.env.INTERNAL_SECRET || 'prod-internal-2026'
+  const INTERNAL_KEY = process.env.INTERNAL_SECRET ?? ''
   const q = (req.query.q as string ?? '').toLowerCase().trim()
   try {
     const r = await fetch(`${AUTH_URL}/api/internal/app-users/script`, {
@@ -189,16 +189,42 @@ sichtbarkeitRouter.put('/:id/sichtbarkeit', async (req, res) => {
   const user = req.user!
 
   const validValues = ['privat', 'autoren', 'produktion']
-  const isValid = validValues.includes(sichtbarkeit) ||
-    sichtbarkeit?.startsWith('team:') ||
-    sichtbarkeit?.startsWith('colab:')
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  const isGroupSichtbarkeit = sichtbarkeit?.startsWith('team:') || sichtbarkeit?.startsWith('colab:')
+  const isValid = validValues.includes(sichtbarkeit) || isGroupSichtbarkeit
   if (!isValid) return res.status(400).json({ error: 'Ungültige Sichtbarkeit' })
 
+  // Validate group UUID format for team:/colab:
+  let groupUuid: string | null = null
+  if (isGroupSichtbarkeit) {
+    groupUuid = sichtbarkeit.split(':')[1]
+    if (!groupUuid || !UUID_RE.test(groupUuid)) {
+      return res.status(400).json({ error: 'Ungültige Gruppen-ID' })
+    }
+  }
+
   try {
-    const current = await queryOne('SELECT sichtbarkeit, erstellt_von FROM werkstufen WHERE id = $1', [id])
+    const current = await queryOne(
+      `SELECT w.sichtbarkeit, w.erstellt_von, f.produktion_id
+       FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+       WHERE w.id = $1`,
+      [id]
+    )
     if (!current) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
     if (current.erstellt_von !== user.user_id && user.role !== 'admin' && user.role !== 'superadmin') {
       return res.status(403).json({ error: 'Nur der Ersteller kann die Sichtbarkeit ändern' })
+    }
+
+    // Cross-production guard: group must belong to the same production as the werkstufe
+    if (groupUuid) {
+      const group = await queryOne(
+        'SELECT produktion_id FROM colab_gruppen WHERE id = $1',
+        [groupUuid]
+      )
+      if (!group) return res.status(404).json({ error: 'Gruppe nicht gefunden' })
+      if (group.produktion_id !== current.produktion_id) {
+        return res.status(403).json({ error: 'Gruppe gehört zu einer anderen Produktion' })
+      }
     }
 
     const isPrivat = sichtbarkeit === 'privat'
