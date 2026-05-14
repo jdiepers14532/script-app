@@ -33,6 +33,8 @@ router.put('/:key', async (req, res) => {
     'kopf_fusszeilen',
     // PWA Admin-Steuerung (v67)
     'pwa_update_action',
+    // Team-Work (v68)
+    'privat_modus_ablauf_stunden',
   ]
 
   if (!allowed.includes(key)) {

@@ -52,6 +52,12 @@ import { spellcheckRouter } from './routes/spellcheck'
 import searchRouter from './routes/search'
 import { straengeRouter } from './routes/straenge'
 import kopfFusszeilen from './routes/kopf-fusszeilen'
+import {
+  colabGruppenRouter,
+  werkstufenSessionsRouter,
+  sichtbarkeitRouter,
+  privatModeTokensPublicRouter,
+} from './routes/teamwork'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -172,6 +178,13 @@ app.use('/api/search', searchRouter)
 // Story-Straenge
 app.use('/api/straenge', straengeRouter)
 
+// Team-Work: Colab-Gruppen, Sessions, Sichtbarkeit
+app.use('/api/colab-gruppen', colabGruppenRouter)
+app.use('/api/werkstufen-sessions', werkstufenSessionsRouter)
+app.use('/api/werkstufen', sichtbarkeitRouter)
+// Privat-Modus Token-Einlösung (kein Auth — für Email-Links)
+app.use('/api/privat-mode-tokens', privatModeTokensPublicRouter)
+
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
@@ -265,6 +278,7 @@ async function runMigrations() {
     'v65_episodenende_format.sql',
     'v66_kopf_fusszeilen.sql',
     'v67_pwa_settings.sql',
+    'v68_teamwork.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
