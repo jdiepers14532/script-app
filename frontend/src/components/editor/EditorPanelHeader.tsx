@@ -73,8 +73,14 @@ export default function EditorPanelHeader({
   useEffect(() => {
     if (!produktionId) return
     api.getStageLabels(produktionId).then(setStageLabels).catch(() => {})
-    api.getColabGruppen(produktionId).then(gs => setColabGruppen(gs.map((g: any) => ({ id: g.id, name: g.name })))).catch(() => {})
   }, [produktionId])
+
+  // Reload groups fresh every time the menu opens (clears cache so new groups appear)
+  useEffect(() => {
+    if (!showSichtbarkeitMenu || !produktionId) return
+    clearCacheByPrefix('/colab-gruppen')
+    api.getColabGruppen(produktionId).then(gs => setColabGruppen(gs.map((g: any) => ({ id: g.id, name: g.name })))).catch(() => {})
+  }, [showSichtbarkeitMenu, produktionId])
 
   // Group werkstufen by typ
   const grouped = new Map<string, WerkstufeMeta[]>()
