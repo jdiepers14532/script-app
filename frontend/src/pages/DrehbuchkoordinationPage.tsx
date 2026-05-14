@@ -7,7 +7,7 @@ import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor
 import { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
-import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
+import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, renderPmToPreviewHtml, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -2886,6 +2886,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [saving, setSaving] = useState(false)
   const [zoom, setZoom] = useState(0.9)
   const [activeEditor, setActiveEditor] = useState<any>(null)
+  const [showPreview, setShowPreview] = useState(false)
   const sidebarFileRef = useRef<HTMLInputElement>(null)
 
   const handleSidebarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -3063,6 +3064,16 @@ function VorlagenTab({ productionId }: { productionId: string }) {
             </div>
           </div>
 
+          {/* Vorschau */}
+          <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
+            <button
+              onClick={() => setShowPreview(true)}
+              style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', fontWeight: 500, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+            >
+              Vorschau
+            </button>
+          </div>
+
           {/* Save / Cancel */}
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             <button
@@ -3099,6 +3110,64 @@ function VorlagenTab({ productionId }: { productionId: string }) {
         </div>
 
       </div>
+
+      {/* ── Preview Modal ── */}
+      {showPreview && (() => {
+        const fmt = editEditorValue.seiten_layout?.format ?? 'a4'
+        const wPx = fmt === 'letter' ? 816 : 794
+        const hPx = fmt === 'letter' ? 1056 : 1123
+        const ml  = editEditorValue.seiten_layout?.margin_left   ?? 30
+        const mr  = editEditorValue.seiten_layout?.margin_right  ?? 25
+        const mt  = editEditorValue.seiten_layout?.margin_top    ?? 25
+        const mb  = editEditorValue.seiten_layout?.margin_bottom ?? 25
+        const bodyHtml = renderPmToPreviewHtml(editEditorValue.body_content, previewContext)
+        return (
+          <div
+            onClick={() => setShowPreview(false)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 24px' }}
+          >
+            <div onClick={e => e.stopPropagation()} style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#fff', fontSize: 13, width: wPx }}>
+                <span style={{ flex: 1, fontWeight: 600 }}>Vorschau — Chips durch Beispieldaten ersetzt</span>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
+                >Schließen</button>
+              </div>
+
+              {/* A4 / Letter page */}
+              <div style={{
+                width: wPx, minHeight: hPx, background: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                borderRadius: 2, color: '#000',
+                paddingTop: mt * (96 / 25.4), paddingBottom: mb * (96 / 25.4),
+                paddingLeft: ml * (96 / 25.4), paddingRight: mr * (96 / 25.4),
+                boxSizing: 'border-box',
+                fontFamily: '"Courier New", monospace', fontSize: 12, lineHeight: 1.5,
+              }}>
+                {/* Format badge */}
+                <div style={{ position: 'absolute', top: 56, right: 24 + (mr * (96 / 25.4)), fontSize: 9, color: '#bbb', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  {fmt === 'a4' ? 'A4 — 210×297 mm' : 'US Letter — 8.5×11 in'}
+                </div>
+                <div
+                  dangerouslySetInnerHTML={{ __html: bodyHtml || '<p style="color:#aaa;font-style:italic">Kein Inhalt.</p>' }}
+                  style={{ minHeight: 200 }}
+                />
+              </div>
+
+              {/* Context values shown */}
+              <div style={{ width: wPx, background: 'rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+                {Object.entries(previewContext).filter(([,v]) => v).map(([k, v]) => (
+                  <span key={k} style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
+                    <span style={{ color: 'rgba(255,255,255,0.4)' }}>{'{{' + k + '}}'} </span>{v}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     )
   }
 

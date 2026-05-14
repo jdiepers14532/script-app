@@ -173,31 +173,53 @@ const SPECIAL_CHARS = [
   { char: '™', title: 'Trademark' },
 ]
 
-// ── TableStyle extension — adds data-border-style attribute to table nodes ────
+// ── TableStyle extension — adds border-style + row-height attributes ──────────
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
-    tableStyle: { setTableBorderStyle: (style: string) => ReturnType }
+    tableStyle: {
+      setTableBorderStyle: (style: string) => ReturnType
+      setTableRowHeight:   (height: number | null) => ReturnType
+    }
   }
 }
 const TableStyleExtension = Extension.create({
   name: 'tableStyle',
   addGlobalAttributes() {
-    return [{
-      types: ['table'],
-      attributes: {
-        borderStyle: {
-          default: 'default',
-          parseHTML: el => (el as HTMLElement).getAttribute('data-border-style') || 'default',
-          renderHTML: attrs => attrs.borderStyle && attrs.borderStyle !== 'default'
-            ? { 'data-border-style': attrs.borderStyle } : {},
+    return [
+      {
+        types: ['table'],
+        attributes: {
+          borderStyle: {
+            default: 'default',
+            parseHTML: el => (el as HTMLElement).getAttribute('data-border-style') || 'default',
+            renderHTML: attrs => attrs.borderStyle && attrs.borderStyle !== 'default'
+              ? { 'data-border-style': attrs.borderStyle } : {},
+          },
         },
       },
-    }]
+      {
+        types: ['tableRow'],
+        attributes: {
+          rowHeight: {
+            default: null,
+            parseHTML: el => {
+              const h = (el as HTMLElement).getAttribute('data-row-height')
+              return h ? Number(h) : null
+            },
+            renderHTML: attrs => attrs.rowHeight
+              ? { style: `height:${attrs.rowHeight}px`, 'data-row-height': String(attrs.rowHeight) }
+              : {},
+          },
+        },
+      },
+    ]
   },
   addCommands() {
     return {
       setTableBorderStyle: (style: string) => ({ commands }: any) =>
         commands.updateAttributes('table', { borderStyle: style }),
+      setTableRowHeight: (height: number | null) => ({ commands }: any) =>
+        commands.updateAttributes('tableRow', { rowHeight: height }),
     } as any
   },
 })
@@ -261,6 +283,16 @@ export function ToolbarContent({
   /** Allow Row 1 to wrap (for sidebar layout) */
   wrap?: boolean
 }) {
+  // Re-render whenever editor selection / document changes
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!editor) return
+    const h = () => setTick(n => n + 1)
+    editor.on('selectionUpdate', h)
+    editor.on('transaction', h)
+    return () => { editor.off('selectionUpdate', h); editor.off('transaction', h) }
+  }, [editor])
+
   const [imgLoading, setImgLoading] = useState<string | null>(null)
 
   const insertImg = useCallback((src: string) => {
@@ -455,6 +487,22 @@ export function ToolbarContent({
           >
             {TABLE_BORDER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+          <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />
+          <span style={{ fontSize: 10, color: '#007AFF', fontWeight: 600, flexShrink: 0 }}>Zeilenhöhe:</span>
+          <input
+            type="number"
+            min={20}
+            max={300}
+            step={4}
+            value={editor?.getAttributes('tableRow').rowHeight ?? ''}
+            onChange={e => {
+              const v = e.target.value ? Number(e.target.value) : null
+              editor?.chain().focus().setTableRowHeight(v).run()
+            }}
+            placeholder="auto"
+            title="Zeilenhöhe in Pixel (leer = automatisch)"
+            style={{ fontSize: 10, height: 22, width: 58, borderRadius: 4, border: '1px solid #007AFF44', background: 'transparent', fontFamily: 'inherit', color: '#007AFF', padding: '0 4px', flexShrink: 0 }}
+          />
         </div>
       )}
 
@@ -698,7 +746,7 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
+export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   if (!doc) return ''
 
   type ParaFont = { ff?: string|null; fs?: string|null; fw?: string|null; fst?: string|null; td?: string|null; lh?: string|null }

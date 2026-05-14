@@ -159,6 +159,8 @@ function renderNode(node: any, ctx: ExportContext): string {
       : borderStyle === 'double' ? 'border:3px double #555'
       : 'border:1px solid #d0d0d0'
     const rows = (node.content ?? []).map((row: any) => {
+      const rowHeight = row.attrs?.rowHeight
+      const rowStyle  = rowHeight ? ` style="height:${rowHeight}px"` : ''
       const cells = (row.content ?? []).map((cell: any) => {
         const isHeader = cell.type === 'tableHeader'
         const tag   = isHeader ? 'th' : 'td'
@@ -166,7 +168,7 @@ function renderNode(node: any, ctx: ExportContext): string {
         const inner = (cell.content ?? []).map((n: any) => renderNode(n, ctx)).join('')
         return `<${tag} style="${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
       }).join('')
-      return `<tr>${cells}</tr>`
+      return `<tr${rowStyle}>${cells}</tr>`
     }).join('')
     return `<table style="border-collapse:collapse;width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
   }
