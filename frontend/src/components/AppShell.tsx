@@ -268,7 +268,7 @@ export default function AppShell({
   // AppShell IS the TweaksContext provider → can't use useShortcut() hook here.
   // Use getShortcutLabel(id, tweaks.keyboardLayout, isMac) directly instead.
   const sc = (id: string) => getShortcutLabel(id, tweaks.keyboardLayout, isMac)
-  const { isOnline, pendingCount, isSyncing, syncQueue } = useOfflineQueue()
+  const { isOnline, pendingCount, isSyncing, syncQueue, reconnect } = useOfflineQueue()
   const { productions, selectedId: selectedProdId, selectProduction } = useSelectedProduction()
   const { treatmentLabel, figurenLabel } = useAppSettings()
   const { t } = useTerminologie()
@@ -303,6 +303,15 @@ export default function AppShell({
   } | null>(null)
 
   // ── Offline-Modal ──────────────────────────────────────────────────────────
+  const [reconnectStatus, setReconnectStatus] = useState<'idle' | 'checking' | 'no-internet' | 'server-down'>('idle')
+
+  const handleReconnect = useCallback(async () => {
+    setReconnectStatus('checking')
+    const result = await reconnect()
+    // 'sw-stuck' → Seite wird neu geladen, kein State-Update nötig
+    if (result !== 'sw-stuck') setReconnectStatus(result === 'online' ? 'idle' : result)
+  }, [reconnect])
+
   const [offlineOpen, setOfflineOpen] = useState(false)
   const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import' | 'uninstall'>('main')
   const [installPrompt, setInstallPrompt] = useState<any>(null)
@@ -363,6 +372,7 @@ export default function AppShell({
   }, [])
 
   const openOfflineModal = useCallback(async () => {
+    setReconnectStatus('idle')
     setOfflineOpen(true)
     setOfflineView('main')
     loadCacheStats()
@@ -1815,6 +1825,39 @@ export default function AppShell({
                     </div>
                   </div>
                 </div>
+
+                {/* Reconnect-Button — nur wenn offline */}
+                {!isOnline && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                    <button
+                      onClick={handleReconnect}
+                      disabled={reconnectStatus === 'checking'}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                        padding: '9px 16px', borderRadius: 7, fontSize: 13, fontWeight: 600,
+                        border: '1px solid var(--border)', background: 'var(--bg-surface)',
+                        cursor: reconnectStatus === 'checking' ? 'wait' : 'pointer',
+                        opacity: reconnectStatus === 'checking' ? 0.7 : 1,
+                        width: '100%',
+                      }}
+                    >
+                      <RefreshCw size={13} style={{ animation: reconnectStatus === 'checking' ? 'spin 1s linear infinite' : undefined }} />
+                      {reconnectStatus === 'checking' ? 'Verbindung wird geprüft…' : 'Verbindung wiederherstellen'}
+                    </button>
+                    {reconnectStatus === 'no-internet' && (
+                      <p style={{ fontSize: 12, color: 'var(--sw-danger)', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                        <span style={{ flexShrink: 0 }}>✕</span>
+                        Kein Internetzugang — bitte Netzwerkverbindung prüfen.
+                      </p>
+                    )}
+                    {reconnectStatus === 'server-down' && (
+                      <p style={{ fontSize: 12, color: '#FF9500', margin: 0, display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                        <span style={{ flexShrink: 0 }}>⚠</span>
+                        Server nicht erreichbar. Bitte Internetverbindung prüfen oder später erneut versuchen.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Warteschlange */}

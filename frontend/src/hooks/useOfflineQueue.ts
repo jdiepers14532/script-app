@@ -9,6 +9,8 @@ interface QueuedRequest {
   timestamp: number
 }
 
+export type ReconnectResult = 'online' | 'no-internet' | 'sw-stuck' | 'server-down'
+
 const DB_NAME = 'script-offline-queue'
 const STORE_NAME = 'requests'
 
@@ -93,5 +95,37 @@ export function useOfflineQueue() {
     }
   }, [updateCount, syncQueue])
 
-  return { isOnline, pendingCount, isSyncing, enqueue, syncQueue }
+  const reconnect = useCallback(async (): Promise<ReconnectResult> => {
+    // 1. OS meldet kein Netz → echtes Internet-Problem
+    if (!navigator.onLine) return 'no-internet'
+
+    // 2. Ping-Versuch zum Server (umgeht SW-Cache durch no-store)
+    try {
+      await fetch('/api/health', {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(5000),
+      })
+      // Server erreichbar → State korrigieren und sync anstoßen
+      setIsOnline(true)
+      syncQueue()
+      return 'online'
+    } catch {
+      // fetch schlug fehl obwohl navigator.onLine=true → vermutlich SW steckt offline
+    }
+
+    // 3. Service Worker deregistrieren und neu laden
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      if (regs.length > 0) {
+        await Promise.all(regs.map(r => r.unregister()))
+        window.location.reload()
+        return 'sw-stuck' // wird nicht erreicht (Reload)
+      }
+    }
+
+    // 4. Kein SW schuld → Server nicht erreichbar
+    return 'server-down'
+  }, [syncQueue])
+
+  return { isOnline, pendingCount, isSyncing, enqueue, syncQueue, reconnect }
 }
