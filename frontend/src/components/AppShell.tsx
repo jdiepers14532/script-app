@@ -325,6 +325,13 @@ export default function AppShell({
   const [offlineOpen, setOfflineOpen] = useState(false)
   const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import' | 'uninstall'>('main')
   const [teamWorkOpen, setTeamWorkOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = () => setTeamWorkOpen(true)
+    window.addEventListener('open-team-work', handler)
+    return () => window.removeEventListener('open-team-work', handler)
+  }, [])
+
   const [installPrompt, setInstallPrompt] = useState<any>(null)
   const [isInstalled, setIsInstalled] = useState(
     window.matchMedia('(display-mode: standalone)').matches ||
@@ -1385,10 +1392,6 @@ export default function AppShell({
                   borderRadius: 10, padding: '1px 6px',
                 }}>{pendingCount}</span>
               )}
-            </button>
-            <button className="um-item" onClick={() => { setUserMenuOpen(false); setTeamWorkOpen(true) }}>
-              <Users size={14} />
-              Team-Work
             </button>
             <Link
               to="/hilfe"

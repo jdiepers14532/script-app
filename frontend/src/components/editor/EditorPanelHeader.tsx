@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { ChevronDown, Plus, Lock, Users, Globe, Tag } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
@@ -65,10 +65,25 @@ export default function EditorPanelHeader({
   const [showMenu, setShowMenu] = useState(false)
   const [showLabelMenu, setShowLabelMenu] = useState(false)
   const [showSichtbarkeitMenu, setShowSichtbarkeitMenu] = useState(false)
+  const [activeSubmenu, setActiveSubmenu] = useState<'team' | 'colab' | null>(null)
   const [labelError, setLabelError] = useState<string | null>(null)
   const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
   const [colabGruppen, setColabGruppen] = useState<Array<{ id: string; name: string }>>([])
   const [sichtbarkeitSaving, setSichtbarkeitSaving] = useState(false)
+
+  // Hover device detection (mouse = true, touch-only = false)
+  const isHoverDevice = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+  )
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function openSubmenu(id: 'team' | 'colab') {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current)
+    setActiveSubmenu(id)
+  }
+  function scheduleCloseSubmenu() {
+    hoverTimeoutRef.current = setTimeout(() => setActiveSubmenu(null), 150)
+  }
 
   useEffect(() => {
     if (!produktionId) return
@@ -216,62 +231,159 @@ export default function EditorPanelHeader({
                     {opt.label}
                   </button>
                 ))}
-                {colabGruppen.length > 0 && (
-                  <>
-                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-                    {colabGruppen.map(g => (
-                      <div key={g.id}>
-                        <div style={{ padding: '4px 12px 1px', fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                          {g.name}
+                {/* Team flyout */}
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                <div
+                  style={{ position: 'relative' }}
+                  onMouseEnter={isHoverDevice.current ? () => openSubmenu('team') : undefined}
+                  onMouseLeave={isHoverDevice.current ? scheduleCloseSubmenu : undefined}
+                >
+                  <button
+                    onClick={!isHoverDevice.current ? () => setActiveSubmenu(v => v === 'team' ? null : 'team') : undefined}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '7px 12px', fontSize: 12,
+                      background: sichtbarkeit.startsWith('team:') ? 'var(--bg-active)' : 'transparent',
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'inherit', color: '#007AFF',
+                      fontWeight: sichtbarkeit.startsWith('team:') ? 600 : 400,
+                    }}
+                  >
+                    <Users size={11} />
+                    Team
+                    <ChevronRight size={11} style={{ marginLeft: 'auto', opacity: 0.5 }} />
+                  </button>
+                  {activeSubmenu === 'team' && (
+                    <div
+                      style={{
+                        position: 'absolute', top: -4, left: '100%', zIndex: 100,
+                        background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                        borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 180, padding: '4px 0',
+                      }}
+                      onMouseEnter={isHoverDevice.current ? () => openSubmenu('team') : undefined}
+                      onMouseLeave={isHoverDevice.current ? scheduleCloseSubmenu : undefined}
+                    >
+                      {colabGruppen.length === 0 ? (
+                        <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-muted)' }}>
+                          Noch keine Gruppen.{' '}
+                          <button
+                            onClick={() => { setShowSichtbarkeitMenu(false); setActiveSubmenu(null); window.dispatchEvent(new CustomEvent('open-team-work')) }}
+                            style={{ background: 'none', border: 'none', color: '#007AFF', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                          >
+                            Gruppe anlegen
+                          </button>
                         </div>
-                        {/* Team: nur sichtbar, kein Yjs */}
+                      ) : colabGruppen.map(g => (
                         <button
+                          key={g.id}
                           onClick={async () => {
-                            setShowSichtbarkeitMenu(false)
-                            setSichtbarkeitSaving(true)
+                            setShowSichtbarkeitMenu(false); setActiveSubmenu(null); setSichtbarkeitSaving(true)
                             try {
-                              await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: `team:${g.id}` })
+                              await api.put(`/werkstufen/${selectedWerk!.id}/sichtbarkeit`, { sichtbarkeit: `team:${g.id}` })
                               clearCacheByPrefix('/v2/folgen/')
                               onReloadWerkstufen()
                             } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
                           }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                            padding: '5px 12px 5px 20px', fontSize: 12,
+                            padding: '7px 12px', fontSize: 12,
                             background: sichtbarkeit === `team:${g.id}` ? 'var(--bg-active)' : 'transparent',
                             border: 'none', cursor: 'pointer', textAlign: 'left',
-                            fontFamily: 'inherit', color: '#007AFF', fontWeight: sichtbarkeit === `team:${g.id}` ? 600 : 400,
+                            fontFamily: 'inherit', color: 'var(--text-primary)',
+                            fontWeight: sichtbarkeit === `team:${g.id}` ? 600 : 400,
                           }}
                         >
-                          <Users size={11} />
-                          Team (nur sichtbar)
+                          {sichtbarkeit === `team:${g.id}` && <span style={{ color: '#007AFF', fontSize: 10 }}>✓</span>}
+                          {g.name}
                         </button>
-                        {/* Colab: sichtbar + Yjs Echtzeit */}
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Colab flyout */}
+                <div
+                  style={{ position: 'relative' }}
+                  onMouseEnter={isHoverDevice.current ? () => openSubmenu('colab') : undefined}
+                  onMouseLeave={isHoverDevice.current ? scheduleCloseSubmenu : undefined}
+                >
+                  <button
+                    onClick={!isHoverDevice.current ? () => setActiveSubmenu(v => v === 'colab' ? null : 'colab') : undefined}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '7px 12px', fontSize: 12,
+                      background: sichtbarkeit.startsWith('colab:') ? 'var(--bg-active)' : 'transparent',
+                      border: 'none', cursor: 'pointer', textAlign: 'left',
+                      fontFamily: 'inherit', color: '#AF52DE',
+                      fontWeight: sichtbarkeit.startsWith('colab:') ? 600 : 400,
+                    }}
+                  >
+                    <Globe size={11} />
+                    Colab
+                    <ChevronRight size={11} style={{ marginLeft: 'auto', opacity: 0.5 }} />
+                  </button>
+                  {activeSubmenu === 'colab' && (
+                    <div
+                      style={{
+                        position: 'absolute', top: -4, left: '100%', zIndex: 100,
+                        background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                        borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 180, padding: '4px 0',
+                      }}
+                      onMouseEnter={isHoverDevice.current ? () => openSubmenu('colab') : undefined}
+                      onMouseLeave={isHoverDevice.current ? scheduleCloseSubmenu : undefined}
+                    >
+                      {colabGruppen.length === 0 ? (
+                        <div style={{ padding: '8px 12px', fontSize: 11, color: 'var(--text-muted)' }}>
+                          Noch keine Gruppen.{' '}
+                          <button
+                            onClick={() => { setShowSichtbarkeitMenu(false); setActiveSubmenu(null); window.dispatchEvent(new CustomEvent('open-team-work')) }}
+                            style={{ background: 'none', border: 'none', color: '#AF52DE', cursor: 'pointer', fontSize: 11, padding: 0 }}
+                          >
+                            Gruppe anlegen
+                          </button>
+                        </div>
+                      ) : colabGruppen.map(g => (
                         <button
+                          key={g.id}
                           onClick={async () => {
-                            setShowSichtbarkeitMenu(false)
-                            setSichtbarkeitSaving(true)
+                            setShowSichtbarkeitMenu(false); setActiveSubmenu(null); setSichtbarkeitSaving(true)
                             try {
-                              await api.put(`/werkstufen/${selectedWerk.id}/sichtbarkeit`, { sichtbarkeit: `colab:${g.id}` })
+                              await api.put(`/werkstufen/${selectedWerk!.id}/sichtbarkeit`, { sichtbarkeit: `colab:${g.id}` })
                               clearCacheByPrefix('/v2/folgen/')
                               onReloadWerkstufen()
                             } catch { /* ignore */ } finally { setSichtbarkeitSaving(false) }
                           }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                            padding: '5px 12px 5px 20px', fontSize: 12,
+                            padding: '7px 12px', fontSize: 12,
                             background: sichtbarkeit === `colab:${g.id}` ? 'var(--bg-active)' : 'transparent',
                             border: 'none', cursor: 'pointer', textAlign: 'left',
-                            fontFamily: 'inherit', color: '#AF52DE', fontWeight: sichtbarkeit === `colab:${g.id}` ? 600 : 400,
+                            fontFamily: 'inherit', color: 'var(--text-primary)',
+                            fontWeight: sichtbarkeit === `colab:${g.id}` ? 600 : 400,
                           }}
                         >
-                          <Globe size={11} />
-                          Colab (Echtzeit)
+                          {sichtbarkeit === `colab:${g.id}` && <span style={{ color: '#AF52DE', fontSize: 10 }}>✓</span>}
+                          {g.name}
                         </button>
-                      </div>
-                    ))}
-                  </>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Teams verwalten */}
+                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                <button
+                  onClick={() => { setShowSichtbarkeitMenu(false); setActiveSubmenu(null); window.dispatchEvent(new CustomEvent('open-team-work')) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '7px 12px', fontSize: 12,
+                    background: 'transparent', border: 'none', cursor: 'pointer',
+                    textAlign: 'left', fontFamily: 'inherit', color: 'var(--text-secondary)',
+                  }}
+                >
+                  <Users size={11} />
+                  Teams verwalten
+                </button>
               </div>
             </>
           )}
