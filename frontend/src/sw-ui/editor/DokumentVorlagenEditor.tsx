@@ -827,6 +827,51 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
   }
 
   function renderBlock(node: any): string {
+    if (node.type === 'table') {
+      const borderStyle = node.attrs?.borderStyle ?? 'default'
+      const cellBorder = borderStyle === 'none'   ? 'border:none'
+        : borderStyle === 'thick'  ? 'border:2px solid #333'
+        : borderStyle === 'dashed' ? 'border:1px dashed #888'
+        : borderStyle === 'dotted' ? 'border:1px dotted #888'
+        : borderStyle === 'double' ? 'border:3px double #555'
+        : 'border:1px solid #d0d0d0'
+      const rows = (node.content ?? []).map((row: any) => {
+        const rh = row.attrs?.rowHeight
+        const rowStyle = rh ? ` style="height:${rh}px"` : ''
+        const cells = (row.content ?? []).map((cell: any) => {
+          const isHeader = cell.type === 'tableHeader'
+          const tag   = isHeader ? 'th' : 'td'
+          const extra = isHeader ? 'background:#f5f5f5;font-weight:600;' : ''
+          const inner = (cell.content ?? []).map((n: any) => renderBlock(n)).join('')
+          return `<${tag} style="${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
+        }).join('')
+        return `<tr${rowStyle}>${cells}</tr>`
+      }).join('')
+      return `<table style="border-collapse:collapse;width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
+    }
+
+    if (node.type === 'horizontalRule') return '<hr style="border:none;border-top:1px solid #d0d0d0;margin:8px 0">'
+
+    if (node.type === 'bulletList') {
+      const items = (node.content ?? []).map((li: any) =>
+        `<li>${(li.content ?? []).map(renderBlock).join('')}</li>`
+      ).join('')
+      return `<ul style="margin:4px 0;padding-left:20px">${items}</ul>`
+    }
+
+    if (node.type === 'orderedList') {
+      const items = (node.content ?? []).map((li: any) =>
+        `<li>${(li.content ?? []).map(renderBlock).join('')}</li>`
+      ).join('')
+      return `<ol style="margin:4px 0;padding-left:20px">${items}</ol>`
+    }
+
+    if (node.type === 'heading') {
+      const level = node.attrs?.level ?? 2
+      const inner = (node.content ?? []).map((n: any) => renderInline(n)).join('')
+      return `<h${level} style="margin:8px 0 4px">${inner}</h${level}>`
+    }
+
     if (node.type === 'paragraph') {
       const align = node.attrs?.textAlign
       const ff    = node.attrs?.fontFamily     || null
