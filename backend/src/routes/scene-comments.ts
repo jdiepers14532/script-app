@@ -7,32 +7,22 @@ import { authMiddleware } from '../auth'
 export const stagesCommentRouter = Router()
 stagesCommentRouter.use(authMiddleware)
 
+// stageId is now the werkstufe UUID (new data model)
 stagesCommentRouter.get('/:stageId/szenen-comment-counts', async (req, res) => {
   const userId = req.user?.user_id
   if (!userId) return res.status(401).json({ error: 'Unauthorized' })
 
-  const stageId = parseInt(req.params.stageId, 10)
-  if (isNaN(stageId)) return res.status(400).json({ error: 'Invalid stageId' })
-
   try {
-    const { rows } = await pool.query(`
-      SELECT
-        s.id AS scene_id,
-        COUNT(sce.id) FILTER (
-          WHERE sce.created_at > COALESCE(rs.last_read_at, '1970-01-01'::timestamptz)
-            AND sce.deleted_at IS NULL
-        ) AS unread_count
-      FROM szenen s
-      LEFT JOIN scene_comment_events sce ON sce.scene_id = s.id
-      LEFT JOIN scene_comment_read_state rs
-        ON rs.scene_id = s.id AND rs.user_id = $2
-      WHERE s.stage_id = $1
-      GROUP BY s.id, rs.last_read_at
-    `, [stageId, userId])
-
-    const result: Record<number, number> = {}
+    const werkstufeId = req.params.stageId
+    // Return counts per dokument_szene_id — comment events use old integer IDs so
+    // they can't be joined yet; return 0 for all scenes until integration is complete.
+    const { rows } = await pool.query(
+      `SELECT id AS scene_id FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false`,
+      [werkstufeId]
+    )
+    const result: Record<string, number> = {}
     for (const row of rows) {
-      result[row.scene_id] = parseInt(row.unread_count, 10)
+      result[row.scene_id] = 0
     }
     res.json(result)
   } catch (err) {

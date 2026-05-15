@@ -363,6 +363,37 @@ dokumentSzenenRouter.get('/:id/wechselschnitt-beteiligt', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/dokument-szenen/:id/revisionen — Revision deltas for a scene
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
+  try {
+    const ds = await queryOne(
+      `SELECT ds.id, ds.werkstufe_id, w.revision_color_id, rc.color AS revision_color
+       FROM dokument_szenen ds
+       LEFT JOIN werkstufen w ON w.id = ds.werkstufe_id
+       LEFT JOIN revision_colors rc ON rc.id = w.revision_color_id
+       WHERE ds.id = $1`,
+      [req.params.id]
+    )
+    if (!ds) return res.status(404).json({ error: 'Szene nicht gefunden' })
+
+    const rows = await query(
+      `SELECT field_type, block_index, block_type, old_value, new_value
+       FROM szenen_revisionen WHERE dokument_szene_id = $1`,
+      [req.params.id]
+    )
+
+    const result = rows.map((r: any) => ({
+      ...r,
+      revision_color: ds.revision_color ?? null,
+    }))
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Stockshot-Archiv
 // ══════════════════════════════════════════════════════════════════════════════
 

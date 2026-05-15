@@ -185,18 +185,18 @@ werkstufenRouter.put('/:id', async (req, res) => {
     const { label, sichtbarkeit, abgegeben, bearbeitung_status, revision_color_id } = req.body
     // label: undefined = don't change, '' = clear to NULL, 'X' = set to X
     const hasLabel = 'label' in req.body
-    const labelVal = hasLabel ? (label || null) : undefined
+    const labelVal = hasLabel ? (label || null) : null
     const hasRevColor = 'revision_color_id' in req.body
-    const revColorVal = hasRevColor ? (revision_color_id ?? null) : undefined
+    const revColorVal = hasRevColor ? (revision_color_id ?? null) : null
     const row = await queryOne(
       `UPDATE werkstufen SET
-        label = ${hasLabel ? '$1' : 'label'},
-        sichtbarkeit = COALESCE($2, sichtbarkeit),
-        abgegeben = COALESCE($3, abgegeben),
-        bearbeitung_status = COALESCE($4, bearbeitung_status),
-        revision_color_id = ${hasRevColor ? '$6' : 'revision_color_id'}
-       WHERE id = $5 RETURNING *`,
-      [labelVal, sichtbarkeit, abgegeben, bearbeitung_status, req.params.id, revColorVal]
+        label = CASE WHEN $1 THEN $2 ELSE label END,
+        sichtbarkeit = COALESCE($3, sichtbarkeit),
+        abgegeben = COALESCE($4, abgegeben),
+        bearbeitung_status = COALESCE($5, bearbeitung_status),
+        revision_color_id = CASE WHEN $6 THEN $7 ELSE revision_color_id END
+       WHERE id = $8 RETURNING *`,
+      [hasLabel, labelVal, sichtbarkeit, abgegeben, bearbeitung_status, hasRevColor, revColorVal, req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
     res.json(row)

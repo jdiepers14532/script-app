@@ -34,7 +34,7 @@ import {
 } from './routes/revision'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
-import { commentWebhookRouter } from './routes/scene-comments'
+import { commentWebhookRouter, stagesCommentRouter, szenenCommentRouter } from './routes/scene-comments'
 import { characterFotosRouter, motivFotosRouter, fotosStaticRouter, fotosThumbnailRouter } from './routes/fotos'
 import { produktionFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter } from './routes/charakter-felder'
 import { produktionMotiveRouter, motivRouter, produktionDrehorteRouter } from './routes/motive'
@@ -117,6 +117,8 @@ app.use('/api/locks', contractLocksRouter) // POST /contract-update
 app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 // Internal webhook — no auth
 app.use('/api/internal', commentWebhookRouter)
+app.use('/api/stages', stagesCommentRouter)
+app.use('/api/szenen', szenenCommentRouter)
 
 app.use('/api/ki', kiLimiter, kiRouter)
 app.use('/api/admin/ki-settings', kiAdminRouter)
