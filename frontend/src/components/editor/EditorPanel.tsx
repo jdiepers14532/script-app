@@ -4,6 +4,7 @@ import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
 import CollaborationPresence from './CollaborationPresence'
 const UniversalEditor = lazy(() => import('./UniversalEditor'))
+const DokumentVorlagenEditor = lazy(() => import('./DokumentVorlagenEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs } from '../../contexts'
@@ -54,6 +55,16 @@ export default function EditorPanel({
       .catch(() => setVorlagen([]))
   }, [produktionId])
 
+  // Load full vorlage data when vorlage_id changes (for preview)
+  useEffect(() => {
+    const vid = currentSzene?.vorlage_id
+    setShowVorlagePreview(false)
+    if (!vid || !produktionId) { setVorlagePreviewData(null); return }
+    api.getDokumentVorlage(produktionId, vid)
+      .then(setVorlagePreviewData)
+      .catch(() => setVorlagePreviewData(null))
+  }, [currentSzene?.vorlage_id, produktionId])
+
   // Panel state: which werkstufe is selected
   const [selectedWerkId, setSelectedWerkId] = useState<string | null>(null)
   const initialApplied = useRef(false)
@@ -79,6 +90,8 @@ export default function EditorPanel({
   const [loading, setLoading] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string }>>([])
+  const [vorlagePreviewData, setVorlagePreviewData] = useState<any>(null)
+  const [showVorlagePreview, setShowVorlagePreview] = useState(false)
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -382,12 +395,54 @@ export default function EditorPanel({
           {currentSzene?.vorlage_id && (() => {
             const v = vorlagen.find(x => x.id === currentSzene.vorlage_id)
             return v ? (
-              <div style={{ padding: '3px 12px 5px', fontSize: 10, color: '#FF9F0A', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ padding: '3px 12px 5px', fontSize: 10, color: '#FF9F0A', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>■</span>
                 <span>Vorlage <strong>{v.name}</strong> wird beim Export angewendet. Der Notiz-Inhalt erscheint an der Stelle des {'\u007b\u007bnotiz_inhalt\u007d\u007d'}-Chips.</span>
+                <button
+                  onClick={() => setShowVorlagePreview(true)}
+                  style={{ marginLeft: 4, padding: '1px 7px', borderRadius: 4, border: '1px solid #FF9F0A', background: 'transparent', color: '#FF9F0A', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+                >
+                  Vorlage anzeigen
+                </button>
               </div>
             ) : null
           })()}
+        </div>
+      )}
+
+      {/* ── Vorlage-Vorschau Modal ── */}
+      {showVorlagePreview && vorlagePreviewData && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '40px 24px 24px' }}>
+          <div style={{ background: 'var(--bg-primary)', borderRadius: 12, width: '100%', maxWidth: 860, maxHeight: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>Vorlage: {vorlagePreviewData.name}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>Vorschau (nur lesen)</span>
+              <div style={{ flex: 1 }} />
+              <button
+                onClick={() => setShowVorlagePreview(false)}
+                style={{ padding: '4px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', fontSize: 12, cursor: 'pointer', color: 'var(--text-primary)', fontFamily: 'inherit' }}
+              >
+                Schließen
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto' }}>
+              <Suspense fallback={<div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Lädt…</div>}>
+                <DokumentVorlagenEditor
+                  value={{
+                    body_content: vorlagePreviewData.body_content ?? { type: 'doc', content: [{ type: 'paragraph' }] },
+                    kopfzeile_content: vorlagePreviewData.kopfzeile_content ?? { links: null, mitte: null, rechts: null },
+                    fusszeile_content: vorlagePreviewData.fusszeile_content ?? { links: null, mitte: null, rechts: null },
+                    kopfzeile_aktiv: vorlagePreviewData.kopfzeile_aktiv ?? false,
+                    fusszeile_aktiv: vorlagePreviewData.fusszeile_aktiv ?? false,
+                    erste_seite_kein_header: vorlagePreviewData.erste_seite_kein_header ?? true,
+                    seiten_layout: vorlagePreviewData.seiten_layout ?? { format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 25, margin_right: 25 },
+                  }}
+                  onChange={() => {}}
+                  readOnly
+                />
+              </Suspense>
+            </div>
+          </div>
         </div>
       )}
 
