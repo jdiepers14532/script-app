@@ -3071,12 +3071,34 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                 ))}
               </div>
             </div>
-            {editTyp === 'titelseite' && (
-              <button onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
-                style={{ fontSize: 11, padding: '5px 10px', borderRadius: 5, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
-                Standardvorlage laden
-              </button>
-            )}
+            <div>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Seitenränder (mm)</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
+                {([
+                  ['margin_top',    'Oben',   25],
+                  ['margin_bottom', 'Unten',  25],
+                  ['margin_left',   'Links',  30],
+                  ['margin_right',  'Rechts', 25],
+                ] as [string, string, number][]).map(([field, label, def]) => (
+                  <label key={field} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>
+                    <input
+                      type="number" min={5} max={80} step={1}
+                      value={(editEditorValue.seiten_layout as any)?.[field] ?? def}
+                      onChange={e => setEditEditorValue(v => ({
+                        ...v,
+                        seiten_layout: {
+                          format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 30, margin_right: 25,
+                          ...(v.seiten_layout ?? {}),
+                          [field]: Number(e.target.value),
+                        },
+                      }))}
+                      style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%' }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div style={{ borderBottom: '1px solid var(--border)' }}>

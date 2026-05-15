@@ -105,6 +105,16 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'produktion.app \u00b7 productions.drehzeitraum',
   },
   {
+    key: '{{aktuelles_jahr}}', label: 'Aktuelles Jahr', zone: 'alle', color: '#007AFF',
+    beschreibung: 'Das aktuelle Kalenderjahr zum Zeitpunkt des Exports, z.\u202fB. \u201e2026\u201c.',
+    quelle: 'Berechnet beim Export \u00b7 new Date().getFullYear()',
+  },
+  {
+    key: '{{folge_laenge_netto}}', label: 'Gesamtl\u00e4nge Netto', zone: 'alle', color: '#34C759',
+    beschreibung: 'Summe aller Szenen-Stoppzeiten der Werkstufe (Netto-L\u00e4nge der Folge), z.\u202fB. \u201e42:18\u201c.',
+    quelle: 'script_db \u00b7 dokument_szenen.stoppzeit_sek (summiert)',
+  },
+  {
     key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#FF9500',
     beschreibung: 'Aktuelle Seitenzahl. Nur in Fu\u00dfzeilen verf\u00fcgbar.',
     quelle: 'Berechnet beim PDF-Export',
@@ -166,7 +176,7 @@ export const PlaceholderChipExtension = Node.create({
       'cursor:default', 'vertical-align:middle',
       // Font: use chip's own attrs when set, otherwise inherit from paragraph
       `font-family:${a.fontFamily   || 'inherit'}`,
-      `font-size:${a.fontSize       || '11px'}`,
+      `font-size:${a.fontSize       || 'inherit'}`,
       `font-weight:${a.fontWeight   || 'inherit'}`,
       `font-style:${a.fontStyle     || 'inherit'}`,
       a.textDecoration ? `text-decoration:${a.textDecoration}` : 'text-decoration:inherit',

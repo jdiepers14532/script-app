@@ -110,6 +110,8 @@ export interface PreviewContext {
   buero_adresse?:       string
   sendedatum?:          string
   produktionszeitraum?: string
+  aktuelles_jahr?:      string
+  folge_laenge_netto?:  string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -372,6 +374,35 @@ function ChipTooltip({ beschreibung, quelle, children }: { beschreibung: string;
   )
 }
 
+// ── Button tooltip (SW-UI format, portal-based) ────────────────────────────────
+function BtnTooltip({ text, children }: { text: string; children: React.ReactNode }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  return (
+    <span
+      style={{ display: 'inline-flex' }}
+      onMouseEnter={e => {
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        setPos({ x: r.left + r.width / 2, y: r.top })
+      }}
+      onMouseLeave={() => setPos(null)}
+    >
+      {children}
+      {pos && createPortal(
+        <div style={{
+          position: 'fixed', left: pos.x, top: pos.y - 8,
+          transform: 'translate(-50%, -100%)',
+          background: '#111', color: '#fff', fontSize: 11, lineHeight: 1.5,
+          padding: '6px 10px', borderRadius: 6, maxWidth: 220, whiteSpace: 'pre-line',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 99999, pointerEvents: 'none',
+        }}>
+          {text}
+        </div>,
+        document.body
+      )}
+    </span>
+  )
+}
+
 // ── Shared toolbar ─────────────────────────────────────────────────────────────
 export function ToolbarContent({
   editor, zone, produktionsLogoUrl, fileInputRef, isBody, wrap,
@@ -449,24 +480,23 @@ export function ToolbarContent({
     return ''
   })()
 
-  // B/I/U: chip selected → read/write chip attrs; otherwise text marks + paragraph attrs
+  // B/I/U: chip selected → read/write chip attrs; otherwise text marks only
   const isBold      = isChipSelected
     ? chipAttrs.fontWeight === 'bold'
-    : ((editor?.isActive('bold') ?? false) || paraAttrsRaw.fontWeight === 'bold')
+    : (editor?.isActive('bold') ?? false)
   const isItalic    = isChipSelected
     ? chipAttrs.fontStyle === 'italic'
-    : ((editor?.isActive('italic') ?? false) || paraAttrsRaw.fontStyle === 'italic')
+    : (editor?.isActive('italic') ?? false)
   const isUnderline = isChipSelected
     ? chipAttrs.textDecoration === 'underline'
-    : ((editor?.isActive('underline') ?? false) || paraAttrsRaw.textDecoration === 'underline')
+    : (editor?.isActive('underline') ?? false)
 
   const toggleBold = () => {
     if (liveChipSelected()) {
       const cur = editor?.getAttributes('placeholder_chip').fontWeight === 'bold'
       editor?.chain().focus().updateAttributes('placeholder_chip', { fontWeight: cur ? null : 'bold' }).run()
     } else {
-      const next = !isBold
-      editor?.chain().focus().toggleBold().updateAttributes('paragraph', { fontWeight: next ? 'bold' : null }).run()
+      editor?.chain().focus().toggleBold().run()
     }
   }
   const toggleItalic = () => {
@@ -474,8 +504,7 @@ export function ToolbarContent({
       const cur = editor?.getAttributes('placeholder_chip').fontStyle === 'italic'
       editor?.chain().focus().updateAttributes('placeholder_chip', { fontStyle: cur ? null : 'italic' }).run()
     } else {
-      const next = !isItalic
-      editor?.chain().focus().toggleItalic().updateAttributes('paragraph', { fontStyle: next ? 'italic' : null }).run()
+      editor?.chain().focus().toggleItalic().run()
     }
   }
   const toggleUnderline = () => {
@@ -483,25 +512,24 @@ export function ToolbarContent({
       const cur = editor?.getAttributes('placeholder_chip').textDecoration === 'underline'
       editor?.chain().focus().updateAttributes('placeholder_chip', { textDecoration: cur ? null : 'underline' }).run()
     } else {
-      const next = !isUnderline
-      editor?.chain().focus().toggleUnderline().updateAttributes('paragraph', { textDecoration: next ? 'underline' : null }).run()
+      editor?.chain().focus().toggleUnderline().run()
     }
   }
 
   const fmtBtn = (label: string, active: boolean, cb: () => void, title: string, extra?: React.CSSProperties) => (
-    <button
-      key={title}
-      title={title}
-      disabled={!editor}
-      onMouseDown={e => { e.preventDefault(); cb() }}
-      style={{
-        width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4,
-        background: active ? 'var(--text-primary)' : 'transparent',
-        color: active ? 'var(--text-inverse)' : editor ? 'var(--text-secondary)' : 'var(--text-muted)',
-        cursor: editor ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 11, flexShrink: 0, fontFamily: 'inherit', ...extra,
-      }}
-    >{label}</button>
+    <BtnTooltip key={title} text={title}>
+      <button
+        disabled={!editor}
+        onMouseDown={e => { e.preventDefault(); cb() }}
+        style={{
+          width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4,
+          background: active ? 'var(--text-primary)' : 'transparent',
+          color: active ? 'var(--text-inverse)' : editor ? 'var(--text-secondary)' : 'var(--text-muted)',
+          cursor: editor ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 11, flexShrink: 0, fontFamily: 'inherit', ...extra,
+        }}
+      >{label}</button>
+    </BtnTooltip>
   )
 
   const sep = (key: string) => (
@@ -526,119 +554,129 @@ export function ToolbarContent({
         {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
         {fmtBtn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
         {sep('sep-font')}
-        <select
-          value={curFontFamily}
-          onMouseDown={() => { chipSnap.current = liveChipSelected() }}
-          onChange={e => {
-            const v = e.target.value || null
-            if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
-            else editor?.chain().setParagraphFont(v).run()
-          }}
-          disabled={!editor}
-          title={isChipSelected ? 'Schriftart (Chip)' : 'Schriftart (gesamte Zeile)'}
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 88, flexShrink: 0 }}
-        >
-          <option value="">— Schrift —</option>
-          {FONT_FAMILIES.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
-        </select>
-        <select
-          value={curFontSize}
-          onMouseDown={() => { chipSnap.current = liveChipSelected() }}
-          onChange={e => {
-            const v = e.target.value || null
-            if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontSize: v }).run()
-            else editor?.chain().setParagraphFontSize(v).run()
-          }}
-          disabled={!editor}
-          title={isChipSelected ? 'Schriftgröße (Chip)' : 'Schriftgröße (gesamte Zeile)'}
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 48, flexShrink: 0 }}
-        >
-          <option value="">Pt</option>
-          {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s}</option>)}
-        </select>
+        <BtnTooltip text={isChipSelected ? 'Schriftart (Chip)' : 'Schriftart (gesamte Zeile)'}>
+          <select
+            value={curFontFamily}
+            onMouseDown={() => { chipSnap.current = liveChipSelected() }}
+            onChange={e => {
+              const v = e.target.value || null
+              if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
+              else editor?.chain().setParagraphFont(v).run()
+            }}
+            disabled={!editor}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 88, flexShrink: 0 }}
+          >
+            <option value="">— Schrift —</option>
+            {FONT_FAMILIES.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
+          </select>
+        </BtnTooltip>
+        <BtnTooltip text={isChipSelected ? 'Schriftgröße (Chip)' : 'Schriftgröße (gesamte Zeile)'}>
+          <select
+            value={curFontSize}
+            onMouseDown={() => { chipSnap.current = liveChipSelected() }}
+            onChange={e => {
+              const v = e.target.value || null
+              if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontSize: v }).run()
+              else editor?.chain().setParagraphFontSize(v).run()
+            }}
+            disabled={!editor}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 48, flexShrink: 0 }}
+          >
+            <option value="">Pt</option>
+            {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s}</option>)}
+          </select>
+        </BtnTooltip>
         {isChipSelected && (
           <span style={{ fontSize: 9, color: '#007AFF', background: '#007AFF15', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>
             Chip-Format
           </span>
         )}
-        <select
-          value={curLineHeight}
-          onChange={e => editor?.chain().setParagraphLineHeight(e.target.value || null).run()}
-          disabled={!editor}
-          title="Zeilenabstand"
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 54, flexShrink: 0 }}
-        >
-          <option value="">≡ Abs.</option>
-          {LINE_HEIGHTS.map(lh => <option key={lh.value} value={lh.value}>{lh.label}</option>)}
-        </select>
-        <select
-          value={curSpaceAfter}
-          onChange={e => editor?.chain().setParagraphSpaceAfter(e.target.value || null).run()}
-          disabled={!editor}
-          title="Abstand nach Absatz"
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 54, flexShrink: 0 }}
-        >
-          {SPACE_AFTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.value ? o.label : '↕ nach'}</option>)}
-        </select>
+        <BtnTooltip text="Zeilenabstand">
+          <select
+            value={curLineHeight}
+            onChange={e => editor?.chain().setParagraphLineHeight(e.target.value || null).run()}
+            disabled={!editor}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 54, flexShrink: 0 }}
+          >
+            <option value="">≡ Abs.</option>
+            {LINE_HEIGHTS.map(lh => <option key={lh.value} value={lh.value}>{lh.label}</option>)}
+          </select>
+        </BtnTooltip>
+        <BtnTooltip text="Abstand nach Absatz">
+          <select
+            value={curSpaceAfter}
+            onChange={e => editor?.chain().setParagraphSpaceAfter(e.target.value || null).run()}
+            disabled={!editor}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 54, flexShrink: 0 }}
+          >
+            {SPACE_AFTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.value ? o.label : '↕ nach'}</option>)}
+          </select>
+        </BtnTooltip>
         {sep('sep-chars')}
         {SPECIAL_CHARS.map(({ char, title }) =>
           fmtBtn(char, false, () => editor?.chain().focus().insertContent(char).run(), title, { fontWeight: 400, fontSize: 12 })
         )}
         {sep('sep-img')}
-        <button
-          disabled={!editor || !!imgLoading}
-          onMouseDown={e => { e.preventDefault(); loadFirmenlogo() }}
-          style={imgBtnStyle}
-          title="Firmenlogo einfügen"
-        >{imgLoading === 'firma' ? '…' : 'Logo'}</button>
-        <button
-          disabled={!editor || !produktionsLogoUrl || !!imgLoading}
-          onMouseDown={e => { e.preventDefault(); if (produktionsLogoUrl) insertImg(produktionsLogoUrl) }}
-          style={{ ...imgBtnStyle, opacity: produktionsLogoUrl ? 1 : 0.4 }}
-          title="Produktionslogo einfügen"
-        >{imgLoading === 'prod' ? '…' : 'Prod.'}</button>
-        <button
-          disabled={!editor}
-          onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click() }}
-          style={imgBtnStyle}
-          title="Bild aus Datei einfügen"
-        >↑ Bild</button>
+        <BtnTooltip text="Firmenlogo einfügen">
+          <button
+            disabled={!editor || !!imgLoading}
+            onMouseDown={e => { e.preventDefault(); loadFirmenlogo() }}
+            style={imgBtnStyle}
+          >{imgLoading === 'firma' ? '…' : 'Logo'}</button>
+        </BtnTooltip>
+        <BtnTooltip text={produktionsLogoUrl ? 'Produktionslogo einfügen' : 'Kein Produktionslogo konfiguriert'}>
+          <button
+            disabled={!editor || !produktionsLogoUrl || !!imgLoading}
+            onMouseDown={e => { e.preventDefault(); if (produktionsLogoUrl) insertImg(produktionsLogoUrl) }}
+            style={{ ...imgBtnStyle, opacity: produktionsLogoUrl ? 1 : 0.4 }}
+          >{imgLoading === 'prod' ? '…' : 'Prod.'}</button>
+        </BtnTooltip>
+        <BtnTooltip text="Bild aus Datei einfügen">
+          <button
+            disabled={!editor}
+            onMouseDown={e => { e.preventDefault(); fileInputRef.current?.click() }}
+            style={imgBtnStyle}
+          >↑ Bild</button>
+        </BtnTooltip>
         {sep('sep-table')}
         {fmtBtn('⊞', false, () => editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: false }).run(), 'Tabelle einfügen (3×2)', { fontSize: 14 })}
         {sep('sep-hr')}
-        <button
-          disabled={!editor}
-          onMouseDown={e => {
-            e.preventDefault()
-            ;(editor as any)?.chain().focus().setCustomHr({ thickness: displayHrThickness, width: displayHrWidth }).run()
-          }}
-          style={{ ...imgBtnStyle, fontSize: 12, border: isOnHr ? '1px solid #007AFF88' : undefined }}
-          title={isOnHr ? `Neue Linie einfügen (${displayHrThickness}px, ${displayHrWidth}%)` : `Linie einfügen (${displayHrThickness}px, ${displayHrWidth}%)`}
-        >—</button>
-        <select
-          value={displayHrThickness}
-          onChange={e => {
-            const val = Number(e.target.value)
-            setHrThickness(val)
-            if (isOnHr) editor?.chain().focus().updateAttributes('customHr', { thickness: val }).run()
-          }}
-          title={isOnHr ? 'Linienstärke (ändert gewählte Linie)' : 'Linienstärke'}
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isOnHr ? '#007AFF88' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 44, flexShrink: 0 }}
-        >
-          {[1,2,3,4,5].map(t => <option key={t} value={t}>{t}px</option>)}
-        </select>
-        <select
-          value={displayHrWidth}
-          onChange={e => {
-            const val = Number(e.target.value)
-            setHrWidth(val)
-            if (isOnHr) editor?.chain().focus().updateAttributes('customHr', { width: val }).run()
-          }}
-          title={isOnHr ? 'Linienbreite (ändert gewählte Linie)' : 'Linienbreite'}
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isOnHr ? '#007AFF88' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 46, flexShrink: 0 }}
-        >
-          {[25,50,75,100].map(w => <option key={w} value={w}>{w}%</option>)}
-        </select>
+        <BtnTooltip text={isOnHr ? `Neue Linie einfügen (${displayHrThickness}px, ${displayHrWidth}%)` : `Linie einfügen (${displayHrThickness}px, ${displayHrWidth}%)`}>
+          <button
+            disabled={!editor}
+            onMouseDown={e => {
+              e.preventDefault()
+              ;(editor as any)?.chain().focus().setCustomHr({ thickness: displayHrThickness, width: displayHrWidth }).run()
+            }}
+            style={{ ...imgBtnStyle, fontSize: 12, border: isOnHr ? '1px solid #007AFF88' : undefined }}
+          >—</button>
+        </BtnTooltip>
+        <BtnTooltip text={isOnHr ? 'Linienstärke (ändert gewählte Linie)' : 'Linienstärke'}>
+          <select
+            value={displayHrThickness}
+            onChange={e => {
+              const val = Number(e.target.value)
+              setHrThickness(val)
+              if (isOnHr) editor?.chain().focus().updateAttributes('customHr', { thickness: val }).run()
+            }}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isOnHr ? '#007AFF88' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 44, flexShrink: 0 }}
+          >
+            {[1,2,3,4,5].map(t => <option key={t} value={t}>{t}px</option>)}
+          </select>
+        </BtnTooltip>
+        <BtnTooltip text={isOnHr ? 'Linienbreite (ändert gewählte Linie)' : 'Linienbreite'}>
+          <select
+            value={displayHrWidth}
+            onChange={e => {
+              const val = Number(e.target.value)
+              setHrWidth(val)
+              if (isOnHr) editor?.chain().focus().updateAttributes('customHr', { width: val }).run()
+            }}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isOnHr ? '#007AFF88' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 46, flexShrink: 0 }}
+          >
+            {[25,50,75,100].map(w => <option key={w} value={w}>{w}%</option>)}
+          </select>
+        </BtnTooltip>
         {!editor && !isBody && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, flexShrink: 0 }}>
             ← Bereich anklicken
@@ -667,13 +705,11 @@ export function ToolbarContent({
               key={label}
               onMouseDown={e => { e.preventDefault(); action() }}
               style={{ fontSize: 10, padding: '2px 5px', borderRadius: 4, border: '1px solid #007AFF44', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', color: '#007AFF', whiteSpace: 'nowrap', flexShrink: 0 }}
-              title={label}
             >{label}</button>
           ))}
           <button
             onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteTable().run() }}
             style={{ fontSize: 10, padding: '2px 5px', borderRadius: 4, border: '1px solid #FF3B3044', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', color: '#FF3B30', whiteSpace: 'nowrap', flexShrink: 0, marginLeft: 4 }}
-            title="Tabelle löschen"
           >✕ Tabelle</button>
           <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 4px', flexShrink: 0 }} />
           <span style={{ fontSize: 10, color: '#007AFF', fontWeight: 600, flexShrink: 0 }}>Rahmen:</span>
@@ -942,6 +978,8 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{buero_adresse}}':       'buero_adresse',
   '{{sendedatum}}':          'sendedatum',
   '{{produktionszeitraum}}': 'produktionszeitraum',
+  '{{aktuelles_jahr}}':      'aktuelles_jahr',
+  '{{folge_laenge_netto}}':  'folge_laenge_netto',
 }
 
 function escHtml(s: string): string {

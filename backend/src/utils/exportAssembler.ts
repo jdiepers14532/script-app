@@ -21,6 +21,8 @@ export interface ExportContext {
   buero_adresse:      string | null
   sendedatum:         string | null
   produktionszeitraum: string | null
+  aktuelles_jahr:      string
+  folge_laenge_netto:  string | null
   episode_terminus:   string  // e.g. "Folge" or "Episode"
 }
 
@@ -44,6 +46,8 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{buero_adresse}}':       return ctx.buero_adresse ?? ''
     case '{{sendedatum}}':          return ctx.sendedatum ?? ''
     case '{{produktionszeitraum}}': return ctx.produktionszeitraum ?? ''
+    case '{{aktuelles_jahr}}':      return ctx.aktuelles_jahr
+    case '{{folge_laenge_netto}}':  return ctx.folge_laenge_netto ?? ''
     case '{{seite}}':         return '<span class="ph-seite"></span>'
     case '{{seiten_gesamt}}': return '<span class="ph-seiten-gesamt"></span>'
     default:                  return key

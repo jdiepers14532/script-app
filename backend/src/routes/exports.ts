@@ -148,6 +148,15 @@ function buildWerkstufeName(ws: any): string {
   return `${typLabel} V${ws.version_nummer}`
 }
 
+function formatFolgeLaengeNetto(totalSek: number | null): string | null {
+  if (totalSek == null || totalSek <= 0) return null
+  const h = Math.floor(totalSek / 3600)
+  const m = Math.floor((totalSek % 3600) / 60)
+  const s = totalSek % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 async function loadExportContext(ws: any, userId: string, userName: string): Promise<ExportContext> {
   let folge = await queryOne(
     'SELECT folge_nummer, folgen_titel FROM folgen WHERE id = $1',
@@ -229,6 +238,16 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     } catch { /* non-fatal */ }
   }
 
+  // Sum stoppzeit_sek for this werkstufe (netto length)
+  let folgeLaengeNetto: string | null = null
+  try {
+    const sumRow = await queryOne(
+      'SELECT COALESCE(SUM(stoppzeit_sek), 0)::int AS total FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false',
+      [ws.id]
+    )
+    folgeLaengeNetto = formatFolgeLaengeNetto(sumRow?.total ?? null)
+  } catch { /* non-fatal */ }
+
   return {
     produktion:       prod?.titel ?? '',
     staffel,
@@ -246,6 +265,8 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     buero_adresse:       bueroAdresse,
     sendedatum:          formatSendedatum(folge?._air_date),
     produktionszeitraum,
+    aktuelles_jahr:      new Date().getFullYear().toString(),
+    folge_laenge_netto:  folgeLaengeNetto,
     episode_terminus: episodeTerminus,
   }
 }
