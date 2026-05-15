@@ -911,7 +911,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         if (cpCharIds.length > 0) {
           await client.query(
             `INSERT INTO character_productions (character_id, produktion_id, kategorie_id)
-             SELECT unnest($1::uuid[]), $2, unnest($3::uuid[])
+             SELECT unnest($1::uuid[]), $2, unnest($3::int[])
              ON CONFLICT (character_id, produktion_id) DO NOTHING`,
             [cpCharIds, produktion_id, cpKatIds]
           )
@@ -967,7 +967,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         await client.query(
           `INSERT INTO scene_characters
              (scene_identity_id, character_id, kategorie_id, spiel_typ, repliken_anzahl, anzahl, header_o_t, werkstufe_id)
-           SELECT unnest($1::uuid[]), unnest($2::uuid[]), unnest($3::uuid[]),
+           SELECT unnest($1::uuid[]), unnest($2::uuid[]), unnest($3::int[]),
                   unnest($4::text[]), unnest($5::int[]), unnest($6::int[]), unnest($7::boolean[]), $8
            ON CONFLICT (werkstufe_id, scene_identity_id, character_id)
              WHERE werkstufe_id IS NOT NULL AND scene_identity_id IS NOT NULL DO NOTHING`,
