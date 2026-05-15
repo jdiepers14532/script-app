@@ -705,8 +705,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       )).rows[0]
       const werkRow = (await client.query(
         `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum)
-         VALUES ($1, $2, $3, $4, 'team', $5, $6) RETURNING id`,
-        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, versionLabel, userName, standDatum]
+         VALUES ($1, $2, $3, $4, 'autoren', $5, $6) RETURNING id`,
+        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, versionLabel, req.user!.user_id, standDatum]
       )).rows[0]
       werkstufeId = werkRow.id
 
