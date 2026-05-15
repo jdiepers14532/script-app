@@ -643,7 +643,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         sceneFormat,
         sondertyp: isWechselschnitt ? 'wechselschnitt' : isStockshot ? 'stockshot' : null,
         pmNodes,
-        pageLength: calcPageLength(pmNodes),
+        pageLength: Math.round(calcPageLength(pmNodes)),
         charaktere: szene.charaktere || [],
         komparsen: szene.komparsen || [],
         wechselschnittPartner: szene.wechselschnittPartner || [],
@@ -666,7 +666,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     const nonSceneDataList: NonSceneData[] = allNonScene.map((elem, nsIdx) => {
       const elemType = ['titelseite', 'synopsis', 'recap', 'precap', 'memo', 'cover'].includes(elem.type) ? elem.type : 'memo'
       const pmNodes = buildNonSceneContent(elem.type, elem.content)
-      return { pmNodes, pageLength: calcPageLength(pmNodes), elemType, label: elem.label, sortOrder: -(allNonScene.length - nsIdx) }
+      return { pmNodes, pageLength: Math.round(calcPageLength(pmNodes)), elemType, label: elem.label, sortOrder: -(allNonScene.length - nsIdx) }
     })
 
     const userName = req.user!.name || req.user!.user_id
@@ -734,9 +734,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
            )
            SELECT $1, unnest($2::uuid[]), unnest($3::int[]), unnest($4::int[]),
                   unnest($5::text[]), unnest($6::text[]), unnest($7::text[]), unnest($8::text[]),
-                  unnest($9::text[])::jsonb, unnest($10::text[]), unnest($11::int[]),
+                  unnest($9::text[])::jsonb, unnest($10::int[]), unnest($11::int[]),
                   unnest($12::text[]), unnest($13::text[]), false, $14,
-                  unnest($15::float8[]), unnest($16::text[])
+                  unnest($15::int[]), unnest($16::text[])
            RETURNING id`,
           [
             werkstufeId,
