@@ -141,6 +141,13 @@ function contentToFdx(szenen: any[], episodeTitel: string, formatMap: Map<string
 
 // ── Export context helpers ────────────────────────────────────────────────────
 
+function buildWerkstufeName(ws: any): string {
+  const typLabel = ws.typ === 'drehbuch' ? 'Drehbuch'
+    : ws.typ === 'storyline' ? 'Storyline'
+    : 'Notiz'
+  return `${typLabel} V${ws.version_nummer}`
+}
+
 async function loadExportContext(ws: any, userId: string, userName: string): Promise<ExportContext> {
   let folge = await queryOne(
     'SELECT folge_nummer, folgen_titel FROM folgen WHERE id = $1',
@@ -228,6 +235,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     block:            null,
     folge:            folge?.folge_nummer ?? null,
     folgentitel:      folge?.folgen_titel ?? null,
+    werkstufe:        buildWerkstufeName(ws),
     fassung:          ws.label ?? null,
     version:          ws.version_nummer ?? null,
     stand_datum:      datum,

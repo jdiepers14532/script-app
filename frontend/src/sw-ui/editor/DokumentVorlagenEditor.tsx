@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import { Extension, Node as TiptapNode, mergeAttributes as mergeAttrs } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
@@ -91,6 +92,7 @@ export interface PreviewContext {
   block?:          string
   folge?:          string | number
   folgentitel?:    string
+  werkstufe?:      string
   fassung?:        string
   version?:        string
   stand_datum?:    string
@@ -319,6 +321,35 @@ function ZoneEditor({
         <EditorContent editor={editor} style={{ minHeight: minHeight ?? 60, fontSize: 13, lineHeight: 1.7, cursor: 'text', outline: 'none', overflowX: 'hidden', maxWidth: '100%' }} />
       )}
     </div>
+  )
+}
+
+// ── Chip tooltip ───────────────────────────────────────────────────────────────
+function ChipTooltip({ beschreibung, quelle, children }: { beschreibung: string; quelle: string; children: React.ReactNode }) {
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  return (
+    <span
+      style={{ display: 'inline-flex' }}
+      onMouseEnter={e => {
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        setPos({ x: r.left + r.width / 2, y: r.top })
+      }}
+      onMouseLeave={() => setPos(null)}
+    >
+      {children}
+      {pos && createPortal(
+        <div style={{
+          position: 'fixed', left: pos.x, top: pos.y - 8,
+          transform: 'translate(-50%, -100%)',
+          background: '#111', color: '#fff', fontSize: 11, lineHeight: 1.5,
+          padding: '6px 10px', borderRadius: 6, maxWidth: 260, whiteSpace: 'pre-line',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)', zIndex: 99999, pointerEvents: 'none',
+        }}>
+          {beschreibung}{'\n'}<span style={{ color: '#aaa', fontSize: 10 }}>{'Quelle: ' + quelle}</span>
+        </div>,
+        document.body
+      )}
+    </span>
   )
 }
 
@@ -606,19 +637,19 @@ export function ToolbarContent({
         }}>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, userSelect: 'none' }}>Chips:</span>
           {chips.map(p => (
-            <button
-              key={p.key}
-              disabled={!editor}
-              onMouseDown={e => { e.preventDefault(); if (editor) editor.chain().focus().insertPlaceholderChip(p.key).run() }}
-              title={p.key}
-              style={{
-                display: 'inline-flex', alignItems: 'center',
-                background: p.color + '1A', color: p.color, border: `1px solid ${p.color}55`,
-                borderRadius: 4, fontSize: 10, fontWeight: 600, padding: '2px 6px',
-                cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit',
-                whiteSpace: 'nowrap', flexShrink: 0, opacity: editor ? 1 : 0.4,
-              }}
-            >{p.label}</button>
+            <ChipTooltip key={p.key} beschreibung={p.beschreibung} quelle={p.quelle}>
+              <button
+                disabled={!editor}
+                onMouseDown={e => { e.preventDefault(); if (editor) editor.chain().focus().insertPlaceholderChip(p.key).run() }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  background: p.color + '1A', color: p.color, border: `1px solid ${p.color}55`,
+                  borderRadius: 4, fontSize: 10, fontWeight: 600, padding: '2px 6px',
+                  cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit',
+                  whiteSpace: 'nowrap', flexShrink: 0, opacity: editor ? 1 : 0.4,
+                }}
+              >{p.label}</button>
+            </ChipTooltip>
           ))}
         </div>
       )}
@@ -826,6 +857,7 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{block}}':         'block',
   '{{folge}}':         'folge',
   '{{folgentitel}}':   'folgentitel',
+  '{{werkstufe}}':     'werkstufe',
   '{{fassung}}':       'fassung',
   '{{version}}':       'version',
   '{{stand_datum}}':   'stand_datum',

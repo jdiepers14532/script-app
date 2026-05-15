@@ -10,6 +10,7 @@ export interface ExportContext {
   block:         string | null
   folge:         number | null
   folgentitel:   string | null
+  werkstufe:     string | null
   fassung:       string | null
   version:       number | null
   stand_datum:   string   // YYYY-MM-DD
@@ -32,6 +33,7 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{block}}':         return ctx.block ?? ''
     case '{{folge}}':         return ctx.folge != null ? String(ctx.folge) : ''
     case '{{folgentitel}}':   return ctx.folgentitel ?? ''
+    case '{{werkstufe}}':     return ctx.werkstufe ?? ''
     case '{{fassung}}':       return ctx.fassung ?? ''
     case '{{version}}':       return ctx.version != null ? `V${ctx.version}` : ''
     case '{{stand_datum}}':   return ctx.stand_datum
