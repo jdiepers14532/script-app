@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
-import { Extension } from '@tiptap/core'
+import { Extension, Node as TiptapNode, mergeAttributes as mergeAttrs } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
@@ -239,8 +239,43 @@ const TableStyleExtension = Extension.create({
   },
 })
 
+// ── Custom HR extension — horizontal rule with thickness + width attrs ────────
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    customHr: {
+      setCustomHr: (attrs?: { thickness?: number; width?: number }) => ReturnType
+    }
+  }
+}
+const CustomHrExtension = TiptapNode.create({
+  name: 'customHr',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      thickness: { default: 1 },
+      width: { default: 100 },
+    }
+  },
+  parseHTML() { return [{ tag: 'hr[data-hr]' }] },
+  renderHTML({ HTMLAttributes }) {
+    const t = HTMLAttributes.thickness ?? 1
+    const w = HTMLAttributes.width ?? 100
+    return ['hr', mergeAttrs(HTMLAttributes, {
+      'data-hr': '1',
+      style: `border:none;border-top:${t}px solid #555;width:${w}%;margin:8px auto;display:block`,
+    })]
+  },
+  addCommands() {
+    return {
+      setCustomHr: (attrs?: { thickness?: number; width?: number }) =>
+        ({ chain }: any) => chain().insertContent({ type: 'customHr', attrs: attrs ?? {} }).run(),
+    } as any
+  },
+})
+
 const TIPTAP_EXTENSIONS = [
-  StarterKit,
+  StarterKit.configure({ horizontalRule: false }),
   UnderlineExt,
   TextAlign.configure({ types: ['paragraph', 'heading'] }),
   TextStyle,
@@ -248,6 +283,7 @@ const TIPTAP_EXTENSIONS = [
   FontSizeExtension,
   ParagraphStyleExtension,
   ResizableImageExtension,
+  CustomHrExtension,
   PlaceholderChipExtension,
   Table.configure({ resizable: true }),
   TableRow,
@@ -309,6 +345,8 @@ export function ToolbarContent({
   }, [editor])
 
   const [imgLoading, setImgLoading] = useState<string | null>(null)
+  const [hrThickness, setHrThickness] = useState(1)
+  const [hrWidth, setHrWidth] = useState(100)
 
   const insertImg = useCallback((src: string) => {
     ;(editor as any)?.chain().focus().setResizableImage({ src, width: 120 }).run()
@@ -456,6 +494,29 @@ export function ToolbarContent({
         >↑ Bild</button>
         {sep('sep-table')}
         {fmtBtn('⊞', false, () => editor?.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: false }).run(), 'Tabelle einfügen (3×2)', { fontSize: 14 })}
+        {sep('sep-hr')}
+        <button
+          disabled={!editor}
+          onMouseDown={e => { e.preventDefault(); (editor as any)?.chain().focus().setCustomHr({ thickness: hrThickness, width: hrWidth }).run() }}
+          style={{ ...imgBtnStyle, fontSize: 12 }}
+          title={`Linie einfügen (${hrThickness}px, ${hrWidth}%)`}
+        >—</button>
+        <select
+          value={hrThickness}
+          onChange={e => setHrThickness(Number(e.target.value))}
+          title="Linienstärke"
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 44, flexShrink: 0 }}
+        >
+          {[1,2,3,4,5].map(t => <option key={t} value={t}>{t}px</option>)}
+        </select>
+        <select
+          value={hrWidth}
+          onChange={e => setHrWidth(Number(e.target.value))}
+          title="Linienbreite"
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 46, flexShrink: 0 }}
+        >
+          {[25,50,75,100].map(w => <option key={w} value={w}>{w}%</option>)}
+        </select>
         {!editor && !isBody && (
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4, flexShrink: 0 }}>
             ← Bereich anklicken
@@ -802,7 +863,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       if (paraFont?.td)  chipStyles.push(`text-decoration:${paraFont.td}`)
       const fStr = chipStyles.length ? chipStyles.join(';') + ';' : ''
       if (field && ctx?.[field] != null) {
-        return `<span style="${fStr}color:${color};font-weight:${paraFont?.fw ?? '600'}">${escHtml(String(ctx[field]))}</span>`
+        return `<span style="${fStr}font-weight:${paraFont?.fw ?? '600'}">${escHtml(String(ctx[field]))}</span>`
       }
       return `<span style="${fStr}background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;font-weight:${paraFont?.fw ?? '600'};padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
     }
@@ -813,8 +874,9 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       const src = node.attrs?.src ?? ''
       const w   = Number(node.attrs?.width) || 60
       const flt = node.attrs?.float
-      const floatStyle = flt === 'left'  ? ';float:left;margin-right:8px'
-                       : flt === 'right' ? ';float:right;margin-left:8px'
+      const floatStyle = flt === 'left'   ? ';float:left;margin-right:8px'
+                       : flt === 'right'  ? ';float:right;margin-left:8px'
+                       : flt === 'center' ? ';display:block;margin-left:auto;margin-right:auto'
                        : ';display:block;margin:4px 0'
       return `<img src="${src}" style="width:${w}px;max-width:100%;vertical-align:middle${floatStyle}" />`
     }
@@ -846,7 +908,12 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       return `<table style="border-collapse:collapse;width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
     }
 
-    if (node.type === 'horizontalRule') return '<hr style="border:none;border-top:1px solid #d0d0d0;margin:8px 0">'
+    if (node.type === 'horizontalRule') return '<hr style="border:none;border-top:1px solid #d0d0d0;width:100%;margin:8px 0">'
+    if (node.type === 'customHr') {
+      const t = node.attrs?.thickness ?? 1
+      const w = node.attrs?.width ?? 100
+      return `<hr style="border:none;border-top:${t}px solid #555;width:${w}%;margin:8px auto;display:block">`
+    }
 
     if (node.type === 'bulletList') {
       const items = (node.content ?? []).map((li: any) =>

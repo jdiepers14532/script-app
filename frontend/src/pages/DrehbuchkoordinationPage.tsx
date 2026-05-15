@@ -2880,14 +2880,14 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     sendedatum:          formatSendedatum(previewMeta.airDate),
     produktionszeitraum: selectedProduction?.drehzeitraum ?? undefined,
   }
+
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editTyp, setEditTyp] = useState('custom')
-  const [editEditorValue, setEditEditorValue] = useState<DokumentVorlagenEditorValue>(emptyVorlagenEditorValue())
+  const [selectedTyp, setSelectedTyp] = useState<string>('titelseite')
+  const [editorValue, setEditorValue] = useState<DokumentVorlagenEditorValue>(emptyVorlagenEditorValue())
   const [editorKey, setEditorKey] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState<number | null>(null)
   const [zoom, setZoom] = useState(0.9)
   const [activeEditor, setActiveEditor] = useState<any>(null)
   const [showPreview, setShowPreview] = useState(false)
@@ -2906,52 +2906,54 @@ function VorlagenTab({ productionId }: { productionId: string }) {
 
   const load = () => {
     setLoading(true)
-    api.getDokumentVorlagen(productionId).then(setVorlagen).finally(() => setLoading(false))
+    api.getDokumentVorlagen(productionId).then(vs => {
+      setVorlagen(vs)
+    }).finally(() => setLoading(false))
   }
   useEffect(load, [productionId])
 
-  const startEdit = (v: any) => {
-    setEditId(v.id)
-    setEditName(v.name)
-    setEditTyp(v.typ || 'custom')
-    setEditEditorValue({
-      body_content:            v.body_content   ?? v.sektionen?.[0]?.content ?? emptyVorlagenEditorValue().body_content,
-      kopfzeile_content:       v.kopfzeile_content ?? null,
-      fusszeile_content:       v.fusszeile_content ?? null,
-      kopfzeile_aktiv:         v.kopfzeile_aktiv ?? false,
-      fusszeile_aktiv:         v.fusszeile_aktiv ?? false,
-      erste_seite_kein_header: v.erste_seite_kein_header ?? true,
-      seiten_layout:           v.seiten_layout ?? emptyVorlagenEditorValue().seiten_layout,
-    })
-  }
-
-  const startNew = (typ?: string) => {
-    setEditId('__new__')
-    setEditName(typ === 'titelseite' ? 'Titelseite' : '')
-    setEditTyp(typ ?? 'custom')
-    setEditEditorValue(typ === 'titelseite' ? titelseiteDefaultVorlage() : emptyVorlagenEditorValue())
-  }
+  // When typ or vorlagen list changes, auto-load matching vorlage
+  useEffect(() => {
+    const found = vorlagen.find((v: any) => v.typ === selectedTyp)
+    if (found) {
+      setEditorValue({
+        body_content:            found.body_content   ?? found.sektionen?.[0]?.content ?? emptyVorlagenEditorValue().body_content,
+        kopfzeile_content:       found.kopfzeile_content ?? null,
+        fusszeile_content:       found.fusszeile_content ?? null,
+        kopfzeile_aktiv:         found.kopfzeile_aktiv ?? false,
+        fusszeile_aktiv:         found.fusszeile_aktiv ?? false,
+        erste_seite_kein_header: found.erste_seite_kein_header ?? true,
+        seiten_layout:           found.seiten_layout ?? emptyVorlagenEditorValue().seiten_layout,
+      })
+    } else {
+      setEditorValue(selectedTyp === 'titelseite' ? titelseiteDefaultVorlage() : emptyVorlagenEditorValue())
+    }
+    setEditorKey(k => k + 1)
+    setSavedAt(null)
+  }, [selectedTyp, vorlagen])
 
   const saveVorlage = async () => {
     setSaving(true)
     try {
+      const typLabel = VORLAGE_TYPES.find(t => t.id === selectedTyp)?.label ?? selectedTyp
+      const existing = vorlagen.find((v: any) => v.typ === selectedTyp)
       const data = {
-        name: editName,
-        typ: editTyp,
-        body_content:            editEditorValue.body_content,
-        kopfzeile_content:       editEditorValue.kopfzeile_content,
-        fusszeile_content:       editEditorValue.fusszeile_content,
-        kopfzeile_aktiv:         editEditorValue.kopfzeile_aktiv,
-        fusszeile_aktiv:         editEditorValue.fusszeile_aktiv,
-        erste_seite_kein_header: editEditorValue.erste_seite_kein_header,
-        seiten_layout:           editEditorValue.seiten_layout,
+        name: typLabel,
+        typ: selectedTyp,
+        body_content:            editorValue.body_content,
+        kopfzeile_content:       editorValue.kopfzeile_content,
+        fusszeile_content:       editorValue.fusszeile_content,
+        kopfzeile_aktiv:         editorValue.kopfzeile_aktiv,
+        fusszeile_aktiv:         editorValue.fusszeile_aktiv,
+        erste_seite_kein_header: editorValue.erste_seite_kein_header,
+        seiten_layout:           editorValue.seiten_layout,
       }
-      if (editId === '__new__') {
-        await api.createDokumentVorlageManual(productionId, data)
+      if (existing) {
+        await api.updateDokumentVorlage(productionId, existing.id, data)
       } else {
-        await api.updateDokumentVorlage(productionId, editId!, data)
+        await api.createDokumentVorlageManual(productionId, data)
       }
-      setEditId(null)
+      setSavedAt(Date.now())
       load()
     } catch (err: any) {
       alert('Fehler: ' + err.message)
@@ -2960,265 +2962,209 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     }
   }
 
-  const deleteVorlage = async (id: string) => {
-    if (!confirm('Vorlage wirklich loeschen?')) return
-    await api.deleteDokumentVorlage(productionId, id)
-    load()
-  }
+  const sidebarSep = (label: string) => (
+    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '6px 14px 2px' }}>
+      {label}
+    </div>
+  )
 
-  const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }
-  const btnStyle: React.CSSProperties = { fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
+  // Preview modal vars
+  const pvFmt  = editorValue.seiten_layout?.format ?? 'a4'
+  const pvW    = pvFmt === 'letter' ? 816 : 794
+  const pvH    = pvFmt === 'letter' ? 1056 : 1123
+  const pvMl   = (editorValue.seiten_layout?.margin_left   ?? 30) * (96 / 25.4)
+  const pvMr   = (editorValue.seiten_layout?.margin_right  ?? 25) * (96 / 25.4)
+  const pvMt   = (editorValue.seiten_layout?.margin_top    ?? 25) * (96 / 25.4)
+  const pvMb   = (editorValue.seiten_layout?.margin_bottom ?? 25) * (96 / 25.4)
+  const pvHtml = renderPmToPreviewHtml(editorValue.body_content, previewContext)
 
   if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
 
-  // Edit mode — sidebar left + A4 document right
-  if (editId) {
-    const sidebarSep = (label: string) => (
-      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, padding: '6px 14px 2px' }}>
-        {label}
-      </div>
-    )
-    // Preview modal vars
-    const pvFmt  = editEditorValue.seiten_layout?.format ?? 'a4'
-    const pvW    = pvFmt === 'letter' ? 816 : 794
-    const pvH    = pvFmt === 'letter' ? 1056 : 1123
-    const pvMl   = (editEditorValue.seiten_layout?.margin_left   ?? 30) * (96 / 25.4)
-    const pvMr   = (editEditorValue.seiten_layout?.margin_right  ?? 25) * (96 / 25.4)
-    const pvMt   = (editEditorValue.seiten_layout?.margin_top    ?? 25) * (96 / 25.4)
-    const pvMb   = (editEditorValue.seiten_layout?.margin_bottom ?? 25) * (96 / 25.4)
-    const pvHtml = renderPmToPreviewHtml(editEditorValue.body_content, previewContext)
+  return (
+    <>
+    <div style={{ display: 'flex', alignItems: 'flex-start', margin: '-24px -16px', minHeight: '85vh' }}>
 
-    return (
-      <>
-      <div style={{ display: 'flex', alignItems: 'flex-start', margin: '-24px -16px', minHeight: '85vh' }}>
+      {/* ── Left sidebar ── */}
+      <div style={{
+        width: 236, flexShrink: 0,
+        position: 'sticky', top: 0, maxHeight: '100vh', overflowY: 'auto',
+        background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column',
+      }}>
 
-        {/* ── Left sidebar ── */}
-        <div style={{
-          width: 236, flexShrink: 0,
-          position: 'sticky', top: 0, maxHeight: '100vh', overflowY: 'auto',
-          background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column',
-        }}>
-
-          {/* Title */}
-          <div style={{ padding: '14px 14px 10px', fontSize: 13, fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
-            {editId === '__new__' ? 'Neue Vorlage' : 'Vorlage bearbeiten'}
-          </div>
-
-          {/* Form */}
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Name</label>
-              <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite" />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Typ</label>
-              <select style={{ ...inputStyle, cursor: 'pointer' }} value={editTyp} onChange={e => setEditTyp(e.target.value)}>
-                {VORLAGE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Seitenformat</label>
-              <div style={{ display: 'flex', gap: 12 }}>
-                {(['a4', 'letter'] as const).map(f => (
-                  <label key={f} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                    <input
-                      type="radio"
-                      name="page-format"
-                      checked={(editEditorValue.seiten_layout?.format ?? 'a4') === f}
-                      onChange={() => setEditEditorValue(v => ({
-                        ...v,
-                        seiten_layout: { ...(v.seiten_layout ?? { format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 30, margin_right: 25 }), format: f },
-                      }))}
-                    />
-                    {f === 'a4' ? 'A4' : 'Letter'}
-                  </label>
-                ))}
-              </div>
-            </div>
-            {editTyp === 'titelseite' && (
+        {/* Type tabs */}
+        <div style={{ padding: '10px 10px 0', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6, paddingLeft: 4 }}>Vorlage</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 10 }}>
+            {VORLAGE_TYPES.map(t => (
               <button
-                onClick={() => { setEditEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
-                style={{ fontSize: 11, padding: '5px 10px', borderRadius: 5, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
-              >
-                Titelseite-Vorlage laden
-              </button>
-            )}
+                key={t.id}
+                onClick={() => setSelectedTyp(t.id)}
+                style={{
+                  textAlign: 'left', padding: '6px 10px', borderRadius: 5, border: '1px solid transparent',
+                  background: selectedTyp === t.id ? 'var(--text-primary)' : 'transparent',
+                  color: selectedTyp === t.id ? 'var(--text-inverse)' : 'var(--text-primary)',
+                  fontWeight: selectedTyp === t.id ? 600 : 400,
+                  fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >{t.label}</button>
+            ))}
           </div>
-
-          {/* Toolbar — wraps in the narrow sidebar; parent handles overflow */}
-          <div style={{ borderBottom: '1px solid var(--border)' }}>
-            <ToolbarContent
-              editor={activeEditor}
-              zone="alle"
-              produktionsLogoUrl={produktionsLogoUrl}
-              fileInputRef={sidebarFileRef}
-              isBody
-              wrap
-            />
-          </div>
-
-          {/* Zoom */}
-          <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-            {sidebarSep('Zoom')}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 0 2px' }}>
-              <button
-                onMouseDown={() => setZoom(z => Math.max(0.4, Math.round((z - 0.05) * 100) / 100))}
-                style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
-              >−</button>
-              <span style={{ fontSize: 12, minWidth: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{Math.round(zoom * 100)}%</span>
-              <button
-                onMouseDown={() => setZoom(z => Math.min(1.5, Math.round((z + 0.05) * 100) / 100))}
-                style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
-              >+</button>
-              <button
-                onMouseDown={() => setZoom(1)}
-                style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', background: Math.round(zoom * 100) === 100 ? 'var(--text-primary)' : 'transparent', color: Math.round(zoom * 100) === 100 ? 'var(--text-inverse)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}
-              >1:1</button>
-            </div>
-          </div>
-
-          {/* Vorschau */}
-          <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)' }}>
-            <button
-              onClick={() => setShowPreview(true)}
-              style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', fontWeight: 500, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              Vorschau
-            </button>
-          </div>
-
-          {/* Save / Cancel */}
-          <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button
-              onClick={saveVorlage}
-              disabled={saving || !editName.trim()}
-              style={{ padding: '8px 12px', borderRadius: 6, border: 'none', background: editName.trim() ? 'var(--text-primary)' : 'var(--bg-subtle)', color: editName.trim() ? 'var(--text-inverse)' : 'var(--text-muted)', fontWeight: 600, fontSize: 13, cursor: editName.trim() ? 'pointer' : 'default', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}
-            >
-              {saving ? 'Speichere...' : 'Speichern'}
-            </button>
-            <button
-              onClick={() => setEditId(null)}
-              style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              Abbrechen
-            </button>
-          </div>
-
         </div>
 
-        {/* ── Right: gray paper area with A4 document ── */}
-        <div style={{ flex: 1, background: '#bebebe', padding: '40px 48px', minHeight: '100vh', overflowX: 'auto' }}>
-          <input ref={sidebarFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleSidebarFile} />
-          <DokumentVorlagenEditor
-            key={`${editId}-${editorKey}`}
-            value={editEditorValue}
-            onChange={setEditEditorValue}
-            noHeaderFooter
-            sidebarMode
-            zoom={zoom}
-            onActiveEditorChange={ed => setActiveEditor(ed)}
-            produktionsLogoUrl={produktionsLogoUrl}
-            previewContext={previewContext}
-          />
-        </div>
-
-      </div>
-
-      {/* ── Preview Modal ── */}
-      {showPreview && (
-        <div
-          onClick={() => setShowPreview(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 24px' }}
-        >
-          <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
-
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#fff', fontSize: 13, width: pvW }}>
-              <span style={{ flex: 1, fontWeight: 600 }}>Vorschau — Chips durch Beispieldaten ersetzt</span>
-              <button
-                onClick={() => setShowPreview(false)}
-                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
-              >Schließen</button>
-            </div>
-
-            {/* A4 / Letter page */}
-            <div style={{
-              width: pvW, minHeight: pvH, background: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-              borderRadius: 2, color: '#000',
-              paddingTop: pvMt, paddingBottom: pvMb, paddingLeft: pvMl, paddingRight: pvMr,
-              boxSizing: 'border-box', position: 'relative',
-              fontFamily: '"Courier New", monospace', fontSize: 12, lineHeight: 1.5,
-            }}>
-              <div style={{ position: 'absolute', top: 8, right: 14, fontSize: 9, color: '#ccc', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                {pvFmt === 'a4' ? 'A4 — 210×297 mm' : 'US Letter — 8.5×11 in'}
-              </div>
-              <div
-                dangerouslySetInnerHTML={{ __html: pvHtml || '<p style="color:#aaa;font-style:italic">Kein Inhalt.</p>' }}
-                style={{ minHeight: 200 }}
-              />
-            </div>
-
-            {/* Context legend */}
-            <div style={{ width: pvW, background: 'rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
-              {Object.entries(previewContext).filter(([, v]) => v).map(([k, v]) => (
-                <span key={k} style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
-                  <span style={{ color: 'rgba(255,255,255,0.4)' }}>{`{{${k}}}`} </span>{String(v)}
-                </span>
+        {/* Settings */}
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Seitenformat</label>
+            <div style={{ display: 'flex', gap: 12 }}>
+              {(['a4', 'letter'] as const).map(f => (
+                <label key={f} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="page-format"
+                    checked={(editorValue.seiten_layout?.format ?? 'a4') === f}
+                    onChange={() => setEditorValue(v => ({
+                      ...v,
+                      seiten_layout: { ...(v.seiten_layout ?? { format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 30, margin_right: 25 }), format: f },
+                    }))}
+                  />
+                  {f === 'a4' ? 'A4' : 'Letter'}
+                </label>
               ))}
             </div>
           </div>
+          {selectedTyp === 'titelseite' && (
+            <button
+              onClick={() => { setEditorValue(titelseiteDefaultVorlage()); setEditorKey(k => k + 1) }}
+              style={{ fontSize: 11, padding: '5px 10px', borderRadius: 5, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
+            >
+              Standardvorlage laden
+            </button>
+          )}
         </div>
-      )}
-      </>
-    )
-  }
 
-  // List mode
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h3 style={{ fontSize: 15, fontWeight: 600, margin: 0 }}>Dokument-Vorlagen</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
+        {/* Toolbar */}
+        <div style={{ borderBottom: '1px solid var(--border)' }}>
+          <ToolbarContent
+            editor={activeEditor}
+            zone="alle"
+            produktionsLogoUrl={produktionsLogoUrl}
+            fileInputRef={sidebarFileRef}
+            isBody
+            wrap
+          />
+        </div>
+
+        {/* Zoom */}
+        <div style={{ padding: '8px 14px', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+          {sidebarSep('Zoom')}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 0 2px' }}>
+            <button
+              onMouseDown={() => setZoom(z => Math.max(0.4, Math.round((z - 0.05) * 100) / 100))}
+              style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+            >−</button>
+            <span style={{ fontSize: 12, minWidth: 38, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{Math.round(zoom * 100)}%</span>
+            <button
+              onMouseDown={() => setZoom(z => Math.min(1.5, Math.round((z + 0.05) * 100) / 100))}
+              style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', cursor: 'pointer', fontSize: 14, flexShrink: 0 }}
+            >+</button>
+            <button
+              onMouseDown={() => setZoom(1)}
+              style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', background: Math.round(zoom * 100) === 100 ? 'var(--text-primary)' : 'transparent', color: Math.round(zoom * 100) === 100 ? 'var(--text-inverse)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}
+            >1:1</button>
+          </div>
+        </div>
+
+        {/* Vorschau */}
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)' }}>
           <button
-            onClick={() => startNew('titelseite')}
-            style={{ ...btnStyle, fontWeight: 500, color: '#007AFF', borderColor: '#007AFF55' }}
+            onClick={() => setShowPreview(true)}
+            style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', fontWeight: 500, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
           >
-            + Titelseite
+            Vorschau
           </button>
-          <button onClick={() => startNew()} style={{ ...btnStyle, fontWeight: 500 }}>+ Neue Vorlage</button>
+        </div>
+
+        {/* Save */}
+        <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button
+            onClick={saveVorlage}
+            disabled={saving}
+            style={{ padding: '8px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: 'var(--text-inverse)', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', opacity: saving ? 0.6 : 1 }}
+          >
+            {saving ? 'Speichere...' : 'Speichern'}
+          </button>
+          {savedAt && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>Gespeichert</div>
+          )}
+        </div>
+
+      </div>
+
+      {/* ── Right: gray paper area with A4 document ── */}
+      <div style={{ flex: 1, background: '#bebebe', padding: '40px 48px', minHeight: '100vh', overflowX: 'auto' }}>
+        <input ref={sidebarFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleSidebarFile} />
+        <DokumentVorlagenEditor
+          key={`${selectedTyp}-${editorKey}`}
+          value={editorValue}
+          onChange={setEditorValue}
+          noHeaderFooter
+          sidebarMode
+          zoom={zoom}
+          onActiveEditorChange={ed => setActiveEditor(ed)}
+          produktionsLogoUrl={produktionsLogoUrl}
+          previewContext={previewContext}
+        />
+      </div>
+
+    </div>
+
+    {/* ── Preview Modal ── */}
+    {showPreview && (
+      <div
+        onClick={() => setShowPreview(false)}
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.72)', zIndex: 9999, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: '40px 24px' }}
+      >
+        <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: '#fff', fontSize: 13, width: pvW }}>
+            <span style={{ flex: 1, fontWeight: 600 }}>Vorschau — Chips durch Beispieldaten ersetzt</span>
+            <button
+              onClick={() => setShowPreview(false)}
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit' }}
+            >Schließen</button>
+          </div>
+
+          {/* A4 / Letter page */}
+          <div style={{
+            width: pvW, minHeight: pvH, background: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            borderRadius: 2, color: '#000',
+            paddingTop: pvMt, paddingBottom: pvMb, paddingLeft: pvMl, paddingRight: pvMr,
+            boxSizing: 'border-box', position: 'relative',
+            fontFamily: '"Courier New", monospace', fontSize: 12, lineHeight: 1.5,
+          }}>
+            <div style={{ position: 'absolute', top: 8, right: 14, fontSize: 9, color: '#ccc', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              {pvFmt === 'a4' ? 'A4 — 210×297 mm' : 'US Letter — 8.5×11 in'}
+            </div>
+            <div
+              dangerouslySetInnerHTML={{ __html: pvHtml || '<p style="color:#aaa;font-style:italic">Kein Inhalt.</p>' }}
+              style={{ minHeight: 200 }}
+            />
+          </div>
+
+          {/* Context legend */}
+          <div style={{ width: pvW, background: 'rgba(255,255,255,0.1)', borderRadius: 6, padding: '8px 14px', display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+            {Object.entries(previewContext).filter(([, v]) => v).map(([k, v]) => (
+              <span key={k} style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
+                <span style={{ color: 'rgba(255,255,255,0.4)' }}>{`{{${k}}}`} </span>{String(v)}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-        Vorlagen fuer Titelseite, Synopsis, Recap und Precap. Beim Import werden passende Vorlagen automatisch zugewiesen.
-        Platzhalter wie {'{{autor}}'} werden beim Einfuegen durch echte Werte ersetzt.
-      </p>
-
-      {vorlagen.length === 0 ? (
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '24px 0', textAlign: 'center' }}>
-          Keine Vorlagen vorhanden.
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {vorlagen.map(v => (
-            <div key={v.id} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8,
-              border: '1px solid var(--border)',
-            }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{v.name}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                  Typ: {VORLAGE_TYPES.find(t => t.id === v.typ)?.label || v.typ || 'custom'}
-                </div>
-              </div>
-              <button onClick={() => startEdit(v)} style={{ ...btnStyle, fontSize: 11 }}>Bearbeiten</button>
-              <button onClick={() => deleteVorlage(v.id)} style={{ ...btnStyle, fontSize: 11, color: 'var(--sw-danger, #FF3B30)' }}>Loeschen</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+    )}
+    </>
   )
 }
 

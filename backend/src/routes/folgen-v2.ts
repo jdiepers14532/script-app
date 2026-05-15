@@ -111,15 +111,14 @@ folgenV2Router.post('/', async (req, res) => {
 // PUT /api/v2/folgen/:id — update Folge (Titel, etc.)
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.put('/:id', async (req, res) => {
-  const { folgen_titel, air_date, synopsis } = req.body
+  const { folgen_titel, synopsis } = req.body
   try {
     const row = await queryOne(
       `UPDATE folgen SET
         folgen_titel = COALESCE($1, folgen_titel),
-        air_date = COALESCE($2, air_date),
-        synopsis = COALESCE($3, synopsis)
-       WHERE id = $4 RETURNING *`,
-      [folgen_titel, air_date, synopsis, req.params.id]
+        synopsis = COALESCE($2, synopsis)
+       WHERE id = $3 RETURNING *`,
+      [folgen_titel, synopsis, req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
 

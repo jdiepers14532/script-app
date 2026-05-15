@@ -143,7 +143,7 @@ function contentToFdx(szenen: any[], episodeTitel: string, formatMap: Map<string
 
 async function loadExportContext(ws: any, userId: string, userName: string): Promise<ExportContext> {
   let folge = await queryOne(
-    'SELECT folge_nummer, folgen_titel, air_date FROM folgen WHERE id = $1',
+    'SELECT folge_nummer, folgen_titel FROM folgen WHERE id = $1',
     [ws.folge_id]
   )
   const prod = await queryOne(
@@ -206,7 +206,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
         produktionszeitraum = d?.drehzeitraum ?? null
         staffel            = d?.staffelnummer != null ? String(d.staffelnummer) : null
       }
-      // Fetch real air_date from broadcast_events (reihen_id-based)
+      // Fetch real air_date from broadcast_events (via reihen_id)
       if (folge?.folge_nummer) {
         try {
           const ar = await fetch(
@@ -215,7 +215,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
           )
           if (ar.ok) {
             const ad = await ar.json() as any
-            if (ad?.air_date) folge = { ...folge, air_date: ad.air_date }
+            folge = { ...folge, _air_date: ad?.air_date ?? null }
           }
         } catch { /* non-fatal */ }
       }
@@ -236,7 +236,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     firmenname,
     sender,
     buero_adresse:       bueroAdresse,
-    sendedatum:          formatSendedatum(folge?.air_date),
+    sendedatum:          formatSendedatum(folge?._air_date),
     produktionszeitraum,
     episode_terminus: episodeTerminus,
   }

@@ -68,11 +68,13 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
 
   const showOverlay = hovered || resizing
 
-  // Float wrapper: floated → shrink-wraps image. Non-floated → inline-block (doesn't span full width).
+  // Float wrapper: floated → shrink-wraps image. Center → block with auto margins. Default → inline-block.
   const wrapperStyle: React.CSSProperties = imgFloat === 'left'
     ? { display: 'block', float: 'left',  marginRight: 10, position: 'relative', maxWidth: '100%' }
     : imgFloat === 'right'
     ? { display: 'block', float: 'right', marginLeft:  10, position: 'relative', maxWidth: '100%' }
+    : imgFloat === 'center'
+    ? { display: 'block', marginLeft: 'auto', marginRight: 'auto', position: 'relative', maxWidth: '100%' }
     : { display: 'inline-block', margin: '4px 0', position: 'relative', maxWidth: '100%', verticalAlign: 'top' }
 
   return (
@@ -101,14 +103,18 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
           display: 'flex', gap: 3, pointerEvents: 'all',
         }}>
           {([
-            ['◁', 'left',  'Links'],
-            ['▣', 'none',  'Block'],
-            ['▷', 'right', 'Rechts'],
+            ['◁', 'left',   'Links'],
+            ['↔', 'center', 'Zentriert'],
+            ['▷', 'right',  'Rechts'],
           ] as [string, string, string][]).map(([icon, val, title]) => (
             <button
               key={val}
               title={title}
-              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); updateAttributes({ float: val }) }}
+              onMouseDown={e => {
+                e.preventDefault(); e.stopPropagation()
+                // Toggle off: clicking active alignment resets to none (inline)
+                updateAttributes({ float: imgFloat === val ? 'none' : val })
+              }}
               style={{
                 width: 22, height: 22,
                 border: `1.5px solid ${imgFloat === val ? '#007AFF' : 'rgba(0,0,0,0.35)'}`,
@@ -179,8 +185,9 @@ export const ResizableImageExtension = Node.create({
 
   renderHTML({ HTMLAttributes }) {
     const flt = HTMLAttributes.float
-    const floatStyle = flt === 'left'  ? ';float:left;margin-right:10px'
-                     : flt === 'right' ? ';float:right;margin-left:10px'
+    const floatStyle = flt === 'left'   ? ';float:left;margin-right:10px'
+                     : flt === 'right'  ? ';float:right;margin-left:10px'
+                     : flt === 'center' ? ';display:block;margin-left:auto;margin-right:auto'
                      : ';display:block;margin:4px 0'
     return ['img', mergeAttributes(HTMLAttributes, {
       'data-width': HTMLAttributes.width,

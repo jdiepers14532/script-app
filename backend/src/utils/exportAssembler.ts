@@ -82,8 +82,9 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
     const src = node.attrs?.src ?? ''
     const w   = node.attrs?.width ? `width:${node.attrs.width}px;` : 'width:120px;'
     const flt = node.attrs?.float
-    const floatStyle = flt === 'left'  ? 'float:left;margin-right:10px;'
-                     : flt === 'right' ? 'float:right;margin-left:10px;'
+    const floatStyle = flt === 'left'   ? 'float:left;margin-right:10px;'
+                     : flt === 'right'  ? 'float:right;margin-left:10px;'
+                     : flt === 'center' ? 'display:block;margin-left:auto;margin-right:auto;'
                      : 'display:block;margin:4px 0;'
     return `<img src="${src}" style="${w}max-width:100%;${floatStyle}">`
   }
@@ -156,7 +157,12 @@ function renderNode(node: any, ctx: ExportContext): string {
     return `<ol>${items}</ol>`
   }
 
-  if (node.type === 'horizontalRule') return '<hr>'
+  if (node.type === 'horizontalRule') return '<hr style="border:none;border-top:1px solid #d0d0d0;width:100%;margin:8px 0">'
+  if (node.type === 'customHr') {
+    const t = node.attrs?.thickness ?? 1
+    const w = node.attrs?.width ?? 100
+    return `<hr style="border:none;border-top:${t}px solid #555;width:${w}%;margin:8px auto;display:block">`
+  }
 
   if (node.type === 'table') {
     const borderStyle = node.attrs?.borderStyle ?? 'default'

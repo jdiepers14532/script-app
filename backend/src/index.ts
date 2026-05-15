@@ -283,6 +283,7 @@ async function runMigrations() {
     'v66_kopf_fusszeilen.sql',
     'v67_pwa_settings.sql',
     'v68_teamwork.sql',
+    'v69_drop_folge_air_date.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
