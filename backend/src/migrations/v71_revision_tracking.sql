@@ -7,8 +7,9 @@ ALTER TABLE werkstufen
 
 CREATE INDEX IF NOT EXISTS idx_werkstufen_revision_color ON werkstufen(revision_color_id) WHERE revision_color_id IS NOT NULL;
 
--- Unique constraint für UPSERT-Deduplication: ein Eintrag pro (szene, block)
-ALTER TABLE szenen_revisionen DROP CONSTRAINT IF EXISTS uq_rev_dok_szene_block;
-ALTER TABLE szenen_revisionen ADD CONSTRAINT uq_rev_dok_szene_block
-  UNIQUE (dokument_szene_id, block_index)
-  WHERE dokument_szene_id IS NOT NULL AND block_index IS NOT NULL;
+-- Partial unique index für UPSERT-Deduplication: ein Eintrag pro (szene, block) bei content_block
+-- NOTE: ALTER TABLE ADD CONSTRAINT ... WHERE is not valid SQL; must use CREATE UNIQUE INDEX
+DROP INDEX IF EXISTS uq_rev_dok_szene_block;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_rev_dok_szene_block
+  ON szenen_revisionen(dokument_szene_id, block_index)
+  WHERE field_type = 'content_block';

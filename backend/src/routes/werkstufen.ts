@@ -239,7 +239,7 @@ werkstufenRouter.post('/:id/start-revision', async (req, res) => {
         await client.query(
           `INSERT INTO szenen_revisionen (dokument_szene_id, field_type, block_index, block_type, old_value, new_value)
            VALUES ($1, 'content_block', $2, $3, $4, $4)
-           ON CONFLICT ON CONSTRAINT uq_rev_dok_szene_block DO NOTHING`,
+           ON CONFLICT (dokument_szene_id, block_index) WHERE field_type = 'content_block' DO NOTHING`,
           [scene.id, i, blocks[i]?.type ?? 'unknown', blockJson]
         )
       }

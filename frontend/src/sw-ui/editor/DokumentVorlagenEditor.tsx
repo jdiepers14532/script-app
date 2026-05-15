@@ -857,6 +857,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
         if (mark.type === 'bold')           t = `<strong>${t}</strong>`
         else if (mark.type === 'italic')    t = `<em>${t}</em>`
         else if (mark.type === 'underline') t = `<u>${t}</u>`
+        else if (mark.type === 'strike')    t = `<s>${t}</s>`
         else if (mark.type === 'textStyle') {
           if (mark.attrs?.fontFamily) inlineStyles.push(`font-family:${mark.attrs.fontFamily}`)
           if (mark.attrs?.fontSize)   inlineStyles.push(`font-size:${mark.attrs.fontSize}`)

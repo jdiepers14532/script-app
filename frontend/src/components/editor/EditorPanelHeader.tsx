@@ -72,7 +72,7 @@ export default function EditorPanelHeader({
   const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
   const [colabGruppen, setColabGruppen] = useState<Array<{ id: string; name: string }>>([])
   const [sichtbarkeitSaving, setSichtbarkeitSaving] = useState(false)
-  const [revisionColors, setRevisionColors] = useState<{ id: number; name: string; hex_color: string }[]>([])
+  const [revisionColors, setRevisionColors] = useState<{ id: number; name: string; color: string }[]>([])
   const [showRevisionMenu, setShowRevisionMenu] = useState(false)
   const [revisionSaving, setRevisionSaving] = useState(false)
 
@@ -549,8 +549,8 @@ export default function EditorPanelHeader({
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 4,
                       padding: '3px 7px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                      border: `1px solid ${rc?.hex_color ?? '#888'}`,
-                      color: rc?.hex_color ?? '#888',
+                      border: `1px solid ${rc?.color ?? '#888'}`,
+                      color: rc?.color ?? '#888',
                     }}>
                       <GitBranch size={11} />
                       * {rc?.name ?? 'Revision'}
@@ -623,7 +623,7 @@ export default function EditorPanelHeader({
                             background: 'transparent', color: 'var(--text-primary)',
                           }}
                         >
-                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: rc.hex_color, flexShrink: 0 }} />
+                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: rc.color, flexShrink: 0 }} />
                           {rc.name}
                         </button>
                       ))}

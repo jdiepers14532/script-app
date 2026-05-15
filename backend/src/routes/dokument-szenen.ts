@@ -430,6 +430,7 @@ dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
       `SELECT sr.*
        FROM szenen_revisionen sr
        WHERE sr.dokument_szene_id = $1
+         AND sr.new_value IS DISTINCT FROM sr.old_value
        ORDER BY sr.created_at`,
       [req.params.id]
     )
@@ -1011,7 +1012,7 @@ async function recordRevisionDeltas(
       await pool.query(
         `INSERT INTO szenen_revisionen (dokument_szene_id, field_type, block_index, block_type, old_value, new_value)
          VALUES ($1, 'content_block', $2, $3, $4, $5)
-         ON CONFLICT ON CONSTRAINT uq_rev_dok_szene_block
+         ON CONFLICT (dokument_szene_id, block_index) WHERE field_type = 'content_block'
          DO UPDATE SET new_value = EXCLUDED.new_value`,
         [szeneId, i, (newB ?? oldB)?.type ?? 'unknown', oldJson, newJson]
       )
