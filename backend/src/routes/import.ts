@@ -192,6 +192,160 @@ function buildNonSceneContent(type: string, content: string): any[] {
   return textToParagraphs(content)
 }
 
+// ── Parse result cache (avoid double-parse between /preview and /commit) ──
+interface ParseCacheEntry { result: any; expiresAt: number }
+const parseCache = new Map<string, ParseCacheEntry>()
+const CACHE_TTL_MS = 30 * 60 * 1000
+
+function makeParseKey(buffer: Buffer, opts: ParseOptions): string {
+  return crypto.createHash('sha256').update(buffer).digest('hex') + ':' + JSON.stringify(opts)
+}
+function cacheGet(key: string): any | null {
+  const entry = parseCache.get(key)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) { parseCache.delete(key); return null }
+  return entry.result
+}
+function cacheSet(key: string, result: any): void {
+  if (parseCache.size > 50) {
+    const now = Date.now()
+    for (const [k, v] of parseCache) { if (now > v.expiresAt) parseCache.delete(k) }
+  }
+  parseCache.set(key, { result, expiresAt: Date.now() + CACHE_TTL_MS })
+}
+
+// ── buildPmNodesForScene — module-level for reuse in commit ──
+function buildPmNodesForScene(
+  textelemente: any[],
+  sceneFormat: string,
+  docTyp: string,
+  useAbsatzNodes: boolean,
+  elementTypeToFormatId: Map<string, string>,
+  textbausteinFormats: any[],
+  absatzformate: any[]
+): any[] {
+  const pmNodes: any[] = []
+
+  function buildInlineContent(te: any): any[] | undefined {
+    if (!te.text && !te.richContent) return undefined
+    if (te.richContent && te.richContent.length > 0) {
+      return te.richContent.map((n: any) => ({
+        type: 'text',
+        text: n.text,
+        ...(n.marks && n.marks.length > 0 ? { marks: n.marks } : {}),
+      }))
+    }
+    return [{ type: 'text', text: te.text }]
+  }
+
+  for (const te of textelemente) {
+    let inlineContent = buildInlineContent(te)
+
+    if (sceneFormat === 'notiz' || sceneFormat === 'storyline') {
+      if (useAbsatzNodes) {
+        let notizFmtId: string | undefined
+        if (te.type === 'heading') {
+          notizFmtId = elementTypeToFormatId.get('heading')
+            || absatzformate.find((f: any) => f.name === 'Headline')?.id
+        }
+        if (!notizFmtId) {
+          const firstText = inlineContent?.[0]?.type === 'text' ? inlineContent[0].text : ''
+          for (const tbFmt of textbausteinFormats) {
+            const prefix = tbFmt.textbaustein as string
+            if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
+              notizFmtId = tbFmt.id
+              const stripped = firstText.slice(prefix.length).replace(/^[:\s]+/, '')
+              if (stripped) {
+                inlineContent = [{ ...inlineContent![0], text: stripped }, ...inlineContent!.slice(1)]
+              } else {
+                inlineContent = inlineContent!.slice(1)
+              }
+              break
+            }
+          }
+        }
+        if (!notizFmtId) {
+          notizFmtId = elementTypeToFormatId.get('haupttext')
+            || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
+            || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
+            || absatzformate[0]?.id
+        }
+        const notizFmtName = absatzformate.find((f: any) => f.id === notizFmtId)?.name ?? 'Haupttext'
+        const attrs: any = { format_id: notizFmtId ?? null, format_name: notizFmtName }
+        if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
+        pmNodes.push({
+          type: 'absatz',
+          attrs,
+          content: inlineContent && inlineContent.length > 0 ? inlineContent : [{ type: 'text', text: '' }],
+        })
+      } else {
+        const attrs: any = {}
+        if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
+        pmNodes.push({
+          type: 'paragraph',
+          ...(Object.keys(attrs).length > 0 ? { attrs } : {}),
+          content: inlineContent,
+        })
+      }
+      continue
+    }
+
+    const pmType = (['action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot', 'heading'].includes(te.type))
+      ? te.type : 'action'
+
+    if (useAbsatzNodes) {
+      let fmtId: string | undefined
+      let matchedTextbaustein = false
+      const firstText = inlineContent?.[0]?.type === 'text' ? inlineContent[0].text : ''
+      for (const tbFmt of textbausteinFormats) {
+        const prefix = tbFmt.textbaustein as string
+        if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
+          fmtId = tbFmt.id
+          matchedTextbaustein = true
+          const stripped = firstText.slice(prefix.length).replace(/^[:\s]+/, '')
+          if (stripped) {
+            inlineContent = [{ ...inlineContent![0], text: stripped }, ...inlineContent!.slice(1)]
+          } else {
+            inlineContent = inlineContent!.slice(1)
+          }
+          break
+        }
+      }
+      if (!matchedTextbaustein) {
+        const episodenendeFmtId = elementTypeToFormatId.get('episodenende')
+        if (episodenendeFmtId && /^Ende\s+der\s+(Folge|Episode)\s+\d+/i.test(firstText)) {
+          fmtId = episodenendeFmtId
+        } else if (docTyp === 'storyline') {
+          fmtId = elementTypeToFormatId.get('haupttext')
+            || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
+            || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
+            || absatzformate[0]?.id
+        } else {
+          fmtId = elementTypeToFormatId.get(pmType)
+        }
+      }
+      const fmtName = absatzformate.find((f: any) => f.id === fmtId)?.name ?? pmType
+      const attrs: any = { format_id: fmtId ?? null, format_name: fmtName }
+      if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
+      pmNodes.push({
+        type: 'absatz',
+        attrs,
+        content: inlineContent && inlineContent.length > 0 ? inlineContent : [{ type: 'text', text: '' }],
+      })
+    } else {
+      const attrs: any = { element_type: pmType }
+      if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
+      pmNodes.push({
+        type: 'screenplay_element',
+        attrs,
+        content: inlineContent,
+      })
+    }
+  }
+
+  return pmNodes
+}
+
 export const importRouter = Router()
 
 const upload = multer({
@@ -282,7 +436,13 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       parseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
     }
 
-    const result   = await parseScript(req.file.originalname, parseBuffer, parseOpts)
+    const cacheKey = makeParseKey(parseBuffer, parseOpts)
+    let result = cacheGet(cacheKey)
+    if (!result) {
+      result = await parseScript(req.file.originalname, parseBuffer, parseOpts)
+      cacheSet(cacheKey, result)
+    }
+
     const fileMeta = extractFileMetadata(req.file.originalname, req.file.buffer)
     const filenameMeta = parseFilename(req.file.originalname)
 
@@ -304,13 +464,10 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
 
     // Enrich szenen with repliken counts + komparsen detail
     const enrichedSzenen = result.szenen.map((sz: any) => {
-      // Rollen: count repliken per character
       const charaktere_detail = (sz.charaktere || []).map((name: string) => {
         const analysis = analyzeInContent(sz.textelemente || [], name)
         return { name, repliken: analysis.repliken }
       })
-
-      // Komparsen: parse entry + analyze content
       const komparsen_detail = (sz.komparsen || []).map((raw: string) => {
         const { name, anzahl, headerOT } = parseKomparseEntry(raw)
         const analysis = analyzeInContent(sz.textelemente || [], name)
@@ -318,10 +475,9 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
         let hat_text = false
         if (analysis.spiel_typ === 'text') { hat_text = true; hat_spiel = true }
         else if (analysis.spiel_typ === 'spiel') { hat_spiel = true }
-        else if (!headerOT) { hat_spiel = true } // no o.T. in header → assume spiel
+        else if (!headerOT) { hat_spiel = true }
         return { name, anzahl, hat_spiel, hat_text, repliken: analysis.repliken }
       })
-
       return { ...sz, charaktere_detail, komparsen_detail }
     })
 
@@ -346,14 +502,13 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
   }
 })
 
-// POST /api/import/commit — Full import into DB
+// POST /api/import/commit — Full import into DB (transactional, bulk inserts)
 importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
 
     const produktion_id = req.body.produktion_id
     const folge_nummer = parseInt(req.body.folge_nummer)
-    const proddb_block_id = req.body.proddb_block_id || null
 
     if (!produktion_id || isNaN(folge_nummer)) {
       return res.status(400).json({ error: 'produktion_id und folge_nummer erforderlich' })
@@ -365,29 +520,32 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       return res.status(400).json({ error: `Ungültiger stage_type: ${stage_type}` })
     }
 
-    // Strip watermark before parsing (text formats only — PDFs are binary)
+    // ── Strip watermark + build parseOpts ──
     const isPdf = req.file.originalname.toLowerCase().endsWith('.pdf')
     let parseBuffer = req.file.buffer
     if (!isPdf) {
-      const rawText   = req.file.buffer.toString('utf8')
-      const cleanText = stripWatermark(rawText)
-      parseBuffer  = Buffer.from(cleanText, 'utf8')
+      parseBuffer = Buffer.from(stripWatermark(req.file.buffer.toString('utf8')), 'utf8')
     }
 
-    // PDF extraction options from request body
-    const commitParseOpts: ParseOptions = {}
-    if (req.body.pdf_method === 'mistral') commitParseOpts.pdfMethod = 'mistral'
+    const parseOpts: ParseOptions = {}
+    if (req.body.pdf_method === 'mistral') parseOpts.pdfMethod = 'mistral'
     if (req.body.pdf_crop_left || req.body.pdf_crop_right || req.body.pdf_crop_bottom) {
-      commitParseOpts.pdfCrop = {
+      parseOpts.pdfCrop = {
         cropLeft: parseInt(req.body.pdf_crop_left || '0', 10),
         cropRight: parseInt(req.body.pdf_crop_right || '0', 10),
         cropBottom: parseInt(req.body.pdf_crop_bottom || '0', 10),
       }
     } else if (req.body.pdf_crop_percent) {
-      commitParseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
+      parseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
     }
 
-    const result    = await parseScript(req.file.originalname, parseBuffer, commitParseOpts)
+    // ── Parse — use cache from /preview if available ──
+    const cacheKey = makeParseKey(parseBuffer, parseOpts)
+    let result = cacheGet(cacheKey)
+    if (!result) {
+      result = await parseScript(req.file.originalname, parseBuffer, parseOpts)
+      cacheSet(cacheKey, result)
+    }
 
     // Auto-detect stage_type from Rote-Rosen metadata if not explicitly set
     if (result.meta.roteRosenMeta && !req.body.stage_type) {
@@ -395,701 +553,585 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       if (rrDocType === 'treatment') stage_type = 'treatment'
       else if (rrDocType === 'drehbuch') stage_type = 'draft'
     }
+
     const fileMeta  = extractFileMetadata(req.file.originalname, req.file.buffer)
     const filenameMeta = parseFilename(req.file.originalname)
     const saveMetadata = req.body.save_metadata === 'true'
 
-    // Build meta_json for the stage
     const metaJson: Record<string, any> = {
       source_filename: req.file.originalname,
       imported_at: new Date().toISOString(),
       imported_by: req.user!.name || req.user!.user_id,
     }
-    if (saveMetadata && Object.keys(fileMeta).length > 0) {
-      metaJson.import_metadata = fileMeta
-    }
-    if (Object.keys(filenameMeta).length > 0) {
-      metaJson.filename_metadata = filenameMeta
-    }
-    if (result.meta.roteRosenMeta) {
-      metaJson.rote_rosen = result.meta.roteRosenMeta
-    }
+    if (saveMetadata && Object.keys(fileMeta).length > 0) metaJson.import_metadata = fileMeta
+    if (Object.keys(filenameMeta).length > 0) metaJson.filename_metadata = filenameMeta
+    if (result.meta.roteRosenMeta) metaJson.rote_rosen = result.meta.roteRosenMeta
 
-    // Build version_label from filename date or generic label
     let versionLabel = `Import: ${req.file.originalname}`
-    if (filenameMeta.fassungsdatum) {
-      versionLabel = `Import ${filenameMeta.fassungsdatum}`
-    }
-
-    // Stand-Datum: prefer frontend override, then filename date
+    if (filenameMeta.fassungsdatum) versionLabel = `Import ${filenameMeta.fassungsdatum}`
     const standDatum = req.body.stand_datum || filenameMeta.fassungsdatum || null
 
-    // Map stage_type → werkstufen-typ
     const stageToDocTyp: Record<string, string> = {
       treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
     }
     const docTyp = stageToDocTyp[stage_type] || 'drehbuch'
 
-    // ── Werkstufen-Modell: folgen → werkstufen → dokument_szenen ──
-
-    // Ensure folgen row exists
-    let folge = await queryOne(
-      `SELECT id FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
-      [produktion_id, folge_nummer]
-    )
-    if (!folge) {
-      folge = await queryOne(
-        `INSERT INTO folgen (produktion_id, folge_nummer, erstellt_von)
-         VALUES ($1, $2, $3) RETURNING id`,
-        [produktion_id, folge_nummer, req.user!.name || req.user!.user_id]
-      )
-    }
-
-    // Create werkstufe
-    const nextWerkVer = await queryOne(
-      `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
-      [folge.id, docTyp]
-    )
-    const werkVersionNummer = (nextWerkVer?.m ?? 0) + 1
-    const werkstufe = await queryOne(
-      `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum)
-       VALUES ($1, $2, $3, $4, 'team', $5, $6) RETURNING id`,
-      [folge.id, docTyp, werkVersionNummer, versionLabel, req.user!.name || req.user!.user_id, standDatum]
-    )
-
-    // ── SHA-256 hash + file archiving ──
-    const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
-    const uploadDir = path.join(UPLOAD_BASE, produktion_id, String(folge_nummer))
-    try {
-      fs.mkdirSync(uploadDir, { recursive: true })
-      const ext = path.extname(req.file.originalname) || '.bin'
-      const archiveName = `${werkstufe.id}${ext}`
-      const archivePath = path.join(uploadDir, archiveName)
-      fs.writeFileSync(archivePath, req.file.buffer)
-      // Store relative path from UPLOAD_BASE
-      const relPath = path.join(produktion_id, String(folge_nummer), archiveName)
-      await query(
-        `UPDATE werkstufen SET original_datei = $1, original_dateiname = $2, datei_hash = $3, datei_groesse = $4 WHERE id = $5`,
-        [relPath, req.file.originalname, fileHash, req.file.buffer.length, werkstufe.id]
-      )
-    } catch (archiveErr) {
-      console.error('[Import] File archive failed (non-fatal):', archiveErr)
-      // Still save hash even if file storage fails
-      await query(
-        `UPDATE werkstufen SET original_dateiname = $1, datei_hash = $2, datei_groesse = $3 WHERE id = $4`,
-        [req.file.originalname, fileHash, req.file.buffer.length, werkstufe.id]
-      ).catch(() => {})
-    }
-
-    // Load absatzformate for this production (for absatz-node generation)
+    // ── Load absatzformate outside transaction (read-only) ──
     const absatzformate = await query(
       `SELECT id, name, textbaustein, kategorie FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order`,
       [produktion_id]
     )
-    // Build textbaustein lookup: sorted by length desc for longest-match-first
     const textbausteinFormats = absatzformate
       .filter((f: any) => f.textbaustein)
       .sort((a: any, b: any) => b.textbaustein.length - a.textbaustein.length)
-    // Map element_type names to format IDs
     const elementTypeToFormatId = new Map<string, string>()
     if (absatzformate.length > 0) {
       const nameMap: Record<string, string> = {
-        scene_heading: 'Szenenueberschrift',
-        action: 'Action',
-        character: 'Character',
-        dialogue: 'Dialogue',
-        parenthetical: 'Parenthetical',
-        transition: 'Transition',
-        shot: 'Shot',
-        heading: 'Headline',
+        scene_heading: 'Szenenueberschrift', action: 'Action', character: 'Character',
+        dialogue: 'Dialogue', parenthetical: 'Parenthetical', transition: 'Transition',
+        shot: 'Shot', heading: 'Headline',
       }
       for (const [elemType, formatName] of Object.entries(nameMap)) {
         const fmt = absatzformate.find((f: any) => f.name === formatName)
         if (fmt) elementTypeToFormatId.set(elemType, fmt.id)
       }
-      // Also map storyline format names
-      const storylineNames = ['Haupttext', 'Status Quo', 'Anmerkung', 'Strang-Marker']
-      for (const name of storylineNames) {
+      for (const name of ['Haupttext', 'Status Quo', 'Anmerkung', 'Strang-Marker']) {
         const fmt = absatzformate.find((f: any) => f.name === name)
         if (fmt) elementTypeToFormatId.set(name.toLowerCase().replace(/ /g, '_'), fmt.id)
       }
-      // Episodenende format
       const episodenendeFmt = absatzformate.find((f: any) => f.name === 'Episodenende')
       if (episodenendeFmt) elementTypeToFormatId.set('episodenende', episodenendeFmt.id)
     }
     const useAbsatzNodes = elementTypeToFormatId.size > 0
 
-    // Parse frontend scene overrides (field corrections)
+    // ── Parse frontend scene overrides ──
     let sceneOverrides: Record<number, Record<string, any>> = {}
     if (req.body.scene_overrides) {
       try { sceneOverrides = JSON.parse(req.body.scene_overrides) } catch {}
     }
 
-    // Create scene_identities + dokument_szenen for each scene
-    const sceneIdentityIds: { identityId: string; szeneIdx: number; dokSzeneId: string; sceneNummer: number }[] = []
+    // ── Pre-compute all scene data in memory ──
+    const formatMap: Record<string, string> = { 'Drehbuch': 'drehbuch', 'Storyline': 'storyline', 'Notiz': 'notiz' }
+    type SceneData = {
+      sortOrder: number; sceneNummer: any; intExt: any; tageszeit: any; ortName: any
+      spieltag: any; zusammenfassung: any; szeneninfo: any; stoppzeitSek: any
+      sceneFormat: string; sondertyp: string | null; pmNodes: any[]; pageLength: number
+      charaktere: string[]; komparsen: string[]; wechselschnittPartner: number[]
+    }
+    const sceneDataList: SceneData[] = []
     for (const [idx, szene] of result.szenen.entries()) {
       const ov = sceneOverrides[idx] || {}
-      const intExt = ov.int_ext ?? szene.int_ext
-      const tageszeit = ov.tageszeit ?? szene.tageszeit
-      const ortName = ov.ort_name ?? szene.ort_name
-      const spieltag = ov.spieltag ?? szene.spieltag
-      const zusammenfassung = ov.zusammenfassung ?? szene.zusammenfassung
-      const szeneninfo = ov.szeneninfo ?? szene.szeneninfo
-      const stoppzeitSek = ov.dauer_sekunden ?? szene.dauer_sekunden ?? null
-      // Per-scene format override (display label → DB value)
-      const formatMap: Record<string, string> = { 'Drehbuch': 'drehbuch', 'Storyline': 'storyline', 'Notiz': 'notiz' }
-      const sceneFormat = ov.format ? (formatMap[ov.format] || docTyp) : docTyp
-      // Override charaktere/komparsen lists if provided
       if (ov.charaktere && Array.isArray(ov.charaktere)) szene.charaktere = ov.charaktere
       if (ov.komparsen && Array.isArray(ov.komparsen)) szene.komparsen = ov.komparsen
+      const sceneFormat = ov.format ? (formatMap[ov.format] || docTyp) : docTyp
       const isWechselschnitt = szene.isWechselschnitt || false
-      // Stockshot: keyword-detected or user-confirmed heuristic via override
-      const isStockshot = ov.isStockshot != null ? ov.isStockshot : (szene.isStockshot || false)
-
-      const identity = await queryOne(
-        `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
-        [folge.id, req.user!.name || req.user!.user_id]
+      const isStockshot = szene.isStockshot || false
+      const pmNodes = buildPmNodesForScene(
+        szene.textelemente || [], sceneFormat, docTyp,
+        useAbsatzNodes, elementTypeToFormatId, textbausteinFormats, absatzformate
       )
-
-      // Convert textelemente to ProseMirror format
-      // NOTE: Scene heading is NOT written into content — it's stored in metadata fields
-      // (int_ext, ort_name, tageszeit) and displayed by the SceneEditor header component.
-      const pmNodes: any[] = []
-
-      // Build inline content: use richContent (with marks) if available, otherwise plain text
-      function buildInlineContent(te: any): any[] | undefined {
-        if (!te.text && !te.richContent) return undefined
-        if (te.richContent && te.richContent.length > 0) {
-          return te.richContent.map((n: any) => ({
-            type: 'text',
-            text: n.text,
-            ...(n.marks && n.marks.length > 0 ? { marks: n.marks } : {}),
-          }))
-        }
-        return [{ type: 'text', text: te.text }]
-      }
-
-      // Content nodes
-      for (const te of szene.textelemente) {
-        let inlineContent = buildInlineContent(te)
-
-        // For notiz/storyline format: use absatz nodes with neutral format (Arial, not Courier)
-        // but respect heading type → Headline format
-        if (sceneFormat === 'notiz' || sceneFormat === 'storyline') {
-          if (useAbsatzNodes) {
-            let notizFmtId: string | undefined
-            // Headings → Headline format
-            if (te.type === 'heading') {
-              notizFmtId = elementTypeToFormatId.get('heading')
-                || absatzformate.find((f: any) => f.name === 'Headline')?.id
-            }
-            // Check textbaustein match
-            if (!notizFmtId) {
-              const firstText = inlineContent?.[0]?.type === 'text' ? inlineContent[0].text : ''
-              for (const tbFmt of textbausteinFormats) {
-                const prefix = tbFmt.textbaustein as string
-                if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
-                  notizFmtId = tbFmt.id
-                  const stripped = firstText.slice(prefix.length).replace(/^[:\s]+/, '')
-                  if (stripped) {
-                    inlineContent = [{ ...inlineContent![0], text: stripped }, ...inlineContent!.slice(1)]
-                  } else {
-                    inlineContent = inlineContent!.slice(1)
-                  }
-                  break
-                }
-              }
-            }
-            // Default: Haupttext
-            if (!notizFmtId) {
-              notizFmtId = elementTypeToFormatId.get('haupttext')
-                || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
-                || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
-                || absatzformate[0]?.id
-            }
-            const notizFmtName = absatzformate.find((f: any) => f.id === notizFmtId)?.name ?? 'Haupttext'
-            const attrs: any = { format_id: notizFmtId ?? null, format_name: notizFmtName }
-            if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
-            pmNodes.push({
-              type: 'absatz',
-              attrs,
-              content: inlineContent && inlineContent.length > 0 ? inlineContent : [{ type: 'text', text: '' }],
-            })
-          } else {
-            const attrs: any = {}
-            if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
-            pmNodes.push({
-              type: 'paragraph',
-              ...(Object.keys(attrs).length > 0 ? { attrs } : {}),
-              content: inlineContent,
-            })
-          }
-          continue
-        }
-
-        const pmType = (['action', 'character', 'dialogue', 'parenthetical', 'transition', 'shot', 'heading'].includes(te.type))
-          ? te.type : 'action'
-
-        if (useAbsatzNodes) {
-          // Check if line starts with a textbaustein → set format + strip prefix
-          // (the prefix is rendered via CSS ::before in the editor, so content must NOT contain it)
-          let fmtId: string | undefined
-          let matchedTextbaustein = false
-          const firstText = inlineContent[0]?.type === 'text' ? inlineContent[0].text : ''
-          for (const tbFmt of textbausteinFormats) {
-            const prefix = tbFmt.textbaustein as string
-            if (firstText.toLowerCase().startsWith(prefix.toLowerCase())) {
-              fmtId = tbFmt.id
-              matchedTextbaustein = true
-              // Strip prefix from content (+ optional trailing colon/space)
-              const stripped = firstText.slice(prefix.length).replace(/^[:\s]+/, '')
-              if (stripped) {
-                inlineContent = [{ ...inlineContent[0], text: stripped }, ...inlineContent.slice(1)]
-              } else {
-                inlineContent = inlineContent.slice(1)
-              }
-              break
-            }
-          }
-
-          if (!matchedTextbaustein) {
-            // Detect "Ende der Folge/Episode nn" → Episodenende format
-            const episodenendeFmtId = elementTypeToFormatId.get('episodenende')
-            if (episodenendeFmtId && /^Ende\s+der\s+(Folge|Episode)\s+\d+/i.test(firstText)) {
-              fmtId = episodenendeFmtId
-            } else if (docTyp === 'storyline') {
-              // For storyline format: always use Haupttext (Arial 11pt), never drehbuch formats (Courier)
-              fmtId = elementTypeToFormatId.get('haupttext')
-                || absatzformate.find((f: any) => f.name === 'Haupttext')?.id
-                || absatzformate.find((f: any) => f.kategorie === 'storyline')?.id
-                || absatzformate[0]?.id
-            } else {
-              fmtId = elementTypeToFormatId.get(pmType)
-            }
-          }
-          const fmtName = absatzformate.find((f: any) => f.id === fmtId)?.name ?? pmType
-          const attrs: any = { format_id: fmtId ?? null, format_name: fmtName }
-          if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
-          pmNodes.push({
-            type: 'absatz',
-            attrs,
-            content: inlineContent.length > 0 ? inlineContent : [{ type: 'text', text: '' }],
-          })
-        } else {
-          const attrs: any = { element_type: pmType }
-          if (te.textAlign && te.textAlign !== 'left') attrs.textAlign = te.textAlign
-          pmNodes.push({
-            type: 'screenplay_element',
-            attrs,
-            content: inlineContent,
-          })
-        }
-      }
-
-      const pl = calcPageLength(pmNodes)
-      const sondertyp = isWechselschnitt ? 'wechselschnitt' : isStockshot ? 'stockshot' : null
-      const insertedScene = await queryOne(
-        `INSERT INTO dokument_szenen
-           (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
-            int_ext, tageszeit, ort_name, zusammenfassung, content,
-            spieltag, stoppzeit_sek, is_wechselschnitt, szeneninfo,
-            format, geloescht, updated_by, page_length, sondertyp)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, false, $15, $16, $17)
-         RETURNING id`,
-        [
-          werkstufe.id, identity.id, idx, szene.nummer,
-          intExt, tageszeit, ortName || null,
-          zusammenfassung || null, JSON.stringify(pmNodes),
-          spieltag || null, stoppzeitSek, isWechselschnitt,
-          szeneninfo || null, sceneFormat, req.user!.name || req.user!.user_id,
-          pl, sondertyp,
-        ]
-      )
-      sceneIdentityIds.push({ identityId: identity.id, szeneIdx: idx, dokSzeneId: insertedScene.id, sceneNummer: szene.nummer })
+      sceneDataList.push({
+        sortOrder: idx,
+        sceneNummer: szene.nummer,
+        intExt: ov.int_ext ?? szene.int_ext ?? null,
+        tageszeit: ov.tageszeit ?? szene.tageszeit ?? null,
+        ortName: (ov.ort_name ?? szene.ort_name) || null,
+        spieltag: (ov.spieltag ?? szene.spieltag) || null,
+        zusammenfassung: (ov.zusammenfassung ?? szene.zusammenfassung) || null,
+        szeneninfo: (ov.szeneninfo ?? szene.szeneninfo) || null,
+        stoppzeitSek: ov.dauer_sekunden ?? szene.dauer_sekunden ?? null,
+        sceneFormat,
+        sondertyp: isWechselschnitt ? 'wechselschnitt' : isStockshot ? 'stockshot' : null,
+        pmNodes,
+        pageLength: calcPageLength(pmNodes),
+        charaktere: szene.charaktere || [],
+        komparsen: szene.komparsen || [],
+        wechselschnittPartner: szene.wechselschnittPartner || [],
+      })
     }
 
-    const scenesImported = sceneIdentityIds.length
-
-    // ── Wechselschnitt partner linking ──
-    const nummerToIdentity = new Map<number, string>()
-    for (const entry of sceneIdentityIds) {
-      nummerToIdentity.set(entry.sceneNummer, entry.identityId)
-    }
-    for (const entry of sceneIdentityIds) {
-      const szene = result.szenen[entry.szeneIdx]
-      if (!szene.wechselschnittPartner || szene.wechselschnittPartner.length === 0) continue
-      for (let pos = 0; pos < szene.wechselschnittPartner.length; pos++) {
-        const partnerNr = szene.wechselschnittPartner[pos]
-        const partnerIdentityId = nummerToIdentity.get(partnerNr)
-        if (!partnerIdentityId) continue
-        try {
-          await query(
-            `INSERT INTO wechselschnitt_partner (dokument_szene_id, partner_identity_id, position)
-             VALUES ($1, $2, $3) ON CONFLICT (dokument_szene_id, partner_identity_id) DO NOTHING`,
-            [entry.dokSzeneId, partnerIdentityId, pos]
-          )
-        } catch { /* ignore constraint violations */ }
-      }
-    }
-
-    // ── Non-scene elements (titelseite, synopsis, recap, precap, memo) ──
-    let nonSceneCount = 0
-    // Merge: parser-detected non-scene elements + frontend-supplied overrides
+    // ── Pre-compute non-scene elements ──
     const allNonScene: Array<{ type: string; label: string; content: string }> = []
-    if (result.nonSceneElements) {
-      allNonScene.push(...result.nonSceneElements)
-    }
-    const rawNonSceneElements = req.body.non_scene_elements
-    if (rawNonSceneElements) {
+    if (result.nonSceneElements) allNonScene.push(...result.nonSceneElements)
+    if (req.body.non_scene_elements) {
       try {
-        const frontendNonScene: Array<{ type: string; label: string; content: string }> = JSON.parse(rawNonSceneElements)
-        // Only add frontend elements whose type doesn't already exist from parser
+        const frontendNonScene = JSON.parse(req.body.non_scene_elements)
         const existingTypes = new Set(allNonScene.map(e => e.type))
         for (const elem of frontendNonScene) {
           if (!existingTypes.has(elem.type)) allNonScene.push(elem)
         }
-      } catch { /* ignore parse errors */ }
+      } catch {}
     }
-
-    for (const [nsIdx, elem] of allNonScene.entries()) {
+    type NonSceneData = { pmNodes: any[]; pageLength: number; elemType: string; label: string; sortOrder: number }
+    const nonSceneDataList: NonSceneData[] = allNonScene.map((elem, nsIdx) => {
       const elemType = ['titelseite', 'synopsis', 'recap', 'precap', 'memo', 'cover'].includes(elem.type) ? elem.type : 'memo'
       const pmNodes = buildNonSceneContent(elem.type, elem.content)
-      const nspl = calcPageLength(pmNodes)
+      return { pmNodes, pageLength: calcPageLength(pmNodes), elemType, label: elem.label, sortOrder: -(allNonScene.length - nsIdx) }
+    })
 
-      const nsIdentity = await queryOne(
-        `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
-        [folge.id, req.user!.name || req.user!.user_id]
-      )
+    const userName = req.user!.name || req.user!.user_id
+    const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
 
-      await queryOne(
-        `INSERT INTO dokument_szenen
-           (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
-            content, format, element_type, geloescht, updated_by, zusammenfassung, page_length)
-         VALUES ($1, $2, $3, NULL, $4, 'notiz', $5, false, $6, $7, $8)`,
-        [
-          werkstufe.id, nsIdentity.id, -(allNonScene.length - nsIdx), JSON.stringify(pmNodes),
-          elemType, req.user!.name || req.user!.user_id, elem.label, nspl,
-        ]
-      )
-      nonSceneCount++
-    }
-
-    // ── Characters: use new characters + character_productions system ──
-    // Load existing kategorien for this staffel — auto-create defaults if empty
-    let kategorien = await query(
-      `SELECT id, name, typ FROM character_kategorien WHERE produktion_id = $1`,
-      [produktion_id]
-    )
-    if (kategorien.length === 0) {
-      await query(
-        `INSERT INTO character_kategorien (produktion_id, name, typ, sort_order)
-         VALUES ($1, 'Episoden-Rolle', 'rolle', 1), ($1, 'Komparse o.T.', 'komparse', 2)
-         ON CONFLICT (produktion_id, name) DO NOTHING`,
-        [produktion_id]
-      )
-      kategorien = await query(
-        `SELECT id, name, typ FROM character_kategorien WHERE produktion_id = $1`,
-        [produktion_id]
-      )
-    }
-    const rolleKatId = kategorien.find((k: any) => k.name === 'Episoden-Rolle')?.id
-      || kategorien.find((k: any) => k.typ === 'rolle')?.id || null
-    const komparseKatId = kategorien.find((k: any) => k.name === 'Komparse o.T.')?.id
-      || kategorien.find((k: any) => k.typ === 'komparse')?.id || null
-
-    // Map character name → character UUID (for scene_characters linking)
-    const charNameToId = new Map<string, string>()
+    // ── BEGIN TRANSACTION ──
+    const client = await pool.connect()
+    let folgeId!: string
+    let werkstufeId!: string
+    let scenesImported = 0
+    let nonSceneCount = 0
     let charactersCreated = 0
-
-    // Process Rollen (named characters)
-    for (const charName of result.meta.charaktere) {
-      if (!charName.trim()) continue
-      try {
-        // Check if character already exists (case-insensitive)
-        let existing = await queryOne(
-          `SELECT c.id FROM characters c
-           JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $2
-           WHERE UPPER(c.name) = UPPER($1)`,
-          [charName, produktion_id]
-        )
-        if (existing) {
-          charNameToId.set(charName.toUpperCase(), existing.id)
-          continue
-        }
-
-        // Also check globally (might exist in another staffel)
-        existing = await queryOne(
-          `SELECT id FROM characters WHERE UPPER(name) = UPPER($1)`,
-          [charName]
-        )
-
-        let charId: string
-        if (existing) {
-          charId = existing.id
-        } else {
-          // Create new character, flagged as import_auto_created
-          const newChar = await queryOne(
-            `INSERT INTO characters (name, meta_json) VALUES ($1, $2) RETURNING id`,
-            [charName, JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
-          )
-          charId = newChar.id
-          charactersCreated++
-        }
-
-        // Link to staffel (upsert)
-        await queryOne(
-          `INSERT INTO character_productions (character_id, produktion_id, kategorie_id)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (character_id, produktion_id) DO NOTHING`,
-          [charId, produktion_id, rolleKatId]
-        )
-        charNameToId.set(charName.toUpperCase(), charId)
-      } catch { /* ignore constraint violations */ }
-    }
-
-    const allKomparsenNames = new Set<string>()
-    for (const szene of result.szenen) {
-      if (szene.komparsen) {
-        for (const k of szene.komparsen) {
-          const { name } = parseKomparseEntry(k)
-          if (name) allKomparsenNames.add(name)
-        }
-      }
-    }
-
     let komparsenCreated = 0
-    for (const kompCleanName of allKomparsenNames) {
-      if (!kompCleanName) continue
-      try {
-        let existing = await queryOne(
-          `SELECT c.id FROM characters c
-           JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $2
-           WHERE UPPER(c.name) = UPPER($1)`,
-          [kompCleanName, produktion_id]
-        )
-        if (existing) {
-          charNameToId.set(kompCleanName.toUpperCase(), existing.id)
-          continue
-        }
-
-        existing = await queryOne(
-          `SELECT id FROM characters WHERE UPPER(name) = UPPER($1)`,
-          [kompCleanName]
-        )
-
-        let charId: string
-        if (existing) {
-          charId = existing.id
-        } else {
-          const newChar = await queryOne(
-            `INSERT INTO characters (name, meta_json) VALUES ($1, $2) RETURNING id`,
-            [kompCleanName, JSON.stringify({ import_auto_created: true, is_komparse: true, import_source: req.file!.originalname })]
-          )
-          charId = newChar.id
-          komparsenCreated++
-        }
-
-        await queryOne(
-          `INSERT INTO character_productions (character_id, produktion_id, kategorie_id)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (character_id, produktion_id) DO NOTHING`,
-          [charId, produktion_id, komparseKatId]
-        )
-        charNameToId.set(kompCleanName.toUpperCase(), charId)
-      } catch { /* ignore constraint violations */ }
-    }
-
-    // ── Scene-Characters linking (via scene_identity_id) ──
-    for (const { identityId, szeneIdx } of sceneIdentityIds) {
-      const szene = result.szenen[szeneIdx]
-      // Link Rollen (with content analysis for spiel_typ + repliken)
-      for (const charName of szene.charaktere) {
-        const charId = charNameToId.get(charName.toUpperCase())
-        if (!charId) continue
-        const analysis = analyzeInContent(szene.textelemente, charName)
-        // Named roles are at minimum 'spiel'
-        const spiel_typ = analysis.spiel_typ === 'text' ? 'text' : 'spiel'
-        try {
-          await queryOne(
-            `INSERT INTO scene_characters
-              (scene_identity_id, character_id, kategorie_id, spiel_typ, repliken_anzahl, werkstufe_id)
-             VALUES ($1, $2, $3, $4, $5, $6)
-             ON CONFLICT (werkstufe_id, scene_identity_id, character_id)
-               WHERE werkstufe_id IS NOT NULL AND scene_identity_id IS NOT NULL DO NOTHING`,
-            [identityId, charId, rolleKatId, spiel_typ, analysis.repliken, werkstufe.id]
-          )
-        } catch { /* ignore */ }
-      }
-      // Link Komparsen (anzahl, spiel_typ from content analysis, header_o_t flag)
-      if (szene.komparsen) {
-        for (const kompRaw of szene.komparsen) {
-          const { name: kompCleanName, anzahl, headerOT } = parseKomparseEntry(kompRaw)
-          const charId = charNameToId.get(kompCleanName.toUpperCase())
-          if (!charId) continue
-
-          // Content analysis: can upgrade o.t. → spiel → text
-          const analysis = analyzeInContent(szene.textelemente, kompCleanName)
-          // Header o.T. → start at o.t.; content can always upgrade to 'text' (Dialog found)
-          // but action-mention alone doesn't override an explicit o.T. header
-          // Header without o.T. → start at spiel; content can upgrade to 'text'
-          let spiel_typ: string = headerOT ? 'o.t.' : 'spiel'
-          if (analysis.spiel_typ === 'text') spiel_typ = 'text'
-          else if (analysis.spiel_typ === 'spiel' && !headerOT) spiel_typ = 'spiel'
-
-          try {
-            await queryOne(
-              `INSERT INTO scene_characters
-                (scene_identity_id, character_id, kategorie_id, anzahl,
-                 spiel_typ, repliken_anzahl, header_o_t, werkstufe_id)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-               ON CONFLICT (werkstufe_id, scene_identity_id, character_id)
-                 WHERE werkstufe_id IS NOT NULL AND scene_identity_id IS NOT NULL DO NOTHING`,
-              [identityId, charId, komparseKatId, anzahl,
-               spiel_typ, analysis.repliken, headerOT, werkstufe.id]
-            )
-          } catch { /* ignore */ }
-        }
-      }
-    }
-
-    // ── Motive: parse ort_name → drehort / motiv / untermotiv ──
-    // A.D. regex: matches "A.D.", "A. D.", "AD", "A.D", "AD.", "A D" etc.
-    const AD_REGEX = /^A\.?\s*D\.?\s+/i
-
-    // Strip A.D. prefix from a name and return { cleanName, isAD }
-    function stripAD(name: string): { cleanName: string; isAD: boolean } {
-      if (AD_REGEX.test(name)) {
-        return { cleanName: name.replace(AD_REGEX, '').trim(), isAD: true }
-      }
-      return { cleanName: name, isAD: false }
-    }
-
-    function normalizeOrtName(raw: string): string {
-      return raw.replace(/^A\.?\s*D\.?\s*/i, 'Außendreh / ').replace(/\s*\/\s*/g, ' / ')
-    }
-
-    function parseOrtName(raw: string): { drehortLabel: string | null; motivName: string; untermotivName: string | null; isAD: boolean } {
-      const normalized = normalizeOrtName(raw)
-      const parts = normalized.split(' / ').map(p => p.trim()).filter(Boolean)
-      let drehortLabel: string | null = null
-      let motivName: string
-      let untermotivName: string | null = null
-      let isAD = false
-
-      if (parts.length >= 3) {
-        drehortLabel = parts[0]; motivName = parts[1]; untermotivName = parts.slice(2).join(' / ')
-      } else if (parts.length === 2) {
-        const isDrehort = /^(Stu\.|Studio|Außendreh|Innendreh)/i.test(parts[0])
-        if (isDrehort) { drehortLabel = parts[0]; motivName = parts[1] }
-        else { motivName = parts[0]; untermotivName = parts[1] }
-      } else {
-        motivName = parts[0] || raw
-      }
-
-      // Detect Außendreh from drehort label
-      if (drehortLabel && /Außendreh/i.test(drehortLabel)) isAD = true
-
-      // Strip residual A.D. from motiv name (e.g. "A. D. Kurpark" after split)
-      const stripped = stripAD(motivName)
-      motivName = stripped.cleanName
-      if (stripped.isAD) isAD = true
-
-      // Also strip from untermotiv
-      if (untermotivName) {
-        const strippedUnter = stripAD(untermotivName)
-        untermotivName = strippedUnter.cleanName
-        if (strippedUnter.isAD) isAD = true
-      }
-
-      return { drehortLabel, motivName, untermotivName, isAD }
-    }
-
-    // Cache drehort IDs
-    const drehortCache = new Map<string, string>()
-    async function getOrCreateDrehort(label: string): Promise<string> {
-      const key = label.toUpperCase()
-      if (drehortCache.has(key)) return drehortCache.get(key)!
-      let row = await queryOne(
-        `SELECT id FROM drehorte WHERE produktion_id = $1 AND UPPER(label) = UPPER($2)`,
-        [produktion_id, label]
-      )
-      if (!row) {
-        row = await queryOne(
-          `INSERT INTO drehorte (produktion_id, label) VALUES ($1, $2)
-           ON CONFLICT (produktion_id, label) DO UPDATE SET label = EXCLUDED.label RETURNING id`,
-          [produktion_id, label]
-        )
-      }
-      drehortCache.set(key, row.id)
-      return row.id
-    }
-
-    // Cache motiv IDs (key = parentId|name)
-    const motivCache = new Map<string, string>()
     let motiveCreated = 0
 
-    for (const szene of result.szenen) {
-      if (!szene.ort_name) continue
-      try {
-        const { drehortLabel, motivName, untermotivName, isAD } = parseOrtName(szene.ort_name)
-        const drehortId = drehortLabel ? await getOrCreateDrehort(drehortLabel) : null
-        const motivTyp = szene.int_ext === 'EXT' ? 'exterior' : 'interior'
-        const istStudio = !isAD
+    try {
+      await client.query('BEGIN')
 
-        // Get or create main motiv
-        const motivKey = `|${motivName.toUpperCase()}`
-        let motivId: string
-        if (motivCache.has(motivKey)) {
-          motivId = motivCache.get(motivKey)!
-        } else {
-          let existing = await queryOne(
-            `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2) AND parent_id IS NULL`,
-            [produktion_id, motivName]
+      // Ensure folgen row exists
+      let folgeRow = (await client.query(
+        `SELECT id FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
+        [produktion_id, folge_nummer]
+      )).rows[0]
+      if (!folgeRow) {
+        folgeRow = (await client.query(
+          `INSERT INTO folgen (produktion_id, folge_nummer, erstellt_von) VALUES ($1, $2, $3) RETURNING id`,
+          [produktion_id, folge_nummer, userName]
+        )).rows[0]
+      }
+      folgeId = folgeRow.id
+
+      // Create werkstufe
+      const maxVerRow = (await client.query(
+        `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
+        [folgeId, docTyp]
+      )).rows[0]
+      const werkRow = (await client.query(
+        `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum)
+         VALUES ($1, $2, $3, $4, 'team', $5, $6) RETURNING id`,
+        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, versionLabel, userName, standDatum]
+      )).rows[0]
+      werkstufeId = werkRow.id
+
+      // ── Bulk insert scene_identities (generate_series → N rows in 1 query) ──
+      const sceneCount = sceneDataList.length
+      let sceneIdentityIds: string[] = []
+      if (sceneCount > 0) {
+        const siResult = await client.query(
+          `INSERT INTO scene_identities (folge_id, created_by)
+           SELECT $1, $2 FROM generate_series(1, $3)
+           RETURNING id`,
+          [folgeId, userName, sceneCount]
+        )
+        sceneIdentityIds = siResult.rows.map((r: any) => r.id)
+      }
+
+      // ── Bulk insert dokument_szenen (UNNEST → 1 query) ──
+      let dokSzeneIds: string[] = []
+      if (sceneCount > 0) {
+        const dsResult = await client.query(
+          `INSERT INTO dokument_szenen (
+             werkstufe_id, scene_identity_id, sort_order, scene_nummer,
+             int_ext, tageszeit, ort_name, zusammenfassung, content,
+             spieltag, stoppzeit_sek, szeneninfo, format, geloescht, updated_by, page_length, sondertyp
+           )
+           SELECT $1, unnest($2::uuid[]), unnest($3::int[]), unnest($4::int[]),
+                  unnest($5::text[]), unnest($6::text[]), unnest($7::text[]), unnest($8::text[]),
+                  unnest($9::text[])::jsonb, unnest($10::text[]), unnest($11::int[]),
+                  unnest($12::text[]), unnest($13::text[]), false, $14,
+                  unnest($15::float8[]), unnest($16::text[])
+           RETURNING id`,
+          [
+            werkstufeId,
+            sceneIdentityIds,
+            sceneDataList.map(s => s.sortOrder),
+            sceneDataList.map(s => s.sceneNummer ?? null),
+            sceneDataList.map(s => s.intExt),
+            sceneDataList.map(s => s.tageszeit),
+            sceneDataList.map(s => s.ortName),
+            sceneDataList.map(s => s.zusammenfassung),
+            sceneDataList.map(s => JSON.stringify(s.pmNodes)),
+            sceneDataList.map(s => s.spieltag),
+            sceneDataList.map(s => s.stoppzeitSek),
+            sceneDataList.map(s => s.szeneninfo),
+            sceneDataList.map(s => s.sceneFormat),
+            userName,
+            sceneDataList.map(s => s.pageLength),
+            sceneDataList.map(s => s.sondertyp),
+          ]
+        )
+        dokSzeneIds = dsResult.rows.map((r: any) => r.id)
+      }
+      scenesImported = sceneCount
+
+      // ── Bulk insert wechselschnitt_partner ──
+      const nummerToIdentity = new Map<number, string>()
+      for (let i = 0; i < sceneDataList.length; i++) {
+        if (sceneDataList[i].sceneNummer != null) {
+          nummerToIdentity.set(sceneDataList[i].sceneNummer, sceneIdentityIds[i])
+        }
+      }
+      const wpDocIds: string[] = []
+      const wpPartnerIds: string[] = []
+      const wpPositions: number[] = []
+      for (let i = 0; i < sceneDataList.length; i++) {
+        for (let pos = 0; pos < sceneDataList[i].wechselschnittPartner.length; pos++) {
+          const partnerIdentityId = nummerToIdentity.get(sceneDataList[i].wechselschnittPartner[pos])
+          if (!partnerIdentityId) continue
+          wpDocIds.push(dokSzeneIds[i])
+          wpPartnerIds.push(partnerIdentityId)
+          wpPositions.push(pos)
+        }
+      }
+      if (wpDocIds.length > 0) {
+        await client.query(
+          `INSERT INTO wechselschnitt_partner (dokument_szene_id, partner_identity_id, position)
+           SELECT unnest($1::uuid[]), unnest($2::uuid[]), unnest($3::int[])
+           ON CONFLICT (dokument_szene_id, partner_identity_id) DO NOTHING`,
+          [wpDocIds, wpPartnerIds, wpPositions]
+        )
+      }
+
+      // ── Bulk insert non-scene identities + dokument_szenen ──
+      nonSceneCount = nonSceneDataList.length
+      if (nonSceneCount > 0) {
+        const nsIdResult = await client.query(
+          `INSERT INTO scene_identities (folge_id, created_by)
+           SELECT $1, $2 FROM generate_series(1, $3)
+           RETURNING id`,
+          [folgeId, userName, nonSceneCount]
+        )
+        const nsIdentityIds = nsIdResult.rows.map((r: any) => r.id)
+        await client.query(
+          `INSERT INTO dokument_szenen (
+             werkstufe_id, scene_identity_id, sort_order, scene_nummer,
+             content, format, element_type, geloescht, updated_by, zusammenfassung, page_length
+           )
+           SELECT $1, unnest($2::uuid[]), unnest($3::int[]), NULL,
+                  unnest($4::text[])::jsonb, 'notiz', unnest($5::text[]), false, $6,
+                  unnest($7::text[]), unnest($8::float8[])`,
+          [
+            werkstufeId,
+            nsIdentityIds,
+            nonSceneDataList.map(d => d.sortOrder),
+            nonSceneDataList.map(d => JSON.stringify(d.pmNodes)),
+            nonSceneDataList.map(d => d.elemType),
+            userName,
+            nonSceneDataList.map(d => d.label),
+            nonSceneDataList.map(d => d.pageLength),
+          ]
+        )
+      }
+
+      // ── Characters: bulk lookup + create + link ──
+      let kategorien = (await client.query(
+        `SELECT id, name, typ FROM character_kategorien WHERE produktion_id = $1`,
+        [produktion_id]
+      )).rows
+      if (kategorien.length === 0) {
+        await client.query(
+          `INSERT INTO character_kategorien (produktion_id, name, typ, sort_order)
+           VALUES ($1, 'Episoden-Rolle', 'rolle', 1), ($1, 'Komparse o.T.', 'komparse', 2)
+           ON CONFLICT (produktion_id, name) DO NOTHING`,
+          [produktion_id]
+        )
+        kategorien = (await client.query(
+          `SELECT id, name, typ FROM character_kategorien WHERE produktion_id = $1`,
+          [produktion_id]
+        )).rows
+      }
+      const rolleKatId = kategorien.find((k: any) => k.name === 'Episoden-Rolle')?.id
+        || kategorien.find((k: any) => k.typ === 'rolle')?.id || null
+      const komparseKatId = kategorien.find((k: any) => k.name === 'Komparse o.T.')?.id
+        || kategorien.find((k: any) => k.typ === 'komparse')?.id || null
+
+      const charNameToId = new Map<string, string>()
+      const allRollenNames = [...new Set(
+        (result.meta.charaktere as string[]).filter((n: string) => n.trim())
+      )]
+      const allKomparsenSet = new Set<string>()
+      for (const szene of result.szenen) {
+        if (szene.komparsen) {
+          for (const k of szene.komparsen) {
+            const { name } = parseKomparseEntry(k)
+            if (name) allKomparsenSet.add(name)
+          }
+        }
+      }
+      const allKomparsenNames = [...allKomparsenSet]
+      const allCharNames = [...allRollenNames, ...allKomparsenNames]
+
+      if (allCharNames.length > 0) {
+        const upperNames = allCharNames.map(n => n.toUpperCase())
+
+        // Bulk lookup globally
+        const existingRows = (await client.query(
+          `SELECT id, UPPER(name) AS upper_name FROM characters WHERE UPPER(name) = ANY($1::text[])`,
+          [upperNames]
+        )).rows
+        for (const row of existingRows) charNameToId.set(row.upper_name, row.id)
+
+        // Bulk create missing characters
+        const needsNew = upperNames.filter(u => !charNameToId.has(u))
+        if (needsNew.length > 0) {
+          const originalNames = needsNew.map(u => allCharNames.find(n => n.toUpperCase() === u) || u)
+          const isKomparseFlags = needsNew.map(u =>
+            allKomparsenNames.some(k => k.toUpperCase() === u) && !allRollenNames.some(r => r.toUpperCase() === u)
           )
-          if (!existing) {
-            existing = await queryOne(
-              `INSERT INTO motive (produktion_id, name, typ, drehort_id, ist_studio, meta_json)
-               VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-              [produktion_id, motivName, motivTyp, untermotivName ? null : drehortId, istStudio,
-               JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
-            )
-            motiveCreated++
-          } else if (drehortId && !untermotivName) {
-            await query(`UPDATE motive SET drehort_id = COALESCE(drehort_id, $1) WHERE id = $2`, [drehortId, existing.id])
+          const newChars = (await client.query(
+            `INSERT INTO characters (name, meta_json)
+             SELECT unnest($1::text[]), unnest($2::jsonb[])
+             RETURNING id, UPPER(name) AS upper_name`,
+            [
+              originalNames,
+              originalNames.map((_: string, i: number) => JSON.stringify({
+                import_auto_created: true,
+                ...(isKomparseFlags[i] ? { is_komparse: true } : {}),
+                import_source: req.file!.originalname,
+              })),
+            ]
+          )).rows
+          for (let i = 0; i < newChars.length; i++) {
+            charNameToId.set(newChars[i].upper_name, newChars[i].id)
+            if (isKomparseFlags[i]) komparsenCreated++
+            else charactersCreated++
           }
-          motivId = existing.id
-          motivCache.set(motivKey, motivId)
         }
 
-        // Get or create untermotiv if present
-        if (untermotivName) {
-          const unterKey = `${motivId}|${untermotivName.toUpperCase()}`
-          if (!motivCache.has(unterKey)) {
-            let existing = await queryOne(
-              `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2) AND parent_id = $3`,
-              [produktion_id, untermotivName, motivId]
-            )
-            if (!existing) {
-              existing = await queryOne(
-                `INSERT INTO motive (produktion_id, name, typ, parent_id, drehort_id, ist_studio, meta_json)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-                [produktion_id, untermotivName, motivTyp, motivId, drehortId, istStudio,
-                 JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
-              )
-              motiveCreated++
-            } else if (drehortId) {
-              await query(`UPDATE motive SET drehort_id = COALESCE(drehort_id, $1) WHERE id = $2`, [drehortId, existing.id])
-            }
-            motivCache.set(unterKey, existing.id)
-          }
+        // Bulk upsert character_productions
+        const cpCharIds: string[] = []
+        const cpKatIds: string[] = []
+        for (const name of allRollenNames) {
+          const id = charNameToId.get(name.toUpperCase())
+          if (id && rolleKatId) { cpCharIds.push(id); cpKatIds.push(rolleKatId) }
         }
-      } catch { /* ignore constraint violations */ }
+        const rollenUpperSet = new Set(allRollenNames.map(n => n.toUpperCase()))
+        for (const name of allKomparsenNames) {
+          if (rollenUpperSet.has(name.toUpperCase())) continue
+          const id = charNameToId.get(name.toUpperCase())
+          if (id && komparseKatId) { cpCharIds.push(id); cpKatIds.push(komparseKatId) }
+        }
+        if (cpCharIds.length > 0) {
+          await client.query(
+            `INSERT INTO character_productions (character_id, produktion_id, kategorie_id)
+             SELECT unnest($1::uuid[]), $2, unnest($3::uuid[])
+             ON CONFLICT (character_id, produktion_id) DO NOTHING`,
+            [cpCharIds, produktion_id, cpKatIds]
+          )
+        }
+      }
+
+      // ── Bulk insert scene_characters ──
+      const scCharIdentityIds: string[] = []
+      const scCharIds: string[] = []
+      const scKatIds: string[] = []
+      const scSpielTypen: string[] = []
+      const scRepliken: number[] = []
+      const scAnzahl: (number | null)[] = []
+      const scHeaderOT: (boolean | null)[] = []
+
+      for (let i = 0; i < sceneDataList.length; i++) {
+        const identityId = sceneIdentityIds[i]
+        const sd = sceneDataList[i]
+        const szene = result.szenen[sd.sortOrder]
+        const textelemente = szene.textelemente || []
+
+        for (const charName of sd.charaktere) {
+          const charId = charNameToId.get(charName.toUpperCase())
+          if (!charId || !rolleKatId) continue
+          const analysis = analyzeInContent(textelemente, charName)
+          scCharIdentityIds.push(identityId)
+          scCharIds.push(charId)
+          scKatIds.push(rolleKatId)
+          scSpielTypen.push(analysis.spiel_typ === 'text' ? 'text' : 'spiel')
+          scRepliken.push(analysis.repliken)
+          scAnzahl.push(null)
+          scHeaderOT.push(null)
+        }
+
+        for (const kompRaw of sd.komparsen) {
+          const { name: kompName, anzahl, headerOT } = parseKomparseEntry(kompRaw)
+          const charId = charNameToId.get(kompName.toUpperCase())
+          if (!charId || !komparseKatId) continue
+          const analysis = analyzeInContent(textelemente, kompName)
+          let spiel_typ = headerOT ? 'o.t.' : 'spiel'
+          if (analysis.spiel_typ === 'text') spiel_typ = 'text'
+          scCharIdentityIds.push(identityId)
+          scCharIds.push(charId)
+          scKatIds.push(komparseKatId)
+          scSpielTypen.push(spiel_typ)
+          scRepliken.push(analysis.repliken)
+          scAnzahl.push(anzahl)
+          scHeaderOT.push(headerOT)
+        }
+      }
+
+      if (scCharIdentityIds.length > 0) {
+        await client.query(
+          `INSERT INTO scene_characters
+             (scene_identity_id, character_id, kategorie_id, spiel_typ, repliken_anzahl, anzahl, header_o_t, werkstufe_id)
+           SELECT unnest($1::uuid[]), unnest($2::uuid[]), unnest($3::uuid[]),
+                  unnest($4::text[]), unnest($5::int[]), unnest($6::int[]), unnest($7::boolean[]), $8
+           ON CONFLICT (werkstufe_id, scene_identity_id, character_id)
+             WHERE werkstufe_id IS NOT NULL AND scene_identity_id IS NOT NULL DO NOTHING`,
+          [scCharIdentityIds, scCharIds, scKatIds, scSpielTypen, scRepliken, scAnzahl, scHeaderOT, werkstufeId]
+        )
+      }
+
+      // ── Motive: parse ort_name → drehort / motiv / untermotiv ──
+      const AD_REGEX = /^A\.?\s*D\.?\s+/i
+
+      function stripAD(name: string): { cleanName: string; isAD: boolean } {
+        if (AD_REGEX.test(name)) return { cleanName: name.replace(AD_REGEX, '').trim(), isAD: true }
+        return { cleanName: name, isAD: false }
+      }
+
+      function normalizeOrtName(raw: string): string {
+        return raw.replace(/^A\.?\s*D\.?\s*/i, 'Außendreh / ').replace(/\s*\/\s*/g, ' / ')
+      }
+
+      function parseOrtName(raw: string): { drehortLabel: string | null; motivName: string; untermotivName: string | null; isAD: boolean } {
+        const normalized = normalizeOrtName(raw)
+        const parts = normalized.split(' / ').map(p => p.trim()).filter(Boolean)
+        let drehortLabel: string | null = null
+        let motivName: string
+        let untermotivName: string | null = null
+        let isAD = false
+
+        if (parts.length >= 3) {
+          drehortLabel = parts[0]; motivName = parts[1]; untermotivName = parts.slice(2).join(' / ')
+        } else if (parts.length === 2) {
+          const isDrehort = /^(Stu\.|Studio|Außendreh|Innendreh)/i.test(parts[0])
+          if (isDrehort) { drehortLabel = parts[0]; motivName = parts[1] }
+          else { motivName = parts[0]; untermotivName = parts[1] }
+        } else {
+          motivName = parts[0] || raw
+        }
+
+        if (drehortLabel && /Außendreh/i.test(drehortLabel)) isAD = true
+        const stripped = stripAD(motivName)
+        motivName = stripped.cleanName
+        if (stripped.isAD) isAD = true
+        if (untermotivName) {
+          const strippedUnter = stripAD(untermotivName)
+          untermotivName = strippedUnter.cleanName
+          if (strippedUnter.isAD) isAD = true
+        }
+
+        return { drehortLabel, motivName, untermotivName, isAD }
+      }
+
+      const drehortCache = new Map<string, string>()
+      async function getOrCreateDrehort(label: string): Promise<string> {
+        const key = label.toUpperCase()
+        if (drehortCache.has(key)) return drehortCache.get(key)!
+        let row = (await client.query(
+          `SELECT id FROM drehorte WHERE produktion_id = $1 AND UPPER(label) = UPPER($2)`,
+          [produktion_id, label]
+        )).rows[0]
+        if (!row) {
+          row = (await client.query(
+            `INSERT INTO drehorte (produktion_id, label) VALUES ($1, $2)
+             ON CONFLICT (produktion_id, label) DO UPDATE SET label = EXCLUDED.label RETURNING id`,
+            [produktion_id, label]
+          )).rows[0]
+        }
+        drehortCache.set(key, row.id)
+        return row.id
+      }
+
+      const motivCache = new Map<string, string>()
+      for (const szene of result.szenen) {
+        if (!szene.ort_name) continue
+        try {
+          const { drehortLabel, motivName, untermotivName, isAD } = parseOrtName(szene.ort_name)
+          const drehortId = drehortLabel ? await getOrCreateDrehort(drehortLabel) : null
+          const motivTyp = szene.int_ext === 'EXT' ? 'exterior' : 'interior'
+          const istStudio = !isAD
+
+          const motivKey = `|${motivName.toUpperCase()}`
+          let motivId: string
+          if (motivCache.has(motivKey)) {
+            motivId = motivCache.get(motivKey)!
+          } else {
+            let existing = (await client.query(
+              `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2) AND parent_id IS NULL`,
+              [produktion_id, motivName]
+            )).rows[0]
+            if (!existing) {
+              existing = (await client.query(
+                `INSERT INTO motive (produktion_id, name, typ, drehort_id, ist_studio, meta_json)
+                 VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+                [produktion_id, motivName, motivTyp, untermotivName ? null : drehortId, istStudio,
+                 JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+              )).rows[0]
+              motiveCreated++
+            } else if (drehortId && !untermotivName) {
+              await client.query(
+                `UPDATE motive SET drehort_id = COALESCE(drehort_id, $1) WHERE id = $2`,
+                [drehortId, existing.id]
+              )
+            }
+            motivId = existing.id
+            motivCache.set(motivKey, motivId)
+          }
+
+          if (untermotivName) {
+            const unterKey = `${motivId}|${untermotivName.toUpperCase()}`
+            if (!motivCache.has(unterKey)) {
+              let existing = (await client.query(
+                `SELECT id FROM motive WHERE produktion_id = $1 AND UPPER(name) = UPPER($2) AND parent_id = $3`,
+                [produktion_id, untermotivName, motivId]
+              )).rows[0]
+              if (!existing) {
+                existing = (await client.query(
+                  `INSERT INTO motive (produktion_id, name, typ, parent_id, drehort_id, ist_studio, meta_json)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+                  [produktion_id, untermotivName, motivTyp, motivId, drehortId, istStudio,
+                   JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+                )).rows[0]
+                motiveCreated++
+              } else if (drehortId) {
+                await client.query(
+                  `UPDATE motive SET drehort_id = COALESCE(drehort_id, $1) WHERE id = $2`,
+                  [drehortId, existing.id]
+                )
+              }
+              motivCache.set(unterKey, existing.id)
+            }
+          }
+        } catch { /* ignore constraint violations */ }
+      }
+
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+
+    // ── File archiving (after commit, best-effort) ──
+    const uploadDir = path.join(UPLOAD_BASE, produktion_id, String(folge_nummer))
+    try {
+      fs.mkdirSync(uploadDir, { recursive: true })
+      const ext = path.extname(req.file.originalname) || '.bin'
+      const archivePath = path.join(uploadDir, `${werkstufeId}${ext}`)
+      fs.writeFileSync(archivePath, req.file.buffer)
+      const relPath = path.join(produktion_id, String(folge_nummer), `${werkstufeId}${ext}`)
+      await query(
+        `UPDATE werkstufen SET original_datei = $1, original_dateiname = $2, datei_hash = $3, datei_groesse = $4 WHERE id = $5`,
+        [relPath, req.file.originalname, fileHash, req.file.buffer.length, werkstufeId]
+      )
+    } catch (archiveErr) {
+      console.error('[Import] File archive failed (non-fatal):', archiveErr)
+      await query(
+        `UPDATE werkstufen SET original_dateiname = $1, datei_hash = $2, datei_groesse = $3 WHERE id = $4`,
+        [req.file.originalname, fileHash, req.file.buffer.length, werkstufeId]
+      ).catch(() => {})
     }
 
     res.json({
-      folge_id: folge.id,
+      folge_id: folgeId,
       folge_nummer,
-      werkstufe_id: werkstufe.id,
+      werkstufe_id: werkstufeId,
       scenes_imported: scenesImported,
       non_scene_elements_imported: nonSceneCount,
       characters_created: charactersCreated,
