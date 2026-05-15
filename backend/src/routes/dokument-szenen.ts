@@ -257,6 +257,16 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       flashback_referenz_id,
     } = req.body
 
+    // Load old content for revision diff (before overwriting)
+    let oldContent: any[] | null = null
+    if (content) {
+      const old = await queryOne('SELECT content FROM dokument_szenen WHERE id = $1', [req.params.id])
+      if (old?.content) {
+        try { oldContent = typeof old.content === 'string' ? JSON.parse(old.content) : (Array.isArray(old.content) ? old.content : old.content?.content ?? null) }
+        catch { oldContent = null }
+      }
+    }
+
     // Calculate page_length if content is provided
     const pageLength = content ? calcPageLength(content) : null
 
@@ -317,6 +327,11 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     // Update replik_count for numbering
     if (content) {
       updateReplikCount(row.id, { content }).catch(() => {})
+    }
+
+    // Revision delta tracking: wenn Werkstufe eine Revision-Farbe hat, Diffs aufzeichnen
+    if (content && row.werkstufe_id) {
+      recordRevisionDeltas(req.params.id, row.werkstufe_id, oldContent, content).catch(() => {})
     }
 
     res.json(row)
@@ -954,3 +969,52 @@ dokumentSzenenRouter.post('/stoppzeit-auto-folge/:werkstufId', authMiddleware, a
     res.status(500).json({ error: String(err) })
   }
 })
+
+// ── Revision Delta Helper ─────────────────────────────────────────────────────
+// Wird nach jedem PUT aufgerufen, wenn die Werkstufe eine Revision-Farbe hat.
+// Vergleicht alte vs. neue Blöcke und schreibt Deltas in szenen_revisionen.
+// Baseline-Einträge (old_value = new_value) werden überschrieben aber nicht gelöscht —
+// wird der Block auf den Originalwert zurückgesetzt, verschwinden die * wieder.
+async function recordRevisionDeltas(
+  szeneId: string,
+  werkstufId: string,
+  oldBlocks: any[] | null,
+  newBlocks: any[]
+): Promise<void> {
+  // Nur aufzeichnen wenn Werkstufe eine Revision-Farbe hat
+  const ws = await queryOne(
+    'SELECT revision_color_id FROM werkstufen WHERE id = $1',
+    [werkstufId]
+  )
+  if (!ws?.revision_color_id) return
+
+  if (!oldBlocks) return // Kein Vergleich möglich
+
+  const maxLen = Math.max(oldBlocks.length, newBlocks.length)
+  for (let i = 0; i < maxLen; i++) {
+    const oldB = oldBlocks[i] ?? null
+    const newB = newBlocks[i] ?? null
+    const oldJson = oldB ? JSON.stringify(oldB) : null
+    const newJson = newB ? JSON.stringify(newB) : null
+
+    if (oldJson === newJson) {
+      // Block unverändert — wenn ein Eintrag existiert und new_value == old_value (Baseline),
+      // dann ist der Block auf den Ursprungswert zurückgekehrt → Eintrag löschen (kein * mehr)
+      await pool.query(
+        `DELETE FROM szenen_revisionen
+         WHERE dokument_szene_id = $1 AND block_index = $2
+           AND new_value = old_value`,
+        [szeneId, i]
+      )
+    } else {
+      // Block hat sich geändert — UPSERT: old_value nur setzen wenn noch kein Eintrag existiert
+      await pool.query(
+        `INSERT INTO szenen_revisionen (dokument_szene_id, field_type, block_index, block_type, old_value, new_value)
+         VALUES ($1, 'content_block', $2, $3, $4, $5)
+         ON CONFLICT ON CONSTRAINT uq_rev_dok_szene_block
+         DO UPDATE SET new_value = EXCLUDED.new_value`,
+        [szeneId, i, (newB ?? oldB)?.type ?? 'unknown', oldJson, newJson]
+      )
+    }
+  }
+}

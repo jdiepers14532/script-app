@@ -111,6 +111,7 @@ export interface WerkstufeMeta {
   privat_gesetzt_von?: string | null
   produktion_id?: string
   folge_nummer?: number
+  revision_color_id?: number | null
 }
 
 export function useWerkstufe(folgeId: number | null) {

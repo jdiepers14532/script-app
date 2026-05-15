@@ -207,6 +207,14 @@ export const api = {
   updateRevisionEinstellungen: (produktionId: string, data: any) =>
     request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/revision-einstellungen`, data),
 
+  // Werkstufe Revision Tracking
+  startRevision: (werkstufId: string, revisionColorId: number) =>
+    request<any>('POST', `/werkstufen/${werkstufId}/start-revision`, { revision_color_id: revisionColorId }),
+  stopRevision: (werkstufId: string) =>
+    request<any>('DELETE', `/werkstufen/${werkstufId}/start-revision`),
+  updateWerkstufe: (werkstufId: string, data: any) =>
+    request<any>('PUT', `/werkstufen/${werkstufId}`, data),
+
   // Characters
   getCharacters: (produktionId: string) =>
     request<any[]>('GET', `/characters?produktion_id=${encodeURIComponent(produktionId)}`),

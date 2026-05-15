@@ -10,6 +10,7 @@ const ADMIN_TABS = [
   { id: 'ki',             label: 'KI-Konfiguration' },
   { id: 'wasserzeichen',  label: 'Wasserzeichen & Export-Log' },
   { id: 'dk-zugriff',     label: 'DK-Zugriff' },
+  { id: 'fassungen',      label: 'Fassungen & Revision' },
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
   { id: 'pwa',            label: 'App / PWA' },
@@ -516,6 +517,209 @@ function PwaAdminTab() {
   )
 }
 
+// ── Fassungen & Revision Tab ──────────────────────────────────────────────────
+
+const WGA_DEFAULTS = [
+  { name: 'Blaue Seiten',     color: '#4A90D9' },
+  { name: 'Pinke Seiten',     color: '#FF69B4' },
+  { name: 'Gelbe Seiten',     color: '#FFD700' },
+  { name: 'Grüne Seiten',     color: '#00A651' },
+  { name: 'Goldgelbe Seiten', color: '#DAA520' },
+  { name: 'Buff-Seiten',      color: '#D4B896' },
+]
+
+function FassungenRevisionTab() {
+  const { productions } = useSelectedProduction()
+  const [selectedProdId, setSelectedProdId] = useState('')
+  const [stageLabels, setStageLabels] = useState<any[]>([])
+  const [revColors, setRevColors] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [newLabelName, setNewLabelName] = useState('')
+  const [newColorName, setNewColorName] = useState('')
+  const [newColorHex, setNewColorHex] = useState('#4A90D9')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!selectedProdId) { setStageLabels([]); setRevColors([]); return }
+    setLoading(true)
+    Promise.all([
+      api.getStageLabels(selectedProdId),
+      api.getRevisionColors(selectedProdId),
+    ]).then(([labels, colors]) => {
+      setStageLabels(labels)
+      setRevColors(colors)
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [selectedProdId])
+
+  const flash = (text: string) => { setMsg(text); setTimeout(() => setMsg(null), 2500) }
+
+  const addLabel = async () => {
+    const name = newLabelName.trim()
+    if (!name || !selectedProdId) return
+    setSaving(true)
+    try {
+      const row = await api.createStageLabel(selectedProdId, { name })
+      setStageLabels(prev => [...prev, row])
+      setNewLabelName('')
+      flash('Gespeichert.')
+    } catch (e: any) { flash(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const deleteLabel = async (id: number) => {
+    if (!selectedProdId) return
+    try {
+      await api.deleteStageLabel(selectedProdId, id)
+      setStageLabels(prev => prev.filter(l => l.id !== id))
+    } catch (e: any) { flash(e.message) }
+  }
+
+  const toggleLabelProd = async (label: any) => {
+    if (!selectedProdId) return
+    try {
+      const updated = await api.updateStageLabel(selectedProdId, label.id, { is_produktionsfassung: !label.is_produktionsfassung })
+      setStageLabels(prev => prev.map(l => l.id === updated.id ? updated : l))
+    } catch {}
+  }
+
+  const addColor = async () => {
+    const name = newColorName.trim()
+    if (!name || !selectedProdId) return
+    setSaving(true)
+    try {
+      const row = await api.createRevisionColor(selectedProdId, { name, color: newColorHex })
+      setRevColors(prev => [...prev, row])
+      setNewColorName('')
+      flash('Gespeichert.')
+    } catch (e: any) { flash(e.message) }
+    finally { setSaving(false) }
+  }
+
+  const deleteColor = async (id: number) => {
+    if (!selectedProdId) return
+    try {
+      await api.deleteRevisionColor(selectedProdId, id)
+      setRevColors(prev => prev.filter(c => c.id !== id))
+    } catch (e: any) { flash(e.message) }
+  }
+
+  const seedWgaDefaults = async () => {
+    if (!selectedProdId) return
+    setSaving(true)
+    try {
+      for (const d of WGA_DEFAULTS) {
+        try { const row = await api.createRevisionColor(selectedProdId, d); setRevColors(prev => [...prev, row]) }
+        catch {} // skip if name already exists
+      }
+      flash('WGA-Farben eingefügt.')
+    } finally { setSaving(false) }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)',
+    fontSize: 12, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', flex: 1,
+  }
+  const btnStyle: React.CSSProperties = {
+    padding: '7px 14px', borderRadius: 7, border: 'none',
+    background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+  }
+  const prodLabel = (p: any) => p.projektnummer ? `${p.projektnummer} · ${p.title}` : p.title
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 760, display: 'flex', flexDirection: 'column', gap: 36 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Fassungen & Revision</h2>
+
+      {/* Produktion wählen */}
+      <div>
+        <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Produktion</label>
+        <select
+          value={selectedProdId}
+          onChange={e => setSelectedProdId(e.target.value)}
+          style={{ ...inputStyle, flex: undefined, width: '100%' }}
+        >
+          <option value="">— Produktion wählen —</option>
+          {productions.filter(p => p.is_active).map(p => <option key={p.id} value={p.id}>{prodLabel(p)}</option>)}
+          {productions.filter(p => !p.is_active).length > 0 && (
+            <optgroup label="Inaktiv">
+              {productions.filter(p => !p.is_active).map(p => <option key={p.id} value={p.id}>{prodLabel(p)}</option>)}
+            </optgroup>
+          )}
+        </select>
+      </div>
+
+      {selectedProdId && loading && <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt…</p>}
+
+      {selectedProdId && !loading && (
+        <>
+          {/* Stage Labels */}
+          <section>
+            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Werkstufen-Labels</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }}>
+              Labels erscheinen im Werkstufen-Dropdown. „Produktionsfassung" markiert die finale Version.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+              {stageLabels.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>Noch keine Labels.</p>}
+              {stageLabels.map(l => (
+                <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+                  <span style={{ flex: 1, fontSize: 13 }}>{l.name}</span>
+                  {l.is_produktionsfassung && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: '#00C853', background: 'rgba(0,200,83,0.1)', borderRadius: 4, padding: '1px 6px' }}>Produktion</span>
+                  )}
+                  <button
+                    onClick={() => toggleLabelProd(l)}
+                    title={l.is_produktionsfassung ? 'Als Nicht-Produktion markieren' : 'Als Produktionsfassung markieren'}
+                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', fontSize: 11, padding: '2px 6px', color: 'var(--text-secondary)' }}
+                  >
+                    {l.is_produktionsfassung ? '✓ Prod' : 'Prod?'}
+                  </button>
+                  <button onClick={() => deleteLabel(l.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 15, padding: '0 4px' }}>×</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={newLabelName} onChange={e => setNewLabelName(e.target.value)} placeholder="Label-Name…" style={inputStyle}
+                onKeyDown={e => e.key === 'Enter' && addLabel()} />
+              <button onClick={addLabel} disabled={!newLabelName.trim() || saving} style={btnStyle}>+ Hinzufügen</button>
+            </div>
+          </section>
+
+          {/* Revision Colors */}
+          <section>
+            <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Revisionsfarben</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }}>
+              WGA-Standardfarben für Revisionen. Die aktive Farbe wird als <code>*</code> im Editor angezeigt.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+              {revColors.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, width: '100%' }}>Noch keine Farben.</p>}
+              {revColors.map(c => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--bg-surface)', border: `1.5px solid ${c.color}44`, borderRadius: 8 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 3, background: c.color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, color: c.color, fontWeight: 600 }}>{c.name}</span>
+                  <button onClick={() => deleteColor(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '0 2px', marginLeft: 2 }}>×</button>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input value={newColorName} onChange={e => setNewColorName(e.target.value)} placeholder="Farb-Name…" style={{ ...inputStyle, maxWidth: 200 }}
+                onKeyDown={e => e.key === 'Enter' && addColor()} />
+              <input type="color" value={newColorHex} onChange={e => setNewColorHex(e.target.value)}
+                style={{ width: 36, height: 32, borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', padding: 2 }} />
+              <button onClick={addColor} disabled={!newColorName.trim() || saving} style={btnStyle}>+ Hinzufügen</button>
+              <button onClick={seedWgaDefaults} disabled={saving}
+                style={{ ...btnStyle, background: 'var(--bg-subtle)', color: 'var(--text-secondary)', border: '1px solid var(--border)' }}>
+                WGA-Standard einfügen
+              </button>
+            </div>
+          </section>
+        </>
+      )}
+
+      {msg && <p style={{ fontSize: 12, color: 'var(--sw-green)' }}>{msg}</p>}
+    </div>
+  )
+}
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
   const navigate = useNavigate()
@@ -580,6 +784,7 @@ export default function AdminPage() {
           {activeTab === 'ki'             && <AdminKI />}
           {activeTab === 'wasserzeichen'  && <WasserzeichenTab />}
           {activeTab === 'dk-zugriff'     && <DkZugriffTab />}
+          {activeTab === 'fassungen'      && <FassungenRevisionTab />}
           {activeTab === 'users'          && (
             <div style={{ padding: '28px 32px', color: 'var(--text-secondary)', fontSize: 13 }}>
               Benutzer & Rollen werden in der Auth-App verwaltet.

@@ -182,23 +182,108 @@ werkstufenRouter.get('/:id', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 werkstufenRouter.put('/:id', async (req, res) => {
   try {
-    const { label, sichtbarkeit, abgegeben, bearbeitung_status } = req.body
+    const { label, sichtbarkeit, abgegeben, bearbeitung_status, revision_color_id } = req.body
     // label: undefined = don't change, '' = clear to NULL, 'X' = set to X
     const hasLabel = 'label' in req.body
     const labelVal = hasLabel ? (label || null) : undefined
+    const hasRevColor = 'revision_color_id' in req.body
+    const revColorVal = hasRevColor ? (revision_color_id ?? null) : undefined
     const row = await queryOne(
       `UPDATE werkstufen SET
         label = ${hasLabel ? '$1' : 'label'},
         sichtbarkeit = COALESCE($2, sichtbarkeit),
         abgegeben = COALESCE($3, abgegeben),
-        bearbeitung_status = COALESCE($4, bearbeitung_status)
+        bearbeitung_status = COALESCE($4, bearbeitung_status),
+        revision_color_id = ${hasRevColor ? '$6' : 'revision_color_id'}
        WHERE id = $5 RETURNING *`,
-      [labelVal, sichtbarkeit, abgegeben, bearbeitung_status, req.params.id]
+      [labelVal, sichtbarkeit, abgegeben, bearbeitung_status, req.params.id, revColorVal]
     )
     if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
     res.json(row)
   } catch (err) {
     res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/werkstufen/:id/start-revision — Aktiviert Revision mit Farbe + Baseline-Snapshot
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.post('/:id/start-revision', async (req, res) => {
+  const { revision_color_id } = req.body
+  if (!revision_color_id) return res.status(400).json({ error: 'revision_color_id required' })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Set revision color on werkstufe
+    const ws = await client.query(
+      'UPDATE werkstufen SET revision_color_id = $1 WHERE id = $2 RETURNING *',
+      [revision_color_id, req.params.id]
+    )
+    if (ws.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Werkstufe nicht gefunden' }) }
+
+    // Snapshot all active scenes as revision baseline:
+    // Insert szenen_revisionen rows where old_value = new_value = current block JSON.
+    // These rows will be updated on subsequent saves when blocks change.
+    const scenes = await client.query(
+      `SELECT id, content FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false AND content IS NOT NULL`,
+      [req.params.id]
+    )
+    for (const scene of scenes.rows) {
+      let blocks: any[]
+      try { blocks = typeof scene.content === 'string' ? JSON.parse(scene.content) : (Array.isArray(scene.content) ? scene.content : scene.content?.content ?? []) }
+      catch { blocks = [] }
+
+      for (let i = 0; i < blocks.length; i++) {
+        const blockJson = JSON.stringify(blocks[i])
+        await client.query(
+          `INSERT INTO szenen_revisionen (dokument_szene_id, field_type, block_index, block_type, old_value, new_value)
+           VALUES ($1, 'content_block', $2, $3, $4, $4)
+           ON CONFLICT ON CONSTRAINT uq_rev_dok_szene_block DO NOTHING`,
+          [scene.id, i, blocks[i]?.type ?? 'unknown', blockJson]
+        )
+      }
+    }
+
+    await client.query('COMMIT')
+    res.json(ws.rows[0])
+  } catch (err) {
+    await client.query('ROLLBACK')
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DELETE /api/werkstufen/:id/start-revision — Beendet Revision, löscht Deltas
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.delete('/:id/start-revision', async (req, res) => {
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Clear revision color
+    await client.query(
+      'UPDATE werkstufen SET revision_color_id = NULL WHERE id = $1',
+      [req.params.id]
+    )
+
+    // Delete all szenen_revisionen for scenes in this werkstufe
+    await client.query(
+      `DELETE FROM szenen_revisionen sr
+       USING dokument_szenen ds
+       WHERE sr.dokument_szene_id = ds.id AND ds.werkstufe_id = $1`,
+      [req.params.id]
+    )
+
+    await client.query('COMMIT')
+    res.json({ ok: true })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
   }
 })
 

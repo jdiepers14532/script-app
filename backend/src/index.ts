@@ -285,6 +285,7 @@ async function runMigrations() {
     'v68_teamwork.sql',
     'v69_drop_folge_air_date.sql',
     'v70_vorlagen_aktiv.sql',
+    'v71_revision_tracking.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

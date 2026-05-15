@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag, GitBranch } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
@@ -72,6 +72,9 @@ export default function EditorPanelHeader({
   const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
   const [colabGruppen, setColabGruppen] = useState<Array<{ id: string; name: string }>>([])
   const [sichtbarkeitSaving, setSichtbarkeitSaving] = useState(false)
+  const [revisionColors, setRevisionColors] = useState<{ id: number; name: string; hex_color: string }[]>([])
+  const [showRevisionMenu, setShowRevisionMenu] = useState(false)
+  const [revisionSaving, setRevisionSaving] = useState(false)
 
   // Hover device detection (mouse = true, touch-only = false)
   const isHoverDevice = useRef(
@@ -90,6 +93,7 @@ export default function EditorPanelHeader({
   useEffect(() => {
     if (!produktionId) return
     api.getStageLabels(produktionId).then(setStageLabels).catch(() => {})
+    api.getRevisionColors(produktionId).then(setRevisionColors).catch(() => {})
   }, [produktionId])
 
   // Reload groups fresh every time the menu opens + check viewport for submenu direction
@@ -530,6 +534,106 @@ export default function EditorPanelHeader({
             ))}
           </select>
         </Tooltip>
+      )}
+
+      {/* Revision UI */}
+      {selectedWerk && (
+        <div style={{ position: 'relative' }}>
+          {selectedWerk.revision_color_id ? (
+            // Active revision: show colored badge + stop button
+            <>
+              {(() => {
+                const rc = revisionColors.find(c => c.id === selectedWerk.revision_color_id)
+                return (
+                  <Tooltip text={`Revision aktiv: ${rc?.name ?? '…'} — Geänderte Absätze werden mit * markiert`}>
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      padding: '3px 7px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                      border: `1px solid ${rc?.hex_color ?? '#888'}`,
+                      color: rc?.hex_color ?? '#888',
+                    }}>
+                      <GitBranch size={11} />
+                      * {rc?.name ?? 'Revision'}
+                    </span>
+                  </Tooltip>
+                )
+              })()}
+              <button
+                onClick={async () => {
+                  if (!confirm('Revision beenden? Alle Revisionsmarkierungen werden gelöscht.')) return
+                  setRevisionSaving(true)
+                  try {
+                    await api.stopRevision(selectedWerk.id)
+                    onReloadWerkstufen()
+                  } catch { /* ignore */ } finally { setRevisionSaving(false) }
+                }}
+                disabled={revisionSaving}
+                style={{
+                  marginLeft: 4, padding: '3px 8px', borderRadius: 6, fontSize: 11,
+                  border: '1px solid #FF3B30', background: 'transparent',
+                  color: '#FF3B30', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                }}
+              >
+                Revision beenden
+              </button>
+            </>
+          ) : (
+            // No active revision: show "Revision starten" button
+            revisionColors.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowRevisionMenu(v => !v)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px',
+                    border: '1px solid var(--border)', borderRadius: 6, fontSize: 11,
+                    color: 'var(--text-muted)', background: 'transparent',
+                    cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                  }}
+                >
+                  <GitBranch size={11} />
+                  Revision starten
+                  <ChevronDown size={10} />
+                </button>
+                {showRevisionMenu && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowRevisionMenu(false)} />
+                    <div style={{
+                      position: 'absolute', top: '100%', right: 0, zIndex: 99, marginTop: 4,
+                      background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                      borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 200, padding: '4px 0',
+                    }}>
+                      <div style={{ padding: '5px 12px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        Revisionsfarbe wählen
+                      </div>
+                      {revisionColors.map(rc => (
+                        <button
+                          key={rc.id}
+                          onClick={async () => {
+                            setShowRevisionMenu(false)
+                            setRevisionSaving(true)
+                            try {
+                              await api.startRevision(selectedWerk.id, rc.id)
+                              onReloadWerkstufen()
+                            } catch { /* ignore */ } finally { setRevisionSaving(false) }
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                            padding: '7px 12px', fontSize: 12, border: 'none',
+                            cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                            background: 'transparent', color: 'var(--text-primary)',
+                          }}
+                        >
+                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: rc.hex_color, flexShrink: 0 }} />
+                          {rc.name}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </>
+            )
+          )}
+        </div>
       )}
 
       <div style={{ flex: 1 }} />
