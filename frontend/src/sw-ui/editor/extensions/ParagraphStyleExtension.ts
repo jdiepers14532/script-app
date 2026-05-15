@@ -16,6 +16,7 @@ declare module '@tiptap/core' {
       setParagraphItalic:     (italic: boolean)             => ReturnType
       setParagraphUnderline:  (underline: boolean)          => ReturnType
       setParagraphLineHeight: (lineHeight: string | null)   => ReturnType
+      setParagraphSpaceAfter: (spaceAfter: string | null)   => ReturnType
     }
   }
 }
@@ -58,6 +59,11 @@ export const ParagraphStyleExtension = Extension.create({
             parseHTML: el => (el as HTMLElement).style.lineHeight || null,
             renderHTML: attrs => attrs.lineHeight ? { style: `line-height:${attrs.lineHeight}` } : {},
           },
+          spaceAfter: {
+            default: null,
+            parseHTML: el => (el as HTMLElement).style.marginBottom || null,
+            renderHTML: attrs => attrs.spaceAfter ? { style: `margin-bottom:${attrs.spaceAfter}` } : {},
+          },
         },
       },
     ]
@@ -77,6 +83,8 @@ export const ParagraphStyleExtension = Extension.create({
         commands.updateAttributes('paragraph', { textDecoration: underline ? 'underline' : null }),
       setParagraphLineHeight: (lineHeight: string | null) => ({ commands }: any) =>
         commands.updateAttributes('paragraph', { lineHeight: lineHeight || null }),
+      setParagraphSpaceAfter: (spaceAfter: string | null) => ({ commands }: any) =>
+        commands.updateAttributes('paragraph', { spaceAfter: spaceAfter || null }),
     } as any
   },
 })

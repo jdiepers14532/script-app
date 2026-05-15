@@ -126,6 +126,7 @@ function renderNode(node: any, ctx: ExportContext): string {
     const fst   = node.attrs?.fontStyle
     const td    = node.attrs?.textDecoration
     const lh    = node.attrs?.lineHeight
+    const sa    = node.attrs?.spaceAfter
     const styles: string[] = []
     if (align && align !== 'left') styles.push(`text-align:${align}`)
     if (ff)  styles.push(`font-family:${ff}`)
@@ -134,6 +135,7 @@ function renderNode(node: any, ctx: ExportContext): string {
     if (fst) styles.push(`font-style:${fst}`)
     if (td)  styles.push(`text-decoration:${td}`)
     if (lh)  styles.push(`line-height:${lh}`)
+    if (sa)  styles.push(`margin-bottom:${sa}`)
     const style = styles.length ? ` style="${styles.join(';')}"` : ''
     const inner = renderInlineNodes(node.content ?? [], ctx)
     return `<p${style}>${inner || '&nbsp;'}</p>`

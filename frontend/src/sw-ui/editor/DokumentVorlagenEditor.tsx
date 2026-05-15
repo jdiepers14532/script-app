@@ -168,6 +168,18 @@ const LINE_HEIGHTS = [
   { value: '2.5',  label: '2,5' },
   { value: '3',    label: '3,0' },
 ]
+const SPACE_AFTER_OPTIONS = [
+  { value: '',      label: '—' },
+  { value: '2px',   label: '2 px' },
+  { value: '4px',   label: '4 px' },
+  { value: '6px',   label: '6 px' },
+  { value: '8px',   label: '8 px' },
+  { value: '10px',  label: '10 px' },
+  { value: '12px',  label: '12 px' },
+  { value: '16px',  label: '16 px' },
+  { value: '20px',  label: '20 px' },
+  { value: '24px',  label: '24 px' },
+]
 const TABLE_BORDER_OPTIONS = [
   { value: 'default', label: 'Dünn (Standard)' },
   { value: 'thick',   label: 'Dick (2px)' },
@@ -409,6 +421,7 @@ export function ToolbarContent({
   const curFontFamily  = editor?.getAttributes('paragraph').fontFamily  ?? ''
   const curFontSize    = editor?.getAttributes('paragraph').fontSize    ?? ''
   const curLineHeight  = editor?.getAttributes('paragraph').lineHeight  ?? ''
+  const curSpaceAfter  = editor?.getAttributes('paragraph').spaceAfter  ?? ''
 
   // getAttributes('tableRow') won't work (cursor is in tableCell) — traverse up instead
   const curRowHeight = (() => {
@@ -508,6 +521,15 @@ export function ToolbarContent({
         >
           <option value="">≡ Abs.</option>
           {LINE_HEIGHTS.map(lh => <option key={lh.value} value={lh.value}>{lh.label}</option>)}
+        </select>
+        <select
+          value={curSpaceAfter}
+          onChange={e => editor?.chain().setParagraphSpaceAfter(e.target.value || null).run()}
+          disabled={!editor}
+          title="Abstand nach Absatz"
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 54, flexShrink: 0 }}
+        >
+          {SPACE_AFTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.value ? o.label : '↕ nach'}</option>)}
         </select>
         {sep('sep-chars')}
         {SPECIAL_CHARS.map(({ char, title }) =>
@@ -1004,6 +1026,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       const fst   = node.attrs?.fontStyle      || null
       const td    = node.attrs?.textDecoration || null
       const lh    = node.attrs?.lineHeight     || null
+      const sa    = node.attrs?.spaceAfter     || null
       const styles: string[] = []
       if (align && align !== 'left') styles.push(`text-align:${align}`)
       if (ff)  styles.push(`font-family:${ff}`)
@@ -1012,6 +1035,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       if (fst) styles.push(`font-style:${fst}`)
       if (td)  styles.push(`text-decoration:${td}`)
       if (lh)  styles.push(`line-height:${lh}`)
+      if (sa)  styles.push(`margin-bottom:${sa}`)
       if (!node.content?.length) styles.push('min-height:1.2em')
       const style = styles.length ? ` style="${styles.join(';')}"` : ''
       const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs, fw, fst, td, lh })).join('')
