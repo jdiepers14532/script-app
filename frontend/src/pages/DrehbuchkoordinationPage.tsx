@@ -2876,16 +2876,17 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
-  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, airDate: null, datumsformat: 'de', firmenname: null })
+  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, airDate: null, datumsformat: 'de', firmenname: null, block: null, firmenAdresse: null, rechtsform: null, handelsregister: null, ustId: null, geschaeftsfuehrung: null, firmenEmail: null, firmenTelefon: null })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
     produktion:    selectedProduction?.title ?? 'Rote Rosen',
     staffel:       selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
-    block:         undefined,
+    block:         previewMeta.block ?? undefined,
     folge:         previewMeta.folgeNummer ?? undefined,
     folgentitel:   undefined,
     fassung:       'Drehbuch',
     version:       'V1',
+    werkstufe:     'Drehbuch V1',
     stand_datum:   formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
     autor:         'Max Mustermann',
     regie:         undefined,
@@ -2894,6 +2895,16 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     buero_adresse:       selectedProduction?.buero_adresse ?? undefined,
     sendedatum:          formatSendedatum(previewMeta.airDate),
     produktionszeitraum: selectedProduction?.drehzeitraum ?? undefined,
+    aktuelles_datum:     new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    aktuelles_jahr:      String(new Date().getFullYear()),
+    folge_laenge_netto:  undefined,
+    firmen_adresse:      previewMeta.firmenAdresse ?? undefined,
+    rechtsform:          previewMeta.rechtsform ?? undefined,
+    handelsregister:     previewMeta.handelsregister ?? undefined,
+    ust_id:              previewMeta.ustId ?? undefined,
+    geschaeftsfuehrung:  previewMeta.geschaeftsfuehrung ?? undefined,
+    firmen_email:        previewMeta.firmenEmail ?? undefined,
+    firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
   }
 
   const [vorlagen, setVorlagen] = useState<any[]>([])
@@ -3320,10 +3331,18 @@ function formatDatum(iso: string, fmt: 'de' | 'en'): string {
 }
 
 interface PreviewMeta {
-  folgeNummer:  number | null
-  airDate:      string | null
-  datumsformat: 'de' | 'en'
-  firmenname:   string | null
+  folgeNummer:      number | null
+  airDate:          string | null
+  datumsformat:     'de' | 'en'
+  firmenname:       string | null
+  block:            string | null
+  firmenAdresse:    string | null
+  rechtsform:       string | null
+  handelsregister:  string | null
+  ustId:            string | null
+  geschaeftsfuehrung: string | null
+  firmenEmail:      string | null
+  firmenTelefon:    string | null
 }
 
 function formatSendedatum(dateStr: string | null | undefined): string | undefined {
@@ -3344,23 +3363,20 @@ async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
   ])
   let folgeNummer: number | null = null
   let airDate: string | null = null
+  let block: string | null = null
   if (folgenRes.status === 'fulfilled' && folgenRes.value.ok) {
     const list: any[] = await folgenRes.value.json()
     if (list.length > 0) {
       const sorted = [...list].sort((a, b) => (b.folge_nummer ?? 0) - (a.folge_nummer ?? 0))
       folgeNummer = sorted[0].folge_nummer ?? null
-      // Fetch real air_date from Produktionsdatenbank (broadcast_events via reihen_id)
       if (folgeNummer != null) {
-        try {
-          const ar = await fetch(
-            `/api/v2/folgen/air-date?produktion_id=${encodeURIComponent(productionId)}&folge_nr=${folgeNummer}`,
-            { credentials: 'include' }
-          )
-          if (ar.ok) {
-            const ad = await ar.json()
-            airDate = ad?.air_date ?? null
-          }
-        } catch { /* non-fatal */ }
+        // Fetch air_date and block in parallel
+        await Promise.allSettled([
+          fetch(`/api/v2/folgen/air-date?produktion_id=${encodeURIComponent(productionId)}&folge_nr=${folgeNummer}`, { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null).then(d => { if (d?.air_date) airDate = d.air_date }).catch(() => {}),
+          fetch(`/api/v2/folgen/block?produktion_id=${encodeURIComponent(productionId)}&folge_nr=${folgeNummer}`, { credentials: 'include' })
+            .then(r => r.ok ? r.json() : null).then(d => { if (d?.block) block = d.block }).catch(() => {}),
+        ])
       }
     }
   }
@@ -3370,11 +3386,31 @@ async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
     if (s?.datumsformat === 'en') datumsformat = 'en'
   }
   let firmenname: string | null = null
+  let firmenAdresse: string | null = null
+  let rechtsform: string | null = null
+  let handelsregister: string | null = null
+  let ustId: string | null = null
+  let geschaeftsfuehrung: string | null = null
+  let firmenEmail: string | null = null
+  let firmenTelefon: string | null = null
   if (companyRes.status === 'fulfilled' && companyRes.value.ok) {
     const c: any = await companyRes.value.json()
     firmenname = c?.company_name ?? null
+    const addr = c?.company_address
+    if (addr) firmenAdresse = [addr.street, `${addr.zip ?? ''} ${addr.city ?? ''}`.trim()].filter(Boolean).join(', ')
+    const lfMap: Record<string, string> = { gmbh: 'GmbH', ag: 'AG', kg: 'KG', ohg: 'OHG', gbr: 'GbR', ug: 'UG (haftungsbeschränkt)', se: 'SE', ev: 'e.V.' }
+    rechtsform = c?.company_legal_form ? (lfMap[c.company_legal_form.toLowerCase()] ?? c.company_legal_form) : null
+    if (c?.company_register_court && c?.company_register_number)
+      handelsregister = `${c.company_register_court} ${c.company_register_number}`
+    ustId = c?.company_vat_id ?? null
+    try {
+      const mgmt = typeof c?.company_management === 'string' ? JSON.parse(c.company_management) : c?.company_management
+      if (Array.isArray(mgmt)) geschaeftsfuehrung = mgmt.join(', ')
+    } catch {}
+    firmenEmail   = c?.company_email ?? null
+    firmenTelefon = c?.company_phone ?? null
   }
-  return { folgeNummer, airDate, datumsformat, firmenname }
+  return { folgeNummer, airDate, datumsformat, firmenname, block, firmenAdresse, rechtsform, handelsregister, ustId, geschaeftsfuehrung, firmenEmail, firmenTelefon }
 }
 
 function KopfFusszeileTab({ productionId }: { productionId: string }) {
@@ -3382,16 +3418,17 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
-  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, airDate: null, datumsformat: 'de', firmenname: null })
+  const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, airDate: null, datumsformat: 'de', firmenname: null, block: null, firmenAdresse: null, rechtsform: null, handelsregister: null, ustId: null, geschaeftsfuehrung: null, firmenEmail: null, firmenTelefon: null })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
     produktion:    selectedProduction?.title ?? 'Rote Rosen',
     staffel:       selectedProduction?.staffelnummer != null ? String(selectedProduction.staffelnummer) : undefined,
-    block:         undefined,
+    block:         previewMeta.block ?? undefined,
     folge:         previewMeta.folgeNummer ?? undefined,
     folgentitel:   undefined,
     fassung:       'Drehbuch',
     version:       'V1',
+    werkstufe:     'Drehbuch V1',
     stand_datum:   formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
     autor:         'Max Mustermann',
     regie:         undefined,
@@ -3400,6 +3437,16 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     buero_adresse:       selectedProduction?.buero_adresse ?? undefined,
     sendedatum:          formatSendedatum(previewMeta.airDate),
     produktionszeitraum: selectedProduction?.drehzeitraum ?? undefined,
+    aktuelles_datum:     new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    aktuelles_jahr:      String(new Date().getFullYear()),
+    folge_laenge_netto:  undefined,
+    firmen_adresse:      previewMeta.firmenAdresse ?? undefined,
+    rechtsform:          previewMeta.rechtsform ?? undefined,
+    handelsregister:     previewMeta.handelsregister ?? undefined,
+    ust_id:              previewMeta.ustId ?? undefined,
+    geschaeftsfuehrung:  previewMeta.geschaeftsfuehrung ?? undefined,
+    firmen_email:        previewMeta.firmenEmail ?? undefined,
+    firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
   }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
   const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})

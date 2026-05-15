@@ -36,6 +36,43 @@ folgenV2Router.get('/air-date', async (req, res) => {
   }
 })
 
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/v2/folgen/block?produktion_id=X&folge_nr=N
+// Berechnet den Block-Namen aus den Produktionsdaten (bloecke-Array)
+folgenV2Router.get('/block', async (req, res) => {
+  try {
+    const { produktion_id, folge_nr } = req.query
+    if (!produktion_id || !folge_nr) return res.json({ block: null })
+
+    const prod = await queryOne(
+      'SELECT produktion_db_id FROM produktionen WHERE id = $1',
+      [produktion_id]
+    )
+    if (!prod?.produktion_db_id) return res.json({ block: null })
+
+    const r = await fetch(
+      `${PROD_DB_URL}/api/internal/productions/${prod.produktion_db_id}/script-context`,
+      { headers: { 'x-internal-key': INTERNAL_KEY }, signal: AbortSignal.timeout(3000) }
+    )
+    if (!r.ok) return res.json({ block: null })
+    const d = await r.json() as any
+
+    const fn = Number(folge_nr)
+    const bloecke: any[] = Array.isArray(d?.bloecke) ? d.bloecke : []
+    let block: string | null = null
+    for (let i = 0; i < bloecke.length; i++) {
+      const b = bloecke[i]
+      if (b.folge_von != null && b.folge_bis != null && fn >= b.folge_von && fn <= b.folge_bis) {
+        block = b.bezeichnung || `${d?.block_label ?? 'Block'} ${(d?.erster_block ?? 1) + i}`
+        break
+      }
+    }
+    res.json({ block })
+  } catch {
+    res.json({ block: null })
+  }
+})
+
 // GET /api/v2/folgen?produktion_id=X — all Folgen of a Produktion
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.get('/', async (req, res) => {
