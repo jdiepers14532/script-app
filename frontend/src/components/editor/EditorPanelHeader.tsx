@@ -454,6 +454,7 @@ export default function EditorPanelHeader({
                       setLabelError(null)
                       try {
                         await api.updateWerkstufe(selectedWerk.id, { label: newLabel })
+                        clearCacheByPrefix('/v2/folgen/')
                         onReloadWerkstufen()
                       } catch (err: any) {
                         clearCacheByPrefix('/v2/folgen/')
@@ -487,6 +488,7 @@ export default function EditorPanelHeader({
                         setLabelError(null)
                         try {
                           await api.updateWerkstufe(selectedWerk.id, { label: '' })
+                          clearCacheByPrefix('/v2/folgen/')
                           onReloadWerkstufen()
                         } catch (err: any) {
                           clearCacheByPrefix('/v2/folgen/')
