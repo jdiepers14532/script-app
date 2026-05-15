@@ -32,6 +32,10 @@ function injectChipCss() {
 /* Reset browser-default paragraph margins so line-height is the sole spacing control */
 .ProseMirror p { margin: 0; }
 
+/* Table rows with explicit height: remove padding so small heights (e.g. 4px) are respected */
+.ProseMirror tr[data-row-height] td,
+.ProseMirror tr[data-row-height] th { padding: 0 4px; overflow: hidden; }
+
 /* ── Table styles ── */
 .ProseMirror table { border-collapse: collapse; width: 100%; margin: 4px 0; }
 .ProseMirror td, .ProseMirror th {
@@ -686,7 +690,7 @@ export function ToolbarContent({
             type="number"
             min={1}
             max={300}
-            step={4}
+            step={1}
             value={curRowHeight}
             onChange={e => {
               const v = e.target.value ? Number(e.target.value) : null
@@ -1026,6 +1030,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       const rows = (node.content ?? []).map((row: any) => {
         const rh = row.attrs?.rowHeight
         const rowStyle = rh ? ` style="height:${rh}px"` : ''
+        const cellPad  = rh ? 'padding:0 4px;overflow:hidden;' : 'padding:5px 10px;'
         const cells = (row.content ?? []).map((cell: any) => {
           const isHeader = cell.type === 'tableHeader'
           const tag      = isHeader ? 'th' : 'td'
@@ -1035,7 +1040,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
           const colspan  = cell.attrs?.colspan  && cell.attrs.colspan  > 1 ? ` colspan="${cell.attrs.colspan}"`  : ''
           const rowspan  = cell.attrs?.rowspan  && cell.attrs.rowspan  > 1 ? ` rowspan="${cell.attrs.rowspan}"`  : ''
           const inner    = (cell.content ?? []).map((n: any) => renderBlock(n)).join('')
-          return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
+          return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};${cellPad}vertical-align:top;${extra}">${inner}</${tag}>`
         }).join('')
         return `<tr${rowStyle}>${cells}</tr>`
       }).join('')

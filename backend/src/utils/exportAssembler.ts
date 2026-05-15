@@ -182,6 +182,7 @@ function renderNode(node: any, ctx: ExportContext): string {
     const rows = (node.content ?? []).map((row: any) => {
       const rowHeight = row.attrs?.rowHeight
       const rowStyle  = rowHeight ? ` style="height:${rowHeight}px"` : ''
+      const cellPad   = rowHeight ? 'padding:0 4px;overflow:hidden;' : 'padding:5px 10px;'
       const cells = (row.content ?? []).map((cell: any) => {
         const isHeader = cell.type === 'tableHeader'
         const tag      = isHeader ? 'th' : 'td'
@@ -191,7 +192,7 @@ function renderNode(node: any, ctx: ExportContext): string {
         const colspan  = cell.attrs?.colspan  && cell.attrs.colspan  > 1 ? ` colspan="${cell.attrs.colspan}"`  : ''
         const rowspan  = cell.attrs?.rowspan  && cell.attrs.rowspan  > 1 ? ` rowspan="${cell.attrs.rowspan}"`  : ''
         const inner    = (cell.content ?? []).map((n: any) => renderNode(n, ctx)).join('')
-        return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
+        return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};${cellPad}vertical-align:top;${extra}">${inner}</${tag}>`
       }).join('')
       return `<tr${rowStyle}>${cells}</tr>`
     }).join('')
