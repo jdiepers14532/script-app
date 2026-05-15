@@ -56,7 +56,7 @@ export default function StoppzeitenModal({ open, onClose, werkstufId }: Props) {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        background: 'var(--bg-primary)', borderRadius: 12, width: '90vw', maxWidth: 860,
+        background: 'var(--bg-surface)', borderRadius: 12, width: '90vw', maxWidth: 860,
         maxHeight: '85vh', display: 'flex', flexDirection: 'column',
         boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
       }}>
@@ -83,7 +83,7 @@ export default function StoppzeitenModal({ open, onClose, werkstufId }: Props) {
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead>
-                <tr style={{ background: 'var(--bg-secondary)', position: 'sticky', top: 0 }}>
+                <tr style={{ background: 'var(--bg-subtle)', position: 'sticky', top: 0 }}>
                   <th style={TH}>SZ</th>
                   <th style={{ ...TH, textAlign: 'left', minWidth: 140 }}>Motiv</th>
                   <th style={{ ...TH, color: 'var(--color-info)' }}>Aktuell</th>
@@ -98,7 +98,7 @@ export default function StoppzeitenModal({ open, onClose, werkstufId }: Props) {
                   const motiv = [row.ort_name, row.int_ext, row.tageszeit].filter(Boolean).join(' · ')
                   const odd = i % 2 === 1
                   return (
-                    <tr key={row.id} style={{ background: odd ? 'var(--bg-secondary)' : undefined }}>
+                    <tr key={row.id} style={{ background: odd ? 'var(--bg-subtle)' : undefined }}>
                       <td style={TD}>{label}</td>
                       <td style={{ ...TD, textAlign: 'left', color: 'var(--text-muted)' }}>{motiv || '—'}</td>
                       <td style={{ ...TD, color: 'var(--color-info)', fontWeight: 600 }}>
