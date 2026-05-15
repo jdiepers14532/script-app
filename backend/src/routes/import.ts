@@ -734,7 +734,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
            )
            SELECT $1, unnest($2::uuid[]), unnest($3::int[]), unnest($4::int[]),
                   unnest($5::text[]), unnest($6::text[]), unnest($7::text[]), unnest($8::text[]),
-                  unnest($9::text[])::jsonb, unnest($10::text[]), unnest($11::int[]),
+                  unnest($9::text[])::jsonb, unnest($10::int[]), unnest($11::int[]),
                   unnest($12::text[]), unnest($13::text[]), false, $14,
                   unnest($15::float8[]), unnest($16::text[])
            RETURNING id`,
