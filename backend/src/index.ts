@@ -15,7 +15,6 @@ import healthRouter from './routes/health'
 import produktionenRouter from './routes/produktionen'
 import { locksRouter, contractLocksRouter } from './routes/locks'
 import exportsRouter from './routes/exports'
-import entitiesRouter from './routes/entities'
 import kiRouter, { kiAdminRouter, kiProviderRouter } from './routes/ki'
 import { importRouter } from './routes/import'
 import meRouter from './routes/me'
@@ -115,13 +114,10 @@ app.use('/api/privat-mode-tokens', privatModeTokensPublicRouter)
 app.use('/api/produktionen', produktionenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
-app.use('/api/stages', exportsRouter)     // legacy stage export routes
 app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
-// Internal webhook — no auth, must be registered BEFORE the catch-all /api entitiesRouter
+// Internal webhook — no auth
 app.use('/api/internal', commentWebhookRouter)
 
-app.use('/api/entities', entitiesRouter)
-app.use('/api', entitiesRouter)            // for /api/stages/:id/entities
 app.use('/api/ki', kiLimiter, kiRouter)
 app.use('/api/admin/ki-settings', kiAdminRouter)
 app.use('/api/admin/ki-providers', kiProviderRouter)
@@ -286,6 +282,7 @@ async function runMigrations() {
     'v69_drop_folge_air_date.sql',
     'v70_vorlagen_aktiv.sql',
     'v71_revision_tracking.sql',
+    'v72_drop_legacy.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

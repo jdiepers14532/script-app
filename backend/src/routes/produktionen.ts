@@ -164,15 +164,10 @@ router.post('/sync', async (req, res) => {
   try {
     const label = staffelnummer ? `${title} Staffel ${staffelnummer}` : title
     await query(
-      `INSERT INTO produktionen (id, titel, produktion_db_id, meta_json)
-       VALUES ($1, $2, $3::uuid, $4)
-       ON CONFLICT (id) DO UPDATE SET titel = $2, produktion_db_id = $3::uuid, meta_json = $4, updated_at = NOW()`,
-      [
-        production_id,
-        label,
-        production_id,
-        JSON.stringify({ projektnummer: projektnummer ?? null, staffelnummer: staffelnummer ?? null })
-      ]
+      `INSERT INTO produktionen (id, titel, produktion_db_id)
+       VALUES ($1, $2, $3::uuid)
+       ON CONFLICT (id) DO UPDATE SET titel = $2, produktion_db_id = $3::uuid, updated_at = NOW()`,
+      [production_id, label, production_id]
     )
     res.json({ ok: true, produktion_id: production_id })
   } catch (err) {

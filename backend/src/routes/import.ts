@@ -754,11 +754,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const pmNodes = buildNonSceneContent(elem.type, elem.content)
       const nspl = calcPageLength(pmNodes)
 
-      // Create a scene_identity with is_non_scene = true
       const nsIdentity = await queryOne(
-        `INSERT INTO scene_identities (folge_id, is_non_scene, non_scene_type, created_by)
-         VALUES ($1, true, $2, $3) RETURNING id`,
-        [folge.id, elemType, req.user!.name || req.user!.user_id]
+        `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
+        [folge.id, req.user!.name || req.user!.user_id]
       )
 
       await queryOne(

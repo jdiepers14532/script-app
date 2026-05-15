@@ -565,7 +565,6 @@ export default function SceneList({
                 )}
               </div>
               <div className="rt">
-                {scene.dauer_min && <span>{scene.dauer_min} min</span>}
                 <div className="badges">
                   {unreadCount > 0 && (
                     <div className="comment-bubble" title={`${unreadCount} ungelesene Kommentare`}>
