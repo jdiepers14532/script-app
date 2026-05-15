@@ -184,8 +184,10 @@ function renderNode(node: any, ctx: ExportContext): string {
         const extra    = isHeader ? 'background:#f5f5f5;font-weight:600;' : ''
         const cw       = cell.attrs?.colwidth?.[0]
         const widthStr = cw ? `width:${cw}px;` : ''
+        const colspan  = cell.attrs?.colspan  && cell.attrs.colspan  > 1 ? ` colspan="${cell.attrs.colspan}"`  : ''
+        const rowspan  = cell.attrs?.rowspan  && cell.attrs.rowspan  > 1 ? ` rowspan="${cell.attrs.rowspan}"`  : ''
         const inner    = (cell.content ?? []).map((n: any) => renderNode(n, ctx)).join('')
-        return `<${tag} style="${widthStr}${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
+        return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
       }).join('')
       return `<tr${rowStyle}>${cells}</tr>`
     }).join('')

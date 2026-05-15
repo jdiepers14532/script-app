@@ -924,8 +924,10 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
           const extra    = isHeader ? 'background:#f5f5f5;font-weight:600;' : ''
           const cw       = cell.attrs?.colwidth?.[0]
           const widthStr = cw ? `width:${cw}px;` : ''
+          const colspan  = cell.attrs?.colspan  && cell.attrs.colspan  > 1 ? ` colspan="${cell.attrs.colspan}"`  : ''
+          const rowspan  = cell.attrs?.rowspan  && cell.attrs.rowspan  > 1 ? ` rowspan="${cell.attrs.rowspan}"`  : ''
           const inner    = (cell.content ?? []).map((n: any) => renderBlock(n)).join('')
-          return `<${tag} style="${widthStr}${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
+          return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
         }).join('')
         return `<tr${rowStyle}>${cells}</tr>`
       }).join('')
@@ -975,9 +977,10 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       if (fst) styles.push(`font-style:${fst}`)
       if (td)  styles.push(`text-decoration:${td}`)
       if (lh)  styles.push(`line-height:${lh}`)
+      if (!node.content?.length) styles.push('min-height:1.2em')
       const style = styles.length ? ` style="${styles.join(';')}"` : ''
       const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs, fw, fst, td, lh })).join('')
-      return inner ? `<div${style}>${inner}</div>` : ''
+      return `<div${style}>${inner || '&nbsp;'}</div>`
     }
     return (node.content ?? []).map(renderBlock).join('')
   }

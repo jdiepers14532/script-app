@@ -3222,7 +3222,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                   <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{typLabel}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 'auto', paddingTop: 4 }}>
                     <button onClick={() => openEdit(v)} style={btnStyle}>Bearbeiten</button>
-                    <button onClick={() => duplicateVorlage(v)} style={btnStyle} title="Duplizieren">⧉</button>
+                    <button onClick={() => duplicateVorlage(v)} style={btnStyle} title="Duplizieren">Kopie</button>
                     {!isAktiv && (
                       <button
                         onClick={() => setAktiv(v.id)}
@@ -3260,7 +3260,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   <button onClick={() => openEdit(v)} style={btnStyle}>Bearbeiten</button>
-                  <button onClick={() => duplicateVorlage(v)} style={btnStyle} title="Duplizieren">⧉ Duplizieren</button>
+                  <button onClick={() => duplicateVorlage(v)} style={btnStyle} title="Duplizieren">Kopie erstellen</button>
                   {!isAktiv && (
                     <button onClick={() => setAktiv(v.id)} disabled={settingAktiv === v.id}
                       style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55' }}>
