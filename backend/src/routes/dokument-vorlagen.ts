@@ -10,11 +10,11 @@ dokumentVorlagenRouter.use(authMiddleware)
 dokumentVorlagenRouter.get('/', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, name, typ, sektionen, meta_fields,
+      `SELECT id, name, typ, is_aktiv, sektionen, meta_fields,
               body_content, kopfzeile_content, fusszeile_content,
               kopfzeile_aktiv, fusszeile_aktiv, erste_seite_kein_header, seiten_layout,
               created_by, created_at, updated_at
-       FROM dokument_vorlagen WHERE produktion_id = $1 ORDER BY typ, created_at DESC`,
+       FROM dokument_vorlagen WHERE produktion_id = $1 ORDER BY typ, is_aktiv DESC, created_at DESC`,
       [(req.params as any).produktionId]
     )
     res.json(rows)
@@ -141,6 +141,32 @@ dokumentVorlagenRouter.post('/create', async (req, res) => {
       ]
     )
     res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/produktionen/:produktionId/dokument-vorlagen/:id/set-aktiv
+// Marks this vorlage as the active standard for its typ (deactivates others of same typ)
+dokumentVorlagenRouter.post('/:id/set-aktiv', async (req, res) => {
+  try {
+    const produktionId = (req.params as any).produktionId
+    const vorlage = await queryOne(
+      'SELECT id, typ FROM dokument_vorlagen WHERE id = $1 AND produktion_id = $2',
+      [req.params.id, produktionId]
+    )
+    if (!vorlage) return res.status(404).json({ error: 'Vorlage nicht gefunden' })
+    // Deactivate all others of same typ
+    await query(
+      'UPDATE dokument_vorlagen SET is_aktiv = false WHERE produktion_id = $1 AND typ = $2',
+      [produktionId, vorlage.typ]
+    )
+    // Activate this one
+    const row = await queryOne(
+      'UPDATE dokument_vorlagen SET is_aktiv = true, updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.id]
+    )
+    res.json(row)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

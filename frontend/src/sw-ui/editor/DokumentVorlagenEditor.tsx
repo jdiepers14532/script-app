@@ -348,6 +348,12 @@ export function ToolbarContent({
   const [hrThickness, setHrThickness] = useState(1)
   const [hrWidth, setHrWidth] = useState(100)
 
+  // Detect if cursor is on a customHr node — read its attrs into the selects
+  const isOnHr = editor?.isActive('customHr') ?? false
+  const hrNodeAttrs = isOnHr ? (editor?.getAttributes('customHr') ?? {}) : {}
+  const displayHrThickness = isOnHr ? (hrNodeAttrs.thickness ?? hrThickness) : hrThickness
+  const displayHrWidth     = isOnHr ? (hrNodeAttrs.width     ?? hrWidth)     : hrWidth
+
   const insertImg = useCallback((src: string) => {
     ;(editor as any)?.chain().focus().setResizableImage({ src, width: 120 }).run()
   }, [editor])
@@ -497,23 +503,34 @@ export function ToolbarContent({
         {sep('sep-hr')}
         <button
           disabled={!editor}
-          onMouseDown={e => { e.preventDefault(); (editor as any)?.chain().focus().setCustomHr({ thickness: hrThickness, width: hrWidth }).run() }}
-          style={{ ...imgBtnStyle, fontSize: 12 }}
-          title={`Linie einfügen (${hrThickness}px, ${hrWidth}%)`}
+          onMouseDown={e => {
+            e.preventDefault()
+            ;(editor as any)?.chain().focus().setCustomHr({ thickness: displayHrThickness, width: displayHrWidth }).run()
+          }}
+          style={{ ...imgBtnStyle, fontSize: 12, border: isOnHr ? '1px solid #007AFF88' : undefined }}
+          title={isOnHr ? `Neue Linie einfügen (${displayHrThickness}px, ${displayHrWidth}%)` : `Linie einfügen (${displayHrThickness}px, ${displayHrWidth}%)`}
         >—</button>
         <select
-          value={hrThickness}
-          onChange={e => setHrThickness(Number(e.target.value))}
-          title="Linienstärke"
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 44, flexShrink: 0 }}
+          value={displayHrThickness}
+          onChange={e => {
+            const val = Number(e.target.value)
+            setHrThickness(val)
+            if (isOnHr) editor?.chain().focus().updateAttributes('customHr', { thickness: val }).run()
+          }}
+          title={isOnHr ? 'Linienstärke (ändert gewählte Linie)' : 'Linienstärke'}
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isOnHr ? '#007AFF88' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 44, flexShrink: 0 }}
         >
           {[1,2,3,4,5].map(t => <option key={t} value={t}>{t}px</option>)}
         </select>
         <select
-          value={hrWidth}
-          onChange={e => setHrWidth(Number(e.target.value))}
-          title="Linienbreite"
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 46, flexShrink: 0 }}
+          value={displayHrWidth}
+          onChange={e => {
+            const val = Number(e.target.value)
+            setHrWidth(val)
+            if (isOnHr) editor?.chain().focus().updateAttributes('customHr', { width: val }).run()
+          }}
+          title={isOnHr ? 'Linienbreite (ändert gewählte Linie)' : 'Linienbreite'}
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isOnHr ? '#007AFF88' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 46, flexShrink: 0 }}
         >
           {[25,50,75,100].map(w => <option key={w} value={w}>{w}%</option>)}
         </select>

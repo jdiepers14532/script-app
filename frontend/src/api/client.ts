@@ -513,6 +513,8 @@ export const api = {
     request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`, data),
   deleteDokumentVorlage: (produktionId: string, id: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
+  setVorlageAktiv: (produktionId: string, id: string) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}/set-aktiv`, {}),
 
   // ── Kopf-/Fußzeilen-Defaults ──────────────────────────────────────────────
   getKopfFusszeilen: (produktionId: string) =>
