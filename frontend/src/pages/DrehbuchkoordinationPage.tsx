@@ -3266,7 +3266,19 @@ async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
     if (list.length > 0) {
       const sorted = [...list].sort((a, b) => (b.folge_nummer ?? 0) - (a.folge_nummer ?? 0))
       folgeNummer = sorted[0].folge_nummer ?? null
-      airDate     = sorted[0].air_date     ?? null
+      // Fetch real air_date from Produktionsdatenbank (broadcast_events via reihen_id)
+      if (folgeNummer != null) {
+        try {
+          const ar = await fetch(
+            `/api/v2/folgen/air-date?produktion_id=${encodeURIComponent(productionId)}&folge_nr=${folgeNummer}`,
+            { credentials: 'include' }
+          )
+          if (ar.ok) {
+            const ad = await ar.json()
+            airDate = ad?.air_date ?? null
+          }
+        } catch { /* non-fatal */ }
+      }
     }
   }
   let datumsformat: 'de' | 'en' = 'de'

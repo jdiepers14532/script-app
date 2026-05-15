@@ -2,12 +2,40 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 
+const PROD_DB_URL  = process.env.PROD_DB_URL  ?? 'http://127.0.0.1:3005'
+const INTERNAL_KEY = process.env.PRODUKTION_INTERNAL_SECRET ?? 'prod-internal-2026'
+
 // ── Folgen v2 Router ─────────────────────────────────────────────────────────
 // Mounted at /api/v2/folgen — reads from merged `folgen` table
 export const folgenV2Router = Router()
 folgenV2Router.use(authMiddleware)
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/v2/folgen/air-date?produktion_id=X&folge_nr=N
+// Liefert das echte Sendedatum aus der Produktionsdatenbank (broadcast_events)
+folgenV2Router.get('/air-date', async (req, res) => {
+  try {
+    const { produktion_id, folge_nr } = req.query
+    if (!produktion_id || !folge_nr) return res.json({ air_date: null })
+
+    const prod = await queryOne(
+      'SELECT produktion_db_id FROM produktionen WHERE id = $1',
+      [produktion_id]
+    )
+    if (!prod?.produktion_db_id) return res.json({ air_date: null })
+
+    const r = await fetch(
+      `${PROD_DB_URL}/api/internal/productions/${prod.produktion_db_id}/air-date?folge_nr=${encodeURIComponent(String(folge_nr))}`,
+      { headers: { 'x-internal-key': INTERNAL_KEY }, signal: AbortSignal.timeout(3000) }
+    )
+    if (!r.ok) return res.json({ air_date: null })
+    const d = await r.json() as any
+    res.json({ air_date: d?.air_date ?? null })
+  } catch (err) {
+    res.json({ air_date: null })
+  }
+})
+
 // GET /api/v2/folgen?produktion_id=X — all Folgen of a Produktion
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.get('/', async (req, res) => {

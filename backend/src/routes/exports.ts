@@ -142,7 +142,7 @@ function contentToFdx(szenen: any[], episodeTitel: string, formatMap: Map<string
 // ── Export context helpers ────────────────────────────────────────────────────
 
 async function loadExportContext(ws: any, userId: string, userName: string): Promise<ExportContext> {
-  const folge = await queryOne(
+  let folge = await queryOne(
     'SELECT folge_nummer, folgen_titel, air_date FROM folgen WHERE id = $1',
     [ws.folge_id]
   )
@@ -205,6 +205,19 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
         bueroAdresse       = d?.buero_adresse ?? null
         produktionszeitraum = d?.drehzeitraum ?? null
         staffel            = d?.staffelnummer != null ? String(d.staffelnummer) : null
+      }
+      // Fetch real air_date from broadcast_events (reihen_id-based)
+      if (folge?.folge_nummer) {
+        try {
+          const ar = await fetch(
+            `http://127.0.0.1:3005/api/internal/productions/${produktionDbId}/air-date?folge_nr=${folge.folge_nummer}`,
+            { headers: { 'x-internal-key': secret }, signal: AbortSignal.timeout(3000) }
+          )
+          if (ar.ok) {
+            const ad = await ar.json() as any
+            if (ad?.air_date) folge = { ...folge, air_date: ad.air_date }
+          }
+        } catch { /* non-fatal */ }
       }
     } catch { /* non-fatal */ }
   }
