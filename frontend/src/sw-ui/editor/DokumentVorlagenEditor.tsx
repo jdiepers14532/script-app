@@ -910,19 +910,25 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
         : borderStyle === 'dotted' ? 'border:1px dotted #888'
         : borderStyle === 'double' ? 'border:3px double #555'
         : 'border:1px solid #d0d0d0'
+      // Check if any cell has a fixed colwidth → use table-layout:fixed for accurate column sizing
+      const firstRow = node.content?.[0]
+      const hasColWidths = firstRow?.content?.some((c: any) => c.attrs?.colwidth?.[0])
+      const tableLayout = hasColWidths ? 'table-layout:fixed;' : ''
       const rows = (node.content ?? []).map((row: any) => {
         const rh = row.attrs?.rowHeight
         const rowStyle = rh ? ` style="height:${rh}px"` : ''
         const cells = (row.content ?? []).map((cell: any) => {
           const isHeader = cell.type === 'tableHeader'
-          const tag   = isHeader ? 'th' : 'td'
-          const extra = isHeader ? 'background:#f5f5f5;font-weight:600;' : ''
-          const inner = (cell.content ?? []).map((n: any) => renderBlock(n)).join('')
-          return `<${tag} style="${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
+          const tag      = isHeader ? 'th' : 'td'
+          const extra    = isHeader ? 'background:#f5f5f5;font-weight:600;' : ''
+          const cw       = cell.attrs?.colwidth?.[0]
+          const widthStr = cw ? `width:${cw}px;` : ''
+          const inner    = (cell.content ?? []).map((n: any) => renderBlock(n)).join('')
+          return `<${tag} style="${widthStr}${cellBorder};padding:5px 10px;vertical-align:top;${extra}">${inner}</${tag}>`
         }).join('')
         return `<tr${rowStyle}>${cells}</tr>`
       }).join('')
-      return `<table style="border-collapse:collapse;width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
+      return `<table style="border-collapse:collapse;${tableLayout}width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
     }
 
     if (node.type === 'horizontalRule') return '<hr style="border:none;border-top:1px solid #d0d0d0;width:100%;margin:8px 0">'
