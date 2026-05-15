@@ -8,6 +8,7 @@ export interface Production {
   is_active: boolean
   logo_filename: string | null
   buero_adresse:  string | null
+  telefon:        string | null
   sender:         string | null
   drehzeitraum:   string | null
 }

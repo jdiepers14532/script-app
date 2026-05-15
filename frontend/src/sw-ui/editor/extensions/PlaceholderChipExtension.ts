@@ -30,14 +30,14 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'script_db \u00b7 produktionen.titel',
   },
   {
-    key: '{{staffel}}', label: 'Staffel', zone: 'alle', color: '#007AFF',
+    key: '{{staffel}}', label: 'Staffel', zone: 'alle', color: '#FF9500',
     beschreibung: 'Staffel-Nummer der Produktion (sofern in produktion.app gepflegt).',
     quelle: 'produktion.app \u00b7 productions.staffelnummer',
   },
   {
-    key: '{{block}}', label: 'Block', zone: 'alle', color: '#007AFF',
-    beschreibung: 'Block-Bezeichnung der Episode (derzeit nicht bef\u00fcllt).',
-    quelle: '\u2013 (in Planung)',
+    key: '{{block}}', label: 'Block', zone: 'alle', color: '#FF9500',
+    beschreibung: 'Block-Bezeichnung der Episode, ermittelt aus der Folgen-Nummer.',
+    quelle: 'produktion.app \u00b7 script-context.blo\u00ecke',
   },
   {
     key: '{{folge}}', label: 'Folge', zone: 'alle', color: '#007AFF',
@@ -70,7 +70,7 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'script_db \u00b7 werkstufen.stand_datum',
   },
   {
-    key: '{{autor}}', label: 'Autor', zone: 'alle', color: '#007AFF',
+    key: '{{autor}}', label: 'Autor', zone: 'alle', color: '#5856D6',
     beschreibung: 'Name des Nutzers, der den Export ausl\u00f6st.',
     quelle: 'auth.app \u00b7 users.name',
   },
@@ -125,9 +125,14 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'produktion.app \u00b7 productions.sender',
   },
   {
-    key: '{{buero_adresse}}', label: 'B\u00fcro-Adresse', zone: 'alle', color: '#5856D6',
+    key: '{{buero_adresse}}', label: 'Produktionsb\u00fcro', zone: 'alle', color: '#FF9500',
     beschreibung: 'Adresse des Produktionsb\u00fcros.',
     quelle: 'produktion.app \u00b7 productions.buero_adresse',
+  },
+  {
+    key: '{{tel_produktion}}', label: 'Tel. Produktion', zone: 'alle', color: '#FF9500',
+    beschreibung: 'Telefonnummer des Produktionsb\u00fcros.',
+    quelle: 'produktion.app \u00b7 productions.telefon',
   },
   {
     key: '{{sendedatum}}', label: 'Sendedatum', zone: 'alle', color: '#FF9500',
@@ -135,32 +140,32 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'produktion.app \u00b7 broadcast_events.air_date (via reihen_id)',
   },
   {
-    key: '{{produktionszeitraum}}', label: 'Produktionszeitraum', zone: 'alle', color: '#34C759',
+    key: '{{produktionszeitraum}}', label: 'Produktionszeitraum', zone: 'alle', color: '#FF9500',
     beschreibung: 'Drehzeitraum der Produktion (von\u2013bis).',
     quelle: 'produktion.app \u00b7 productions.drehzeitraum',
   },
   {
-    key: '{{aktuelles_datum}}', label: 'Aktuelles Datum', zone: 'alle', color: '#007AFF',
+    key: '{{aktuelles_datum}}', label: 'Aktuelles Datum', zone: 'alle', color: '#34C759',
     beschreibung: 'Das aktuelle Datum zum Zeitpunkt des Exports, z.\u202fB. \u201e15.05.2026\u201c.',
-    quelle: 'Berechnet beim Export \u00b7 new Date() → TT.MM.JJJJ',
+    quelle: 'Berechnet beim Export \u00b7 new Date() \u2192 TT.MM.JJJJ',
   },
   {
-    key: '{{aktuelles_jahr}}', label: 'Aktuelles Jahr', zone: 'alle', color: '#007AFF',
+    key: '{{aktuelles_jahr}}', label: 'Aktuelles Jahr', zone: 'alle', color: '#34C759',
     beschreibung: 'Das aktuelle Kalenderjahr zum Zeitpunkt des Exports, z.\u202fB. \u201e2026\u201c.',
     quelle: 'Berechnet beim Export \u00b7 new Date().getFullYear()',
   },
   {
-    key: '{{folge_laenge_netto}}', label: 'Gesamtl\u00e4nge Netto', zone: 'alle', color: '#34C759',
+    key: '{{folge_laenge_netto}}', label: 'Gesamtl\u00e4nge Netto', zone: 'alle', color: '#007AFF',
     beschreibung: 'Summe aller Szenen-Stoppzeiten der Werkstufe (Netto-L\u00e4nge der Folge), z.\u202fB. \u201e42:18\u201c.',
     quelle: 'script_db \u00b7 dokument_szenen.stoppzeit_sek (summiert)',
   },
   {
-    key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#FF9500',
+    key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#34C759',
     beschreibung: 'Aktuelle Seitenzahl. Nur in Fu\u00dfzeilen verf\u00fcgbar.',
     quelle: 'Berechnet beim PDF-Export',
   },
   {
-    key: '{{seiten_gesamt}}', label: 'Seiten gesamt', zone: 'fusszeile', color: '#FF9500',
+    key: '{{seiten_gesamt}}', label: 'Seiten gesamt', zone: 'fusszeile', color: '#34C759',
     beschreibung: 'Gesamtanzahl Seiten des Dokuments. Nur in Fu\u00dfzeilen verf\u00fcgbar.',
     quelle: 'Berechnet beim PDF-Export',
   },

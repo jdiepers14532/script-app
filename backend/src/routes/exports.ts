@@ -246,6 +246,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
   // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer, drehzeitraum, block data)
   let sender: string | null = null
   let bueroAdresse: string | null = null
+  let telProduktion: string | null = null
   let produktionszeitraum: string | null = null
   let staffel: string | null = null
   let block: string | null = null
@@ -261,6 +262,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
         const d = await r.json() as any
         sender             = d?.sender        ?? null
         bueroAdresse       = d?.buero_adresse ?? null
+        telProduktion      = d?.telefon       ?? null
         produktionszeitraum = d?.drehzeitraum ?? null
         staffel            = d?.staffelnummer != null ? String(d.staffelnummer) : null
         if (folge?.folge_nummer) {
@@ -314,6 +316,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     firmenname,
     sender,
     buero_adresse:       bueroAdresse,
+    tel_produktion:      telProduktion,
     sendedatum:          formatSendedatum(folge?._air_date),
     produktionszeitraum,
     aktuelles_datum:     formatDatum(now),

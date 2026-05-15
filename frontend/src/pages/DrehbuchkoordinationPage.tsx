@@ -2893,6 +2893,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     firmenname:    previewMeta.firmenname ?? undefined,
     sender:              selectedProduction?.sender ?? undefined,
     buero_adresse:       selectedProduction?.buero_adresse ?? undefined,
+    tel_produktion:      selectedProduction?.telefon ?? undefined,
     sendedatum:          formatSendedatum(previewMeta.airDate),
     produktionszeitraum: selectedProduction?.drehzeitraum ?? undefined,
     aktuelles_datum:     new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
@@ -3054,9 +3055,11 @@ function VorlagenTab({ productionId }: { productionId: string }) {
       <>
       <div style={{ display: 'flex', alignItems: 'flex-start', margin: '-24px -16px', minHeight: '85vh' }}>
         {/* ── Left sidebar ── */}
-        <div style={{ width: 236, flexShrink: 0, position: 'sticky', top: 0, maxHeight: '100vh', overflowY: 'auto', background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '14px 14px 10px', fontSize: 13, fontWeight: 600, borderBottom: '1px solid var(--border)' }}>
-            {editId === '__new__' ? 'Neue Vorlage' : 'Vorlage bearbeiten'}
+        <div style={{ width: 354, flexShrink: 0, position: 'sticky', top: 0, maxHeight: '100vh', overflowY: 'auto', background: 'var(--bg-subtle)', borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)' }}>
+            <button onClick={() => setShowPreview(true)} style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', fontWeight: 500, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Vorschau
+            </button>
           </div>
 
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -3084,7 +3087,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
             </div>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Seitenränder (mm)</label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
                 {([
                   ['margin_top',    'Oben',   25],
                   ['margin_bottom', 'Unten',  25],
@@ -3092,7 +3095,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                   ['margin_right',  'Rechts', 25],
                 ] as [string, string, number][]).map(([field, label, def]) => (
                   <label key={field} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)', textAlign: 'center' }}>{label}</span>
                     <input
                       type="number" min={5} max={80} step={1}
                       value={(editEditorValue.seiten_layout as any)?.[field] ?? def}
@@ -3104,7 +3107,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                           [field]: Number(e.target.value),
                         },
                       }))}
-                      style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%' }}
+                      style={{ fontSize: 11, padding: '3px 4px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%', textAlign: 'center' }}
                     />
                   </label>
                 ))}
@@ -3124,12 +3127,6 @@ function VorlagenTab({ productionId }: { productionId: string }) {
               <button onMouseDown={() => setZoom(z => Math.min(1.5, Math.round((z + 0.05) * 100) / 100))} style={{ width: 24, height: 24, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', cursor: 'pointer', fontSize: 14 }}>+</button>
               <button onMouseDown={() => setZoom(1)} style={{ fontSize: 10, padding: '2px 7px', borderRadius: 3, border: '1px solid var(--border)', background: Math.round(zoom * 100) === 100 ? 'var(--text-primary)' : 'transparent', color: Math.round(zoom * 100) === 100 ? 'var(--text-inverse)' : 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>1:1</button>
             </div>
-          </div>
-
-          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)' }}>
-            <button onClick={() => setShowPreview(true)} style={{ width: '100%', padding: '7px 12px', borderRadius: 6, border: '1px solid #007AFF55', background: '#007AFF0A', color: '#007AFF', fontWeight: 500, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Vorschau
-            </button>
           </div>
 
           <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -3435,6 +3432,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     firmenname:    previewMeta.firmenname ?? undefined,
     sender:              selectedProduction?.sender ?? undefined,
     buero_adresse:       selectedProduction?.buero_adresse ?? undefined,
+    tel_produktion:      selectedProduction?.telefon ?? undefined,
     sendedatum:          formatSendedatum(previewMeta.airDate),
     produktionszeitraum: selectedProduction?.drehzeitraum ?? undefined,
     aktuelles_datum:     new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
