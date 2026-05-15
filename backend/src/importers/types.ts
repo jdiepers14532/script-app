@@ -32,6 +32,7 @@ export interface ParsedScene {
   dauer_sekunden?: number
   isWechselschnitt?: boolean
   wechselschnittPartner?: number[]
+  isStockshot?: boolean
   szeneninfo?: string
 }
 

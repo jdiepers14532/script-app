@@ -400,6 +400,10 @@ function parseSynopsisAndMemo(lines: string[], startIdx: number): {
 
 const WECHSELSCHNITT_RE = /^Wechselschnitt\s+mit\s+Bild\s+(\d{4})\.(\d+)/i
 
+// Stockshot / E-Shot / Archivbild detection (tolerant of typos)
+// Matches: Archivbild, Archiv-Bild, Stockshot, Stock-Shot, E-Shot, Establishing Shot, Establishingshot
+const STOCKSHOT_RE = /archiv\s*-?\s*bild|stock\s*-?\s*shot|e[\s-]*shot|estab+l+ish/i
+
 interface SceneHeader {
   episodeNr: number
   sceneNr: number
@@ -1137,6 +1141,19 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     // Build szeneninfo from hinweise
     const szeneninfo = header.hinweise.length > 0 ? header.hinweise.join('\n') : undefined
 
+    // ── Stockshot / E-Shot detection ──
+    // 1) Explicit keyword in header location or body text
+    const headerText = (header.ort_name || '') + ' ' + (header.zusammenfassung || '')
+    const bodyText = textelemente.map(t => t.text).join(' ')
+    const allText = headerText + ' ' + bodyText + ' ' + (szeneninfo || '')
+    const hasStockshotKeyword = STOCKSHOT_RE.test(allText)
+    // 2) Heuristic: no characters + very short duration (≤15s) + very short body (≤2 text elements)
+    const hasNoChars = charaktere.length === 0 && (header.komparsen?.length || 0) === 0
+    const isShort = (header.dauer_sekunden ?? 999) <= 15
+    const isTinyBody = textelemente.length <= 2 && bodyText.length < 120
+    const heuristicMatch = hasNoChars && isShort && isTinyBody
+    const isStockshot = hasStockshotKeyword || heuristicMatch
+
     return {
       nummer: header.sceneNr,
       int_ext: finalIntExt,
@@ -1151,6 +1168,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
       isWechselschnitt: header.isWechselschnitt,
       wechselschnittPartner: header.wechselschnittPartner.length > 0
         ? header.wechselschnittPartner : undefined,
+      isStockshot,
       szeneninfo,
     }
   }

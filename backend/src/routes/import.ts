@@ -543,6 +543,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       if (ov.charaktere && Array.isArray(ov.charaktere)) szene.charaktere = ov.charaktere
       if (ov.komparsen && Array.isArray(ov.komparsen)) szene.komparsen = ov.komparsen
       const isWechselschnitt = szene.isWechselschnitt || false
+      const isStockshot = szene.isStockshot || false
 
       const identity = await queryOne(
         `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
@@ -685,7 +686,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       }
 
       const pl = calcPageLength(pmNodes)
-      const sondertyp = isWechselschnitt ? 'wechselschnitt' : null
+      const sondertyp = isWechselschnitt ? 'wechselschnitt' : isStockshot ? 'stockshot' : null
       const insertedScene = await queryOne(
         `INSERT INTO dokument_szenen
            (werkstufe_id, scene_identity_id, sort_order, scene_nummer,
