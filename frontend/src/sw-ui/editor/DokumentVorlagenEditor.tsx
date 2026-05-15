@@ -29,6 +29,9 @@ function injectChipCss() {
 .ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; font-family: "Courier New", monospace; }
 .ProseMirror img { max-width: 100% !important; }
 
+/* Reset browser-default paragraph margins so line-height is the sole spacing control */
+.ProseMirror p { margin: 0; }
+
 /* ── Table styles ── */
 .ProseMirror table { border-collapse: collapse; width: 100%; margin: 4px 0; }
 .ProseMirror td, .ProseMirror th {
