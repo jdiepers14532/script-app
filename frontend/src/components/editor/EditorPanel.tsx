@@ -46,6 +46,14 @@ export default function EditorPanel({
       .catch(() => setAbsatzformate([]))
   }, [produktionId])
 
+  // Load dokument_vorlagen for notiz vorlage selector
+  useEffect(() => {
+    if (!produktionId) return
+    api.getDokumentVorlagen(produktionId)
+      .then((list: any[]) => setVorlagen(list.map(v => ({ id: v.id, name: v.name }))))
+      .catch(() => setVorlagen([]))
+  }, [produktionId])
+
   // Panel state: which werkstufe is selected
   const [selectedWerkId, setSelectedWerkId] = useState<string | null>(null)
   const initialApplied = useRef(false)
@@ -70,6 +78,9 @@ export default function EditorPanel({
   const [sceneContent, setSceneContent] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string }>>([])
+  const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
+  const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -262,6 +273,18 @@ export default function EditorPanel({
         onReloadWerkstufen={onReloadWerkstufen}
         onChangeSceneFormat={async (fmt) => {
           if (!currentSzene?.id || typeof currentSzene.id !== 'string') return
+          // If body has content, show confirmation first (destructive)
+          const hasContent = (() => {
+            const c = currentSzene?.content
+            if (!c) return false
+            const nodes = Array.isArray(c) ? c : (c?.content ?? [])
+            return nodes.length > 0
+          })()
+          if (hasContent) {
+            setPendingFmt(fmt)
+            setFormatConfirmOpen(true)
+            return
+          }
           try {
             await api.updateDokumentSzene(currentSzene.id, { format: fmt })
             setCurrentSzene((prev: any) => prev ? { ...prev, format: fmt } : prev)
@@ -330,6 +353,61 @@ export default function EditorPanel({
             : `${otherActiveUsers.map(u => u.user_name).join(', ')} sind auf dieser Werkstufe aktiv.`
           }
           {' '}Deine Änderungen könnten beim nächsten Sync zu einem Konflikt führen.
+        </div>
+      )}
+
+      {/* ── Notiz-Vorlage-Selector ── */}
+      {currentSzene?.format === 'notiz' && (
+        <div style={{ padding: '4px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-subtle)' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Vorlage</span>
+          <select
+            value={currentSzene?.vorlage_id ?? ''}
+            onChange={async (e) => {
+              if (!currentSzene?.id) return
+              const newId = e.target.value || null
+              try {
+                await api.updateDokumentSzene(currentSzene.id, { vorlage_id: newId ?? '__null__' })
+                setCurrentSzene((prev: any) => prev ? { ...prev, vorlage_id: newId } : prev)
+              } catch { /* ignore */ }
+            }}
+            style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', flex: 1, maxWidth: 240 }}
+          >
+            <option value="">– keine –</option>
+            {vorlagen.map(v => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* ── Format-Wechsel Bestätigung ── */}
+      {formatConfirmOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-primary)', borderRadius: 10, padding: '24px 28px', maxWidth: 380, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 10 }}>Format wechseln?</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+              Der aktuelle Szeneninhalt wird beim Wechsel des Formats gelöscht. Der Szenenkopf bleibt erhalten.
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => { setFormatConfirmOpen(false); setPendingFmt(null) }}
+                style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', fontSize: 13, cursor: 'pointer', color: 'var(--text-primary)' }}>
+                Abbrechen
+              </button>
+              <button onClick={async () => {
+                const fmt = pendingFmt
+                setFormatConfirmOpen(false)
+                setPendingFmt(null)
+                if (!fmt || !currentSzene?.id) return
+                try {
+                  await api.updateDokumentSzene(currentSzene.id, { format: fmt, clear_content: true })
+                  setCurrentSzene((prev: any) => prev ? { ...prev, format: fmt, content: null } : prev)
+                  setSceneContent(null)
+                } catch { /* ignore */ }
+              }} style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: 'var(--sw-danger)', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>
+                Format wechseln & Inhalt löschen
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

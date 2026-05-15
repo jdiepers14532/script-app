@@ -122,6 +122,7 @@ export interface PreviewContext {
   firmen_email?:        string
   firmen_telefon?:      string
   tel_produktion?:      string
+  notiz_inhalt?:        string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -1034,6 +1035,7 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{firmen_email}}':        'firmen_email',
   '{{firmen_telefon}}':      'firmen_telefon',
   '{{tel_produktion}}':      'tel_produktion',
+  '{{notiz_inhalt}}':        'notiz_inhalt',
 }
 
 function escHtml(s: string): string {

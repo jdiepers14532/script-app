@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { buildPayload, injectIntoText } from '../utils/watermark'
-import { buildPdfHtml, buildExportFilename, type ExportContext } from '../utils/exportAssembler'
+import { buildPdfHtml, buildExportFilename, renderPmJson, type ExportContext } from '../utils/exportAssembler'
 
 const router = Router()
 router.use(authMiddleware)
@@ -333,6 +333,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     geschaeftsfuehrung,
     firmen_email:        firmenEmail,
     firmen_telefon:      firmenTelefon,
+    notiz_inhalt:        null,
     episode_terminus: episodeTerminus,
   }
 }
@@ -511,6 +512,26 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
     // Build scene body HTML
     let bodyHtml = ''
     for (const szene of szenen) {
+      if (szene.format === 'notiz') {
+        // Notiz scenes: render via vorlage if set, otherwise render content directly
+        const sceneContent = szene.content
+          ? (typeof szene.content === 'string' ? JSON.parse(szene.content) : szene.content)
+          : null
+        if (szene.vorlage_id) {
+          const vorlage = await queryOne('SELECT body_content FROM dokument_vorlagen WHERE id = $1', [szene.vorlage_id])
+          if (vorlage?.body_content) {
+            const vorlageContent = typeof vorlage.body_content === 'string' ? JSON.parse(vorlage.body_content) : vorlage.body_content
+            const sceneHtml = sceneContent ? renderPmJson(sceneContent, { ...ctx, notiz_inhalt: null }) : ''
+            const notizCtx: ExportContext = { ...ctx, notiz_inhalt: sceneHtml }
+            bodyHtml += `<div class="notiz-szene">${renderPmJson(vorlageContent, notizCtx)}</div>`
+          } else {
+            bodyHtml += sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
+          }
+        } else {
+          bodyHtml += sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
+        }
+        continue
+      }
       const intExt = szene.int_ext || 'INT'
       const ort    = szene.ort_name || 'UNBEKANNT'
       const zeit   = szene.tageszeit || 'TAG'

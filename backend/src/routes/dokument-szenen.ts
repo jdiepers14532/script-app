@@ -77,11 +77,15 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       stoppzeit_sek, notiz, motiv_id, format,
       sondertyp, stockshot_kategorie, stockshot_stimmung, stockshot_neu_drehen,
       flashback_referenz_id,
+      vorlage_id, clear_content,
     } = req.body
+
+    // When clear_content is true, wipe the scene body
+    const effectiveContent = clear_content ? { type: 'doc', content: [] } : content
 
     // Load old content for revision diff (before overwriting)
     let oldContent: any[] | null = null
-    if (content) {
+    if (effectiveContent) {
       const old = await queryOne('SELECT content FROM dokument_szenen WHERE id = $1', [req.params.id])
       if (old?.content) {
         try { oldContent = typeof old.content === 'string' ? JSON.parse(old.content) : (Array.isArray(old.content) ? old.content : old.content?.content ?? null) }
@@ -90,7 +94,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     }
 
     // Calculate page_length if content is provided
-    const pageLength = content ? calcPageLength(content) : null
+    const pageLength = effectiveContent ? calcPageLength(effectiveContent) : null
 
     const row = await queryOne(
       `UPDATE dokument_szenen SET
@@ -114,12 +118,13 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         stockshot_stimmung = CASE WHEN $20::text = '__null__' THEN NULL ELSE COALESCE($20, stockshot_stimmung) END,
         stockshot_neu_drehen = COALESCE($21, stockshot_neu_drehen),
         flashback_referenz_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, flashback_referenz_id) END,
+        vorlage_id = CASE WHEN $23::text = '__null__' THEN NULL ELSE COALESCE($23::uuid, vorlage_id) END,
         updated_at = NOW(),
         updated_by = $11
        WHERE id = $15 RETURNING *`,
       [
         int_ext, tageszeit, ort_name, zusammenfassung,
-        content ? JSON.stringify(content) : null,
+        effectiveContent ? JSON.stringify(effectiveContent) : null,
         sort_order,
         seiten ?? null, spieltag ?? null,
         spielzeit ?? null, szeneninfo ?? null,
@@ -135,22 +140,23 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         stockshot_stimmung !== undefined ? (stockshot_stimmung === null ? '__null__' : stockshot_stimmung) : null,
         stockshot_neu_drehen ?? null,
         flashback_referenz_id !== undefined ? (flashback_referenz_id === null ? '__null__' : flashback_referenz_id) : null,
+        vorlage_id !== undefined ? (vorlage_id === null ? '__null__' : vorlage_id) : null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
 
     // Recalc repliken stats if content was updated
-    if (content && row.werkstufe_id && row.scene_identity_id) {
-      recalcSceneStats(row.werkstufe_id, row.scene_identity_id, content).catch(() => {})
+    if (effectiveContent && row.werkstufe_id && row.scene_identity_id) {
+      recalcSceneStats(row.werkstufe_id, row.scene_identity_id, effectiveContent).catch(() => {})
     }
     // Update replik_count for numbering
-    if (content) {
-      updateReplikCount(row.id, { content }).catch(() => {})
+    if (effectiveContent) {
+      updateReplikCount(row.id, { content: effectiveContent }).catch(() => {})
     }
 
     // Revision delta tracking: wenn Werkstufe eine Revision-Farbe hat, Diffs aufzeichnen
-    if (content && row.werkstufe_id) {
-      recordRevisionDeltas(req.params.id, row.werkstufe_id, oldContent, content).catch(() => {})
+    if (effectiveContent && row.werkstufe_id) {
+      recordRevisionDeltas(req.params.id, row.werkstufe_id, oldContent, effectiveContent).catch(() => {})
     }
 
     res.json(row)

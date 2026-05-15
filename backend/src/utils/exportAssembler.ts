@@ -33,6 +33,7 @@ export interface ExportContext {
   firmen_email:        string | null
   firmen_telefon:      string | null
   tel_produktion:      string | null
+  notiz_inhalt:        string | null
   episode_terminus:   string  // e.g. "Folge" or "Episode"
 }
 
@@ -68,6 +69,7 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{firmen_email}}':        return ctx.firmen_email ?? ''
     case '{{firmen_telefon}}':      return ctx.firmen_telefon ?? ''
     case '{{tel_produktion}}':      return ctx.tel_produktion ?? ''
+    case '{{notiz_inhalt}}':        return ctx.notiz_inhalt ?? ''
     case '{{seite}}':         return '<span class="ph-seite"></span>'
     case '{{seiten_gesamt}}': return '<span class="ph-seiten-gesamt"></span>'
     default:                  return key
@@ -143,6 +145,11 @@ function renderNode(node: any, ctx: ExportContext): string {
   if (!node?.type) return ''
 
   if (node.type === 'paragraph') {
+    // Special case: paragraph whose sole child is {{notiz_inhalt}} → inject rendered scene HTML as block
+    const innerNodes = node.content ?? []
+    if (innerNodes.length === 1 && innerNodes[0].type === 'placeholder_chip' && innerNodes[0].attrs?.key === '{{notiz_inhalt}}') {
+      return ctx.notiz_inhalt ?? ''
+    }
     const align = node.attrs?.textAlign
     const ff    = node.attrs?.fontFamily
     const fs    = node.attrs?.fontSize
