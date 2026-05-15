@@ -23,6 +23,7 @@ export interface ExportContext {
   produktionszeitraum: string | null
   aktuelles_datum:     string
   aktuelles_jahr:      string
+  aktuelles_uhrzeit:   string
   folge_laenge_netto:  string | null
   firmen_adresse:      string | null
   rechtsform:          string | null
@@ -57,6 +58,7 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{produktionszeitraum}}': return ctx.produktionszeitraum ?? ''
     case '{{aktuelles_datum}}':     return ctx.aktuelles_datum
     case '{{aktuelles_jahr}}':      return ctx.aktuelles_jahr
+    case '{{aktuelles_uhrzeit}}':   return ctx.aktuelles_uhrzeit
     case '{{folge_laenge_netto}}':  return ctx.folge_laenge_netto ?? ''
     case '{{firmen_adresse}}':      return ctx.firmen_adresse ?? ''
     case '{{rechtsform}}':          return ctx.rechtsform ?? ''

@@ -142,10 +142,13 @@ function contentToFdx(szenen: any[], episodeTitel: string, formatMap: Map<string
 // ── Export context helpers ────────────────────────────────────────────────────
 
 function buildWerkstufeName(ws: any): string {
-  const typLabel = ws.typ === 'drehbuch' ? 'Drehbuch'
+  return ws.typ === 'drehbuch' ? 'Drehbuch'
     : ws.typ === 'storyline' ? 'Storyline'
     : 'Notiz'
-  return `${typLabel} V${ws.version_nummer}`
+}
+
+function formatUhrzeit(d: Date): string {
+  return d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
 function formatDatum(d: Date): string {
@@ -321,6 +324,7 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     produktionszeitraum,
     aktuelles_datum:     formatDatum(now),
     aktuelles_jahr:      now.getFullYear().toString(),
+    aktuelles_uhrzeit:   formatUhrzeit(now),
     folge_laenge_netto:  folgeLaengeNetto,
     firmen_adresse:      firmenAdresse,
     rechtsform,

@@ -111,6 +111,7 @@ export interface PreviewContext {
   sendedatum?:          string
   produktionszeitraum?: string
   aktuelles_datum?:     string
+  aktuelles_uhrzeit?:   string
   aktuelles_jahr?:      string
   folge_laenge_netto?:  string
   firmen_adresse?:      string
@@ -1022,6 +1023,7 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{sendedatum}}':          'sendedatum',
   '{{produktionszeitraum}}': 'produktionszeitraum',
   '{{aktuelles_datum}}':     'aktuelles_datum',
+  '{{aktuelles_uhrzeit}}':   'aktuelles_uhrzeit',
   '{{aktuelles_jahr}}':      'aktuelles_jahr',
   '{{folge_laenge_netto}}':  'folge_laenge_netto',
   '{{firmen_adresse}}':      'firmen_adresse',

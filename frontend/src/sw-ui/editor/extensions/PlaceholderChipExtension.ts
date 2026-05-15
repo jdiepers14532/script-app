@@ -51,12 +51,12 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   },
   {
     key: '{{werkstufe}}', label: 'Werkstufe', zone: 'alle', color: '#007AFF',
-    beschreibung: 'Dokumenttyp + Versionsnummer, z.\u202fB. \u201eDrehbuch V2\u201c oder \u201eStoryline V1\u201c.',
-    quelle: 'script_db \u00b7 werkstufen.typ + version_nummer',
+    beschreibung: 'Dokumenttyp der Werkstufe, z.\u202fB. \u201eDrehbuch\u201c oder \u201eStoryline\u201c (ohne Versionsnummer \u2013 daf\u00fcr {{version}}).',
+    quelle: 'script_db \u00b7 werkstufen.typ',
   },
   {
     key: '{{fassung}}', label: 'Fassung', zone: 'alle', color: '#007AFF',
-    beschreibung: 'Frei vergebener Name der Werkstufe, z.\u202fB. \u201eRohfassung\u201c. Kann leer sein.',
+    beschreibung: 'Frei vergebenes Label der ausgew\u00e4hlten Version, z.\u202fB. \u201eRohfassung\u201c oder \u201e2. \u00dcberarbeitung\u201c. Kann leer sein.',
     quelle: 'script_db \u00b7 werkstufen.label',
   },
   {
@@ -148,6 +148,11 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     key: '{{aktuelles_datum}}', label: 'Aktuelles Datum', zone: 'alle', color: '#34C759',
     beschreibung: 'Das aktuelle Datum zum Zeitpunkt des Exports, z.\u202fB. \u201e15.05.2026\u201c.',
     quelle: 'Berechnet beim Export \u00b7 new Date() \u2192 TT.MM.JJJJ',
+  },
+  {
+    key: '{{aktuelles_uhrzeit}}', label: 'Aktuelle Uhrzeit', zone: 'alle', color: '#34C759',
+    beschreibung: 'Die aktuelle Uhrzeit zum Zeitpunkt des Exports, z.\u202fB. \u201e14:32\u201c.',
+    quelle: 'Berechnet beim Export \u00b7 new Date() \u2192 HH:MM',
   },
   {
     key: '{{aktuelles_jahr}}', label: 'Aktuelles Jahr', zone: 'alle', color: '#34C759',
