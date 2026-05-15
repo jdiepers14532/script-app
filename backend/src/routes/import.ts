@@ -806,7 +806,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
            )
            SELECT $1, unnest($2::uuid[]), unnest($3::int[]), NULL,
                   unnest($4::text[])::jsonb, 'notiz', unnest($5::text[]), false, $6,
-                  unnest($7::text[]), unnest($8::float8[])`,
+                  unnest($7::text[]), unnest($8::int[])`,
           [
             werkstufeId,
             nsIdentityIds,
