@@ -55,6 +55,13 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Klick`,
   },
 
+  // ── Autoren-Stoppzeit Auto-Berechnung (Klick-basiert, nur Drehbuch-Werkstufe) ─
+  vorstoppAuto: {
+    codes: [],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Klick`,
+  },
+
 }
 
 // ── Hilfsfunktionen (pure, kein React) ────────────────────────────────────────

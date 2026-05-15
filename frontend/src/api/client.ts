@@ -351,11 +351,17 @@ export const api = {
   autocompleteLocations: (produktionId: string, q: string) =>
     request<{ own: any[]; cross: any[] }>('GET', `/autocomplete/locations?produktion_id=${encodeURIComponent(produktionId)}&q=${encodeURIComponent(q)}`),
 
-  // Scene comment read-state (Messenger-App annotation badge) (legacy)
+  // Scene comment read-state (Messenger-App annotation badge)
   getSceneCommentCounts: (stageId: number) =>
     request<Record<number, number>>('GET', `/stages/${stageId}/szenen-comment-counts`),
   markSceneCommentsRead: (szeneId: number) =>
     request<{ ok: boolean }>('POST', `/szenen/${szeneId}/mark-comments-read`),
+
+  // Autoren-Stoppzeit: Auto-Berechnung
+  stoppzeitAuto: (szeneId: string) =>
+    request<any>('POST', `/dokument-szenen/${szeneId}/stoppzeit-auto`, {}),
+  stoppzeitAutoFolge: (werkstufId: string) =>
+    request<{ updated: number; total: number }>('POST', `/dokument-szenen/stoppzeit-auto-folge/${werkstufId}`, {}),
 
   // Admin: watermark decoder
   watermarkDecode: (file: File) => {

@@ -92,6 +92,9 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
 
   // Single SceneEditor uses the left panel's werkstufId (or right if only right visible)
   const singleWerkId = showLeft ? leftWerkId : rightWerkId
+  const singleWerkTyp = werkstufen.find((w: any) => w.id === singleWerkId)?.typ ?? null
+  const leftWerkTyp   = werkstufen.find((w: any) => w.id === leftWerkId)?.typ ?? null
+  const rightWerkTyp  = werkstufen.find((w: any) => w.id === rightWerkId)?.typ ?? null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -104,6 +107,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
           folgeNummer={folgeNummer}
           useDokumentSzenen={useDokumentSzenen}
           werkstufId={singleWerkId}
+          werkstufTyp={singleWerkTyp}
           sceneIdentityId={sceneIdentityId}
           onSzeneUpdated={onSzeneUpdated}
           onNavigatePrev={onNavigatePrev}
@@ -128,6 +132,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
               folgeNummer={folgeNummer}
               useDokumentSzenen={useDokumentSzenen}
               werkstufId={leftWerkId}
+              werkstufTyp={leftWerkTyp}
               sceneIdentityId={sceneIdentityId}
               onSzeneUpdated={onSzeneUpdated}
               onNavigatePrev={onNavigatePrev}
@@ -184,6 +189,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
               folgeNummer={folgeNummer}
               useDokumentSzenen={useDokumentSzenen}
               werkstufId={rightWerkId}
+              werkstufTyp={rightWerkTyp}
               sceneIdentityId={sceneIdentityId}
               onSzeneUpdated={onSzeneUpdated}
               onNavigatePrev={onNavigatePrev}
@@ -272,6 +278,13 @@ export default function ScriptPage() {
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | string | null>(null)
 
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({})
+
+  // Kommentar-Badges: lade ungelesene Counts wenn Stage wechselt
+  useEffect(() => {
+    if (!selectedStageId) { setCommentCounts({}); return }
+    api.getSceneCommentCounts(selectedStageId).then(setCommentCounts).catch(() => {})
+  }, [selectedStageId])
+
   const [showSearchReplace, setShowSearchReplace] = useState(false)
   const searchReplace = useSearchReplace()
 

@@ -849,3 +849,108 @@ dokumentSzenenRouter.get('/stimmung-check/:werkstufId', async (req, res) => {
     res.status(500).json({ error: String(err) })
   }
 })
+
+// ── Autoren-Stoppzeit: Auto-Berechnung ───────────────────────────────────────
+
+function extractTextFromProseMirror(node: any): string {
+  if (!node) return ''
+  if (node.type === 'text') return node.text ?? ''
+  if (Array.isArray(node.content)) {
+    return node.content.map(extractTextFromProseMirror).join(' ')
+  }
+  return ''
+}
+
+async function calcStoppzeit(pageLength: number | null, content: any, einst: any): Promise<number | null> {
+  if (!einst) return null
+  let menge_ist = 0
+  if (einst.methode === 'seiten') {
+    if (!pageLength) return null
+    menge_ist = pageLength / 8  // page_length is in 1/8 page units
+  } else if (einst.methode === 'zeichen') {
+    const text = extractTextFromProseMirror(content)
+    menge_ist = text.replace(/\s/g, '').length
+  } else if (einst.methode === 'woerter') {
+    const text = extractTextFromProseMirror(content)
+    menge_ist = text.trim().split(/\s+/).filter(Boolean).length
+  } else {
+    return null
+  }
+  if (menge_ist <= 0 || !einst.menge) return null
+  const ratio = einst.dauer_sekunden / einst.menge
+  return Math.round(menge_ist * ratio)
+}
+
+// POST /api/dokument-szenen/:id/stoppzeit-auto
+// Berechnet stoppzeit_sek aus page_length / Zeichenanzahl und vorstopp_einstellungen
+dokumentSzenenRouter.post('/:id/stoppzeit-auto', authMiddleware, async (req, res) => {
+  const { id } = req.params
+  try {
+    const row = await queryOne(
+      `SELECT ds.id, ds.page_length, ds.content,
+              f.produktion_id
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.id = $1`,
+      [id]
+    )
+    if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
+
+    const einst = await queryOne(
+      `SELECT * FROM vorstopp_einstellungen WHERE produktion_id = $1`,
+      [row.produktion_id]
+    )
+    if (!einst) return res.status(400).json({ error: 'Keine Stoppzeit-Einstellungen konfiguriert (DK-Einstellungen → Stoppzeit)' })
+
+    const stoppzeit_sek = await calcStoppzeit(row.page_length, row.content, einst)
+    if (stoppzeit_sek === null) return res.status(400).json({ error: 'Keine verwertbaren Daten für Berechnung' })
+
+    const updated = await queryOne(
+      `UPDATE dokument_szenen SET stoppzeit_sek = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [stoppzeit_sek, id]
+    )
+    res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/dokument-szenen/stoppzeit-auto-folge/:werkstufId
+// Batch-Berechnung für alle Szenen einer Werkstufe
+dokumentSzenenRouter.post('/stoppzeit-auto-folge/:werkstufId', authMiddleware, async (req, res) => {
+  const { werkstufId } = req.params
+  try {
+    const folgeRow = await queryOne(
+      `SELECT f.produktion_id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      [werkstufId]
+    )
+    if (!folgeRow) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+
+    const einst = await queryOne(
+      `SELECT * FROM vorstopp_einstellungen WHERE produktion_id = $1`,
+      [folgeRow.produktion_id]
+    )
+    if (!einst) return res.status(400).json({ error: 'Keine Stoppzeit-Einstellungen konfiguriert' })
+
+    const szenen = await query(
+      `SELECT id, page_length, content FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE`,
+      [werkstufId]
+    )
+
+    let updated = 0
+    for (const s of szenen) {
+      const stoppzeit_sek = await calcStoppzeit(s.page_length, s.content, einst)
+      if (stoppzeit_sek !== null) {
+        await queryOne(
+          `UPDATE dokument_szenen SET stoppzeit_sek = $1, updated_at = NOW() WHERE id = $2`,
+          [stoppzeit_sek, s.id]
+        )
+        updated++
+      }
+    }
+    res.json({ updated, total: szenen.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})

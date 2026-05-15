@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff } from 'lucide-react'
+import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus } from '../contexts'
 import { useTerminologie } from '../sw-ui'
+import { getShortcutLabel } from '../shortcuts'
 
 interface SceneEditorProps {
   szeneId: number | string
@@ -16,6 +17,7 @@ interface SceneEditorProps {
   useDokumentSzenen?: boolean
   compact?: boolean
   werkstufId?: string | null
+  werkstufTyp?: string | null
   sceneIdentityId?: string | null
   onSzeneUpdated?: (updated: any) => void
   onNavigatePrev?: () => void
@@ -92,7 +94,7 @@ function NotizHeader({ scene, produktionId, onUpdate, saveScene }: { scene: any;
   )
 }
 
-export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -101,6 +103,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const { focus, setHoverOpen } = useFocus()
   const { t } = useTerminologie()
   const compact = compactProp ?? tweaks.sceneHeaderCompact
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform)
+  const layout = tweaks.keyboardLayout ?? 'qwertz'
 
   // Focus-mode: pin, drag, resize
   const [focusPinned, setFocusPinned] = useState(false)
@@ -151,6 +155,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [scene, setScene] = useState<any | null>(null)
   const [kommentareCount, setKommentareCount] = useState<number>(0)
   const [saving, setSaving] = useState(false)
+  const [stoppzeitAutoModal, setStoppzeitAutoModal] = useState(false)
+  const [stoppzeitAutoLoading, setStoppzeitAutoLoading] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -425,6 +431,26 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     }
     return api.updateSzene(szeneId as number, data)
   }, [szeneId, useDokumentSzenen, werkstufId, sceneIdentityId, scene])
+
+  // Autoren-Stoppzeit: Auto-Berechnung (einzelne Szene oder ganze Folge)
+  const handleStoppzeitAuto = useCallback(async (scope: 'scene' | 'folge') => {
+    setStoppzeitAutoLoading(true)
+    setStoppzeitAutoModal(false)
+    try {
+      if (scope === 'folge' && werkstufId) {
+        await api.stoppzeitAutoFolge(werkstufId)
+        // Reload current scene to reflect new value
+        const updated = await loadScene()
+        if (updated) { setScene(updated); onSzeneUpdated?.(updated) }
+      } else {
+        const resolvedId = scene?.id
+        if (!resolvedId) return
+        const updated = await api.stoppzeitAuto(resolvedId)
+        if (updated) { setScene(updated); onSzeneUpdated?.(updated) }
+      }
+    } catch { /* ignore — API returns error message */ }
+    finally { setStoppzeitAutoLoading(false) }
+  }, [scene, werkstufId, loadScene, onSzeneUpdated])
 
   // Load scene when szeneId changes
   useEffect(() => {
@@ -750,6 +776,31 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     ? `${scene.page_length / 8}`
                     : `${Math.floor(scene.page_length / 8)} ${scene.page_length % 8}/8`}
                 </span>
+              </Tooltip>
+            )}
+            {/* Zap-Button: Autoren-Stoppzeit Auto-Berechnung (nur Drehbuch-Werkstufe) */}
+            {werkstufTyp === 'drehbuch' && useDokumentSzenen && (
+              <Tooltip
+                text={`Stoppzeit automatisch berechnen\n${getShortcutLabel('vorstoppAuto', layout, isMac)}: Ganze Folge\nKlick: Nur diese Szene`}
+                placement="bottom"
+              >
+                <button
+                  className="stopp-auto-btn"
+                  disabled={stoppzeitAutoLoading}
+                  onClick={e => {
+                    if (e.altKey) { e.preventDefault(); setStoppzeitAutoModal(true) }
+                    else handleStoppzeitAuto('scene')
+                  }}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 16, height: 16, borderRadius: 3, border: 'none',
+                    background: 'transparent', color: 'var(--sw-warning)',
+                    cursor: stoppzeitAutoLoading ? 'wait' : 'pointer', padding: 0,
+                    marginTop: 1, opacity: stoppzeitAutoLoading ? 0.5 : 1,
+                  }}
+                >
+                  <Zap size={10} />
+                </button>
               </Tooltip>
             )}
           </div>
@@ -1522,6 +1573,47 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         </div>
       )}
 
+      {/* Stoppzeit Auto-Berechnung Modal */}
+      {stoppzeitAutoModal && createPortal(
+        <>
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.35)' }}
+            onClick={() => setStoppzeitAutoModal(false)}
+          />
+          <div style={{
+            position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
+            zIndex: 9001, background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderRadius: 12, boxShadow: 'var(--shadow-xl)', padding: '20px 24px', minWidth: 280,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Stoppzeit berechnen</div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              Aus Seitenlänge / Zeichenanzahl (DK-Einstellungen → Stoppzeit)
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => handleStoppzeitAuto('scene')}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)',
+                  background: 'var(--bg-subtle)', cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                }}
+              >
+                Nur diese Szene
+              </button>
+              <button
+                onClick={() => handleStoppzeitAuto('folge')}
+                style={{
+                  flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none',
+                  background: 'var(--text-primary)', color: 'var(--bg-primary)',
+                  cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                }}
+              >
+                Ganze Folge
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   )
 }
