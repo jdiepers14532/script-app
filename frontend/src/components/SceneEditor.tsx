@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
-import { api } from '../api/client'
+import { api, peekCache } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import { getShortcutLabel } from '../shortcuts'
@@ -454,8 +454,17 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
   // Load scene when szeneId changes
   useEffect(() => {
-    setLoading(true)
-    setError(null)
+    // If the scene was preloaded, show it immediately without a loading spinner.
+    const cacheKey = typeof szeneId === 'string' ? `/dokument-szenen/${szeneId}` : null
+    const cached = cacheKey ? peekCache<any>(cacheKey) : null
+    if (cached) {
+      setScene(cached)
+      setError(null)
+      setLoading(false)
+    } else {
+      setLoading(true)
+      setError(null)
+    }
     loadScene()
       .then(data => {
         setScene(data)

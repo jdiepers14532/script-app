@@ -57,6 +57,11 @@ export function clearCacheByPrefix(prefix: string) {
   }
 }
 
+/** Synchronously return cached data for a path if it exists and is fresh. */
+export function peekCache<T>(path: string): T | undefined {
+  return getCached<T>(path)
+}
+
 async function doRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -814,4 +819,8 @@ export function preloadScene(szeneId: string, sceneIdentityId?: string | null, w
   }
   // Revisionen
   swallow(api.getDokumentSzeneRevisionen(szeneId))
+  // Sondertyp + Story-Straenge (szeneId === data.id in new system)
+  swallow(api.getWechselschnittPartner(szeneId))
+  swallow(api.getWechselschnittBeteiligt(szeneId))
+  swallow(api.getSzeneStaenge(szeneId))
 }
