@@ -1,8 +1,8 @@
 const BASE = '/api'
 
-// ── Short-lived GET cache (TTL 30s) for preloading adjacent scenes ──────────
+// ── GET cache (TTL 2min) for preloading scenes ───────────────────────────────
 const getCache = new Map<string, { data: any; ts: number }>()
-const CACHE_TTL = 30_000
+const CACHE_TTL = 120_000
 
 function getCached<T>(path: string): T | undefined {
   const entry = getCache.get(path)
@@ -14,7 +14,7 @@ function getCached<T>(path: string): T | undefined {
 function setCache(path: string, data: any) {
   getCache.set(path, { data, ts: Date.now() })
   // Evict old entries periodically
-  if (getCache.size > 200) {
+  if (getCache.size > 600) {
     const now = Date.now()
     for (const [k, v] of getCache) { if (now - v.ts > CACHE_TTL) getCache.delete(k) }
   }
@@ -823,4 +823,18 @@ export function preloadScene(szeneId: string, sceneIdentityId?: string | null, w
   swallow(api.getWechselschnittPartner(szeneId))
   swallow(api.getWechselschnittBeteiligt(szeneId))
   swallow(api.getSzeneStaenge(szeneId))
+}
+
+/**
+ * Preload main scene data for all scenes in a Folge.
+ * Fires getDokumentSzene for each scene, throttled to 10 concurrent requests.
+ * Runs entirely in the background — errors are silently ignored.
+ */
+export async function preloadAllScenes(szenen: Array<{ id: string }>) {
+  const CONCURRENCY = 10
+  const swallow = (p: Promise<any>) => p.catch(() => {})
+  for (let i = 0; i < szenen.length; i += CONCURRENCY) {
+    const batch = szenen.slice(i, i + CONCURRENCY)
+    await Promise.all(batch.map(s => swallow(api.getDokumentSzene(s.id))))
+  }
 }

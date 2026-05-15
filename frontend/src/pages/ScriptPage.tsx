@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { api, preloadScene } from '../api/client'
+import { api, preloadScene, preloadAllScenes } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
@@ -583,6 +583,8 @@ export default function ScriptPage() {
           setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
           delete pendingNav.current.szeneId
           navRestored.current = true
+          // Preload all scenes in background so switching is instant throughout the Folge
+          preloadAllScenes(werkSzenen)
         } else {
           console.warn('[ScriptPage] Werkstufe has 0 scenes:', werk.id)
         }
