@@ -2990,6 +2990,25 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     load()
   }
 
+  const duplicateVorlage = async (v: any) => {
+    try {
+      await api.createDokumentVorlageManual(productionId, {
+        name:                    `Kopie von ${v.name}`,
+        typ:                     v.typ,
+        body_content:            v.body_content,
+        kopfzeile_content:       v.kopfzeile_content,
+        fusszeile_content:       v.fusszeile_content,
+        kopfzeile_aktiv:         v.kopfzeile_aktiv,
+        fusszeile_aktiv:         v.fusszeile_aktiv,
+        erste_seite_kein_header: v.erste_seite_kein_header,
+        seiten_layout:           v.seiten_layout,
+      })
+      load()
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    }
+  }
+
   const setAktiv = async (id: string) => {
     setSettingAktiv(id)
     try {
@@ -3203,6 +3222,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                   <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{typLabel}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 'auto', paddingTop: 4 }}>
                     <button onClick={() => openEdit(v)} style={btnStyle}>Bearbeiten</button>
+                    <button onClick={() => duplicateVorlage(v)} style={btnStyle} title="Duplizieren">⧉</button>
                     {!isAktiv && (
                       <button
                         onClick={() => setAktiv(v.id)}
@@ -3240,6 +3260,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                 {/* Actions */}
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   <button onClick={() => openEdit(v)} style={btnStyle}>Bearbeiten</button>
+                  <button onClick={() => duplicateVorlage(v)} style={btnStyle} title="Duplizieren">⧉ Duplizieren</button>
                   {!isAktiv && (
                     <button onClick={() => setAktiv(v.id)} disabled={settingAktiv === v.id}
                       style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55' }}>
