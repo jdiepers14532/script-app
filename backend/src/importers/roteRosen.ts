@@ -1152,7 +1152,8 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     const isShort = (header.dauer_sekunden ?? 999) <= 15
     const isTinyBody = textelemente.length <= 2 && bodyText.length < 120
     const heuristicMatch = hasNoChars && isShort && isTinyBody
-    const isStockshot = hasStockshotKeyword || heuristicMatch
+    const isStockshot = hasStockshotKeyword
+    const isStockshotVerdacht = !hasStockshotKeyword && heuristicMatch
 
     return {
       nummer: header.sceneNr,
@@ -1169,6 +1170,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
       wechselschnittPartner: header.wechselschnittPartner.length > 0
         ? header.wechselschnittPartner : undefined,
       isStockshot,
+      isStockshotVerdacht: isStockshotVerdacht || undefined,
       szeneninfo,
     }
   }

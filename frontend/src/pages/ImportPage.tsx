@@ -926,6 +926,19 @@ export default function ImportPage() {
                             Wechselschnitt{sz.wechselschnittPartner?.length > 0 ? ` mit SZ ${sz.wechselschnittPartner.join(', ')}` : ''}
                           </span>
                         )}
+                        {sz.isStockshot && (
+                          <span style={tagStyle('#FFF3E0', '#E65100')}>📷 Stockshot</span>
+                        )}
+                        {sz.isStockshotVerdacht && !sz.isStockshot && (
+                          <label style={{ ...tagStyle('#FFF8E1', '#F57F17'), cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                            <input type="checkbox"
+                              checked={getSceneVal(sz, i, 'isStockshot') === true}
+                              onChange={e => updateScene(i, 'isStockshot', e.target.checked || undefined)}
+                              style={{ margin: 0, width: 12, height: 12, accentColor: '#E65100' }}
+                            />
+                            📷 Stockshot?
+                          </label>
+                        )}
                         {sz.textelemente?.length > 0 && (
                           <span style={tagStyle('#F5F5F5', '#757575')}>{sz.textelemente.length} Elemente</span>
                         )}

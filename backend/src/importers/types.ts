@@ -33,6 +33,7 @@ export interface ParsedScene {
   isWechselschnitt?: boolean
   wechselschnittPartner?: number[]
   isStockshot?: boolean
+  isStockshotVerdacht?: boolean
   szeneninfo?: string
 }
 

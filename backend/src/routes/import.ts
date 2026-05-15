@@ -543,7 +543,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       if (ov.charaktere && Array.isArray(ov.charaktere)) szene.charaktere = ov.charaktere
       if (ov.komparsen && Array.isArray(ov.komparsen)) szene.komparsen = ov.komparsen
       const isWechselschnitt = szene.isWechselschnitt || false
-      const isStockshot = szene.isStockshot || false
+      // Stockshot: keyword-detected or user-confirmed heuristic via override
+      const isStockshot = ov.isStockshot != null ? ov.isStockshot : (szene.isStockshot || false)
 
       const identity = await queryOne(
         `INSERT INTO scene_identities (folge_id, created_by) VALUES ($1, $2) RETURNING id`,
