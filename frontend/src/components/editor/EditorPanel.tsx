@@ -358,25 +358,36 @@ export default function EditorPanel({
 
       {/* ── Notiz-Vorlage-Selector ── */}
       {currentSzene?.format === 'notiz' && (
-        <div style={{ padding: '4px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-subtle)' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Vorlage</span>
-          <select
-            value={currentSzene?.vorlage_id ?? ''}
-            onChange={async (e) => {
-              if (!currentSzene?.id) return
-              const newId = e.target.value || null
-              try {
-                await api.updateDokumentSzene(currentSzene.id, { vorlage_id: newId ?? '__null__' })
-                setCurrentSzene((prev: any) => prev ? { ...prev, vorlage_id: newId } : prev)
-              } catch { /* ignore */ }
-            }}
-            style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', flex: 1, maxWidth: 240 }}
-          >
-            <option value="">– keine –</option>
-            {vorlagen.map(v => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <div style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Vorlage</span>
+            <select
+              value={currentSzene?.vorlage_id ?? ''}
+              onChange={async (e) => {
+                if (!currentSzene?.id) return
+                const newId = e.target.value || null
+                try {
+                  await api.updateDokumentSzene(currentSzene.id, { vorlage_id: newId ?? '__null__' })
+                  setCurrentSzene((prev: any) => prev ? { ...prev, vorlage_id: newId } : prev)
+                } catch { /* ignore */ }
+              }}
+              style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', flex: 1, maxWidth: 240 }}
+            >
+              <option value="">– keine –</option>
+              {vorlagen.map(v => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          </div>
+          {currentSzene?.vorlage_id && (() => {
+            const v = vorlagen.find(x => x.id === currentSzene.vorlage_id)
+            return v ? (
+              <div style={{ padding: '3px 12px 5px', fontSize: 10, color: '#FF9F0A', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>■</span>
+                <span>Vorlage <strong>{v.name}</strong> wird beim Export angewendet. Der Notiz-Inhalt erscheint an der Stelle des {'\u007b\u007bnotiz_inhalt\u007d\u007d'}-Chips.</span>
+              </div>
+            ) : null
+          })()}
         </div>
       )}
 
