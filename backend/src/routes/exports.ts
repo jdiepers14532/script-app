@@ -148,6 +148,25 @@ function buildWerkstufeName(ws: any): string {
   return `${typLabel} V${ws.version_nummer}`
 }
 
+function formatDatum(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`
+}
+
+function calcBlock(folgeNr: number, data: {
+  erste_folge?: number; erster_block?: number; block_label?: string; bloecke?: any[]
+}): string | null {
+  const bloecke = data.bloecke ?? []
+  for (let i = 0; i < bloecke.length; i++) {
+    const b = bloecke[i]
+    if (b.folge_von != null && b.folge_bis != null && folgeNr >= b.folge_von && folgeNr <= b.folge_bis) {
+      if (b.bezeichnung) return b.bezeichnung
+      const blockNr = (data.erster_block ?? 1) + i
+      return `${data.block_label ?? 'Block'} ${blockNr}`
+    }
+  }
+  return null
+}
+
 function formatFolgeLaengeNetto(totalSek: number | null): string | null {
   if (totalSek == null || totalSek <= 0) return null
   const h = Math.floor(totalSek / 3600)
@@ -183,11 +202,33 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
 
   // Fetch company info from auth.app (public endpoint, no auth required)
   let firmenname: string | null = null
+  let firmenAdresse: string | null = null
+  let rechtsform: string | null = null
+  let handelsregister: string | null = null
+  let ustId: string | null = null
+  let geschaeftsfuehrung: string | null = null
+  let firmenEmail: string | null = null
+  let firmenTelefon: string | null = null
   try {
     const r = await fetch('http://127.0.0.1:3002/api/public/company-info', { signal: AbortSignal.timeout(3000) })
     if (r.ok) {
       const d = await r.json() as any
       firmenname = d?.company_name ?? null
+      const addr = d?.company_address
+      if (addr) firmenAdresse = [addr.street, `${addr.zip ?? ''} ${addr.city ?? ''}`.trim()].filter(Boolean).join(', ')
+      if (d?.company_legal_form) {
+        const lfMap: Record<string, string> = { gmbh: 'GmbH', ag: 'AG', kg: 'KG', ohg: 'OHG', gbr: 'GbR', ug: 'UG (haftungsbeschränkt)', se: 'SE', ev: 'e.V.' }
+        rechtsform = lfMap[d.company_legal_form.toLowerCase()] ?? d.company_legal_form
+      }
+      if (d?.company_register_court && d?.company_register_number)
+        handelsregister = `${d.company_register_court} ${d.company_register_number}`
+      ustId = d?.company_vat_id ?? null
+      if (d?.company_management) {
+        const mgmt = typeof d.company_management === 'string' ? JSON.parse(d.company_management) : d.company_management
+        if (Array.isArray(mgmt)) geschaeftsfuehrung = mgmt.join(', ')
+      }
+      firmenEmail   = d?.company_email   ?? null
+      firmenTelefon = d?.company_phone   ?? null
     }
   } catch { /* non-fatal */ }
 
@@ -202,11 +243,12 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     } catch { return null }
   }
 
-  // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer, drehzeitraum)
+  // Fetch production context from produktion.app (sender, buero_adresse, staffelnummer, drehzeitraum, block data)
   let sender: string | null = null
   let bueroAdresse: string | null = null
   let produktionszeitraum: string | null = null
   let staffel: string | null = null
+  let block: string | null = null
   const produktionDbId = prod?.produktion_db_id
   if (produktionDbId) {
     try {
@@ -221,6 +263,14 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
         bueroAdresse       = d?.buero_adresse ?? null
         produktionszeitraum = d?.drehzeitraum ?? null
         staffel            = d?.staffelnummer != null ? String(d.staffelnummer) : null
+        if (folge?.folge_nummer) {
+          block = calcBlock(folge.folge_nummer, {
+            erste_folge:  d?.erste_folge,
+            erster_block: d?.erster_block,
+            block_label:  d?.block_label,
+            bloecke:      Array.isArray(d?.bloecke) ? d.bloecke : [],
+          })
+        }
       }
       // Fetch real air_date from broadcast_events (via reihen_id)
       if (folge?.folge_nummer) {
@@ -248,10 +298,11 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     folgeLaengeNetto = formatFolgeLaengeNetto(sumRow?.total ?? null)
   } catch { /* non-fatal */ }
 
+  const now = new Date()
   return {
     produktion:       prod?.titel ?? '',
     staffel,
-    block:            null,
+    block,
     folge:            folge?.folge_nummer ?? null,
     folgentitel:      folge?.folgen_titel ?? null,
     werkstufe:        buildWerkstufeName(ws),
@@ -265,8 +316,16 @@ async function loadExportContext(ws: any, userId: string, userName: string): Pro
     buero_adresse:       bueroAdresse,
     sendedatum:          formatSendedatum(folge?._air_date),
     produktionszeitraum,
-    aktuelles_jahr:      new Date().getFullYear().toString(),
+    aktuelles_datum:     formatDatum(now),
+    aktuelles_jahr:      now.getFullYear().toString(),
     folge_laenge_netto:  folgeLaengeNetto,
+    firmen_adresse:      firmenAdresse,
+    rechtsform,
+    handelsregister,
+    ust_id:              ustId,
+    geschaeftsfuehrung,
+    firmen_email:        firmenEmail,
+    firmen_telefon:      firmenTelefon,
     episode_terminus: episodeTerminus,
   }
 }

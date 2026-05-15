@@ -85,6 +85,41 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'auth.app \u00b7 company_info.company_name',
   },
   {
+    key: '{{firmen_adresse}}', label: 'Firmenadresse', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Stra\u00dfe, PLZ und Stadt der Produktionsfirma.',
+    quelle: 'auth.app \u00b7 company_info.company_address',
+  },
+  {
+    key: '{{rechtsform}}', label: 'Rechtsform', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Rechtsform der Firma, z.\u202fB. \u201eGmbH\u201c oder \u201eAG\u201c.',
+    quelle: 'auth.app \u00b7 company_info.company_legal_form',
+  },
+  {
+    key: '{{handelsregister}}', label: 'Handelsregister', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Registergericht und Handelsregisternummer, z.\u202fB. \u201eAmtsgericht L\u00fcneburg HRB 205045\u201c.',
+    quelle: 'auth.app \u00b7 company_info.company_register_court + company_register_number',
+  },
+  {
+    key: '{{ust_id}}', label: 'USt-ID', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Umsatzsteuer-Identifikationsnummer, z.\u202fB. \u201eDE118621282\u201c.',
+    quelle: 'auth.app \u00b7 company_info.company_vat_id',
+  },
+  {
+    key: '{{geschaeftsfuehrung}}', label: 'Gesch\u00e4ftsf\u00fchrung', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Name(n) der Gesch\u00e4ftsf\u00fchrung, kommagetrennt.',
+    quelle: 'auth.app \u00b7 company_info.company_management',
+  },
+  {
+    key: '{{firmen_email}}', label: 'Firmen-E-Mail', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Offizielle E-Mail-Adresse der Produktionsfirma.',
+    quelle: 'auth.app \u00b7 company_info.company_email',
+  },
+  {
+    key: '{{firmen_telefon}}', label: 'Firmen-Telefon', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Telefonnummer der Produktionsfirma.',
+    quelle: 'auth.app \u00b7 company_info.company_phone',
+  },
+  {
     key: '{{sender}}', label: 'Sender', zone: 'alle', color: '#FF9500',
     beschreibung: 'Ausstrahlender TV-Sender der Produktion.',
     quelle: 'produktion.app \u00b7 productions.sender',
@@ -103,6 +138,11 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     key: '{{produktionszeitraum}}', label: 'Produktionszeitraum', zone: 'alle', color: '#34C759',
     beschreibung: 'Drehzeitraum der Produktion (von\u2013bis).',
     quelle: 'produktion.app \u00b7 productions.drehzeitraum',
+  },
+  {
+    key: '{{aktuelles_datum}}', label: 'Aktuelles Datum', zone: 'alle', color: '#007AFF',
+    beschreibung: 'Das aktuelle Datum zum Zeitpunkt des Exports, z.\u202fB. \u201e15.05.2026\u201c.',
+    quelle: 'Berechnet beim Export \u00b7 new Date() → TT.MM.JJJJ',
   },
   {
     key: '{{aktuelles_jahr}}', label: 'Aktuelles Jahr', zone: 'alle', color: '#007AFF',

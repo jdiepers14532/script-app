@@ -21,8 +21,16 @@ export interface ExportContext {
   buero_adresse:      string | null
   sendedatum:         string | null
   produktionszeitraum: string | null
+  aktuelles_datum:     string
   aktuelles_jahr:      string
   folge_laenge_netto:  string | null
+  firmen_adresse:      string | null
+  rechtsform:          string | null
+  handelsregister:     string | null
+  ust_id:              string | null
+  geschaeftsfuehrung:  string | null
+  firmen_email:        string | null
+  firmen_telefon:      string | null
   episode_terminus:   string  // e.g. "Folge" or "Episode"
 }
 
@@ -46,8 +54,16 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{buero_adresse}}':       return ctx.buero_adresse ?? ''
     case '{{sendedatum}}':          return ctx.sendedatum ?? ''
     case '{{produktionszeitraum}}': return ctx.produktionszeitraum ?? ''
+    case '{{aktuelles_datum}}':     return ctx.aktuelles_datum
     case '{{aktuelles_jahr}}':      return ctx.aktuelles_jahr
     case '{{folge_laenge_netto}}':  return ctx.folge_laenge_netto ?? ''
+    case '{{firmen_adresse}}':      return ctx.firmen_adresse ?? ''
+    case '{{rechtsform}}':          return ctx.rechtsform ?? ''
+    case '{{handelsregister}}':     return ctx.handelsregister ?? ''
+    case '{{ust_id}}':              return ctx.ust_id ?? ''
+    case '{{geschaeftsfuehrung}}':  return ctx.geschaeftsfuehrung ?? ''
+    case '{{firmen_email}}':        return ctx.firmen_email ?? ''
+    case '{{firmen_telefon}}':      return ctx.firmen_telefon ?? ''
     case '{{seite}}':         return '<span class="ph-seite"></span>'
     case '{{seiten_gesamt}}': return '<span class="ph-seiten-gesamt"></span>'
     default:                  return key

@@ -110,8 +110,16 @@ export interface PreviewContext {
   buero_adresse?:       string
   sendedatum?:          string
   produktionszeitraum?: string
+  aktuelles_datum?:     string
   aktuelles_jahr?:      string
   folge_laenge_netto?:  string
+  firmen_adresse?:      string
+  rechtsform?:          string
+  handelsregister?:     string
+  ust_id?:              string
+  geschaeftsfuehrung?:  string
+  firmen_email?:        string
+  firmen_telefon?:      string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -457,15 +465,28 @@ export function ToolbarContent({
   const isChipSelected = editor?.isActive('placeholder_chip') ?? false
   const chipAttrs      = isChipSelected ? (editor?.getAttributes('placeholder_chip') ?? {}) : {}
 
-  // Ref captures chip-selected state onMouseDown of selects (BEFORE editor loses focus)
-  const chipSnap = useRef(false)
+  // Ref captures selection mode onMouseDown of selects (BEFORE editor loses focus)
+  // 'chip' = chip NodeSelection, 'selection' = non-empty text selection, 'para' = cursor only
+  const selSnap = useRef<'chip' | 'selection' | 'para'>('para')
+  const chipSnap = useRef(false) // kept for backwards compat in toggle handlers
 
   // Helper: live check at callback time (for buttons — editor keeps focus via preventDefault)
   const liveChipSelected = () => editor?.isActive('placeholder_chip') ?? false
 
   const paraAttrsRaw   = editor?.getAttributes('paragraph') ?? {}
-  const curFontFamily  = isChipSelected ? (chipAttrs.fontFamily  ?? '') : (paraAttrsRaw.fontFamily  ?? '')
-  const curFontSize    = isChipSelected ? (chipAttrs.fontSize    ?? '') : (paraAttrsRaw.fontSize    ?? '')
+  const textStyleAttrs = editor?.getAttributes('textStyle') ?? {}
+  const hasSelection   = !(editor?.state.selection.empty ?? true)
+
+  const curFontFamily  = isChipSelected
+    ? (chipAttrs.fontFamily ?? '')
+    : hasSelection
+      ? (textStyleAttrs.fontFamily ?? '')
+      : (paraAttrsRaw.fontFamily ?? '')
+  const curFontSize    = isChipSelected
+    ? (chipAttrs.fontSize ?? '')
+    : hasSelection
+      ? (textStyleAttrs.fontSize ?? '')
+      : (paraAttrsRaw.fontSize ?? '')
   const curLineHeight  = paraAttrsRaw.lineHeight  ?? ''
   const curSpaceAfter  = paraAttrsRaw.spaceAfter  ?? ''
 
@@ -554,33 +575,49 @@ export function ToolbarContent({
         {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
         {fmtBtn('≡R', editor?.isActive({ textAlign: 'right' })  ?? false, () => editor?.chain().focus().setTextAlign('right').run(),  'Rechtsbündig')}
         {sep('sep-font')}
-        <BtnTooltip text={isChipSelected ? 'Schriftart (Chip)' : 'Schriftart (gesamte Zeile)'}>
+        <BtnTooltip text={isChipSelected ? 'Schriftart (Chip)' : hasSelection ? 'Schriftart (Auswahl)' : 'Schriftart (gesamte Zeile)'}>
           <select
             value={curFontFamily}
-            onMouseDown={() => { chipSnap.current = liveChipSelected() }}
+            onMouseDown={() => {
+              if (liveChipSelected()) selSnap.current = 'chip'
+              else if (!(editor?.state.selection.empty ?? true)) selSnap.current = 'selection'
+              else selSnap.current = 'para'
+              chipSnap.current = selSnap.current === 'chip'
+            }}
             onChange={e => {
               const v = e.target.value || null
-              if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
-              else editor?.chain().setParagraphFont(v).run()
+              if (selSnap.current === 'chip') editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
+              else if (selSnap.current === 'selection') {
+                if (v) editor?.chain().focus().setFontFamily(v).run()
+                else editor?.chain().focus().unsetFontFamily().run()
+              } else editor?.chain().setParagraphFont(v).run()
             }}
             disabled={!editor}
-            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 88, flexShrink: 0 }}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : hasSelection ? '#34C759' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 88, flexShrink: 0 }}
           >
             <option value="">— Schrift —</option>
             {FONT_FAMILIES.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
           </select>
         </BtnTooltip>
-        <BtnTooltip text={isChipSelected ? 'Schriftgröße (Chip)' : 'Schriftgröße (gesamte Zeile)'}>
+        <BtnTooltip text={isChipSelected ? 'Schriftgröße (Chip)' : hasSelection ? 'Schriftgröße (Auswahl)' : 'Schriftgröße (gesamte Zeile)'}>
           <select
             value={curFontSize}
-            onMouseDown={() => { chipSnap.current = liveChipSelected() }}
+            onMouseDown={() => {
+              if (liveChipSelected()) selSnap.current = 'chip'
+              else if (!(editor?.state.selection.empty ?? true)) selSnap.current = 'selection'
+              else selSnap.current = 'para'
+              chipSnap.current = selSnap.current === 'chip'
+            }}
             onChange={e => {
               const v = e.target.value || null
-              if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontSize: v }).run()
-              else editor?.chain().setParagraphFontSize(v).run()
+              if (selSnap.current === 'chip') editor?.chain().focus().updateAttributes('placeholder_chip', { fontSize: v }).run()
+              else if (selSnap.current === 'selection') {
+                if (v) editor?.chain().focus().setFontSize(v).run()
+                else editor?.chain().focus().unsetFontSize().run()
+              } else editor?.chain().setParagraphFontSize(v).run()
             }}
             disabled={!editor}
-            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 48, flexShrink: 0 }}
+            style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : hasSelection ? '#34C759' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 48, flexShrink: 0 }}
           >
             <option value="">Pt</option>
             {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s}</option>)}
@@ -588,7 +625,12 @@ export function ToolbarContent({
         </BtnTooltip>
         {isChipSelected && (
           <span style={{ fontSize: 9, color: '#007AFF', background: '#007AFF15', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-            Chip-Format
+            Chip
+          </span>
+        )}
+        {!isChipSelected && hasSelection && (
+          <span style={{ fontSize: 9, color: '#34C759', background: '#34C75915', border: '1px solid #34C75944', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            Auswahl
           </span>
         )}
         <BtnTooltip text="Zeilenabstand">
@@ -978,8 +1020,16 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{buero_adresse}}':       'buero_adresse',
   '{{sendedatum}}':          'sendedatum',
   '{{produktionszeitraum}}': 'produktionszeitraum',
+  '{{aktuelles_datum}}':     'aktuelles_datum',
   '{{aktuelles_jahr}}':      'aktuelles_jahr',
   '{{folge_laenge_netto}}':  'folge_laenge_netto',
+  '{{firmen_adresse}}':      'firmen_adresse',
+  '{{rechtsform}}':          'rechtsform',
+  '{{handelsregister}}':     'handelsregister',
+  '{{ust_id}}':              'ust_id',
+  '{{geschaeftsfuehrung}}':  'geschaeftsfuehrung',
+  '{{firmen_email}}':        'firmen_email',
+  '{{firmen_telefon}}':      'firmen_telefon',
 }
 
 function escHtml(s: string): string {
