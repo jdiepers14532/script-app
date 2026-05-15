@@ -418,9 +418,15 @@ export function ToolbarContent({
 
   const chips = zone ? getPlaceholdersForZone(zone) : []
 
-  // Chip selected? (atom NodeSelection)
+  // Chip selected? (atom NodeSelection) — for rendering only
   const isChipSelected = editor?.isActive('placeholder_chip') ?? false
   const chipAttrs      = isChipSelected ? (editor?.getAttributes('placeholder_chip') ?? {}) : {}
+
+  // Ref captures chip-selected state onMouseDown of selects (BEFORE editor loses focus)
+  const chipSnap = useRef(false)
+
+  // Helper: live check at callback time (for buttons — editor keeps focus via preventDefault)
+  const liveChipSelected = () => editor?.isActive('placeholder_chip') ?? false
 
   const paraAttrsRaw   = editor?.getAttributes('paragraph') ?? {}
   const curFontFamily  = isChipSelected ? (chipAttrs.fontFamily  ?? '') : (paraAttrsRaw.fontFamily  ?? '')
@@ -451,24 +457,27 @@ export function ToolbarContent({
     : ((editor?.isActive('underline') ?? false) || paraAttrsRaw.textDecoration === 'underline')
 
   const toggleBold = () => {
-    if (isChipSelected) {
-      editor?.chain().focus().updateAttributes('placeholder_chip', { fontWeight: isBold ? null : 'bold' }).run()
+    if (liveChipSelected()) {
+      const cur = editor?.getAttributes('placeholder_chip').fontWeight === 'bold'
+      editor?.chain().focus().updateAttributes('placeholder_chip', { fontWeight: cur ? null : 'bold' }).run()
     } else {
       const next = !isBold
       editor?.chain().focus().toggleBold().updateAttributes('paragraph', { fontWeight: next ? 'bold' : null }).run()
     }
   }
   const toggleItalic = () => {
-    if (isChipSelected) {
-      editor?.chain().focus().updateAttributes('placeholder_chip', { fontStyle: isItalic ? null : 'italic' }).run()
+    if (liveChipSelected()) {
+      const cur = editor?.getAttributes('placeholder_chip').fontStyle === 'italic'
+      editor?.chain().focus().updateAttributes('placeholder_chip', { fontStyle: cur ? null : 'italic' }).run()
     } else {
       const next = !isItalic
       editor?.chain().focus().toggleItalic().updateAttributes('paragraph', { fontStyle: next ? 'italic' : null }).run()
     }
   }
   const toggleUnderline = () => {
-    if (isChipSelected) {
-      editor?.chain().focus().updateAttributes('placeholder_chip', { textDecoration: isUnderline ? null : 'underline' }).run()
+    if (liveChipSelected()) {
+      const cur = editor?.getAttributes('placeholder_chip').textDecoration === 'underline'
+      editor?.chain().focus().updateAttributes('placeholder_chip', { textDecoration: cur ? null : 'underline' }).run()
     } else {
       const next = !isUnderline
       editor?.chain().focus().toggleUnderline().updateAttributes('paragraph', { textDecoration: next ? 'underline' : null }).run()
@@ -515,9 +524,10 @@ export function ToolbarContent({
         {sep('sep-font')}
         <select
           value={curFontFamily}
+          onMouseDown={() => { chipSnap.current = liveChipSelected() }}
           onChange={e => {
             const v = e.target.value || null
-            if (isChipSelected) editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
+            if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
             else editor?.chain().setParagraphFont(v).run()
           }}
           disabled={!editor}
@@ -529,9 +539,10 @@ export function ToolbarContent({
         </select>
         <select
           value={curFontSize}
+          onMouseDown={() => { chipSnap.current = liveChipSelected() }}
           onChange={e => {
             const v = e.target.value || null
-            if (isChipSelected) editor?.chain().focus().updateAttributes('placeholder_chip', { fontSize: v }).run()
+            if (chipSnap.current) editor?.chain().focus().updateAttributes('placeholder_chip', { fontSize: v }).run()
             else editor?.chain().setParagraphFontSize(v).run()
           }}
           disabled={!editor}
