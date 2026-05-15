@@ -164,7 +164,7 @@ export const PlaceholderChipExtension = Node.create({
         style: [
           'display:inline-flex', 'align-items:center', 'gap:3px',
           `background:${color}1A`, `color:${color}`, `border:1px solid ${color}55`,
-          'border-radius:4px', 'font-size:11px', 'font-weight:600', 'line-height:1',
+          'border-radius:4px', 'font-size:11px', 'font-weight:inherit', 'font-style:inherit', 'line-height:1',
           'padding:2px 7px', 'white-space:nowrap', 'user-select:none',
           'cursor:default', 'vertical-align:middle', 'font-family:inherit',
         ].join(';'),
