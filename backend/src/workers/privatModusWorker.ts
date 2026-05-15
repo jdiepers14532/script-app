@@ -96,9 +96,9 @@ export async function runPrivatModusWorker() {
         w.id AS werkstufe_id,
         w.privat_gesetzt_von AS user_id,
         w.previous_sichtbarkeit,
-        f.arbeitstitel AS folge_titel,
+        f.folgen_titel AS folge_titel,
         p.id AS produktion_id,
-        ws.last_active_at,
+        ws.last_active_at
       FROM werkstufen w
       JOIN folgen f ON f.id = w.folge_id
       JOIN produktionen p ON p.id = f.produktion_id
