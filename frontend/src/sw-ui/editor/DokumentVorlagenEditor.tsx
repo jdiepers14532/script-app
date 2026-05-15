@@ -684,7 +684,7 @@ export function ToolbarContent({
           <span style={{ fontSize: 10, color: '#007AFF', fontWeight: 600, flexShrink: 0 }}>Zeilenhöhe:</span>
           <input
             type="number"
-            min={20}
+            min={1}
             max={300}
             step={4}
             value={curRowHeight}
