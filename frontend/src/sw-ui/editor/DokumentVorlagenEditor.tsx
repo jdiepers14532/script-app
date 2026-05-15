@@ -418,10 +418,15 @@ export function ToolbarContent({
 
   const chips = zone ? getPlaceholdersForZone(zone) : []
 
-  const curFontFamily  = editor?.getAttributes('paragraph').fontFamily  ?? ''
-  const curFontSize    = editor?.getAttributes('paragraph').fontSize    ?? ''
-  const curLineHeight  = editor?.getAttributes('paragraph').lineHeight  ?? ''
-  const curSpaceAfter  = editor?.getAttributes('paragraph').spaceAfter  ?? ''
+  // Chip selected? (atom NodeSelection)
+  const isChipSelected = editor?.isActive('placeholder_chip') ?? false
+  const chipAttrs      = isChipSelected ? (editor?.getAttributes('placeholder_chip') ?? {}) : {}
+
+  const paraAttrsRaw   = editor?.getAttributes('paragraph') ?? {}
+  const curFontFamily  = isChipSelected ? (chipAttrs.fontFamily  ?? '') : (paraAttrsRaw.fontFamily  ?? '')
+  const curFontSize    = isChipSelected ? (chipAttrs.fontSize    ?? '') : (paraAttrsRaw.fontSize    ?? '')
+  const curLineHeight  = paraAttrsRaw.lineHeight  ?? ''
+  const curSpaceAfter  = paraAttrsRaw.spaceAfter  ?? ''
 
   // getAttributes('tableRow') won't work (cursor is in tableCell) — traverse up instead
   const curRowHeight = (() => {
@@ -434,24 +439,40 @@ export function ToolbarContent({
     return ''
   })()
 
-  // B/I/U: check BOTH text marks AND paragraph-level attrs (chips can't carry marks)
-  const paraAttrs   = editor?.getAttributes('paragraph') ?? {}
-  const isBold      = (editor?.isActive('bold')      ?? false) || paraAttrs.fontWeight === 'bold'
-  const isItalic    = (editor?.isActive('italic')    ?? false) || paraAttrs.fontStyle  === 'italic'
-  const isUnderline = (editor?.isActive('underline') ?? false) || paraAttrs.textDecoration === 'underline'
+  // B/I/U: chip selected → read/write chip attrs; otherwise text marks + paragraph attrs
+  const isBold      = isChipSelected
+    ? chipAttrs.fontWeight === 'bold'
+    : ((editor?.isActive('bold') ?? false) || paraAttrsRaw.fontWeight === 'bold')
+  const isItalic    = isChipSelected
+    ? chipAttrs.fontStyle === 'italic'
+    : ((editor?.isActive('italic') ?? false) || paraAttrsRaw.fontStyle === 'italic')
+  const isUnderline = isChipSelected
+    ? chipAttrs.textDecoration === 'underline'
+    : ((editor?.isActive('underline') ?? false) || paraAttrsRaw.textDecoration === 'underline')
 
-  // Toggle: applies both the text mark (selected text) AND paragraph attr (chips)
   const toggleBold = () => {
-    const next = !isBold
-    editor?.chain().focus().toggleBold().updateAttributes('paragraph', { fontWeight: next ? 'bold' : null }).run()
+    if (isChipSelected) {
+      editor?.chain().focus().updateAttributes('placeholder_chip', { fontWeight: isBold ? null : 'bold' }).run()
+    } else {
+      const next = !isBold
+      editor?.chain().focus().toggleBold().updateAttributes('paragraph', { fontWeight: next ? 'bold' : null }).run()
+    }
   }
   const toggleItalic = () => {
-    const next = !isItalic
-    editor?.chain().focus().toggleItalic().updateAttributes('paragraph', { fontStyle: next ? 'italic' : null }).run()
+    if (isChipSelected) {
+      editor?.chain().focus().updateAttributes('placeholder_chip', { fontStyle: isItalic ? null : 'italic' }).run()
+    } else {
+      const next = !isItalic
+      editor?.chain().focus().toggleItalic().updateAttributes('paragraph', { fontStyle: next ? 'italic' : null }).run()
+    }
   }
   const toggleUnderline = () => {
-    const next = !isUnderline
-    editor?.chain().focus().toggleUnderline().updateAttributes('paragraph', { textDecoration: next ? 'underline' : null }).run()
+    if (isChipSelected) {
+      editor?.chain().focus().updateAttributes('placeholder_chip', { textDecoration: isUnderline ? null : 'underline' }).run()
+    } else {
+      const next = !isUnderline
+      editor?.chain().focus().toggleUnderline().updateAttributes('paragraph', { textDecoration: next ? 'underline' : null }).run()
+    }
   }
 
   const fmtBtn = (label: string, active: boolean, cb: () => void, title: string, extra?: React.CSSProperties) => (
@@ -494,24 +515,37 @@ export function ToolbarContent({
         {sep('sep-font')}
         <select
           value={curFontFamily}
-          onChange={e => editor?.chain().setParagraphFont(e.target.value || null).run()}
+          onChange={e => {
+            const v = e.target.value || null
+            if (isChipSelected) editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
+            else editor?.chain().setParagraphFont(v).run()
+          }}
           disabled={!editor}
-          title="Schriftart (gilt für gesamte Zeile inkl. Chips)"
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 88, flexShrink: 0 }}
+          title={isChipSelected ? 'Schriftart (Chip)' : 'Schriftart (gesamte Zeile)'}
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 88, flexShrink: 0 }}
         >
           <option value="">— Schrift —</option>
           {FONT_FAMILIES.map(f => <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.label}</option>)}
         </select>
         <select
           value={curFontSize}
-          onChange={e => editor?.chain().setParagraphFontSize(e.target.value || null).run()}
+          onChange={e => {
+            const v = e.target.value || null
+            if (isChipSelected) editor?.chain().focus().updateAttributes('placeholder_chip', { fontSize: v }).run()
+            else editor?.chain().setParagraphFontSize(v).run()
+          }}
           disabled={!editor}
-          title="Schriftgröße (gilt für gesamte Zeile inkl. Chips)"
-          style={{ fontSize: 10, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 48, flexShrink: 0 }}
+          title={isChipSelected ? 'Schriftgröße (Chip)' : 'Schriftgröße (gesamte Zeile)'}
+          style={{ fontSize: 10, height: 24, borderRadius: 4, border: `1px solid ${isChipSelected ? '#007AFF' : 'var(--border)'}`, background: 'var(--bg-subtle)', fontFamily: 'inherit', color: 'var(--text-secondary)', width: 48, flexShrink: 0 }}
         >
           <option value="">Pt</option>
           {FONT_SIZES.map(s => <option key={s} value={`${s}pt`}>{s}</option>)}
         </select>
+        {isChipSelected && (
+          <span style={{ fontSize: 9, color: '#007AFF', background: '#007AFF15', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            Chip-Format
+          </span>
+        )}
         <select
           value={curLineHeight}
           onChange={e => editor?.chain().setParagraphLineHeight(e.target.value || null).run()}
@@ -929,18 +963,24 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       const field = PREVIEW_CONTEXT_MAP[key]
       const color = getPlaceholderColor(key)
       const label = getPlaceholderLabel(key)
-      // Chips inherit all paragraph-level styles (font, weight, style, decoration)
+      // Chip's own attrs override paragraph-level defaults
+      const ca = node.attrs ?? {}
+      const ff  = ca.fontFamily     || paraFont?.ff  || null
+      const fs  = ca.fontSize       || paraFont?.fs  || null
+      const fw  = ca.fontWeight     || paraFont?.fw  || null
+      const fst = ca.fontStyle      || paraFont?.fst || null
+      const td  = ca.textDecoration || paraFont?.td  || null
       const chipStyles: string[] = []
-      if (paraFont?.ff)  chipStyles.push(`font-family:${paraFont.ff}`)
-      if (paraFont?.fs)  chipStyles.push(`font-size:${paraFont.fs}`)
-      if (paraFont?.fw)  chipStyles.push(`font-weight:${paraFont.fw}`)
-      if (paraFont?.fst) chipStyles.push(`font-style:${paraFont.fst}`)
-      if (paraFont?.td)  chipStyles.push(`text-decoration:${paraFont.td}`)
+      if (ff)  chipStyles.push(`font-family:${ff}`)
+      if (fs)  chipStyles.push(`font-size:${fs}`)
+      if (fw)  chipStyles.push(`font-weight:${fw}`)
+      if (fst) chipStyles.push(`font-style:${fst}`)
+      if (td)  chipStyles.push(`text-decoration:${td}`)
       const fStr = chipStyles.length ? chipStyles.join(';') + ';' : ''
       if (field && ctx?.[field] != null) {
-        return `<span style="${fStr}font-weight:${paraFont?.fw ?? '600'}">${escHtml(String(ctx[field]))}</span>`
+        return `<span style="${fStr}">${escHtml(String(ctx[field]))}</span>`
       }
-      return `<span style="${fStr}background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;font-weight:${paraFont?.fw ?? '600'};padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
+      return `<span style="${fStr}background:${color}22;color:${color};border:1px solid ${color}55;border-radius:3px;padding:1px 4px;white-space:nowrap">${escHtml(label)}</span>`
     }
 
     if (node.type === 'hardBreak') return '<br>'

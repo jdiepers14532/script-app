@@ -140,11 +140,12 @@ export const PlaceholderChipExtension = Node.create({
 
   addAttributes() {
     return {
-      key: {
-        default: null,
-        parseHTML: el => el.getAttribute('data-placeholder-key'),
-        renderHTML: attrs => ({ 'data-placeholder-key': attrs.key }),
-      },
+      key:             { default: null, parseHTML: el => el.getAttribute('data-placeholder-key'), renderHTML: attrs => ({ 'data-placeholder-key': attrs.key }) },
+      fontFamily:      { default: null, parseHTML: el => el.getAttribute('data-ff')  || null, renderHTML: attrs => attrs.fontFamily      ? { 'data-ff':  attrs.fontFamily }      : {} },
+      fontSize:        { default: null, parseHTML: el => el.getAttribute('data-fs')  || null, renderHTML: attrs => attrs.fontSize        ? { 'data-fs':  attrs.fontSize }        : {} },
+      fontWeight:      { default: null, parseHTML: el => el.getAttribute('data-fw')  || null, renderHTML: attrs => attrs.fontWeight      ? { 'data-fw':  attrs.fontWeight }      : {} },
+      fontStyle:       { default: null, parseHTML: el => el.getAttribute('data-fst') || null, renderHTML: attrs => attrs.fontStyle       ? { 'data-fst': attrs.fontStyle }       : {} },
+      textDecoration:  { default: null, parseHTML: el => el.getAttribute('data-td')  || null, renderHTML: attrs => attrs.textDecoration  ? { 'data-td':  attrs.textDecoration }  : {} },
     }
   },
 
@@ -156,21 +157,21 @@ export const PlaceholderChipExtension = Node.create({
     const key   = node.attrs.key as string
     const color = getPlaceholderColor(key)
     const label = getPlaceholderLabel(key)
-    return [
-      'span',
-      mergeAttributes(HTMLAttributes, {
-        class: 'placeholder-chip',
-        contenteditable: 'false',
-        style: [
-          'display:inline-flex', 'align-items:center', 'gap:3px',
-          `background:${color}1A`, `color:${color}`, `border:1px solid ${color}55`,
-          'border-radius:4px', 'font-size:11px', 'font-weight:inherit', 'font-style:inherit', 'line-height:1',
-          'padding:2px 7px', 'white-space:nowrap', 'user-select:none',
-          'cursor:default', 'vertical-align:middle', 'font-family:inherit',
-        ].join(';'),
-      }),
-      label,
+    const a = node.attrs
+    const styleArr = [
+      'display:inline-flex', 'align-items:center', 'gap:3px',
+      `background:${color}1A`, `color:${color}`, `border:1px solid ${color}55`,
+      'border-radius:4px', 'line-height:1',
+      'padding:2px 7px', 'white-space:nowrap', 'user-select:none',
+      'cursor:default', 'vertical-align:middle',
+      // Font: use chip's own attrs when set, otherwise inherit from paragraph
+      `font-family:${a.fontFamily   || 'inherit'}`,
+      `font-size:${a.fontSize       || '11px'}`,
+      `font-weight:${a.fontWeight   || 'inherit'}`,
+      `font-style:${a.fontStyle     || 'inherit'}`,
+      a.textDecoration ? `text-decoration:${a.textDecoration}` : 'text-decoration:inherit',
     ]
+    return ['span', mergeAttributes(HTMLAttributes, { class: 'placeholder-chip', contenteditable: 'false', style: styleArr.join(';') }), label]
   },
 
   addCommands() {
