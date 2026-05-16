@@ -141,10 +141,10 @@ export default function EditorPanelHeader({
     : ''
 
   return (
-    <div className="editor-panel-header" style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
+    <div className="editor-panel-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', rowGap: 4, padding: '5px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
 
       {/* LEFT: Werkfassung, Fassungslabel, Version */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
 
       {/* Werkstufen-Selector */}
       <div style={{ position: 'relative' }}>
@@ -313,27 +313,26 @@ export default function EditorPanelHeader({
 
       </div>{/* end LEFT */}
 
-      {/* RIGHT: Save+User, Sichtbarkeit, Dokument-Typ, Revision */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, justifyContent: 'flex-end' }}>
+      {/* RIGHT: Save+User direkt neben Sichtbarkeit, Dokument-Typ, Revision */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
 
-      {/* Save status + User — rechtsbündig, links neben Sichtbarkeit */}
-      {(saveStatus && saveStatus !== 'idle' || updatedBy || collabSlot) && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 4, borderRight: '1px solid var(--border)' }}>
-          {saveStatus && saveStatus !== 'idle' && (
-            <span style={{ fontSize: 11, color: saveColor, fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap' }}>
-              {saveLabel}
-            </span>
-          )}
-          {updatedBy && (
-            <Tooltip text={`Zuletzt: ${updatedBy}${formattedDate ? '\n' + formattedDate : ''}`}>
-              <span style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', cursor: 'default', padding: '2px 2px' }}>
-                <User size={12} />
-              </span>
-            </Tooltip>
-          )}
-          {collabSlot}
-        </div>
+      {/* Save status */}
+      {saveStatus && saveStatus !== 'idle' && (
+        <span style={{ fontSize: 11, color: saveColor, fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap' }}>
+          {saveLabel}
+        </span>
       )}
+
+      {/* User-Tooltip */}
+      {updatedBy && (
+        <Tooltip text={`Zuletzt: ${updatedBy}${formattedDate ? '\n' + formattedDate : ''}`}>
+          <span style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', cursor: 'default' }}>
+            <User size={12} />
+          </span>
+        </Tooltip>
+      )}
+
+      {collabSlot}
 
       {/* Sichtbarkeits-Badge (klickbar) */}
       {selectedWerk && !selectedWerk.abgegeben && (
