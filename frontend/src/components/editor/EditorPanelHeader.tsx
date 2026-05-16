@@ -300,11 +300,15 @@ export default function EditorPanelHeader({
         </div>
       )}
 
-      {/* Version badge */}
+      {/* Version badge — klickbar, öffnet Werkfassung-Dropdown */}
       {selectedWerk && (
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
+        <button
+          onClick={() => setShowMenu(v => !v)}
+          style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}
+        >
           {versionLabel}
-        </span>
+          <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
+        </button>
       )}
 
       </div>{/* end LEFT */}
