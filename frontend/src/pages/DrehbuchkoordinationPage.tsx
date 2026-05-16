@@ -169,7 +169,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [envColorsCustom, setEnvColorsCustom] = useState(false)
 
   useEffect(() => {
-    // Treatment label from production-specific endpoint
     fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
@@ -1975,14 +1974,66 @@ function CopySection({ produktionId, onCopied }: { produktionId: string; onCopie
 
 // ── Tab: Terminologie ────────────────────────────────────────────────────────────
 
-function TerminologieTab() {
+function TermRow({ label, subtext, options, value, onSelect, disabled, last }: {
+  label: string
+  subtext?: string
+  options: { value: string; label: string }[]
+  value: string
+  onSelect: (v: string) => void
+  disabled?: boolean
+  last?: boolean
+}) {
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 16,
+      padding: '11px 16px',
+      borderBottom: last ? 'none' : '1px solid var(--border)',
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 500, lineHeight: 1.4 }}>{label}</div>
+        {subtext && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.5 }}>{subtext}</div>}
+      </div>
+      <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
+        {options.map(opt => (
+          <button
+            key={opt.value}
+            className={value === opt.value ? 'on' : ''}
+            onClick={() => onSelect(opt.value)}
+            disabled={disabled}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TerminologieTab({ productionId }: { productionId?: string }) {
   const { config: currentConfig } = useTerminologie()
   const [config, setConfig] = useState<TerminologieConfig>({ ...currentConfig })
   const [saving, setSaving] = useState(false)
+  const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline'>('Treatment')
+  const [treatmentSaving, setTreatmentSaving] = useState(false)
+  const [figurenLabel, setFigurenLabel] = useState<'Rollen' | 'Figuren' | 'Charaktere'>('Rollen')
+  const [figurenSaving, setFigurenSaving] = useState(false)
+
+  useEffect(() => { setConfig({ ...currentConfig }) }, [currentConfig])
 
   useEffect(() => {
-    setConfig({ ...currentConfig })
-  }, [currentConfig])
+    fetch('/api/admin/app-settings', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => { if (d?.figuren_label) setFigurenLabel(d.figuren_label) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!productionId) return
+    fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => { if (d?.treatment_label) setTreatmentLabel(d.treatment_label) })
+      .catch(() => {})
+  }, [productionId])
 
   const saveKey = async (key: TermKey, value: string) => {
     const next = { ...config, [key]: value }
@@ -1994,6 +2045,30 @@ function TerminologieTab() {
       body: JSON.stringify({ value: JSON.stringify(next) }),
     }).catch(() => {})
     setSaving(false)
+    window.dispatchEvent(new CustomEvent('app-settings-changed'))
+  }
+
+  const saveTreatmentLabel = async (val: 'Treatment' | 'Storylines' | 'Outline') => {
+    if (!productionId) return
+    setTreatmentLabel(val)
+    setTreatmentSaving(true)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/treatment_label`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setTreatmentSaving(false)
+  }
+
+  const saveFigurenLabel = async (val: 'Rollen' | 'Figuren' | 'Charaktere') => {
+    setFigurenLabel(val)
+    setFigurenSaving(true)
+    await fetch('/api/admin/app-settings/figuren_label', {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setFigurenSaving(false)
     window.dispatchEvent(new CustomEvent('app-settings-changed'))
   }
 
@@ -2010,41 +2085,76 @@ function TerminologieTab() {
   }
 
   return (
-    <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 32 }}>
-      <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Begriffe anpassen</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
-          In der Branche werden fuer dieselben Konzepte unterschiedliche Begriffe verwendet.
-          Hier legst du fest, welcher Begriff jeweils in der gesamten App verwendet wird.
-        </p>
-      </section>
+    <div style={{ maxWidth: 680 }}>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 24px', lineHeight: 1.6 }}>
+        In der Branche werden für dieselben Konzepte unterschiedliche Begriffe verwendet.
+        Hier legst du fest, welcher Begriff in der gesamten App verwendet wird.
+      </p>
 
-      {TERM_KEYS.map(key => {
-        const options = TERM_OPTIONS[key]
-        const optionNames = Object.keys(options)
-        return (
-          <section key={key}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>{TERM_LABELS[key]}</h3>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
-              Singular: <strong>{options[config[key]]?.s ?? optionNames[0]}</strong> · Plural: <strong>{options[config[key]]?.p ?? optionNames[0]}</strong>
-            </p>
-            <div className="seg" style={{ display: 'inline-flex' }}>
-              {optionNames.map(opt => (
-                <button
-                  key={opt}
-                  className={config[key] === opt ? 'on' : ''}
-                  onClick={() => saveKey(key, opt)}
-                  disabled={saving}
-                >
-                  {opt}
-                </button>
-              ))}
+      {/* Bezeichnungen */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Bezeichnungen</div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          <TermRow
+            label="Figuren / Rollen"
+            subtext="Bezeichnung für Rollen in Navigation und UI"
+            options={[
+              { value: 'Rollen', label: 'Rollen' },
+              { value: 'Figuren', label: 'Figuren' },
+              { value: 'Charaktere', label: 'Charaktere' },
+            ]}
+            value={figurenLabel}
+            onSelect={v => saveFigurenLabel(v as 'Rollen' | 'Figuren' | 'Charaktere')}
+            disabled={figurenSaving}
+          />
+          {productionId ? (
+            <TermRow
+              label="Vorstufe / Treatment"
+              subtext="Bezeichnung der Vorstufe vor dem Drehbuch — gilt für diese Produktion"
+              options={[
+                { value: 'Treatment', label: 'Treatment' },
+                { value: 'Storylines', label: 'Storylines' },
+                { value: 'Outline', label: 'Outline' },
+              ]}
+              value={treatmentLabel}
+              onSelect={v => saveTreatmentLabel(v as 'Treatment' | 'Storylines' | 'Outline')}
+              disabled={treatmentSaving}
+              last
+            />
+          ) : (
+            <div style={{ padding: '11px 16px', fontSize: 12, color: 'var(--text-secondary)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>Vorstufe / Treatment</span>
+              <span>— Bitte eine Produktion wählen</span>
             </div>
-          </section>
-        )
-      })}
+          )}
+        </div>
+      </div>
 
-      <section>
+      {/* Begriffe */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Begriffe</div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          {TERM_KEYS.map((key, i) => {
+            const options = TERM_OPTIONS[key]
+            const optionNames = Object.keys(options)
+            const forms = options[config[key]]
+            return (
+              <TermRow
+                key={key}
+                label={TERM_LABELS[key]}
+                subtext={forms ? `Singular: ${forms.s} · Plural: ${forms.p}` : undefined}
+                options={optionNames.map(o => ({ value: o, label: o }))}
+                value={config[key]}
+                onSelect={v => saveKey(key, v)}
+                disabled={saving}
+                last={i === TERM_KEYS.length - 1}
+              />
+            )
+          })}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', gap: 12 }}>
         <button
           onClick={resetAll}
           disabled={saving}
@@ -2054,10 +2164,10 @@ function TerminologieTab() {
             fontSize: 13, cursor: 'pointer', fontFamily: 'inherit',
           }}
         >
-          Alle auf Standard zuruecksetzen
+          Begriffe auf Standard zurücksetzen
         </button>
-        {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
-      </section>
+        {saving && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
+      </div>
     </div>
   )
 }
@@ -2157,7 +2267,7 @@ export default function DrehbuchkoordinationPage() {
       case 'allgemein':
         return produktionId ? <AllgemeinTab productionId={produktionId} /> : <NoProduction />
       case 'terminologie':
-        return <TerminologieTab />
+        return <TerminologieTab productionId={produktionId || undefined} />
       case 'figuren':
         return <FigurenTab />
       case 'produktion':
