@@ -530,6 +530,7 @@ werkstufenSzenenRouter.patch('/reorder', async (req, res) => {
 })
 
 // POST /api/werkstufen/:werkId/szenen/renumber — sequential renumbering
+// Only renumbers drehbuch/storyline scenes (format != 'notiz'); updates sort_order for all scenes.
 werkstufenSzenenRouter.post('/renumber', async (req, res) => {
   const werkId = (req.params as any).werkId
   const client = await pool.connect()
@@ -539,15 +540,28 @@ werkstufenSzenenRouter.post('/renumber', async (req, res) => {
       'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer',
       [werkId]
     )
+    let sceneCounter = 1
     for (let i = 0; i < scenes.length; i++) {
-      await client.query(
-        'UPDATE dokument_szenen SET scene_nummer = $1, scene_nummer_suffix = NULL, sort_order = $2, updated_at = NOW() WHERE id = $3',
-        [i + 1, i + 1, scenes[i].id]
-      )
+      if (scenes[i].format !== 'notiz') {
+        await client.query(
+          'UPDATE dokument_szenen SET scene_nummer = $1, scene_nummer_suffix = NULL, sort_order = $2, updated_at = NOW() WHERE id = $3',
+          [sceneCounter, i + 1, scenes[i].id]
+        )
+        sceneCounter++
+      } else {
+        await client.query(
+          'UPDATE dokument_szenen SET sort_order = $1, updated_at = NOW() WHERE id = $2',
+          [i + 1, scenes[i].id]
+        )
+      }
     }
     await client.query('COMMIT')
     const { rows } = await client.query(
-      'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer',
+      `SELECT ds.*, si.folge_id AS identity_folge_id
+       FROM dokument_szenen ds
+       LEFT JOIN scene_identities si ON si.id = ds.scene_identity_id
+       WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
+       ORDER BY ds.sort_order, ds.scene_nummer`,
       [werkId]
     )
     res.json({ scenes: rows, renumbered: true })
