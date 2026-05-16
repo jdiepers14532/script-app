@@ -513,7 +513,7 @@ export default function SceneList({
                 isDragging ? 'dragging' : '',
                 isDragOver ? 'drag-over' : '',
               ].filter(Boolean).join(' ')}
-              style={{ ...rowStyle, position: 'relative', cursor: isDragActive ? 'grab' : 'pointer' }}
+              style={{ ...rowStyle, position: 'relative', cursor: isDragActive ? 'grab' : 'pointer', ...(multiSelectMode ? { gridTemplateColumns: '20px 30px 14px 1fr 32px 18px auto' } : {}) }}
               onClick={() => !isMenuOpen && onSelectSzene(scene.id)}
             >
               {multiSelectMode && (
