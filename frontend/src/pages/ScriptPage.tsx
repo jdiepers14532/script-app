@@ -558,8 +558,16 @@ export default function ScriptPage() {
         const folgen = await api.getFolgenV2(selectedProduktionId)
         // Track which folgen have imported data (for UI indicators)
         setFolgenMitDaten(folgen.filter((f: any) => f.werkstufen_count > 0).map((f: any) => f.folge_nummer))
-        const folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
-        if (!folge) { console.warn('[ScriptPage] Folge not found:', selectedFolgeNummer, 'in', folgen.length, 'folgen'); return }
+        let folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
+        if (!folge) {
+          // Folge existiert noch nicht in der DB (keine Szenen bisher) → auto-anlegen
+          folge = await api.createFolgeV2({ produktion_id: selectedProduktionId, folge_nummer: selectedFolgeNummer! })
+          const newWerkstufe = await api.createWerkstufe(folge.id, { typ: 'drehbuch' })
+          setSelectedStageId(newWerkstufe.id)
+          setSzenen([])
+          setUseDokumentSzenen(true)
+          return
+        }
         const werkstufen = await api.getWerkstufen(folge.id)
         if (werkstufen.length === 0) { console.warn('[ScriptPage] No werkstufen for folge', folge.id); return }
         // Prefer drehbuch > storyline > notiz, then latest version
@@ -586,7 +594,9 @@ export default function ScriptPage() {
           // Preload all scenes in background so switching is instant throughout the Folge
           preloadAllScenes(werkSzenen)
         } else {
-          console.warn('[ScriptPage] Werkstufe has 0 scenes:', werk.id)
+          // Werkstufe vorhanden, aber noch keine Szenen — stageId trotzdem setzen
+          // damit der "+ Neue Szene"-Button aktiv ist
+          setUseDokumentSzenen(true)
         }
       } catch (err) {
         console.error('[ScriptPage] loadWerkstufen error:', err)
