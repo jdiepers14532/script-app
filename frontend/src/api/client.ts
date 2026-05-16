@@ -793,6 +793,24 @@ export const api = {
   getSessionUsers: (werkId: string) =>
     request<Array<{ user_id: string; user_name: string; last_active_at: string }>>('GET', `/werkstufen-sessions/${werkId}`),
 
+  // ── Admin: Colab-Gruppen-Register ────────────────────────────────────────
+  getAdminColabRegister: (produktionId: string) =>
+    request<any[]>('GET', `/admin/colab-gruppen-register?produktion_id=${encodeURIComponent(produktionId)}`),
+  updateAdminColabGruppe: (id: string, data: { name: string; beschreibung?: string }) =>
+    request<any>('PUT', `/admin/colab-gruppen-register/${id}`, data),
+  deleteAdminColabGruppe: (id: string) =>
+    request<void>('DELETE', `/admin/colab-gruppen-register/${id}`),
+
+  // ── Notifications ─────────────────────────────────────────────────────────
+  getNotifications: () =>
+    request<{ notifications: any[]; unread_count: number }>('GET', '/notifications'),
+  markNotificationRead: (id: string) =>
+    request<void>('PUT', `/notifications/${id}/read`),
+  markAllNotificationsRead: () =>
+    request<void>('PUT', '/notifications/read-all'),
+  deleteNotification: (id: string) =>
+    request<void>('DELETE', `/notifications/${id}`),
+
   // ── Generic helpers ───────────────────────────────────────────────────────
   get: (path: string) => request<any>('GET', path),
   post: (path: string, body?: any) => request<any>('POST', path, body),

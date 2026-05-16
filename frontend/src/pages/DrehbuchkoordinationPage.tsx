@@ -19,9 +19,8 @@ const DK_TABS = [
   { id: 'export-vorlagen',       label: 'Export-Vorlagen' },
   { id: 'lock-regeln',           label: 'Lock-Regeln' },
   { id: 'dokument-typen',        label: 'Absatzformat-Vorlagen' },
-  { id: 'colab-gruppen',         label: 'Colab-Gruppen' },
+  { id: 'gruppen-register',      label: 'Gruppen-Register' },
   { id: 'format-templates',      label: 'Format-Templates' },
-  { id: 'benachrichtigungen',    label: 'Benachrichtigungen' },
   { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
@@ -48,20 +47,6 @@ const ENV_COLOR_LABELS: Record<EnvKey, string> = {
   n_i:       'INT / Nacht',
   n_e:       'EXT / Nacht',
   n_ie:      'INT+EXT / Nacht',
-}
-
-const EREIGNIS_KEYS = ['neue_hauptrolle', 'neue_episodenrolle', 'neuer_komparse', 'neue_location', 'uebernahme_schauspieler', 'uebernahme_komparse'] as const
-
-function useEreignisLabels() {
-  const { t } = useTerminologie()
-  return {
-    neue_hauptrolle:         'Neue Hauptrolle angelegt',
-    neue_episodenrolle:      'Neue Episodenrolle angelegt',
-    neuer_komparse:          `Neuer ${t('komparse')} angelegt`,
-    neue_location:           'Neuer Drehort angelegt',
-    uebernahme_schauspieler: `${t('darsteller')} Cross-${t('staffel')} übernommen`,
-    uebernahme_komparse:     `${t('komparse')} Cross-${t('staffel')} übernommen`,
-  } as Record<string, string>
 }
 
 const FONT_FAMILIES = [
@@ -1340,121 +1325,194 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
   )
 }
 
-// ── Tab: Colab-Gruppen ───────────────────────────────────────────────────────────
+// ── Tab: Gruppen-Register ─────────────────────────────────────────────────────
 
-function ColabGruppenTab() {
+function GruppenRegisterTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? ''
   const [gruppen, setGruppen] = useState<any[]>([])
-  const [name, setName] = useState('')
-  const [typ, setTyp] = useState<'colab' | 'produktion'>('colab')
-  const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [mitglieder, setMitglieder] = useState<Record<number, any[]>>({})
-  const [newUserId, setNewUserId] = useState('')
-  const [newUserName, setNewUserName] = useState('')
-  const [msg, setMsg] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editBeschreibung, setEditBeschreibung] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
   const load = async () => {
     if (!produktionId) return
-    try { setGruppen(await api.getColabGruppen(produktionId)) } catch {}
+    setLoading(true)
+    try {
+      const data = await api.getAdminColabRegister(produktionId)
+      setGruppen(Array.isArray(data) ? data : [])
+    } catch {
+      setMsg({ text: 'Gruppen konnten nicht geladen werden.', ok: false })
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { load() }, [produktionId])
 
-  const loadMitglieder = async (gruppeId: number) => {
-    try {
-      const res = await fetch(`/api/admin/colab-gruppen/${gruppeId}/mitglieder`, { credentials: 'include' })
-      const data = await res.json()
-      setMitglieder(prev => ({ ...prev, [gruppeId]: data }))
-    } catch {}
+  const startEdit = (g: any) => {
+    setEditingId(g.id)
+    setEditName(g.name)
+    setEditBeschreibung(g.beschreibung ?? '')
+    setMsg(null)
   }
 
-  const handleCreate = async () => {
-    if (!name.trim() || !produktionId) return
+  const cancelEdit = () => { setEditingId(null); setMsg(null) }
+
+  const saveEdit = async (g: any) => {
+    if (!editName.trim()) return
+    setSaving(true)
     try {
-      await api.createColabGruppe(produktionId, { name: name.trim(), typ })
-      setName(''); await load(); setMsg('Gruppe erstellt.')
-    } catch (e: any) { setMsg(e.message) }
+      const updated = await api.updateAdminColabGruppe(g.id, { name: editName.trim(), beschreibung: editBeschreibung.trim() || undefined })
+      setGruppen(prev => prev.map(x => x.id === g.id ? { ...x, ...updated } : x))
+      setEditingId(null)
+      setMsg({ text: 'Gespeichert.', ok: true })
+    } catch {
+      setMsg({ text: 'Fehler beim Speichern.', ok: false })
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDelete = async (gruppeId: number) => {
-    if (!confirm('Gruppe loeschen?')) return
-    try { await api.deleteColabGruppe(produktionId, gruppeId); await load() } catch (e: any) { setMsg(e.message) }
+  const deleteGruppe = async (g: any) => {
+    if (!confirm(`Gruppe „${g.name}" wirklich löschen?\n\nAlle Werkstufen, die diese Gruppe als Sichtbarkeit nutzen, werden auf „autoren" zurückgesetzt.`)) return
+    try {
+      await api.deleteAdminColabGruppe(g.id)
+      setGruppen(prev => prev.filter(x => x.id !== g.id))
+      setMsg({ text: `Gruppe „${g.name}" gelöscht.`, ok: true })
+      if (expandedId === g.id) setExpandedId(null)
+    } catch {
+      setMsg({ text: 'Fehler beim Löschen.', ok: false })
+    }
   }
 
-  const handleAddMitglied = async (gruppeId: number) => {
-    if (!newUserId.trim()) return
-    try {
-      await fetch(`/api/admin/colab-gruppen/${gruppeId}/mitglieder`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: newUserId.trim(), user_name: newUserName.trim() || newUserId.trim() }),
-      })
-      setNewUserId(''); setNewUserName(''); loadMitglieder(gruppeId)
-    } catch {}
-  }
-
-  const handleRemoveMitglied = async (gruppeId: number, userId: string) => {
-    try {
-      await fetch(`/api/admin/colab-gruppen/${gruppeId}/mitglieder/${userId}`, { method: 'DELETE', credentials: 'include' })
-      loadMitglieder(gruppeId)
-    } catch {}
-  }
+  const fmt = (ts: string) => new Date(ts).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
   return (
     <div>
-      {!produktionId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
-      {produktionId && (
-        <>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-            <input value={name} onChange={e => setName(e.target.value)} placeholder="Gruppenname"
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, width: 200 }} />
-            <select value={typ} onChange={e => setTyp(e.target.value as any)}
-              style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, background: 'var(--bg-surface)' }}>
-              <option value="colab">Colab</option>
-              <option value="produktion">Produktion</option>
-            </select>
-            <button onClick={handleCreate} disabled={!name.trim()}
-              style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-              Erstellen
-            </button>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, marginTop: 0, lineHeight: 1.5 }}>
+        Alle Team-Work-Gruppen dieser Produktion. Gruppen werden von Autoren selbst angelegt —
+        als Admin kannst du Gruppen umbenennen oder löschen. Der Ersteller wird dabei benachrichtigt.
+      </p>
+
+      {!produktionId && (
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion wählen.</p>
+      )}
+
+      {msg && (
+        <div style={{
+          background: msg.ok ? 'rgba(0,200,83,0.1)' : 'rgba(255,59,48,0.1)',
+          border: `1px solid ${msg.ok ? '#00C853' : '#FF3B30'}`,
+          borderRadius: 7, padding: '7px 12px', marginBottom: 14, fontSize: 12,
+          color: msg.ok ? '#00C853' : '#FF3B30',
+        }}>
+          {msg.text}
+        </div>
+      )}
+
+      {produktionId && loading && (
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Lädt…</p>
+      )}
+
+      {produktionId && !loading && gruppen.length === 0 && (
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Keine Gruppen angelegt.</p>
+      )}
+
+      {produktionId && !loading && gruppen.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* Header */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px 80px', gap: 8, padding: '4px 12px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            <span>Gruppe</span>
+            <span>Erstellt von</span>
+            <span>Mitglieder</span>
+            <span style={{ textAlign: 'right' }}>Aktionen</span>
           </div>
-          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
-          <div style={{ marginTop: 16 }}>
-            {gruppen.map(g => (
-              <div key={g.id} style={{ border: '1px solid var(--border)', borderRadius: 8, marginBottom: 8, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', gap: 8, cursor: 'pointer', background: 'var(--bg-surface)' }}
-                  onClick={() => { setExpandedId(expandedId === g.id ? null : g.id); if (expandedId !== g.id) loadMitglieder(g.id) }}>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{g.name}</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: 4 }}>{g.typ}</span>
-                  <button onClick={e => { e.stopPropagation(); handleDelete(g.id) }}
-                    style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>Löschen</button>
-                </div>
-                {expandedId === g.id && (
-                  <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                      <input value={newUserId} onChange={e => setNewUserId(e.target.value)} placeholder="User-ID"
-                        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, width: 120 }} />
-                      <input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Name"
-                        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, width: 140 }} />
-                      <button onClick={() => handleAddMitglied(g.id)}
-                        style={{ padding: '4px 10px', borderRadius: 4, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>+</button>
-                    </div>
-                    {(mitglieder[g.id] ?? []).map((m: any) => (
-                      <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, fontSize: 12 }}>
-                        <span style={{ flex: 1 }}>{m.user_name ?? m.user_id}</span>
-                        <button onClick={() => handleRemoveMitglied(g.id, m.user_id)}
-                          style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>x</button>
-                      </div>
-                    ))}
-                    {(mitglieder[g.id] ?? []).length === 0 && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Mitglieder.</p>}
+
+          {gruppen.map(g => (
+            <div key={g.id} style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden', background: 'var(--bg-surface)' }}>
+              {/* Row */}
+              {editingId === g.id ? (
+                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    autoFocus
+                    placeholder="Gruppenname"
+                    style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 600 }}
+                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(g); if (e.key === 'Escape') cancelEdit() }}
+                  />
+                  <input
+                    value={editBeschreibung}
+                    onChange={e => setEditBeschreibung(e.target.value)}
+                    placeholder="Beschreibung (optional)"
+                    style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 12 }}
+                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => saveEdit(g)} disabled={!editName.trim() || saving}
+                      style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: '#007AFF', color: '#fff', fontSize: 12, fontWeight: 600, cursor: editName.trim() ? 'pointer' : 'default', opacity: editName.trim() ? 1 : 0.5 }}>
+                      {saving ? 'Speichert…' : 'Speichern'}
+                    </button>
+                    <button onClick={cancelEdit}
+                      style={{ padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer' }}>
+                      Abbrechen
+                    </button>
                   </div>
-                )}
-              </div>
-            ))}
-            {gruppen.length === 0 && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Keine Gruppen.</p>}
-          </div>
-        </>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px 80px', gap: 8, padding: '10px 12px', alignItems: 'center', cursor: 'pointer' }}
+                  onClick={() => setExpandedId(expandedId === g.id ? null : g.id)}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{g.name}</div>
+                    {g.beschreibung && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{g.beschreibung}</div>}
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      Angelegt {fmt(g.erstellt_am)}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{g.erstellt_von_name ?? g.erstellt_von}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{g.mitglieder_count ?? 0}</div>
+                  <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                    <button onClick={() => startEdit(g)}
+                      style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
+                      Bearbeiten
+                    </button>
+                    <button onClick={() => deleteGruppe(g)}
+                      style={{ padding: '4px 8px', borderRadius: 6, border: 'none', background: 'rgba(255,59,48,0.1)', color: '#FF3B30', fontSize: 11, cursor: 'pointer' }}>
+                      Löschen
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Expandable member list */}
+              {expandedId === g.id && editingId !== g.id && (
+                <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', background: 'var(--bg-subtle)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+                    Mitglieder ({(g.mitglieder ?? []).length})
+                  </div>
+                  {(g.mitglieder ?? []).length === 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Keine Mitglieder.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {(g.mitglieder as any[]).map((m: any) => (
+                        <span key={m.user_id} style={{
+                          padding: '3px 10px', borderRadius: 20, background: 'var(--bg-surface)',
+                          border: '1px solid var(--border)', fontSize: 11, color: 'var(--text-primary)',
+                        }}>
+                          {m.user_name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
@@ -1542,74 +1600,6 @@ function FormatTemplatesTab() {
             </table>
           </div>
           <button onClick={handleSaveElemente} style={{ marginTop: 16, padding: '8px 20px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-            Speichern
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
-// ── Tab: Benachrichtigungen ──────────────────────────────────────────────────────
-
-function BenachrichtigungenTab() {
-  const { selectedProduction } = useSelectedProduction()
-  const produktionId = selectedProduction?.id ?? ''
-  const EREIGNIS_LABELS = useEreignisLabels()
-  const [settings, setSettings] = useState<Record<string, { empfaenger: string; aktiv: boolean }>>({})
-  const [msg, setMsg] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!produktionId) return
-    fetch(`/api/admin/benachrichtigungen/${produktionId}`, { credentials: 'include' })
-      .then(r => r.json())
-      .then((data: any[]) => {
-        const map: Record<string, { empfaenger: string; aktiv: boolean }> = {}
-        EREIGNIS_KEYS.forEach(k => {
-          const found = data.find(d => d.ereignis === k)
-          map[k] = { empfaenger: (found?.empfaenger_user_ids ?? []).join(', '), aktiv: found?.aktiv ?? true }
-        })
-        setSettings(map)
-      }).catch(() => {})
-  }, [produktionId])
-
-  const handleSave = async () => {
-    if (!produktionId) return
-    try {
-      const body = Object.entries(settings).map(([ereignis, v]) => ({
-        ereignis,
-        empfaenger_user_ids: v.empfaenger.split(',').map(s => s.trim()).filter(Boolean),
-        aktiv: v.aktiv,
-      }))
-      await fetch(`/api/admin/benachrichtigungen/${produktionId}`, {
-        method: 'PUT', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      setMsg('Gespeichert.')
-    } catch (e: any) { setMsg(e.message) }
-  }
-
-  return (
-    <div>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 20, marginTop: 0 }}>
-        User-IDs (kommagetrennt) die bei diesen Ereignissen eine Benachrichtigung erhalten.
-      </p>
-      {!produktionId && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>}
-      {produktionId && (
-        <>
-          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 12 }}>{msg}</p>}
-          {Object.entries(EREIGNIS_LABELS).map(([k, label]) => (
-            <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <input type="checkbox" checked={settings[k]?.aktiv ?? true}
-                onChange={e => setSettings(prev => ({ ...prev, [k]: { ...prev[k], aktiv: e.target.checked } }))} />
-              <span style={{ fontSize: 12, width: 280 }}>{label}</span>
-              <input value={settings[k]?.empfaenger ?? ''} placeholder="user-id1, user-id2"
-                onChange={e => setSettings(prev => ({ ...prev, [k]: { ...prev[k], empfaenger: e.target.value } }))}
-                style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
-            </div>
-          ))}
-          <button onClick={handleSave} style={{ marginTop: 12, padding: '8px 20px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
             Speichern
           </button>
         </>
@@ -2278,12 +2268,10 @@ export default function DrehbuchkoordinationPage() {
         return <Placeholder label="Lock-Regeln" />
       case 'dokument-typen':
         return <DokumentTypenTab />
-      case 'colab-gruppen':
-        return <ColabGruppenTab />
+      case 'gruppen-register':
+        return produktionId ? <GruppenRegisterTab /> : <NoProduction />
       case 'format-templates':
         return <FormatTemplatesTab />
-      case 'benachrichtigungen':
-        return <BenachrichtigungenTab />
       case 'dokument-einstellungen':
         return <DokumentEinstellungenTab />
       case 'statistik-panel':

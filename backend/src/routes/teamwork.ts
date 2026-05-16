@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
-import { authMiddleware } from '../auth'
+import { authMiddleware, requireAnyDkAccess } from '../auth'
+import { createNotification } from './notifications'
 
 // ── Team-Work Router ──────────────────────────────────────────────────────────
 // Colab-Gruppen, Werkstufen-Sessions, Sichtbarkeit, Privat-Modus
@@ -380,6 +381,112 @@ privatModeTokensPublicRouter.get('/:token', async (req, res) => {
     } finally {
       client.release()
     }
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// ADMIN: Gruppen-Register (DK-Admin sieht alle Gruppen, kann ändern/löschen)
+// Nur lesender Zugriff für User, nur DK-Admin darf mutieren
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const adminColabRegisterRouter = Router()
+adminColabRegisterRouter.use(authMiddleware)
+
+const dkAny = requireAnyDkAccess()
+
+// GET /api/admin/colab-gruppen-register?produktion_id=X
+adminColabRegisterRouter.get('/', async (req, res) => {
+  const { produktion_id } = req.query
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+  try {
+    const rows = await query(
+      `SELECT g.*,
+              (SELECT count(*)::int FROM colab_gruppen_mitglieder WHERE gruppe_id = g.id) AS mitglieder_count,
+              (SELECT COALESCE(json_agg(json_build_object(
+                'user_id', m.user_id, 'user_name', m.user_name,
+                'hinzugefuegt_am', m.hinzugefuegt_am
+              ) ORDER BY m.hinzugefuegt_am), '[]'::json)
+               FROM colab_gruppen_mitglieder m WHERE m.gruppe_id = g.id) AS mitglieder
+       FROM colab_gruppen g
+       WHERE g.produktion_id = $1
+       ORDER BY g.erstellt_am DESC`,
+      [produktion_id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// PUT /api/admin/colab-gruppen-register/:id — Admin umbenennen/beschreiben
+adminColabRegisterRouter.put('/:id', dkAny, async (req, res) => {
+  const { id } = req.params
+  const { name, beschreibung } = req.body
+  const admin = req.user!
+  if (!name?.trim()) return res.status(400).json({ error: 'name erforderlich' })
+  try {
+    const gruppe = await queryOne('SELECT * FROM colab_gruppen WHERE id = $1', [id])
+    if (!gruppe) return res.status(404).json({ error: 'Gruppe nicht gefunden' })
+
+    const row = await queryOne(
+      `UPDATE colab_gruppen SET name = $1, beschreibung = $2, geaendert_am = now()
+       WHERE id = $3 RETURNING *`,
+      [name.trim(), beschreibung ?? null, id]
+    )
+
+    // Notification an Ersteller, wenn Admin ≠ Ersteller
+    if (gruppe.erstellt_von !== admin.user_id) {
+      const adminName = (admin as any).name ?? (admin as any).username ?? admin.user_id
+      await createNotification({
+        user_id: gruppe.erstellt_von,
+        typ: 'colab_gruppe_geaendert',
+        titel: 'Deine Gruppe wurde geändert',
+        nachricht: `${adminName} (DK-Admin) hat deine Gruppe „${gruppe.name}"${name.trim() !== gruppe.name ? ` umbenannt in „${name.trim()}"` : ''} bearbeitet.`,
+        payload: {
+          gruppe_id: id,
+          alter_name: gruppe.name,
+          neuer_name: name.trim(),
+          admin_id: admin.user_id,
+          admin_name: adminName,
+        },
+      })
+    }
+
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// DELETE /api/admin/colab-gruppen-register/:id — Admin löschen
+adminColabRegisterRouter.delete('/:id', dkAny, async (req, res) => {
+  const { id } = req.params
+  const admin = req.user!
+  try {
+    const gruppe = await queryOne('SELECT * FROM colab_gruppen WHERE id = $1', [id])
+    if (!gruppe) return res.status(404).json({ error: 'Gruppe nicht gefunden' })
+
+    await pool.query('DELETE FROM colab_gruppen WHERE id = $1', [id])
+
+    // Notification an Ersteller, wenn Admin ≠ Ersteller
+    if (gruppe.erstellt_von !== admin.user_id) {
+      const adminName = (admin as any).name ?? (admin as any).username ?? admin.user_id
+      await createNotification({
+        user_id: gruppe.erstellt_von,
+        typ: 'colab_gruppe_geloescht',
+        titel: 'Deine Gruppe wurde gelöscht',
+        nachricht: `${adminName} (DK-Admin) hat deine Gruppe „${gruppe.name}" gelöscht.`,
+        payload: {
+          gruppe_name: gruppe.name,
+          admin_id: admin.user_id,
+          admin_name: adminName,
+        },
+      })
+    }
+
+    res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

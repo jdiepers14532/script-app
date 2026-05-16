@@ -284,6 +284,9 @@ export default function AppShell({
   const [appSwitcherOpen, setAppSwitcherOpen] = useState(false)
   const [navMenuOpen, setNavMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const [appList, setAppList] = useState<any[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [hasDkAccess, setHasDkAccess] = useState(false)
@@ -576,6 +579,21 @@ export default function AppShell({
       .then(d => setHasDkAccess(d.global || d.production_ids.length > 0))
       .catch(() => setHasDkAccess(false))
   }, [])
+
+  // ── Notifications laden + alle 60s pollen ────────────────────────────────
+  const loadNotifications = useCallback(async () => {
+    try {
+      const data = await api.getNotifications()
+      setNotifications(data.notifications ?? [])
+      setUnreadCount(data.unread_count ?? 0)
+    } catch { /* non-critical */ }
+  }, [])
+
+  useEffect(() => {
+    loadNotifications()
+    const id = setInterval(loadNotifications, 60_000)
+    return () => clearInterval(id)
+  }, [loadNotifications])
 
 
   // ── Einstellungen beim Start vom Backend laden ────────────────────────────
@@ -988,8 +1006,20 @@ export default function AppShell({
         </div>
 
 <Tooltip text="Benachrichtigungen" placement="bottom">
-          <button className="iconbtn topbar-extra">
+          <button
+            className="iconbtn topbar-extra"
+            onClick={() => { setNotifOpen(v => !v); setUserMenuOpen(false); setAppSwitcherOpen(false) }}
+            style={{ position: 'relative' }}
+          >
             <Bell size={14} />
+            {unreadCount > 0 && (
+              <span style={{
+                position: 'absolute', top: 2, right: 2,
+                width: 8, height: 8, borderRadius: '50%',
+                background: '#FF3B30', border: '1.5px solid var(--bg-surface)',
+                pointerEvents: 'none',
+              }} />
+            )}
           </button>
         </Tooltip>
         <Tooltip text={`Fokus-Modus (${sc('focusMode')})`} placement="bottom">
@@ -1357,6 +1387,79 @@ export default function AppShell({
               ))}
               {appList.length === 0 && (
                 <div className="as-empty">Keine Apps verfügbar</div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Notification Panel ── */}
+      {notifOpen && (
+        <>
+          <div className="menu-overlay" onClick={() => setNotifOpen(false)} />
+          <div style={{
+            position: 'fixed', top: 48, right: 48, zIndex: 200,
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderRadius: 12, boxShadow: 'var(--shadow-xl)',
+            width: 340, maxHeight: 480, display: 'flex', flexDirection: 'column',
+            overflow: 'hidden',
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>Benachrichtigungen</span>
+              {unreadCount > 0 && (
+                <button
+                  onClick={async () => {
+                    await api.markAllNotificationsRead().catch(() => {})
+                    setNotifications(prev => prev.map(n => ({ ...n, gelesen: true })))
+                    setUnreadCount(0)
+                  }}
+                  style={{ fontSize: 11, color: '#007AFF', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}
+                >
+                  Alle gelesen
+                </button>
+              )}
+            </div>
+
+            {/* List */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {notifications.length === 0 ? (
+                <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+                  Keine Benachrichtigungen
+                </div>
+              ) : (
+                notifications.map(n => (
+                  <div
+                    key={n.id}
+                    style={{
+                      padding: '11px 16px', borderBottom: '1px solid var(--border-subtle)',
+                      background: n.gelesen ? 'transparent' : 'rgba(0,122,255,0.04)',
+                      display: 'flex', gap: 10, alignItems: 'flex-start',
+                    }}
+                  >
+                    {/* Unread dot */}
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: n.gelesen ? 'transparent' : '#007AFF', flexShrink: 0, marginTop: 5 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: n.gelesen ? 400 : 600, lineHeight: 1.4 }}>{n.titel}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4 }}>{n.nachricht}</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
+                        {new Date(n.erstellt_am).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        await api.deleteNotification(n.id).catch(() => {})
+                        const updated = notifications.filter(x => x.id !== n.id)
+                        setNotifications(updated)
+                        setUnreadCount(updated.filter(x => !x.gelesen).length)
+                      }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, flexShrink: 0, display: 'flex' }}
+                      title="Entfernen"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))
               )}
             </div>
           </div>

@@ -56,7 +56,9 @@ import {
   werkstufenSessionsRouter,
   sichtbarkeitRouter,
   privatModeTokensPublicRouter,
+  adminColabRegisterRouter,
 } from './routes/teamwork'
+import { notificationsRouter } from './routes/notifications'
 import { runPrivatModusWorker } from './workers/privatModusWorker'
 
 // Load .env from project root or backend dir
@@ -185,6 +187,8 @@ app.use('/api/werkstufen-sessions', werkstufenSessionsRouter)
 app.use('/api/werkstufen', sichtbarkeitRouter)
 
 app.use('/api/statistik', statistikRouter)
+app.use('/api/admin/colab-gruppen-register', adminColabRegisterRouter)
+app.use('/api/notifications', notificationsRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
 
@@ -287,6 +291,7 @@ async function runMigrations() {
     'v72_drop_legacy.sql',
     'v73_notiz_vorlage_id.sql',
     'v74_szenen_revisionen.sql',
+    'v75_notifications.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
