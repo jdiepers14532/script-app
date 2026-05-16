@@ -350,7 +350,7 @@ function DkZugriffTab() {
                 fontFamily: 'inherit',
               }}
             >
-              + Hinzufuegen
+              + Hinzufügen
             </button>
           </div>
 
@@ -748,7 +748,7 @@ export default function AdminPage() {
                 color: 'var(--text-secondary)', fontSize: 13, padding: '2px 6px 2px 0',
               }}
             >
-              &larr; Zurueck
+              &larr; Zurück
             </button>
             <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
               Admin-Einstellungen

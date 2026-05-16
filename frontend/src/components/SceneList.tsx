@@ -630,7 +630,7 @@ export default function SceneList({
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 {straenge.filter(s => s.status === 'aktiv').map(s => (
                   <button key={`rm-${s.id}`} className="scene-ctx-item danger" onClick={() => handleBulkRemove(s.id)}>
-                    Entferne: {s.name}
+                    Entfernen: {s.name}
                   </button>
                 ))}
               </div>

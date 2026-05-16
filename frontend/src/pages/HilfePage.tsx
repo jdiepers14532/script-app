@@ -533,10 +533,10 @@ function DokumentEditorHilfeTab() {
           </p>
           {[
             { status: 'privat',     color: '#757575', desc: 'Nur der Ersteller. Andere sehen das Dokument nicht.' },
-            { status: 'colab',      color: '#007AFF', desc: 'Nur Mitglieder der Colab-Gruppe koennen schreiben. Echtzeit-Kollaboration aktiv.' },
-            { status: 'review',     color: '#FF9500', desc: 'Reviewer koennen lesen und annotieren, nicht schreiben.' },
+            { status: 'colab',      color: '#007AFF', desc: 'Nur Mitglieder der Colab-Gruppe können schreiben. Echtzeit-Kollaboration aktiv.' },
+            { status: 'review',     color: '#FF9500', desc: 'Reviewer können lesen und annotieren, nicht schreiben.' },
             { status: 'produktion', color: '#AF52DE', desc: 'Produktions-Gruppe sieht das Dokument (nur lesen).' },
-            { status: 'alle',       color: '#00C853', desc: 'Alle eingeloggten Nutzer koennen lesen.' },
+            { status: 'alle',       color: '#00C853', desc: 'Alle eingeloggten Nutzer können lesen.' },
           ].map(s => (
             <div key={s.status} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
               <span style={{ padding: '2px 8px', borderRadius: 99, border: `1px solid ${s.color}`, color: s.color, fontSize: 11, fontWeight: 500, flexShrink: 0, marginTop: 1 }}>{s.status}</span>
@@ -548,7 +548,7 @@ function DokumentEditorHilfeTab() {
 
       <Section title="3. Abgabe-Flow">
         <div style={{ fontSize: 12, lineHeight: 1.7, color: C.muted }}>
-          <p style={{ marginBottom: 12 }}>Die Schaltflaeche Abgeben friert die aktuelle Fassung ein und erstellt optional die naechste.</p>
+          <p style={{ marginBottom: 12 }}>Die Schaltfläche Abgeben friert die aktuelle Fassung ein und erstellt optional die nächste.</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {['Fassung 1 aktiv', 'Abgeben', 'F1 eingefroren', 'Fassung 2 erstellt'].map((s, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -557,7 +557,7 @@ function DokumentEditorHilfeTab() {
               </div>
             ))}
           </div>
-          <p style={{ marginTop: 12 }}>Eingefrorene Fassungen sind schreibgeschuetzt (HTTP 409 bei Schreibversuch).</p>
+          <p style={{ marginTop: 12 }}>Eingefrorene Fassungen sind schreibgeschützt (HTTP 409 bei Schreibversuch).</p>
         </div>
       </Section>
 
@@ -568,7 +568,7 @@ function DokumentEditorHilfeTab() {
           </p>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
             <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-              {['Element', 'Tab-Folge', 'Enter-Folge', 'Einrueckung L/R'].map(h => (
+              {['Element', 'Tab-Folge', 'Enter-Folge', 'Einrückung L/R'].map(h => (
                 <th key={h} style={{ textAlign: 'left', padding: '4px 8px', color: C.muted, fontWeight: 500 }}>{h}</th>
               ))}
             </tr></thead>
@@ -601,8 +601,8 @@ function DokumentEditorHilfeTab() {
             Technologie: Yjs + Hocuspocus WebSocket (/ws/collab).
           </p>
           <p>
-            Im Online-Modus werden Aenderungen in Echtzeit synchronisiert. Im Offline-Modus erscheint ein roter Warnhinweis.
-            Aenderungen werden bei Reconnect automatisch zusammengefuehrt.
+            Im Online-Modus werden Änderungen in Echtzeit synchronisiert. Im Offline-Modus erscheint ein roter Warnhinweis.
+            Änderungen werden bei Reconnect automatisch zusammengeführt.
           </p>
         </div>
       </Section>
@@ -610,7 +610,7 @@ function DokumentEditorHilfeTab() {
       <Section title="6. Side-by-Side Ansicht">
         <div style={{ fontSize: 12, lineHeight: 1.7, color: C.muted }}>
           <p>
-            Ueber den Columns-Button in der Topbar koennen zwei Panels nebeneinander angezeigt werden.
+            Über den Columns-Button in der Topbar können zwei Panels nebeneinander angezeigt werden.
             Jedes Panel hat einen eigenen Dokumenttyp- und Fassungs-Selektor.
             Typische Kombination: Storyline links, Drehbuch rechts.
           </p>
@@ -1884,7 +1884,7 @@ function InfoBox({ title, children, color = C.blue }: { title: string; children:
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Szenenuebersicht & Editor Tab
+// Szenenübersicht & Editor Tab
 // ══════════════════════════════════════════════════════════════════════════════
 function SzenenEditorTab() {
   return (
@@ -1898,12 +1898,12 @@ function SzenenEditorTab() {
         padding: '24px 28px',
         marginBottom: 36,
       }}>
-        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Szenenuebersicht (Sidebar) & Szenen-Editor</div>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Szenenübersicht (Sidebar) & Szenen-Editor</div>
         <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
           Die Script-App ist ein <strong>Per-Szene-Editor</strong>: Es wird immer nur eine einzelne Szene bearbeitet.
-          Die Szenenuebersicht (linke Sidebar) zeigt alle Szenen der aktuellen Werkstufe,
+          Die Szenenübersicht (linke Sidebar) zeigt alle Szenen der aktuellen Werkstufe,
           der Szenen-Editor (Kopfbereich rechts) zeigt die Metadaten und den Content der ausgewaehlten Szene.
-          Darunter schliessen sich die Dokument-Editor-Panels (Storyline / Drehbuch) an.
+          Darunter schließen sich die Dokument-Editor-Panels (Storyline / Drehbuch) an.
         </div>
       </div>
 
@@ -1984,9 +1984,9 @@ function SzenenEditorTab() {
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 2. Szenenuebersicht (SceneList) */}
+      {/* 2. Szenenübersicht (SceneList) */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="2. Szenenuebersicht (SceneList)">
+      <Section title="2. Szenenübersicht (SceneList)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
           Die linke Sidebar zeigt alle Szenen der aktuellen Werkstufe als kompakte Liste.
           Breite ist per Drag resize-bar und per Collapse-Button ein-/ausklappbar.
@@ -2004,7 +2004,7 @@ function SzenenEditorTab() {
                 <li><strong>Suche</strong> — filtert nach Szenennummer, Motivname, Zusammenfassung</li>
                 <li><strong>Farbkodierung</strong> — INT/EXT + Tageszeit bestimmen Farbstreifen (3 Modi: full/subtle/off)</li>
                 <li><strong>Drag & Drop</strong> — Szenen per Drag umsortieren (nur wenn keine Suche aktiv)</li>
-                <li><strong>Kontextmenu</strong> — "Einfuegen darunter" (Suffix-System) + "Loeschen" (Soft-Delete)</li>
+                <li><strong>Kontextmenü</strong> — "Einfügen darunter" (Suffix-System) + "Löschen" (Soft-Delete)</li>
                 <li><strong>Neu nummerieren</strong> — Header-Menu: sequentielle Nummerierung oder Position-Logging</li>
                 <li><strong>Neue Szene</strong> — Plus-Button: fuegt am Ende an</li>
                 <li><strong>Kommentar-Badge</strong> — zeigt ungelesene Annotationen aus messenger.app</li>
@@ -2054,7 +2054,7 @@ function SzenenEditorTab() {
 
         <WarnBox title="Drag & Drop nur bei leerer Suche">
           Wenn das Suchfeld Text enthaelt, ist Drag & Drop deaktiviert.
-          Die gefilterte Ansicht wuerde sonst zu unerwarteten Umsortierungen fuehren.
+          Die gefilterte Ansicht würde sonst zu unerwarteten Umsortierungen führen.
         </WarnBox>
       </Section>
 
@@ -2162,7 +2162,7 @@ function SzenenEditorTab() {
           }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: C.blue, marginBottom: 8 }}>Klick (SceneList)</div>
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
-              Klick auf eine Szenen-Zeile laedt diese Szene im Editor.
+              Klick auf eine Szenen-Zeile lädt diese Szene im Editor.
               Navigation wird persistent gespeichert (last_szene_id in user_settings).
             </div>
           </div>
@@ -2173,8 +2173,8 @@ function SzenenEditorTab() {
           }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: C.green, marginBottom: 8 }}>Pfeiltasten</div>
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
-              <code>←</code> / <code>→</code> = vorherige/naechste Szene (throttled 200ms)<br />
-              <code>↑</code> / <code>↓</code> = vorherige/naechste Episode (throttled 400ms, block-uebergreifend)<br />
+              <code>←</code> / <code>→</code> = vorherige/nächste Szene (throttled 200ms)<br />
+              <code>↑</code> / <code>↓</code> = vorherige/nächste Episode (throttled 400ms, block-übergreifend)<br />
               Nur aktiv wenn kein Input/Textarea fokussiert.
             </div>
           </div>
@@ -2185,7 +2185,7 @@ function SzenenEditorTab() {
           }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: C.orange, marginBottom: 8 }}>Overscroll</div>
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
-              Am Ende/Anfang des Editor-Inhalts weiterscrollen → naechste/vorherige Szene nach Delay.
+              Am Ende/Anfang des Editor-Inhalts weiterscrollen → nächste/vorherige Szene nach Delay.
               Delay konfigurierbar in User-Preferences (<code>scrollNavDelay</code>).
             </div>
           </div>
@@ -2203,7 +2203,7 @@ function SzenenEditorTab() {
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       <Section title="5. Daten-Flow: Wie alles zusammenhaengt">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Die ScriptPage laedt Szenen aus dem Werkstufen-System (v2). Aeltere Daten werden ueber Fallback geladen.
+          Die ScriptPage lädt Szenen aus dem Werkstufen-System (v2). Ältere Daten werden über Fallback geladen.
         </p>
 
         <div style={{
@@ -2225,7 +2225,7 @@ function SzenenEditorTab() {
                 { step: '4', label: 'Stages laden', desc: '/api/stages/:produktionId/:folgeNr → Stage-Tabs' },
                 { step: '5', label: 'Werkstufen pruefen', desc: '/api/v2/folgen → folge_id → /api/folgen/:id/werkstufen → passender Typ' },
                 { step: '6', label: 'Szenen laden', desc: '/api/werkstufen/:werkId/szenen → SceneList + SceneEditor' },
-                { step: '7', label: 'Szene auswaehlen', desc: 'Erste Szene oder saved last_szene_id → SceneEditor laedt Details' },
+                { step: '7', label: 'Szene auswählen', desc: 'Erste Szene oder saved last_szene_id → SceneEditor lädt Details' },
               ].map((s) => (
                 <div key={s.step} style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                   <Badge color={C.blue}>{s.step}</Badge>
@@ -2306,7 +2306,7 @@ function SzenenEditorTab() {
           }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: C.orange, marginBottom: 8 }}>Content (Editor-Text)</div>
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
-              Debounced Auto-Save: 3 Sekunden nach letzter Aenderung.<br />
+              Debounced Auto-Save: 3 Sekunden nach letzter Änderung.<br />
               Speichert via PUT <code>{'{ content: [...] }'}</code>.<br />
               Statusanzeige: "Speichert…" → "Gespeichert" (2s sichtbar).
             </div>
@@ -2344,7 +2344,7 @@ function SzenenEditorTab() {
               <li>Klick auf Annotations-Button im SceneEditor oeffnet das Panel</li>
               <li>Panel zeigt alle Annotationen chronologisch + Eingabefeld fuer neue</li>
               <li>Neue Annotation → POST an Backend → messenger.app wird benachrichtigt</li>
-              <li>Beim Schliessen des Panels werden Kommentare als gelesen markiert</li>
+              <li>Beim Schließen des Panels werden Kommentare als gelesen markiert</li>
               <li>Link "Messenger" oeffnet die volle messenger.app in neuem Tab</li>
             </ol>
           </div>
@@ -2411,7 +2411,7 @@ function SzenenFassungenTab() {
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Werkstufen-Modell (v2)</div>
         <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
           5 Kerntabellen: <code>produktionen</code> → <code>folgen</code> → <code>scene_identities</code> +{' '}
-          <code>werkstufen</code> → <code>dokument_szenen</code>. Content lebt ausschliesslich in{' '}
+          <code>werkstufen</code> → <code>dokument_szenen</code>. Content lebt ausschließlich in{' '}
           <code>dokument_szenen.content</code> — kein separates <code>inhalt</code>-Feld.
           Die <strong>Scene Identity</strong> (UUID) bleibt stabil ueber alle Werkstufen hinweg,
           auch wenn Szenennummer, Position oder Motiv sich aendern.
@@ -2421,7 +2421,7 @@ function SzenenFassungenTab() {
             { label: 'Scene Identity', desc: 'Stabile UUID pro Szene', color: C.blue },
             { label: 'Werkstufe', desc: 'Storyline V1, Drehbuch V2...', color: C.orange },
             { label: 'Dokument-Szene', desc: 'Content + Header (N:M)', color: C.green },
-            { label: 'Soft-Delete', desc: 'geloescht=true fuer Diff', color: C.purple },
+            { label: 'Soft-Delete', desc: 'gelöscht=true für Diff', color: C.purple },
           ].map(b => (
             <div key={b.label} style={{
               flex: '1 1 160px',
@@ -2440,7 +2440,7 @@ function SzenenFassungenTab() {
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       {/* 1. ER-Diagramm — Werkstufen-Modell */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="1. Datenmodell — ER-Uebersicht (5 Kerntabellen)">
+      <Section title="1. Datenmodell — ER-Übersicht (5 Kerntabellen)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 20 }}>
           Die Hierarchie: <strong>Produktion → Folge → Scene Identity + Werkstufe → Dokument-Szene</strong>.{' '}
           <code>dokument_szenen</code> ist die N:M-Kreuzungstabelle zwischen Szenen und Werkstufen.
@@ -2552,15 +2552,15 @@ function SzenenFassungenTab() {
                 { name: 'stoppzeit_sek', type: 'INT', desc: 'Spieldauer in Sekunden (Frontend: mm:ss)' },
                 { name: 'spieltag', type: 'INT', desc: 'Drehtag-Index' },
                 { name: 'szeneninfo', type: 'TEXT', desc: 'Redaktionelle Hinweise (z.B. Block-Zuordnung)' },
-                { name: 'geloescht', type: 'BOOL', desc: 'Soft-Delete (bleibt fuer Diff)' },
+                { name: 'geloescht', type: 'BOOL', desc: 'Soft-Delete (bleibt für Diff)' },
                 { name: 'is_wechselschnitt', type: 'BOOL', desc: 'Wechselschnitt-Szene (Legacy)' },
                 { name: 'sondertyp', type: 'TEXT', desc: "NULL|'wechselschnitt'|'stockshot'|'flashback'" },
                 { name: 'stockshot_kategorie', type: 'TEXT', desc: "'ortswechsel'|'zeit_vergeht'|'stimmungswechsel'" },
                 { name: 'stockshot_stimmung', type: 'TEXT', desc: 'Stimmung bei Stimmungswechsel' },
                 { name: 'stockshot_neu_drehen', type: 'BOOL', desc: 'Muss neu gefilmt werden' },
                 { name: 'flashback_referenz_id', type: 'UUID', desc: 'FK → scene_identities (Ursprungsszene)' },
-                { name: 'bearbeitet_von', type: 'TEXT', desc: 'Wer hat zuletzt geaendert' },
-                { name: 'bearbeitet_am', type: 'TSTZ', desc: 'Letzte Aenderung' },
+                { name: 'bearbeitet_von', type: 'TEXT', desc: 'Wer hat zuletzt geändert' },
+                { name: 'bearbeitet_am', type: 'TSTZ', desc: 'Letzte Änderung' },
               ]}
             />
           </div>
@@ -2591,7 +2591,7 @@ function SzenenFassungenTab() {
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 2. Werkstufe vs. Fassung — was hat sich geaendert */}
+      {/* 2. Werkstufe vs. Fassung — was hat sich geändert */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       <Section title="2. Werkstufe (ersetzt Fassung)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
@@ -2656,7 +2656,7 @@ function SzenenFassungenTab() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {[
                 'Neue Werkstufe anlegen (typ, version)',
-                'Alle dokument_szenen kopieren (geloescht=false)',
+                'Alle dokument_szenen kopieren (gelöscht=false)',
                 'Gleiche scene_identity_ids beibehalten',
                 'Neue UUIDs fuer dokument_szenen',
                 'scene_characters mitkopieren (neue werkstufe_id)',
@@ -2710,7 +2710,7 @@ function SzenenFassungenTab() {
                 270 → "04:30" (Frontend-Formatierung)<br />
                 Gesamt = SUM(stoppzeit_sek)<br />
                 WHERE werkstufe_id=X<br />
-                AND geloescht=false
+                AND gelöscht=false
               </div>
               <div style={{ marginTop: 8 }}>
                 Ersetzt die alten Felder <code>dauer_min</code> + <code>dauer_sek</code>.
@@ -2724,7 +2724,7 @@ function SzenenFassungenTab() {
           }}>
             <div style={{ fontWeight: 700, fontSize: 13, color: C.purple, marginBottom: 8 }}>Soft-Delete</div>
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
-              <code>geloescht BOOLEAN</code> — kein echtes Loeschen.
+              <code>geloescht BOOLEAN</code> — kein echtes Löschen.
               <ul style={{ margin: '8px 0', paddingLeft: 16 }}>
                 <li>Im Editor/Navigator: ausgeblendet</li>
                 <li>Neue Werkstufe: nicht mitkopiert</li>
@@ -2737,17 +2737,17 @@ function SzenenFassungenTab() {
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      {/* 4. Verknuepfte Tabellen */}
+      {/* 4. Verknüpfte Tabellen */}
       {/* ══════════════════════════════════════════════════════════════════════════ */}
-      <Section title="4. Verknuepfte Tabellen (Characters, Vorstopp, Revision)">
+      <Section title="4. Verknüpfte Tabellen (Characters, Vorstopp, Revision)">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Characters und Vorstopp haengen an <code>scene_identity_id</code> (werkstufenuebergreifend stabil).
-          Revisionen haengen an <code>dokument_szene_id</code> (pro Werkstufe-Auspraegung).
+          Characters und Vorstopp hängen an <code>scene_identity_id</code> (werkstufenübergreifend stabil).
+          Revisionen hängen an <code>dokument_szene_id</code> (pro Werkstufe-Ausprägung).
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
           <TableCard title="scene_characters" color={C.orange}
-            note="Welche Charaktere spielen in dieser Szene? (v46: werkstufe_id hinzugefuegt)"
+            note="Welche Charaktere spielen in dieser Szene? (v46: werkstufe_id hinzugefügt)"
             fields={[
               { name: 'id', type: 'SERIAL', desc: 'PK' },
               { name: 'scene_identity_id', type: 'UUID FK', desc: '→ scene_identities.id (stabil!)' },
@@ -2775,7 +2775,7 @@ function SzenenFassungenTab() {
         </div>
 
         <TableCard title="szenen_revisionen" color={C.red}
-          note="Delta-Tracking: Was hat sich geaendert?"
+          note="Delta-Tracking: Was hat sich geändert?"
           fields={[
             { name: 'id', type: 'SERIAL', desc: 'PK' },
             { name: 'dokument_szene_id', type: 'UUID FK', desc: '→ dokument_szenen.id (pro Werkstufe)' },
@@ -2792,7 +2792,7 @@ function SzenenFassungenTab() {
       {/* ══════════════════════════════════════════════════════════════════════════ */}
       <Section title="5. Character-Referenztabellen">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
-          Charaktere sind globale Entitaeten (produktionsuebergreifend). Pro Staffel gibt es
+          Charaktere sind globale Entitäten (produktionsübergreifend). Pro Staffel gibt es
           Produktions-Nummern und Kategorien.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
@@ -2852,9 +2852,9 @@ function SzenenFassungenTab() {
           </div>
 
           {[
-            { left: '1. INT. Kueche - TAG', right: '1. INT. Kueche - TAG', status: 'gleich', bg: 'transparent' },
-            { left: '2. EXT. Garten - TAG', right: '2. EXT. Garten - ABEND', status: 'geaendert', bg: '#fef3c7' },
-            { left: '3. INT. Buero - TAG', right: null, status: 'gestrichen', bg: '#fee2e2' },
+            { left: '1. INT. Küche - TAG', right: '1. INT. Küche - TAG', status: 'gleich', bg: 'transparent' },
+            { left: '2. EXT. Garten - TAG', right: '2. EXT. Garten - ABEND', status: 'geändert', bg: '#fef3c7' },
+            { left: '3. INT. Büro - TAG', right: null, status: 'gestrichen', bg: '#fee2e2' },
             { left: null, right: '3. INT. Cafe - TAG', status: 'neu', bg: '#d1fae5' },
             { left: '4. EXT. Park - NACHT', right: '4. EXT. Park - NACHT', status: 'gleich', bg: 'transparent' },
           ].map((row, i) => (
@@ -2868,7 +2868,7 @@ function SzenenFassungenTab() {
               </div>
               <div style={{ textAlign: 'center', alignSelf: 'center' }}>
                 {row.status === 'gleich' && <span style={{ color: C.green }}>===</span>}
-                {row.status === 'geaendert' && <span style={{ color: C.orange }}>=/=</span>}
+                {row.status === 'geändert' && <span style={{ color: C.orange }}>=/=</span>}
                 {row.status === 'gestrichen' && <span style={{ color: C.red }}>DEL</span>}
                 {row.status === 'neu' && <span style={{ color: C.green }}>NEW</span>}
               </div>
@@ -2881,9 +2881,9 @@ function SzenenFassungenTab() {
 
         <div style={{ display: 'flex', gap: 16, fontSize: 11, flexWrap: 'wrap' }}>
           {[
-            { color: '#fef3c7', border: '#f59e0b', label: 'Geaendert', desc: 'Felder unterscheiden sich' },
+            { color: '#fef3c7', border: '#f59e0b', label: 'Geändert', desc: 'Felder unterscheiden sich' },
             { color: '#d1fae5', border: '#10b981', label: 'Neu', desc: 'Nur in rechter Werkstufe' },
-            { color: '#fee2e2', border: '#ef4444', label: 'Gestrichen', desc: 'geloescht=true oder nicht kopiert' },
+            { color: '#fee2e2', border: '#ef4444', label: 'Gestrichen', desc: 'gelöscht=true oder nicht kopiert' },
           ].map(l => (
             <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 14, height: 14, borderRadius: 3, background: l.color, border: `1px solid ${l.border}`, display: 'inline-block' }} />
@@ -2902,22 +2902,22 @@ function SzenenFassungenTab() {
 
           <WarnBox title="1. Content lebt NUR in dokument_szenen.content">
             Es gibt kein separates <code>inhalt</code>-Feld auf Werkstufe/Fassung.
-            Der Editor laedt und speichert ausschliesslich ueber <code>dokument_szenen</code>.
-            Dies eliminiert die fruehre Redundanz zwischen <code>fassungen.inhalt</code> und{' '}
+            Der Editor lädt und speichert ausschließlich über <code>dokument_szenen</code>.
+            Dies eliminiert die frühere Redundanz zwischen <code>fassungen.inhalt</code> und{' '}
             <code>dokument_szenen.content</code>.
           </WarnBox>
 
           <WarnBox title="2. Version lebt NUR in werkstufen">
             <code>dokument_szenen</code> hat keine eigene Versionsnummer.
-            Die Version wird ueber <code>werkstufe.version_nummer</code> + <code>werkstufe.typ</code> bestimmt.
+            Die Version wird über <code>werkstufe.version_nummer</code> + <code>werkstufe.typ</code> bestimmt.
             Eine Werkstufe IST die Version.
           </WarnBox>
 
-          <WarnBox title="3. Scene Identity darf nie geloescht werden">
-            Eine <code>scene_identity</code> ist die Klammer ueber alle Werkstufen.
-            CASCADE DELETE wuerde alle <code>dokument_szenen</code>,{' '}
-            <code>scene_characters</code> und <code>szenen_vorstopp</code> mitloeschen.
-            Nur beim Loeschen einer ganzen Folge zulaessig.
+          <WarnBox title="3. Scene Identity darf nie gelöscht werden">
+            Eine <code>scene_identity</code> ist die Klammer über alle Werkstufen.
+            CASCADE DELETE würde alle <code>dokument_szenen</code>,{' '}
+            <code>scene_characters</code> und <code>szenen_vorstopp</code> mitlöschen.
+            Nur beim Löschen einer ganzen Folge zulässig.
           </WarnBox>
 
           <WarnBox title="4. Abgegeben-Flag blockiert alle Szenen">
@@ -2927,7 +2927,7 @@ function SzenenFassungenTab() {
           </WarnBox>
 
           <WarnBox title="5. Kollaboration pro Werkstufe">
-            Bearbeitung_status-Aenderungen (z.B. auf "collab") gelten fuer alle dokument_szenen
+            Bearbeitung_status-Änderungen (z.B. auf "collab") gelten für alle dokument_szenen
             einer Werkstufe. Jede dokument_szene hat ihren eigenen Yjs-Room, aber der Status
             wird zentral auf der Werkstufe gesteuert.
           </WarnBox>
@@ -2969,7 +2969,7 @@ function SzenenFassungenTab() {
               { m: 'POST',   p: '/api/folgen/:folgeId/werkstufen',         d: 'Neue Werkstufe (kopiert Vorgaenger + Characters)' },
               { m: 'GET',    p: '/api/werkstufen/:id',                     d: 'Einzelne Werkstufe (inkl. szenen_count)' },
               { m: 'PUT',    p: '/api/werkstufen/:id',                     d: 'Status/Sichtbarkeit/Label/stand_datum aendern' },
-              { m: 'DELETE', p: '/api/werkstufen/:id',                     d: 'Werkstufe loeschen (CASCADE)' },
+              { m: 'DELETE', p: '/api/werkstufen/:id',                     d: 'Werkstufe löschen (CASCADE)' },
               { m: 'GET',    p: '/api/werkstufen/:werkId/szenen',          d: 'Alle Szenen einer Werkstufe' },
               { m: 'POST',   p: '/api/werkstufen/:werkId/szenen',          d: 'Neue Szene hinzufuegen' },
               { m: 'PATCH',  p: '/api/werkstufen/:werkId/szenen/reorder',  d: 'Szenen-Reihenfolge aendern' },
@@ -2977,7 +2977,7 @@ function SzenenFassungenTab() {
               { m: 'GET',    p: '/api/werkstufen/:a/szenen/diff/:b',       d: 'Werkstufen-Vergleich (Diff)' },
               { m: 'GET',    p: '/api/dokument-szenen/:id',                d: 'Einzelne Szene laden' },
               { m: 'PUT',    p: '/api/dokument-szenen/:id',                d: 'Szenenkopf + Content aktualisieren' },
-              { m: 'DELETE', p: '/api/dokument-szenen/:id',                d: 'Soft-Delete (geloescht=true)' },
+              { m: 'DELETE', p: '/api/dokument-szenen/:id',                d: 'Soft-Delete (gelöscht=true)' },
               { m: 'GET',    p: '/api/scene-identities/:id/characters',    d: 'Charaktere einer Szene' },
               { m: 'POST',   p: '/api/scene-identities/:id/characters',    d: 'Charakter hinzufuegen' },
               { m: 'GET',    p: '/api/scene-identities/:id/vorstopp',      d: 'Vorstopp-Zeiten laden' },
@@ -3013,7 +3013,7 @@ function SzenenFassungenTab() {
             { phase: '1', name: 'Migration: Neue Tabellen + Datenmigration', desc: 'v43 deployed — folgen, werkstufen, scene_identities.folge_id, dokument_szenen.werkstufe_id', risk: 'erledigt', color: C.green },
             { phase: '2', name: 'Backend: Neue Routen (parallel)', desc: 'Deployed — /api/v2/folgen, /api/v2/folgen/:id/werkstufen, /api/werkstufen/:id/szenen', risk: 'erledigt', color: C.green },
             { phase: '3', name: 'Import-System umbauen', desc: 'Deployed — Import schreibt Dual-Write in folgen + werkstufen', risk: 'erledigt', color: C.green },
-            { phase: '4', name: 'Frontend: Editor-Refactoring', desc: 'Deployed — ScriptPage laedt Werkstufen-Szenen, stoppzeit_sek mm:ss', risk: 'erledigt', color: C.green },
+            { phase: '4', name: 'Frontend: Editor-Refactoring', desc: 'Deployed — ScriptPage lädt Werkstufen-Szenen, stoppzeit_sek mm:ss', risk: 'erledigt', color: C.green },
             { phase: '5', name: 'Kollaboration anpassen', desc: 'Deployed — szene-{id} Rooms, yjs_state auf dokument_szenen, Werkstufe-Status-Check', risk: 'erledigt', color: C.green },
             { phase: '6', name: 'Export-System anpassen', desc: 'Deployed — /api/stages/werkstufe/:werkId/export/{fountain,fdx,pdf}', risk: 'erledigt', color: C.green },
             { phase: '7', name: 'Cleanup: Alte Tabellen droppen', desc: 'Deployed — folgen_meta + v_legacy_data_status entfernt, dual-writes gestoppt, folgen.ts auf folgen-Tabelle migriert', risk: 'erledigt', color: C.green },
@@ -3065,7 +3065,7 @@ function NetzplanDiagram() {
     { id:'folgen', g:'core', f:[['id','SERIAL PK','Episoden-Key'],['produktion_id','TEXT FK','Produktion','produktionen'],['folge_nummer','INT','Episodennummer (UNIQUE)'],['folgen_titel','TEXT','Arbeitstitel'],['air_date','DATE','Sendedatum'],['synopsis','TEXT','Synopsis'],['produktion_db_id','UUID','Link zur Prod-DB'],['erstellt_von','TEXT','user_id'],['erstellt_am','TSTZ','Erstellt']]},
     { id:'scene_identities', g:'core', f:[['id','UUID PK','Stabile Szenen-UUID'],['folge_id','INT FK','Episode','folgen'],['created_by','TEXT','Ersteller'],['created_at','TSTZ','Erstellt']]},
     { id:'werkstufen', g:'core', f:[['id','UUID PK','Werkstufen-ID'],['folge_id','INT FK','Episode','folgen'],['typ','TEXT','drehbuch|storyline|notiz'],['version_nummer','INT','Version (1,2,3...)'],['label','TEXT','z.B. Blaue Seiten'],['sichtbarkeit','TEXT','privat|team|alle'],['abgegeben','BOOL','Eingefroren?'],['bearbeitung_status','TEXT','entwurf|in_review|approved'],['erstellt_von','TEXT','user_id'],['erstellt_am','TSTZ','Erstellt'],['stand_datum','DATE','Stand-Datum']]},
-    { id:'dokument_szenen', g:'core', f:[['id','UUID PK','Szenen-Instanz'],['werkstufe_id','UUID FK','Werkstufe','werkstufen'],['scene_identity_id','UUID FK','Stabile SZ-ID','scene_identities'],['sort_order','INT','Reihenfolge'],['scene_nummer','INT','Szenennummer'],['scene_nummer_suffix','VARCHAR','a, b (WGA)'],['ort_name','TEXT','Motivname'],['int_ext','TEXT','INT|EXT|INT/EXT'],['tageszeit','TEXT','TAG|NACHT|ABEND'],['spieltag','INT','Drehtag-Index'],['spielzeit','TEXT','Spielzeit-Info'],['zusammenfassung','TEXT','Kurzbeschreibung'],['szeneninfo','TEXT','Redaktionelle Hinweise'],['seiten','TEXT','Seitenzahl (2 5/8)'],['dauer_min','INT','Dauer Min (Legacy)'],['dauer_sek','INT','Dauer Sek (Legacy)'],['is_wechselschnitt','BOOL','Legacy WS-Flag'],['sondertyp','TEXT','wechselschnitt|stockshot|flashback'],['stockshot_kategorie','TEXT','ortswechsel|zeit_vergeht|stimmungswechsel'],['stockshot_stimmung','TEXT','Stimmungswert'],['stockshot_neu_drehen','BOOL','Neu zu drehen?'],['flashback_referenz_id','UUID FK','Ursprungsszene','scene_identities'],['content','JSONB','ProseMirror JSON'],['format','TEXT','Editor-Typ'],['stoppzeit_sek','INT','Spieldauer Sek'],['geloescht','BOOL','Soft-Delete'],['yjs_state','BYTEA','Yjs Collab State'],['updated_by','TEXT','Letzter Bearbeiter'],['updated_at','TSTZ','Letzte Aenderung']]},
+    { id:'dokument_szenen', g:'core', f:[['id','UUID PK','Szenen-Instanz'],['werkstufe_id','UUID FK','Werkstufe','werkstufen'],['scene_identity_id','UUID FK','Stabile SZ-ID','scene_identities'],['sort_order','INT','Reihenfolge'],['scene_nummer','INT','Szenennummer'],['scene_nummer_suffix','VARCHAR','a, b (WGA)'],['ort_name','TEXT','Motivname'],['int_ext','TEXT','INT|EXT|INT/EXT'],['tageszeit','TEXT','TAG|NACHT|ABEND'],['spieltag','INT','Drehtag-Index'],['spielzeit','TEXT','Spielzeit-Info'],['zusammenfassung','TEXT','Kurzbeschreibung'],['szeneninfo','TEXT','Redaktionelle Hinweise'],['seiten','TEXT','Seitenzahl (2 5/8)'],['dauer_min','INT','Dauer Min (Legacy)'],['dauer_sek','INT','Dauer Sek (Legacy)'],['is_wechselschnitt','BOOL','Legacy WS-Flag'],['sondertyp','TEXT','wechselschnitt|stockshot|flashback'],['stockshot_kategorie','TEXT','ortswechsel|zeit_vergeht|stimmungswechsel'],['stockshot_stimmung','TEXT','Stimmungswert'],['stockshot_neu_drehen','BOOL','Neu zu drehen?'],['flashback_referenz_id','UUID FK','Ursprungsszene','scene_identities'],['content','JSONB','ProseMirror JSON'],['format','TEXT','Editor-Typ'],['stoppzeit_sek','INT','Spieldauer Sek'],['geloescht','BOOL','Soft-Delete'],['yjs_state','BYTEA','Yjs Collab State'],['updated_by','TEXT','Letzter Bearbeiter'],['updated_at','TSTZ','Letzte Änderung']]},
     { id:'wechselschnitt_partner', g:'core', f:[['id','UUID PK','Partner-ID'],['dokument_szene_id','UUID FK','WS-Szene','dokument_szenen'],['partner_identity_id','UUID FK','Partner-Szene','scene_identities'],['position','INT','Reihenfolge']]},
     { id:'stockshot_archiv', g:'core', f:[['id','UUID PK','Archiv-ID'],['produktion_id','TEXT','Staffel'],['motiv_name','TEXT','Motivname'],['motiv_id','UUID FK','Motiv','motive'],['lichtstimmung','TEXT','z.B. TAG, NACHT'],['quelle_folge_nr','INT','Gefilmt in Folge'],['quelle_szene_id','UUID FK','Quell-Szene','scene_identities'],['erstellt_am','TSTZ','Erstellt']]},
     { id:'stockshot_templates', g:'core', f:[['id','UUID PK','Template-ID'],['produktion_id','TEXT','Staffel'],['kategorie','TEXT','ortswechsel|zeit_vergeht|stimmungswechsel'],['name','TEXT','Template-Name'],['oneliner_vorlage','TEXT','Text mit {motiv}/{stimmung}'],['sortierung','INT','Reihenfolge'],['erstellt_am','TSTZ','Erstellt']]},
@@ -3074,14 +3074,14 @@ function NetzplanDiagram() {
     { id:'character_kategorien', g:'char', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','z.B. Hauptrolle'],['typ','TEXT','rolle|komparse'],['sort_order','INT','Reihenfolge']]},
     { id:'scene_characters', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Charakter','characters'],['kategorie_id','INT FK','Kategorie','character_kategorien'],['anzahl','INT','Bei Gruppen'],['ist_gruppe','BOOL','Gruppen-Eintrag?'],['scene_identity_id','UUID FK','Szene (stabil)','scene_identities'],['spiel_typ','TEXT','o.t.|spiel|text'],['repliken_anzahl','INT','Anzahl Repliken'],['header_o_t','BOOL','Im Header als o.T.'],['werkstufe_id','UUID FK','Werkstufe','werkstufen']]},
     { id:'charakter_beziehungen', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Quell-Charakter','characters'],['related_character_id','UUID FK','Ziel-Charakter','characters'],['beziehungstyp','TEXT','parent|spouse|...'],['label','TEXT','Freies Label']]},
-    { id:'charakter_fotos', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Charakter','characters'],['dateiname','TEXT','Server-Dateiname'],['originalname','TEXT','Upload-Name'],['label','TEXT','Beschriftung'],['sort_order','INT','Reihenfolge'],['ist_primaer','BOOL','Primaerfoto?'],['hochgeladen_am','TSTZ','Upload-Datum'],['media_typ','TEXT','image|video'],['thumbnail_dateiname','TEXT','Thumbnail']]},
+    { id:'charakter_fotos', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Charakter','characters'],['dateiname','TEXT','Server-Dateiname'],['originalname','TEXT','Upload-Name'],['label','TEXT','Beschriftung'],['sort_order','INT','Reihenfolge'],['ist_primaer','BOOL','Primärfoto?'],['hochgeladen_am','TSTZ','Upload-Datum'],['media_typ','TEXT','image|video'],['thumbnail_dateiname','TEXT','Thumbnail']]},
     { id:'charakter_felder_config', g:'char', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','Feldname'],['typ','TEXT','text|richtext|select|ref'],['optionen','JSONB','Select-Optionen'],['sort_order','INT','Reihenfolge'],['gilt_fuer','TEXT','alle|rolle|komparse']]},
     { id:'charakter_feldwerte', g:'char', f:[['id','SERIAL PK','Interne ID'],['character_id','UUID FK','Charakter','characters'],['motiv_id','UUID FK','Motiv','motive'],['feld_id','INT FK','Feld-Config','charakter_felder_config'],['wert_text','TEXT','Text-Wert'],['wert_json','JSONB','Rich-Text/Struktur']]},
     { id:'charakter_feld_links', g:'char', f:[['id','SERIAL PK','Interne ID'],['source_character_id','UUID FK','Quell-Charakter','characters'],['feld_id','INT FK','Feld-Config','charakter_felder_config'],['linked_character_id','UUID FK','Ziel-Charakter','characters'],['created_at','TSTZ','Erstellt']]},
     { id:'drehorte', g:'motiv', f:[['id','UUID PK','Drehort-ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['label','TEXT','z.B. Stu. 01'],['sort_order','INT','Reihenfolge'],['created_at','TSTZ','Erstellt']]},
     { id:'motive', g:'motiv', f:[['id','UUID PK','Motiv-ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['motiv_nummer','TEXT','z.B. M01'],['name','TEXT','Motivname'],['typ','TEXT','interior|exterior'],['meta_json','JSONB','Metadaten'],['created_at','TSTZ','Erstellt'],['drehort_id','UUID FK','Phys. Drehort','drehorte'],['parent_id','UUID FK','Hauptmotiv','motive']]},
-    { id:'motiv_fotos', g:'motiv', f:[['id','SERIAL PK','Interne ID'],['motiv_id','UUID FK','Motiv','motive'],['dateiname','TEXT','Server-Dateiname'],['originalname','TEXT','Upload-Name'],['label','TEXT','Beschriftung'],['sort_order','INT','Reihenfolge'],['ist_primaer','BOOL','Primaerfoto?'],['hochgeladen_am','TSTZ','Upload-Datum'],['media_typ','TEXT','image|video'],['thumbnail_dateiname','TEXT','Thumbnail']]},
-    { id:'szenen_revisionen', g:'rev', f:[['id','SERIAL PK','Interne ID'],['dokument_szene_id','UUID FK NOT NULL','Szene','dokument_szenen'],['field_type','TEXT','header|content_block'],['field_name','TEXT','ort_name, spieltag...'],['block_index','INT','Content-Block-Idx'],['block_type','TEXT','action|dialogue|...'],['speaker','TEXT','Sprecher'],['old_value','TEXT','Vorheriger Wert'],['new_value','TEXT','Neuer Wert'],['created_at','TSTZ','Aenderungszeitpunkt']]},
+    { id:'motiv_fotos', g:'motiv', f:[['id','SERIAL PK','Interne ID'],['motiv_id','UUID FK','Motiv','motive'],['dateiname','TEXT','Server-Dateiname'],['originalname','TEXT','Upload-Name'],['label','TEXT','Beschriftung'],['sort_order','INT','Reihenfolge'],['ist_primaer','BOOL','Primärfoto?'],['hochgeladen_am','TSTZ','Upload-Datum'],['media_typ','TEXT','image|video'],['thumbnail_dateiname','TEXT','Thumbnail']]},
+    { id:'szenen_revisionen', g:'rev', f:[['id','SERIAL PK','Interne ID'],['dokument_szene_id','UUID FK NOT NULL','Szene','dokument_szenen'],['field_type','TEXT','header|content_block'],['field_name','TEXT','ort_name, spieltag...'],['block_index','INT','Content-Block-Idx'],['block_type','TEXT','action|dialogue|...'],['speaker','TEXT','Sprecher'],['old_value','TEXT','Vorheriger Wert'],['new_value','TEXT','Neuer Wert'],['created_at','TSTZ','Änderungszeitpunkt']]},
     { id:'szenen_vorstopp', g:'rev', f:[['id','SERIAL PK','Interne ID'],['scene_identity_id','UUID FK','Szene (stabil)','scene_identities'],['stage','TEXT','drehbuch|vorber.|dreh|schnitt'],['user_id','TEXT','Wer hat gemessen'],['user_name','TEXT','Anzeigename'],['dauer_sekunden','INT','Gemessene Zeit'],['methode','TEXT','manuell|auto_*'],['created_at','TSTZ','Erstellt'],['updated_at','TSTZ','Aktualisiert']]},
     { id:'vorstopp_einstellungen', g:'rev', f:[['produktion_id','TEXT PK/FK','Produktion','produktionen'],['methode','TEXT','seiten|zeichen|woerter'],['menge','NUMERIC','Einheiten/Dauer'],['dauer_sekunden','INT','Sek/Mengeneinheit'],['updated_at','TSTZ','Aktualisiert']]},
     { id:'stage_labels', g:'rev', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','Label-Name'],['sort_order','INT','Reihenfolge'],['is_produktionsfassung','BOOL','Produktionsfassung?']]},
@@ -3089,10 +3089,10 @@ function NetzplanDiagram() {
     { id:'revision_export_einstellungen', g:'rev', f:[['produktion_id','TEXT PK/FK','Produktion','produktionen'],['memo_schwellwert_zeichen','INT','Memo-Schwelle (100)'],['updated_at','TSTZ','Aktualisiert']]},
     { id:'dokument_colab_gruppen', g:'collab', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','Gruppenname'],['typ','TEXT','colab|produktion'],['erstellt_von','TEXT','Ersteller'],['erstellt_am','TSTZ','Erstellt']]},
     { id:'dokument_colab_gruppe_mitglieder', g:'collab', f:[['gruppe_id','INT FK','Gruppe','dokument_colab_gruppen'],['user_id','TEXT','Benutzer-ID'],['user_name','TEXT','Anzeigename']]},
-    { id:'dokument_benachrichtigungen', g:'collab', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['ereignis','TEXT','version_submitted|...'],['empfaenger_user_ids','TEXT[]','Empfaenger'],['aktiv','BOOL','An/Aus']]},
+    { id:'dokument_benachrichtigungen', g:'collab', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['ereignis','TEXT','version_submitted|...'],['empfaenger_user_ids','TEXT[]','Empfänger'],['aktiv','BOOL','An/Aus']]},
     { id:'dokument_typ_definitionen', g:'collab', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['name','TEXT','z.B. Drehbuch'],['editor_modus','TEXT','screenplay|richtext'],['sort_order','INT','Reihenfolge'],['erstellt_von','TEXT','Ersteller'],['erstellt_am','TSTZ','Erstellt']]},
     { id:'editor_format_templates', g:'editor', f:[['id','SERIAL PK','Interne ID'],['name','TEXT','z.B. Final Draft Std.'],['ist_standard','BOOL','Default?'],['erstellt_von','TEXT','Ersteller'],['erstellt_am','TSTZ','Erstellt']]},
-    { id:'editor_format_elemente', g:'editor', f:[['id','SERIAL PK','Interne ID'],['template_id','INT FK','Template','editor_format_templates'],['element_typ','TEXT','scene_heading|action|...'],['einrueckung_links','INT','Einrueckung L (%)'],['einrueckung_rechts','INT','Einrueckung R (%)'],['ausrichtung','TEXT','left|center|right'],['grossbuchstaben','BOOL','Uppercase?'],['tab_folge_element','TEXT','Tab -> naechstes'],['enter_folge_element','TEXT','Enter -> naechstes'],['sort_order','INT','Reihenfolge']]},
+    { id:'editor_format_elemente', g:'editor', f:[['id','SERIAL PK','Interne ID'],['template_id','INT FK','Template','editor_format_templates'],['element_typ','TEXT','scene_heading|action|...'],['einrueckung_links','INT','Einrückung L (%)'],['einrueckung_rechts','INT','Einrückung R (%)'],['ausrichtung','TEXT','left|center|right'],['grossbuchstaben','BOOL','Uppercase?'],['tab_folge_element','TEXT','Tab -> nächstes'],['enter_folge_element','TEXT','Enter -> nächstes'],['sort_order','INT','Reihenfolge']]},
     { id:'episode_locks', g:'lock', f:[['id','SERIAL PK','Interne ID'],['produktion_id','TEXT FK','Produktion','produktionen'],['folge_nummer','INT','Gesperrte Folge'],['user_id','TEXT','Wer hat gesperrt'],['user_name','TEXT','Anzeigename'],['lock_type','TEXT','exclusive|contract'],['expires_at','TSTZ','Ablauf'],['contract_ref','TEXT','Vertragsreferenz'],['created_at','TSTZ','Erstellt']]},
     { id:'entities', g:'lock', f:[['id','SERIAL PK','Interne ID'],['entity_type','TEXT','charakter|prop|location'],['external_id','TEXT','ID in externer App'],['external_app','TEXT','z.B. kostuem-app'],['name','TEXT','Anzeigename'],['meta_json','JSONB','Metadaten'],['produktion_id','TEXT FK','Produktion','produktionen'],['created_at','TSTZ','Erstellt']]},
     { id:'export_logs', g:'lock', f:[['id','UUID PK','Export-ID'],['user_id','TEXT','Exportierer'],['user_name','TEXT','Anzeigename'],['stage_label','TEXT','Fassungs-Label'],['staffel_id','TEXT','Produktions-ID (Legacy)'],['werkstufe_id','UUID FK','Werkstufe','werkstufen'],['format','TEXT','fountain|fdx|pdf'],['exported_at','TSTZ','Exportzeitpunkt']]},
@@ -3411,8 +3411,8 @@ function DatenmodellTab() {
         </p>
         <p style={{ color: C.muted, fontSize: 12, margin: '0 0 16px 0', lineHeight: 1.6 }}>
           <strong style={{ color: C.text }}>v51 (2026-05-04):</strong> Alle Legacy-Tabellen (szenen, stages, folgen_dokumente, folgen_dokument_fassungen,
-          szenen_versionen, kommentare, annotationen, autoren, audit) wurden endgueltig <code>DROP TABLE</code> entfernt.
-          Das Datenmodell besteht jetzt ausschliesslich aus dem neuen 5-Tabellen-Kern:
+          szenen_versionen, kommentare, annotationen, autoren, audit) wurden endgültig <code>DROP TABLE</code> entfernt.
+          Das Datenmodell besteht jetzt ausschließlich aus dem neuen 5-Tabellen-Kern:
           <code> produktionen → folgen → werkstufen + scene_identities → dokument_szenen</code>.
         </p>
 
@@ -3521,7 +3521,7 @@ function DatenmodellTab() {
             { name: 'content', type: 'JSONB', desc: 'ProseMirror/Screenplay JSON (einzige Content-Quelle!)' },
             { name: 'format', type: 'TEXT', desc: 'drehbuch | storyline | notiz (bestimmt Editor-Typ)' },
             { name: 'stoppzeit_sek', type: 'INT', desc: 'Spieldauer in Sekunden (270 = "04:30")' },
-            { name: 'geloescht', type: 'BOOL', desc: 'Soft-Delete (bleibt fuer Diff)' },
+            { name: 'geloescht', type: 'BOOL', desc: 'Soft-Delete (bleibt für Diff)' },
             { name: 'is_wechselschnitt', type: 'BOOL', desc: 'Legacy WS-Flag' },
             { name: 'sondertyp', type: 'TEXT', desc: "NULL | 'wechselschnitt' | 'stockshot' | 'flashback'" },
             { name: 'stockshot_kategorie', type: 'TEXT', desc: "'ortswechsel' | 'zeit_vergeht' | 'stimmungswechsel'" },
@@ -3530,7 +3530,7 @@ function DatenmodellTab() {
             { name: 'flashback_referenz_id', type: 'UUID FK', desc: 'Ursprungsszene (scene_identities)' },
             { name: 'yjs_state', type: 'BYTEA', desc: 'Yjs Binary State (Echtzeit-Kollaboration)' },
             { name: 'updated_by', type: 'TEXT', desc: 'Letzter Bearbeiter (user_id)' },
-            { name: 'updated_at', type: 'TSTZ', desc: 'Letzte Aenderung' },
+            { name: 'updated_at', type: 'TSTZ', desc: 'Letzte Änderung' },
           ]} />
           <InfoBox title="UNIQUE(werkstufe_id, scene_identity_id)" color={C.blue}>
             Pro Szene und Werkstufe genau ein Eintrag. Eine Szene existiert in mehreren Werkstufen — N:M aufgeloest durch <code>dokument_szenen</code>.
@@ -3543,7 +3543,7 @@ function DatenmodellTab() {
       <GroupBody id="characters">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <TableCard title="characters" color={C.blue} note="Globaler Charakter (produktionsuebergreifend)" fields={[
+            <TableCard title="characters" color={C.blue} note="Globaler Charakter (produktionsübergreifend)" fields={[
               { name: 'id', type: 'UUID PK', desc: 'Globale Charakter-ID' },
               { name: 'name', type: 'TEXT', desc: 'z.B. "Ben Lohmann"' },
               { name: 'meta_json', type: 'JSONB', desc: 'Erweiterte Daten' },
@@ -3584,7 +3584,7 @@ function DatenmodellTab() {
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'character_id', type: 'UUID FK', desc: '-> characters.id' },
               { name: 'dateiname', type: 'TEXT', desc: 'Dateiname auf Server' },
-              { name: 'ist_primaer', type: 'BOOL', desc: 'Primaerfoto-Flag' },
+              { name: 'ist_primaer', type: 'BOOL', desc: 'Primärfoto-Flag' },
               { name: 'media_typ', type: 'TEXT', desc: 'image | video' },
               { name: 'thumbnail_dateiname', type: 'TEXT', desc: 'Thumbnail-Dateiname' },
             ]} />
@@ -3640,7 +3640,7 @@ function DatenmodellTab() {
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'motiv_id', type: 'UUID FK', desc: '-> motive.id' },
               { name: 'dateiname', type: 'TEXT', desc: 'Dateiname' },
-              { name: 'ist_primaer', type: 'BOOL', desc: 'Primaerfoto-Flag' },
+              { name: 'ist_primaer', type: 'BOOL', desc: 'Primärfoto-Flag' },
               { name: 'media_typ', type: 'TEXT', desc: 'image | video' },
             ]} />
           </div>
@@ -3660,7 +3660,7 @@ function DatenmodellTab() {
       <GroupHeader id="versions" title="3. Revision, Vorstopp & Fassungs-Labels" count={5} color={C.red} />
       <GroupBody id="versions">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <TableCard title="szenen_revisionen" color={C.red} note="Delta-Tracking: Was hat sich geaendert? (NOT NULL dokument_szene_id seit v51)" fields={[
+          <TableCard title="szenen_revisionen" color={C.red} note="Delta-Tracking: Was hat sich geändert? (NOT NULL dokument_szene_id seit v51)" fields={[
             { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
             { name: 'dokument_szene_id', type: 'UUID FK NOT NULL', desc: '-> dokument_szenen.id (pro Werkstufe)' },
             { name: 'field_type', type: 'TEXT', desc: 'header | content_block' },
@@ -3670,7 +3670,7 @@ function DatenmodellTab() {
             { name: 'speaker', type: 'TEXT', desc: 'Sprecher (bei Dialog-Bloecken)' },
             { name: 'old_value', type: 'TEXT', desc: 'Vorheriger Wert' },
             { name: 'new_value', type: 'TEXT', desc: 'Neuer Wert' },
-            { name: 'created_at', type: 'TSTZ', desc: 'Aenderungszeitpunkt' },
+            { name: 'created_at', type: 'TSTZ', desc: 'Änderungszeitpunkt' },
           ]} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <TableCard title="szenen_vorstopp" color={'#00C853'} note="Performance-Zeiten pro Phase" fields={[
@@ -3733,7 +3733,7 @@ function DatenmodellTab() {
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'produktion_id', type: 'TEXT FK', desc: '-> produktionen.id' },
               { name: 'ereignis', type: 'TEXT', desc: 'version_submitted | approved | ...' },
-              { name: 'empfaenger_user_ids', type: 'TEXT[]', desc: 'Empfaenger-Liste' },
+              { name: 'empfaenger_user_ids', type: 'TEXT[]', desc: 'Empfänger-Liste' },
               { name: 'aktiv', type: 'BOOL', desc: 'An/Aus' },
             ]} />
             <TableCard title="dokument_typ_definitionen" color={C.gray} note="Custom-Dokumenttypen pro Produktion" fields={[
@@ -3799,7 +3799,7 @@ function DatenmodellTab() {
               { name: 'expires_at', type: 'TSTZ', desc: 'Ablaufzeitpunkt' },
               { name: 'contract_ref', type: 'TEXT', desc: 'Vertragsreferenz (bei contract-lock)' },
             ]} />
-            <TableCard title="entities" color={C.purple} note="Generische Entitaeten (Props, Fahrzeuge, etc.)" fields={[
+            <TableCard title="entities" color={C.purple} note="Generische Entitäten (Props, Fahrzeuge, etc.)" fields={[
               { name: 'id', type: 'SERIAL PK', desc: 'Interne ID' },
               { name: 'entity_type', type: 'TEXT', desc: 'charakter | prop | location | kostuem | fahrzeug' },
               { name: 'external_id', type: 'TEXT', desc: 'ID in externer App' },
@@ -3880,7 +3880,7 @@ function DatenmodellTab() {
             <div style={{ fontSize: 11, lineHeight: 1.7 }}>
               <p style={{ margin: '0 0 8px 0' }}>
                 <strong>Altes Modell (v1–v41):</strong> staffeln → bloecke → episoden → stages → szenen.
-                Jede Szene gehoerte genau einer Stage. Keine stabile Szenen-Identitaet ueber Fassungen hinweg.
+                Jede Szene gehörte genau einer Stage. Keine stabile Szenen-Identität über Fassungen hinweg.
               </p>
               <p style={{ margin: '0 0 8px 0' }}>
                 <strong>Neues Modell (v43+):</strong> produktionen → folgen → werkstufen + scene_identities → dokument_szenen.
@@ -3890,8 +3890,8 @@ function DatenmodellTab() {
                 <strong>v47:</strong> TRUNCATE CASCADE + Rename staffeln → produktionen. Alle Daten neu importiert.
               </p>
               <p style={{ margin: 0 }}>
-                <strong>v51 (2026-05-04):</strong> Alle Legacy-Tabellen endgueltig per DROP TABLE entfernt.
-                Es gibt keine Altlasten mehr — das Datenmodell ist vollstaendig bereinigt.
+                <strong>v51 (2026-05-04):</strong> Alle Legacy-Tabellen endgültig per DROP TABLE entfernt.
+                Es gibt keine Altlasten mehr — das Datenmodell ist vollständig bereinigt.
               </p>
             </div>
           </InfoBox>
@@ -3974,7 +3974,7 @@ function ImportKomparsenTab() {
   ]
 
   const tarifTabelle = [
-    { typ: 'o.t.',  tarif: 'Komparsenvertrag',        gage: '~100-150 EUR/Tag',  hinweis: 'Austauschbar, kein Continuity-Tracking noetig' },
+    { typ: 'o.t.',  tarif: 'Komparsenvertrag',        gage: '~100-150 EUR/Tag',  hinweis: 'Austauschbar, kein Continuity-Tracking nötig' },
     { typ: 'spiel', tarif: 'Komparsenvertrag (erh.)',  gage: '~150-200 EUR/Tag',  hinweis: 'Muss gezielt gecastet werden, braucht Probezeit + Regieanweisung' },
     { typ: 'text',  tarif: 'Kleinstdarstellervertrag', gage: '~200-300 EUR/Tag',  hinweis: 'Repliken-Anzahl entscheidet ueber Tarif-Grenze (ab ~5 Repliken ggf. Tagesdarsteller)' },
   ]
@@ -4785,14 +4785,14 @@ function SuchenErsetzenTab() {
   return (
     <div style={{ padding: '28px 0' }}>
 
-      <Section title="Ueberblick">
+      <Section title="Überblick">
         <div style={{ fontSize: 12, lineHeight: 1.7, color: C.muted }}>
           <p style={{ marginBottom: 8 }}>
             Die <strong>Suchen & Ersetzen</strong>-Funktion ermoeglicht das Finden und Ersetzen von Text
             ueber verschiedene Ebenen hinweg — von der einzelnen Szene bis hin zu allen Produktionen.
           </p>
           <p style={{ marginBottom: 8 }}>
-            Oeffnen mit <span style={keyStyle}>Ctrl</span> + <span style={keyStyle}>H</span> (Windows)
+            Öffnen mit <span style={keyStyle}>Ctrl</span> + <span style={keyStyle}>H</span> (Windows)
             oder <span style={keyStyle}>⌘</span> + <span style={keyStyle}>H</span> (Mac).
           </p>
         </div>
@@ -4803,8 +4803,8 @@ function SuchenErsetzenTab() {
           {[
             { scope: 'Aktuelle Szene', desc: 'Sucht nur im aktuell geoeffneten Editor. Treffer werden direkt im Text hervorgehoben (gelb = Treffer, orange = aktiver Treffer).', color: C.blue },
             { scope: 'Episode / Folge', desc: 'Sucht in allen Szenen der aktuellen Episode in der ausgewaehlten Werkstufe.', color: C.green },
-            { scope: 'Block', desc: 'Sucht in allen Episoden eines Blocks. Die Werkstufe ist waehlbar. Ist eine Werkstufe in einer Episode nicht vorhanden, wird automatisch in der naechst hoeheren gesucht (Fallback).', color: C.orange },
-            { scope: 'Staffel / Produktion', desc: 'Sucht in allen Episoden einer Produktion. Werkstufe waehlbar mit Fallback.', color: C.purple },
+            { scope: 'Block', desc: 'Sucht in allen Episoden eines Blocks. Die Werkstufe ist wählbar. Ist eine Werkstufe in einer Episode nicht vorhanden, wird automatisch in der nächst höheren gesucht (Fallback).', color: C.orange },
+            { scope: 'Staffel / Produktion', desc: 'Sucht in allen Episoden einer Produktion. Werkstufe wählbar mit Fallback.', color: C.purple },
             { scope: 'Alle Produktionen', desc: 'Sucht ueber alle Produktionen/Staffeln hinweg. Es wird immer in der letzten Fassung (hoechste Versionsnummer) gesucht.', color: C.red },
           ].map(s => (
             <div key={s.scope} style={{ border: `1px solid ${s.color}44`, borderLeft: `3px solid ${s.color}`, borderRadius: 6, padding: '8px 14px', background: s.color + '08' }}>
@@ -4877,7 +4877,7 @@ function SuchenErsetzenTab() {
           <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: C.text }}>In der aktuellen Szene</h3>
           <p style={{ marginBottom: 12 }}>
             Treffer werden direkt im Editor hervorgehoben. Navigieren Sie mit den Pfeil-Buttons
-            oder <span style={keyStyle}>Enter</span> (naechster) / <span style={keyStyle}>Shift+Enter</span> (vorheriger) durch die Treffer.
+            oder <span style={keyStyle}>Enter</span> (nächster) / <span style={keyStyle}>Shift+Enter</span> (vorheriger) durch die Treffer.
             Der Zaehler zeigt z.B. "3 von 47".
           </p>
 
@@ -4895,7 +4895,7 @@ function SuchenErsetzenTab() {
             <span style={{ color: C.muted, fontSize: 11 }}>= oranges Highlight (aktueller Treffer)</span>
           </div>
 
-          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: C.text }}>Ueber mehrere Episoden</h3>
+          <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: C.text }}>Über mehrere Episoden</h3>
           <p style={{ marginBottom: 8 }}>
             Die Ergebnisse erscheinen im Seitenpanel, gruppiert nach Episode (Accordion).
             Klick auf einen Treffer navigiert direkt zur betreffenden Szene.
@@ -4939,26 +4939,26 @@ function SuchenErsetzenTab() {
 
           <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, marginTop: 16, color: C.text }}>Selektives Ersetzen</h3>
           <p style={{ marginBottom: 8 }}>
-            Bei Scope Episode oder groesser koennen Sie einzelne Treffer per Checkbox aus-/abwaehlen,
+            Bei Scope Episode oder größer können Sie einzelne Treffer per Checkbox aus-/abwählen,
             bevor Sie "Alle ersetzen" klicken. Gesperrte Szenen sind automatisch deaktiviert.
           </p>
         </div>
       </Section>
 
-      <Section title="Tastenkuerzel">
+      <Section title="Tastenkürzel">
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
           <thead>
             <tr style={{ borderBottom: `2px solid ${C.border}` }}>
-              <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, color: C.text }}>Kuerzel</th>
+              <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, color: C.text }}>Kürzel</th>
               <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, color: C.text }}>Aktion</th>
             </tr>
           </thead>
           <tbody>
             {[
-              ['Ctrl/⌘ + H', 'Suchen & Ersetzen oeffnen/schliessen'],
+              ['Ctrl/⌘ + H', 'Suchen & Ersetzen öffnen/schließen'],
               ['Enter', 'Naechster Treffer'],
               ['Shift + Enter', 'Vorheriger Treffer'],
-              ['Escape', 'Dialog schliessen'],
+              ['Escape', 'Dialog schließen'],
             ].map(([key, action]) => (
               <tr key={key} style={{ borderBottom: `1px solid ${C.border}` }}>
                 <td style={{ padding: '6px 8px' }}>
@@ -5203,7 +5203,7 @@ function HilfePage() {
                 color: C.muted, fontSize: 12, padding: '0 0 12px 0',
               }}
             >
-              ← Zurueck
+              ← Zurück
             </button>
             <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>Handbuch</h1>
             <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 0' }}>Script-App Dokumentation</p>
@@ -5356,12 +5356,12 @@ function SonderszenentTab() {
         </div>
       </div>
 
-      {/* ── 1. Uebersicht ── */}
-      <Section title="1. Die drei Sondertypen im Ueberblick">
+      {/* ── 1. Übersicht ── */}
+      <Section title="1. Die drei Sondertypen im Überblick">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
           {[
             { icon: '⇄', label: 'Wechselschnitt', color: C.blue, desc: 'Zwei oder mehr Szenen werden parallel geschnitten — z.B. Telefonat, gleichzeitige Handlung.' },
-            { icon: '📷', label: 'Stockshot', color: C.orange, desc: 'Kurze Einstellung ohne Dialog — Aussenansicht, Zeitsprung oder Stimmungswechsel. Kann aus dem Archiv stammen.' },
+            { icon: '📷', label: 'Stockshot', color: C.orange, desc: 'Kurze Einstellung ohne Dialog — Außenansicht, Zeitsprung oder Stimmungswechsel. Kann aus dem Archiv stammen.' },
             { icon: '⏪', label: 'Flashback', color: C.purple, desc: 'Rueckblende auf eine fruehere Szene. Verweist auf die Ursprungsszene per Referenz.' },
           ].map((t, i) => (
             <div key={i} style={{
@@ -5409,7 +5409,7 @@ function SonderszenentTab() {
             <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
               <strong>Datenmodell:</strong> Die Partner-Beziehung wird in einer eigenen Tabelle (<Badge color={C.blue}>wechselschnitt_partner</Badge>)
               als N:M gespeichert. Jeder Partner hat eine Position (Reihenfolge im Schnitt).
-              Beim Loeschen einer Wechselschnitt-Szene werden die Partner-Verknuepfungen automatisch entfernt.
+              Beim Löschen einer Wechselschnitt-Szene werden die Partner-Verknüpfungen automatisch entfernt.
             </div>
           </div>
         </TypeCard>
@@ -5420,21 +5420,21 @@ function SonderszenentTab() {
         <TypeCard icon="📷" title="Stockshot" color={C.orange} subtitle="Kurze Einstellung ohne Dialog — Ortswechsel, Zeitsprung, Stimmungswechsel">
           <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
             Stockshots sind kurze Aufnahmen, die zwischen Szenen eingefuegt werden — z.B. eine
-            Aussenansicht eines Gebaeudes, ein Sonnenuntergang oder ein Zeitraffer. Sie koennen aus dem
+            Außenansicht eines Gebäudes, ein Sonnenuntergang oder ein Zeitraffer. Sie können aus dem
             <strong> Archiv</strong> stammen (bereits gefilmt) oder <strong>neu zu drehen</strong> sein.
           </p>
 
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>Szenenkopf-Darstellung</div>
           <SceneHead color={C.orange} parts={[
-            'SS · STOCKSHOT: Aussenansicht Lüneburger Altstadt. — Ortswechsel [Neu zu drehen]',
+            'SS · STOCKSHOT: Außenansicht Lüneburger Altstadt. — Ortswechsel [Neu zu drehen]',
           ]} />
 
           <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, marginTop: 20 }}>Drei Kategorien</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
             {[
-              { cat: 'Ortswechsel', desc: 'Ueberleitung zwischen zwei Drehorten — z.B. Aussenansicht des naechsten Motivs.', ex: 'Aussenansicht Lüneburger Altstadt.' },
+              { cat: 'Ortswechsel', desc: 'Überleitung zwischen zwei Drehorten — z.B. Außenansicht des nächsten Motivs.', ex: 'Außenansicht Lüneburger Altstadt.' },
               { cat: 'Zeit vergeht', desc: 'Zeitsprung innerhalb der Handlung — z.B. Tag wird Nacht, Uhrzeiger, Kalender.', ex: 'Die Sonne wandert über den Himmel.' },
-              { cat: 'Stimmungswechsel', desc: 'Aenderung der Lichtstimmung — z.B. Tag → Nacht. Kann folgende Szenen beeinflussen.', ex: 'Nacht über Lüneburg. Lichter gehen an.' },
+              { cat: 'Stimmungswechsel', desc: 'Änderung der Lichtstimmung — z.B. Tag → Nacht. Kann folgende Szenen beeinflussen.', ex: 'Nacht über Lüneburg. Lichter gehen an.' },
             ].map((k, i) => (
               <div key={i} style={{
                 display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px',
@@ -5471,8 +5471,8 @@ function SonderszenentTab() {
       <Section title="4. Flashback / Rueckblende">
         <TypeCard icon="⏪" title="Flashback" color={C.purple} subtitle="Rueckblende auf eine fruehere Szene mit Referenz-Verknuepfung">
           <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
-            Eine Flashback-Szene verweist auf eine <strong>Ursprungsszene</strong> (ueber deren Szenen-Identitaet).
-            So ist nachvollziehbar, auf welche Szene aus welcher Folge zurueckgeblendet wird.
+            Eine Flashback-Szene verweist auf eine <strong>Ursprungsszene</strong> (über deren Szenen-Identität).
+            So ist nachvollziehbar, auf welche Szene aus welcher Folge zurückgeblendet wird.
             Die Referenz ist klickbar und navigiert zur Ursprungsszene.
           </p>
 
@@ -5497,8 +5497,8 @@ function SonderszenentTab() {
       <Section title="5. Stimmungswechsel-Propagierung">
         <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
           Ein Stockshot mit Kategorie <strong>Stimmungswechsel</strong> aendert die Lichtstimmung
-          fuer alle folgenden Szenen — innerhalb einer Episode und staffeluebergreifend. Die neue
-          Stimmung gilt, bis der naechste Stimmungswechsel kommt oder ein neuer dramaturgischer Tag beginnt.
+          für alle folgenden Szenen — innerhalb einer Episode und staffelübergreifend. Die neue
+          Stimmung gilt, bis der nächste Stimmungswechsel kommt oder ein neuer dramaturgischer Tag beginnt.
         </p>
 
         {/* Visual: Timeline showing mood propagation */}
@@ -5579,7 +5579,7 @@ function SonderszenentTab() {
         </div>
       </Section>
 
-      {/* ── 7. Datenmodell-Uebersicht ── */}
+      {/* ── 7. Datenmodell-Übersicht ── */}
       <Section title="7. Datenmodell">
         <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
           Die Sonderszenen-Erweiterung fuegt Spalten zur bestehenden <Badge color={C.blue}>dokument_szenen</Badge>-Tabelle
@@ -5812,7 +5812,7 @@ function WerkstufenLabelsTab() {
         </div>
 
         <p style={p}>
-          Labels sind <strong>nicht fest</strong> — sie koennen wandern. Wenn eine neue Version erstellt wird,
+          Labels sind <strong>nicht fest</strong> — sie können wandern. Wenn eine neue Version erstellt wird,
           kann das Label „Drehfassung" von V2 auf V3 verschoben werden.
         </p>
       </div>
@@ -5884,13 +5884,13 @@ function WerkstufenLabelsTab() {
             <li>Die Werkstufe erhaelt den <code>bearbeitung_status = 'gesperrt'</code></li>
             <li>Der Editor wird <strong>read-only</strong> — kein Bearbeiten mehr moeglich</li>
             <li>In der Szenenleiste erscheint ein Schloss-Icon</li>
-            <li>Nur Nutzer mit der <em>Status-Override-Rolle</em> (konfigurierbar in Admin) koennen die Sperre aufheben</li>
+            <li>Nur Nutzer mit der <em>Status-Override-Rolle</em> (konfigurierbar in Admin) können die Sperre aufheben</li>
           </ol>
         </div>
         <div style={{ background: '#fff8e1', border: '1px solid #ffcc0044', borderRadius: 8, padding: 12 }}>
           <p style={{ ...p, margin: 0, fontSize: 12 }}>
             <strong>Hinweis:</strong> Das Entfernen des Labels hebt die Sperre <em>nicht</em> automatisch auf.
-            Der Status muss explizit in den Werkstufen-Einstellungen zurueckgesetzt werden.
+            Der Status muss explizit in den Werkstufen-Einstellungen zurückgesetzt werden.
           </p>
         </div>
       </div>
@@ -5900,7 +5900,7 @@ function WerkstufenLabelsTab() {
         <h2 style={h2}>6. Revisions-Farben (Rote Seiten)</h2>
         <p style={p}>
           Jede Produktion definiert in der Drehbuchkoordination eine <strong>Farbsequenz</strong> fuer Revisionen,
-          basierend auf dem WGA-Standard. Die Reihenfolge bestimmt, welche Farbe bei der naechsten Revision vergeben wird.
+          basierend auf dem WGA-Standard. Die Reihenfolge bestimmt, welche Farbe bei der nächsten Revision vergeben wird.
         </p>
 
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -5926,9 +5926,9 @@ function WerkstufenLabelsTab() {
 
         <h3 style={h3}>Wie funktionieren Rote Seiten?</h3>
         <p style={p}>
-          Wenn nach einer abgegebenen Fassung Aenderungen noetig sind, wird eine neue Werkstufe erstellt und automatisch
-          die naechste Farbe in der Sequenz zugewiesen. Geaenderte Szenen erhalten im Export einen farbigen Seitenrand
-          und ein <code>*</code> am rechten Rand jeder geaenderten Zeile (Revision Marks).
+          Wenn nach einer abgegebenen Fassung Änderungen nötig sind, wird eine neue Werkstufe erstellt und automatisch
+          die nächste Farbe in der Sequenz zugewiesen. Geänderte Szenen erhalten im Export einen farbigen Seitenrand
+          und ein <code>*</code> am rechten Rand jeder geänderten Zeile (Revision Marks).
         </p>
 
         <div style={{ fontFamily: 'monospace', fontSize: 11, background: '#000', color: '#fff', borderRadius: 8, padding: '12px 16px', lineHeight: 1.8 }}>
@@ -5942,18 +5942,18 @@ function WerkstufenLabelsTab() {
 
       {/* ── 7. Memo-Schwellwert ── */}
       <div style={card}>
-        <h2 style={h2}>7. Memo-Seiten (kurze Aenderungen)</h2>
+        <h2 style={h2}>7. Memo-Seiten (kurze Änderungen)</h2>
         <p style={p}>
-          Nicht jede Aenderung rechtfertigt eine vollstaendige Replacement Page. In den DK-Settings kann ein
+          Nicht jede Änderung rechtfertigt eine vollständige Replacement Page. In den DK-Settings kann ein
           <strong> Memo-Schwellwert</strong> (in Zeichen) gesetzt werden:
         </p>
         <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
           <div style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 16px' }}>
-            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Aenderung &gt; Schwellwert</div>
+            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Änderung &gt; Schwellwert</div>
             <div style={{ fontSize: 12, color: C.muted }}>→ Vollstaendige <strong>Replacement Page</strong> im Export (neue Seite mit Revisionsfarbe)</div>
           </div>
           <div style={{ flex: 1, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 16px' }}>
-            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Aenderung ≤ Schwellwert</div>
+            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 4 }}>Änderung ≤ Schwellwert</div>
             <div style={{ fontSize: 12, color: C.muted }}>→ Kompakte <strong>Memo-Zeile</strong> im Export (einzeilige Kurznotiz, kein Seitenwechsel)</div>
           </div>
         </div>
@@ -5999,9 +5999,9 @@ function WerkstufenLabelsTab() {
           {[
             { step: '1', label: 'Import', desc: 'PDF importieren → erstellt automatisch Folge + Werkstufe + Szenen', color: C.blue },
             { step: '2', label: 'Label zuweisen', desc: 'Im Editor-Header → „Erstfassung" als Label setzen', color: C.orange },
-            { step: '3', label: 'Ueberarbeitung', desc: 'Neue Werkstufe erstellen (V2), Label „Redaktionsfassung" zuweisen', color: C.purple },
+            { step: '3', label: 'Überarbeitung', desc: 'Neue Werkstufe erstellen (V2), Label „Redaktionsfassung" zuweisen', color: C.purple },
             { step: '4', label: 'Abgabe', desc: '„Drehfassung" zuweisen (Produktionsfassung) → Werkstufe wird gesperrt', color: C.green },
-            { step: '5', label: 'Revision', desc: 'Neue Werkstufe (V3) mit naechster Revisionsfarbe, Aenderungen markiert', color: C.red },
+            { step: '5', label: 'Revision', desc: 'Neue Werkstufe (V3) mit nächster Revisionsfarbe, Änderungen markiert', color: C.red },
           ].map((s, i) => (
             <div key={s.step} style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>

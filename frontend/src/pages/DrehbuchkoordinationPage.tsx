@@ -59,8 +59,8 @@ function useEreignisLabels() {
     neue_episodenrolle:      'Neue Episodenrolle angelegt',
     neuer_komparse:          `Neuer ${t('komparse')} angelegt`,
     neue_location:           'Neuer Drehort angelegt',
-    uebernahme_schauspieler: `${t('darsteller')} Cross-${t('staffel')} uebernommen`,
-    uebernahme_komparse:     `${t('komparse')} Cross-${t('staffel')} uebernommen`,
+    uebernahme_schauspieler: `${t('darsteller')} Cross-${t('staffel')} übernommen`,
+    uebernahme_komparse:     `${t('komparse')} Cross-${t('staffel')} übernommen`,
   } as Record<string, string>
 }
 
@@ -140,11 +140,11 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
           {deleteConfirm === f.id ? (
             <span style={{ fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
               <span style={{ color: '#FF3B30' }}>Alle Werte werden geloescht!</span>
-              <button onClick={() => onConfirmDelete(f.id)} style={{ fontSize: 11, padding: '2px 8px', background: '#FF3B30', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Loeschen</button>
+              <button onClick={() => onConfirmDelete(f.id)} style={{ fontSize: 11, padding: '2px 8px', background: '#FF3B30', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Löschen</button>
               <button onClick={onCancelDelete} style={{ fontSize: 11, padding: '2px 8px', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'transparent' }}>Abbrechen</button>
             </span>
           ) : (
-            <button onClick={() => onDelete(f.id)} style={{ fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>Loeschen</button>
+            <button onClick={() => onDelete(f.id)} style={{ fontSize: 11, padding: '2px 6px', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>Löschen</button>
           )}
         </div>
       ))}
@@ -156,14 +156,12 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
 
 function AllgemeinTab({ productionId }: { productionId: string }) {
   const { t } = useTerminologie()
-  const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline' | null>(null)
   const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
   const [seitenformatSaving, setSeitenformatSaving] = useState(false)
   const [datumsformat, setDatumsformat] = useState<'de' | 'en'>('de')
   const [datumsformatSaving, setDatumsformatSaving] = useState(false)
   const [kuerzel, setKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
   const [roles, setRoles] = useState<string[] | null>(null)
-  const [saving, setSaving] = useState(false)
   const [kuerzelSaving, setKuerzelSaving] = useState(false)
   const [envColors, setEnvColors] = useState<Record<EnvKey, EnvColor>>({ ...DEFAULT_ENV_COLORS })
   const [envColorsDark, setEnvColorsDark] = useState<Record<EnvKey, EnvColor>>({ ...DEFAULT_ENV_COLORS_DARK })
@@ -175,7 +173,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
-        if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
         if (data?.seitenformat === 'letter') setSeitenformat('letter')
         if (data?.datumsformat === 'en') setDatumsformat('en')
         if (data?.scene_kuerzel) {
@@ -251,18 +248,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     setDatumsformatSaving(false)
   }
 
-  const saveTreatmentLabel = async (val: 'Treatment' | 'Storylines' | 'Outline') => {
-    setTreatmentLabel(val)
-    setSaving(true)
-    await fetch(`/api/dk-settings/${productionId}/app-settings/treatment_label`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: val }),
-    }).catch(() => {})
-    setSaving(false)
-  }
-
   const saveEnvColors = async (next: Record<EnvKey, EnvColor>) => {
     setEnvColors(next)
     setEnvColorsCustom(true)
@@ -315,26 +300,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 32 }}>
 
       <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Treatment-Bezeichnung</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Legt fest, wie die Vorstufe vor dem Drehbuch in allen Apps dieser Produktion bezeichnet wird.
-        </p>
-        <div className="seg" style={{ display: 'inline-flex' }}>
-          {(['Treatment', 'Storylines', 'Outline'] as const).map(opt => (
-            <button
-              key={opt}
-              className={treatmentLabel === opt ? 'on' : ''}
-              onClick={() => saveTreatmentLabel(opt)}
-              disabled={saving}
-            >
-              {opt}
-            </button>
-          ))}
-        </div>
-        {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
-      </section>
-
-      <section>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Seitenformat</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
           Standard-Papierformat fuer neue Dokumente dieser Produktion.
@@ -379,9 +344,9 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       </section>
 
       <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>{t('szene', 'c')}-Kuerzel</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>{t('szene', 'c')}-Kürzel</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Abkuerzungen fuer die einzeilige {t('szene', 'c')}uebersicht.
+          Abkürzungen für die einzeilige {t('szene', 'c')}übersicht.
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 360 }}>
           {KUERZEL_FIELDS.map(({ key, label }) => (
@@ -403,7 +368,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
           onClick={() => saveKuerzel(DEFAULT_KUERZEL)}
           disabled={kuerzelSaving}
         >
-          Zuruecksetzen
+          Zurücksetzen
         </button>
         {kuerzelSaving && <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
       </section>
@@ -519,7 +484,6 @@ function FigurenTab() {
 
   const [figurenLabel, setFigurenLabel] = useState<'Rollen' | 'Figuren' | 'Charaktere'>('Rollen')
   const [felder, setFelder] = useState<any[]>([])
-  const [saving, setSaving] = useState(false)
   const [newFeld, setNewFeld] = useState<{ name: string; typ: string; gilt_fuer: string; optionen: string } | null>(null)
   const [feldSaving, setFeldSaving] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
@@ -537,18 +501,6 @@ function FigurenTab() {
     if (!produktionId) return
     api.getCharakterFelder(produktionId).then(setFelder).catch(() => {})
   }, [produktionId])
-
-  const saveFigurenLabel = async (val: 'Rollen' | 'Figuren' | 'Charaktere') => {
-    setFigurenLabel(val)
-    setSaving(true)
-    await fetch('/api/admin/app-settings/figuren_label', {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: val }),
-    }).catch(() => {})
-    setSaving(false)
-    window.dispatchEvent(new CustomEvent('app-settings-changed'))
-  }
 
   const handleCreateFeld = async () => {
     if (!newFeld || !produktionId || !newFeld.name.trim()) return
@@ -586,21 +538,6 @@ function FigurenTab() {
 
   return (
     <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 32 }}>
-      <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Bezeichnung (Figuren/Rollen)</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Legt fest, wie Rollen in Navigation und UI bezeichnet werden.
-        </p>
-        <div className="seg" style={{ display: 'inline-flex' }}>
-          {(['Rollen', 'Figuren', 'Charaktere'] as const).map(opt => (
-            <button key={opt} className={figurenLabel === opt ? 'on' : ''} onClick={() => saveFigurenLabel(opt)} disabled={saving}>
-              {opt}
-            </button>
-          ))}
-        </div>
-        {saving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
-      </section>
-
       {!produktionId && (
         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bitte eine Produktion auswaehlen, um Felder zu konfigurieren.</p>
       )}
@@ -821,7 +758,7 @@ function ProduktionTab() {
                 {k.typ === 'komparse' ? t('komparse') : 'Rolle'}
               </span>
               <span style={{ flex: 1, fontSize: 13 }}>{k.name}</span>
-              <button style={delBtnStyle} onClick={() => delKat(k.id)} title="Loeschen">x</button>
+              <button style={delBtnStyle} onClick={() => delKat(k.id)} title="Löschen">x</button>
             </div>
           )}
         />
@@ -839,7 +776,7 @@ function ProduktionTab() {
             <option value="komparse">{t('komparse')}</option>
           </select>
           <button style={btnStyle} onClick={addKat} disabled={busy('kat') || !newKat.name.trim()}>
-            {busy('kat') ? '...' : '+ Hinzufuegen'}
+            {busy('kat') ? '...' : '+ Hinzufügen'}
           </button>
         </div>
       </section>
@@ -869,7 +806,7 @@ function ProduktionTab() {
               >
                 {l.is_produktionsfassung ? 'Produktion' : 'Kein PF'}
               </button>
-              <button style={delBtnStyle} onClick={() => delLabel(l.id)} title="Loeschen">x</button>
+              <button style={delBtnStyle} onClick={() => delLabel(l.id)} title="Löschen">x</button>
             </div>
           )}
         />
@@ -891,7 +828,7 @@ function ProduktionTab() {
             Produktionsfassung
           </label>
           <button style={btnStyle} onClick={addLabel} disabled={busy('lbl') || !newLabel.name.trim()}>
-            {busy('lbl') ? '...' : '+ Hinzufuegen'}
+            {busy('lbl') ? '...' : '+ Hinzufügen'}
           </button>
         </div>
       </section>
@@ -910,7 +847,7 @@ function ProduktionTab() {
               <span style={{ width: 16, height: 16, borderRadius: 4, background: c.color, flexShrink: 0, border: '1px solid rgba(0,0,0,0.1)' }} />
               <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
               <code style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.color}</code>
-              <button style={delBtnStyle} onClick={() => delColor(c.id)} title="Loeschen">x</button>
+              <button style={delBtnStyle} onClick={() => delColor(c.id)} title="Löschen">x</button>
             </div>
           )}
         />
@@ -930,7 +867,7 @@ function ProduktionTab() {
             style={{ width: 44, height: 36, border: '1px solid var(--border)', borderRadius: 7, padding: 2, cursor: 'pointer' }}
           />
           <button style={btnStyle} onClick={addColor} disabled={busy('col') || !newColor.name.trim()}>
-            {busy('col') ? '...' : '+ Hinzufuegen'}
+            {busy('col') ? '...' : '+ Hinzufügen'}
           </button>
         </div>
       </section>
@@ -938,7 +875,7 @@ function ProduktionTab() {
       {/* ── Revision Export Einstellungen ── */}
       <section style={sectionStyle}>
         <h3 style={h3Style}>Revisions-Export</h3>
-        <p style={subStyle}>Aenderungen mit weniger als dieser Zeichenanzahl werden im Export als kurze Notiz (Memo-Zeile) statt als vollstaendiger Absatz dargestellt.</p>
+        <p style={subStyle}>Änderungen mit weniger als dieser Zeichenanzahl werden im Export als kurze Notiz (Memo-Zeile) statt als vollständiger Absatz dargestellt.</p>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <input
             type="number"
@@ -1158,10 +1095,10 @@ function DokumentTypenTab() {
           <th style={{ padding: '6px 2px', width: 16 }} />
           <th style={{ textAlign: 'left', padding: '6px 6px', fontWeight: 600 }}>Name</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Prefix</th>
-          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kuerzel</th>
+          <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kürzel</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kat.</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Schrift</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Groesse</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Größe</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Stil</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Ausr.</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug L</th>
@@ -1349,7 +1286,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, fontSize: 11 }}>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Name *</label>
           <input value={data.name} onChange={e => setData({ ...data, name: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
-        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Kuerzel</label>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Kürzel</label>
           <input value={data.kuerzel} onChange={e => setData({ ...data, kuerzel: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Kategorie</label>
           <select value={data.kategorie} onChange={e => setData({ ...data, kategorie: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
@@ -1361,7 +1298,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
           <select value={data.font_family} onChange={e => setData({ ...data, font_family: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
             {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
           </select></div>
-        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Groesse (pt)</label>
+        <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Größe (pt)</label>
           <input type="number" className="no-spin" value={data.font_size} onChange={e => setData({ ...data, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Ausrichtung</label>
           <select value={data.text_align} onChange={e => setData({ ...data, text_align: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
@@ -1492,7 +1429,7 @@ function ColabGruppenTab() {
                   <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{g.name}</span>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 6px', borderRadius: 4 }}>{g.typ}</span>
                   <button onClick={e => { e.stopPropagation(); handleDelete(g.id) }}
-                    style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>Loeschen</button>
+                    style={{ fontSize: 11, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer' }}>Löschen</button>
                 </div>
                 {expandedId === g.id && (
                   <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)' }}>
@@ -1775,8 +1712,8 @@ function DokumentEinstellungenTab() {
       <section style={{ marginBottom: 32 }}>
         <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Status-Override-Rollen</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Nutzer mit diesen Rollen koennen alle Dokumente lesen und bearbeiten,
-          unabhaengig von der Sichtbarkeits-Einstellung.
+          Nutzer mit diesen Rollen können alle Dokumente lesen und bearbeiten,
+          unabhängig von der Sichtbarkeits-Einstellung.
         </p>
         <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
           <input value={newRolle} onChange={e => setNewRolle(e.target.value)} placeholder="z.B. herstellungsleitung"
@@ -1784,7 +1721,7 @@ function DokumentEinstellungenTab() {
             style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, width: 220 }} />
           <button onClick={addRolle}
             style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-            Hinzufuegen
+            Hinzufügen
           </button>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -1803,8 +1740,8 @@ function DokumentEinstellungenTab() {
       <section style={{ marginBottom: 32 }}>
         <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Zeilennummern (Standard-Einstellungen)</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Standard-Darstellung der Zeilennummern fuer alle Nutzer dieser Produktion.
-          Nutzer koennen den Abstand in ihren Ansichts-Einstellungen individuell ueberschreiben.
+          Standard-Darstellung der Zeilennummern für alle Nutzer dieser Produktion.
+          Nutzer können den Abstand in ihren Ansichts-Einstellungen individuell überschreiben.
         </p>
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -1819,7 +1756,7 @@ function DokumentEinstellungenTab() {
           </label>
 
           <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Groesse (pt)</span>
+            <span style={{ color: 'var(--text-secondary)' }}>Größe (pt)</span>
             <input type="number" min={6} max={16} step={1} value={lnSize}
               onChange={e => setLnSize(Math.max(6, Math.min(16, parseInt(e.target.value) || 10)))}
               style={{ width: 60, fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', textAlign: 'center' }} />
@@ -1854,7 +1791,7 @@ function DokumentEinstellungenTab() {
         <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Seitenrand</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
           Abstand vom physischen Papierrand zum Textbereich (alle Seiten).
-          Standard: 25 mm (≈ 1 Zoll). Gilt fuer alle Editoren dieser Produktion.
+          Standard: 25 mm (≈ 1 Zoll). Gilt für alle Editoren dieser Produktion.
         </p>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input type="number" min={10} max={50} step={1} value={pageMarginMm}
@@ -2283,7 +2220,7 @@ export default function DrehbuchkoordinationPage() {
               flexShrink: 0,
             }}
           >
-            &#8592; Zurueck
+            &#8592; Zurück
           </button>
           <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)', flex: 1 }}>
             Drehbuchkoordination
@@ -2824,7 +2761,7 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
                 </button>
                 <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FF3B30', fontSize: 11 }}
                   onClick={() => remove(t.id)}>
-                  Loeschen
+                  Löschen
                 </button>
               </div>
             ))}
@@ -2843,7 +2780,7 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
           <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Name" style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', width: 120 }} />
           <input value={editOneliner} onChange={e => setEditOneliner(e.target.value)} placeholder="Oneliner-Vorlage…" style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', flex: 1, minWidth: 160 }} />
           <button onClick={save} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 4, background: '#007AFF', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            {editId ? 'Speichern' : 'Hinzufuegen'}
+            {editId ? 'Speichern' : 'Hinzufügen'}
           </button>
           {editId && (
             <button onClick={() => { setEditId(null); setEditName(''); setEditOneliner('') }} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, background: 'transparent', color: '#757575', border: '1px solid var(--border)', cursor: 'pointer' }}>

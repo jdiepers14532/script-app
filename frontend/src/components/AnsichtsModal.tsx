@@ -375,7 +375,7 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
                 cursor: 'pointer',
               }}
             >
-              Alle auf Standard zurucksetzen
+              Alle auf Standard zurücksetzen
             </button>
           </div>
         </div>

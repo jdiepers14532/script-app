@@ -14,7 +14,7 @@ export interface StatModalSection {
 }
 
 export const DEFAULT_SECTIONS: StatModalSection[] = [
-  { id: 'uebersicht',       label: 'Uebersicht',        visible: true },
+  { id: 'uebersicht',       label: 'Übersicht',         visible: true },
   { id: 'rollen_pro_bild',  label: 'Figuren in Szenen',  visible: true },
   { id: 'rollen',           label: 'Rollen',             visible: true },
   { id: 'motive',           label: 'Motive',             visible: true },
@@ -286,7 +286,7 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
         <button onClick={toggleExpand} title={expanded ? 'Verkleinern' : 'Maximieren'} style={headerBtn}>
           {expanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
         </button>
-        <button onClick={onClose} title="Schliessen" style={headerBtn}>
+        <button onClick={onClose} title="Schließen" style={headerBtn}>
           <X size={13} />
         </button>
       </div>
