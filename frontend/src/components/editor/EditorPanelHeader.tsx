@@ -313,25 +313,27 @@ export default function EditorPanelHeader({
 
       </div>{/* end LEFT */}
 
-      {/* CENTER: Save status + User tooltip */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 16px', flexShrink: 0 }}>
-        {saveStatus && saveStatus !== 'idle' && (
-          <span style={{ fontSize: 11, color: saveColor, fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap' }}>
-            {saveLabel}
-          </span>
-        )}
-        {updatedBy && (
-          <Tooltip text={`Zuletzt: ${updatedBy}${formattedDate ? '\n' + formattedDate : ''}`}>
-            <span style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', cursor: 'default', padding: '2px 4px' }}>
-              <User size={12} />
-            </span>
-          </Tooltip>
-        )}
-        {collabSlot}
-      </div>
+      {/* RIGHT: Save+User, Sichtbarkeit, Dokument-Typ, Revision */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, justifyContent: 'flex-end' }}>
 
-      {/* RIGHT: Sichtbarkeit, Dokument-Typ, Revision */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'flex-end', minWidth: 0 }}>
+      {/* Save status + User — rechtsbündig, links neben Sichtbarkeit */}
+      {(saveStatus && saveStatus !== 'idle' || updatedBy || collabSlot) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, paddingRight: 4, borderRight: '1px solid var(--border)' }}>
+          {saveStatus && saveStatus !== 'idle' && (
+            <span style={{ fontSize: 11, color: saveColor, fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap' }}>
+              {saveLabel}
+            </span>
+          )}
+          {updatedBy && (
+            <Tooltip text={`Zuletzt: ${updatedBy}${formattedDate ? '\n' + formattedDate : ''}`}>
+              <span style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', cursor: 'default', padding: '2px 2px' }}>
+                <User size={12} />
+              </span>
+            </Tooltip>
+          )}
+          {collabSlot}
+        </div>
+      )}
 
       {/* Sichtbarkeits-Badge (klickbar) */}
       {selectedWerk && !selectedWerk.abgegeben && (
