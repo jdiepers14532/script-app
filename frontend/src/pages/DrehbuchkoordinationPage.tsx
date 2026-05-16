@@ -8,6 +8,7 @@ import { DEFAULT_SECTIONS, type StatModalSection } from '../components/Statistik
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
 import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, renderPmToPreviewHtml, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
+import AutorenplanTab from '../components/AutorenplanTab'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ const DK_TABS = [
   { id: 'stockshot-templates',    label: 'Stockshot-Vorlagen' },
   { id: 'vorlagen',               label: 'Vorlagen' },
   { id: 'kopf-fusszeilen',        label: 'Kopf-/Fußzeilen' },
+  { id: 'autorenplan',            label: 'Autorenplan' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -2286,6 +2288,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <VorlagenTab productionId={produktionId} /> : <NoProduction />
       case 'kopf-fusszeilen':
         return produktionId ? <KopfFusszeileTab productionId={produktionId} /> : <NoProduction />
+      case 'autorenplan':
+        return produktionId ? <AutorenplanTab produktionDbId={produktionId} /> : <NoProduction />
       default:
         return <Placeholder label={activeTab} />
     }
