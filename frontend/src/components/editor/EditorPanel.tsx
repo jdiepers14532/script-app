@@ -37,8 +37,19 @@ export default function EditorPanel({
   const { tweaks } = useTweaks()
   const { enqueue } = useOfflineQueueContext()
 
-  // Load absatzformate for this production
+  // ── State declarations (all before first useEffect to prevent TDZ in minified builds) ──
   const [absatzformate, setAbsatzformate] = useState<AbsatzFormat[]>([])
+  const [currentSzene, setCurrentSzene] = useState<any>(null)
+  const [sceneContent, setSceneContent] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string }>>([])
+  const [vorlagePreviewData, setVorlagePreviewData] = useState<any>(null)
+  const [showVorlagePreview, setShowVorlagePreview] = useState(false)
+  const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
+  const [pendingFmt, setPendingFmt] = useState<string | null>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     if (!produktionId) return
     api.getAbsatzformate(produktionId)
@@ -84,17 +95,6 @@ export default function EditorPanel({
   useEffect(() => { onWerkstufSelected?.(selectedWerkId) }, [selectedWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load content for the SELECTED scene only (per-scene editing)
-  const [currentSzene, setCurrentSzene] = useState<any>(null)
-  const [sceneContent, setSceneContent] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string }>>([])
-  const [vorlagePreviewData, setVorlagePreviewData] = useState<any>(null)
-  const [showVorlagePreview, setShowVorlagePreview] = useState(false)
-  const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
-  const [pendingFmt, setPendingFmt] = useState<string | null>(null)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
   useEffect(() => {
     if (!selectedSzeneId || !selectedWerkId) { setCurrentSzene(null); setSceneContent(null); return }
     setLoading(true)
