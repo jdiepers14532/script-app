@@ -452,8 +452,11 @@ werkstufenSzenenRouter.post('/', async (req, res) => {
       }
     } else if (!finalSceneNummer) {
       const maxRow = await queryOne(
-        'SELECT MAX(scene_nummer) AS mx FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false',
-        [werkId]
+        `SELECT MAX(ds.scene_nummer) AS mx
+         FROM dokument_szenen ds
+         JOIN scene_identities si ON si.id = ds.scene_identity_id
+         WHERE ds.werkstufe_id = $1 AND ds.geloescht = false AND si.folge_id = $2`,
+        [werkId, ws.folge_id]
       )
       finalSceneNummer = (maxRow?.mx ?? 0) + 1
       const maxSort = await queryOne(
