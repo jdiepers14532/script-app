@@ -15,6 +15,7 @@ const SAVE_LABELS: Record<SaveStatus, { text: string; color: string }> = {
   idle:   { text: '', color: 'transparent' },
   saving: { text: 'Speichert…', color: 'var(--text-muted)' },
   saved:  { text: '● Gespeichert', color: 'var(--sw-green)' },
+  queued: { text: '⏸ Lokal gespeichert', color: '#FF9500' },
   error:  { text: '● Fehler', color: 'var(--sw-danger)' },
 }
 

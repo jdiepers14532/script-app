@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag, GitBranch } from 'lucide-react'
-import type { WerkstufeMeta } from '../../hooks/useDokument'
+import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag, GitBranch, User } from 'lucide-react'
+import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
 
@@ -55,12 +55,16 @@ interface Props {
   onCreateWerkstufe: (typ: string) => void
   onReloadWerkstufen: () => void
   onChangeSceneFormat?: (format: string) => void
+  saveStatus?: SaveStatus
+  updatedBy?: string | null
+  updatedAt?: string | null
+  collabSlot?: React.ReactNode
 }
 
 export default function EditorPanelHeader({
   selectedWerk, werkstufen, produktionId, folgeNummer, folgeId,
   sceneFormat, onSelectWerkstufe, onCreateWerkstufe, onReloadWerkstufen,
-  onChangeSceneFormat,
+  onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLabelMenu, setShowLabelMenu] = useState(false)
@@ -121,8 +125,26 @@ export default function EditorPanelHeader({
   const versionLabel = selectedWerk ? `V${selectedWerk.version_nummer}` : ''
   const sichtbarkeit = selectedWerk?.sichtbarkeit ?? 'team'
 
+  const formattedDate = updatedAt
+    ? new Date(updatedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
+    : null
+
+  const saveColor = saveStatus === 'saved' ? 'var(--sw-green)'
+    : saveStatus === 'queued' ? '#FF9500'
+    : saveStatus === 'error' ? 'var(--sw-danger)'
+    : 'var(--text-muted)'
+
+  const saveLabel = saveStatus === 'saving' ? 'Speichert…'
+    : saveStatus === 'saved' ? '● Gespeichert'
+    : saveStatus === 'queued' ? '⏸ Lokal'
+    : saveStatus === 'error' ? '● Fehler'
+    : ''
+
   return (
-    <div className="editor-panel-header" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0, flexWrap: 'wrap' }}>
+    <div className="editor-panel-header" style={{ display: 'flex', alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
+
+      {/* LEFT: Werkfassung, Fassungslabel, Version */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
 
       {/* Werkstufen-Selector */}
       <div style={{ position: 'relative' }}>
@@ -182,12 +204,130 @@ export default function EditorPanelHeader({
         )}
       </div>
 
+      {/* Fassungs-Label — nach Werkfassung, vor Version */}
+      {selectedWerk && stageLabels.length > 0 && (
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => { setShowLabelMenu(v => !v); setShowMenu(false) }}
+            title="Fassungs-Label zuweisen"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
+              border: `1px solid ${selectedWerk.label ? '#00C853' : 'var(--border)'}`,
+              borderRadius: 999, fontSize: 11, fontWeight: 500,
+              color: selectedWerk.label ? '#00C853' : 'var(--text-muted)',
+              background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            <Tag size={11} />
+            {selectedWerk.label || 'Label'}
+          </button>
+          {showLabelMenu && (
+            <>
+              <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLabelMenu(false)} />
+              <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 99, marginTop: 4, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 180, padding: '4px 0' }}>
+                {stageLabels.map(sl => (
+                  <button
+                    key={sl.id}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const newLabel = selectedWerk.label === sl.name ? '' : sl.name
+                      setLabelError(null)
+                      try {
+                        await api.updateWerkstufe(selectedWerk.id, { label: newLabel })
+                        clearCacheByPrefix('/v2/folgen/')
+                        onReloadWerkstufen()
+                      } catch (err: any) {
+                        clearCacheByPrefix('/v2/folgen/')
+                        onReloadWerkstufen()
+                        setLabelError('Fassung nicht mehr vorhanden – Ansicht wurde aktualisiert.')
+                        console.error('Label update failed:', err)
+                      }
+                      setShowLabelMenu(false)
+                    }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '7px 12px', fontSize: 12, border: 'none', cursor: 'pointer',
+                      textAlign: 'left', fontFamily: 'inherit',
+                      background: selectedWerk.label === sl.name ? 'var(--bg-active)' : 'transparent',
+                      color: 'var(--text-primary)', fontWeight: selectedWerk.label === sl.name ? 600 : 400,
+                    }}
+                  >
+                    {sl.name}
+                    {sl.is_produktionsfassung && (
+                      <Lock size={10} style={{ color: 'var(--text-muted)', marginLeft: 'auto' }} />
+                    )}
+                  </button>
+                ))}
+                {selectedWerk.label && (
+                  <>
+                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+                    <button
+                      onMouseDown={e => e.preventDefault()}
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        setLabelError(null)
+                        try {
+                          await api.updateWerkstufe(selectedWerk.id, { label: '' })
+                          clearCacheByPrefix('/v2/folgen/')
+                          onReloadWerkstufen()
+                        } catch (err: any) {
+                          clearCacheByPrefix('/v2/folgen/')
+                          onReloadWerkstufen()
+                          setLabelError('Fassung nicht mehr vorhanden – Ansicht wurde aktualisiert.')
+                          console.error('Label remove failed:', err)
+                        }
+                        setShowLabelMenu(false)
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                        padding: '7px 12px', fontSize: 12, border: 'none', cursor: 'pointer',
+                        color: '#FF3B30', background: 'transparent', fontFamily: 'inherit',
+                      }}
+                    >
+                      Label entfernen
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+          {labelError && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 100, marginTop: 4, background: '#FF3B30', color: '#fff', fontSize: 11, padding: '4px 8px', borderRadius: 6, whiteSpace: 'nowrap', maxWidth: 300 }}>
+              {labelError}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Version badge */}
       {selectedWerk && (
         <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
           {versionLabel}
         </span>
       )}
+
+      </div>{/* end LEFT */}
+
+      {/* CENTER: Save status + User tooltip */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '0 16px', flexShrink: 0 }}>
+        {saveStatus && saveStatus !== 'idle' && (
+          <span style={{ fontSize: 11, color: saveColor, fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap' }}>
+            {saveLabel}
+          </span>
+        )}
+        {updatedBy && (
+          <Tooltip text={`Zuletzt: ${updatedBy}${formattedDate ? '\n' + formattedDate : ''}`}>
+            <span style={{ display: 'flex', alignItems: 'center', color: 'var(--text-muted)', cursor: 'default', padding: '2px 4px' }}>
+              <User size={12} />
+            </span>
+          </Tooltip>
+        )}
+        {collabSlot}
+      </div>
+
+      {/* RIGHT: Sichtbarkeit, Dokument-Typ, Revision */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'flex-end', minWidth: 0 }}>
 
       {/* Sichtbarkeits-Badge (klickbar) */}
       {selectedWerk && !selectedWerk.abgegeben && (
@@ -423,102 +563,6 @@ export default function EditorPanelHeader({
         </Tooltip>
       )}
 
-      {/* Fassungs-Label */}
-      {selectedWerk && stageLabels.length > 0 && (
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => { setShowLabelMenu(v => !v); setShowMenu(false) }}
-            title="Fassungs-Label zuweisen"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
-              border: `1px solid ${selectedWerk.label ? '#00C853' : 'var(--border)'}`,
-              borderRadius: 999, fontSize: 11, fontWeight: 500,
-              color: selectedWerk.label ? '#00C853' : 'var(--text-muted)',
-              background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
-            }}
-          >
-            <Tag size={11} />
-            {selectedWerk.label || 'Label'}
-          </button>
-          {showLabelMenu && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowLabelMenu(false)} />
-              <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 99, marginTop: 4, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 180, padding: '4px 0' }}>
-                {stageLabels.map(sl => (
-                  <button
-                    key={sl.id}
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={async (e) => {
-                      e.stopPropagation()
-                      const newLabel = selectedWerk.label === sl.name ? '' : sl.name
-                      setLabelError(null)
-                      try {
-                        await api.updateWerkstufe(selectedWerk.id, { label: newLabel })
-                        clearCacheByPrefix('/v2/folgen/')
-                        onReloadWerkstufen()
-                      } catch (err: any) {
-                        clearCacheByPrefix('/v2/folgen/')
-                        onReloadWerkstufen()
-                        setLabelError('Fassung nicht mehr vorhanden – Ansicht wurde aktualisiert.')
-                        console.error('Label update failed:', err)
-                      }
-                      setShowLabelMenu(false)
-                    }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                      padding: '7px 12px', fontSize: 12, border: 'none', cursor: 'pointer',
-                      textAlign: 'left', fontFamily: 'inherit',
-                      background: selectedWerk.label === sl.name ? 'var(--bg-active)' : 'transparent',
-                      color: 'var(--text-primary)', fontWeight: selectedWerk.label === sl.name ? 600 : 400,
-                    }}
-                  >
-                    {sl.name}
-                    {sl.is_produktionsfassung && (
-                      <Lock size={10} style={{ color: 'var(--text-muted)', marginLeft: 'auto' }} />
-                    )}
-                  </button>
-                ))}
-                {selectedWerk.label && (
-                  <>
-                    <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-                    <button
-                      onMouseDown={e => e.preventDefault()}
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        setLabelError(null)
-                        try {
-                          await api.updateWerkstufe(selectedWerk.id, { label: '' })
-                          clearCacheByPrefix('/v2/folgen/')
-                          onReloadWerkstufen()
-                        } catch (err: any) {
-                          clearCacheByPrefix('/v2/folgen/')
-                          onReloadWerkstufen()
-                          setLabelError('Fassung nicht mehr vorhanden – Ansicht wurde aktualisiert.')
-                          console.error('Label remove failed:', err)
-                        }
-                        setShowLabelMenu(false)
-                      }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                        padding: '7px 12px', fontSize: 12, border: 'none', cursor: 'pointer',
-                        color: '#FF3B30', background: 'transparent', fontFamily: 'inherit',
-                      }}
-                    >
-                      Label entfernen
-                    </button>
-                  </>
-                )}
-              </div>
-            </>
-          )}
-          {labelError && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 100, marginTop: 4, background: '#FF3B30', color: '#fff', fontSize: 11, padding: '4px 8px', borderRadius: 6, whiteSpace: 'nowrap', maxWidth: 300 }}>
-              {labelError}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Scene format switcher */}
       {selectedWerk && sceneFormat && onChangeSceneFormat && (
         <Tooltip text="Szenen-Format ändern (bestimmt Editor-Typ und Absatzformate)">
@@ -638,7 +682,7 @@ export default function EditorPanelHeader({
         </div>
       )}
 
-      <div style={{ flex: 1 }} />
+      </div>{/* end RIGHT */}
     </div>
   )
 }

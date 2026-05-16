@@ -303,53 +303,18 @@ export default function EditorPanel({
             setCurrentSzene((prev: any) => prev ? { ...prev, format: fmt } : prev)
           } catch { /* ignore */ }
         }}
-      />
-
-      {selectedWerk && currentSzene && !tweaks.sceneHeaderCompact && (
-        <div className="editor-last-edited" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px', fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-subtle)' }}>
-              {currentSzene.updated_by && (
-                <span>
-                  {currentSzene.updated_by}
-                  {currentSzene.updated_at && `, ${new Date(currentSzene.updated_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}`}
-                </span>
-              )}
-              <div style={{ flex: 1 }} />
-              {textStats.chars > 0 && (
-                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                  {textStats.chars.toLocaleString('de-DE')}&thinsp;Z · {textStats.words.toLocaleString('de-DE')}&thinsp;W
-                  {textStats.isScreenplay && <>{' · '}{textStats.sentences}&thinsp;S · {textStats.repliken}&thinsp;R</>}
-                </span>
-              )}
-              {saveStatus !== 'idle' && (
-                <span style={{
-                  color: saveStatus === 'saved' ? 'var(--sw-green)'
-                    : saveStatus === 'queued' ? '#FF9500'
-                    : saveStatus === 'error' ? 'var(--sw-danger)'
-                    : 'var(--text-muted)',
-                  fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400,
-                }}>
-                  {saveStatus === 'saving' ? 'Speichert…'
-                    : saveStatus === 'saved' ? '● Gespeichert'
-                    : saveStatus === 'queued' ? '⏸ Lokal gespeichert'
-                    : '● Fehler'}
-                </span>
-              )}
-            </div>
+        saveStatus={saveStatus}
+        updatedBy={currentSzene?.updated_by ?? null}
+        updatedAt={currentSzene?.updated_at ?? null}
+        collabSlot={collabEnabled ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            {!idbReady && (
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lädt…</span>
+            )}
+            <CollaborationPresence status={collabStatus} users={collabUsers} />
           </div>
-          {collabEnabled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 10px' }}>
-              {!idbReady && (
-                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                  Lädt lokalen Stand…
-                </span>
-              )}
-              <CollaborationPresence status={collabStatus} users={collabUsers} />
-            </div>
-          )}
-        </div>
-      )}
+        ) : undefined}
+      />
 
       {/* ── Szenario 3: Andere User aktiv auf derselben Werkstufe ── */}
       {otherActiveUsers.length > 0 && !collabEnabled && (
