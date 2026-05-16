@@ -59,6 +59,7 @@ import {
   adminColabRegisterRouter,
 } from './routes/teamwork'
 import { notificationsRouter } from './routes/notifications'
+import { autorenplanRouter } from './routes/autorenplan'
 import { runPrivatModusWorker } from './workers/privatModusWorker'
 
 // Load .env from project root or backend dir
@@ -177,6 +178,9 @@ app.use('/api/stockshot-templates', stockshotTemplatesRouter)
 
 // Suchen & Ersetzen
 app.use('/api/search', searchRouter)
+
+// Autorenplan
+app.use('/api/autorenplan', autorenplanRouter)
 
 // Story-Straenge
 app.use('/api/straenge', straengeRouter)
