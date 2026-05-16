@@ -4,13 +4,12 @@ import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
 import CollaborationPresence from './CollaborationPresence'
 const UniversalEditor = lazy(() => import('./UniversalEditor'))
-const DokumentVorlagenEditor = lazy(() => import('./DokumentVorlagenEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs } from '../../contexts'
 import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
-import { useOfflineQueueContext } from '../../sw-ui'
+import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
 
 interface Props {
   produktionId: string
@@ -391,21 +390,19 @@ export default function EditorPanel({
               </button>
             </div>
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <Suspense fallback={<div style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Lädt…</div>}>
-                <DokumentVorlagenEditor
-                  value={{
-                    body_content: vorlagePreviewData.body_content ?? { type: 'doc', content: [{ type: 'paragraph' }] },
-                    kopfzeile_content: vorlagePreviewData.kopfzeile_content ?? { links: null, mitte: null, rechts: null },
-                    fusszeile_content: vorlagePreviewData.fusszeile_content ?? { links: null, mitte: null, rechts: null },
-                    kopfzeile_aktiv: vorlagePreviewData.kopfzeile_aktiv ?? false,
-                    fusszeile_aktiv: vorlagePreviewData.fusszeile_aktiv ?? false,
-                    erste_seite_kein_header: vorlagePreviewData.erste_seite_kein_header ?? true,
-                    seiten_layout: vorlagePreviewData.seiten_layout ?? { format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 25, margin_right: 25 },
-                  }}
-                  onChange={() => {}}
-                  readOnly
-                />
-              </Suspense>
+              <DokumentVorlagenEditor
+                value={{
+                  body_content: vorlagePreviewData.body_content ?? { type: 'doc', content: [{ type: 'paragraph' }] },
+                  kopfzeile_content: vorlagePreviewData.kopfzeile_content ?? { links: null, mitte: null, rechts: null },
+                  fusszeile_content: vorlagePreviewData.fusszeile_content ?? { links: null, mitte: null, rechts: null },
+                  kopfzeile_aktiv: vorlagePreviewData.kopfzeile_aktiv ?? false,
+                  fusszeile_aktiv: vorlagePreviewData.fusszeile_aktiv ?? false,
+                  erste_seite_kein_header: vorlagePreviewData.erste_seite_kein_header ?? true,
+                  seiten_layout: vorlagePreviewData.seiten_layout ?? { format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 25, margin_right: 25 },
+                }}
+                onChange={() => {}}
+                readOnly
+              />
             </div>
           </div>
         </div>
