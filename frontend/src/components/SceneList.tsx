@@ -26,6 +26,7 @@ interface SceneListProps {
   onOpenStrangPanel?: () => void
   onOpenStoppzeiten?: () => void
   werkstufId?: string | null
+  werkstufTyp?: string | null
   allCharacters?: any[]
 }
 
@@ -47,6 +48,7 @@ export default function SceneList({
   onOpenStrangPanel,
   onOpenStoppzeiten,
   werkstufId,
+  werkstufTyp,
   allCharacters,
 }: SceneListProps) {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
@@ -62,9 +64,16 @@ export default function SceneList({
   const [deleting, setDeleting] = useState<number | string | null>(null)
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [renumbering, setRenumbering] = useState(false)
-  const [notizSectionOpen, setNotizSectionOpen] = useState(false)
   const [formatPickerOpen, setFormatPickerOpen] = useState(false)
+  const [wrongFormatModal, setWrongFormatModal] = useState<{ pendingFormat: string; correctFormat: string } | null>(null)
   const [colorOff, setColorOff] = useState(false)
+
+  // Allowed formats depend on werkstufe type: drehbuch-Werkstufe → drehbuch+notiz, else storyline+notiz
+  const isDrehbuchWerk = !werkstufTyp || werkstufTyp === 'drehbuch'
+  const allowedFormats = isDrehbuchWerk ? ['drehbuch', 'notiz'] : ['storyline', 'notiz']
+  const nativeFormat = isDrehbuchWerk ? 'drehbuch' : 'storyline'
+  const nativeLabel = isDrehbuchWerk ? 'Drehbuch' : 'Storyline'
+  const wrongLabel = isDrehbuchWerk ? 'Storyline' : 'Drehbuch'
   const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
   const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
@@ -174,8 +183,7 @@ export default function SceneList({
     (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
 
-  const filteredRegular = sorted.filter(s => s.format !== 'notiz' && matchesSearch(s))
-  const filteredNotizen = sorted.filter(s => s.format === 'notiz' && matchesSearch(s))
+  const filtered = sorted.filter(matchesSearch)
 
   // Track pressed modifier keys for format shortcuts (D/S/T/N + click on +)
   useEffect(() => {
@@ -241,24 +249,40 @@ export default function SceneList({
     }
   }
 
-  const getFormatFromKeys = (fallback = 'notiz') => {
-    if (pressedKeys.current.has('KeyD')) return 'drehbuch'
-    if (pressedKeys.current.has('KeyS') || pressedKeys.current.has('KeyT')) return 'storyline'
-    if (pressedKeys.current.has('KeyN')) return 'notiz'
-    return fallback
+  // Resolve format from pressed keys, respecting allowed formats for this werkstufe.
+  // Returns { format, showWarning } — showWarning=true if key conflicts with werkstuf type.
+  const getFormatFromKeys = (fallback = 'notiz'): { format: string; showWarning: boolean } => {
+    if (pressedKeys.current.has('KeyN')) return { format: 'notiz', showWarning: false }
+    const wantsDb = pressedKeys.current.has('KeyD')
+    const wantsSl = pressedKeys.current.has('KeyS') || pressedKeys.current.has('KeyT')
+    if (wantsDb) {
+      if (isDrehbuchWerk) return { format: 'drehbuch', showWarning: false }
+      return { format: 'storyline', showWarning: true }  // wrong key → warn, use native
+    }
+    if (wantsSl) {
+      if (!isDrehbuchWerk) return { format: 'storyline', showWarning: false }
+      return { format: 'drehbuch', showWarning: true }  // wrong key → warn, use native
+    }
+    return { format: fallback, showWarning: false }
   }
 
-  const handleNewSzene = async (format?: string) => {
-    if (!stageId || creating) return
-    const fmt = format ?? getFormatFromKeys('notiz')
+  const doCreateSzene = async (format: string, afterSzeneId?: number | string) => {
     setCreating(true)
     try {
-      const newSzene = await api.createWerkstufeSzene(String(stageId), {
-        int_ext: 'INT',
-        tageszeit: 'TAG',
-        format: fmt,
-      })
-      onSzeneCreated?.(newSzene)
+      if (afterSzeneId !== undefined) {
+        await api.createWerkstufeSzene(String(stageId), {
+          int_ext: 'INT', tageszeit: 'TAG', format, after_scene_id: afterSzeneId,
+        })
+        const updated = await api.getWerkstufenSzenen(String(stageId!))
+        onSzenesReordered?.(updated)
+        const inserted = updated.find((s: any) => !szenen.some(old => old.id === s.id))
+        if (inserted) onSelectSzene(inserted.id)
+      } else {
+        const newSzene = await api.createWerkstufeSzene(String(stageId), {
+          int_ext: 'INT', tageszeit: 'TAG', format,
+        })
+        onSzeneCreated?.(newSzene)
+      }
     } catch (e) {
       console.error('Fehler beim Erstellen der Szene', e)
     } finally {
@@ -266,32 +290,22 @@ export default function SceneList({
     }
   }
 
-  const handleInsertAfter = async (e: React.MouseEvent, afterSzeneId: number | string, format?: string) => {
+  const handleNewSzene = async (format?: string) => {
+    if (!stageId || creating) return
+    if (format !== undefined) { doCreateSzene(format); return }
+    const { format: fmt, showWarning } = getFormatFromKeys('notiz')
+    if (showWarning) {
+      setWrongFormatModal({ pendingFormat: fmt, correctFormat: fmt })
+    } else {
+      doCreateSzene(fmt)
+    }
+  }
+
+  const handleInsertAfter = (e: React.MouseEvent, afterSzeneId: number | string, format: string) => {
     e.stopPropagation()
     setMenuOpenId(null)
     if (!stageId || creating) return
-    const fmt = format ?? getFormatFromKeys('drehbuch')
-    setCreating(true)
-    try {
-      await api.createWerkstufeSzene(String(stageId), {
-        int_ext: 'INT',
-        tageszeit: 'TAG',
-        after_scene_id: afterSzeneId,
-        format: fmt,
-      })
-      // Re-fetch all scenes to get correct sort_order + suffix
-      const updated = await api.getWerkstufenSzenen(String(stageId))
-      onSzenesReordered?.(updated)
-      // Select the newly created scene (last inserted at afterSzeneId position)
-      if (updated.length > 0) {
-        const inserted = updated.find((s: any) => !szenen.some(old => old.id === s.id))
-        if (inserted) onSelectSzene(inserted.id)
-      }
-    } catch (e) {
-      console.error('Fehler beim Einfügen der Szene', e)
-    } finally {
-      setCreating(false)
-    }
+    doCreateSzene(format, afterSzeneId)
   }
 
   const handleSaveTemplate = async () => {
@@ -410,7 +424,10 @@ export default function SceneList({
             <Lock size={11} style={{ color: 'var(--sw-warning)', display: 'block' }} />
           </span>
         )}
-        <Tooltip text={isTouch ? 'Neue Szene' : 'Neue Szene\nD=Drehbuch · S/T=Storyline · N=Notiz\n(Taste halten + Klick)'}>
+        <Tooltip text={isTouch
+          ? `Neue ${nativeLabel}-Szene`
+          : `Neue Szene\n${isDrehbuchWerk ? 'D=Drehbuch' : 'S/T=Storyline'} · N=Notiz\n(Taste halten + Klick)`
+        }>
           <button className="iconbtn" onClick={() => handleNewSzene()} disabled={creating || !stageId} style={{ flexShrink: 0 }}>
             <Plus size={13} />
           </button>
@@ -427,8 +444,11 @@ export default function SceneList({
             </button>
             {formatPickerOpen && (
               <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 130 }}>
-                <button className="scene-ctx-item" onClick={() => { handleNewSzene('drehbuch'); setFormatPickerOpen(false) }}>Drehbuch</button>
-                <button className="scene-ctx-item" onClick={() => { handleNewSzene('storyline'); setFormatPickerOpen(false) }}>Storyline</button>
+                {allowedFormats.filter(f => f !== 'notiz').map(f => (
+                  <button key={f} className="scene-ctx-item" onClick={() => { handleNewSzene(f); setFormatPickerOpen(false) }}>
+                    {f === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
+                  </button>
+                ))}
                 <button className="scene-ctx-item" onClick={() => { handleNewSzene('notiz'); setFormatPickerOpen(false) }}>Notiz</button>
               </div>
             )}
@@ -545,7 +565,7 @@ export default function SceneList({
 
       {/* Scene rows */}
       <div className="list">
-        {filteredRegular.length === 0 && filteredNotizen.length === 0 && (
+        {filtered.length === 0 && (
           <div style={{ padding: '16px 20px', color: 'var(--text-muted)', fontSize: 12 }}>
             {szenen.length === 0
               ? (folgeNummer != null
@@ -554,7 +574,7 @@ export default function SceneList({
               : 'Keine Treffer.'}
           </div>
         )}
-        {filteredRegular.map(scene => {
+        {filtered.map(scene => {
           const envKey = getEnvKey(scene)
           const envColor = (isDarkTheme ? ENV_COLORS_DARK : ENV_COLORS)[envKey]
           const isDark = !!envColor.textDark
@@ -664,10 +684,13 @@ export default function SceneList({
                     <MoreHorizontal size={13} />
                   </button>
                   {isMenuOpen && (
-                    <div className="scene-ctx-menu">
+                    <div className="scene-ctx-menu" style={{ minWidth: 190 }}>
                       <CategoryDivider label="Einfügen darunter" />
-                      <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'drehbuch')} disabled={creating}>Drehbuch</button>
-                      <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'storyline')} disabled={creating}>Storyline</button>
+                      {allowedFormats.filter(f => f !== 'notiz').map(f => (
+                        <button key={f} className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, f)} disabled={creating}>
+                          {f === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
+                        </button>
+                      ))}
                       <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Notiz</button>
                       <button className="scene-ctx-item danger" onClick={e => handleDelete(e, scene.id)}>Löschen</button>
                     </div>
@@ -678,78 +701,6 @@ export default function SceneList({
           )
         })}
 
-        {/* ── Notizen Section ── */}
-        {filteredNotizen.length > 0 && (
-          <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
-            <button
-              onClick={() => setNotizSectionOpen(v => !v)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 12px 5px', border: 'none',
-                borderBottom: notizSectionOpen ? '1px solid var(--border-subtle)' : 'none',
-                background: 'transparent', cursor: 'pointer',
-                color: 'var(--text-muted)', fontSize: 11, fontWeight: 500, fontFamily: 'inherit',
-              }}
-            >
-              <span style={{ flex: 1, textAlign: 'left' }}>Notizen ({filteredNotizen.length})</span>
-              <ChevronDown size={11} style={{ transform: notizSectionOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-            </button>
-            {notizSectionOpen && filteredNotizen.map(scene => {
-              const isMenuOpen = menuOpenId === scene.id
-              const isDeleting = deleting === scene.id
-              const unreadCount = commentCounts?.[scene.id] ?? 0
-              return (
-                <div
-                  key={scene.id}
-                  className={['row', scene.id === selectedSzeneId ? 'active' : '', isDeleting ? 'deleting' : ''].filter(Boolean).join(' ')}
-                  style={{ position: 'relative', cursor: 'pointer', opacity: 0.75 }}
-                  onClick={() => !isMenuOpen && onSelectSzene(scene.id)}
-                >
-                  <div className="num">·</div>
-                  <div className="sl-sondertyp-col" />
-                  <div className="body">
-                    <div className="sl-line">
-                      <span className="sl-set" style={{ fontStyle: 'italic' }}>{scene.zusammenfassung || 'Notiz'}</span>
-                    </div>
-                  </div>
-                  <div className="meta"><span className="sl-fmt">N</span></div>
-                  <div className="sl-info">
-                    {scene.szeneninfo && (
-                      <Tooltip text={scene.szeneninfo}>
-                        <Info size={11} style={{ color: 'var(--text-muted)', display: 'block' }} />
-                      </Tooltip>
-                    )}
-                  </div>
-                  <div className="rt">
-                    <div className="badges">
-                      {unreadCount > 0 && (
-                        <div className="comment-bubble" title={`${unreadCount} ungelesene Kommentare`}>
-                          <MessageCircle size={11} />
-                          <span>{unreadCount > 99 ? '99+' : unreadCount}</span>
-                        </div>
-                      )}
-                    </div>
-                    <div className="scene-ctx-wrap" ref={isMenuOpen ? menuRef : null}>
-                      <button
-                        className={`scene-ctx-btn${isMenuOpen ? ' open' : ''}`}
-                        onClick={e => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : scene.id) }}
-                        title="Optionen"
-                        disabled={isDeleting}
-                      >
-                        <MoreHorizontal size={13} />
-                      </button>
-                      {isMenuOpen && (
-                        <div className="scene-ctx-menu">
-                          <button className="scene-ctx-item danger" onClick={e => handleDelete(e, scene.id)}>Löschen</button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       {/* Bulk assign toolbar */}
@@ -798,6 +749,35 @@ export default function SceneList({
           showLineNumbers={tweaks.showLineNumbers}
           lineNumberMarginCm={tweaks.lineNumberMarginCm}
         />
+      )}
+
+      {/* ── Falsches Format Modal ── */}
+      {wrongFormatModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 10, padding: '24px 28px', maxWidth: 360, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.35)', border: '1px solid var(--border)' }}>
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 10 }}>
+              {wrongLabel}-Format nicht verfügbar
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
+              Diese Werkstufe ist vom Typ <strong>{nativeLabel}</strong>. {wrongLabel}-Szenen können nicht gemischt werden.
+              Stattdessen eine <strong>{nativeLabel}</strong>-Szene erstellen?
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setWrongFormatModal(null)}
+                style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', fontSize: 13, cursor: 'pointer', color: 'var(--text-primary)', fontFamily: 'inherit' }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => { const m = wrongFormatModal; setWrongFormatModal(null); doCreateSzene(m.correctFormat) }}
+                style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: 'var(--sw-green)', color: '#fff', fontSize: 13, cursor: 'pointer', fontWeight: 500, fontFamily: 'inherit' }}
+              >
+                {nativeLabel}-Szene erstellen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

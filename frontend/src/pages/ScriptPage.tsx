@@ -711,6 +711,7 @@ export default function ScriptPage() {
               onOpenStrangPanel={() => setShowStrangPanel(v => !v)}
               onOpenStoppzeiten={() => setShowStoppzeiten(true)}
               werkstufId={selectedStageId ? String(selectedStageId) : null}
+              werkstufTyp={stages.find((s: any) => s.id === selectedStageId)?.typ ?? null}
             />
           </div>
         )}
