@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, CheckSquare, Square } from 'lucide-react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, CheckSquare, Square, Image, History } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
@@ -223,7 +223,6 @@ export default function SceneList({
       const newSzene = await api.createWerkstufeSzene(String(stageId), {
         int_ext: 'INT',
         tageszeit: 'TAG',
-        ort_name: 'NEUE SZENE',
       })
       onSzeneCreated?.(newSzene)
     } catch (e) {
@@ -242,7 +241,6 @@ export default function SceneList({
       await api.createWerkstufeSzene(String(stageId), {
         int_ext: 'INT',
         tageszeit: 'TAG',
-        ort_name: 'NEUE SZENE',
         after_scene_id: afterSzeneId,
       })
       // Re-fetch all scenes to get correct sort_order + suffix
@@ -565,7 +563,7 @@ export default function SceneList({
                     fontSize: 10, lineHeight: 1,
                     color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE',
                   }} title={scene.sondertyp === 'wechselschnitt' ? 'Wechselschnitt' : scene.sondertyp === 'stockshot' ? 'Stockshot' : 'Flashback'}>
-                    {scene.sondertyp === 'wechselschnitt' ? '⇄' : scene.sondertyp === 'stockshot' ? '📷' : '⏪'}
+                    {scene.sondertyp === 'wechselschnitt' ? '⇄' : scene.sondertyp === 'stockshot' ? <Image size={10} /> : <History size={10} />}
                   </span>
                 )}
               </div>
