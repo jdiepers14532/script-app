@@ -43,16 +43,20 @@ dokumentSzenenRouter.get('/:id', async (req, res) => {
       `SELECT ds.*,
         (SELECT ds2.scene_nummer
          FROM dokument_szenen ds2
+         JOIN werkstufen w_l ON w_l.id = ds2.werkstufe_id
          WHERE ds2.scene_identity_id = ds.flashback_referenz_id
-           AND ds2.werkstufe_id = ds.flashback_referenz_werkstufe_id
-           AND ds2.geloescht = false LIMIT 1) AS flashback_referenz_scene_nummer,
+           AND w_l.folge_id = (SELECT folge_id FROM werkstufen WHERE id = ds.flashback_referenz_werkstufe_id)
+           AND ds2.geloescht = false
+         ORDER BY w_l.version_nummer DESC LIMIT 1) AS flashback_referenz_scene_nummer,
         (SELECT f.folge_nummer FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
          WHERE w.id = ds.flashback_referenz_werkstufe_id) AS flashback_referenz_folge_nummer,
         (SELECT ds2.ort_name
          FROM dokument_szenen ds2
+         JOIN werkstufen w_l ON w_l.id = ds2.werkstufe_id
          WHERE ds2.scene_identity_id = ds.flashback_referenz_id
-           AND ds2.werkstufe_id = ds.flashback_referenz_werkstufe_id
-           AND ds2.geloescht = false LIMIT 1) AS flashback_referenz_ort_name
+           AND w_l.folge_id = (SELECT folge_id FROM werkstufen WHERE id = ds.flashback_referenz_werkstufe_id)
+           AND ds2.geloescht = false
+         ORDER BY w_l.version_nummer DESC LIMIT 1) AS flashback_referenz_ort_name
        FROM dokument_szenen ds WHERE ds.id = $1`,
       [req.params.id]
     )

@@ -612,7 +612,8 @@ export default function ScriptPage() {
         }
         if (matching.length === 0) matching = werkstufen
         matching.sort((a: any, b: any) => b.version_nummer - a.version_nummer)
-        const werk = matching[0]
+        // Neueste nicht-leere Werkstufe bevorzugen; nur wenn alle leer → neueste nehmen
+        const werk = matching.find((w: any) => (w.szenen_count ?? 0) > 0) ?? matching[0]
         if (!werk) { console.warn('[ScriptPage] No matching werkstufe'); return }
         setSelectedStageId(werk.id)
         const werkSzenen = await api.getWerkstufenSzenen(werk.id)
