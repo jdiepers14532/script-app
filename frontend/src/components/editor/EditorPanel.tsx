@@ -3,6 +3,7 @@ import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import { useCollaboration } from '../../hooks/useCollaboration'
 import EditorPanelHeader from './EditorPanelHeader'
 import CollaborationPresence from './CollaborationPresence'
+import SnapshotDrawer from './SnapshotDrawer'
 const UniversalEditor = lazy(() => import('./UniversalEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
@@ -10,6 +11,8 @@ import { useUserPrefs } from '../../contexts'
 import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
+import { Clock } from 'lucide-react'
+import Tooltip from '../Tooltip'
 
 interface Props {
   produktionId: string
@@ -49,6 +52,12 @@ export default function EditorPanel({
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Snapshot state ────────────────────────────────────────────────────────
+  const [snapshotOpen, setSnapshotOpen] = useState(false)
+  const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSnapshotContentRef = useRef<string>('')   // JSON-string of last snapshotted content
+  const pendingSnapshotContentRef = useRef<any>(null) // latest editor content awaiting snapshot
 
   useEffect(() => {
     if (!produktionId) return
@@ -127,6 +136,49 @@ export default function EditorPanel({
   // Cleanup save timer
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
 
+  // ── Snapshot helpers ──────────────────────────────────────────────────────
+  // Only for dokument_szenen (new model) — isReadOnly guard handled by caller
+  const canSnapshot = useDokumentSzenen && typeof selectedSzeneId === 'string'
+
+  const fireSnapshot = useCallback(async (content: any) => {
+    if (!canSnapshot || !selectedSzeneId || typeof selectedSzeneId !== 'string') return
+    const json = JSON.stringify(content)
+    if (json === lastSnapshotContentRef.current) return // no change since last snapshot
+    try {
+      await api.createSnapshot(selectedSzeneId, content)
+      lastSnapshotContentRef.current = json
+    } catch { /* non-critical */ }
+  }, [canSnapshot, selectedSzeneId])
+
+  // Schedule idle snapshot: 5 min after last editor change
+  const scheduleSnapshot = useCallback((content: any) => {
+    if (!canSnapshot) return
+    pendingSnapshotContentRef.current = content
+    if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current)
+    snapshotTimerRef.current = setTimeout(() => {
+      if (pendingSnapshotContentRef.current) fireSnapshot(pendingSnapshotContentRef.current)
+    }, 5 * 60 * 1000)
+  }, [canSnapshot, fireSnapshot])
+
+  // On scene change: flush snapshot for previous scene if content changed
+  const prevSzeneIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prev = prevSzeneIdRef.current
+    if (prev && pendingSnapshotContentRef.current) {
+      // fire immediately for the PREVIOUS scene before switching
+      const content = pendingSnapshotContentRef.current
+      const prevId = prev
+      api.createSnapshot(prevId, content).catch(() => {})
+      pendingSnapshotContentRef.current = null
+    }
+    prevSzeneIdRef.current = typeof selectedSzeneId === 'string' ? selectedSzeneId : null
+    lastSnapshotContentRef.current = '' // reset baseline for new scene
+    if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current)
+  }, [selectedSzeneId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Cleanup snapshot timer on unmount
+  useEffect(() => () => { if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current) }, [])
+
   // ── Session Heartbeat (Szenario 1 + 3: Aktivitätserkennung) ──────────────
   // DSGVO: nur last_active_at — kein Aktivitätslog. Framing: Autorenschutz.
   const [otherActiveUsers, setOtherActiveUsers] = useState<Array<{ user_name: string; last_active_at: string }>>([])
@@ -163,6 +215,7 @@ export default function EditorPanel({
   const scheduleSave = useCallback((editorContent: any) => {
     if (!editorContent || !selectedSzeneId) return
     setSaveStatus('saving')
+    scheduleSnapshot(editorContent)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
 
     saveTimerRef.current = setTimeout(async () => {
@@ -192,7 +245,7 @@ export default function EditorPanel({
         setSaveStatus('queued')
       }
     }, 1500)
-  }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue])
+  }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue, scheduleSnapshot])
 
   // Determine kategorie for format filtering
   const sceneFormat = currentSzene?.format
@@ -272,7 +325,7 @@ export default function EditorPanel({
   })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       <EditorPanelHeader
         selectedWerk={selectedWerk}
         werkstufen={werkstufen}
@@ -312,6 +365,23 @@ export default function EditorPanel({
             )}
             <CollaborationPresence status={collabStatus} users={collabUsers} />
           </div>
+        ) : undefined}
+        rightSlot={canSnapshot ? (
+          <Tooltip text="Verlauf — Auto-Sicherungen">
+            <button
+              onClick={() => setSnapshotOpen(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 24, height: 24, borderRadius: 5,
+                border: `1px solid ${snapshotOpen ? 'var(--text-muted)' : 'var(--border)'}`,
+                background: snapshotOpen ? 'var(--bg-subtle)' : 'transparent',
+                color: snapshotOpen ? 'var(--text-primary)' : 'var(--text-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <Clock size={12} />
+            </button>
+          </Tooltip>
         ) : undefined}
       />
 
@@ -437,6 +507,23 @@ export default function EditorPanel({
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Snapshot Drawer ── */}
+      {snapshotOpen && canSnapshot && typeof selectedSzeneId === 'string' && (
+        <SnapshotDrawer
+          szeneId={selectedSzeneId}
+          onRestore={(content) => {
+            // Set restored content into editor via sceneContent state
+            const nodes = Array.isArray(content) ? content : (content?.content ?? [])
+            setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
+            setCurrentSzene((prev: any) => prev ? { ...prev, content } : prev)
+            // Persist immediately
+            api.updateDokumentSzene(selectedSzeneId as string, { content: nodes }).catch(() => {})
+            setSnapshotOpen(false)
+          }}
+          onClose={() => setSnapshotOpen(false)}
+        />
       )}
 
       <div style={{ flex: 1, overflow: 'hidden' }}>

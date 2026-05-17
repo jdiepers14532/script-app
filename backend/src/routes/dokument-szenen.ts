@@ -179,6 +179,110 @@ dokumentSzenenRouter.delete('/:id', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/dokument-szenen/:id/snapshots — list last 50 snapshots
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.get('/:id/snapshots', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT id, created_by, created_at,
+              left(content::text, 200) AS content_preview
+         FROM dokument_szenen_snapshots
+        WHERE szene_id = $1
+        ORDER BY created_at DESC
+        LIMIT 50`,
+      [req.params.id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/dokument-szenen/:id/snapshots — create snapshot (prune >50)
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.post('/:id/snapshots', async (req, res) => {
+  const { content } = req.body
+  if (!content || typeof content !== 'object') {
+    return res.status(400).json({ error: 'content (Tiptap JSON) erforderlich' })
+  }
+  const userId = (req as any).user?.user_id ?? null
+  try {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      const snap = await client.query(
+        `INSERT INTO dokument_szenen_snapshots (szene_id, content, created_by)
+         VALUES ($1, $2, $3) RETURNING id, created_at`,
+        [req.params.id, JSON.stringify(content), userId]
+      )
+      // Prune: keep only 50 newest
+      await client.query(
+        `DELETE FROM dokument_szenen_snapshots
+          WHERE szene_id = $1
+            AND id NOT IN (
+              SELECT id FROM dokument_szenen_snapshots
+               WHERE szene_id = $1
+               ORDER BY created_at DESC
+               LIMIT 50
+            )`,
+        [req.params.id]
+      )
+      await client.query('COMMIT')
+      res.status(201).json(snap.rows[0])
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
+    } finally {
+      client.release()
+    }
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/dokument-szenen/:id/snapshots/:snapId — full content of one snapshot
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.get('/:id/snapshots/:snapId', async (req, res) => {
+  try {
+    const row = await queryOne(
+      `SELECT id, szene_id, content, created_by, created_at
+         FROM dokument_szenen_snapshots
+        WHERE id = $1 AND szene_id = $2`,
+      [req.params.snapId, req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Snapshot nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/dokument-szenen/:id/snapshots/:snapId/restore — restore snapshot
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.post('/:id/snapshots/:snapId/restore', async (req, res) => {
+  try {
+    const snap = await queryOne(
+      `SELECT content FROM dokument_szenen_snapshots WHERE id = $1 AND szene_id = $2`,
+      [req.params.snapId, req.params.id]
+    )
+    if (!snap) return res.status(404).json({ error: 'Snapshot nicht gefunden' })
+
+    // Write content back to the scene
+    const updated = await queryOne(
+      `UPDATE dokument_szenen SET content = $1, updated_at = now()
+        WHERE id = $2 RETURNING id, content, updated_at`,
+      [JSON.stringify(snap.content), req.params.id]
+    )
+    res.json(updated)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GET /api/scene-identities/:id/characters — characters linked to a scene identity
 // ══════════════════════════════════════════════════════════════════════════════
 sceneIdentitiesRouter.get('/:id/characters', async (req, res) => {

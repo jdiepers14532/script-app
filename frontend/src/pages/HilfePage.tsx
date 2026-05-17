@@ -23,6 +23,7 @@ const ExportKopfzeilen     = lazy(() => import('./hilfe/ExportKopfzeilen'))
 const DatensicherheitUserTab = lazy(() => import('./hilfe/DatensicherheitUserTab'))
 const TeamWorkTab          = lazy(() => import('./hilfe/TeamWorkTab'))
 const AutorenplanHilfeTab  = lazy(() => import('./hilfe/AutorenplanHilfeTab'))
+const VerlaufUndoTab       = lazy(() => import('./hilfe/VerlaufUndoTab'))
 const SearchResultsView    = lazy(() => import('./hilfe/SearchResultsView'))
 // Admin-only
 const DatenmodellTab       = lazy(() => import('./hilfe/DatenmodellTab'))
@@ -63,6 +64,8 @@ const NAV_ITEMS = [
     keywords: 'rechtschreibung spellcheck sprache deutsch englisch duden korrektur unterstrichen rot' },
   { id: 'import-komparsen',     label: 'Import & Komparsen',        icon: '🎬',
     keywords: 'import komparsen fountain fdx final draft hochladen upload csv excel mapping' },
+  { id: 'verlauf-undo',         label: 'Verlauf & Rückgängig',      icon: '⏱',
+    keywords: 'verlauf undo redo rückgängig wiederholen snapshot sicherung ctrl z ctrl y autosave auto history version ctrl+z ctrl+y backup wiederherstellung' },
   { id: 'suchen-ersetzen',      label: 'Suchen & Ersetzen',         icon: '🔍',
     keywords: 'suchen ersetzen replace find regex gross klein wort ganze phrase ctrl h' },
   { id: 'story-straenge',       label: 'Story-Stränge',             icon: '🧶',
@@ -145,6 +148,7 @@ function HilfePage() {
       case 'szenen-fassungen':   return <SzenenFassungenTab />
       case 'rechtschreibung':    return <RechtschreibungTab />
       case 'import-komparsen':   return <ImportKomparsenTab />
+      case 'verlauf-undo':       return <VerlaufUndoTab />
       case 'suchen-ersetzen':    return <SuchenErsetzenTab />
       case 'story-straenge':     return <StoryStaengeTab />
       case 'sonderszenen':       return <SonderszenentTab />
