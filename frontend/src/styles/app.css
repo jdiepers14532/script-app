@@ -1186,3 +1186,20 @@
   background: #CC7700;
   color: #fff;
 }
+
+/* ── Tablet / Touch-Optimierungen ── */
+@media (pointer: coarse) {
+  /* Breiterer Drag-Handle — leichter mit Finger greifbar */
+  .scene-list-handle { width: 20px; }
+
+  /* Größere Touch-Targets in der Topbar */
+  .topbar .iconbtn  { width: 44px; height: 44px; }
+  .topbar .avatar   { width: 44px; height: 44px; border-radius: 999px; }
+
+  /* Größere Touch-Targets in der Szenen-Liste */
+  .scenes .ep-bar .iconbtn { width: 36px; height: 36px; }
+  .row .scene-ctx-btn      { width: 36px; height: 36px; }
+
+  /* Größeres Schließen-X in Panels */
+  .tweaks .th .close { width: 36px; height: 36px; }
+}

@@ -62,22 +62,28 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
   const [isSplitDragging, setIsSplitDragging] = useState(false)
   const splitContainerRef = useRef<HTMLDivElement>(null)
 
-  const onSplitDragStart = useCallback((e: React.MouseEvent) => {
+  const onSplitDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
     setIsSplitDragging(true)
-    const onMove = (ev: MouseEvent) => {
+    const getX = (ev: MouseEvent | TouchEvent) =>
+      'touches' in ev ? ev.touches[0].clientX : (ev as MouseEvent).clientX
+    const onMove = (ev: MouseEvent | TouchEvent) => {
       if (!splitContainerRef.current) return
       const rect = splitContainerRef.current.getBoundingClientRect()
-      const ratio = (ev.clientX - rect.left) / rect.width
+      const ratio = (getX(ev) - rect.left) / rect.width
       setSplitRatio(Math.min(0.8, Math.max(0.2, ratio)))
     }
     const onUp = () => {
       setIsSplitDragging(false)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove as EventListener)
+      window.removeEventListener('touchend', onUp)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove as EventListener, { passive: false })
+    window.addEventListener('touchend', onUp)
   }, [])
 
   if (!produktionId || !folgeNummer) return null
@@ -161,6 +167,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
       {showBoth && (
         <div
           onMouseDown={onSplitDragStart}
+          onTouchStart={onSplitDragStart}
           onDoubleClick={() => setSplitRatio(0.5)}
           style={{
             width: 1, flexShrink: 0, cursor: 'col-resize',
@@ -300,7 +307,9 @@ export default function ScriptPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH)
+  const [sidebarWidth, setSidebarWidth] = useState(() =>
+    window.matchMedia('(pointer: coarse)').matches ? 200 : DEFAULT_WIDTH
+  )
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -449,29 +458,39 @@ export default function ScriptPage() {
     return () => window.removeEventListener('keydown', handler)
   }, []) // empty deps — all state accessed via live refs
 
-  // Drag-to-resize
-  const onDragStart = useCallback((e: React.MouseEvent) => {
+  // Drag-to-resize (Mouse + Touch)
+  const onDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
     isDragging.current = true
-    dragStartX.current = e.clientX
+    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    dragStartX.current = startX
     dragStartWidth.current = sidebarWidth
 
-    const onMove = (ev: MouseEvent) => {
+    const getX = (ev: MouseEvent | TouchEvent) =>
+      'touches' in ev ? ev.touches[0].clientX : (ev as MouseEvent).clientX
+    const getXUp = (ev: MouseEvent | TouchEvent) =>
+      'changedTouches' in ev ? ev.changedTouches[0].clientX : (ev as MouseEvent).clientX
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
       if (!isDragging.current) return
-      const delta = ev.clientX - dragStartX.current
+      const delta = getX(ev) - dragStartX.current
       const newWidth = Math.min(window.innerWidth, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
       setSidebarWidth(newWidth)
     }
-    const onUp = (ev: MouseEvent) => {
+    const onUp = (ev: MouseEvent | TouchEvent) => {
       isDragging.current = false
-      const delta = ev.clientX - dragStartX.current
+      const delta = getXUp(ev) - dragStartX.current
       const newWidth = Math.min(window.innerWidth, Math.max(MIN_WIDTH, dragStartWidth.current + delta))
       saveSettings(sidebarCollapsed)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove as EventListener)
+      window.removeEventListener('touchend', onUp as EventListener)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove as EventListener, { passive: false })
+    window.addEventListener('touchend', onUp as EventListener)
   }, [sidebarWidth, sidebarCollapsed, saveSettings])
 
   const toggleCollapse = useCallback(() => {
@@ -697,7 +716,7 @@ export default function ScriptPage() {
         )}
 
         {/* Drag handle + collapse arrow */}
-        <div className="scene-list-handle" onMouseDown={!sidebarCollapsed ? onDragStart : undefined}>
+        <div className="scene-list-handle" onMouseDown={!sidebarCollapsed ? onDragStart : undefined} onTouchStart={!sidebarCollapsed ? onDragStart : undefined}>
           <button
             className="scene-list-collapse-btn"
             onClick={toggleCollapse}

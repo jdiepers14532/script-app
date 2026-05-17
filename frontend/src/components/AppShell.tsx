@@ -139,10 +139,12 @@ export const FONT_SIZES = [11, 12, 13, 14, 15, 16]
 
 export const CUSTOM_IDX = 99  // sentinel: eigene Farbe gewählt
 
+const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+
 export const DEFAULT_TWEAKS: TweakState = {
   theme: 'light',
   colorMode: 'full',
-  panelMode: 'both',
+  panelMode: isTouch ? 'script' : 'both',
   density: 'normal',
   breakdown: true,
   conn: 'online',
@@ -194,6 +196,7 @@ function applyViewSettings(tweaks: TweakState) {
   }
 
   const zoomFactor = (tweaks.interfaceFontSize / 13).toFixed(4)
+  const touchDevice = window.matchMedia('(pointer: coarse)').matches
   style.textContent = `
     :root {
       --font-sans: ${tweaks.interfaceFont};
@@ -201,7 +204,7 @@ function applyViewSettings(tweaks: TweakState) {
       --user-interface-size: ${tweaks.interfaceFontSize}px;
       --user-script-size: ${tweaks.fontSize}px;
     }
-    .app, .editor-app { zoom: ${zoomFactor}; }
+    ${touchDevice ? '' : `.app, .editor-app { zoom: ${zoomFactor}; }`}
     [data-theme='light'], .editor-app {
       --bg-page: ${light.bg} !important;
       --bg-surface: ${light.surface} !important;
