@@ -1202,4 +1202,13 @@
 
   /* Größeres Schließen-X in Panels */
   .tweaks .th .close { width: 36px; height: 36px; }
+
+  /* Kontext-Menü-Button (...) immer sichtbar — kein Hover auf Touch */
+  .row .scene-ctx-btn { display: flex; }
+
+  /* Breakdown Löschen-Button immer sichtbar — kein Hover auf Touch */
+  .breakdown .bd-remove { opacity: 1; }
+
+  /* iOS Auto-Zoom verhindern — Inputs mit font-size < 16px triggern Zoom auf iOS Safari */
+  input, textarea, select { font-size: 16px !important; }
 }
