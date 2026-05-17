@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, CheckSquare, Square } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
-import { useAppSettings, useTweaks } from '../contexts'
+import { useAppSettings, useTweaks, useToast } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
 import PlatzhalterSzenenDialog from './PlatzhalterSzenenDialog'
@@ -53,6 +53,7 @@ export default function SceneList({
   const { sceneKuerzel } = useAppSettings()
   const { tweaks } = useTweaks()
   const { t } = useTerminologie()
+  const { showToast } = useToast()
   const isDarkTheme = tweaks.theme === 'dark'
   const [searchQuery, setSearchQuery] = useState('')
   const [lock, setLock] = useState<any | null>(null)
@@ -204,7 +205,12 @@ export default function SceneList({
       await api.deleteDokumentSzene(String(szeneId))
       onSzeneDeleted?.(szeneId)
     } catch (err: any) {
-      alert('Fehler beim Löschen: ' + err.message)
+      if (err.message?.includes('Not Found') || err.message?.includes('404') || err.message?.includes('nicht gefunden')) {
+        // Szene existiert nicht mehr in der DB — aus State entfernen
+        onSzeneDeleted?.(szeneId)
+      } else {
+        showToast('Fehler beim Löschen: ' + err.message, 'error')
+      }
     } finally {
       setDeleting(null)
     }
@@ -261,9 +267,9 @@ export default function SceneList({
     if (!name?.trim()) return
     try {
       await api.createDokumentVorlage(produktionId, { name: name.trim(), werkstufe_id: String(stageId) })
-      alert('Template gespeichert.')
+      showToast('Template gespeichert.', 'success')
     } catch (err: any) {
-      alert('Fehler: ' + err.message)
+      showToast('Fehler: ' + err.message, 'error')
     }
   }
 
@@ -275,10 +281,10 @@ export default function SceneList({
       const result = await api.renumberWerkstufeSzenen(String(stageId))
       onSzenesReordered?.(result.scenes)
       if (!result.renumbered) {
-        alert(`${t('szene', 'p')} sind geloggt. Positionen wurden in ${t('szene', 'c')}info vermerkt.`)
+        showToast(`${t('szene', 'p')} sind geloggt. Positionen wurden in ${t('szene', 'c')}info vermerkt.`, 'info')
       }
     } catch (e: any) {
-      alert('Fehler beim Neu-Nummerieren: ' + e.message)
+      showToast('Fehler beim Neu-Nummerieren: ' + e.message, 'error')
     } finally {
       setRenumbering(false)
     }

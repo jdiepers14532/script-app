@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { api } from '../api/client'
+import { useToast } from '../contexts'
 
 interface Props {
   werkstufId: string
@@ -15,6 +16,7 @@ export default function PlatzhalterSzenenDialog({ werkstufId, produktionId, open
   const [strangId, setStrangId] = useState<string>('')
   const [straenge, setStraenge] = useState<any[]>([])
   const [creating, setCreating] = useState(false)
+  const { showToast } = useToast()
 
   useEffect(() => {
     if (!open) return
@@ -33,7 +35,7 @@ export default function PlatzhalterSzenenDialog({ werkstufId, produktionId, open
       onCreated()
       onClose()
     } catch (e: any) {
-      alert('Fehler: ' + e.message)
+      showToast('Fehler beim Anlegen: ' + e.message, 'error')
     } finally {
       setCreating(false)
     }

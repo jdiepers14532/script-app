@@ -8,8 +8,8 @@ import {
   Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
   Clapperboard, Tv,
 } from 'lucide-react'
-import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext } from '../contexts'
-import type { TweakState } from '../contexts'
+import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext, ToastContext } from '../contexts'
+import type { TweakState, ToastType } from '../contexts'
 import { getShortcutLabel } from '../shortcuts'
 import { useOfflineQueueContext } from '../sw-ui'
 import ProductionSelector from './ProductionSelector'
@@ -348,6 +348,14 @@ export default function AppShell({
   const [uninstallDone, setUninstallDone] = useState(false)
   // Update-Toast
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
+  // App-Toast (error/success/info)
+  const [appToast, setAppToast] = useState<{ message: string; type: ToastType } | null>(null)
+  const appToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showToast = useCallback((message: string, type: ToastType = 'info') => {
+    if (appToastTimer.current) clearTimeout(appToastTimer.current)
+    setAppToast({ message, type })
+    appToastTimer.current = setTimeout(() => setAppToast(null), 4000)
+  }, [])
   // Install-Modal
   const [installModalOpen, setInstallModalOpen] = useState(false)
   const [installStep, setInstallStep] = useState<'intro' | 'success' | 'declined'>('intro')
@@ -1066,6 +1074,7 @@ export default function AppShell({
         data-breakdown={tweaks.breakdown ? 'on' : 'off'}
         style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
       >
+        <ToastContext.Provider value={{ showToast }}>
         <TweaksContext.Provider value={{ tweaks, set, reset: () => setTweaks(DEFAULT_TWEAKS) }}>
           <UserPrefsContext.Provider value={{ scrollNavDelay: tweaks.scrollNavDelay, showPageShadow: tweaks.showPageShadow, showTooltips: tweaks.showTooltips, spellcheck: tweaks.spellcheck, keyboardLayout: tweaks.keyboardLayout, spellcheckLang: tweaks.spellcheckLang }}>
             <PanelModeContext.Provider value={{ panelMode: tweaks.panelMode, setPanelMode: (m) => set('panelMode', m) }}>
@@ -1076,6 +1085,7 @@ export default function AppShell({
             )}
           </UserPrefsContext.Provider>
         </TweaksContext.Provider>
+        </ToastContext.Provider>
       </main>
       <ConflictDialog />
 
@@ -2368,6 +2378,26 @@ export default function AppShell({
 
           </div>
         </>
+      )}
+
+      {/* ── App-Toast (error/success/info) ── */}
+      {appToast && (
+        <div style={{
+          position: 'fixed', bottom: swUpdateAvailable ? 100 : 24, right: 24, zIndex: 99998,
+          display: 'flex', alignItems: 'center', gap: 10,
+          padding: '10px 14px', borderRadius: 10,
+          background: '#111', color: '#fff',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+          fontSize: 13, maxWidth: 320,
+          borderLeft: `3px solid ${appToast.type === 'error' ? '#FF3B30' : appToast.type === 'success' ? '#00C853' : '#007AFF'}`,
+          animation: 'slideInRight 0.25s ease',
+        }}>
+          <span style={{ flex: 1 }}>{appToast.message}</span>
+          <button
+            onClick={() => setAppToast(null)}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', padding: '0 2px', fontSize: 16, lineHeight: 1 }}
+          >×</button>
+        </div>
       )}
 
       {/* ── Update-Toast (Phase 4) ── */}

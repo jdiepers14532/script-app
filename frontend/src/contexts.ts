@@ -120,3 +120,9 @@ export function useTweaks() {
   if (!ctx) throw new Error('useTweaks must be used within AppShell')
   return ctx
 }
+
+// Toast Context
+export type ToastType = 'error' | 'success' | 'info'
+interface ToastContextValue { showToast: (message: string, type?: ToastType) => void }
+export const ToastContext = createContext<ToastContextValue>({ showToast: () => {} })
+export function useToast() { return useContext(ToastContext) }
