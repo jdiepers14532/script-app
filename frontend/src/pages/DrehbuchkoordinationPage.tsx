@@ -1340,6 +1340,10 @@ function GruppenRegisterTab() {
   const [saving, setSaving] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null)
+  const [memberSearch, setMemberSearch] = useState('')
+  const [memberResults, setMemberResults] = useState<any[]>([])
+  const [memberSearching, setMemberSearching] = useState(false)
+  const memberSearchRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = async () => {
     if (!produktionId) return
@@ -1360,10 +1364,17 @@ function GruppenRegisterTab() {
     setEditingId(g.id)
     setEditName(g.name)
     setEditBeschreibung(g.beschreibung ?? '')
+    setMemberSearch('')
+    setMemberResults([])
     setMsg(null)
   }
 
-  const cancelEdit = () => { setEditingId(null); setMsg(null) }
+  const cancelEdit = () => {
+    setEditingId(null)
+    setMemberSearch('')
+    setMemberResults([])
+    setMsg(null)
+  }
 
   const saveEdit = async (g: any) => {
     if (!editName.trim()) return
@@ -1372,11 +1383,59 @@ function GruppenRegisterTab() {
       const updated = await api.updateAdminColabGruppe(g.id, { name: editName.trim(), beschreibung: editBeschreibung.trim() || undefined })
       setGruppen(prev => prev.map(x => x.id === g.id ? { ...x, ...updated } : x))
       setEditingId(null)
+      setMemberSearch('')
+      setMemberResults([])
       setMsg({ text: 'Gespeichert.', ok: true })
     } catch {
       setMsg({ text: 'Fehler beim Speichern.', ok: false })
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleMemberSearch = (val: string, gruppeId: string) => {
+    setMemberSearch(val)
+    if (memberSearchRef.current) clearTimeout(memberSearchRef.current)
+    if (!val.trim() || val.trim().length < 2) { setMemberResults([]); return }
+    memberSearchRef.current = setTimeout(async () => {
+      setMemberSearching(true)
+      try {
+        const results = await api.searchAppUsers(val.trim())
+        const gruppe = gruppen.find(g => g.id === gruppeId)
+        const existingIds = new Set((gruppe?.mitglieder ?? []).map((m: any) => m.user_id))
+        setMemberResults((results as any[]).filter((u: any) => !existingIds.has(u.id)))
+      } catch {
+        setMemberResults([])
+      } finally {
+        setMemberSearching(false)
+      }
+    }, 300)
+  }
+
+  const addMember = async (gruppeId: string, user: any) => {
+    try {
+      await api.addColabMitglied(gruppeId, { user_id: user.id, user_name: user.username ?? user.name ?? user.id })
+      setGruppen(prev => prev.map(g => {
+        if (g.id !== gruppeId) return g
+        const newMember = { user_id: user.id, user_name: user.username ?? user.name ?? user.id }
+        return { ...g, mitglieder: [...(g.mitglieder ?? []), newMember], mitglieder_count: (g.mitglieder_count ?? 0) + 1 }
+      }))
+      setMemberSearch('')
+      setMemberResults([])
+    } catch {
+      setMsg({ text: 'Mitglied konnte nicht hinzugefügt werden.', ok: false })
+    }
+  }
+
+  const removeMember = async (gruppeId: string, userId: string) => {
+    try {
+      await api.removeColabMitglied(gruppeId, userId)
+      setGruppen(prev => prev.map(g => {
+        if (g.id !== gruppeId) return g
+        return { ...g, mitglieder: (g.mitglieder ?? []).filter((m: any) => m.user_id !== userId), mitglieder_count: Math.max(0, (g.mitglieder_count ?? 1) - 1) }
+      }))
+    } catch {
+      setMsg({ text: 'Mitglied konnte nicht entfernt werden.', ok: false })
     }
   }
 
@@ -1438,22 +1497,95 @@ function GruppenRegisterTab() {
             <div key={g.id} style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden', background: 'var(--bg-surface)' }}>
               {/* Row */}
               {editingId === g.id ? (
-                <div style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <input
-                    value={editName}
-                    onChange={e => setEditName(e.target.value)}
-                    autoFocus
-                    placeholder="Gruppenname"
-                    style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 600 }}
-                    onKeyDown={e => { if (e.key === 'Enter') saveEdit(g); if (e.key === 'Escape') cancelEdit() }}
-                  />
-                  <input
-                    value={editBeschreibung}
-                    onChange={e => setEditBeschreibung(e.target.value)}
-                    placeholder="Beschreibung (optional)"
-                    style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 12 }}
-                  />
-                  <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Name + Beschreibung */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>Name & Beschreibung</div>
+                    <input
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      autoFocus
+                      placeholder="Gruppenname"
+                      style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 13, fontWeight: 600 }}
+                      onKeyDown={e => { if (e.key === 'Enter') saveEdit(g); if (e.key === 'Escape') cancelEdit() }}
+                    />
+                    <input
+                      value={editBeschreibung}
+                      onChange={e => setEditBeschreibung(e.target.value)}
+                      placeholder="Beschreibung (optional)"
+                      style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 12 }}
+                    />
+                  </div>
+
+                  {/* Member management */}
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                      Mitglieder ({(g.mitglieder ?? []).length})
+                    </div>
+
+                    {/* Current members */}
+                    {(g.mitglieder ?? []).length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {(g.mitglieder as any[]).map((m: any) => (
+                          <span key={m.user_id} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            padding: '3px 8px 3px 10px', borderRadius: 20,
+                            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                            fontSize: 11, color: 'var(--text-primary)',
+                          }}>
+                            {m.user_name}
+                            <button
+                              onClick={() => removeMember(g.id, m.user_id)}
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, borderRadius: '50%', border: 'none', background: 'rgba(255,59,48,0.15)', color: '#FF3B30', fontSize: 10, cursor: 'pointer', padding: 0, lineHeight: 1 }}
+                            >×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {(g.mitglieder ?? []).length === 0 && (
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>Noch keine Mitglieder.</p>
+                    )}
+
+                    {/* User search */}
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        value={memberSearch}
+                        onChange={e => handleMemberSearch(e.target.value, g.id)}
+                        placeholder="Mitglied hinzufügen (Name eingeben…)"
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 12 }}
+                      />
+                      {memberSearching && (
+                        <div style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-muted)' }}>Sucht…</div>
+                      )}
+                      {memberResults.length > 0 && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                          background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                          borderRadius: 7, marginTop: 2, boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                          maxHeight: 180, overflowY: 'auto',
+                        }}>
+                          {memberResults.map((u: any) => (
+                            <button key={u.id}
+                              onClick={() => addMember(g.id, u)}
+                              style={{
+                                width: '100%', textAlign: 'left', padding: '8px 12px',
+                                border: 'none', background: 'transparent', cursor: 'pointer',
+                                fontSize: 12, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8,
+                              }}
+                              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <span style={{ flex: 1 }}>{u.username ?? u.name ?? u.id}</span>
+                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>+ hinzufügen</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Save / Cancel */}
+                  <div style={{ display: 'flex', gap: 6, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
                     <button onClick={() => saveEdit(g)} disabled={!editName.trim() || saving}
                       style={{ padding: '6px 14px', borderRadius: 7, border: 'none', background: '#007AFF', color: '#fff', fontSize: 12, fontWeight: 600, cursor: editName.trim() ? 'pointer' : 'default', opacity: editName.trim() ? 1 : 0.5 }}>
                       {saving ? 'Speichert…' : 'Speichern'}

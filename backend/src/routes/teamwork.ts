@@ -414,7 +414,28 @@ adminColabRegisterRouter.get('/', async (req, res) => {
        ORDER BY g.erstellt_am DESC`,
       [produktion_id]
     )
-    res.json(rows)
+
+    // Resolve erstellt_von UUIDs → usernames via auth service (best-effort)
+    let userMap: Record<string, string> = {}
+    try {
+      const AUTH_URL = 'http://127.0.0.1:3002'
+      const INTERNAL_KEY = process.env.INTERNAL_SECRET ?? ''
+      const r = await fetch(`${AUTH_URL}/api/internal/app-users/script`, {
+        headers: { 'x-internal-key': INTERNAL_KEY },
+      })
+      if (r.ok) {
+        const data = await r.json() as any
+        const users: { id: string; username: string }[] = data.users ?? []
+        userMap = Object.fromEntries(users.map(u => [u.id, u.username]))
+      }
+    } catch { /* auth service unreachable — show UUID as fallback */ }
+
+    const enriched = (rows as any[]).map(g => ({
+      ...g,
+      erstellt_von_name: userMap[g.erstellt_von] ?? g.erstellt_von,
+    }))
+
+    res.json(enriched)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
