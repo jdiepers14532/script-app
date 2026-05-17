@@ -60,6 +60,7 @@ import {
 } from './routes/teamwork'
 import { notificationsRouter } from './routes/notifications'
 import { autorenplanRouter } from './routes/autorenplan'
+import { taetigkeitenInternalRouter } from './routes/taetigkeitenInternal'
 import { runPrivatModusWorker } from './workers/privatModusWorker'
 
 // Load .env from project root or backend dir
@@ -120,6 +121,8 @@ app.use('/api/locks', contractLocksRouter) // POST /contract-update
 app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 // Internal webhook — no auth
 app.use('/api/internal', commentWebhookRouter)
+// Internal: Tätigkeiten-Remap (aus Vertragsdb Merge) — eigene Secret-Auth
+app.use('/api/internal', taetigkeitenInternalRouter)
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)
 
