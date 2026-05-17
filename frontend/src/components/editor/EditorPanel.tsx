@@ -410,8 +410,8 @@ export default function EditorPanel({
 
       {/* ── Format-Wechsel Bestätigung ── */}
       {formatConfirmOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--bg-primary)', borderRadius: 10, padding: '24px 28px', maxWidth: 380, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 10, padding: '24px 28px', maxWidth: 380, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.35)', border: '1px solid var(--border)' }}>
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 10 }}>Format wechseln?</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.5 }}>
               Der aktuelle Szeneninhalt wird beim Wechsel des Formats gelöscht. Der Szenenkopf bleibt erhalten.
