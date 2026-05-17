@@ -297,6 +297,7 @@ async function runMigrations() {
     'v74_szenen_revisionen.sql',
     'v75_notifications.sql',
     'v76_autorenplan.sql',
+    'v77_autorenplan_job_kategorien.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

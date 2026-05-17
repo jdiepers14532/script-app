@@ -1,5 +1,6 @@
 import { Router, Request } from 'express'
 import { pool } from '../db'
+import { prodQueryOne } from '../prodDb'
 import { authMiddleware } from '../auth'
 
 const router = Router()
@@ -12,61 +13,8 @@ function uid(req: Request): string {
   return req.user?.user_id || req.user?.name || 'unknown'
 }
 
-const DEFAULT_BUCHPROZESS_CONFIG = {
-  wochen_typ: 'kalender',
-  prozesse: [
-    {
-      id: 'storyline',
-      label: 'Storyline',
-      kostenstelle: '605119',
-      dauer_wochen: 1,
-      max_slots: 5,
-      praesenz_wochen: [],
-      vertragsdb_taetigkeit_ids: [155, 272, 268],
-      werkstufen_typ: 'storyline',
-      farbe: '#007AFF',
-      sortierung: 1,
-    },
-    {
-      id: 'storyedit',
-      label: 'Storyedit',
-      kostenstelle: '605111',
-      dauer_wochen: 3,
-      max_slots: 3,
-      praesenz_wochen: [1],
-      vertragsdb_taetigkeit_ids: [162, 158, 235],
-      werkstufen_typ: 'storyline',
-      farbe: '#FF9500',
-      sortierung: 2,
-    },
-    {
-      id: 'drehbuch',
-      label: 'Drehbuch',
-      kostenstelle: '605110',
-      dauer_wochen: 1,
-      max_slots: 5,
-      praesenz_wochen: [],
-      vertragsdb_taetigkeit_ids: [269, 155],
-      werkstufen_typ: 'drehbuch',
-      farbe: '#00C853',
-      sortierung: 3,
-    },
-    {
-      id: 'scriptedit',
-      label: 'Scriptedit',
-      kostenstelle: '605122',
-      dauer_wochen: 2,
-      max_slots: 2,
-      praesenz_wochen: [],
-      vertragsdb_taetigkeit_ids: [159, 160, 309],
-      werkstufen_typ: 'drehbuch',
-      farbe: '#AF52DE',
-      sortierung: 4,
-    },
-  ],
-}
-
 // ── Helper: call vertragsdb internal API ──────────────────────────────────────
+
 async function vertragsdbGet(path: string): Promise<any> {
   const res = await fetch(`${VERTRAEGE_URL}${path}`, {
     headers: { 'X-Internal-Secret': INTERNAL_SECRET },
@@ -78,56 +26,194 @@ async function vertragsdbGet(path: string): Promise<any> {
 async function vertragsdbPost(path: string, body: object): Promise<any> {
   const res = await fetch(`${VERTRAEGE_URL}${path}`, {
     method: 'POST',
-    headers: {
-      'X-Internal-Secret': INTERNAL_SECRET,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'X-Internal-Secret': INTERNAL_SECRET, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`Vertragsdb ${path}: ${res.status}`)
   return res.json()
 }
 
-// ── Buchprozess-Konfiguration ──────────────────────────────────────────────────
+// ── Job-Kategorien ─────────────────────────────────────────────────────────────
 
-// GET /api/autorenplan/config?produktion_db_id=
-router.get('/config', async (req, res) => {
+// GET /api/autorenplan/job-kategorien?produktion_db_id=
+router.get('/job-kategorien', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const { produktion_db_id } = req.query as Record<string, string>
   if (!produktion_db_id) return res.status(400).json({ error: 'produktion_db_id fehlt' })
 
-  const row = await pool.query(
-    "SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'buchprozess_config'",
+  const rows = await pool.query(
+    'SELECT * FROM autorenplan_job_kategorien WHERE produktion_db_id = $1 ORDER BY sortierung, erstellt_am',
     [produktion_db_id]
   )
-  const config = row.rows[0] ? JSON.parse(row.rows[0].value) : DEFAULT_BUCHPROZESS_CONFIG
-  res.json({ config })
+  res.json({ job_kategorien: rows.rows })
 })
 
-// PUT /api/autorenplan/config?produktion_db_id=
-router.put('/config', async (req, res) => {
+// POST /api/autorenplan/job-kategorien
+router.post('/job-kategorien', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
-  const { produktion_db_id } = req.query as Record<string, string>
-  if (!produktion_db_id) return res.status(400).json({ error: 'produktion_db_id fehlt' })
-  const config = req.body
-  await pool.query(
-    `INSERT INTO production_app_settings (production_id, key, value, updated_at)
-     VALUES ($1, 'buchprozess_config', $2, NOW())
-     ON CONFLICT (production_id, key) DO UPDATE SET value = $2, updated_at = NOW()`,
-    [produktion_db_id, JSON.stringify(config)]
+  const {
+    produktion_db_id, label, beschreibung, vertragsdb_taetigkeit_id,
+    gage_betrag, gage_waehrung, abrechnungstyp, lst_rg,
+    max_slots, slots_gleich_folgen,
+    dauer_wochen, bezugseinheit, praesenz_wochen,
+    erster_block_start, farbe, sortierung,
+  } = req.body
+
+  if (!produktion_db_id || !label?.trim()) {
+    return res.status(400).json({ error: 'produktion_db_id und label erforderlich' })
+  }
+
+  const result = await pool.query(
+    `INSERT INTO autorenplan_job_kategorien
+       (produktion_db_id, label, beschreibung, vertragsdb_taetigkeit_id,
+        gage_betrag, gage_waehrung, abrechnungstyp, lst_rg,
+        max_slots, slots_gleich_folgen,
+        dauer_wochen, bezugseinheit, praesenz_wochen,
+        erster_block_start, farbe, sortierung, erstellt_von)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     RETURNING *`,
+    [
+      produktion_db_id, label.trim(), beschreibung || null, vertragsdb_taetigkeit_id || null,
+      gage_betrag || null, gage_waehrung || 'EUR', abrechnungstyp || 'pauschal', lst_rg || 'RG',
+      max_slots ?? 1, slots_gleich_folgen ?? false,
+      dauer_wochen ?? 1, bezugseinheit || 'block',
+      praesenz_wochen?.length ? praesenz_wochen : [1],
+      erster_block_start || null, farbe || '#007AFF', sortierung ?? 0,
+      uid(req),
+    ]
   )
+  res.json({ job_kategorie: result.rows[0] })
+})
+
+// PUT /api/autorenplan/job-kategorien/:id
+router.put('/job-kategorien/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const {
+    label, beschreibung, vertragsdb_taetigkeit_id,
+    gage_betrag, gage_waehrung, abrechnungstyp, lst_rg,
+    max_slots, slots_gleich_folgen,
+    dauer_wochen, bezugseinheit, praesenz_wochen,
+    erster_block_start, farbe, sortierung,
+  } = req.body
+
+  const result = await pool.query(
+    `UPDATE autorenplan_job_kategorien SET
+       label               = COALESCE($1, label),
+       beschreibung        = $2,
+       vertragsdb_taetigkeit_id = $3,
+       gage_betrag         = $4,
+       gage_waehrung       = COALESCE($5, gage_waehrung),
+       abrechnungstyp      = COALESCE($6, abrechnungstyp),
+       lst_rg              = COALESCE($7, lst_rg),
+       max_slots           = COALESCE($8, max_slots),
+       slots_gleich_folgen = COALESCE($9, slots_gleich_folgen),
+       dauer_wochen        = COALESCE($10, dauer_wochen),
+       bezugseinheit       = COALESCE($11, bezugseinheit),
+       praesenz_wochen     = COALESCE($12, praesenz_wochen),
+       erster_block_start  = $13,
+       farbe               = COALESCE($14, farbe),
+       sortierung          = COALESCE($15, sortierung),
+       aktualisiert_am     = NOW()
+     WHERE id = $16
+     RETURNING *`,
+    [
+      label?.trim() || null, beschreibung ?? null, vertragsdb_taetigkeit_id ?? null,
+      gage_betrag ?? null, gage_waehrung || null, abrechnungstyp || null, lst_rg || null,
+      max_slots ?? null, slots_gleich_folgen ?? null,
+      dauer_wochen ?? null, bezugseinheit || null,
+      praesenz_wochen?.length ? praesenz_wochen : null,
+      erster_block_start || null, farbe || null, sortierung ?? null,
+      req.params.id,
+    ]
+  )
+  if (!result.rows.length) return res.status(404).json({ error: 'Nicht gefunden' })
+  res.json({ job_kategorie: result.rows[0] })
+})
+
+// DELETE /api/autorenplan/job-kategorien/:id
+router.delete('/job-kategorien/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  await pool.query('DELETE FROM autorenplan_job_kategorien WHERE id = $1', [req.params.id])
   res.json({ ok: true })
 })
 
-// ── Personen-Suche (Proxy zu Vertragsdb) ──────────────────────────────────────
+// PUT /api/autorenplan/job-kategorien/sort — reorder
+router.put('/job-kategorien/sort', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const { ids } = req.body as { ids: string[] }
+  if (!Array.isArray(ids)) return res.status(400).json({ error: 'ids[]  erforderlich' })
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    for (let i = 0; i < ids.length; i++) {
+      await client.query(
+        'UPDATE autorenplan_job_kategorien SET sortierung = $1 WHERE id = $2',
+        [i, ids[i]]
+      )
+    }
+    await client.query('COMMIT')
+    res.json({ ok: true })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+})
 
-// GET /api/autorenplan/personen-suche?name=&produktion_db_id=
+// ── Bloecke aus Prod-DB ────────────────────────────────────────────────────────
+
+// GET /api/autorenplan/bloecke?produktion_db_id=
+// Liefert Block-Array direkt aus Prod-DB (über prodQueryOne), aufbereitet mit
+// block_nummer, folge_von, folge_bis, folgen_anzahl, dreh_von, block_label
+router.get('/bloecke', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const { produktion_db_id } = req.query as Record<string, string>
+  if (!produktion_db_id) return res.status(400).json({ error: 'produktion_db_id fehlt' })
+
+  try {
+    const prod = await prodQueryOne(
+      `SELECT erster_block, erste_folge, folgen_global, block_label, bloecke
+       FROM productions WHERE id = $1`,
+      [produktion_db_id]
+    )
+    if (!prod) return res.json({ bloecke: [], block_label: 'Block', erster_block: 1 })
+
+    const bloecke = Array.isArray(prod.bloecke) ? prod.bloecke : []
+    const folgenGlobal = prod.folgen_global ?? 2
+
+    res.json({
+      block_label:  prod.block_label || 'Block',
+      erster_block: prod.erster_block ?? 1,
+      erste_folge:  prod.erste_folge ?? 1,
+      bloecke: bloecke.map((b: any, i: number) => {
+        const fv = b.folge_von ?? null
+        const fb = b.folge_bis ?? null
+        const folgen_anzahl = fv != null && fb != null ? (fb - fv + 1) : folgenGlobal
+        return {
+          proddb_id:    b.id,
+          block_nummer: (prod.erster_block ?? 1) + i,
+          folge_von:    fv,
+          folge_bis:    fb,
+          folgen_anzahl,
+          dreh_von:     b.dreh_von || null,
+          dreh_bis:     b.dreh_bis || null,
+          team_index:   b.team_index ?? null,
+        }
+      }),
+    })
+  } catch (e: any) {
+    res.status(502).json({ error: 'Prod-DB nicht erreichbar', detail: e.message })
+  }
+})
+
+// ── Personen-Suche & Anlegen (Proxy zu Vertragsdb) ────────────────────────────
+
 router.get('/personen-suche', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const { name, produktion_db_id } = req.query as Record<string, string>
   try {
     if (produktion_db_id && !name) {
-      // Personen mit Verträgen für diese Produktion
       const data = await vertragsdbGet(
         `/api/internal/personen?produktion_db_id=${encodeURIComponent(produktion_db_id)}&rolle=arbeitnehmer`
       )
@@ -143,7 +229,6 @@ router.get('/personen-suche', async (req, res) => {
   }
 })
 
-// POST /api/autorenplan/personen-anlegen
 router.post('/personen-anlegen', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const { name, rufname, email } = req.body
@@ -156,16 +241,28 @@ router.post('/personen-anlegen', async (req, res) => {
   }
 })
 
-// GET /api/autorenplan/taetigkeiten?q=&produktion_db_id=&ids=
+// GET /api/autorenplan/taetigkeiten?q=&ids=
 router.get('/taetigkeiten', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const params = new URLSearchParams()
-  const { q, produktion_db_id, ids } = req.query as Record<string, string>
+  const { q, ids } = req.query as Record<string, string>
   if (q) params.set('q', q)
-  if (produktion_db_id) params.set('produktion_db_id', produktion_db_id)
   if (ids) params.set('ids', ids)
   try {
     const data = await vertragsdbGet(`/api/internal/taetigkeiten-search?${params}`)
+    res.json(data)
+  } catch (e: any) {
+    res.status(502).json({ error: 'Vertragsdb nicht erreichbar', detail: e.message })
+  }
+})
+
+// POST /api/autorenplan/taetigkeiten-anlegen
+router.post('/taetigkeiten-anlegen', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const { bezeichnung, gewerk, kategorie } = req.body
+  if (!bezeichnung?.trim()) return res.status(400).json({ error: 'bezeichnung erforderlich' })
+  try {
+    const data = await vertragsdbPost('/api/internal/taetigkeiten-anlegen', { bezeichnung, gewerk, kategorie })
     res.json(data)
   } catch (e: any) {
     res.status(502).json({ error: 'Vertragsdb nicht erreichbar', detail: e.message })
@@ -183,25 +280,16 @@ router.get('/einsaetze', async (req, res) => {
   const conditions = ['produktion_db_id = $1']
   const params: any[] = [produktion_db_id]
 
-  if (von) {
-    params.push(von)
-    conditions.push(`woche_von >= $${params.length}`)
-  }
+  if (von) { params.push(von); conditions.push(`woche_von >= $${params.length}`) }
   if (bis) {
-    const config = await pool.query(
-      "SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'buchprozess_config'",
-      [produktion_db_id]
-    )
-    const cfg = config.rows[0] ? JSON.parse(config.rows[0].value) : DEFAULT_BUCHPROZESS_CONFIG
-    const maxDauer = Math.max(...cfg.prozesse.map((p: any) => p.dauer_wochen || 1))
-    // Einsätze die in den Sichtbereich fallen (woche_von + max_dauer Wochen)
+    // Einsätze mit bis zu 8 Wochen Vorlauf berücksichtigen
     params.push(bis)
-    conditions.push(`woche_von <= $${params.length}::date + interval '${maxDauer * 7} days'`)
+    conditions.push(`woche_von <= $${params.length}::date + interval '56 days'`)
   }
 
-  const where = conditions.join(' AND ')
   const rows = await pool.query(
-    `SELECT * FROM autorenplan_einsaetze WHERE ${where} ORDER BY prozess_id, woche_von`,
+    `SELECT * FROM autorenplan_einsaetze WHERE ${conditions.join(' AND ')}
+     ORDER BY job_kategorie_id, prozess_id, woche_von, erstellt_am`,
     params
   )
   res.json({ einsaetze: rows.rows })
@@ -211,31 +299,31 @@ router.get('/einsaetze', async (req, res) => {
 router.post('/einsaetze', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const {
-    produktion_db_id, prozess_id, woche_von,
+    produktion_db_id, job_kategorie_id, prozess_id, woche_von,
     vertragsdb_person_id, platzhalter_name, person_cache_name,
     vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
-    block_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
+    block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
   } = req.body
 
-  if (!produktion_db_id || !prozess_id || !woche_von) {
-    return res.status(400).json({ error: 'produktion_db_id, prozess_id, woche_von erforderlich' })
+  if (!produktion_db_id || !woche_von || (!job_kategorie_id && !prozess_id)) {
+    return res.status(400).json({ error: 'produktion_db_id, woche_von und job_kategorie_id (oder prozess_id) erforderlich' })
   }
 
   const result = await pool.query(
     `INSERT INTO autorenplan_einsaetze
-       (produktion_db_id, prozess_id, woche_von,
+       (produktion_db_id, job_kategorie_id, prozess_id, woche_von,
         vertragsdb_person_id, platzhalter_name, person_cache_name,
         vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
-        block_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
+        block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
         erstellt_von)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
      RETURNING *`,
     [
-      produktion_db_id, prozess_id, woche_von,
+      produktion_db_id, job_kategorie_id || null, prozess_id || null, woche_von,
       vertragsdb_person_id || null, platzhalter_name || null, person_cache_name || null,
       vertragsdb_taetigkeit_id || null, vertragsdb_vertrag_id || null,
-      block_nummer || null, status || 'geplant', kostenstelle || null,
-      ist_homeoffice_override ?? null, notiz || null,
+      block_nummer || null, folge_nummer || null,
+      status || 'geplant', kostenstelle || null, ist_homeoffice_override ?? null, notiz || null,
       uid(req),
     ]
   )
@@ -245,35 +333,35 @@ router.post('/einsaetze', async (req, res) => {
 // PUT /api/autorenplan/einsaetze/:id
 router.put('/einsaetze/:id', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
-  const { id } = req.params
   const {
     vertragsdb_person_id, platzhalter_name, person_cache_name,
     vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
-    block_nummer, status, kostenstelle, ist_homeoffice_override, notiz, woche_von,
+    block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz, woche_von,
   } = req.body
 
   const result = await pool.query(
     `UPDATE autorenplan_einsaetze SET
-       vertragsdb_person_id = $1,
-       platzhalter_name = $2,
-       person_cache_name = $3,
+       vertragsdb_person_id   = $1,
+       platzhalter_name       = $2,
+       person_cache_name      = $3,
        vertragsdb_taetigkeit_id = $4,
-       vertragsdb_vertrag_id = $5,
-       block_nummer = $6,
-       status = COALESCE($7, status),
-       kostenstelle = $8,
-       ist_homeoffice_override = $9,
-       notiz = $10,
-       woche_von = COALESCE($11, woche_von),
-       aktualisiert_am = NOW()
-     WHERE id = $12
+       vertragsdb_vertrag_id  = $5,
+       block_nummer           = $6,
+       folge_nummer           = $7,
+       status                 = COALESCE($8, status),
+       kostenstelle           = $9,
+       ist_homeoffice_override = $10,
+       notiz                  = $11,
+       woche_von              = COALESCE($12, woche_von),
+       aktualisiert_am        = NOW()
+     WHERE id = $13
      RETURNING *`,
     [
       vertragsdb_person_id ?? null, platzhalter_name ?? null, person_cache_name ?? null,
       vertragsdb_taetigkeit_id ?? null, vertragsdb_vertrag_id ?? null,
-      block_nummer ?? null, status ?? null, kostenstelle ?? null,
-      ist_homeoffice_override ?? null, notiz ?? null,
-      woche_von ?? null, id,
+      block_nummer ?? null, folge_nummer ?? null,
+      status ?? null, kostenstelle ?? null, ist_homeoffice_override ?? null,
+      notiz ?? null, woche_von ?? null, req.params.id,
     ]
   )
   if (!result.rows.length) return res.status(404).json({ error: 'Nicht gefunden' })
@@ -390,9 +478,9 @@ router.get('/futures', async (req, res) => {
   )
   if (!futures.rows.length) return res.json({ futures: [] })
 
-  const ids = futures.rows.map(f => f.id)
+  const ids = futures.rows.map((f: any) => f.id)
   const autoren = await pool.query(
-    `SELECT * FROM autorenplan_future_autoren WHERE future_id = ANY($1) ORDER BY phase, erstellt_am`,
+    'SELECT * FROM autorenplan_future_autoren WHERE future_id = ANY($1) ORDER BY phase, erstellt_am',
     [ids]
   )
   const autorenMap: Record<string, any[]> = {}
@@ -402,7 +490,7 @@ router.get('/futures', async (req, res) => {
   }
 
   res.json({
-    futures: futures.rows.map(f => ({ ...f, autoren: autorenMap[f.id] || [] })),
+    futures: futures.rows.map((f: any) => ({ ...f, autoren: autorenMap[f.id] || [] })),
   })
 })
 
@@ -426,10 +514,10 @@ router.put('/futures/:id', async (req, res) => {
   const { titel, schreib_von, schreib_bis, edit_von, edit_bis, notiz } = req.body
   const result = await pool.query(
     `UPDATE autorenplan_futures SET
-       titel = COALESCE($1, titel),
+       titel      = COALESCE($1, titel),
        schreib_von = COALESCE($2, schreib_von),
        schreib_bis = COALESCE($3, schreib_bis),
-       edit_von = $4, edit_bis = $5, notiz = $6
+       edit_von   = $4, edit_bis = $5, notiz = $6
      WHERE id = $7 RETURNING *`,
     [titel || null, schreib_von || null, schreib_bis || null,
      edit_von || null, edit_bis || null, notiz || null, req.params.id]
@@ -444,7 +532,6 @@ router.delete('/futures/:id', async (req, res) => {
   res.json({ ok: true })
 })
 
-// Future-Autoren
 router.post('/futures/:id/autoren', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const {
@@ -470,9 +557,9 @@ router.put('/futures/autoren/:id', async (req, res) => {
   const { status, ist_homeoffice, notiz, person_cache_name } = req.body
   const result = await pool.query(
     `UPDATE autorenplan_future_autoren SET
-       status = COALESCE($1, status),
-       ist_homeoffice = COALESCE($2, ist_homeoffice),
-       notiz = $3,
+       status           = COALESCE($1, status),
+       ist_homeoffice   = COALESCE($2, ist_homeoffice),
+       notiz            = $3,
        person_cache_name = COALESCE($4, person_cache_name)
      WHERE id = $5 RETURNING *`,
     [status || null, ist_homeoffice ?? null, notiz ?? null, person_cache_name || null, req.params.id]
