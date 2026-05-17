@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, CheckSquare, Square, Image, History, ChevronDown } from 'lucide-react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
@@ -83,6 +83,7 @@ export default function SceneList({
   const [straenge, setStraenge] = useState<any[]>([])
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
+  const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null)
   const effectiveColorMode = farbModus === 'aus' || colorOff ? 'off' as const : colorMode
 
   const FARB_CYCLE: Array<'licht' | 'strang' | 'aus'> = ['licht', 'strang', 'aus']
@@ -103,6 +104,7 @@ export default function SceneList({
   )
   const isTouch = useMemo(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches, [])
   const pressedKeys = useRef<Set<string>>(new Set())
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const formatPickerRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
@@ -165,9 +167,24 @@ export default function SceneList({
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id); else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+        if (next.size === 0) setMultiSelectMode(false)
+      } else {
+        next.add(id)
+      }
       return next
     })
+  }
+
+  const selectRange = (toId: string) => {
+    if (!selectionAnchor) return
+    const allIds = sorted.map(s => String(s.id))
+    const from = allIds.indexOf(selectionAnchor)
+    const to = allIds.indexOf(toId)
+    if (from === -1 || to === -1) return
+    const [lo, hi] = from < to ? [from, to] : [to, from]
+    setSelectedIds(new Set(allIds.slice(lo, hi + 1)))
   }
 
   const sorted = [...szenen].sort((a, b) => {
@@ -193,6 +210,19 @@ export default function SceneList({
     window.addEventListener('keyup', up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [])
+
+  // Escape clears multi-selection
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && multiSelectMode) {
+        setMultiSelectMode(false)
+        setSelectedIds(new Set())
+        setSelectionAnchor(null)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [multiSelectMode])
 
   // Close format picker on outside click
   useEffect(() => {
@@ -418,6 +448,21 @@ export default function SceneList({
     setDragOverId(null)
   }
 
+  // Touch: long-press (400ms) → enter multi-select and select that scene
+  const handleTouchStart = (sceneId: string) => {
+    if (multiSelectMode) return // already in mode, tap handles toggle via onClick
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null
+      setMultiSelectMode(true)
+      setSelectedIds(new Set([sceneId]))
+      setSelectionAnchor(sceneId)
+      navigator.vibrate?.(30)
+    }, 400)
+  }
+  const handleTouchCancel = () => {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null }
+  }
+
   const getEnvKey = (s: any): keyof typeof ENV_COLORS => {
     const ie = (s.int_ext ?? '').toLowerCase()
     const tz = (s.tageszeit ?? 'TAG').toUpperCase()
@@ -436,7 +481,7 @@ export default function SceneList({
   const isMultiDrag = dragId !== null && selectedIds.has(String(dragId)) && selectedIds.size > 1
 
   return (
-    <div className="scenes" data-colormode={effectiveColorMode}>
+    <div className="scenes" data-colormode={effectiveColorMode} data-multi-drag={isMultiDrag ? 'true' : undefined}>
       {/* Search bar + actions */}
       <div className="searchbar" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}>
         <Search size={11} style={{
@@ -513,9 +558,13 @@ export default function SceneList({
               )}
               <button
                 className="scene-ctx-item"
-                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()) }}
+                style={{ display: 'flex', alignItems: 'center' }}
+                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()); setSelectionAnchor(null) }}
               >
-                {multiSelectMode ? 'Auswahl beenden' : 'Mehrere auswählen'}
+                <span style={{ flex: 1 }}>{multiSelectMode ? 'Auswahl beenden' : 'Mehrere auswählen'}</span>
+                {!isTouch && !multiSelectMode && (
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{isMac ? '⌘' : 'Ctrl'}+Klick</span>
+                )}
               </button>
               {/* Kategorie: Farbe */}
               <CategoryDivider label="Farbe" />
@@ -640,14 +689,34 @@ export default function SceneList({
                 isDragOver ? 'drag-over' : '',
                 isMultiSelected ? 'ms-selected' : '',
               ].filter(Boolean).join(' ')}
-              style={{ ...rowStyle, position: 'relative', cursor: isDragActive ? 'grab' : 'pointer', ...(multiSelectMode ? { gridTemplateColumns: '20px 30px 14px 1fr 32px 18px auto' } : {}) }}
-              onClick={() => !isMenuOpen && onSelectSzene(scene.id)}
+              style={{ ...rowStyle, position: 'relative', cursor: isDragActive ? 'grab' : 'pointer' }}
+              onTouchStart={isTouch ? () => handleTouchStart(String(scene.id)) : undefined}
+              onTouchMove={isTouch ? handleTouchCancel : undefined}
+              onTouchEnd={isTouch ? handleTouchCancel : undefined}
+              onClick={(e) => {
+                if (isMenuOpen) return
+                // Ctrl/Cmd+Click: toggle individual, activate multi-select
+                if (e.ctrlKey || e.metaKey) {
+                  if (!multiSelectMode) setMultiSelectMode(true)
+                  toggleSelect(String(scene.id))
+                  setSelectionAnchor(String(scene.id))
+                  return
+                }
+                // Shift+Click: range from anchor
+                if (e.shiftKey && selectionAnchor && multiSelectMode) {
+                  selectRange(String(scene.id))
+                  return
+                }
+                // Touch in multi-select mode: tap = toggle
+                if (isTouch && multiSelectMode) {
+                  toggleSelect(String(scene.id))
+                  return
+                }
+                // Normal navigation
+                onSelectSzene(scene.id)
+                setSelectionAnchor(String(scene.id))
+              }}
             >
-              {multiSelectMode && (
-                <div className="sl-checkbox" onClick={e => { e.stopPropagation(); toggleSelect(String(scene.id)) }} style={{ display: 'flex', alignItems: 'center', paddingLeft: 6, cursor: 'pointer' }}>
-                  {selectedIds.has(String(scene.id)) ? <CheckSquare size={14} style={{ color: 'var(--sw-green)' }} /> : <Square size={14} style={{ color: 'var(--text-muted)' }} />}
-                </div>
-              )}
               {farbModus === 'strang' && werkstufeStraenge[scene.id] && werkstufeStraenge[scene.id].length > 0 && (
                 <div className="strang-stripes">
                   {straenge.filter(st => st.status === 'aktiv').map((st, idx) => {
