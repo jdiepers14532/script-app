@@ -132,7 +132,7 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
 
       Enter: () => {
         const { state } = this.editor
-        const { $from, empty } = state.selection
+        const { $from } = state.selection
         const node = $from.node()
         if (node.type.name !== 'absatz') return false
 
@@ -142,7 +142,8 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
         const nextFmt = getFormatById(currentFmt.enter_next_format)
         if (!nextFmt) return false
 
-        if (!empty || $from.parentOffset < node.nodeSize - 2) {
+        // Non-empty line: split and apply follow-up format
+        if (node.content.size > 0) {
           return this.editor.chain()
             .splitBlock()
             .updateAttributes('absatz', {
@@ -151,6 +152,7 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
             })
             .run()
         }
+        // Empty line: just change type in-place
         return this.editor.chain()
           .updateAttributes('absatz', {
             format_id: nextFmt.id,

@@ -1125,6 +1125,24 @@ export default function UniversalEditor({
             setToolbarPos({ x: e.clientX, y: e.clientY })
             setToolbarOpenedVia('click')
             setToolbarOpen(true)
+            return
+          }
+          if (editor && !readOnly) {
+            const target = e.target as HTMLElement
+            const proseMirrorEl = scrollContainerRef.current?.querySelector('.ProseMirror')
+            if (proseMirrorEl && !proseMirrorEl.contains(target)) {
+              // Click in page margin/padding — clamp coords into editor and use posAtCoords
+              const pmRect = proseMirrorEl.getBoundingClientRect()
+              const cx = Math.max(pmRect.left + 1, Math.min(pmRect.right - 1, e.clientX))
+              const cy = Math.max(pmRect.top + 1, Math.min(pmRect.bottom - 1, e.clientY))
+              const pos = editor.view.posAtCoords({ left: cx, top: cy })
+              if (pos != null) {
+                editor.commands.setTextSelection(pos.pos)
+                editor.commands.focus()
+              } else {
+                editor.commands.focus('end')
+              }
+            }
           }
         }}
       >

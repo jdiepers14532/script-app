@@ -117,7 +117,7 @@ export const ScreenplayExtension = Node.create<{ formatElements: FormatElement[]
 
       Enter: () => {
         const { state } = this.editor
-        const { $from, empty } = state.selection
+        const { $from } = state.selection
         const node = $from.node()
         if (node.type.name !== 'screenplay_element') return false
 
@@ -128,8 +128,8 @@ export const ScreenplayExtension = Node.create<{ formatElements: FormatElement[]
         const attrs: any = { element_type: nextType }
         if (nextType === 'scene_heading') attrs.szene_uuid = uuidv4()
 
-        // If at end of non-empty line: insert new element below
-        if (!empty || $from.parentOffset < node.nodeSize - 2) {
+        // Non-empty line: split and insert new element below
+        if (node.content.size > 0) {
           return this.editor.chain()
             .splitBlock()
             .updateAttributes('screenplay_element', attrs)
