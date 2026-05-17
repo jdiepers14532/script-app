@@ -928,6 +928,53 @@ function ProduktionTab() {
 
 // ── Tab: Dokument-Typen (Absatzformate) ─────────────────────────────────────────
 
+const SZENEN_KOPF_CHIPS = [
+  { label: 'I/A', value: '{{innen_aussen}}' },
+  { label: 'Motiv', value: '{{motiv}}' },
+  { label: 'DT', value: '{{dt}}' },
+  { label: 'Sz.Nr.', value: '{{szene_nr}}' },
+  { label: 'Staffel', value: '{{staffel}}' },
+  { label: 'Episode', value: '{{episode}}' },
+]
+
+function SzenenKopfEditor({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const insertChip = (chip: string) => {
+    const el = inputRef.current
+    if (!el) { onChange(value + chip); return }
+    const start = el.selectionStart ?? value.length
+    const end = el.selectionEnd ?? value.length
+    const next = value.slice(0, start) + chip + value.slice(end)
+    onChange(next)
+    requestAnimationFrame(() => {
+      el.focus()
+      el.setSelectionRange(start + chip.length, start + chip.length)
+    })
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        readOnly={readOnly}
+        placeholder="z.B. {{innen_aussen}}. {{motiv}} – {{dt}}"
+        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: readOnly ? 'var(--bg-subtle)' : 'var(--bg-surface)', color: 'var(--text-primary)', width: '100%' }}
+      />
+      {!readOnly && (
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {SZENEN_KOPF_CHIPS.map(c => (
+            <button key={c.value} onClick={() => insertChip(c.value)}
+              style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function DokumentTypenTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? ''
@@ -941,6 +988,11 @@ function DokumentTypenTab() {
   const [showSavePreset, setShowSavePreset] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [filterKat, setFilterKat] = useState<string>('alle')
+  // Preset panel state
+  const [expandedPresetId, setExpandedPresetId] = useState<string | null>(null)
+  const [renamingPresetId, setRenamingPresetId] = useState<string | null>(null)
+  const [renamingValue, setRenamingValue] = useState('')
+  const [presetTemplateEdits, setPresetTemplateEdits] = useState<Record<string, string>>({})
 
   const load = async () => {
     if (!produktionId) return
@@ -1009,6 +1061,40 @@ function DokumentTypenTab() {
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 
+  const handleRenamePreset = async (id: string) => {
+    if (!renamingValue.trim()) return
+    try {
+      await api.patchAbsatzformatPreset(id, { name: renamingValue.trim() })
+      setRenamingPresetId(null); setRenamingValue(''); await load(); setMsg('Preset umbenannt.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleDeletePreset = async (id: string, name: string) => {
+    if (!confirm(`Preset "${name}" wirklich löschen?`)) return
+    try {
+      await api.deleteAbsatzformatPreset(id)
+      if (expandedPresetId === id) setExpandedPresetId(null)
+      await load(); setMsg('Preset gelöscht.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleSavePresetTemplate = async (id: string) => {
+    const tmpl = presetTemplateEdits[id]
+    if (tmpl === undefined) return
+    try {
+      await api.patchAbsatzformatPreset(id, { szenen_kopf_template: tmpl })
+      setPresetTemplateEdits(prev => { const n = { ...prev }; delete n[id]; return n })
+      await load(); setMsg('Szenenkopf-Vorlage gespeichert.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleSetStandard = async (formatId: string) => {
+    try {
+      const updated = await api.setAbsatzformatStandard(produktionId, formatId)
+      setFormate(prev => prev.map(f => f.kategorie === updated.kategorie ? { ...f, ist_standard: f.id === updated.id } : f))
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
   const filtered = filterKat === 'alle' ? formate : formate.filter(f => f.kategorie === filterKat || f.kategorie === 'alle')
 
   const dragFormatIdx = useRef<number | null>(null)
@@ -1032,36 +1118,103 @@ function DokumentTypenTab() {
   if (!produktionId) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>
 
   return (
-    <div style={{ maxWidth: 900 }}>
-      {/* Preset-Auswahl */}
-      <section style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 12, fontWeight: 500 }}>Preset:</label>
-        <select
-          onChange={e => { if (e.target.value) handleApplyPreset(e.target.value); e.target.value = '' }}
-          style={{ ...selectStyle, minWidth: 200 }}
-          defaultValue=""
-        >
-          <option value="" disabled>Preset anwenden...</option>
-          {presets.map(p => (
-            <option key={p.id} value={p.id}>{p.name} {p.ist_system ? '(System)' : ''}</option>
-          ))}
-        </select>
-        <button onClick={() => setShowSavePreset(true)}
-          style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
-          Als Preset speichern...
-        </button>
-        {formate.length > 0 && (
-          <button onClick={async () => {
-            if (!confirm('Bestehende Szenen-Inhalte von screenplay_element auf absatz-Nodes migrieren?')) return
-            try {
-              const result = await api.migrateAbsatzformatContent(produktionId)
-              setMsg(`${result.migrated_scenes} von ${result.total_scenes} Szenen migriert`)
-            } catch (e: any) { setMsg(e.message) }
-          }}
-            style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>
-            Content migrieren
+    <div style={{ maxWidth: 960 }}>
+      {/* Preset-Panel */}
+      <section style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>Presets</span>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => setShowSavePreset(true)}
+            style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+            Als Preset speichern…
           </button>
-        )}
+        </div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+          {presets.map((p, idx) => {
+            const isExpanded = expandedPresetId === p.id
+            const isRenaming = renamingPresetId === p.id
+            const templateEdit = presetTemplateEdits[p.id]
+            const templateValue = templateEdit !== undefined ? templateEdit : (p.szenen_kopf_template ?? '')
+            const templateDirty = templateEdit !== undefined && templateEdit !== (p.szenen_kopf_template ?? '')
+            return (
+              <div key={p.id} style={{ borderBottom: idx < presets.length - 1 ? '1px solid var(--border)' : undefined }}>
+                {/* Preset row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-surface)' }}>
+                  <button onClick={() => setExpandedPresetId(isExpanded ? null : p.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted)', padding: '0 2px', lineHeight: 1 }}>
+                    {isExpanded ? '▼' : '▶'}
+                  </button>
+                  {isRenaming ? (
+                    <>
+                      <input value={renamingValue} onChange={e => setRenamingValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleRenamePreset(p.id); if (e.key === 'Escape') { setRenamingPresetId(null); setRenamingValue('') } }}
+                        autoFocus style={{ ...selectStyle, minWidth: 180, fontSize: 11, padding: '2px 6px' }} />
+                      <button onClick={() => handleRenamePreset(p.id)}
+                        style={{ fontSize: 10, color: '#00C853', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
+                      <button onClick={() => { setRenamingPresetId(null); setRenamingValue('') }}
+                        style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 12, fontWeight: 500, flex: 1 }}>{p.name}</span>
+                  )}
+                  {!isRenaming && (
+                    <>
+                      {p.ist_system && (
+                        <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>System</span>
+                      )}
+                      {!p.ist_system && (
+                        <>
+                          <button onClick={() => { setRenamingPresetId(p.id); setRenamingValue(p.name) }}
+                            style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }} title="Umbenennen">✏️</button>
+                          <button onClick={() => handleDeletePreset(p.id, p.name)}
+                            style={{ fontSize: 10, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }} title="Löschen">🗑️</button>
+                        </>
+                      )}
+                      <button onClick={() => handleApplyPreset(p.id)}
+                        style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'var(--bg-subtle)', color: 'var(--text-primary)' }}>
+                        Anwenden
+                      </button>
+                    </>
+                  )}
+                </div>
+                {/* Expanded: Szenenkopf-Vorlage */}
+                {isExpanded && (
+                  <div style={{ padding: '10px 32px 12px', background: 'var(--bg-subtle)', borderTop: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 6 }}>Szenenkopf-Vorlage</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                      Definiert die Zusammensetzung der Szenenkopf-Zeile im Drehbuch-Export. Chips einfügen oder Text manuell tippen.
+                    </div>
+                    <SzenenKopfEditor
+                      value={templateValue}
+                      readOnly={p.ist_system}
+                      onChange={v => setPresetTemplateEdits(prev => ({ ...prev, [p.id]: v }))}
+                    />
+                    {!p.ist_system && templateDirty && (
+                      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                        <button onClick={() => handleSavePresetTemplate(p.id)}
+                          style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                          Speichern
+                        </button>
+                        <button onClick={() => setPresetTemplateEdits(prev => { const n = { ...prev }; delete n[p.id]; return n })}
+                          style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
+                          Abbrechen
+                        </button>
+                      </div>
+                    )}
+                    {p.ist_system && (
+                      <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>System-Preset — schreibgeschützt</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* Filter + Content-Migration */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>Formate dieser Produktion</span>
         <div style={{ flex: 1 }} />
         <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Filter:</label>
         <select value={filterKat} onChange={e => setFilterKat(e.target.value)} style={selectStyle}>
@@ -1070,7 +1223,19 @@ function DokumentTypenTab() {
           <option value="storyline">Storyline</option>
           <option value="notiz">Notiz</option>
         </select>
-      </section>
+        {formate.length > 0 && (
+          <button onClick={async () => {
+            if (!confirm('Bestehende Szenen-Inhalte von screenplay_element auf absatz-Nodes migrieren?')) return
+            try {
+              const result = await api.migrateAbsatzformatContent(produktionId)
+              setMsg(`${result.migrated_scenes} von ${result.total_scenes} Szenen migriert`)
+            } catch (e: any) { setMsg(e.message) }
+          }}
+            style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>
+            Content migrieren
+          </button>
+        )}
+      </div>
 
       {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
       {loading && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Laedt...</p>}
@@ -1079,6 +1244,7 @@ function DokumentTypenTab() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead><tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-subtle)' }}>
           <th style={{ padding: '6px 2px', width: 16 }} />
+          <th style={{ padding: '6px 2px', width: 20 }} title="Standard-Format dieser Kategorie" />
           <th style={{ textAlign: 'left', padding: '6px 6px', fontWeight: 600 }}>Name</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Prefix</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Kürzel</th>
@@ -1100,6 +1266,10 @@ function DokumentTypenTab() {
           {filtered.map(f => editId === f.id ? (
             <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
               <td style={{ padding: '4px 2px' }} />
+              <td style={{ padding: '4px 2px', textAlign: 'center' }}>
+                <button onClick={() => handleSetStandard(f.id)} title={editData.ist_standard ? 'Ist Standard' : 'Als Standard setzen'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: editData.ist_standard ? '#FFCC00' : 'var(--text-muted)', lineHeight: 1 }}>★</button>
+              </td>
               <td style={{ padding: '4px 6px' }}><input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} style={inputStyle} /></td>
               <td style={{ padding: '4px 4px' }}><input value={editData.textbaustein ?? ''} onChange={e => setEditData({ ...editData, textbaustein: e.target.value || null })} placeholder="—" style={{ ...inputStyle, width: 80 }} /></td>
               <td style={{ padding: '4px 4px' }}><input value={editData.kuerzel ?? ''} onChange={e => setEditData({ ...editData, kuerzel: e.target.value })} style={{ ...inputStyle, width: 50 }} /></td>
@@ -1115,8 +1285,9 @@ function DokumentTypenTab() {
               </td>
               <td style={{ padding: '4px 4px' }}><input type="number" className="no-spin" value={editData.font_size} onChange={e => setEditData({ ...editData, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} /></td>
               <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                <label style={{ fontSize: 10, marginRight: 4 }}><input type="checkbox" checked={editData.bold} onChange={e => setEditData({ ...editData, bold: e.target.checked })} /> B</label>
-                <label style={{ fontSize: 10, marginRight: 4 }}><input type="checkbox" checked={editData.italic} onChange={e => setEditData({ ...editData, italic: e.target.checked })} /> I</label>
+                <label style={{ fontSize: 10, marginRight: 3 }}><input type="checkbox" checked={editData.bold} onChange={e => setEditData({ ...editData, bold: e.target.checked })} /> B</label>
+                <label style={{ fontSize: 10, marginRight: 3 }}><input type="checkbox" checked={editData.italic} onChange={e => setEditData({ ...editData, italic: e.target.checked })} /> I</label>
+                <label style={{ fontSize: 10, marginRight: 3 }}><input type="checkbox" checked={editData.underline ?? false} onChange={e => setEditData({ ...editData, underline: e.target.checked })} /> U</label>
                 <label style={{ fontSize: 10 }}><input type="checkbox" checked={editData.uppercase} onChange={e => setEditData({ ...editData, uppercase: e.target.checked })} /> UC</label>
               </td>
               <td style={{ padding: '4px 4px' }}>
@@ -1176,6 +1347,10 @@ function DokumentTypenTab() {
               <td style={{ padding: '6px 2px', color: 'var(--text-muted)', userSelect: 'none', textAlign: 'center', fontSize: 13 }}>
                 {filterKat === 'alle' ? '⠇' : ''}
               </td>
+              <td style={{ padding: '6px 2px', textAlign: 'center' }}>
+                <button onClick={() => handleSetStandard(f.id)} title={f.ist_standard ? 'Standard-Format' : 'Als Standard setzen'}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: f.ist_standard ? '#FFCC00' : 'var(--bg-subtle)', lineHeight: 1, padding: 0 }}>★</button>
+              </td>
               <td style={{ padding: '6px 6px', fontWeight: f.ist_standard ? 600 : 400 }}>
                 {f.name}
               </td>
@@ -1185,8 +1360,8 @@ function DokumentTypenTab() {
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>{f.font_family} {f.font_size}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)' }}>{f.font_size}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', fontSize: 10 }}>
-                {f.bold && <b>B</b>}{f.italic && <i>I</i>}{f.uppercase && <span>UC</span>}
-                {!f.bold && !f.italic && !f.uppercase && '-'}
+                {f.bold && <b>B</b>}{f.italic && <i> I</i>}{f.underline && <u> U</u>}{f.uppercase && <span> UC</span>}
+                {!f.bold && !f.italic && !f.underline && !f.uppercase && '-'}
               </td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.text_align === 'left' ? 'L' : f.text_align === 'center' ? 'C' : 'R'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_left ? f.margin_left + '"' : '-'}</td>
@@ -1207,8 +1382,8 @@ function DokumentTypenTab() {
             </tr>
           ))}
           {filtered.length === 0 && !loading && (
-            <tr><td colSpan={17} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
-              Keine Absatzformate. Waehle ein Preset aus, um zu starten.
+            <tr><td colSpan={18} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
+              Keine Absatzformate. Wähle ein Preset aus, um zu starten.
             </td></tr>
           )}
         </tbody>
@@ -1258,11 +1433,10 @@ function DokumentTypenTab() {
 function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onAdd: (d: any) => void; onCancel: () => void }) {
   const [data, setData] = useState({
     name: '', kuerzel: '', kategorie: 'alle', font_family: 'Courier Prime', font_size: 12,
-    bold: false, italic: false, uppercase: false, text_align: 'left',
+    bold: false, italic: false, underline: false, uppercase: false, text_align: 'left',
     margin_left: 0, margin_right: 0, space_before: 12, space_after: 0, line_height: 1.0,
     enter_next_format: null as string | null, tab_next_format: null as string | null,
     textbaustein: '', sort_order: formate.length + 1,
-    shortcut: '' as string,
   })
 
   const inputStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-primary)' } as const
@@ -1294,6 +1468,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
           <div style={{ display: 'flex', gap: 6, paddingTop: 4 }}>
             <label><input type="checkbox" checked={data.bold} onChange={e => setData({ ...data, bold: e.target.checked })} /> B</label>
             <label><input type="checkbox" checked={data.italic} onChange={e => setData({ ...data, italic: e.target.checked })} /> I</label>
+            <label><input type="checkbox" checked={data.underline} onChange={e => setData({ ...data, underline: e.target.checked })} /> U</label>
             <label><input type="checkbox" checked={data.uppercase} onChange={e => setData({ ...data, uppercase: e.target.checked })} /> UC</label>
           </div></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Enter→</label>

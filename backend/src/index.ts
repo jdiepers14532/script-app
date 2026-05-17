@@ -304,6 +304,7 @@ async function runMigrations() {
     'v79_absatzformat_sh_to_txt.sql',
     'v79_snapshot_metadata.sql',
     'v80_snapshot_is_current.sql',
+    'v81_daily_preset_szenen_kopf.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

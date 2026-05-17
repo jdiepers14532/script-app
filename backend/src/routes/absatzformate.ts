@@ -181,6 +181,43 @@ absatzformateRouter.post('/reorder', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// POST /api/produktionen/:produktionId/absatzformate/:id/set-standard
+// Sets ist_standard=true for this format, resets others in same kategorie
+// ══════════════════════════════════════════════════════════════════════════════
+absatzformateRouter.post('/:id/set-standard', async (req, res) => {
+  const pid = (req.params as any).produktionId
+  const { id } = req.params
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const fmt = await client.query(
+      'SELECT kategorie FROM absatzformate WHERE id = $1 AND produktion_id = $2',
+      [id, pid]
+    )
+    if (fmt.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Absatzformat nicht gefunden' })
+    }
+    const kategorie = fmt.rows[0].kategorie
+    await client.query(
+      'UPDATE absatzformate SET ist_standard = false WHERE produktion_id = $1 AND kategorie = $2',
+      [pid, kategorie]
+    )
+    const row = await client.query(
+      'UPDATE absatzformate SET ist_standard = true WHERE id = $1 AND produktion_id = $2 RETURNING *',
+      [id, pid]
+    )
+    await client.query('COMMIT')
+    res.json(row.rows[0])
+  } catch (err) {
+    await client.query('ROLLBACK')
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // POST /api/produktionen/:produktionId/absatzformate/from-preset
 // Applies a preset: deletes existing formats and inserts preset formats
 // ══════════════════════════════════════════════════════════════════════════════
@@ -201,8 +238,22 @@ absatzformateRouter.post('/from-preset', async (req, res) => {
 
     const formate = preset.rows[0].formate as any[]
 
-    // Delete existing formats for this production
-    await client.query('DELETE FROM absatzformate WHERE produktion_id = $1', [pid])
+    // If preset covers no storyline/notiz formats, preserve existing ones
+    const kategorien = new Set((formate as any[]).map((f: any) => f.kategorie))
+    const presetHasStoryline = kategorien.has('storyline') || kategorien.has('alle')
+    const presetHasNotiz = kategorien.has('notiz') || kategorien.has('alle')
+
+    if (presetHasStoryline && presetHasNotiz) {
+      await client.query('DELETE FROM absatzformate WHERE produktion_id = $1', [pid])
+    } else {
+      const toClear = ['drehbuch', 'alle']
+      if (presetHasStoryline) toClear.push('storyline')
+      if (presetHasNotiz) toClear.push('notiz')
+      await client.query(
+        `DELETE FROM absatzformate WHERE produktion_id = $1 AND kategorie = ANY($2::text[])`,
+        [pid, toClear]
+      )
+    }
 
     // Insert formats — first pass without flow references (to get UUIDs)
     const nameToId = new Map<string, string>()
@@ -447,6 +498,33 @@ absatzformatPresetsRouter.post('/', async (req, res) => {
     res.status(201).json(row)
   } catch (err: any) {
     if (err.code === '23505') return res.status(409).json({ error: 'Preset-Name existiert bereits' })
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// PATCH /api/absatzformat-presets/:id — rename or update template (non-system only)
+absatzformatPresetsRouter.patch('/:id', async (req, res) => {
+  try {
+    const { name, beschreibung, szenen_kopf_template } = req.body
+    const updates: string[] = []
+    const params: any[] = []
+    let n = 1
+
+    if (name !== undefined) { updates.push(`name = $${n++}`); params.push(name) }
+    if (beschreibung !== undefined) { updates.push(`beschreibung = $${n++}`); params.push(beschreibung) }
+    if (szenen_kopf_template !== undefined) { updates.push(`szenen_kopf_template = $${n++}`); params.push(szenen_kopf_template) }
+
+    if (updates.length === 0) return res.status(400).json({ error: 'Nichts zu aktualisieren' })
+
+    params.push(req.params.id)
+    const row = await queryOne(
+      `UPDATE absatzformat_presets SET ${updates.join(', ')} WHERE id = $${n} AND ist_system = false RETURNING *`,
+      params
+    )
+    if (!row) return res.status(404).json({ error: 'Preset nicht gefunden oder System-Preset' })
+    res.json(row)
+  } catch (err: any) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Name bereits vergeben' })
     res.status(500).json({ error: String(err) })
   }
 })

@@ -596,6 +596,10 @@ export const api = {
     request<any>('POST', '/absatzformat-presets', data),
   deleteAbsatzformatPreset: (id: string) =>
     request<void>('DELETE', `/absatzformat-presets/${id}`),
+  patchAbsatzformatPreset: (id: string, data: { name?: string; beschreibung?: string; szenen_kopf_template?: string }) =>
+    request<any>('PATCH', `/absatzformat-presets/${id}`, data),
+  setAbsatzformatStandard: (produktionId: string, formatId: string) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/${formatId}/set-standard`),
   migrateAbsatzformatContent: (produktionId: string) =>
     request<{ migrated_scenes: number; total_scenes: number }>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/migrate-content`),
   reorderAbsatzformate: (produktionId: string, order: { id: string; sort_order: number }[]) =>
