@@ -61,7 +61,7 @@ export default function SceneList({
   const [deleting, setDeleting] = useState<number | string | null>(null)
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [renumbering, setRenumbering] = useState(false)
-  const [nurSzenen, setNurSzenen] = useState(true)
+  const [nurSzenen, setNurSzenen] = useState(false)
   const [colorOff, setColorOff] = useState(false)
   const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
   const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
@@ -73,6 +73,23 @@ export default function SceneList({
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
   const effectiveColorMode = farbModus === 'aus' || colorOff ? 'off' as const : colorMode
+
+  const FARB_CYCLE: Array<'licht' | 'strang' | 'aus'> = ['licht', 'strang', 'aus']
+  const FARB_LABELS: Record<string, string> = { licht: 'Lichtstimmung', strang: 'Strang', aus: 'Aus' }
+  const nextFarbModus = FARB_CYCLE[(FARB_CYCLE.indexOf(farbModus) + 1) % FARB_CYCLE.length]
+
+  const CategoryDivider = ({ label }: { label: string }) => (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      padding: '5px 10px 2px', marginTop: 2,
+    }}>
+      <span style={{
+        fontSize: 9, fontWeight: 600, color: 'var(--text-muted)',
+        textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0,
+      }}>{label}</span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    </div>
+  )
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -368,54 +385,8 @@ export default function SceneList({
             <MoreVertical size={13} />
           </button>
           {headerMenuOpen && (
-            <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 180 }}>
-              {/* Farbe submenu */}
-              <div style={{ padding: '4px 10px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Farbe</div>
-              {([['licht', 'Lichtstimmung'], ['strang', 'Strang'], ['aus', 'Aus']] as const).map(([val, label]) => (
-                <button key={val} className="scene-ctx-item" onClick={() => { setFarbModus(val); setColorOff(val === 'aus'); setHeaderMenuOpen(false) }}>
-                  <span style={{ display: 'inline-block', width: 14, textAlign: 'center', marginRight: 4 }}>{farbModus === val ? '\u2022' : ''}</span>{label}
-                </button>
-              ))}
-              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-              <button
-                className="scene-ctx-item"
-                onClick={() => { setNurSzenen(v => !v); setHeaderMenuOpen(false) }}
-              >
-                {nurSzenen ? 'Alles anzeigen' : `Nur ${t('szene', 'p')}`}
-              </button>
-              <button
-                className="scene-ctx-item"
-                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()); setHeaderMenuOpen(false) }}
-              >
-                {multiSelectMode ? 'Auswahl beenden' : 'Mehrere ausw\u00e4hlen'}
-              </button>
-              <button
-                className="scene-ctx-item"
-                onClick={handleRenumber}
-                disabled={renumbering}
-              >
-                {renumbering ? 'L\u00e4dt\u2026' : 'Neu nummerieren'}
-              </button>
-              <button
-                className="scene-ctx-item"
-                onClick={handleSaveTemplate}
-              >
-                Als Template speichern
-              </button>
-              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-              <button
-                className="scene-ctx-item"
-                onClick={() => { onOpenStrangPanel?.(); setHeaderMenuOpen(false) }}
-              >
-                Str\u00e4nge verwalten
-              </button>
-              <button
-                className="scene-ctx-item"
-                onClick={() => { setPlatzhalterOpen(true); setHeaderMenuOpen(false) }}
-                disabled={!werkstufId}
-              >
-                Platzhalter-{t('szene', 'p')} anlegen
-              </button>
+            <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 190 }}>
+              {/* Top — no category */}
               {onOpenSearch && (
                 <button
                   className="scene-ctx-item"
@@ -424,10 +395,47 @@ export default function SceneList({
                 >
                   <span style={{ flex: 1 }}>Suchen &amp; Ersetzen</span>
                   <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-                    {isMac ? '\u2318H' : 'Ctrl+H'}
+                    {isMac ? '⌘H' : 'Ctrl+H'}
                   </span>
                 </button>
               )}
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()); setHeaderMenuOpen(false) }}
+              >
+                {multiSelectMode ? 'Auswahl beenden' : 'Mehrere auswählen'}
+              </button>
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setNurSzenen(v => !v); setHeaderMenuOpen(false) }}
+              >
+                {nurSzenen ? 'Alles anzeigen' : `Nur ${t('szene', 'p')}`}
+              </button>
+
+              {/* Kategorie: Farbe */}
+              <CategoryDivider label="Farbe" />
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setFarbModus(nextFarbModus); setColorOff(nextFarbModus === 'aus'); setHeaderMenuOpen(false) }}
+              >
+                {FARB_LABELS[nextFarbModus]}
+              </button>
+
+              {/* Kategorie: Verwalten */}
+              <CategoryDivider label="Verwalten" />
+              <button
+                className="scene-ctx-item"
+                onClick={() => { onOpenStrangPanel?.(); setHeaderMenuOpen(false) }}
+              >
+                Stränge verwalten
+              </button>
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setPlatzhalterOpen(true); setHeaderMenuOpen(false) }}
+                disabled={!werkstufId}
+              >
+                Platzhalter-{t('szene', 'p')} anlegen
+              </button>
               {onOpenRadar && (
                 <button
                   className="scene-ctx-item"
@@ -436,16 +444,29 @@ export default function SceneList({
                   Story-Radar
                 </button>
               )}
+              <button
+                className="scene-ctx-item"
+                onClick={handleRenumber}
+                disabled={renumbering}
+              >
+                {renumbering ? 'Lädt…' : 'Neu nummerieren'}
+              </button>
+              <button
+                className="scene-ctx-item"
+                onClick={handleSaveTemplate}
+              >
+                Als Template speichern
+              </button>
+
+              {/* Kategorie: Auswertung */}
+              <CategoryDivider label="Auswertung" />
               {onOpenStatistik && (
-                <>
-                  <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-                  <button
-                    className="scene-ctx-item"
-                    onClick={() => { onOpenStatistik(); setHeaderMenuOpen(false) }}
-                  >
-                    Statistiken
-                  </button>
-                </>
+                <button
+                  className="scene-ctx-item"
+                  onClick={() => { onOpenStatistik(); setHeaderMenuOpen(false) }}
+                >
+                  Statistiken
+                </button>
               )}
               {onOpenStoppzeiten && (
                 <button
@@ -456,13 +477,12 @@ export default function SceneList({
                   Stoppzeiten-Übersicht
                 </button>
               )}
-              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               <button
                 className="scene-ctx-item"
                 disabled={!werkstufId}
                 onClick={() => { setExportDialogOpen(true); setHeaderMenuOpen(false) }}
               >
-                Exportieren\u2026
+                Exportieren…
               </button>
             </div>
           )}
