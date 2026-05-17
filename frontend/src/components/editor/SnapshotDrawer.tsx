@@ -11,6 +11,7 @@ interface Snapshot {
   szene_nummer: string | null
   szene_info: string | null
   text_preview: string | null
+  is_current: boolean
 }
 
 interface Props {
@@ -61,6 +62,7 @@ export default function SnapshotDrawer({
     green:   '#16a34a',
     orange:  '#c2410c',
     red:     '#dc2626',
+    cyan:    '#0891b2',
     shadow:  'rgba(0,0,0,0.08)',
   } : {
     bg:      '#18181b',
@@ -72,6 +74,7 @@ export default function SnapshotDrawer({
     green:   '#4ade80',
     orange:  '#fb923c',
     red:     '#f87171',
+    cyan:    '#22d3ee',
     shadow:  'rgba(0,0,0,0.4)',
   }
 
@@ -187,7 +190,9 @@ export default function SnapshotDrawer({
             const isExpanded = expandedId === snap.id
             const isConfirming = confirmId === snap.id
             const isRestoring = restoring === snap.id
-            const isLatest = i === 0
+            const isCurrent = snap.is_current
+            const anyIsCurrent = snapshots.some(s => s.is_current)
+            const isLatest = i === 0 && !anyIsCurrent
             const conflict = hasConflict(snap)
             const authorName = snap.created_by_name || '—'
 
@@ -196,7 +201,7 @@ export default function SnapshotDrawer({
                 key={snap.id}
                 style={{
                   borderBottom: `1px solid ${INV.border}`,
-                  background: isLatest ? `${INV.green}12` : undefined,
+                  background: isCurrent ? `${INV.cyan}15` : isLatest ? `${INV.green}12` : undefined,
                 }}
               >
                 {/* ── Collapsed row ── */}
@@ -207,14 +212,14 @@ export default function SnapshotDrawer({
                   {/* Timeline dot */}
                   <div style={{
                     width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0,
-                    background: isLatest ? INV.green : conflict ? INV.orange : INV.bg3,
+                    background: isCurrent ? INV.cyan : isLatest ? INV.green : conflict ? INV.orange : INV.bg3,
                     boxShadow: conflict ? `0 0 0 2px ${INV.orange}44` : undefined,
                   }} />
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {/* Top row: time + badges */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, fontWeight: isLatest ? 700 : 500, color: INV.text }}>
+                      <span style={{ fontSize: 12, fontWeight: (isLatest || isCurrent) ? 700 : 500, color: INV.text }}>
                         {formatRelative(snap.created_at)}
                       </span>
                       {isLatest && (
@@ -223,6 +228,13 @@ export default function SnapshotDrawer({
                           background: `${INV.green}20`, borderRadius: 3,
                           padding: '1px 5px', letterSpacing: '0.04em', textTransform: 'uppercase',
                         }}>Aktuell</span>
+                      )}
+                      {isCurrent && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, color: INV.cyan,
+                          background: `${INV.cyan}20`, borderRadius: 3,
+                          padding: '1px 5px', letterSpacing: '0.04em', textTransform: 'uppercase',
+                        }}>Aktueller Stand</span>
                       )}
                       {conflict && (
                         <span style={{
@@ -365,6 +377,10 @@ export default function SnapshotDrawer({
         <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
           <AlertTriangle size={9} style={{ color: INV.orange }} />
           Fremde Änderung danach
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: INV.cyan, display: 'inline-block' }} />
+          Aktueller Stand
         </span>
       </div>
     </div>

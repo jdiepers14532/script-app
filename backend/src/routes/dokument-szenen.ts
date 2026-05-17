@@ -185,7 +185,7 @@ dokumentSzenenRouter.get('/:id/snapshots', async (req, res) => {
   try {
     const rows = await query(
       `SELECT id, created_by, created_by_name, created_at,
-              szene_nummer, szene_info, text_preview
+              szene_nummer, szene_info, text_preview, is_current
          FROM dokument_szenen_snapshots
         WHERE szene_id = $1
         ORDER BY created_at DESC
@@ -212,6 +212,11 @@ dokumentSzenenRouter.post('/:id/snapshots', async (req, res) => {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
+      // Neue Auto-Speicherung: is_current zurücksetzen
+      await client.query(
+        `UPDATE dokument_szenen_snapshots SET is_current = FALSE WHERE szene_id = $1`,
+        [req.params.id]
+      )
       const snap = await client.query(
         `INSERT INTO dokument_szenen_snapshots
            (szene_id, content, created_by, created_by_name, szene_nummer, szene_info, text_preview)
@@ -285,6 +290,15 @@ dokumentSzenenRouter.post('/:id/snapshots/:snapId/restore', async (req, res) => 
         WHERE id = $3
         RETURNING id, content, updated_at, updated_by`,
       [JSON.stringify(snap.content), req.user?.name ?? null, req.params.id]
+    )
+    // Aktueller-Stand-Marker: diesen Snapshot markieren, alle anderen zurücksetzen
+    await pool.query(
+      'UPDATE dokument_szenen_snapshots SET is_current = FALSE WHERE szene_id = $1',
+      [req.params.id]
+    )
+    await pool.query(
+      'UPDATE dokument_szenen_snapshots SET is_current = TRUE WHERE id = $1',
+      [req.params.snapId]
     )
     res.json(updated)
   } catch (err) {
