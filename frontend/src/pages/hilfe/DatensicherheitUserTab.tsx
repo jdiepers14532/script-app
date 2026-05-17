@@ -155,6 +155,107 @@ function DatensicherheitUserTab() {
           </ul>
         </div>
       </Section>
+
+      {/* App-Updates */}
+      <Section title="App-Updates — was ist der Update-Toast?">
+        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>
+          Wenn wir eine neue Version der App veröffentlichen, lädt dein Browser die neue Version automatisch herunter —
+          aber sie wird <strong>nicht sofort aktiv</strong>. Stattdessen siehst du einen kleinen Toast oben rechts:
+        </p>
+
+        {/* Mockup Update-Toast */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            background: '#1A1A1A', color: '#fff', borderRadius: 10,
+            padding: '10px 14px', fontSize: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            maxWidth: 340,
+          }}>
+            <span style={{ fontSize: 16 }}>🔄</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, marginBottom: 2 }}>Neue Version verfügbar</div>
+              <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 11 }}>Klicke "Jetzt aktualisieren", um die neue Version zu laden</div>
+            </div>
+            <button style={{ background: '#00C853', border: 'none', color: '#fff', borderRadius: 6, padding: '5px 10px', fontSize: 11, fontWeight: 600, cursor: 'default', flexShrink: 0 }}>
+              Jetzt aktualisieren
+            </button>
+          </div>
+        </div>
+
+        {/* Flow */}
+        <div style={{ display: 'flex', alignItems: 'stretch', gap: 0, marginBottom: 16, overflow: 'hidden', borderRadius: 8, border: `1px solid ${C.border}` }}>
+          {[
+            { step: '1', color: '#007AFF', title: 'Update geladen', desc: 'Die neue Version wurde im Hintergrund heruntergeladen. Du merkst davon nichts.' },
+            { step: '2', color: '#FF9500', title: 'Toast erscheint', desc: 'Du siehst den Update-Hinweis. Die App läuft noch in der alten Version weiter.' },
+            { step: '3', color: '#00C853', title: 'Du klickst "Aktualisieren"', desc: 'Die neue Version wird aktiv, die Seite lädt einmal neu. Deine Arbeit ist gespeichert.' },
+          ].map((s, i) => (
+            <div key={s.step} style={{ flex: 1, padding: '12px 14px', background: C.surface, borderLeft: i > 0 ? `1px solid ${C.border}` : undefined }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
+                <span style={{ width: 20, height: 20, borderRadius: '50%', background: s.color, color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.step}</span>
+                <span style={{ fontWeight: 600, fontSize: 11 }}>{s.title}</span>
+              </div>
+              <p style={{ margin: 0, fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{s.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: '#007AFF10', border: '1px solid #007AFF33', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+          <strong style={{ color: C.text }}>Warum nicht automatisch?</strong> Die App wartet auf dein OK, damit kein offener Tab
+          mitten im Schreiben plötzlich neu lädt. Du kannst den Toast ignorieren —
+          beim nächsten Öffnen der App ist sie automatisch aktuell.
+        </div>
+      </Section>
+
+      {/* Session & Token */}
+      <Section title="Anmeldung & Session — kein plötzlicher Logout">
+        <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 14 }}>
+          Dein Login wird durch ein zeitlich begrenztes Token gesichert (15 Minuten).
+          Die App erneuert dieses Token automatisch im Hintergrund —
+          du wirst <strong>nicht mitten in der Arbeit ausgeloggt</strong>.
+        </p>
+
+        {/* Token-Lifecycle Diagramm */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: 36, background: C.surface, borderRadius: 8, border: `1px solid ${C.border}`, overflow: 'hidden' }}>
+            <div style={{ flex: 1, height: '100%', background: '#00C85318', display: 'flex', alignItems: 'center', paddingLeft: 12, fontSize: 11, color: '#00C853', fontWeight: 600 }}>
+              Token gültig (0–10 min)
+            </div>
+            <div style={{ width: 100, height: '100%', background: '#FF950018', borderLeft: '2px dashed #FF9500', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#FF9500', fontWeight: 600 }}>
+              Stiller Refresh
+            </div>
+            <div style={{ width: 80, height: '100%', background: '#FF3B3010', borderLeft: '2px dashed #FF3B30', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#FF3B30', fontWeight: 600 }}>
+              Ablauf
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: C.muted }}>
+            <span>0 min</span>
+            <span>↑ automatischer Refresh (10 min)</span>
+            <span>15 min</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+          {[
+            { icon: '🔑', title: 'Automatischer Refresh', desc: 'Die App erkennt, wann dein Token bald abläuft, und holt still ein neues — ohne dass du etwas tust oder merkst.' },
+            { icon: '💾', title: 'Redirect-Fallback', desc: 'Falls du doch mal ausgeloggt wirst, merkt sich die App den Link, den du gerade offen hattest, und bringt dich nach dem Login automatisch dorthin zurück.' },
+            { icon: '🍪', title: 'Sicheres Cookie', desc: 'Dein Login-Token ist ein sicherer, nicht auslesbarer Browser-Cookie. JavaScript kann ihn nicht stehlen — er wird ausschließlich vom Browser selbst verwaltet.' },
+          ].map(item => (
+            <div key={item.title} style={{ display: 'flex', gap: 12, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '11px 14px' }}>
+              <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 12, marginBottom: 3 }}>{item.title}</div>
+                <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.55 }}>{item.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ background: '#FF9500' + '10', border: '1px solid #FF950033', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
+          <strong style={{ color: C.text }}>Wann werde ich trotzdem ausgeloggt?</strong> Wenn du die App sehr lange nicht nutzt
+          (länger als 7 Tage ohne Reload) oder dich explizit abmeldest. Danach landest du auf der
+          Login-Seite und kommst automatisch zurück zum zuletzt geöffneten Link.
+        </div>
+      </Section>
     </div>
   )
 }
