@@ -649,7 +649,7 @@ export default function SzenenKopfVorlagenEditor({
       {/* Legende */}
       {!readOnly && (
         <div style={{
-          padding: '3px 8px', fontSize: 9, color: 'var(--text-muted)',
+          padding: '3px 8px', fontSize: 9, color: 'var(--text-primary)',
           borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)',
           lineHeight: 1.4,
         }}>

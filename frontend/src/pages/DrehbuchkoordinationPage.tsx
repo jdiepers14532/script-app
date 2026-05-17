@@ -1178,7 +1178,7 @@ function DokumentTypenTab() {
           <div style={{ flex: 1 }} />
           <button onClick={() => setShowSavePreset(true)}
             style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
-            Aus Produktion speichern…
+            Als Preset speichern…
           </button>
         </div>
 
@@ -1198,8 +1198,8 @@ function DokumentTypenTab() {
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>
-              Definiert den Szenenkopf im Drehbuch-Export. Jede Zeile wird ausgeblendet wenn alle Felder leer sind.
+            <div style={{ fontSize: 10, color: 'var(--text-primary)', marginBottom: 8 }}>
+              Definiert den Szenenkopf für den Drehbuch-Export. Jede Zeile mit leeren Feldern werden ausgeblendet.
             </div>
             <SzenenKopfVorlagenEditor
               value={templateValue}
