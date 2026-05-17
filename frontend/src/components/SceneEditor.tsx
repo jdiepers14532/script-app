@@ -1108,32 +1108,26 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                           </>
                         )}
                         {scene.sondertyp === 'flashback' && (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            {/* Ganze Szene */}
-                            <Tooltip text={"Markiert diese Szene als vollständigen Flashback.\nIn der Motivzeile wird automatisch '(Flashback)' angezeigt."}>
-                              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: scene.flashback_ganze_szene ? '#AF52DE' : 'var(--text-muted)' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={scene.flashback_ganze_szene ?? false}
-                                  onChange={e => { saveScene({ flashback_ganze_szene: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}
-                                  style={{ accentColor: '#AF52DE' }}
-                                />
-                                Ganze Szene
-                              </label>
-                            </Tooltip>
-                            {/* Referenzszene-Picker */}
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            {/* Referenzszene-Picker (zuerst) */}
                             <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Ref.:</span>
-                              {scene.flashback_referenz_werkstufe_id && (
+                              <span style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>Referenz:</span>
+                              {scene.flashback_referenz_werkstufe_id ? (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#AF52DE18', border: '1px solid #AF52DE44', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#AF52DE' }}>
                                   <span>F{scene.flashback_referenz_folge_nummer ?? '?'} · Sz.{scene.flashback_referenz_scene_nummer ?? '?'}</span>
                                   {scene.flashback_referenz_ort_name && <span style={{ fontWeight: 400, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>({scene.flashback_referenz_ort_name})</span>}
                                   <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#AF52DE', fontSize: 10 }}
                                     onClick={() => { saveScene({ flashback_referenz_id: null, flashback_referenz_werkstufe_id: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}>×</button>
                                 </span>
-                              )}
+                              ) : scene.flashback_referenz_freitext ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#AF52DE0D', border: '1px solid #AF52DE33', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 500, color: '#AF52DE', fontStyle: 'italic' }}>
+                                  {scene.flashback_referenz_freitext}
+                                  <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#AF52DE', fontSize: 10 }}
+                                    onClick={() => { saveScene({ flashback_referenz_freitext: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}>×</button>
+                                </span>
+                              ) : null}
                               <span className="sf-char-add-wrap" ref={fbDropdownRef}>
-                                <Tooltip text={"Szene aus einer anderen Folge als Quelle verknüpfen.\nDie App zeigt immer die neueste verfügbare Fassung."}>
+                                <Tooltip text={"Szene aus einer anderen Folge verknüpfen.\nDie App zeigt immer die neueste verfügbare Fassung.\nNoch nicht erfasste Szenen können als Freitext eingegeben werden."}>
                                   <button
                                     className="sf-char-search"
                                     style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }}
@@ -1159,14 +1153,22 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                                         setFbSearch(e.target.value)
                                         if (werkstufId) api.getFlashbackReferenzSzenen(werkstufId, e.target.value || undefined).then(setAllFbSzenen).catch(() => {})
                                       }}
-                                      onKeyDown={e => { if (e.key === 'Escape') setFbDropdownOpen(false) }}
+                                      onKeyDown={e => {
+                                        if (e.key === 'Escape') { setFbDropdownOpen(false) }
+                                        else if (e.key === 'Enter' && fbSearch.trim()) {
+                                          e.preventDefault()
+                                          saveScene({ flashback_referenz_id: null, flashback_referenz_werkstufe_id: null, flashback_referenz_freitext: fbSearch.trim() })
+                                            .then(updated => { setScene(updated); onSzeneUpdated?.(updated); setFbDropdownOpen(false); setFbSearch('') })
+                                            .catch(() => {})
+                                        }
+                                      }}
                                       style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }}
                                     />
                                     {allFbSzenen.map(s => (
                                       <div key={s.id} className="sf-dropdown-item"
                                         onMouseDown={e => {
                                           e.preventDefault()
-                                          saveScene({ flashback_referenz_id: s.scene_identity_id, flashback_referenz_werkstufe_id: s.werkstufe_id })
+                                          saveScene({ flashback_referenz_id: s.scene_identity_id, flashback_referenz_werkstufe_id: s.werkstufe_id, flashback_referenz_freitext: null })
                                             .then(updated => { setScene(updated); onSzeneUpdated?.(updated); setFbDropdownOpen(false); setFbSearch('') })
                                             .catch(() => {})
                                         }}>
@@ -1175,13 +1177,38 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                                         <span style={{ fontSize: 10, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[s.int_ext, s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
                                       </div>
                                     ))}
-                                    {allFbSzenen.length === 0 && (
-                                      <div className="sf-dropdown-empty">Keine Szenen gefunden</div>
+                                    {fbSearch.trim() && (
+                                      <div className="sf-dropdown-item"
+                                        style={{ borderTop: allFbSzenen.length > 0 ? '1px solid var(--border)' : undefined, fontStyle: 'italic', color: '#AF52DE', gap: 6 }}
+                                        onMouseDown={e => {
+                                          e.preventDefault()
+                                          saveScene({ flashback_referenz_id: null, flashback_referenz_werkstufe_id: null, flashback_referenz_freitext: fbSearch.trim() })
+                                            .then(updated => { setScene(updated); onSzeneUpdated?.(updated); setFbDropdownOpen(false); setFbSearch('') })
+                                            .catch(() => {})
+                                        }}>
+                                        <span style={{ flexShrink: 0 }}>↩</span>
+                                        <span>„{fbSearch.trim()}" als Freitext</span>
+                                      </div>
+                                    )}
+                                    {allFbSzenen.length === 0 && !fbSearch.trim() && (
+                                      <div className="sf-dropdown-empty">Keine Szenen in anderen Folgen</div>
                                     )}
                                   </div>
                                 )}
                               </span>
                             </span>
+                            {/* Ganze Szene — inline neben Referenz */}
+                            <Tooltip text={"Markiert diese Szene als vollständigen Flashback.\nIn der Motivzeile wird automatisch '(Flashback)' angezeigt."}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', color: scene.flashback_ganze_szene ? '#AF52DE' : 'var(--text-muted)' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={scene.flashback_ganze_szene ?? false}
+                                  onChange={e => { saveScene({ flashback_ganze_szene: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}
+                                  style={{ accentColor: '#AF52DE' }}
+                                />
+                                Ganze Szene
+                              </label>
+                            </Tooltip>
                           </span>
                         )}
                       </div>
