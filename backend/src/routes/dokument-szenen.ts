@@ -138,7 +138,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         stockshot_neu_drehen = COALESCE($21, stockshot_neu_drehen),
         flashback_referenz_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, flashback_referenz_id) END,
         flashback_ganze_szene = COALESCE($24, flashback_ganze_szene),
-        flashback_referenz_folge_id = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25::uuid, flashback_referenz_folge_id) END,
+        flashback_referenz_folge_id = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25::integer, flashback_referenz_folge_id) END,
         vorlage_id = CASE WHEN $23::text = '__null__' THEN NULL ELSE COALESCE($23::uuid, vorlage_id) END,
         updated_at = NOW(),
         updated_by = $11
