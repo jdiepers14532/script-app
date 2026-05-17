@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useContext, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } from 'lucide-react'
 import Tooltip from './Tooltip'
@@ -197,9 +197,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const compactHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const detailHeadRef = useRef<HTMLDivElement | null>(null)
   const wsDropdownRef = useRef<HTMLDivElement | null>(null)
-  const sceneR1Ref = useRef<HTMLDivElement | null>(null)
-  const sfRowsRef = useRef<HTMLDivElement | null>(null)
-  const [onelinerWidth, setOnelinerWidth] = useState<number | null>(null)
   const strangDropdownRef = useRef<HTMLDivElement | null>(null)
   const motivDropdownRef = useRef<HTMLDivElement | null>(null)
   const untermotivDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -534,26 +531,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   }, [szeneId, stageId])
 
   // Measure Spielzeit column position to align Sondertyp selector beneath it
-  useLayoutEffect(() => {
-    const update = () => {
-      const r1 = sceneR1Ref.current
-      const sfRows = sfRowsRef.current
-      if (!r1 || !sfRows) return
-      const spEl = r1.querySelector('.spielzeit-wrap') as HTMLElement | null
-      if (!spEl) return
-      const spRect = spEl.getBoundingClientRect()
-      const sfRect = sfRows.getBoundingClientRect()
-      const w = spRect.left - sfRect.left - 6 // -6 for gap between oneliner and sondertyp
-      setOnelinerWidth(w > 30 ? w : null)
-    }
-    update()
-    const obs = new ResizeObserver(update)
-    const r1 = sceneR1Ref.current
-    if (r1) obs.observe(r1)
-    return () => obs.disconnect()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compact, !!scene])
-
   const handleContentChange = useCallback((content: any[]) => {
     if (!scene) return
     const updated = { ...scene, content }
@@ -746,7 +723,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       >
 
         {/* Zeile 1: SZ | Stoppzeit-Input | Motiv | [Rollen compact] | Spielzeit | DT · I/T | buttons */}
-        <div ref={sceneR1Ref} className={`scene-r1${compact ? ' scene-r1-compact' : ''}`}>
+        <div className={`scene-r1${compact ? ' scene-r1-compact' : ''}`}>
           {/* SZ-Nummer */}
           <span className="sz-group">
             <span className="scene-big">SZ{scene.scene_nummer}</span>
@@ -1110,12 +1087,12 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <span className="sz-group"><span className="scene-big">SZ0</span></span>
             <span style={{ width: 32 }} />
           </span>
-          <div ref={sfRowsRef} className="scene-fields-rows">
-          {/* Zeile 2: Oneliner + Sondertyp-Selector in einer Zeile */}
-          <div className="sf-row" style={{ gap: 6 }}>
+          <div className="scene-fields-rows">
+          {/* Zeile 2: Oneliner */}
+          <div className="sf-row">
             <input
               className="sf-input"
-              style={{ flex: onelinerWidth != null ? `0 1 ${onelinerWidth}px` : '1 1 auto', minWidth: 0 }}
+              style={{ flex: '1 1 auto', minWidth: 0 }}
               defaultValue={scene.zusammenfassung ?? ''}
               placeholder="Oneliner…"
               onBlur={e => {
@@ -1124,35 +1101,40 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
               }}
             />
-            {scene.sondertyp ? (
-              <select
-                className="sf-input"
-                value={scene.sondertyp}
-                style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, flexShrink: 0, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
-                onChange={e => {
-                  const val = e.target.value || null
-                  saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }}
-              >
-                <option value="">Normal</option>
-                <option value="wechselschnitt">Wechselschnitt</option>
-                <option value="stockshot">{t('stockshot')}</option>
-                <option value="flashback">{t('flashback')}</option>
-              </select>
-            ) : wsBeteiligt.length === 0 ? (
-              <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
-                <button
-                  className="btn ghost"
-                  style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)', flexShrink: 0 }}
-                  onClick={() => {
-                    saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+          </div>
+          {/* Zeile 2b: Sondertyp — rechtsbündig unter Sp */}
+          {(scene.sondertyp || wsBeteiligt.length === 0) && (
+            <div className="sf-row" style={{ justifyContent: 'flex-end' }}>
+              {scene.sondertyp ? (
+                <select
+                  className="sf-input"
+                  value={scene.sondertyp}
+                  style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, flexShrink: 0, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
+                  onChange={e => {
+                    const val = e.target.value || null
+                    saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                   }}
                 >
-                  🎭 Sondertyp
-                </button>
-              </Tooltip>
-            ) : null}
-          </div>
+                  <option value="">Normal</option>
+                  <option value="wechselschnitt">Wechselschnitt</option>
+                  <option value="stockshot">{t('stockshot')}</option>
+                  <option value="flashback">{t('flashback')}</option>
+                </select>
+              ) : (
+                <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
+                  <button
+                    className="btn ghost"
+                    style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)', flexShrink: 0 }}
+                    onClick={() => {
+                      saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                    }}
+                  >
+                    Sondertyp 🎭
+                  </button>
+                </Tooltip>
+              )}
+            </div>
+          )}
           {/* Sondertyp Details — Wechselschnitt / Stockshot / Flashback */}
           {scene.sondertyp && (
             <div className="sf-row" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -1472,6 +1454,27 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           )}
 
           </div>{/* end scene-fields-rows */}
+          {/* Right spacer — mirrors ie-group + action buttons to constrain scene-fields-rows right boundary */}
+          <span aria-hidden="true" className="sf-right-spacer">
+            <span className="ie-group">
+              <span className="ie-toggle">I</span>
+              <span className="ie-sep">/</span>
+              <span className="ie-toggle">T</span>
+              <span className="ie-sep">·</span>
+              <span className="ie-field-wrap">
+                <span className="ie-lbl">DT</span>
+                <input className="ie-num-inp" readOnly tabIndex={-1} defaultValue="" />
+              </span>
+            </span>
+            <button className="btn ghost" tabIndex={-1} style={{ pointerEvents: 'none' }}>
+              <MessageSquare size={12} />
+            </button>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <button className="btn ghost" tabIndex={-1} style={{ pointerEvents: 'none' }}>
+                <FileDown size={12} />PDF
+              </button>
+            </span>
+          </span>
         </div>}
       </div>}
 
