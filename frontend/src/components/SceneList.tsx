@@ -211,7 +211,7 @@ export default function SceneList({
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [])
 
-  // Escape clears multi-selection; Ctrl+A selects all
+  // Escape clears multi-selection
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && multiSelectMode) {
@@ -219,15 +219,10 @@ export default function SceneList({
         setSelectedIds(new Set())
         setSelectionAnchor(null)
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a' && multiSelectMode) {
-        e.preventDefault()
-        setSelectedIds(new Set(filtered.map(s => String(s.id))))
-        setSelectionAnchor(String(filtered[0]?.id))
-      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [multiSelectMode, filtered])
+  }, [multiSelectMode])
 
   // Close format picker on outside click
   useEffect(() => {
@@ -570,20 +565,6 @@ export default function SceneList({
                 {!isTouch && !multiSelectMode && (
                   <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{isMac ? '⌘' : 'Ctrl'}+Klick</span>
                 )}
-              </button>
-              <button
-                className="scene-ctx-item"
-                style={{ display: 'flex', alignItems: 'center' }}
-                disabled={!stageId || filtered.length === 0}
-                onClick={() => {
-                  setMultiSelectMode(true)
-                  setSelectedIds(new Set(filtered.map(s => String(s.id))))
-                  setSelectionAnchor(String(filtered[0]?.id))
-                  setHeaderMenuOpen(false)
-                }}
-              >
-                <span style={{ flex: 1 }}>Alles auswählen</span>
-                {!isTouch && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{isMac ? '⌘A' : 'Ctrl+A'}</span>}
               </button>
               {/* Kategorie: Farbe */}
               <CategoryDivider label="Farbe" />
