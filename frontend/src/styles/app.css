@@ -427,8 +427,10 @@
 .sz-group .scene-big { font-size:17px; font-weight:700; letter-spacing:-0.005em; }
 .sz-stopp { font-size:11px; color:var(--text-muted); font-weight:500; }
 
-/* Stoppzeit-Spalte — Stoppzeit + Zap vertikal gestapelt */
-.stopp-col { display:flex; flex-direction:column; align-items:center; flex-shrink:0; gap:2px; }
+/* Stoppzeit-Spalte — nur stopp-inp, Zap absolut positioniert */
+.stopp-col { display:flex; flex-direction:column; align-items:center; flex-shrink:0; position:relative; }
+/* Zap-Button — absolut unter stopp-inp, kein Einfluss auf Zeilenhöhe */
+.stopp-auto-btn { position:absolute; top:100%; left:50%; transform:translateX(-50%); z-index:10; width:16px; height:16px; border-radius:3px; border:none; background:transparent; color:var(--sw-warning); padding:0; display:flex; align-items:center; justify-content:center; }
 /* Stoppzeit — einfaches Eingabefeld */
 .stopp-inp { font-size:11px; color:var(--text-secondary); background:transparent; border:none; border-bottom:1px dashed transparent; outline:none; width:32px; min-width:32px; max-width:32px; box-sizing:border-box; padding:0; font-family:inherit; cursor:text; text-align:center; flex-shrink:0; font-variant-numeric:tabular-nums; }
 .stopp-inp:hover, .stopp-inp:focus { border-bottom-color:var(--border); }

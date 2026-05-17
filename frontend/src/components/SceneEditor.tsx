@@ -551,7 +551,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     const r1 = sceneR1Ref.current
     if (r1) obs.observe(r1)
     return () => obs.disconnect()
-  }, [compact])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compact, !!scene])
 
   const handleContentChange = useCallback((content: any[]) => {
     if (!scene) return
@@ -794,10 +795,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     else handleStoppzeitAuto('scene')
                   }}
                   style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    width: 16, height: 16, borderRadius: 3, border: 'none',
-                    background: 'transparent', color: 'var(--sw-warning)',
-                    cursor: stoppzeitAutoLoading ? 'wait' : 'pointer', padding: 0,
+                    cursor: stoppzeitAutoLoading ? 'wait' : 'pointer',
                     opacity: stoppzeitAutoLoading ? 0.5 : 1,
                   }}
                 >
