@@ -305,6 +305,7 @@ async function runMigrations() {
     'v79_snapshot_metadata.sql',
     'v80_snapshot_is_current.sql',
     'v81_daily_preset_szenen_kopf.sql',
+    'v82_flashback_erweiterung.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

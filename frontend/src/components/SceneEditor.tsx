@@ -189,6 +189,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [allSceneIdentities, setAllSceneIdentities] = useState<any[]>([])
   const [wsDropdownOpen, setWsDropdownOpen] = useState(false)
   const [wsSearch, setWsSearch] = useState('')
+  const [fbDropdownOpen, setFbDropdownOpen] = useState(false)
+  const [fbSearch, setFbSearch] = useState('')
+  const [allFbSzenen, setAllFbSzenen] = useState<any[]>([])
   const [compactHover, setCompactHover] = useState(false)
   const [compactHoverPos, setCompactHoverPos] = useState<React.CSSProperties>({})
   const [compactCharDropdown, setCompactCharDropdown] = useState(false)
@@ -197,6 +200,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const compactHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const detailHeadRef = useRef<HTMLDivElement | null>(null)
   const wsDropdownRef = useRef<HTMLDivElement | null>(null)
+  const fbDropdownRef = useRef<HTMLDivElement | null>(null)
   const strangDropdownRef = useRef<HTMLDivElement | null>(null)
   const motivDropdownRef = useRef<HTMLDivElement | null>(null)
   const untermotivDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -315,6 +319,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       if (komparseDropdownRef.current && !komparseDropdownRef.current.contains(e.target as Node)) setCharDropdownKomparse(false)
       if (strangDropdownRef.current && !strangDropdownRef.current.contains(e.target as Node)) setStrangDropdownOpen(false)
       if (wsDropdownRef.current && !wsDropdownRef.current.contains(e.target as Node)) setWsDropdownOpen(false)
+      if (fbDropdownRef.current && !fbDropdownRef.current.contains(e.target as Node)) setFbDropdownOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -871,6 +876,17 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               </>
             )}
 
+            {/* Flashback "ganze Szene" — Badge hinter Motiv */}
+            {scene?.sondertyp === 'flashback' && scene?.flashback_ganze_szene && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: '#AF52DE',
+                background: '#AF52DE18', border: '1px solid #AF52DE66',
+                borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap', alignSelf: 'center',
+              }}>
+                (Flashback)
+              </span>
+            )}
+
           </div>
 
           {/* Compact mode: chars as own grid column */}
@@ -1261,11 +1277,112 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 </>
               )}
 
-              {/* Flashback: show reference */}
-              {scene.sondertyp === 'flashback' && scene.flashback_referenz_id && (
-                <span style={{ fontSize: 11, color: '#AF52DE', fontWeight: 500 }}>
-                  → Referenz: {scene.flashback_referenz_scene_nummer ? `Sz. ${scene.flashback_referenz_scene_nummer}` : scene.flashback_referenz_id.slice(0, 8)}
-                </span>
+              {/* Flashback: Ganze-Szene + Referenz-Picker */}
+              {scene.sondertyp === 'flashback' && (
+                <>
+                  <Tooltip
+                    text={'Ganze Szene: Die gesamte Szene ist ein Flashback.\nIn der Motivzeile wird automatisch „(Flashback)" angezeigt.\n\nTeil-Flashback: Nur ein Abschnitt der Szene ist Rückblende — kein Motivzeilen-Zusatz.'}
+                    placement="bottom"
+                  >
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, cursor: 'pointer', color: scene.flashback_ganze_szene ? '#AF52DE' : 'var(--text-muted)' }}>
+                      <input
+                        type="checkbox"
+                        checked={scene.flashback_ganze_szene ?? false}
+                        onChange={e => {
+                          saveScene({ flashback_ganze_szene: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                        }}
+                        style={{ accentColor: '#AF52DE' }}
+                      />
+                      Ganze Szene
+                    </label>
+                  </Tooltip>
+
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
+                    <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Referenz:</span>
+                    {scene.flashback_referenz_id ? (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 3,
+                        background: '#AF52DE18', border: '1px solid #AF52DE44', borderRadius: 4,
+                        padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#AF52DE',
+                      }}>
+                        {scene.flashback_referenz_folge_nummer != null ? `Folge ${scene.flashback_referenz_folge_nummer}, ` : ''}
+                        Sz. {scene.flashback_referenz_scene_nummer ?? '?'}
+                        {scene.flashback_referenz_ort_name && (
+                          <span style={{ fontWeight: 400, color: '#AF52DEBB', marginLeft: 2 }}>· {scene.flashback_referenz_ort_name}</span>
+                        )}
+                        <button
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#AF52DE', fontSize: 10 }}
+                          title="Referenz entfernen"
+                          onClick={() => {
+                            saveScene({ flashback_referenz_id: '__null__', flashback_referenz_folge_id: '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                          }}
+                        >×</button>
+                      </span>
+                    ) : (
+                      <span style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontSize: 10 }}>keine</span>
+                    )}
+
+                    {/* Szene-Picker */}
+                    <span className="sf-char-add-wrap" ref={fbDropdownRef}>
+                      <Tooltip
+                        text={'Szene aus einer anderen Episode verknüpfen.\nNützlich wenn bereits gedrehtes Material eingeschnitten wird.\n(Suche nach Szenennummer oder Motiv)'}
+                        placement="bottom"
+                      >
+                        <button
+                          className="sf-char-search"
+                          style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }}
+                          onClick={() => {
+                            const opening = !fbDropdownOpen
+                            setFbDropdownOpen(opening)
+                            if (opening && werkstufId) {
+                              api.getFlashbackReferenzSzenen(werkstufId, fbSearch).then(setAllFbSzenen).catch(() => setAllFbSzenen([]))
+                            }
+                          }}
+                        >
+                          {scene.flashback_referenz_id ? '✎' : '+'}
+                        </button>
+                      </Tooltip>
+                      {fbDropdownOpen && (
+                        <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(fbDropdownRef)}>
+                          <input
+                            className="sf-dropdown-search"
+                            autoFocus
+                            placeholder="Sz.-Nr. oder Motiv…"
+                            value={fbSearch}
+                            onChange={e => {
+                              setFbSearch(e.target.value)
+                              if (werkstufId) {
+                                api.getFlashbackReferenzSzenen(werkstufId, e.target.value).then(setAllFbSzenen).catch(() => {})
+                              }
+                            }}
+                            onKeyDown={e => { if (e.key === 'Escape') setFbDropdownOpen(false) }}
+                            style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }}
+                          />
+                          {allFbSzenen.map((s: any) => (
+                            <div key={s.id} className="sf-dropdown-item"
+                              onMouseDown={e => {
+                                e.preventDefault()
+                                saveScene({ flashback_referenz_id: s.scene_identity_id, flashback_referenz_folge_id: s.folge_id }).then(updated => {
+                                  setScene(updated)
+                                  onSzeneUpdated?.(updated)
+                                  setFbDropdownOpen(false)
+                                  setFbSearch('')
+                                }).catch(() => {})
+                              }}
+                            >
+                              <span style={{ fontWeight: 700, color: '#AF52DE', marginRight: 4, fontSize: 10 }}>Folge {s.folge_nummer}</span>
+                              <span style={{ fontWeight: 600, marginRight: 6 }}>Sz. {s.scene_nummer ?? '?'}{s.scene_nummer_suffix ?? ''}</span>
+                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{[s.int_ext, s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
+                            </div>
+                          ))}
+                          {allFbSzenen.length === 0 && (
+                            <div className="sf-dropdown-empty">Keine Szenen in anderen Episoden gefunden</div>
+                          )}
+                        </div>
+                      )}
+                    </span>
+                  </span>
+                </>
               )}
             </div>
           )}

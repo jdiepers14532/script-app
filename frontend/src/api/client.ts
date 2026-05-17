@@ -507,6 +507,8 @@ export const api = {
   // Werkstufen-Szenen
   getWerkstufenSzenen: (werkId: string) =>
     request<any[]>('GET', `/werkstufen/${werkId}/szenen`),
+  getFlashbackReferenzSzenen: (werkId: string, q?: string) =>
+    request<any[]>('GET', `/werkstufen/${werkId}/flashback-szenen${q ? '?q=' + encodeURIComponent(q) : ''}`),
   getWerkstufenVorstoppUebersicht: (werkId: string) =>
     request<any[]>('GET', `/werkstufen/${werkId}/szenen/vorstopp-uebersicht`),
   createWerkstufeSzene: (werkId: string, data: any) =>

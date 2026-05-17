@@ -485,6 +485,50 @@ werkstufenRouter.post('/:id/replik-baseline', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/werkstufen/:id/flashback-szenen?q= — cross-episode scene search
+// Returns scenes from all OTHER folgen of the same produktion (latest werkstufe)
+// for use in the Flashback-Referenz picker
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.get('/:id/flashback-szenen', async (req, res) => {
+  try {
+    const werkId = req.params.id
+    const q = (req.query.q as string | undefined)?.trim() || null
+
+    const rows = await query(
+      `WITH current_ws AS (
+         SELECT w.folge_id, f.produktion_id
+         FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+         WHERE w.id = $1
+       ),
+       latest_ws AS (
+         SELECT DISTINCT ON (w.folge_id)
+           w.id AS werkstufe_id, w.folge_id, f.folge_nummer, w.version_nummer
+         FROM werkstufen w
+         JOIN folgen f ON f.id = w.folge_id
+         WHERE f.produktion_id = (SELECT produktion_id FROM current_ws)
+           AND w.folge_id != (SELECT folge_id FROM current_ws)
+         ORDER BY w.folge_id, w.version_nummer DESC
+       )
+       SELECT ds.id, ds.scene_identity_id, ds.scene_nummer, ds.scene_nummer_suffix,
+              ds.ort_name, ds.int_ext, ds.tageszeit,
+              lw.folge_id, lw.folge_nummer
+       FROM dokument_szenen ds
+       JOIN latest_ws lw ON lw.werkstufe_id = ds.werkstufe_id
+       WHERE ds.geloescht = false
+         AND ($2::text IS NULL
+              OR ds.ort_name ILIKE '%' || $2 || '%'
+              OR ds.scene_nummer::text LIKE '%' || $2 || '%')
+       ORDER BY lw.folge_nummer, ds.sort_order, ds.scene_nummer
+       LIMIT 60`,
+      [werkId, q]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Werkstufen-Szenen Router
 // Mounted at /api/werkstufen/:werkId/szenen
 // ══════════════════════════════════════════════════════════════════════════════
@@ -496,7 +540,15 @@ werkstufenSzenenRouter.get('/', async (req, res) => {
   try {
     const werkId = (req.params as any).werkId
     const rows = await query(
-      `SELECT ds.*, si.folge_id AS identity_folge_id
+      `SELECT ds.*, si.folge_id AS identity_folge_id,
+        (SELECT ds2.scene_nummer
+         FROM dokument_szenen ds2
+         JOIN werkstufen w2 ON w2.id = ds2.werkstufe_id
+         WHERE ds2.scene_identity_id = ds.flashback_referenz_id
+           AND w2.folge_id = ds.flashback_referenz_folge_id
+           AND ds2.geloescht = false
+         ORDER BY w2.version_nummer DESC LIMIT 1) AS flashback_referenz_scene_nummer,
+        (SELECT f.folge_nummer FROM folgen f WHERE f.id = ds.flashback_referenz_folge_id) AS flashback_referenz_folge_nummer
        FROM dokument_szenen ds
        LEFT JOIN scene_identities si ON si.id = ds.scene_identity_id
        WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
