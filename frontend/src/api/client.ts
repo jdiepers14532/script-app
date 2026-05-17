@@ -602,8 +602,6 @@ export const api = {
     request<any>('PATCH', `/absatzformat-presets/${id}`, data),
   setAbsatzformatStandard: (produktionId: string, formatId: string) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/${formatId}/set-standard`),
-  migrateAbsatzformatContent: (produktionId: string) =>
-    request<{ migrated_scenes: number; total_scenes: number }>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/migrate-content`),
   reorderAbsatzformate: (produktionId: string, order: { id: string; sort_order: number }[]) =>
     request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/reorder`, { order }),
 

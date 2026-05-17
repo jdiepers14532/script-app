@@ -1223,18 +1223,6 @@ function DokumentTypenTab() {
           <option value="storyline">Storyline</option>
           <option value="notiz">Notiz</option>
         </select>
-        {formate.length > 0 && (
-          <button onClick={async () => {
-            if (!confirm('Bestehende Szenen-Inhalte von screenplay_element auf absatz-Nodes migrieren?')) return
-            try {
-              const result = await api.migrateAbsatzformatContent(produktionId)
-              setMsg(`${result.migrated_scenes} von ${result.total_scenes} Szenen migriert`)
-            } catch (e: any) { setMsg(e.message) }
-          }}
-            style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>
-            Content migrieren
-          </button>
-        )}
       </div>
 
       {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
