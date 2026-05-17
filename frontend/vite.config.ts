@@ -30,6 +30,9 @@ export default defineConfig({
           },
         ],
       },
+      injectManifest: {
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB (Bundle wächst durch Hilfe-Inhalte)
+      },
       devOptions: {
         enabled: false, // SW nur im Production-Build aktiv
       },
