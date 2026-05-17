@@ -431,10 +431,12 @@ absatzformatPresetsRouter.post('/', async (req, res) => {
   }
 })
 
-// PATCH /api/absatzformat-presets/:id — rename or update template (non-system only)
+// PATCH /api/absatzformat-presets/:id — rename or update template
+// System-Presets: nur Superadmin darf ändern
 absatzformatPresetsRouter.patch('/:id', async (req, res) => {
   try {
     const { name, beschreibung, szenen_kopf_template } = req.body
+    const isSuperadmin = (req as any).user?.roles?.includes('superadmin')
     const updates: string[] = []
     const params: any[] = []
     let n = 1
@@ -446,14 +448,51 @@ absatzformatPresetsRouter.patch('/:id', async (req, res) => {
     if (updates.length === 0) return res.status(400).json({ error: 'Nichts zu aktualisieren' })
 
     params.push(req.params.id)
+    // Superadmin darf alles; alle anderen nur non-system
+    const whereClause = isSuperadmin ? `id = $${n}` : `id = $${n} AND ist_system = false`
     const row = await queryOne(
-      `UPDATE absatzformat_presets SET ${updates.join(', ')} WHERE id = $${n} AND ist_system = false RETURNING *`,
+      `UPDATE absatzformat_presets SET ${updates.join(', ')} WHERE ${whereClause} RETURNING *`,
       params
     )
-    if (!row) return res.status(404).json({ error: 'Preset nicht gefunden oder System-Preset' })
+    if (!row) return res.status(404).json({ error: 'Preset nicht gefunden oder keine Berechtigung' })
     res.json(row)
   } catch (err: any) {
     if (err.code === '23505') return res.status(409).json({ error: 'Name bereits vergeben' })
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/absatzformat-presets/:id/duplicate — Preset duplizieren
+absatzformatPresetsRouter.post('/:id/duplicate', async (req, res) => {
+  try {
+    const source = await queryOne('SELECT * FROM absatzformat_presets WHERE id = $1', [req.params.id])
+    if (!source) return res.status(404).json({ error: 'Preset nicht gefunden' })
+
+    const baseName = `${source.name} (Kopie)`
+    let name = baseName
+    let attempt = 1
+    // Eindeutigen Namen finden
+    while (true) {
+      const existing = await queryOne('SELECT id FROM absatzformat_presets WHERE name = $1', [name])
+      if (!existing) break
+      attempt++
+      name = `${baseName} ${attempt}`
+    }
+
+    const row = await queryOne(
+      `INSERT INTO absatzformat_presets (name, beschreibung, formate, szenen_kopf_template, ist_system, erstellt_von)
+       VALUES ($1, $2, $3, $4, false, $5)
+       RETURNING *`,
+      [
+        name,
+        source.beschreibung ? `Kopie von: ${source.beschreibung}` : null,
+        JSON.stringify(source.formate),
+        source.szenen_kopf_template ?? null,
+        (req as any).user?.user_id ?? null,
+      ]
+    )
+    res.status(201).json(row)
+  } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })

@@ -600,6 +600,10 @@ export const api = {
     request<void>('DELETE', `/absatzformat-presets/${id}`),
   patchAbsatzformatPreset: (id: string, data: { name?: string; beschreibung?: string; szenen_kopf_template?: string }) =>
     request<any>('PATCH', `/absatzformat-presets/${id}`, data),
+  duplicateAbsatzformatPreset: (id: string) =>
+    request<any>('POST', `/absatzformat-presets/${id}/duplicate`),
+  getMe: () =>
+    request<{ user_id: string; name: string; email: string; role: string; roles: string[] }>('GET', `/me/whoami`),
   setAbsatzformatStandard: (produktionId: string, formatId: string) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/${formatId}/set-standard`),
   reorderAbsatzformate: (produktionId: string, order: { id: string; sort_order: number }[]) =>

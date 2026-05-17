@@ -8,6 +8,7 @@ import { DEFAULT_SECTIONS, type StatModalSection } from '../components/Statistik
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
 import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, renderPmToPreviewHtml, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
+import SzenenKopfVorlagenEditor from '../components/SzenenKopfVorlagenEditor'
 import AutorenplanTab from '../components/AutorenplanTab'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
@@ -928,52 +929,6 @@ function ProduktionTab() {
 
 // ── Tab: Dokument-Typen (Absatzformate) ─────────────────────────────────────────
 
-const SZENEN_KOPF_CHIPS = [
-  { label: 'I/A', value: '{{innen_aussen}}' },
-  { label: 'Motiv', value: '{{motiv}}' },
-  { label: 'DT', value: '{{dt}}' },
-  { label: 'Sz.Nr.', value: '{{szene_nr}}' },
-  { label: 'Staffel', value: '{{staffel}}' },
-  { label: 'Episode', value: '{{episode}}' },
-]
-
-function SzenenKopfEditor({ value, onChange, readOnly }: { value: string; onChange: (v: string) => void; readOnly?: boolean }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const insertChip = (chip: string) => {
-    const el = inputRef.current
-    if (!el) { onChange(value + chip); return }
-    const start = el.selectionStart ?? value.length
-    const end = el.selectionEnd ?? value.length
-    const next = value.slice(0, start) + chip + value.slice(end)
-    onChange(next)
-    requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(start + chip.length, start + chip.length)
-    })
-  }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        readOnly={readOnly}
-        placeholder="z.B. {{innen_aussen}}. {{motiv}} – {{dt}}"
-        style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: readOnly ? 'var(--bg-subtle)' : 'var(--bg-surface)', color: 'var(--text-primary)', width: '100%' }}
-      />
-      {!readOnly && (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {SZENEN_KOPF_CHIPS.map(c => (
-            <button key={c.value} onClick={() => insertChip(c.value)}
-              style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>
-              {c.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function DokumentTypenTab() {
   const { selectedProduction } = useSelectedProduction()
@@ -988,11 +943,12 @@ function DokumentTypenTab() {
   const [showSavePreset, setShowSavePreset] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [filterKat, setFilterKat] = useState<string>('alle')
-  // Preset panel state
-  const [expandedPresetId, setExpandedPresetId] = useState<string | null>(null)
-  const [renamingPresetId, setRenamingPresetId] = useState<string | null>(null)
+  // Preset-Dropdown state
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null)
+  const [renamingPreset, setRenamingPreset] = useState(false)
   const [renamingValue, setRenamingValue] = useState('')
-  const [presetTemplateEdits, setPresetTemplateEdits] = useState<Record<string, string>>({})
+  const [templateEdit, setTemplateEdit] = useState<string | null>(null)
+  const [isSuperadmin, setIsSuperadmin] = useState(false)
 
   const load = async () => {
     if (!produktionId) return
@@ -1007,13 +963,70 @@ function DokumentTypenTab() {
   }
 
   useEffect(() => { load() }, [produktionId])
+  useEffect(() => {
+    api.getMe().then(me => setIsSuperadmin(me.roles?.includes('superadmin') ?? false)).catch(() => {})
+  }, [])
 
-  const handleApplyPreset = async (presetId: string) => {
+  // Erstes Preset vorauswählen wenn Presets geladen
+  useEffect(() => {
+    if (presets.length > 0 && !selectedPresetId) setSelectedPresetId(presets[0].id)
+  }, [presets, selectedPresetId])
+
+  const selectedPreset = presets.find(p => p.id === selectedPresetId) ?? null
+  const templateValue = templateEdit !== null ? templateEdit : (selectedPreset?.szenen_kopf_template ?? '')
+  const templateDirty = templateEdit !== null && templateEdit !== (selectedPreset?.szenen_kopf_template ?? '')
+  // System-Presets: nur Superadmin darf speichern
+  const canEditTemplate = selectedPreset && (!selectedPreset.ist_system || isSuperadmin)
+
+  const handleSelectPreset = (id: string) => {
+    setSelectedPresetId(id)
+    setTemplateEdit(null)
+    setRenamingPreset(false)
+  }
+
+  const handleApplyPreset = async () => {
+    if (!selectedPresetId) return
     if (!confirm('Alle bestehenden Absatzformate dieser Produktion werden ersetzt. Fortfahren?')) return
     setMsg(null)
     try {
-      const result = await api.applyAbsatzformatPreset(produktionId, presetId)
+      const result = await api.applyAbsatzformatPreset(produktionId, selectedPresetId)
       setFormate(result); setMsg('Preset angewendet.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleDuplicatePreset = async () => {
+    if (!selectedPresetId) return
+    try {
+      const copy = await api.duplicateAbsatzformatPreset(selectedPresetId)
+      await load()
+      setSelectedPresetId(copy.id)
+      setMsg(`Preset „${copy.name}" erstellt.`)
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleRenamePreset = async () => {
+    if (!selectedPresetId || !renamingValue.trim()) return
+    try {
+      await api.patchAbsatzformatPreset(selectedPresetId, { name: renamingValue.trim() })
+      setRenamingPreset(false); setRenamingValue(''); await load(); setMsg('Preset umbenannt.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleDeletePreset = async () => {
+    if (!selectedPreset) return
+    if (!confirm(`Preset „${selectedPreset.name}" wirklich löschen?`)) return
+    try {
+      await api.deleteAbsatzformatPreset(selectedPresetId!)
+      setSelectedPresetId(null); setTemplateEdit(null)
+      await load(); setMsg('Preset gelöscht.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
+  const handleSaveTemplate = async () => {
+    if (!selectedPresetId || templateEdit === null) return
+    try {
+      await api.patchAbsatzformatPreset(selectedPresetId, { szenen_kopf_template: templateEdit })
+      setTemplateEdit(null); await load(); setMsg('Szenenkopf-Vorlage gespeichert.')
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 
@@ -1056,35 +1069,9 @@ function DokumentTypenTab() {
       tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
     }))
     try {
-      await api.createAbsatzformatPreset({ name: presetName.trim(), formate: presetFormate })
-      setShowSavePreset(false); setPresetName(''); await load(); setMsg('Preset gespeichert.')
-    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
-  }
-
-  const handleRenamePreset = async (id: string) => {
-    if (!renamingValue.trim()) return
-    try {
-      await api.patchAbsatzformatPreset(id, { name: renamingValue.trim() })
-      setRenamingPresetId(null); setRenamingValue(''); await load(); setMsg('Preset umbenannt.')
-    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
-  }
-
-  const handleDeletePreset = async (id: string, name: string) => {
-    if (!confirm(`Preset "${name}" wirklich löschen?`)) return
-    try {
-      await api.deleteAbsatzformatPreset(id)
-      if (expandedPresetId === id) setExpandedPresetId(null)
-      await load(); setMsg('Preset gelöscht.')
-    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
-  }
-
-  const handleSavePresetTemplate = async (id: string) => {
-    const tmpl = presetTemplateEdits[id]
-    if (tmpl === undefined) return
-    try {
-      await api.patchAbsatzformatPreset(id, { szenen_kopf_template: tmpl })
-      setPresetTemplateEdits(prev => { const n = { ...prev }; delete n[id]; return n })
-      await load(); setMsg('Szenenkopf-Vorlage gespeichert.')
+      const saved = await api.createAbsatzformatPreset({ name: presetName.trim(), formate: presetFormate })
+      setShowSavePreset(false); setPresetName('')
+      await load(); setSelectedPresetId(saved.id); setMsg('Preset gespeichert.')
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 
@@ -1119,100 +1106,123 @@ function DokumentTypenTab() {
 
   return (
     <div style={{ maxWidth: 960 }}>
-      {/* Preset-Panel */}
-      <section style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ fontSize: 12, fontWeight: 600 }}>Presets</span>
+
+      {/* ── Preset-Sektion ─────────────────────────────────────────────── */}
+      <section style={{ marginBottom: 28, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+
+        {/* Preset-Auswahl + Aktionen */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: 'var(--bg-subtle)', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Preset:</span>
+
+          {/* Dropdown */}
+          {renamingPreset ? (
+            <>
+              <input
+                value={renamingValue}
+                onChange={e => setRenamingValue(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleRenamePreset(); if (e.key === 'Escape') { setRenamingPreset(false); setRenamingValue('') } }}
+                autoFocus
+                style={{ ...selectStyle, minWidth: 200, fontSize: 11, padding: '3px 8px' }}
+              />
+              <button onClick={handleRenamePreset}
+                style={{ padding: '3px 10px', borderRadius: 5, border: 'none', background: '#00C853', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                OK
+              </button>
+              <button onClick={() => { setRenamingPreset(false); setRenamingValue('') }}
+                style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
+                Abbrechen
+              </button>
+            </>
+          ) : (
+            <select
+              value={selectedPresetId ?? ''}
+              onChange={e => handleSelectPreset(e.target.value)}
+              style={{ ...selectStyle, minWidth: 220, fontSize: 12, padding: '4px 8px', fontWeight: 500 }}
+            >
+              {presets.length === 0 && <option value="">— keine Presets —</option>}
+              {presets.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.name}{p.ist_system ? ' (System)' : ''}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* Aktions-Buttons */}
+          {!renamingPreset && selectedPreset && (
+            <>
+              <button onClick={handleApplyPreset} title="Dieses Preset auf die aktuelle Produktion anwenden"
+                style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'var(--text-primary)', color: '#fff', flexShrink: 0 }}>
+                Anwenden
+              </button>
+              <button onClick={handleDuplicatePreset} title="Dieses Preset duplizieren"
+                style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
+                Duplizieren
+              </button>
+              {!selectedPreset.ist_system && (
+                <>
+                  <button onClick={() => { setRenamingPreset(true); setRenamingValue(selectedPreset.name) }}
+                    title="Preset umbenennen"
+                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+                    Umbenennen
+                  </button>
+                  <button onClick={handleDeletePreset} title="Preset löschen"
+                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #FF3B30', fontSize: 11, cursor: 'pointer', background: 'transparent', color: '#FF3B30' }}>
+                    Löschen
+                  </button>
+                </>
+              )}
+            </>
+          )}
+
           <div style={{ flex: 1 }} />
           <button onClick={() => setShowSavePreset(true)}
-            style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
-            Als Preset speichern…
+            style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
+            Aus Produktion speichern…
           </button>
         </div>
-        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-          {presets.map((p, idx) => {
-            const isExpanded = expandedPresetId === p.id
-            const isRenaming = renamingPresetId === p.id
-            const templateEdit = presetTemplateEdits[p.id]
-            const templateValue = templateEdit !== undefined ? templateEdit : (p.szenen_kopf_template ?? '')
-            const templateDirty = templateEdit !== undefined && templateEdit !== (p.szenen_kopf_template ?? '')
-            return (
-              <div key={p.id} style={{ borderBottom: idx < presets.length - 1 ? '1px solid var(--border)' : undefined }}>
-                {/* Preset row */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-surface)' }}>
-                  <button onClick={() => setExpandedPresetId(isExpanded ? null : p.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, color: 'var(--text-muted)', padding: '0 2px', lineHeight: 1 }}>
-                    {isExpanded ? '▼' : '▶'}
-                  </button>
-                  {isRenaming ? (
-                    <>
-                      <input value={renamingValue} onChange={e => setRenamingValue(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') handleRenamePreset(p.id); if (e.key === 'Escape') { setRenamingPresetId(null); setRenamingValue('') } }}
-                        autoFocus style={{ ...selectStyle, minWidth: 180, fontSize: 11, padding: '2px 6px' }} />
-                      <button onClick={() => handleRenamePreset(p.id)}
-                        style={{ fontSize: 10, color: '#00C853', background: 'none', border: 'none', cursor: 'pointer' }}>OK</button>
-                      <button onClick={() => { setRenamingPresetId(null); setRenamingValue('') }}
-                        style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: 12, fontWeight: 500, flex: 1 }}>{p.name}</span>
-                  )}
-                  {!isRenaming && (
-                    <>
-                      {p.ist_system && (
-                        <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>System</span>
-                      )}
-                      {!p.ist_system && (
-                        <>
-                          <button onClick={() => { setRenamingPresetId(p.id); setRenamingValue(p.name) }}
-                            style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }} title="Umbenennen">✏️</button>
-                          <button onClick={() => handleDeletePreset(p.id, p.name)}
-                            style={{ fontSize: 10, color: '#FF3B30', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }} title="Löschen">🗑️</button>
-                        </>
-                      )}
-                      <button onClick={() => handleApplyPreset(p.id)}
-                        style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'var(--bg-subtle)', color: 'var(--text-primary)' }}>
-                        Anwenden
-                      </button>
-                    </>
-                  )}
-                </div>
-                {/* Expanded: Szenenkopf-Vorlage */}
-                {isExpanded && (
-                  <div style={{ padding: '10px 32px 12px', background: 'var(--bg-subtle)', borderTop: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: 11, fontWeight: 500, marginBottom: 6 }}>Szenenkopf-Vorlage</div>
-                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                      Definiert die Zusammensetzung der Szenenkopf-Zeile im Drehbuch-Export. Chips einfügen oder Text manuell tippen.
-                    </div>
-                    <SzenenKopfEditor
-                      value={templateValue}
-                      readOnly={p.ist_system}
-                      onChange={v => setPresetTemplateEdits(prev => ({ ...prev, [p.id]: v }))}
-                    />
-                    {!p.ist_system && templateDirty && (
-                      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-                        <button onClick={() => handleSavePresetTemplate(p.id)}
-                          style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
-                          Speichern
-                        </button>
-                        <button onClick={() => setPresetTemplateEdits(prev => { const n = { ...prev }; delete n[p.id]; return n })}
-                          style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
-                          Abbrechen
-                        </button>
-                      </div>
-                    )}
-                    {p.ist_system && (
-                      <div style={{ marginTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>System-Preset — schreibgeschützt</div>
-                    )}
-                  </div>
-                )}
+
+        {/* Szenenkopf-Vorlage-Editor */}
+        {selectedPreset && (
+          <div style={{ padding: '12px 14px', background: 'var(--bg-surface)' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>Szenenkopf-Vorlage</span>
+              {selectedPreset.ist_system && !isSuperadmin && (
+                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                  System-Preset — nur lesbar
+                </span>
+              )}
+              {selectedPreset.ist_system && isSuperadmin && (
+                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: '#007AFF22', color: '#007AFF', border: '1px solid #007AFF55' }}>
+                  System-Preset — Superadmin
+                </span>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              Definiert den Szenenkopf im Drehbuch-Export. Jede Zeile wird ausgeblendet wenn alle Felder leer sind.
+            </div>
+            <SzenenKopfVorlagenEditor
+              value={templateValue}
+              readOnly={!canEditTemplate}
+              onChange={v => setTemplateEdit(v)}
+            />
+            {canEditTemplate && templateDirty && (
+              <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+                <button onClick={handleSaveTemplate}
+                  style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                  Speichern
+                </button>
+                <button onClick={() => setTemplateEdit(null)}
+                  style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
+                  Abbrechen
+                </button>
               </div>
-            )
-          })}
-        </div>
+            )}
+          </div>
+        )}
       </section>
 
-      {/* Filter + Content-Migration */}
+      {/* ── Formate dieser Produktion ─────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, fontWeight: 600 }}>Formate dieser Produktion</span>
         <div style={{ flex: 1 }} />
@@ -1371,7 +1381,7 @@ function DokumentTypenTab() {
           ))}
           {filtered.length === 0 && !loading && (
             <tr><td colSpan={18} style={{ padding: 16, color: 'var(--text-muted)', textAlign: 'center' }}>
-              Keine Absatzformate. Wähle ein Preset aus, um zu starten.
+              Keine Absatzformate. Wähle ein Preset aus und klicke „Anwenden", um zu starten.
             </td></tr>
           )}
         </tbody>
