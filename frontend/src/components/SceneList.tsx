@@ -358,28 +358,64 @@ export default function SceneList({
       return
     }
 
-    // Build new order: move dragId to position of targetId
-    const ids = sorted.map(s => s.id)
-    const fromIdx = ids.indexOf(dragId)
-    const toIdx = ids.indexOf(targetId)
-    if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); return }
+    const isMulti = selectedIds.has(String(dragId)) && selectedIds.size > 1
 
-    ids.splice(fromIdx, 1)
-    ids.splice(toIdx, 0, dragId)
+    if (isMulti) {
+      // Don't allow dropping on a scene that's part of the selection
+      if (selectedIds.has(String(targetId))) { setDragId(null); setDragOverId(null); return }
 
-    // Optimistic update
-    const newOrder = ids.map(id => szenen.find(s => s.id === id)!).filter(Boolean)
-    newOrder.forEach((s, i) => { s.sort_order = i + 1 })
-    onSzenesReordered?.([...newOrder])
+      const allIds = sorted.map(s => s.id)
 
-    setDragId(null)
-    setDragOverId(null)
+      // Find the span from first to last selected scene (inclusive of non-selected in between)
+      const selectedIndices = allIds
+        .map((id, i) => (selectedIds.has(String(id)) ? i : -1))
+        .filter(i => i >= 0)
+      const minIdx = Math.min(...selectedIndices)
+      const maxIdx = Math.max(...selectedIndices)
 
-    try {
-      const updated = await api.reorderWerkstufeSzenen(String(stageId), ids)
-      onSzenesReordered?.(updated)
-    } catch (e) {
-      console.error('Fehler beim Sortieren', e)
+      // The entire span moves as a block — preserving gaps between selected scenes
+      const block = allIds.slice(minIdx, maxIdx + 1)
+      const outside = [...allIds.slice(0, minIdx), ...allIds.slice(maxIdx + 1)]
+
+      const insertIdx = outside.indexOf(targetId)
+      if (insertIdx === -1) { setDragId(null); setDragOverId(null); return }
+
+      const newIds = [...outside.slice(0, insertIdx), ...block, ...outside.slice(insertIdx)]
+
+      const newOrder = newIds.map(id => szenen.find(s => s.id === id)!).filter(Boolean)
+      newOrder.forEach((s, i) => { s.sort_order = i + 1 })
+      onSzenesReordered?.([...newOrder])
+      setDragId(null)
+      setDragOverId(null)
+
+      try {
+        const updated = await api.reorderWerkstufeSzenen(String(stageId), newIds)
+        onSzenesReordered?.(updated)
+      } catch (e) {
+        console.error('Fehler beim Sortieren', e)
+      }
+    } else {
+      // Single drag: move dragId to position of targetId
+      const ids = sorted.map(s => s.id)
+      const fromIdx = ids.indexOf(dragId)
+      const toIdx = ids.indexOf(targetId)
+      if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); return }
+
+      ids.splice(fromIdx, 1)
+      ids.splice(toIdx, 0, dragId)
+
+      const newOrder = ids.map(id => szenen.find(s => s.id === id)!).filter(Boolean)
+      newOrder.forEach((s, i) => { s.sort_order = i + 1 })
+      onSzenesReordered?.([...newOrder])
+      setDragId(null)
+      setDragOverId(null)
+
+      try {
+        const updated = await api.reorderWerkstufeSzenen(String(stageId), ids)
+        onSzenesReordered?.(updated)
+      } catch (e) {
+        console.error('Fehler beim Sortieren', e)
+      }
     }
   }
 
@@ -403,6 +439,7 @@ export default function SceneList({
   }
 
   const isDragActive = searchQuery === '' // drag only when not filtering
+  const isMultiDrag = dragId !== null && selectedIds.has(String(dragId)) && selectedIds.size > 1
 
   return (
     <div className="scenes" data-colormode={effectiveColorMode}>
@@ -584,8 +621,8 @@ export default function SceneList({
 
           const isMenuOpen = menuOpenId === scene.id
           const isDeleting = deleting === scene.id
-          const isDragging = dragId === scene.id
-          const isDragOver = dragOverId === scene.id && dragId !== scene.id
+          const isDragging = dragId === scene.id || (isMultiDrag && selectedIds.has(String(scene.id)))
+          const isDragOver = dragOverId === scene.id && !isDragging
 
           const sceneLabel = `${scene.scene_nummer}${scene.scene_nummer_suffix || ''}`
 

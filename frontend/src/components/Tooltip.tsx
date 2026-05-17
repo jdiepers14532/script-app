@@ -11,7 +11,7 @@ interface TooltipProps {
 
 export default function Tooltip({ text, children, placement = 'top', delay = 0 }: TooltipProps) {
   const { showTooltips } = useContext(UserPrefsContext)
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
+  const [pos, setPos] = useState<{ x: number; y: number; isBottom: boolean } | null>(null)
   const ref = useRef<HTMLSpanElement>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -20,10 +20,12 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
     const doShow = () => {
       if (!ref.current) return
       const r = ref.current.getBoundingClientRect()
+      // Auto-flip to bottom if not enough space above (or placement explicitly bottom)
+      const useBottom = placement === 'bottom' || (placement === 'top' && r.top < 60)
       setPos(
-        placement === 'bottom'
-          ? { x: r.left + r.width / 2, y: r.bottom + 8 }
-          : { x: r.left + r.width / 2, y: r.top - 8 }
+        useBottom
+          ? { x: r.left + r.width / 2, y: r.bottom + 8, isBottom: true }
+          : { x: r.left + r.width / 2, y: r.top - 8, isBottom: false }
       )
     }
     if (delay > 0) {
@@ -50,7 +52,7 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
           position: 'fixed',
           left: pos.x,
           top: pos.y,
-          transform: placement === 'bottom' ? 'translateX(-50%)' : 'translate(-50%, -100%)',
+          transform: pos.isBottom ? 'translateX(-50%)' : 'translate(-50%, -100%)',
           background: '#111',
           color: '#fff',
           fontSize: 11,
