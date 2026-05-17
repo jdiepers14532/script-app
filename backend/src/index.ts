@@ -301,6 +301,7 @@ async function runMigrations() {
     'v76_autorenplan.sql',
     'v77_autorenplan_job_kategorien.sql',
     'v78_szenen_snapshots.sql',
+    'v79_absatzformat_sh_to_txt.sql',
     'v79_snapshot_metadata.sql',
     'v80_snapshot_is_current.sql',
   ]
