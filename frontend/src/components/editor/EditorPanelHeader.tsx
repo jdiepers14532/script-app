@@ -331,6 +331,8 @@ export default function EditorPanelHeader({
       {/* RIGHT: Save+User direkt neben Sichtbarkeit, Dokument-Typ, Revision */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
 
+      {rightSlot}
+
       {/* Save status */}
       {saveStatus && saveStatus !== 'idle' && (
         <span style={{ fontSize: 11, color: saveColor, fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap' }}>
@@ -348,7 +350,6 @@ export default function EditorPanelHeader({
       )}
 
       {collabSlot}
-      {rightSlot}
 
       {/* Sichtbarkeits-Badge (klickbar) */}
       {selectedWerk && !selectedWerk.abgegeben && (
