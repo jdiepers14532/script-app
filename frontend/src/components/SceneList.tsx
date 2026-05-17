@@ -366,21 +366,15 @@ export default function SceneList({
 
       const allIds = sorted.map(s => s.id)
 
-      // Find the span from first to last selected scene (inclusive of non-selected in between)
-      const selectedIndices = allIds
-        .map((id, i) => (selectedIds.has(String(id)) ? i : -1))
-        .filter(i => i >= 0)
-      const minIdx = Math.min(...selectedIndices)
-      const maxIdx = Math.max(...selectedIndices)
+      // Extract only selected scenes (in their current sorted order) — non-selected stay in place
+      const selectedInOrder = allIds.filter(id => selectedIds.has(String(id)))
+      const remaining = allIds.filter(id => !selectedIds.has(String(id)))
 
-      // The entire span moves as a block — preserving gaps between selected scenes
-      const block = allIds.slice(minIdx, maxIdx + 1)
-      const outside = [...allIds.slice(0, minIdx), ...allIds.slice(maxIdx + 1)]
-
-      const insertIdx = outside.indexOf(targetId)
+      // Insert selected block before the target scene
+      const insertIdx = remaining.indexOf(targetId)
       if (insertIdx === -1) { setDragId(null); setDragOverId(null); return }
 
-      const newIds = [...outside.slice(0, insertIdx), ...block, ...outside.slice(insertIdx)]
+      const newIds = [...remaining.slice(0, insertIdx), ...selectedInOrder, ...remaining.slice(insertIdx)]
 
       const newOrder = newIds.map(id => szenen.find(s => s.id === id)!).filter(Boolean)
       newOrder.forEach((s, i) => { s.sort_order = i + 1 })
@@ -621,6 +615,7 @@ export default function SceneList({
 
           const isMenuOpen = menuOpenId === scene.id
           const isDeleting = deleting === scene.id
+          const isMultiSelected = multiSelectMode && selectedIds.has(String(scene.id))
           const isDragging = dragId === scene.id || (isMultiDrag && selectedIds.has(String(scene.id)))
           const isDragOver = dragOverId === scene.id && !isDragging
 
@@ -643,6 +638,7 @@ export default function SceneList({
                 isDeleting ? 'deleting' : '',
                 isDragging ? 'dragging' : '',
                 isDragOver ? 'drag-over' : '',
+                isMultiSelected ? 'ms-selected' : '',
               ].filter(Boolean).join(' ')}
               style={{ ...rowStyle, position: 'relative', cursor: isDragActive ? 'grab' : 'pointer', ...(multiSelectMode ? { gridTemplateColumns: '20px 30px 14px 1fr 32px 18px auto' } : {}) }}
               onClick={() => !isMenuOpen && onSelectSzene(scene.id)}

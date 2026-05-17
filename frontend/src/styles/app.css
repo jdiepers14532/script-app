@@ -634,6 +634,7 @@
 .row.deleting { opacity:0.4; pointer-events:none; }
 .row.dragging { opacity:0.4; cursor:grabbing !important; }
 .row.drag-over { box-shadow:inset 0 2px 0 0 var(--text-primary); }
+.row.ms-selected { background:color-mix(in srgb, var(--sw-green, #00C853) 12%, var(--bg-surface)) !important; box-shadow:inset 2px 0 0 var(--sw-green, #00C853); }
 .scene-ctx-menu {
   position:absolute; right:0; top:calc(100% + 2px); z-index:200;
   background:var(--bg-surface); border:1px solid var(--border); border-radius:8px;
