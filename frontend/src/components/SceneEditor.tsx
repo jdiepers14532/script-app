@@ -1088,11 +1088,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <span style={{ width: 32 }} />
           </span>
           <div className="scene-fields-rows">
-          {/* Zeile 2: Oneliner */}
-          <div className="sf-row">
+          {/* Zeile 2: Oneliner + Sondertyp rechts (kein Extra-Zeilenabstand) */}
+          <div className="sf-row" style={{ gap: 6 }}>
             <input
               className="sf-input"
-              style={{ flex: '1 1 auto', minWidth: 0 }}
+              style={{ flex: 1, minWidth: 0 }}
               defaultValue={scene.zusammenfassung ?? ''}
               placeholder="Oneliner…"
               onBlur={e => {
@@ -1101,40 +1101,35 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
               }}
             />
-          </div>
-          {/* Zeile 2b: Sondertyp — rechtsbündig unter Sp */}
-          {(scene.sondertyp || wsBeteiligt.length === 0) && (
-            <div className="sf-row" style={{ justifyContent: 'flex-end' }}>
-              {scene.sondertyp ? (
-                <select
-                  className="sf-input"
-                  value={scene.sondertyp}
-                  style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, flexShrink: 0, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
-                  onChange={e => {
-                    const val = e.target.value || null
-                    saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+            {scene.sondertyp ? (
+              <select
+                className="sf-input"
+                value={scene.sondertyp}
+                style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, flexShrink: 0, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
+                onChange={e => {
+                  const val = e.target.value || null
+                  saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                }}
+              >
+                <option value="">Normal</option>
+                <option value="wechselschnitt">Wechselschnitt</option>
+                <option value="stockshot">{t('stockshot')}</option>
+                <option value="flashback">{t('flashback')}</option>
+              </select>
+            ) : wsBeteiligt.length === 0 ? (
+              <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
+                <button
+                  className="btn ghost"
+                  style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)', flexShrink: 0 }}
+                  onClick={() => {
+                    saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                   }}
                 >
-                  <option value="">Normal</option>
-                  <option value="wechselschnitt">Wechselschnitt</option>
-                  <option value="stockshot">{t('stockshot')}</option>
-                  <option value="flashback">{t('flashback')}</option>
-                </select>
-              ) : (
-                <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
-                  <button
-                    className="btn ghost"
-                    style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)', flexShrink: 0 }}
-                    onClick={() => {
-                      saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                    }}
-                  >
-                    Sondertyp 🎭
-                  </button>
-                </Tooltip>
-              )}
-            </div>
-          )}
+                  Sondertyp 🎭
+                </button>
+              </Tooltip>
+            ) : null}
+          </div>
           {/* Sondertyp Details — Wechselschnitt / Stockshot / Flashback */}
           {scene.sondertyp && (
             <div className="sf-row" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -1454,8 +1449,12 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           )}
 
           </div>{/* end scene-fields-rows */}
-          {/* Right spacer — mirrors ie-group + action buttons to constrain scene-fields-rows right boundary */}
+          {/* Right spacer — mirrors spielzeit + ie-group + action buttons to constrain scene-fields-rows right boundary */}
           <span aria-hidden="true" className="sf-right-spacer">
+            <span className="spielzeit-wrap" style={{ pointerEvents: 'none' }}>
+              <span className="spiel-field-lbl">Sp</span>
+              <input className="spielzeit-inp" readOnly tabIndex={-1} defaultValue="" />
+            </span>
             <span className="ie-group">
               <span className="ie-toggle">I</span>
               <span className="ie-sep">/</span>
