@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { C, Badge, Tag, TableCard, Section, FaqItem, FieldBox } from './_shared'
+import { C, Badge, Tag, TableCard, Section, FaqItem, FieldBox, InfoBox, WarnBox } from './_shared'
 
 function NetzplanDiagram() {
   const [pan, setPan] = useState({ x: 0, y: 0 })

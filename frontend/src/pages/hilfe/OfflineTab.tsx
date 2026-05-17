@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { C, Section, FaqItem } from './_shared'
+import { C, Arrow, Section, FaqItem, InfoBox, WarnBox } from './_shared'
 
 function OfflineTab() {
   return (
