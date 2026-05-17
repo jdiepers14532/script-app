@@ -5,6 +5,69 @@ import { authMiddleware } from '../auth'
 export const statistikRouter = Router()
 statistikRouter.use(authMiddleware)
 
+// ── Statistik-Config ─────────────────────────────────────────────────────────
+
+interface StatistikConfig {
+  szenenanzahl: {
+    stockshots_mitzaehlen: boolean
+    flashbacks_ganzeszene_referenz_mitzaehlen: boolean
+  }
+  stoppzeit: {
+    stockshots_mitzaehlen: boolean
+    flashbacks_ganzeszene_referenz_mitzaehlen: boolean
+    wechselschnitt_nur_erste: boolean
+  }
+}
+
+const STATISTIK_CONFIG_DEFAULT: StatistikConfig = {
+  szenenanzahl: { stockshots_mitzaehlen: false, flashbacks_ganzeszene_referenz_mitzaehlen: false },
+  stoppzeit: { stockshots_mitzaehlen: false, flashbacks_ganzeszene_referenz_mitzaehlen: false, wechselschnitt_nur_erste: true },
+}
+
+async function getStatistikConfig(produktion_id: string): Promise<StatistikConfig> {
+  try {
+    const row = await queryOne(
+      `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'statistik_config'`,
+      [produktion_id]
+    )
+    if (!row) return STATISTIK_CONFIG_DEFAULT
+    const parsed = JSON.parse(row.value)
+    return {
+      szenenanzahl: { ...STATISTIK_CONFIG_DEFAULT.szenenanzahl, ...(parsed.szenenanzahl ?? {}) },
+      stoppzeit: { ...STATISTIK_CONFIG_DEFAULT.stoppzeit, ...(parsed.stoppzeit ?? {}) },
+    }
+  } catch { return STATISTIK_CONFIG_DEFAULT }
+}
+
+// Build WHERE-fragment for szenenanzahl (alias = table alias, e.g. 'ds' or '')
+function szenenanzahlFilter(cfg: StatistikConfig, alias = ''): string {
+  const p = alias ? alias + '.' : ''
+  const c: string[] = [`COALESCE(${p}format, 'storyline') != 'notiz'`]
+  if (!cfg.szenenanzahl.stockshots_mitzaehlen) c.push(`${p}sondertyp IS DISTINCT FROM 'stockshot'`)
+  if (!cfg.szenenanzahl.flashbacks_ganzeszene_referenz_mitzaehlen) {
+    c.push(`NOT (${p}sondertyp = 'flashback' AND ${p}flashback_ganze_szene = true AND ${p}flashback_referenz_id IS NOT NULL)`)
+  }
+  return c.join(' AND ')
+}
+
+// Build WHERE-fragment for stoppzeit. wsSubquery = SQL subquery returning the relevant werkstufe IDs.
+function stoppzeitFilter(cfg: StatistikConfig, alias = '', wsSubquery: string): string {
+  const p = alias ? alias + '.' : ''
+  const c: string[] = [`COALESCE(${p}format, 'storyline') != 'notiz'`]
+  if (!cfg.stoppzeit.stockshots_mitzaehlen) c.push(`${p}sondertyp IS DISTINCT FROM 'stockshot'`)
+  if (!cfg.stoppzeit.flashbacks_ganzeszene_referenz_mitzaehlen) {
+    c.push(`NOT (${p}sondertyp = 'flashback' AND ${p}flashback_ganze_szene = true AND ${p}flashback_referenz_id IS NOT NULL)`)
+  }
+  if (cfg.stoppzeit.wechselschnitt_nur_erste) {
+    c.push(`${p}scene_identity_id NOT IN (
+      SELECT wp.partner_identity_id FROM wechselschnitt_partner wp
+      JOIN dokument_szenen ds_ws ON ds_ws.id = wp.dokument_szene_id
+      WHERE ds_ws.werkstufe_id IN (${wsSubquery}) AND ds_ws.geloescht = false
+    )`)
+  }
+  return c.join(' AND ')
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/statistik/character-scenes
 // List scenes per character in a werkstufe (or across werkstufen of a folge)
@@ -302,10 +365,12 @@ statistikRouter.get('/motiv-auslastung', async (req, res) => {
     }
 
     let whereClause: string
+    let wsSubquery: string
     const params: any[] = []
 
     if (werkstufe_id) {
       whereClause = 'ds.werkstufe_id = $1'
+      wsSubquery = 'SELECT $1::uuid'
       params.push(werkstufe_id)
     } else {
       const typ = werkstufe_typ || 'drehbuch'
@@ -314,13 +379,22 @@ statistikRouter.get('/motiv-auslastung', async (req, res) => {
         JOIN folgen f ON f.id = w.folge_id
         WHERE f.produktion_id = $1 AND w.typ = $2
       )`
+      wsSubquery = `SELECT w.id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE f.produktion_id = $1 AND w.typ = $2`
       params.push(produktion_id, typ)
     }
 
+    const cfgProdId = werkstufe_id
+      ? (await queryOne(`SELECT f.produktion_id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`, [werkstufe_id]))?.produktion_id
+      : String(produktion_id)
+    const cfg = cfgProdId ? await getStatistikConfig(cfgProdId) : STATISTIK_CONFIG_DEFAULT
+
+    const szFilter = szenenanzahlFilter(cfg, 'ds')
+    const stFilter = stoppzeitFilter(cfg, 'ds', wsSubquery)
+
     const rows = await query(
       `SELECT ds.ort_name, ds.int_ext,
-              COUNT(*) AS scene_count,
-              SUM(ds.stoppzeit_sek) AS total_stoppzeit_sek,
+              COUNT(*) FILTER (WHERE ${szFilter}) AS scene_count,
+              SUM(ds.stoppzeit_sek) FILTER (WHERE ${stFilter}) AS total_stoppzeit_sek,
               COUNT(DISTINCT sc.character_id) AS unique_characters,
               ARRAY_AGG(DISTINCT f.folge_nummer ORDER BY f.folge_nummer) AS folgen_nummern
        FROM dokument_szenen ds
@@ -427,14 +501,26 @@ statistikRouter.get('/overview', async (req, res) => {
     const { werkstufe_id } = req.query
     if (!werkstufe_id) return res.status(400).json({ error: 'werkstufe_id erforderlich' })
 
-    const [scenes, chars, repliken, stoppzeit] = await Promise.all([
+    // Derive produktion_id for config lookup
+    const wsRow = await queryOne(
+      `SELECT f.produktion_id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      [werkstufe_id]
+    )
+    const cfg = wsRow ? await getStatistikConfig(wsRow.produktion_id) : STATISTIK_CONFIG_DEFAULT
+    const szFilter = szenenanzahlFilter(cfg)
+    const stFilter = stoppzeitFilter(cfg, '', 'SELECT $1::uuid')
+
+    const [scenes, chars, repliken] = await Promise.all([
       queryOne(
         `SELECT COUNT(*) AS total,
                 COUNT(*) FILTER (WHERE sondertyp IS DISTINCT FROM 'stockshot') AS total_ohne_stockshots,
                 COUNT(*) FILTER (WHERE sondertyp = 'wechselschnitt' OR is_wechselschnitt = true) AS wechselschnitt,
                 COUNT(*) FILTER (WHERE sondertyp = 'stockshot') AS stockshots,
                 COUNT(*) FILTER (WHERE sondertyp = 'stockshot' AND stockshot_neu_drehen = true) AS stockshots_neu,
-                COUNT(*) FILTER (WHERE sondertyp = 'flashback') AS flashbacks
+                COUNT(*) FILTER (WHERE sondertyp = 'flashback') AS flashbacks,
+                COUNT(*) FILTER (WHERE ${szFilter}) AS total_konfiguriert,
+                SUM(stoppzeit_sek) AS stoppzeit_total_sek,
+                SUM(stoppzeit_sek) FILTER (WHERE ${stFilter}) AS stoppzeit_konfiguriert_sek
          FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false`,
         [werkstufe_id]
       ),
@@ -450,11 +536,6 @@ statistikRouter.get('/overview', async (req, res) => {
         `SELECT SUM(sc.repliken_anzahl) AS total FROM scene_characters sc WHERE sc.werkstufe_id = $1`,
         [werkstufe_id]
       ),
-      queryOne(
-        `SELECT SUM(stoppzeit_sek) AS total_sek
-         FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false`,
-        [werkstufe_id]
-      ),
     ])
 
     res.json({
@@ -465,6 +546,7 @@ statistikRouter.get('/overview', async (req, res) => {
         stockshots: parseInt(scenes?.stockshots ?? 0),
         stockshots_neu: parseInt(scenes?.stockshots_neu ?? 0),
         flashbacks: parseInt(scenes?.flashbacks ?? 0),
+        total_konfiguriert: parseInt(scenes?.total_konfiguriert ?? 0),
       },
       characters: {
         total: parseInt(chars?.total_characters ?? 0),
@@ -473,7 +555,9 @@ statistikRouter.get('/overview', async (req, res) => {
         ot_only: parseInt(chars?.ot_only ?? 0),
       },
       repliken: parseInt(repliken?.total ?? 0),
-      stoppzeit_sek: parseInt(stoppzeit?.total_sek ?? 0),
+      stoppzeit_sek: parseInt(scenes?.stoppzeit_konfiguriert_sek ?? 0),
+      stoppzeit_konfiguriert_sek: parseInt(scenes?.stoppzeit_konfiguriert_sek ?? 0),
+      stoppzeit_total_sek: parseInt(scenes?.stoppzeit_total_sek ?? 0),
     })
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -515,25 +599,41 @@ statistikRouter.get('/report', async (req, res) => {
     const wsIds = wsRows.map((r: any) => r.id)
     if (wsIds.length === 0) {
       return res.json({
-        bilder_insgesamt: 0, drehbuchseiten: 0, drehbuchseiten_display: '0',
+        bilder_insgesamt: 0, szenen_insgesamt: 0, drehbuchseiten: 0, drehbuchseiten_display: '0',
         vorstopp_sek: 0, rollen_pro_bild: [], rollen: [], motive: [], drehorte: [], folgen: [],
         werkstufe_typ: usedTyp,
       })
     }
 
-    // All scenes across selected werkstufen (exclude notiz format)
+    // Load statistik config
+    const cfg = await getStatistikConfig(String(produktion_id))
+
+    // All scenes across selected werkstufen (include all, filter in JS per config)
     const scenes = await query(
       `SELECT ds.scene_identity_id, ds.scene_nummer, ds.ort_name, ds.int_ext,
-              ds.seiten, ds.stoppzeit_sek, ds.werkstufe_id,
+              ds.seiten, ds.stoppzeit_sek, ds.werkstufe_id, ds.format,
+              ds.sondertyp, ds.flashback_ganze_szene, ds.flashback_referenz_id,
               f.folge_nummer, w.folge_id
        FROM dokument_szenen ds
        JOIN werkstufen w ON w.id = ds.werkstufe_id
        JOIN folgen f ON f.id = w.folge_id
        WHERE ds.werkstufe_id = ANY($1::uuid[]) AND ds.geloescht = false
-             AND COALESCE(ds.format, 'storyline') != 'notiz'
        ORDER BY f.folge_nummer, ds.scene_nummer`,
       [wsIds]
     )
+
+    // Load wechselschnitt partner scene_identity_ids for this set of werkstufen
+    let wsPartnerIds = new Set<string>()
+    if (cfg.stoppzeit.wechselschnitt_nur_erste && wsIds.length > 0) {
+      const partnerRows = await query(
+        `SELECT DISTINCT wp.partner_identity_id::text
+         FROM wechselschnitt_partner wp
+         JOIN dokument_szenen main_ds ON main_ds.id = wp.dokument_szene_id
+         WHERE main_ds.werkstufe_id = ANY($1::uuid[]) AND main_ds.geloescht = false`,
+        [wsIds]
+      )
+      wsPartnerIds = new Set(partnerRows.map((r: any) => r.partner_identity_id))
+    }
 
     // All characters in these scenes (excluding notiz-format scenes)
     const chars = await query(
@@ -577,17 +677,43 @@ statistikRouter.get('/report', async (req, res) => {
       return `${whole} ${eighths}/8`
     }
 
-    // ── Summary ──
-    const bilder_insgesamt = scenes.length
-    const seitenTotal = scenes.reduce((sum: number, s: any) => sum + parseSeiten(s.seiten), 0)
-    const vorstopp_sek = scenes.reduce((sum: number, s: any) => sum + (Number(s.stoppzeit_sek) || 0), 0)
+    // ── Config-basierte Szenenfilterung ──
+    // Notizen werden immer ausgeschlossen. Stockshots/Flashbacks je nach config.
+    function keepForSzenenanzahl(s: any): boolean {
+      if ((s.format ?? 'storyline') === 'notiz') return false
+      if (!cfg.szenenanzahl.stockshots_mitzaehlen && s.sondertyp === 'stockshot') return false
+      if (!cfg.szenenanzahl.flashbacks_ganzeszene_referenz_mitzaehlen &&
+          s.sondertyp === 'flashback' && s.flashback_ganze_szene && s.flashback_referenz_id) return false
+      return true
+    }
+    function stoppzeitOf(s: any): number {
+      if ((s.format ?? 'storyline') === 'notiz') return 0
+      if (!cfg.stoppzeit.stockshots_mitzaehlen && s.sondertyp === 'stockshot') return 0
+      if (!cfg.stoppzeit.flashbacks_ganzeszene_referenz_mitzaehlen &&
+          s.sondertyp === 'flashback' && s.flashback_ganze_szene && s.flashback_referenz_id) return 0
+      if (cfg.stoppzeit.wechselschnitt_nur_erste && wsPartnerIds.has(String(s.scene_identity_id))) return 0
+      return Number(s.stoppzeit_sek) || 0
+    }
 
-    // ── Rollen pro Bild (histogram) ──
+    const filteredScenes = scenes.filter(keepForSzenenanzahl)
+
+    // ── Summary ──
+    const bilder_insgesamt = filteredScenes.length
+    const seitenTotal = filteredScenes.reduce((sum: number, s: any) => sum + parseSeiten(s.seiten), 0)
+    const vorstopp_sek = scenes.reduce((sum: number, s: any) => sum + stoppzeitOf(s), 0)
+
+    // ── Rollen pro Bild (histogram) — nur config-gefilterte Szenen ──
+    const filteredSceneKeys = new Set(
+      filteredScenes.map((s: any) => `${s.werkstufe_id}:${s.scene_identity_id}`)
+    )
+    const filteredChars = chars.filter((ch: any) =>
+      filteredSceneKeys.has(`${ch.werkstufe_id}:${ch.scene_identity_id}`)
+    )
     const sceneCharCounts = new Map<string, number>()
-    for (const s of scenes) {
+    for (const s of filteredScenes) {
       sceneCharCounts.set(`${s.werkstufe_id}:${s.scene_identity_id}`, 0)
     }
-    for (const ch of chars) {
+    for (const ch of filteredChars) {
       const key = `${ch.werkstufe_id}:${ch.scene_identity_id}`
       sceneCharCounts.set(key, (sceneCharCounts.get(key) || 0) + 1)
     }
@@ -606,7 +732,7 @@ statistikRouter.get('/report', async (req, res) => {
       kategorie_name: string | null; kategorie_typ: string | null
       scene_count: number; scenes: string[]
     }>()
-    for (const ch of chars) {
+    for (const ch of filteredChars) {
       if (!rollenMap.has(ch.character_id)) {
         rollenMap.set(ch.character_id, {
           character_name: ch.character_name,
@@ -631,7 +757,7 @@ statistikRouter.get('/report', async (req, res) => {
     }
 
     const motivMap = new Map<string, { ort_name: string; drehort: string; motiv: string; scene_count: number; scenes: string[] }>()
-    for (const s of scenes) {
+    for (const s of filteredScenes) {
       const key = s.ort_name || 'Unbekannt'
       if (!motivMap.has(key)) {
         const p = parseOrt(s.ort_name)
@@ -647,7 +773,7 @@ statistikRouter.get('/report', async (req, res) => {
 
     // ── Drehorte (aggregated by drehort) ──
     const drehortMap = new Map<string, number>()
-    for (const s of scenes) {
+    for (const s of filteredScenes) {
       const { drehort } = parseOrt(s.ort_name)
       drehortMap.set(drehort, (drehortMap.get(drehort) || 0) + 1)
     }
@@ -658,14 +784,15 @@ statistikRouter.get('/report', async (req, res) => {
     // ── Per-Folge breakdown ──
     const folgenBreakdown: { folge_nummer: number; bilder: number; seiten: number; seiten_display: string; vorstopp_sek: number }[] = []
     for (const ws of wsRows) {
-      const folgeScenes = scenes.filter((s: any) => s.folge_nummer === ws.folge_nummer)
-      const s = folgeScenes.reduce((sum: number, sc: any) => sum + parseSeiten(sc.seiten), 0)
+      const folgeFiltered = filteredScenes.filter((s: any) => s.folge_nummer === ws.folge_nummer)
+      const folgeAll = scenes.filter((s: any) => s.folge_nummer === ws.folge_nummer)
+      const s = folgeFiltered.reduce((sum: number, sc: any) => sum + parseSeiten(sc.seiten), 0)
       folgenBreakdown.push({
         folge_nummer: ws.folge_nummer,
-        bilder: folgeScenes.length,
+        bilder: folgeFiltered.length,
         seiten: s,
         seiten_display: formatSeiten(s),
-        vorstopp_sek: folgeScenes.reduce((sum: number, sc: any) => sum + (Number(sc.stoppzeit_sek) || 0), 0),
+        vorstopp_sek: folgeAll.reduce((sum: number, sc: any) => sum + stoppzeitOf(sc), 0),
       })
     }
     folgenBreakdown.sort((a, b) => a.folge_nummer - b.folge_nummer)
@@ -674,7 +801,7 @@ statistikRouter.get('/report', async (req, res) => {
     // Only count interactions between Rollen (not Komparsen)
     // Build map: scene_key → set of character names (excluding Komparsen)
     const sceneCharsMap = new Map<string, Set<string>>()
-    for (const ch of chars) {
+    for (const ch of filteredChars) {
       if (ch.kategorie_typ === 'komparse') continue
       const key = `${ch.werkstufe_id}:${ch.scene_identity_id}`
       if (!sceneCharsMap.has(key)) sceneCharsMap.set(key, new Set())

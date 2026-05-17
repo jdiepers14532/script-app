@@ -2740,6 +2740,15 @@ export default function DrehbuchkoordinationPage() {
 
 // ── Tab: Statistik-Panel Settings ─────────────────────────────────────────────────
 
+interface StatistikConfig {
+  szenenanzahl: { stockshots_mitzaehlen: boolean; flashbacks_ganzeszene_referenz_mitzaehlen: boolean }
+  stoppzeit: { stockshots_mitzaehlen: boolean; flashbacks_ganzeszene_referenz_mitzaehlen: boolean; wechselschnitt_nur_erste: boolean }
+}
+const STATISTIK_CONFIG_DEFAULT: StatistikConfig = {
+  szenenanzahl: { stockshots_mitzaehlen: false, flashbacks_ganzeszene_referenz_mitzaehlen: false },
+  stoppzeit: { stockshots_mitzaehlen: false, flashbacks_ganzeszene_referenz_mitzaehlen: false, wechselschnitt_nur_erste: true },
+}
+
 function StatistikPanelTab({
   productionId,
   sections,
@@ -2750,10 +2759,29 @@ function StatistikPanelTab({
   onSectionsChange: (s: StatModalSection[]) => void
 }) {
   const [saving, setSaving] = useState(false)
+  const [savingCfg, setSavingCfg] = useState(false)
+  const [cfg, setCfg] = useState<StatistikConfig>(STATISTIK_CONFIG_DEFAULT)
   const dragIdx = useRef<number | null>(null)
   const overIdx = useRef<number | null>(null)
 
-  const save = async (next: StatModalSection[]) => {
+  useEffect(() => {
+    fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(data => {
+        if (data.statistik_config) {
+          try {
+            const parsed = JSON.parse(data.statistik_config)
+            setCfg({
+              szenenanzahl: { ...STATISTIK_CONFIG_DEFAULT.szenenanzahl, ...(parsed.szenenanzahl ?? {}) },
+              stoppzeit: { ...STATISTIK_CONFIG_DEFAULT.stoppzeit, ...(parsed.stoppzeit ?? {}) },
+            })
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [productionId])
+
+  const saveSections = async (next: StatModalSection[]) => {
     onSectionsChange(next)
     setSaving(true)
     await fetch(`/api/dk-settings/${productionId}/app-settings/statistik_modal_config`, {
@@ -2765,9 +2793,29 @@ function StatistikPanelTab({
     setSaving(false)
   }
 
+  const saveCfg = async (next: StatistikConfig) => {
+    setCfg(next)
+    setSavingCfg(true)
+    await fetch(`/api/dk-settings/${productionId}/app-settings/statistik_config`, {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    setSavingCfg(false)
+    window.dispatchEvent(new Event('app-settings-changed'))
+  }
+
+  const toggleSz = (key: keyof StatistikConfig['szenenanzahl']) => {
+    saveCfg({ ...cfg, szenenanzahl: { ...cfg.szenenanzahl, [key]: !cfg.szenenanzahl[key] } })
+  }
+  const toggleSt = (key: keyof StatistikConfig['stoppzeit']) => {
+    saveCfg({ ...cfg, stoppzeit: { ...cfg.stoppzeit, [key]: !cfg.stoppzeit[key] } })
+  }
+
   const toggleVisible = (id: string) => {
     const next = sections.map(s => s.id === id ? { ...s, visible: !s.visible } : s)
-    save(next)
+    saveSections(next)
   }
 
   const handleReorder = () => {
@@ -2777,12 +2825,152 @@ function StatistikPanelTab({
     arr.splice(overIdx.current, 0, moved)
     dragIdx.current = null
     overIdx.current = null
-    save(arr)
+    saveSections(arr)
   }
 
+  // Matrix rows
+  const matrixRows: { key: string; label: string; desc?: string; szKey?: keyof StatistikConfig['szenenanzahl']; stKey?: keyof StatistikConfig['stoppzeit']; readonly?: boolean }[] = [
+    {
+      key: 'notiz',
+      label: 'Notizen',
+      desc: 'format = notiz',
+      readonly: true,
+    },
+    {
+      key: 'stockshot',
+      label: 'Stockshots / E-Shots / Archivbilder',
+      desc: 'sondertyp = stockshot',
+      szKey: 'stockshots_mitzaehlen',
+      stKey: 'stockshots_mitzaehlen',
+    },
+    {
+      key: 'flashback',
+      label: 'Flashbacks (ganze Szene + Referenz vorhanden)',
+      desc: 'sondertyp = flashback, ganze Szene markiert, Referenz gesetzt',
+      szKey: 'flashbacks_ganzeszene_referenz_mitzaehlen',
+      stKey: 'flashbacks_ganzeszene_referenz_mitzaehlen',
+    },
+    {
+      key: 'wechselschnitt',
+      label: 'Wechselschnitt-Partner (je Gruppe nur 1× zählen)',
+      desc: 'Partnerflächen in wechselschnitt_partner werden aus der Stoppzeit herausgerechnet',
+      stKey: 'wechselschnitt_nur_erste',
+    },
+  ]
+
+  const colW = 110
+  const labelW = 280
+
   return (
-    <div style={{ maxWidth: 500 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Statistik-Panel</h3>
+    <div style={{ maxWidth: 600 }}>
+      {/* Szenenanzahl-Konfiguration */}
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Zähl-Konfiguration</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px', lineHeight: 1.6 }}>
+        Legt fest, was in <b>allen</b> Auswertungen dieser Produktion gilt:
+      </p>
+      <ul style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', paddingLeft: 18, lineHeight: 1.7 }}>
+        <li>Kontextmenü-Statistik-Modal (Szenenübersicht)</li>
+        <li>Statistik-Seite (/statistik) — alle Tabs</li>
+        <li>Statistik-Panel-Vorschau (hier)</li>
+        <li>Exporte mit Statistik-Anhang</li>
+      </ul>
+
+      {savingCfg && <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 8px' }}>Wird gespeichert...</p>}
+
+      {/* Matrix-Header */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
+        <div style={{ width: labelW, flexShrink: 0 }} />
+        <div style={{ width: colW, flexShrink: 0, fontSize: 11, fontWeight: 700, textAlign: 'center', color: 'var(--text-secondary)' }}>
+          Szenenanzahl
+        </div>
+        <div style={{ width: colW, flexShrink: 0, fontSize: 11, fontWeight: 700, textAlign: 'center', color: 'var(--text-secondary)' }}>
+          Stoppzeit
+        </div>
+      </div>
+
+      {/* Matrix-Rows */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginBottom: 20 }}>
+        {matrixRows.map(row => {
+          const szVal = row.szKey ? cfg.szenenanzahl[row.szKey] : false
+          const stVal = row.stKey ? cfg.stoppzeit[row.stKey] : false
+
+          return (
+            <div key={row.key} style={{
+              display: 'flex', alignItems: 'center',
+              padding: '8px 10px',
+              background: row.readonly ? 'var(--bg-subtle)' : 'var(--bg-card, var(--bg-subtle))',
+              borderRadius: 6,
+              border: '1px solid var(--border)',
+              opacity: row.readonly ? 0.65 : 1,
+            }}>
+              <div style={{ width: labelW, flexShrink: 0, paddingRight: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>{row.label}</div>
+                {row.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{row.desc}</div>}
+              </div>
+
+              {/* Szenenanzahl-Zelle */}
+              <div style={{ width: colW, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                {row.szKey ? (
+                  <button
+                    onClick={() => toggleSz(row.szKey!)}
+                    style={{
+                      padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)',
+                      fontSize: 11, cursor: 'pointer',
+                      background: szVal ? '#00C853' : 'var(--bg-subtle)',
+                      color: szVal ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {szVal ? 'mitzählen' : 'ausschließen'}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    {row.readonly ? 'immer ausgeschl.' : '—'}
+                  </span>
+                )}
+              </div>
+
+              {/* Stoppzeit-Zelle */}
+              <div style={{ width: colW, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                {row.stKey ? (
+                  <button
+                    onClick={() => toggleSt(row.stKey!)}
+                    style={{
+                      padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)',
+                      fontSize: 11, cursor: 'pointer',
+                      background: stVal ? '#00C853' : 'var(--bg-subtle)',
+                      color: stVal ? '#fff' : 'var(--text-secondary)',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {row.stKey === 'wechselschnitt_nur_erste'
+                      ? (stVal ? 'nur erste' : 'alle')
+                      : (stVal ? 'mitzählen' : 'ausschließen')}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    {row.readonly ? 'immer ausgeschl.' : '—'}
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <button
+        onClick={() => saveCfg(STATISTIK_CONFIG_DEFAULT)}
+        style={{
+          marginBottom: 32, padding: '6px 14px', borderRadius: 6,
+          border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+          fontSize: 12, cursor: 'pointer',
+        }}
+      >
+        Konfiguration auf Standard zurücksetzen
+      </button>
+
+      {/* Panel-Rubriken */}
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Statistik-Panel — Rubriken</h3>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
         Lege fest, welche Rubriken im Statistik-Panel angezeigt werden und in welcher Reihenfolge. Ziehe die Eintraege per Drag & Drop.
       </p>
@@ -2824,14 +3012,14 @@ function StatistikPanelTab({
       {saving && <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</p>}
 
       <button
-        onClick={() => save([...DEFAULT_SECTIONS])}
+        onClick={() => saveSections([...DEFAULT_SECTIONS])}
         style={{
           marginTop: 16, padding: '6px 14px', borderRadius: 6,
           border: '1px solid var(--border)', background: 'var(--bg-subtle)',
           fontSize: 12, cursor: 'pointer',
         }}
       >
-        Auf Standard zuruecksetzen
+        Rubriken auf Standard zurücksetzen
       </button>
     </div>
   )
