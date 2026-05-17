@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } from 'lucide-react'
+import { MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api, peekCache } from '../api/client'
@@ -987,30 +987,25 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             </Tooltip>
           </span>
 
-          <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
-            <button
-              className={`btn ghost${showAnnotations ? ' active' : ''}`}
-              style={showAnnotations ? { color: 'var(--sw-green)' } : undefined}
-              onClick={() => {
-                const next = !showAnnotations
-                setShowAnnotations(next)
-                if (!next && kommentareCount > 0 && typeof szeneId === 'number') onMarkCommentsRead?.(szeneId)
-              }}
-            >
-              <MessageSquare size={12} />
-              {kommentareCount > 0 && !showAnnotations && (
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--sw-green)', marginLeft: 1 }}>{kommentareCount}</span>
-              )}
-            </button>
-          </Tooltip>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
             {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
-            <button className="btn ghost" onClick={() => stageId && api.exportPdf(stageId, { lineNumbers: tweaks.showLineNumbers, lnMarginCm: tweaks.lineNumberMarginCm }).then(r => r.blob()).then(b => {
-              const url = URL.createObjectURL(b); window.open(url, '_blank')
-            })}>
-              <FileDown size={12} />PDF
-            </button>
+            <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
+              <button
+                className={`btn ghost${showAnnotations ? ' active' : ''}`}
+                style={showAnnotations ? { color: 'var(--sw-green)' } : undefined}
+                onClick={() => {
+                  const next = !showAnnotations
+                  setShowAnnotations(next)
+                  if (!next && kommentareCount > 0 && typeof szeneId === 'number') onMarkCommentsRead?.(szeneId)
+                }}
+              >
+                <MessageSquare size={12} />
+                {kommentareCount > 0 && !showAnnotations && (
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--sw-green)', marginLeft: 1 }}>{kommentareCount}</span>
+                )}
+              </button>
+            </Tooltip>
           </span>
         </div>
 
