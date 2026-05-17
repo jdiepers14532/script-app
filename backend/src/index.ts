@@ -118,11 +118,10 @@ app.use('/api/privat-mode-tokens', privatModeTokensPublicRouter)
 app.use('/api/produktionen', produktionenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
-app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
-// Internal webhook — no auth
+// Internal routes — MUST be before exportsRouter (which applies authMiddleware to all /api/*)
 app.use('/api/internal', commentWebhookRouter)
-// Internal: Tätigkeiten-Remap (aus Vertragsdb Merge) — eigene Secret-Auth
 app.use('/api/internal', taetigkeitenInternalRouter)
+app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)
 
