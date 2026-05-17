@@ -633,8 +633,9 @@ export default function AppShell({
         if (data?.exp) {
           scheduleRefresh(data.exp * 1000)
         } else {
-          // Kein exp-Timestamp → alle 50 Minuten refreshen
-          refreshTimer = setTimeout(doSilentRefresh, 50 * 60 * 1000)
+          // Kein exp-Timestamp → alle 10 Minuten refreshen
+          // (Access-Token läuft nach 15min ab, 10min = konservativer Fallback)
+          refreshTimer = setTimeout(doSilentRefresh, 10 * 60 * 1000)
         }
       })
       .catch(() => {
