@@ -144,8 +144,6 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
 
 function AllgemeinTab({ productionId }: { productionId: string }) {
   const { t } = useTerminologie()
-  const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
-  const [seitenformatSaving, setSeitenformatSaving] = useState(false)
   const [datumsformat, setDatumsformat] = useState<'de' | 'en'>('de')
   const [datumsformatSaving, setDatumsformatSaving] = useState(false)
   const [kuerzel, setKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
@@ -160,7 +158,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
-        if (data?.seitenformat === 'letter') setSeitenformat('letter')
         if (data?.datumsformat === 'en') setDatumsformat('en')
         if (data?.scene_kuerzel) {
           try { setKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
@@ -209,18 +206,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       body: JSON.stringify({ value: JSON.stringify(next) }),
     }).catch(() => {})
     setKuerzelSaving(false)
-  }
-
-  const saveSeitenformat = async (val: 'a4' | 'letter') => {
-    setSeitenformat(val)
-    setSeitenformatSaving(true)
-    await fetch(`/api/dk-settings/${productionId}/app-settings/seitenformat`, {
-      method: 'PUT',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: val }),
-    }).catch(() => {})
-    setSeitenformatSaving(false)
   }
 
   const saveDatumsformat = async (val: 'de' | 'en') => {
@@ -285,26 +270,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 
   return (
     <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 32 }}>
-
-      <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Seitenformat</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Standard-Papierformat fuer neue Dokumente dieser Produktion.
-        </p>
-        <div className="seg" style={{ display: 'inline-flex' }}>
-          {(['a4', 'letter'] as const).map(opt => (
-            <button
-              key={opt}
-              className={seitenformat === opt ? 'on' : ''}
-              onClick={() => saveSeitenformat(opt)}
-              disabled={seitenformatSaving}
-            >
-              {opt === 'a4' ? 'A4 (210 × 297 mm)' : 'US Letter (8.5 × 11 in)'}
-            </button>
-          ))}
-        </div>
-        {seitenformatSaving && <span style={{ marginLeft: 12, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
-      </section>
 
       <section>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Datumsformat</h3>
@@ -949,6 +914,8 @@ function DokumentTypenTab() {
   const [renamingValue, setRenamingValue] = useState('')
   const [templateEdit, setTemplateEdit] = useState<string | null>(null)
   const [isSuperadmin, setIsSuperadmin] = useState(false)
+  const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
+  const [seitenformatSaving, setSeitenformatSaving] = useState(false)
 
   const load = async () => {
     if (!produktionId) return
@@ -966,6 +933,23 @@ function DokumentTypenTab() {
   useEffect(() => {
     api.getMe().then(me => setIsSuperadmin(me.roles?.includes('superadmin') ?? false)).catch(() => {})
   }, [])
+  useEffect(() => {
+    if (!produktionId) return
+    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => { if (data?.seitenformat === 'letter') setSeitenformat('letter') })
+      .catch(() => {})
+  }, [produktionId])
+
+  const saveSeitenformat = async (val: 'a4' | 'letter') => {
+    setSeitenformat(val); setSeitenformatSaving(true)
+    await fetch(`/api/dk-settings/${produktionId}/app-settings/seitenformat`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setSeitenformatSaving(false)
+  }
 
   // Erstes Preset vorauswählen wenn Presets geladen
   useEffect(() => {
@@ -1107,6 +1091,28 @@ function DokumentTypenTab() {
   return (
     <div style={{ maxWidth: 960 }}>
 
+      {/* ── Seitenformat ───────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '8px 12px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Seitenformat:</span>
+        <div className="seg" style={{ display: 'inline-flex' }}>
+          {(['a4', 'letter'] as const).map(opt => (
+            <button
+              key={opt}
+              className={seitenformat === opt ? 'on' : ''}
+              onClick={() => saveSeitenformat(opt)}
+              disabled={seitenformatSaving}
+              style={{ fontSize: 11 }}
+            >
+              {opt === 'a4' ? 'A4 (210 × 297 mm)' : 'US Letter (8.5 × 11 in)'}
+            </button>
+          ))}
+        </div>
+        {seitenformatSaving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wird gespeichert…</span>}
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 8 }}>
+          Beeinflusst Linealbreite im Szenenkopf-Editor
+        </span>
+      </div>
+
       {/* ── Preset-Sektion ─────────────────────────────────────────────── */}
       <section style={{ marginBottom: 28, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
 
@@ -1205,6 +1211,7 @@ function DokumentTypenTab() {
               value={templateValue}
               readOnly={!canEditTemplate}
               onChange={v => setTemplateEdit(v)}
+              seitenformat={seitenformat}
             />
             {canEditTemplate && templateDirty && (
               <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>

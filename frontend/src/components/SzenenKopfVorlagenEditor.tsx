@@ -3,22 +3,28 @@
  *
  * WYSIWYG-Tiptap-Editor für Szenenkopf-Vorlagen.
  * - Jede Paragraph = eine Template-Zeile (wird beim Rendern ausgeblendet wenn leer)
- * - Farbige Chip-Nodes für Szenenkopf-Felder ({{szene_nr}}, {{motiv}}, ...)
+ * - Farbige Chip-Nodes für Szenenkopf-Felder
  * - Lineal mit konfigurierbaren Tab-Stops (L/C/R) pro Paragraph
+ * - Formatierungs-Toolbar: Schriftart, -größe, Zeilenabstand, B/I/U/UC
+ * - Seitenformat: A4 (17 cm) oder US Letter (16.5 cm) beeinflusst Linealbreite
+ * - Vorschau-Modus mit Dummy-Daten
  * - Serialisierung als JSON-String; Legacy-Text ({{...}}) wird automatisch konvertiert
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
+import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
-import { Node, Extension, mergeAttributes } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
+import { Node, Extension, Mark, mergeAttributes } from '@tiptap/core'
 import { StarterKit } from '@tiptap/starter-kit'
+import { Underline } from '@tiptap/extension-underline'
 
 // ── Chip-Definitionen ─────────────────────────────────────────────────────────
 
 export interface SKChipDef {
   key: string
   label: string
-  shortLabel: string   // kompakte Darstellung wenn Chip verkleinert
+  shortLabel: string
   color: string
   beschreibung: string
 }
@@ -33,17 +39,37 @@ export const SK_CHIPS: SKChipDef[] = [
   { key: 'rollen',       label: 'Rollen',    shortLabel: 'R',   color: '#34C759', beschreibung: 'Beteiligte Rollen' },
   { key: 'komparsen',    label: 'Komp.',     shortLabel: 'K',   color: '#00C7BE', beschreibung: 'Komparsen' },
   { key: 'info',         label: 'Info',      shortLabel: 'i',   color: '#FF3B30', beschreibung: 'Sonstige Info / Szenen-Info' },
+  { key: 'page_length',  label: 'Seiten',    shortLabel: 'S.',  color: '#8E8E93', beschreibung: 'Seitenlänge der Szene (z.B. 2/8)' },
+  { key: 'notiz',        label: 'Notiz',     shortLabel: 'N',   color: '#FF9500', beschreibung: 'Szenennotiz / Zusatzinfo' },
+  { key: 'sondertyp',    label: 'Sondertyp', shortLabel: 'ST',  color: '#FF3B30', beschreibung: 'Sonder-Szenentyp (Flashback, Stockshot …)' },
+  { key: 'partner',      label: 'Partner',   shortLabel: 'P',   color: '#AF52DE', beschreibung: 'Flashback-Partner / Referenzszene' },
   { key: 'staffel',      label: 'Staffel',   shortLabel: 'S',   color: '#8E8E93', beschreibung: 'Staffel-Nummer' },
   { key: 'episode',      label: 'Episode',   shortLabel: 'Ep',  color: '#8E8E93', beschreibung: 'Episoden-Nummer' },
 ]
 
-// ── Chip-Extension ────────────────────────────────────────────────────────────
+// ── Uppercase Mark ─────────────────────────────────────────────────────────────
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     sk_chip: { insertSKChip: (key: string) => ReturnType }
+    uppercase: { toggleUppercase: () => ReturnType }
   }
 }
+
+const UppercaseMark = Mark.create({
+  name: 'uppercase',
+  parseHTML() { return [{ tag: 'span[data-uc]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-uc': 'true', style: 'text-transform:uppercase' }), 0]
+  },
+  addCommands() {
+    return {
+      toggleUppercase: () => ({ commands }: any) => commands.toggleMark('uppercase'),
+    }
+  },
+})
+
+// ── Chip-Extension ────────────────────────────────────────────────────────────
 
 const SKChipExtension = Node.create({
   name: 'sk_chip',
@@ -107,7 +133,6 @@ const SKChipExtension = Node.create({
     return ({ node: initialNode, getPos, editor }: any) => {
       let currentAttrs = { ...initialNode.attrs }
 
-      // Tooltip-Element: direkt im body, außerhalb aller overflow:hidden Container
       const tooltipEl = document.createElement('div')
       tooltipEl.style.cssText = [
         'position:fixed', 'background:#111', 'color:#fff',
@@ -142,10 +167,8 @@ const SKChipExtension = Node.create({
         if (chip) tooltipEl.textContent = chip.beschreibung
       }
 
-      // mousedown: Editor-Cursor-Placement verhindern, Fokus bleibt im Editor
       span.addEventListener('mousedown', (e) => { e.preventDefault() })
 
-      // click: collapsed toggle
       span.addEventListener('click', (e) => {
         e.stopPropagation()
         if (typeof getPos === 'function') {
@@ -206,7 +229,7 @@ const TAB_ALIGN_COLORS: Record<TabAlign, string> = {
   left: '#007AFF', center: '#FF9500', right: '#5856D6',
 }
 
-// ── Paragraph mit Tab-Stops ───────────────────────────────────────────────────
+// ── Paragraph mit Tab-Stops + Formatierung ────────────────────────────────────
 
 const ParagraphWithStops = Node.create({
   name: 'paragraph',
@@ -220,16 +243,41 @@ const ParagraphWithStops = Node.create({
         parseHTML: el => {
           try { return JSON.parse(el.getAttribute('data-tab-stops') || '[]') } catch { return [] }
         },
-        renderHTML: (attrs: any) =>
-          attrs.tabStops?.length ? { 'data-tab-stops': JSON.stringify(attrs.tabStops) } : {},
+        renderHTML: () => ({}),
+      },
+      fontFamily: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-ff') || null,
+        renderHTML: () => ({}),
+      },
+      fontSize: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-fs') || null,
+        renderHTML: () => ({}),
+      },
+      lineHeight: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-lh') || null,
+        renderHTML: () => ({}),
       },
     }
   },
 
   parseHTML() { return [{ tag: 'p' }] },
 
-  renderHTML({ HTMLAttributes }) {
-    return ['p', mergeAttributes(HTMLAttributes), 0]
+  renderHTML({ node, HTMLAttributes }) {
+    const { fontFamily, fontSize, lineHeight, tabStops } = node.attrs
+    const extra: Record<string, any> = {}
+    if (tabStops?.length) extra['data-tab-stops'] = JSON.stringify(tabStops)
+    if (fontFamily) extra['data-ff'] = fontFamily
+    if (fontSize) extra['data-fs'] = fontSize
+    if (lineHeight) extra['data-lh'] = lineHeight
+    const styleArr: string[] = []
+    if (fontFamily) styleArr.push(`font-family:${fontFamily}`)
+    if (fontSize) styleArr.push(`font-size:${fontSize}`)
+    if (lineHeight) styleArr.push(`line-height:${lineHeight}`)
+    if (styleArr.length) extra.style = styleArr.join(';')
+    return ['p', mergeAttributes(HTMLAttributes, extra), 0]
   },
 })
 
@@ -240,35 +288,32 @@ const TabKeyExtension = Extension.create({
   addKeyboardShortcuts() {
     return {
       Tab: () => {
-        this.editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')  // 4 non-breaking spaces
+        this.editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
         return true
       },
-      'Shift-Tab': () => true,  // Fokus-Verlust verhindern
+      'Shift-Tab': () => true,
     }
   },
 })
 
 // ── Serialize / Deserialize ───────────────────────────────────────────────────
 
-/** Tiptap-JSON → gespeicherter String */
 export function serializeSKTemplate(doc: any): string {
   return JSON.stringify(doc)
 }
 
-/** Gespeicherter String → Tiptap-JSON (mit Legacy-Text-Fallback für {{key}}-Format) */
 export function parseSKTemplate(stored: string | null | undefined): any {
   if (!stored || !stored.trim()) return defaultSKDoc()
   const s = stored.trim()
   if (s.startsWith('{')) {
     try { return JSON.parse(s) } catch {}
   }
-  // Legacy: plain text mit {{key}} Tokens, ggf. mehrzeilig
   const lines = s.split('\n')
   return {
     type: 'doc',
     content: lines.map(line => ({
       type: 'paragraph',
-      attrs: { tabStops: [] },
+      attrs: { tabStops: [], fontFamily: null, fontSize: null, lineHeight: null },
       content: parseLegacyLine(line),
     })),
   }
@@ -291,14 +336,10 @@ function parseLegacyLine(line: string): any[] {
 function defaultSKDoc(): any {
   return {
     type: 'doc',
-    content: [{ type: 'paragraph', attrs: { tabStops: [] }, content: [] }],
+    content: [{ type: 'paragraph', attrs: { tabStops: [], fontFamily: null, fontSize: null, lineHeight: null }, content: [] }],
   }
 }
 
-/**
- * Render-Hilfsfunktion: Tiptap-JSON → Text-Zeilen (für Vorschau und Export).
- * Zeilen, bei denen alle Chips leer sind, werden übersprungen (Auto-Collapse).
- */
 export function renderSKTemplate(
   stored: string,
   fields: Partial<Record<string, string>>,
@@ -320,7 +361,6 @@ export function renderSKTemplate(
         if (val.trim()) hasNonEmptyChip = true
       }
     }
-    // Zeile ausblenden wenn: nur Leerzeichen + alle Chips leer
     const hasText = lineText.replace(/\s/g, '').length > 0
     if (hasText && (hasNonEmptyChip || !lineText.match(/^\s*$/))) {
       lines.push(lineText.trim())
@@ -329,17 +369,199 @@ export function renderSKTemplate(
   return lines
 }
 
-// ── Lineal-Komponente ─────────────────────────────────────────────────────────
+// ── Vorschau ──────────────────────────────────────────────────────────────────
 
-const RULER_CM = 17  // Standard A4-Textbreite in cm
+const DUMMY_FIELDS: Record<string, string> = {
+  szene_nr:     '42',
+  stoppzeit:    '01:23',
+  motiv:        'BÜRO ROSEN',
+  innen_aussen: 'I',
+  dt:           'Tag 3',
+  oneliner:     'Laura und Max streiten sich über das Familienrezept',
+  rollen:       'Laura, Max, Kellner',
+  komparsen:    'Gäste (3)',
+  info:         'Stunt! Vorsicht Tisch',
+  staffel:      '41',
+  episode:      '8271',
+  page_length:  '3/8',
+  notiz:        'vgl. Staffel 38, Ep. 8104',
+  sondertyp:    'Flashback',
+  partner:      'Referenz: Sz. 18 (Ep. 8104)',
+}
+
+function renderPreviewLines(stored: string): Array<{ text: string; style: CSSProperties }> {
+  let doc: any
+  try { doc = parseSKTemplate(stored) } catch { return [] }
+
+  const result: Array<{ text: string; style: CSSProperties }> = []
+  for (const para of (doc.content ?? [])) {
+    if (para.type !== 'paragraph') continue
+    let lineText = ''
+    let hasNonEmptyChip = false
+    for (const node of (para.content ?? [])) {
+      if (node.type === 'text') lineText += node.text ?? ''
+      else if (node.type === 'sk_chip') {
+        const val = DUMMY_FIELDS[node.attrs?.key] ?? ''
+        lineText += val
+        if (val.trim()) hasNonEmptyChip = true
+      }
+    }
+    const hasText = lineText.replace(/\s/g, '').length > 0
+    if (!hasText || (!hasNonEmptyChip && lineText.match(/^\s*$/))) continue
+    const { fontFamily, fontSize, lineHeight } = para.attrs ?? {}
+    const style: CSSProperties = {}
+    if (fontFamily) style.fontFamily = fontFamily
+    if (fontSize) style.fontSize = fontSize
+    if (lineHeight) style.lineHeight = lineHeight
+    result.push({ text: lineText.trim(), style })
+  }
+  return result
+}
+
+function PreviewModal({ stored, onClose }: { stored: string; onClose: () => void }) {
+  const lines = renderPreviewLines(stored)
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+        zIndex: 99998, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+      onClick={onClose}
+    >
+      <div
+        style={{
+          background: 'var(--bg-surface)', borderRadius: 10, padding: '18px 22px',
+          minWidth: 360, maxWidth: 560, boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>Vorschau Szenenkopf</span>
+          <button
+            onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-secondary)', lineHeight: 1, padding: '0 2px' }}
+          >×</button>
+        </div>
+        <div style={{
+          padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 6,
+          fontFamily: "'Courier Prime','Courier New',monospace", fontSize: 11, lineHeight: 1.7,
+          border: '1px solid var(--border)',
+        }}>
+          {lines.length === 0
+            ? <span style={{ color: 'var(--text-muted)' }}>— Keine sichtbaren Zeilen —</span>
+            : lines.map((l, i) => (
+              <div key={i} style={l.style}>{l.text}</div>
+            ))
+          }
+        </div>
+        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-secondary)' }}>
+          Demo-Daten — echte Werte werden zur Laufzeit eingesetzt
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ── Formatierungs-Toolbar ─────────────────────────────────────────────────────
+
+const FONT_OPTIONS = [
+  { value: "'Courier Prime','Courier New',monospace", label: 'Courier' },
+  { value: 'Arial,Helvetica,sans-serif',             label: 'Arial' },
+  { value: "'Times New Roman',Georgia,serif",        label: 'Times' },
+  { value: "'Helvetica Neue',Helvetica,sans-serif",  label: 'Helvetica' },
+]
+const SIZE_OPTIONS = ['8pt', '9pt', '10pt', '11pt', '12pt', '14pt']
+const LH_OPTIONS = [
+  { value: '1',   label: '1×' },
+  { value: '1.2', label: '1.2×' },
+  { value: '1.5', label: '1.5×' },
+  { value: '2',   label: '2×' },
+]
+
+const selStyle: CSSProperties = {
+  fontSize: 10, padding: '1px 4px', borderRadius: 3,
+  border: '1px solid var(--border)', background: 'var(--bg-surface)',
+  color: 'var(--text-primary)', cursor: 'pointer', height: 22,
+}
+
+function fmtBtn(active: boolean, extra?: CSSProperties): CSSProperties {
+  return {
+    padding: '0 7px', height: 22, borderRadius: 3, lineHeight: '22px',
+    border: `1px solid ${active ? 'transparent' : 'var(--border)'}`,
+    fontSize: 11, fontWeight: 600, cursor: 'pointer',
+    background: active ? 'var(--text-primary)' : 'transparent',
+    color: active ? '#fff' : 'var(--text-primary)',
+    ...extra,
+  }
+}
+
+function EditorToolbar({ editor }: { editor: Editor | null }) {
+  const [, forceUpdate] = useState(0)
+
+  useEffect(() => {
+    if (!editor) return
+    const handler = () => forceUpdate(n => n + 1)
+    editor.on('selectionUpdate', handler)
+    editor.on('update', handler)
+    return () => { editor.off('selectionUpdate', handler); editor.off('update', handler) }
+  }, [editor])
+
+  if (!editor) return null
+
+  const para = editor.getAttributes('paragraph')
+  const curFont = para.fontFamily ?? ''
+  const curSize = para.fontSize ?? ''
+  const curLH   = para.lineHeight ?? ''
+
+  const setParaAttr = (key: string, val: string | null) =>
+    editor.chain().focus().updateAttributes('paragraph', { [key]: val || null }).run()
+
+  return (
+    <div style={{
+      display: 'flex', gap: 3, padding: '4px 8px',
+      borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
+      flexWrap: 'wrap', alignItems: 'center',
+    }}>
+      <select value={curFont} onChange={e => setParaAttr('fontFamily', e.target.value)} style={selStyle}>
+        <option value="">Schrift…</option>
+        {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+      </select>
+
+      <select value={curSize} onChange={e => setParaAttr('fontSize', e.target.value)} style={selStyle}>
+        <option value="">Größe…</option>
+        {SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+      </select>
+
+      <select value={curLH} onChange={e => setParaAttr('lineHeight', e.target.value)} style={selStyle}>
+        <option value="">ZA…</option>
+        {LH_OPTIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+      </select>
+
+      <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+
+      <button onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBold().run() }}
+        style={fmtBtn(editor.isActive('bold'))}>B</button>
+      <button onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleItalic().run() }}
+        style={fmtBtn(editor.isActive('italic'), { fontStyle: 'italic' })}>I</button>
+      <button onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleUnderline().run() }}
+        style={fmtBtn(editor.isActive('underline'), { textDecoration: 'underline' })}>U</button>
+      <button onMouseDown={e => { e.preventDefault(); editor.commands.toggleUppercase() }}
+        style={fmtBtn(editor.isActive('uppercase'))}>UC</button>
+    </div>
+  )
+}
+
+// ── Lineal-Komponente ─────────────────────────────────────────────────────────
 
 interface RulerBarProps {
   tabStops: TabStop[]
   onToggle: (pos: number) => void
   containerRef: React.RefObject<HTMLDivElement | null>
+  rulerCm: number
 }
 
-function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
+function RulerBar({ tabStops, onToggle, containerRef, rulerCm }: RulerBarProps) {
   const [width, setWidth] = useState(600)
   const rulerRef = useRef<HTMLDivElement>(null)
   const [rulerTooltip, setRulerTooltip] = useState<{ x: number; top: number; cm: number } | null>(null)
@@ -353,14 +575,14 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
     return () => obs.disconnect()
   }, [containerRef])
 
-  const cmToPx = (cm: number) => (cm / RULER_CM) * width
+  const cmToPx = (cm: number) => (cm / rulerCm) * width
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!rulerRef.current) return
     const rect = rulerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
-    const pos = Math.round((x / width) * RULER_CM * 4) / 4  // auf 0.25cm runden
-    if (pos < 0.1 || pos > RULER_CM - 0.1) return
+    const pos = Math.round((x / width) * rulerCm * 4) / 4
+    if (pos < 0.1 || pos > rulerCm - 0.1) return
     onToggle(pos)
   }
 
@@ -368,16 +590,14 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
     const rect = rulerRef.current?.getBoundingClientRect()
     if (!rect) return
     const x = e.clientX - rect.left
-    const cm = Math.max(0, Math.min(RULER_CM, (x / width) * RULER_CM))
+    const cm = Math.max(0, Math.min(rulerCm, (x / width) * rulerCm))
     setRulerTooltip({ x: e.clientX, top: rect.top, cm })
   }
 
-  // Höhe: 29px (≈ 24px + 20%)
   const H = 29
-  // Tick-Höhen
-  const TICK_5CM  = Math.round(H * 0.62)  // ~18px — alle 5 cm
-  const TICK_1CM  = Math.round(H * 0.38)  // ~11px — jeder cm
-  const TICK_05CM = Math.round(H * 0.21)  //  ~6px — halbe cm
+  const TICK_5CM  = Math.round(H * 0.62)
+  const TICK_1CM  = Math.round(H * 0.38)
+  const TICK_05CM = Math.round(H * 0.21)
 
   return (
     <>
@@ -393,85 +613,62 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
           cursor: 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
         }}
       >
-        {/* cm-Ticks (0, 1, 2, …, 17) */}
-        {Array.from({ length: RULER_CM + 1 }, (_, i) => {
+        {Array.from({ length: rulerCm + 1 }, (_, i) => {
           const is5 = i % 5 === 0
           const tickH = is5 ? TICK_5CM : TICK_1CM
           return (
-            <div
-              key={i}
-              style={{
-                position: 'absolute', left: cmToPx(i), bottom: 0,
-                width: is5 ? 2 : 1, height: tickH,
-                background: is5 ? 'var(--text-secondary)' : 'var(--text-muted)',
-                opacity: is5 ? 1 : 0.6,
-                pointerEvents: 'none',
-              }}
-            >
-              {/* Maßangabe bei 5er-Schritten: "5 cm", "10 cm", "15 cm" */}
+            <div key={i} style={{
+              position: 'absolute', left: cmToPx(i), bottom: 0,
+              width: is5 ? 2 : 1, height: tickH,
+              background: is5 ? 'var(--text-secondary)' : 'var(--text-muted)',
+              opacity: is5 ? 1 : 0.6, pointerEvents: 'none',
+            }}>
               {is5 && i > 0 && (
                 <span style={{
-                  position: 'absolute', bottom: tickH + 2, left: i === RULER_CM ? undefined : -4,
-                  right: i === RULER_CM ? 0 : undefined,
-                  fontSize: 9, fontWeight: 600,
-                  color: 'var(--text-secondary)', pointerEvents: 'none',
-                  whiteSpace: 'nowrap', lineHeight: 1,
-                }}>
-                  {i} cm
-                </span>
+                  position: 'absolute', bottom: tickH + 2,
+                  left: i === rulerCm ? undefined : -4,
+                  right: i === rulerCm ? 0 : undefined,
+                  fontSize: 9, fontWeight: 600, color: 'var(--text-secondary)',
+                  pointerEvents: 'none', whiteSpace: 'nowrap', lineHeight: 1,
+                }}>{i} cm</span>
               )}
             </div>
           )
         })}
-        {/* Halbe-cm-Ticks */}
-        {Array.from({ length: RULER_CM * 2 }, (_, i) => {
+        {Array.from({ length: Math.round(rulerCm * 2) }, (_, i) => {
           if (i % 2 === 0) return null
           return (
             <div key={`h${i}`} style={{
               position: 'absolute', left: cmToPx(i * 0.5), bottom: 0,
               width: 1, height: TICK_05CM,
-              background: 'var(--text-muted)', opacity: 0.4,
-              pointerEvents: 'none',
+              background: 'var(--text-muted)', opacity: 0.4, pointerEvents: 'none',
             }} />
           )
         })}
-        {/* Tab-Stop-Marker */}
         {tabStops.map(ts => (
           <div
             key={`${ts.pos}-${ts.align}`}
-              onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
+            onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
             onClick={e => { e.stopPropagation(); onToggle(ts.pos) }}
             style={{
               position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1,
               width: 14, height: H - 2, display: 'flex', alignItems: 'center',
               justifyContent: 'center', color: TAB_ALIGN_COLORS[ts.align],
               fontSize: 10, fontWeight: 700, cursor: 'pointer', zIndex: 2,
-              lineHeight: 1,
-              borderLeft: `2px solid ${TAB_ALIGN_COLORS[ts.align]}`,
+              lineHeight: 1, borderLeft: `2px solid ${TAB_ALIGN_COLORS[ts.align]}`,
             }}
           >
             <span style={{ marginLeft: 3 }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
           </div>
         ))}
       </div>
-      {/* Lineal-Tooltip via Portal — außerhalb overflow:hidden */}
       {rulerTooltip && createPortal(
         <div style={{
-          position: 'fixed',
-          left: rulerTooltip.x,
-          top: rulerTooltip.top - 26,
-          transform: 'translateX(-50%)',
-          background: '#111',
-          color: '#fff',
-          fontSize: 10,
-          fontWeight: 500,
-          padding: '3px 8px',
-          borderRadius: 4,
-          pointerEvents: 'none',
-          zIndex: 99999,
-          whiteSpace: 'nowrap',
-          lineHeight: 1.5,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+          position: 'fixed', left: rulerTooltip.x, top: rulerTooltip.top - 26,
+          transform: 'translateX(-50%)', background: '#111', color: '#fff',
+          fontSize: 10, fontWeight: 500, padding: '3px 8px', borderRadius: 4,
+          pointerEvents: 'none', zIndex: 99999, whiteSpace: 'nowrap',
+          lineHeight: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}>
           {rulerTooltip.cm.toFixed(2)} cm · Klick = tab
         </div>,
@@ -487,28 +684,34 @@ interface SzenenKopfVorlagenEditorProps {
   value: string
   onChange: (v: string) => void
   readOnly?: boolean
+  seitenformat?: 'a4' | 'letter'
 }
 
 export default function SzenenKopfVorlagenEditor({
   value,
   onChange,
   readOnly = false,
+  seitenformat = 'a4',
 }: SzenenKopfVorlagenEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeTabStops, setActiveTabStops] = useState<TabStop[]>([])
+  const [showPreview, setShowPreview] = useState(false)
+
+  const rulerCm = seitenformat === 'letter' ? 16.5 : 17
 
   const editor = useEditor({
     editable: !readOnly,
     extensions: [
       StarterKit.configure({
-        paragraph: false,  // durch ParagraphWithStops ersetzt
-        bold: false, italic: false, strike: false, code: false,
-        codeBlock: false, heading: false, blockquote: false,
+        paragraph: false,
+        // Bold und Italic aktiv (für B/I-Toolbar)
+        strike: false, code: false, codeBlock: false, heading: false, blockquote: false,
         bulletList: false, orderedList: false, listItem: false,
         horizontalRule: false, hardBreak: false,
         dropcursor: false, gapcursor: false,
-        // document, text, history bleiben aktiv
       }),
+      Underline,
+      UppercaseMark,
       ParagraphWithStops,
       SKChipExtension,
       TabKeyExtension,
@@ -524,7 +727,6 @@ export default function SzenenKopfVorlagenEditor({
     },
   })
 
-  // Externen value-Wechsel in Editor übernehmen
   const prevValue = useRef(value)
   useEffect(() => {
     if (!editor || value === prevValue.current) return
@@ -532,7 +734,6 @@ export default function SzenenKopfVorlagenEditor({
     editor.commands.setContent(parseSKTemplate(value), false)
   }, [value, editor])
 
-  // Tab-Stops bei Cursor-Bewegung aktualisieren
   useEffect(() => {
     if (!editor) return
     const update = () => {
@@ -577,6 +778,9 @@ export default function SzenenKopfVorlagenEditor({
         display: 'flex', flexDirection: 'column',
       }}
     >
+      {/* Formatierungs-Toolbar */}
+      {!readOnly && <EditorToolbar editor={editor} />}
+
       {/* Chip-Toolbar */}
       {!readOnly && (
         <div style={{
@@ -610,34 +814,26 @@ export default function SzenenKopfVorlagenEditor({
           tabStops={activeTabStops}
           onToggle={handleToggleTabStop}
           containerRef={containerRef}
+          rulerCm={rulerCm}
         />
       )}
 
       {/* Editor-Inhalt */}
       <style>{`
         .sk-vorlage-editor .ProseMirror {
-          outline: none;
-          min-height: 42px;
-          tab-size: 4;
-          -moz-tab-size: 4;
-          white-space: pre-wrap;
+          outline: none; min-height: 42px; tab-size: 4; -moz-tab-size: 4; white-space: pre-wrap;
         }
-        .sk-vorlage-editor .ProseMirror p {
-          margin: 0 0 3px 0;
-          padding: 0;
-        }
+        .sk-vorlage-editor .ProseMirror p { margin: 0 0 3px 0; padding: 0; }
         .sk-vorlage-editor .ProseMirror p:last-child { margin-bottom: 0; }
         .sk-vorlage-editor .sk-chip.ProseMirror-selectednode {
-          outline: 2px solid #007AFF;
-          outline-offset: 1px;
-          border-radius: 4px;
+          outline: 2px solid #007AFF; outline-offset: 1px; border-radius: 4px;
         }
       `}</style>
       <div
         className="sk-vorlage-editor"
         style={{
           padding: '8px 12px', flex: 1,
-          fontFamily: "'Courier Prime', 'Courier New', monospace",
+          fontFamily: "'Courier Prime','Courier New',monospace",
           fontSize: 12, lineHeight: 1.7, cursor: readOnly ? 'default' : 'text',
         }}
         onClick={() => !readOnly && editor?.chain().focus().run()}
@@ -645,16 +841,29 @@ export default function SzenenKopfVorlagenEditor({
         <EditorContent editor={editor} />
       </div>
 
-      {/* Legende */}
-      {!readOnly && (
-        <div style={{
-          padding: '3px 8px', fontSize: 9, color: 'var(--text-primary)',
-          borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)',
-          lineHeight: 1.4,
-        }}>
-          Enter = neue Zeile (leer = auto-ausgeblendet) · Tab = Einzug · Lineal: klicken = L-Tab setzen → C-Tab → R-Tab → entfernen
-        </div>
-      )}
+      {/* Legende + Vorschau-Button */}
+      <div style={{
+        padding: '3px 8px', fontSize: 9, color: 'var(--text-primary)',
+        borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)',
+        lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <span style={{ flex: 1 }}>
+          Enter = neue Zeile (leer = auto-ausgeblendet) · Tab = Einzug · Lineal: Klick = L-Tab → C-Tab → R-Tab → entfernen
+        </span>
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => setShowPreview(true)}
+          style={{
+            padding: '1px 8px', borderRadius: 3, fontSize: 9, cursor: 'pointer',
+            background: 'transparent', border: '1px solid var(--border)',
+            color: 'var(--text-primary)', flexShrink: 0, lineHeight: 1.6,
+          }}
+        >
+          Vorschau
+        </button>
+      </div>
+
+      {showPreview && <PreviewModal stored={value} onClose={() => setShowPreview(false)} />}
     </div>
   )
 }
