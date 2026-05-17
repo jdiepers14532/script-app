@@ -1411,9 +1411,7 @@ export default function AppShell({
               { to: '/statistik',  label: 'Statistik',  icon: <BarChart3 size={14} /> },
               { to: '/besetzung', label: 'Besetzung',  icon: <Grid3x3 size={14} /> },
               { to: '/import',    label: 'Import',     icon: <FileUp size={14} /> },
-              { to: '/hilfe',     label: 'Handbuch',   icon: <BookOpen size={14} /> },
               ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} /> }] : []),
-              ...(isAdmin ? [{ to: '/admin', label: 'Admin', icon: <Settings2 size={14} /> }] : []),
             ].map(item => (
               <Link
                 key={item.to}
@@ -1579,18 +1577,7 @@ export default function AppShell({
               {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
               {tweaks.theme === 'light' ? 'Dunkles Theme' : 'Helles Theme'}
             </button>
-            {(hasDkAccess || isAdmin) && <div className="um-divider" />}
-            {hasDkAccess && (
-              <Link
-                to="/drehbuchkoordination"
-                className="um-item"
-                onClick={() => setUserMenuOpen(false)}
-                style={{ textDecoration: 'none' }}
-              >
-                <ClipboardList size={14} />
-                Drehbuchkoordination
-              </Link>
-            )}
+            {isAdmin && <div className="um-divider" />}
             {isAdmin && (
               <Link
                 to="/admin"
