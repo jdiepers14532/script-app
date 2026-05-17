@@ -184,8 +184,8 @@ dokumentSzenenRouter.delete('/:id', async (req, res) => {
 dokumentSzenenRouter.get('/:id/snapshots', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, created_by, created_at,
-              left(content::text, 200) AS content_preview
+      `SELECT id, created_by, created_by_name, created_at,
+              szene_nummer, szene_info, text_preview
          FROM dokument_szenen_snapshots
         WHERE szene_id = $1
         ORDER BY created_at DESC
@@ -202,19 +202,27 @@ dokumentSzenenRouter.get('/:id/snapshots', async (req, res) => {
 // POST /api/dokument-szenen/:id/snapshots — create snapshot (prune >50)
 // ══════════════════════════════════════════════════════════════════════════════
 dokumentSzenenRouter.post('/:id/snapshots', async (req, res) => {
-  const { content } = req.body
+  const { content, szene_nummer, szene_info, text_preview } = req.body
   if (!content || typeof content !== 'object') {
     return res.status(400).json({ error: 'content (Tiptap JSON) erforderlich' })
   }
-  const userId = (req as any).user?.user_id ?? null
+  const userId = req.user?.user_id ?? null
+  const userName = req.user?.name ?? null
   try {
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
       const snap = await client.query(
-        `INSERT INTO dokument_szenen_snapshots (szene_id, content, created_by)
-         VALUES ($1, $2, $3) RETURNING id, created_at`,
-        [req.params.id, JSON.stringify(content), userId]
+        `INSERT INTO dokument_szenen_snapshots
+           (szene_id, content, created_by, created_by_name, szene_nummer, szene_info, text_preview)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, created_at, created_by_name, szene_nummer, szene_info`,
+        [
+          req.params.id, JSON.stringify(content),
+          userId, userName,
+          szene_nummer ?? null, szene_info ?? null,
+          text_preview ? String(text_preview).slice(0, 150) : null,
+        ]
       )
       // Prune: keep only 50 newest
       await client.query(
@@ -265,16 +273,18 @@ dokumentSzenenRouter.get('/:id/snapshots/:snapId', async (req, res) => {
 dokumentSzenenRouter.post('/:id/snapshots/:snapId/restore', async (req, res) => {
   try {
     const snap = await queryOne(
-      `SELECT content FROM dokument_szenen_snapshots WHERE id = $1 AND szene_id = $2`,
+      `SELECT content, created_at, created_by_name FROM dokument_szenen_snapshots WHERE id = $1 AND szene_id = $2`,
       [req.params.snapId, req.params.id]
     )
     if (!snap) return res.status(404).json({ error: 'Snapshot nicht gefunden' })
 
-    // Write content back to the scene
+    // Write content back to the scene; track who restored
     const updated = await queryOne(
-      `UPDATE dokument_szenen SET content = $1, updated_at = now()
-        WHERE id = $2 RETURNING id, content, updated_at`,
-      [JSON.stringify(snap.content), req.params.id]
+      `UPDATE dokument_szenen
+          SET content = $1, updated_at = now(), updated_by = $2
+        WHERE id = $3
+        RETURNING id, content, updated_at, updated_by`,
+      [JSON.stringify(snap.content), req.user?.name ?? null, req.params.id]
     )
     res.json(updated)
   } catch (err) {

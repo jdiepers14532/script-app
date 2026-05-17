@@ -1,16 +1,24 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Clock, RotateCcw, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { Clock, RotateCcw, X, ChevronDown, ChevronUp, AlertTriangle, Shield } from 'lucide-react'
 import { api } from '../../api/client'
+import { useTweaks } from '../../contexts'
 
 interface Snapshot {
   id: number
   created_by: string | null
+  created_by_name: string | null
   created_at: string
-  content_preview: string | null
+  szene_nummer: string | null
+  szene_info: string | null
+  text_preview: string | null
 }
 
 interface Props {
   szeneId: string
+  szeneNummer?: string | null
+  szeneInfo?: string | null
+  sceneUpdatedAt?: string | null   // for conflict detection
+  sceneUpdatedBy?: string | null   // name of last editor (for conflict warning)
   onRestore: (content: any) => void
   onClose: () => void
 }
@@ -35,7 +43,38 @@ function formatAbsolute(iso: string): string {
   })
 }
 
-export default function SnapshotDrawer({ szeneId, onRestore, onClose }: Props) {
+export default function SnapshotDrawer({
+  szeneId, szeneNummer, szeneInfo, sceneUpdatedAt, sceneUpdatedBy,
+  onRestore, onClose,
+}: Props) {
+  const { tweaks } = useTweaks()
+  const isDark = tweaks.theme === 'dark'
+
+  // Inverted color scheme: dark drawer in light mode, light drawer in dark mode
+  const INV = isDark ? {
+    bg:      '#f4f4f5',
+    bg2:     '#e4e4e7',
+    bg3:     '#d4d4d8',
+    text:    '#18181b',
+    muted:   '#52525b',
+    border:  '#d4d4d8',
+    green:   '#16a34a',
+    orange:  '#c2410c',
+    red:     '#dc2626',
+    shadow:  'rgba(0,0,0,0.08)',
+  } : {
+    bg:      '#18181b',
+    bg2:     '#27272a',
+    bg3:     '#3f3f46',
+    text:    '#f4f4f5',
+    muted:   '#a1a1aa',
+    border:  '#3f3f46',
+    green:   '#4ade80',
+    orange:  '#fb923c',
+    red:     '#f87171',
+    shadow:  'rgba(0,0,0,0.4)',
+  }
+
   const [snapshots, setSnapshots] = useState<Snapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [restoring, setRestoring] = useState<number | null>(null)
@@ -56,69 +95,91 @@ export default function SnapshotDrawer({ szeneId, onRestore, onClose }: Props) {
 
   useEffect(() => { load() }, [load])
 
+  /** Conflict: scene was edited AFTER this snapshot by someone ELSE */
+  const hasConflict = (snap: Snapshot): boolean => {
+    if (!sceneUpdatedAt || !sceneUpdatedBy) return false
+    const sceneTs = new Date(sceneUpdatedAt).getTime()
+    const snapTs = new Date(snap.created_at).getTime()
+    return sceneTs > snapTs && sceneUpdatedBy !== snap.created_by_name
+  }
+
   const handleRestore = async (snapId: number) => {
     setRestoring(snapId)
     try {
       const full = await api.getSnapshot(szeneId, snapId)
-      if (full?.content) {
-        onRestore(full.content)
-      }
+      if (full?.content) onRestore(full.content)
     } catch (err) {
-      console.error('Restore failed:', err)
+      console.error('Restore fehlgeschlagen:', err)
     } finally {
       setRestoring(null)
       setConfirmId(null)
     }
   }
 
+  const headerLabel = szeneNummer
+    ? `Sz. ${szeneNummer}${szeneInfo ? ` — ${szeneInfo}` : ''}`
+    : 'Verlauf'
+
   return (
     <div style={{
       position: 'absolute', top: 0, right: 0, bottom: 0,
-      width: 300, zIndex: 200,
-      background: 'var(--bg-surface)',
-      borderLeft: '1px solid var(--border)',
+      width: 308, zIndex: 200,
+      background: INV.bg,
+      borderLeft: `1px solid ${INV.border}`,
       display: 'flex', flexDirection: 'column',
-      boxShadow: '-4px 0 16px rgba(0,0,0,0.12)',
+      boxShadow: `-6px 0 24px ${INV.shadow}`,
+      color: INV.text,
     }}>
-      {/* Header */}
+
+      {/* ── Header ── */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
-        padding: '10px 14px',
-        borderBottom: '1px solid var(--border)',
+        padding: '11px 14px',
+        borderBottom: `1px solid ${INV.border}`,
         flexShrink: 0,
       }}>
-        <Clock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-        <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>Verlauf</span>
+        <Clock size={14} style={{ color: INV.muted, flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, lineHeight: 1.2 }}>Verlauf</div>
+          {szeneNummer && (
+            <div style={{ fontSize: 10, color: INV.muted, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {headerLabel}
+            </div>
+          )}
+        </div>
         <button
           onClick={onClose}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '2px 4px', display: 'flex', alignItems: 'center' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: INV.muted, padding: '3px', display: 'flex', alignItems: 'center', borderRadius: 4 }}
         >
           <X size={14} />
         </button>
       </div>
 
-      {/* Info banner */}
+      {/* ── Scope info banner ── */}
       <div style={{
         padding: '8px 14px',
-        fontSize: 11,
-        color: 'var(--text-muted)',
-        borderBottom: '1px solid var(--border)',
-        lineHeight: 1.5,
+        fontSize: 11, lineHeight: 1.5,
+        borderBottom: `1px solid ${INV.border}`,
+        background: INV.bg2,
         flexShrink: 0,
-        background: 'var(--bg-subtle)',
+        display: 'flex', alignItems: 'flex-start', gap: 7,
       }}>
-        Auto-Sicherung alle 5 Min. nach einer Änderung. Die letzten 50 Versionen werden gespeichert.
+        <Shield size={12} style={{ color: INV.green, flexShrink: 0, marginTop: 1 }} />
+        <div>
+          <span style={{ color: INV.green, fontWeight: 600 }}>Nur diese Szene</span>
+          <span style={{ color: INV.muted }}> — andere Szenen bleiben unverändert. Automatische Sicherung alle 5 Min. · max. 50 Einträge.</span>
+        </div>
       </div>
 
-      {/* Snapshot list */}
+      {/* ── Snapshot list ── */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading ? (
-          <div style={{ padding: 20, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+          <div style={{ padding: 24, fontSize: 12, color: INV.muted, textAlign: 'center' }}>
             Lädt…
           </div>
         ) : snapshots.length === 0 ? (
-          <div style={{ padding: 20, fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-            Noch keine Sicherungen vorhanden.{'\n'}
+          <div style={{ padding: 24, fontSize: 12, color: INV.muted, textAlign: 'center', lineHeight: 1.6 }}>
+            Noch keine Sicherungen vorhanden.<br />
             Die erste wird nach 5 Minuten Schreiben angelegt.
           </div>
         ) : (
@@ -127,111 +188,142 @@ export default function SnapshotDrawer({ szeneId, onRestore, onClose }: Props) {
             const isConfirming = confirmId === snap.id
             const isRestoring = restoring === snap.id
             const isLatest = i === 0
-
-            // Extract plain text preview from content_preview JSON fragment
-            let previewText = ''
-            try {
-              // content_preview is the first 200 chars of the JSONB text representation
-              // We just strip JSON markers to show some readable text
-              previewText = (snap.content_preview ?? '')
-                .replace(/[{}"\\[\]:]/g, ' ')
-                .replace(/\s+/g, ' ')
-                .replace(/type paragraph text/gi, '')
-                .trim()
-                .slice(0, 80)
-            } catch { /* ignore */ }
+            const conflict = hasConflict(snap)
+            const authorName = snap.created_by_name || '—'
 
             return (
               <div
                 key={snap.id}
                 style={{
-                  borderBottom: '1px solid var(--border)',
-                  background: isLatest ? 'rgba(0,200,83,0.04)' : undefined,
+                  borderBottom: `1px solid ${INV.border}`,
+                  background: isLatest ? `${INV.green}12` : undefined,
                 }}
               >
-                {/* Row */}
+                {/* ── Collapsed row ── */}
                 <div
-                  style={{
-                    padding: '10px 14px',
-                    cursor: 'pointer',
-                    display: 'flex', alignItems: 'flex-start', gap: 8,
-                  }}
+                  style={{ padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8 }}
                   onClick={() => setExpandedId(isExpanded ? null : snap.id)}
                 >
                   {/* Timeline dot */}
                   <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    background: isLatest ? '#00C853' : 'var(--border)',
-                    marginTop: 4, flexShrink: 0,
+                    width: 8, height: 8, borderRadius: '50%', marginTop: 4, flexShrink: 0,
+                    background: isLatest ? INV.green : conflict ? INV.orange : INV.bg3,
+                    boxShadow: conflict ? `0 0 0 2px ${INV.orange}44` : undefined,
                   }} />
+
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: isLatest ? 600 : 400 }}>
+                    {/* Top row: time + badges */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: isLatest ? 700 : 500, color: INV.text }}>
                         {formatRelative(snap.created_at)}
                       </span>
                       {isLatest && (
                         <span style={{
-                          fontSize: 9, fontWeight: 700, color: '#00C853',
-                          background: 'rgba(0,200,83,0.12)', borderRadius: 3,
+                          fontSize: 9, fontWeight: 700, color: INV.green,
+                          background: `${INV.green}20`, borderRadius: 3,
                           padding: '1px 5px', letterSpacing: '0.04em', textTransform: 'uppercase',
+                        }}>Aktuell</span>
+                      )}
+                      {conflict && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, color: INV.orange,
+                          background: `${INV.orange}20`, borderRadius: 3,
+                          padding: '1px 5px', letterSpacing: '0.04em', textTransform: 'uppercase',
+                          display: 'flex', alignItems: 'center', gap: 3,
                         }}>
-                          Aktuell
+                          <AlertTriangle size={8} /> Fremde Änderung
                         </span>
                       )}
                       <div style={{ flex: 1 }} />
-                      {isExpanded ? <ChevronUp size={11} style={{ color: 'var(--text-muted)' }} /> : <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />}
+                      {isExpanded
+                        ? <ChevronUp size={11} style={{ color: INV.muted }} />
+                        : <ChevronDown size={11} style={{ color: INV.muted }} />}
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
-                      {formatAbsolute(snap.created_at)}
+
+                    {/* Author + time */}
+                    <div style={{ fontSize: 10, color: INV.muted, marginTop: 2 }}>
+                      {authorName} · {formatAbsolute(snap.created_at)}
                     </div>
-                    {previewText && !isExpanded && (
-                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {previewText}
+
+                    {/* Text preview (collapsed) */}
+                    {snap.text_preview && !isExpanded && (
+                      <div style={{
+                        fontSize: 10, color: INV.muted, marginTop: 3,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        fontStyle: 'italic',
+                      }}>
+                        „{snap.text_preview}"
                       </div>
                     )}
                   </div>
                 </div>
 
-                {/* Expanded: confirm + restore */}
+                {/* ── Expanded ── */}
                 {isExpanded && (
-                  <div style={{ padding: '0 14px 12px 30px' }}>
-                    {previewText && (
+                  <div style={{ padding: '0 14px 14px 30px' }}>
+
+                    {/* Text preview (expanded) */}
+                    {snap.text_preview && (
                       <div style={{
-                        fontSize: 10, color: 'var(--text-muted)', marginBottom: 10,
-                        background: 'var(--bg-subtle)', borderRadius: 6, padding: '6px 8px',
-                        lineHeight: 1.5,
+                        fontSize: 11, color: INV.muted, marginBottom: 12,
+                        background: INV.bg2, borderRadius: 6, padding: '7px 10px',
+                        lineHeight: 1.6, fontStyle: 'italic',
+                        borderLeft: `3px solid ${INV.bg3}`,
                       }}>
-                        {previewText}…
+                        „{snap.text_preview}…"
                       </div>
                     )}
+
+                    {/* Conflict warning */}
+                    {conflict && (
+                      <div style={{
+                        background: `${INV.orange}15`,
+                        border: `1px solid ${INV.orange}44`,
+                        borderRadius: 6, padding: '8px 10px',
+                        marginBottom: 12, fontSize: 11, lineHeight: 1.5,
+                        display: 'flex', gap: 7, alignItems: 'flex-start',
+                      }}>
+                        <AlertTriangle size={12} style={{ color: INV.orange, flexShrink: 0, marginTop: 1 }} />
+                        <div style={{ color: INV.text }}>
+                          <strong style={{ color: INV.orange }}>Achtung:</strong>{' '}
+                          <strong>{sceneUpdatedBy}</strong> hat diese Szene nach dieser Sicherung bearbeitet.
+                          Wiederherstellen überschreibt diese Änderungen.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Restore button / confirm */}
                     {!isConfirming ? (
                       <button
                         onClick={(e) => { e.stopPropagation(); setConfirmId(snap.id) }}
                         style={{
-                          display: 'flex', alignItems: 'center', gap: 5,
-                          padding: '5px 10px', borderRadius: 6,
-                          border: '1px solid var(--border)',
-                          background: 'transparent', color: 'var(--text-primary)',
-                          cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
+                          display: 'flex', alignItems: 'center', gap: 6,
+                          padding: '6px 12px', borderRadius: 6,
+                          border: `1px solid ${INV.border}`,
+                          background: INV.bg2, color: INV.text,
+                          cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', fontWeight: 500,
                         }}
                       >
                         <RotateCcw size={11} />
-                        Wiederherstellen
+                        Auf diesen Stand zurückgehen
                       </button>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <div style={{ fontSize: 11, color: '#FF9500', fontWeight: 500 }}>
-                          Aktuellen Inhalt ersetzen?
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: conflict ? INV.orange : INV.text }}>
+                          {conflict
+                            ? `Änderungen von ${sceneUpdatedBy} werden überschrieben. Trotzdem?`
+                            : 'Aktuellen Inhalt durch diesen Stand ersetzen?'}
                         </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 7 }}>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRestore(snap.id) }}
                             disabled={isRestoring}
                             style={{
-                              padding: '4px 10px', borderRadius: 5, border: 'none',
-                              background: '#FF9500', color: '#fff',
+                              padding: '5px 12px', borderRadius: 5, border: 'none',
+                              background: conflict ? INV.orange : INV.green,
+                              color: isDark ? '#fff' : '#fff',
                               cursor: isRestoring ? 'default' : 'pointer',
-                              fontSize: 11, fontFamily: 'inherit', fontWeight: 500,
+                              fontSize: 12, fontFamily: 'inherit', fontWeight: 600,
                               opacity: isRestoring ? 0.6 : 1,
                             }}
                           >
@@ -240,10 +332,10 @@ export default function SnapshotDrawer({ szeneId, onRestore, onClose }: Props) {
                           <button
                             onClick={(e) => { e.stopPropagation(); setConfirmId(null) }}
                             style={{
-                              padding: '4px 10px', borderRadius: 5,
-                              border: '1px solid var(--border)',
-                              background: 'transparent', color: 'var(--text-primary)',
-                              cursor: 'pointer', fontSize: 11, fontFamily: 'inherit',
+                              padding: '5px 12px', borderRadius: 5,
+                              border: `1px solid ${INV.border}`,
+                              background: 'transparent', color: INV.text,
+                              cursor: 'pointer', fontSize: 12, fontFamily: 'inherit',
                             }}
                           >
                             Abbrechen
@@ -257,6 +349,23 @@ export default function SnapshotDrawer({ szeneId, onRestore, onClose }: Props) {
             )
           })
         )}
+      </div>
+
+      {/* ── Footer: legend ── */}
+      <div style={{
+        padding: '8px 14px',
+        borderTop: `1px solid ${INV.border}`,
+        flexShrink: 0,
+        display: 'flex', gap: 12, fontSize: 10, color: INV.muted,
+      }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: INV.green, display: 'inline-block' }} />
+          Aktuellste
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <AlertTriangle size={9} style={{ color: INV.orange }} />
+          Fremde Änderung danach
+        </span>
       </div>
     </div>
   )

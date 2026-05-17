@@ -119,7 +119,8 @@ export const api = {
   // Snapshots
   getSnapshots: (szeneId: string) => request<any[]>('GET', `/dokument-szenen/${szeneId}/snapshots`),
   getSnapshot: (szeneId: string, snapId: number) => request<any>('GET', `/dokument-szenen/${szeneId}/snapshots/${snapId}`),
-  createSnapshot: (szeneId: string, content: any) => request<any>('POST', `/dokument-szenen/${szeneId}/snapshots`, { content }),
+  createSnapshot: (szeneId: string, payload: { content: any; szene_nummer?: string | null; szene_info?: string | null; text_preview?: string | null }) =>
+    request<any>('POST', `/dokument-szenen/${szeneId}/snapshots`, payload),
   restoreSnapshot: (szeneId: string, snapId: number) => request<any>('POST', `/dokument-szenen/${szeneId}/snapshots/${snapId}/restore`),
   createDokumentSzeneRevision: (id: string, data: any) => request<any>('POST', `/dokument-szenen/${id}/revisionen`, data),
   getSceneIdentityCharacters: (id: string) => request<any[]>('GET', `/scene-identities/${id}/characters`),

@@ -182,15 +182,36 @@ export default function EditorPanel({
   // Only for dokument_szenen (new model) — isReadOnly guard handled by caller
   const canSnapshot = useDokumentSzenen && typeof selectedSzeneId === 'string'
 
+  /** Extract plain text from Tiptap JSON for human-readable preview */
+  const extractTextPreview = useCallback((content: any): string => {
+    const nodes = Array.isArray(content) ? content : (content?.content ?? [])
+    const texts: string[] = []
+    const visit = (node: any) => {
+      if (typeof node?.text === 'string') texts.push(node.text)
+      if (Array.isArray(node?.content)) node.content.forEach(visit)
+    }
+    nodes.forEach(visit)
+    return texts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 150)
+  }, [])
+
   const fireSnapshot = useCallback(async (content: any) => {
     if (!canSnapshot || !selectedSzeneId || typeof selectedSzeneId !== 'string') return
     const json = JSON.stringify(content)
     if (json === lastSnapshotContentRef.current) return // no change since last snapshot
     try {
-      await api.createSnapshot(selectedSzeneId, content)
+      const szNr = currentSzene?.scene_nummer != null
+        ? `${currentSzene.scene_nummer}${currentSzene.scene_nummer_suffix ?? ''}`
+        : null
+      const szInfo = currentSzene?.ort_name ?? null
+      await api.createSnapshot(selectedSzeneId, {
+        content,
+        szene_nummer: szNr,
+        szene_info: szInfo,
+        text_preview: extractTextPreview(content),
+      })
       lastSnapshotContentRef.current = json
     } catch { /* non-critical */ }
-  }, [canSnapshot, selectedSzeneId])
+  }, [canSnapshot, selectedSzeneId, currentSzene, extractTextPreview])
 
   // Schedule idle snapshot: 5 min after last editor change
   const scheduleSnapshot = useCallback((content: any) => {
@@ -204,19 +225,37 @@ export default function EditorPanel({
 
   // On scene change: flush snapshot for previous scene if content changed
   const prevSzeneIdRef = useRef<string | null>(null)
+  const prevSzeneMetaRef = useRef<{ nr: string | null; info: string | null }>({ nr: null, info: null })
   useEffect(() => {
     const prev = prevSzeneIdRef.current
     if (prev && pendingSnapshotContentRef.current) {
-      // fire immediately for the PREVIOUS scene before switching
+      // fire immediately for the PREVIOUS scene — use cached metadata
       const content = pendingSnapshotContentRef.current
-      const prevId = prev
-      api.createSnapshot(prevId, content).catch(() => {})
+      const meta = prevSzeneMetaRef.current
+      api.createSnapshot(prev, {
+        content,
+        szene_nummer: meta.nr,
+        szene_info: meta.info,
+        text_preview: extractTextPreview(content),
+      }).catch(() => {})
       pendingSnapshotContentRef.current = null
     }
     prevSzeneIdRef.current = typeof selectedSzeneId === 'string' ? selectedSzeneId : null
+    prevSzeneMetaRef.current = { nr: null, info: null } // reset — will be updated on next save
     lastSnapshotContentRef.current = '' // reset baseline for new scene
     if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current)
   }, [selectedSzeneId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep prevSzeneMetaRef up to date with current scene metadata
+  useEffect(() => {
+    if (!currentSzene) return
+    prevSzeneMetaRef.current = {
+      nr: currentSzene.scene_nummer != null
+        ? `${currentSzene.scene_nummer}${currentSzene.scene_nummer_suffix ?? ''}`
+        : null,
+      info: currentSzene.ort_name ?? null,
+    }
+  }, [currentSzene?.scene_nummer, currentSzene?.scene_nummer_suffix, currentSzene?.ort_name])
 
   // Cleanup snapshot timer on unmount
   useEffect(() => () => { if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current) }, [])
@@ -556,6 +595,12 @@ export default function EditorPanel({
       {snapshotOpen && canSnapshot && typeof selectedSzeneId === 'string' && (
         <SnapshotDrawer
           szeneId={selectedSzeneId}
+          szeneNummer={currentSzene?.scene_nummer != null
+            ? `${currentSzene.scene_nummer}${currentSzene.scene_nummer_suffix ?? ''}`
+            : null}
+          szeneInfo={currentSzene?.ort_name ?? null}
+          sceneUpdatedAt={currentSzene?.updated_at ?? null}
+          sceneUpdatedBy={currentSzene?.updated_by ?? null}
           onRestore={(content) => {
             // Set restored content into editor via sceneContent state
             const nodes = Array.isArray(content) ? content : (content?.content ?? [])
