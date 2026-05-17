@@ -501,8 +501,6 @@ export const api = {
     kopiere_notizen?: boolean
   }) =>
     request<any>('POST', `/v2/folgen/${folgeId}/werkstufen`, data),
-  updateWerkstufe: (id: string, data: { label?: string; bearbeitung_status?: string }) =>
-    request<any>('PUT', `/werkstufen/${id}`, data),
   deleteWerkstufe: (id: string) => request<void>('DELETE', `/werkstufen/${id}`),
 
   // Werkstufen-Szenen
