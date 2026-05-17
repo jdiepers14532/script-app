@@ -43,19 +43,16 @@ dokumentSzenenRouter.get('/:id', async (req, res) => {
       `SELECT ds.*,
         (SELECT ds2.scene_nummer
          FROM dokument_szenen ds2
-         JOIN werkstufen w2 ON w2.id = ds2.werkstufe_id
          WHERE ds2.scene_identity_id = ds.flashback_referenz_id
-           AND w2.folge_id = ds.flashback_referenz_folge_id
-           AND ds2.geloescht = false
-         ORDER BY w2.version_nummer DESC LIMIT 1) AS flashback_referenz_scene_nummer,
-        (SELECT f.folge_nummer FROM folgen f WHERE f.id = ds.flashback_referenz_folge_id) AS flashback_referenz_folge_nummer,
+           AND ds2.werkstufe_id = ds.flashback_referenz_werkstufe_id
+           AND ds2.geloescht = false LIMIT 1) AS flashback_referenz_scene_nummer,
+        (SELECT f.folge_nummer FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+         WHERE w.id = ds.flashback_referenz_werkstufe_id) AS flashback_referenz_folge_nummer,
         (SELECT ds2.ort_name
          FROM dokument_szenen ds2
-         JOIN werkstufen w2 ON w2.id = ds2.werkstufe_id
          WHERE ds2.scene_identity_id = ds.flashback_referenz_id
-           AND w2.folge_id = ds.flashback_referenz_folge_id
-           AND ds2.geloescht = false
-         ORDER BY w2.version_nummer DESC LIMIT 1) AS flashback_referenz_ort_name
+           AND ds2.werkstufe_id = ds.flashback_referenz_werkstufe_id
+           AND ds2.geloescht = false LIMIT 1) AS flashback_referenz_ort_name
        FROM dokument_szenen ds WHERE ds.id = $1`,
       [req.params.id]
     )
@@ -95,7 +92,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       sort_order, seiten, spieltag, spielzeit, szeneninfo, content,
       stoppzeit_sek, notiz, motiv_id, format,
       sondertyp, stockshot_kategorie, stockshot_stimmung, stockshot_neu_drehen,
-      flashback_referenz_id, flashback_ganze_szene, flashback_referenz_folge_id,
+      flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
       vorlage_id, clear_content,
     } = req.body
 
@@ -138,7 +135,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         stockshot_neu_drehen = COALESCE($21, stockshot_neu_drehen),
         flashback_referenz_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, flashback_referenz_id) END,
         flashback_ganze_szene = COALESCE($24, flashback_ganze_szene),
-        flashback_referenz_folge_id = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25::integer, flashback_referenz_folge_id) END,
+        flashback_referenz_werkstufe_id = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25::uuid, flashback_referenz_werkstufe_id) END,
         vorlage_id = CASE WHEN $23::text = '__null__' THEN NULL ELSE COALESCE($23::uuid, vorlage_id) END,
         updated_at = NOW(),
         updated_by = $11
@@ -163,7 +160,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         flashback_referenz_id !== undefined ? (flashback_referenz_id === null ? '__null__' : flashback_referenz_id) : null,
         vorlage_id !== undefined ? (vorlage_id === null ? '__null__' : vorlage_id) : null,
         flashback_ganze_szene !== undefined ? flashback_ganze_szene : null,
-        flashback_referenz_folge_id !== undefined ? (flashback_referenz_folge_id === null ? '__null__' : flashback_referenz_folge_id) : null,
+        flashback_referenz_werkstufe_id !== undefined ? (flashback_referenz_werkstufe_id === null ? '__null__' : flashback_referenz_werkstufe_id) : null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })

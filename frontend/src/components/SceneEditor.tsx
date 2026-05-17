@@ -707,7 +707,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       )}
       {/* Lean header — alles inline, kein Kasten */}
       {!isNotiz && <div
-        className={`detail-head${!compact ? ' detail-head-grid' : ''}`}
+        className="detail-head"
         ref={detailHeadRef}
         style={{ borderLeft: 'none', borderBottom: 'none' }}
         onMouseEnter={() => {
@@ -1314,7 +1314,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#AF52DE', fontSize: 10 }}
                           title="Referenz entfernen"
                           onClick={() => {
-                            saveScene({ flashback_referenz_id: '__null__', flashback_referenz_folge_id: '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                            saveScene({ flashback_referenz_id: '__null__', flashback_referenz_werkstufe_id: '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                           }}
                         >×</button>
                       </span>
@@ -1362,7 +1362,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                             <div key={s.id} className="sf-dropdown-item"
                               onMouseDown={e => {
                                 e.preventDefault()
-                                saveScene({ flashback_referenz_id: s.scene_identity_id, flashback_referenz_folge_id: s.folge_id }).then(updated => {
+                                saveScene({ flashback_referenz_id: s.scene_identity_id, flashback_referenz_werkstufe_id: s.werkstufe_id }).then(updated => {
                                   setScene(updated)
                                   onSzeneUpdated?.(updated)
                                   setFbDropdownOpen(false)

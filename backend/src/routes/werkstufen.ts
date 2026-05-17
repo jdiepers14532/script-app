@@ -511,7 +511,7 @@ werkstufenRouter.get('/:id/flashback-szenen', async (req, res) => {
        )
        SELECT ds.id, ds.scene_identity_id, ds.scene_nummer, ds.scene_nummer_suffix,
               ds.ort_name, ds.int_ext, ds.tageszeit,
-              lw.folge_id, lw.folge_nummer
+              lw.werkstufe_id, lw.folge_id, lw.folge_nummer
        FROM dokument_szenen ds
        JOIN latest_ws lw ON lw.werkstufe_id = ds.werkstufe_id
        WHERE ds.geloescht = false
@@ -543,12 +543,11 @@ werkstufenSzenenRouter.get('/', async (req, res) => {
       `SELECT ds.*, si.folge_id AS identity_folge_id,
         (SELECT ds2.scene_nummer
          FROM dokument_szenen ds2
-         JOIN werkstufen w2 ON w2.id = ds2.werkstufe_id
          WHERE ds2.scene_identity_id = ds.flashback_referenz_id
-           AND w2.folge_id = ds.flashback_referenz_folge_id
-           AND ds2.geloescht = false
-         ORDER BY w2.version_nummer DESC LIMIT 1) AS flashback_referenz_scene_nummer,
-        (SELECT f.folge_nummer FROM folgen f WHERE f.id = ds.flashback_referenz_folge_id) AS flashback_referenz_folge_nummer
+           AND ds2.werkstufe_id = ds.flashback_referenz_werkstufe_id
+           AND ds2.geloescht = false LIMIT 1) AS flashback_referenz_scene_nummer,
+        (SELECT f.folge_nummer FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+         WHERE w.id = ds.flashback_referenz_werkstufe_id) AS flashback_referenz_folge_nummer
        FROM dokument_szenen ds
        LEFT JOIN scene_identities si ON si.id = ds.scene_identity_id
        WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
