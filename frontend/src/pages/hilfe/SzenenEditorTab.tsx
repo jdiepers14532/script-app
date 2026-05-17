@@ -222,7 +222,7 @@ function SzenenEditorTab() {
               <strong>Was Notizen HABEN:</strong>
               <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
                 <li>Freitext-Editor (gleicher Inhalt)</li>
-                <li>Vorlagen-Anbindung ({{'{'}{'{'}}notiz_inhalt{'}'}{'}'}})</li>
+                <li>Vorlagen-Anbindung ({'{{'+'notiz_inhalt'+'}}'}) </li>
                 <li>Kommentar-Badges (messenger.app)</li>
                 <li>Zugang über Notizen-Sektion (einklappbar)</li>
               </ul>
