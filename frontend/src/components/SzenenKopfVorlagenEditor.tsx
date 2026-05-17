@@ -439,8 +439,7 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
         {tabStops.map(ts => (
           <div
             key={`${ts.pos}-${ts.align}`}
-            title={`${TAB_ALIGN_SYMBOL[ts.align]}-Tab bei ${ts.pos.toFixed(2)} cm — klicken zum Ändern/Entfernen`}
-            onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
+              onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
             onClick={e => { e.stopPropagation(); onToggle(ts.pos) }}
             style={{
               position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1,
@@ -474,7 +473,7 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
           lineHeight: 1.5,
           boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}>
-          {rulerTooltip.cm.toFixed(2)} cm
+          {rulerTooltip.cm.toFixed(2)} cm · Klick = tab
         </div>,
         document.body
       )}
