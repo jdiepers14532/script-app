@@ -803,8 +803,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     )}
                   </div>
                 </td>
-                {/* Col 3: Motiv (width:100%) */}
-                <td style={{ paddingRight: 8, width: '100%', paddingBottom: 4 }}>
+                {/* Col 3: Motiv (width:70%) */}
+                <td style={{ paddingRight: 8, width: '70%', paddingBottom: 4 }}>
                   <div className="sf-motiv-group" style={{ display: 'flex', gap: 4, minWidth: 0, alignItems: 'center' }}>
                     <div className="sf-motiv-wrap" ref={motivDropdownRef}>
                       <input
@@ -995,7 +995,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     }}
                   />
                 </td>
-                <td style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
+                <td colSpan={3} style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
                   {(() => {
                     const cycleNext = scene.sondertyp === 'wechselschnitt' ? 'flashback' : scene.sondertyp === 'flashback' ? 'stockshot' : scene.sondertyp === 'stockshot' ? null : 'wechselschnitt'
                     const activeColor = scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'flashback' ? '#AF52DE' : scene.sondertyp === 'stockshot' ? '#FF9500' : undefined
@@ -1014,7 +1014,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     )
                   })()}
                 </td>
-                <td colSpan={2} style={{ padding: 0 }} />
               </tr>
               {/* Zeile B: R· Rollen | Sondertyp-Details */}
               <tr style={{ verticalAlign: 'top' }}>
@@ -1042,7 +1041,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     </span>
                   </div>
                 </td>
-                <td style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
+                <td colSpan={3} style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
                   {/* WS: Partner-Chips + Picker */}
                   {scene.sondertyp === 'wechselschnitt' && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
@@ -1154,7 +1153,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     </span>
                   )}
                 </td>
-                <td colSpan={2} style={{ padding: 0 }} />
               </tr>
               {/* Zeile C: K· Komparsen | S· Strang */}
               <tr style={{ verticalAlign: 'top' }}>
@@ -1182,7 +1180,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     </span>
                   </div>
                 </td>
-                <td style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
+                <td colSpan={3} style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
                   <div className="sf-row sf-chars">
                     <span className="sf-tag">S·</span>
                     <span className="sf-charlist">
@@ -1209,7 +1207,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     </span>
                   </div>
                 </td>
-                <td colSpan={2} style={{ padding: 0 }} />
               </tr>
               {/* Row: Szeneninfo */}
               <tr style={{ verticalAlign: 'baseline' }}>
