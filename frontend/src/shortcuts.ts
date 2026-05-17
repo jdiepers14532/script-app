@@ -48,6 +48,18 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Z`,
   },
 
+  // ── Undo / Redo ─────────────────────────────────────────────────────────────
+  undo: {
+    codes: ['KeyZ'],
+    ctrlKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Z`,
+  },
+  redo: {
+    codes: ['KeyY'],
+    ctrlKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Y`,
+  },
+
   // ── Werkzeug-Leiste öffnen (Klick-basiert, kein code) ───────────────────────
   toolbarOpen: {
     codes: [],

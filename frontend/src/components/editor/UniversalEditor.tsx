@@ -8,6 +8,7 @@ import {
   Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
   AlignLeft, AlignCenter, AlignRight,
   List, ListOrdered, ImageIcon, Maximize2, Minimize2, Pin, PinOff,
+  Undo2, Redo2,
 } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import { useEditor, EditorContent, Extension } from '@tiptap/react'
@@ -243,6 +244,26 @@ export default function UniversalEditor({
     else if (toolbarOpenedVia === 'click') setToolbarPinned(false)
   }, [toolbarOpenedVia])
 
+  // ── Undo / Redo ─────────────────────────────────────────────────────────────
+  const undoManagerRef = useRef<Y.UndoManager | null>(null)
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+
+  // Collab mode: Yjs UndoManager (user-specific undo stack)
+  useEffect(() => {
+    if (!ydoc) { undoManagerRef.current = null; return }
+    const fragment = ydoc.getXmlFragment('default')
+    const um = new Y.UndoManager(fragment, { captureTimeout: 500 })
+    undoManagerRef.current = um
+    const update = () => {
+      setCanUndo(um.undoStack.length > 0)
+      setCanRedo(um.redoStack.length > 0)
+    }
+    um.on('stack-item-added', update)
+    um.on('stack-item-popped', update)
+    return () => { um.destroy(); undoManagerRef.current = null }
+  }, [ydoc])
+
   // Auto-close toolbar when NOT pinned and cursor moves > 50px away
   const toolbarRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -394,13 +415,24 @@ export default function UniversalEditor({
     }, 250)
   }, [produktionId])
 
-  const collabExtensions = ydoc ? [
+  const collabExtensions = useMemo(() => ydoc ? [
     Collaboration.configure({ document: ydoc }),
     ...(provider ? [CollaborationCursor.configure({
       provider,
       user: { name: 'Ich', color: '#007AFF' },
     })] : []),
-  ] : []
+    // Keyboard shortcuts for Yjs-based undo/redo (StarterKit History is disabled in collab mode)
+    Extension.create({
+      name: 'collabHistory',
+      addKeyboardShortcuts() {
+        return {
+          'Mod-z': () => { undoManagerRef.current?.undo(); return true },
+          'Mod-y': () => { undoManagerRef.current?.redo(); return true },
+          'Mod-Shift-z': () => { undoManagerRef.current?.redo(); return true },
+        }
+      },
+    }),
+  ] : [], [ydoc, provider])
 
   const hasAbsatzFormate = relevantFormats.length > 0
 
@@ -444,6 +476,18 @@ export default function UniversalEditor({
   useEffect(() => {
     editor?.setEditable(!readOnly)
   }, [editor, readOnly])
+
+  // Solo mode: track History state via editor transactions
+  useEffect(() => {
+    if (!editor || ydoc) return
+    const update = () => {
+      setCanUndo(editor.can().undo())
+      setCanRedo(editor.can().redo())
+    }
+    editor.on('transaction', update)
+    update()
+    return () => { editor.off('transaction', update) }
+  }, [editor, ydoc])
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
   const { lnSettings, pageMarginMm } = useAppSettings()
@@ -864,6 +908,24 @@ export default function UniversalEditor({
               borderBottom: '1px solid var(--border)', flexWrap: 'wrap',
               background: 'var(--bg-surface)', flexShrink: 0, alignItems: 'center',
             }}>
+              {/* Undo / Redo */}
+              <ToolbarBtn
+                disabled={!canUndo}
+                onClick={() => ydoc ? undoManagerRef.current?.undo() : editor.chain().focus().undo().run()}
+                tooltip={`Rückgängig (${modKey}+Z)`}
+              >
+                <Undo2 size={13} />
+              </ToolbarBtn>
+              <ToolbarBtn
+                disabled={!canRedo}
+                onClick={() => ydoc ? undoManagerRef.current?.redo() : editor.chain().focus().redo().run()}
+                tooltip={`Wiederholen (${modKey}+Y)`}
+              >
+                <Redo2 size={13} />
+              </ToolbarBtn>
+
+              <Sep />
+
               {/* Bold / Italic / Underline */}
               <ToolbarBtn
                 active={editor.isActive('bold')}
@@ -1114,19 +1176,21 @@ export default function UniversalEditor({
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-function ToolbarBtn({ active, onClick, tooltip, children }: {
-  active?: boolean; onClick: () => void; tooltip: string; children: React.ReactNode
+function ToolbarBtn({ active, disabled, onClick, tooltip, children }: {
+  active?: boolean; disabled?: boolean; onClick: () => void; tooltip: string; children: React.ReactNode
 }) {
   return (
     <Tooltip text={tooltip} placement="bottom" delay={500}>
       <button
         onClick={onClick}
+        disabled={disabled}
         style={{
           width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: '1px solid var(--border)', borderRadius: 4,
           background: active ? 'var(--text-primary)' : 'transparent',
-          color: active ? 'var(--text-inverse)' : 'var(--text-secondary)',
-          cursor: 'pointer', flexShrink: 0,
+          color: active ? 'var(--text-inverse)' : disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+          cursor: disabled ? 'default' : 'pointer', flexShrink: 0,
+          opacity: disabled ? 0.4 : 1,
         }}
       >
         {children}
