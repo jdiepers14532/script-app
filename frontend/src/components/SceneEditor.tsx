@@ -1027,15 +1027,15 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   </div>
                 </td>
                 {/* Col 4: independent stack */}
-                <td style={{ paddingRight: 8, paddingBottom: 2 }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <td style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}>
                     {/* Sondertyp: clickable text or select */}
                     {(scene.sondertyp || wsBeteiligt.length === 0) && (
                       scene.sondertyp ? (
                         <select
                           className="sf-input"
                           value={scene.sondertyp}
-                          style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
+                          style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, margin: 0, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
                           onChange={e => {
                             const val = e.target.value || null
                             saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
@@ -1092,7 +1092,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                         )}
                         {scene.sondertyp === 'stockshot' && (
                           <>
-                            <select className="sf-input" value={scene.stockshot_kategorie ?? ''} style={{ width: 'auto', maxWidth: 150, fontSize: 11 }} onChange={e => { const val = e.target.value || null; saveScene({ stockshot_kategorie: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}>
+                            <select className="sf-input" value={scene.stockshot_kategorie ?? ''} style={{ width: 'auto', maxWidth: 150, fontSize: 11, margin: 0 }} onChange={e => { const val = e.target.value || null; saveScene({ stockshot_kategorie: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}>
                               <option value="">Kategorie…</option>
                               <option value="ortswechsel">Ortswechsel</option>
                               <option value="zeit_vergeht">Zeit vergeht</option>
