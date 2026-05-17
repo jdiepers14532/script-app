@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { FileDown, MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } from 'lucide-react'
 import Tooltip from './Tooltip'
@@ -197,6 +197,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const compactHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const detailHeadRef = useRef<HTMLDivElement | null>(null)
   const wsDropdownRef = useRef<HTMLDivElement | null>(null)
+  const sceneR1Ref = useRef<HTMLDivElement | null>(null)
+  const sfRowsRef = useRef<HTMLDivElement | null>(null)
+  const [onelinerWidth, setOnelinerWidth] = useState<number | null>(null)
   const strangDropdownRef = useRef<HTMLDivElement | null>(null)
   const motivDropdownRef = useRef<HTMLDivElement | null>(null)
   const untermotivDropdownRef = useRef<HTMLDivElement | null>(null)
@@ -530,6 +533,26 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     }
   }, [szeneId, stageId])
 
+  // Measure Spielzeit column position to align Sondertyp selector beneath it
+  useLayoutEffect(() => {
+    const update = () => {
+      const r1 = sceneR1Ref.current
+      const sfRows = sfRowsRef.current
+      if (!r1 || !sfRows) return
+      const spEl = r1.querySelector('.spielzeit-wrap') as HTMLElement | null
+      if (!spEl) return
+      const spRect = spEl.getBoundingClientRect()
+      const sfRect = sfRows.getBoundingClientRect()
+      const w = spRect.left - sfRect.left - 6 // -6 for gap between oneliner and sondertyp
+      setOnelinerWidth(w > 30 ? w : null)
+    }
+    update()
+    const obs = new ResizeObserver(update)
+    const r1 = sceneR1Ref.current
+    if (r1) obs.observe(r1)
+    return () => obs.disconnect()
+  }, [compact])
+
   const handleContentChange = useCallback((content: any[]) => {
     if (!scene) return
     const updated = { ...scene, content }
@@ -722,7 +745,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       >
 
         {/* Zeile 1: SZ | Stoppzeit-Input | Motiv | [Rollen compact] | Spielzeit | DT · I/T | buttons */}
-        <div className={`scene-r1${compact ? ' scene-r1-compact' : ''}`}>
+        <div ref={sceneR1Ref} className={`scene-r1${compact ? ' scene-r1-compact' : ''}`}>
           {/* SZ-Nummer */}
           <span className="sz-group">
             <span className="scene-big">SZ{scene.scene_nummer}</span>
@@ -1089,12 +1112,12 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <span className="sz-group"><span className="scene-big">SZ0</span></span>
             <span style={{ width: 32 }} />
           </span>
-          <div className="scene-fields-rows">
+          <div ref={sfRowsRef} className="scene-fields-rows">
           {/* Zeile 2: Oneliner + Sondertyp-Selector in einer Zeile */}
           <div className="sf-row" style={{ gap: 6 }}>
             <input
               className="sf-input"
-              style={{ flex: 1, width: 'auto', minWidth: 0 }}
+              style={{ flex: onelinerWidth != null ? `0 1 ${onelinerWidth}px` : '1 1 auto', minWidth: 0 }}
               defaultValue={scene.zusammenfassung ?? ''}
               placeholder="Oneliner…"
               onBlur={e => {
