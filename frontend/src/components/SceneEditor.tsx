@@ -1176,6 +1176,19 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 </tr>
               )}
             </tbody>
+          </table>
+        )}
+
+        {/* Compact: original grid layout */}
+        {compact && (
+          <div className="scene-r1 scene-r1-compact">
+            <span className="sz-group"><span className="scene-big">SZ{scene.scene_nummer}</span></span>
+            <div className="stopp-col">
+              <Tooltip text="Stoppzeit (mm:ss)" placement="bottom">
+                <input
+                  key={`stopp-${szeneId}`}
+                  className="spielzeit-inp stopp-inp"
+                  defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
                   placeholder="0:00"
                   onBlur={e => {
                     const raw = e.target.value.trim()
