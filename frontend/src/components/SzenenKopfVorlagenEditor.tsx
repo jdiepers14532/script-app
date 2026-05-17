@@ -8,6 +8,7 @@
  * - Serialisierung als JSON-String; Legacy-Text ({{...}}) wird automatisch konvertiert
  */
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import { Node, Extension, mergeAttributes } from '@tiptap/core'
 import { StarterKit } from '@tiptap/starter-kit'
@@ -17,22 +18,23 @@ import { StarterKit } from '@tiptap/starter-kit'
 export interface SKChipDef {
   key: string
   label: string
+  shortLabel: string   // kompakte Darstellung wenn Chip verkleinert
   color: string
   beschreibung: string
 }
 
 export const SK_CHIPS: SKChipDef[] = [
-  { key: 'szene_nr',     label: 'Sz.Nr.',    color: '#007AFF', beschreibung: 'Szenen-Nummer' },
-  { key: 'stoppzeit',    label: 'Stopp',     color: '#007AFF', beschreibung: 'Stoppzeit (mm:ss)' },
-  { key: 'motiv',        label: 'Motiv',     color: '#FF9500', beschreibung: 'Motiv-Bezeichnung' },
-  { key: 'innen_aussen', label: 'I/A',       color: '#FF9500', beschreibung: 'Innen/Außen (I/A)' },
-  { key: 'dt',           label: 'DT',        color: '#5856D6', beschreibung: 'Dramaturgischer Tag' },
-  { key: 'oneliner',     label: 'Oneliner',  color: '#AF52DE', beschreibung: 'Einzeiler / Zusammenfassung' },
-  { key: 'rollen',       label: 'Rollen',    color: '#34C759', beschreibung: 'Beteiligte Rollen' },
-  { key: 'komparsen',    label: 'Komp.',     color: '#00C7BE', beschreibung: 'Komparsen' },
-  { key: 'info',         label: 'Info',      color: '#FF3B30', beschreibung: 'Sonstige Info / Szenen-Info' },
-  { key: 'staffel',      label: 'Staffel',   color: '#8E8E93', beschreibung: 'Staffel-Nummer' },
-  { key: 'episode',      label: 'Episode',   color: '#8E8E93', beschreibung: 'Episoden-Nummer' },
+  { key: 'szene_nr',     label: 'Sz.Nr.',    shortLabel: '#',   color: '#007AFF', beschreibung: 'Szenen-Nummer' },
+  { key: 'stoppzeit',    label: 'Stopp',     shortLabel: '⏱',  color: '#007AFF', beschreibung: 'Stoppzeit (mm:ss)' },
+  { key: 'motiv',        label: 'Motiv',     shortLabel: 'M',   color: '#FF9500', beschreibung: 'Motiv-Bezeichnung' },
+  { key: 'innen_aussen', label: 'I/A',       shortLabel: 'I/A', color: '#FF9500', beschreibung: 'Innen/Außen (I/A)' },
+  { key: 'dt',           label: 'DT',        shortLabel: 'DT',  color: '#5856D6', beschreibung: 'Dramaturgischer Tag' },
+  { key: 'oneliner',     label: 'Oneliner',  shortLabel: '1L',  color: '#AF52DE', beschreibung: 'Einzeiler / Zusammenfassung' },
+  { key: 'rollen',       label: 'Rollen',    shortLabel: 'R',   color: '#34C759', beschreibung: 'Beteiligte Rollen' },
+  { key: 'komparsen',    label: 'Komp.',     shortLabel: 'K',   color: '#00C7BE', beschreibung: 'Komparsen' },
+  { key: 'info',         label: 'Info',      shortLabel: 'i',   color: '#FF3B30', beschreibung: 'Sonstige Info / Szenen-Info' },
+  { key: 'staffel',      label: 'Staffel',   shortLabel: 'S',   color: '#8E8E93', beschreibung: 'Staffel-Nummer' },
+  { key: 'episode',      label: 'Episode',   shortLabel: 'Ep',  color: '#8E8E93', beschreibung: 'Episoden-Nummer' },
 ]
 
 // ── Chip-Extension ────────────────────────────────────────────────────────────
@@ -58,6 +60,11 @@ const SKChipExtension = Node.create({
         parseHTML: el => el.getAttribute('data-sk-key'),
         renderHTML: attrs => ({ 'data-sk-key': attrs.key }),
       },
+      collapsed: {
+        default: false,
+        parseHTML: el => el.getAttribute('data-collapsed') === 'true',
+        renderHTML: attrs => attrs.collapsed ? { 'data-collapsed': 'true' } : {},
+      },
     }
   },
 
@@ -68,11 +75,18 @@ const SKChipExtension = Node.create({
   renderHTML({ node }) {
     const chip = SK_CHIPS.find(c => c.key === node.attrs.key)
     const color = chip?.color ?? '#8E8E93'
-    const label = chip?.label ?? node.attrs.key
+    const label = node.attrs.collapsed
+      ? (chip?.shortLabel ?? node.attrs.key)
+      : (chip?.label ?? node.attrs.key)
     return [
       'span',
       mergeAttributes(
-        { 'data-sk-key': node.attrs.key, class: 'sk-chip', contenteditable: 'false' },
+        {
+          'data-sk-key': node.attrs.key,
+          class: 'sk-chip',
+          contenteditable: 'false',
+          ...(node.attrs.collapsed ? { 'data-collapsed': 'true' } : {}),
+        },
         {
           style: [
             'display:inline-flex', 'align-items:center',
@@ -81,7 +95,7 @@ const SKChipExtension = Node.create({
             'border-radius:4px', 'padding:1px 7px',
             'font-size:inherit', 'line-height:1.5',
             'white-space:nowrap', 'user-select:none',
-            'cursor:default', 'vertical-align:middle', 'font-weight:500',
+            'cursor:pointer', 'vertical-align:middle', 'font-weight:500',
           ].join(';'),
         }
       ),
@@ -89,10 +103,92 @@ const SKChipExtension = Node.create({
     ]
   },
 
+  addNodeView() {
+    return ({ node: initialNode, getPos, editor }: any) => {
+      let currentAttrs = { ...initialNode.attrs }
+
+      // Tooltip-Element: direkt im body, außerhalb aller overflow:hidden Container
+      const tooltipEl = document.createElement('div')
+      tooltipEl.style.cssText = [
+        'position:fixed', 'background:#111', 'color:#fff',
+        'font-size:11px', 'line-height:1.5', 'padding:4px 9px',
+        'border-radius:5px', 'pointer-events:none', 'z-index:99999',
+        'white-space:nowrap', 'box-shadow:0 2px 10px rgba(0,0,0,0.35)',
+        'display:none',
+      ].join(';')
+      document.body.appendChild(tooltipEl)
+
+      const span = document.createElement('span')
+      span.className = 'sk-chip'
+      ;(span as any).contentEditable = 'false'
+
+      const updateDom = (attrs: any) => {
+        const chip = SK_CHIPS.find(c => c.key === attrs.key)
+        const color = chip?.color ?? '#8E8E93'
+        const label = attrs.collapsed
+          ? (chip?.shortLabel ?? attrs.key)
+          : (chip?.label ?? attrs.key)
+        span.setAttribute('data-sk-key', attrs.key)
+        span.style.cssText = [
+          'display:inline-flex', 'align-items:center',
+          `background:${color}22`, `color:${color}`,
+          `border:1px solid ${color}66`,
+          'border-radius:4px', 'padding:1px 7px',
+          'font-size:inherit', 'line-height:1.5',
+          'white-space:nowrap', 'user-select:none',
+          'cursor:pointer', 'vertical-align:middle', 'font-weight:500',
+        ].join(';')
+        span.textContent = label
+        if (chip) tooltipEl.textContent = chip.beschreibung
+      }
+
+      // mousedown: Editor-Cursor-Placement verhindern, Fokus bleibt im Editor
+      span.addEventListener('mousedown', (e) => { e.preventDefault() })
+
+      // click: collapsed toggle
+      span.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (typeof getPos === 'function') {
+          const pos = getPos()
+          const newAttrs = { ...currentAttrs, collapsed: !currentAttrs.collapsed }
+          const tr = editor.state.tr.setNodeMarkup(pos, undefined, newAttrs)
+          editor.view.dispatch(tr)
+        }
+      })
+
+      span.addEventListener('mouseenter', () => {
+        const rect = span.getBoundingClientRect()
+        tooltipEl.style.left = `${rect.left + rect.width / 2}px`
+        tooltipEl.style.top = `${rect.top - 30}px`
+        tooltipEl.style.transform = 'translateX(-50%)'
+        tooltipEl.style.display = 'block'
+      })
+
+      span.addEventListener('mouseleave', () => {
+        tooltipEl.style.display = 'none'
+      })
+
+      updateDom(initialNode.attrs)
+
+      return {
+        dom: span,
+        update(updatedNode: any) {
+          if (updatedNode.type.name !== 'sk_chip') return false
+          currentAttrs = { ...updatedNode.attrs }
+          updateDom(updatedNode.attrs)
+          return true
+        },
+        destroy() {
+          tooltipEl.remove()
+        },
+      }
+    }
+  },
+
   addCommands() {
     return {
       insertSKChip: (key: string) => ({ chain }: any) =>
-        chain().insertContent({ type: 'sk_chip', attrs: { key } }).run(),
+        chain().insertContent({ type: 'sk_chip', attrs: { key, collapsed: false } }).run(),
     }
   },
 })
@@ -246,6 +342,7 @@ interface RulerBarProps {
 function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
   const [width, setWidth] = useState(600)
   const rulerRef = useRef<HTMLDivElement>(null)
+  const [rulerTooltip, setRulerTooltip] = useState<{ x: number; top: number; cm: number } | null>(null)
 
   useEffect(() => {
     const el = containerRef.current
@@ -267,6 +364,14 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
     onToggle(pos)
   }
 
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = rulerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = e.clientX - rect.left
+    const cm = Math.max(0, Math.min(RULER_CM, (x / width) * RULER_CM))
+    setRulerTooltip({ x: e.clientX, top: rect.top, cm })
+  }
+
   // Höhe: 29px (≈ 24px + 20%)
   const H = 29
   // Tick-Höhen
@@ -275,79 +380,105 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
   const TICK_05CM = Math.round(H * 0.21)  //  ~6px — halbe cm
 
   return (
-    <div
-      ref={rulerRef}
-      onMouseDown={e => e.preventDefault()}
-      onClick={handleClick}
-      title="Klicken = L-Tab setzen · nochmal = C-Tab · nochmal = R-Tab · nochmal = entfernen"
-      style={{
-        position: 'relative', height: H,
-        background: 'var(--bg-subtle)', borderBottom: '2px solid var(--border)',
-        cursor: 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
-      }}
-    >
-      {/* cm-Ticks (0, 1, 2, …, 17) */}
-      {Array.from({ length: RULER_CM + 1 }, (_, i) => {
-        const is5 = i % 5 === 0
-        const tickH = is5 ? TICK_5CM : TICK_1CM
-        return (
-          <div
-            key={i}
-            style={{
-              position: 'absolute', left: cmToPx(i), bottom: 0,
-              width: is5 ? 2 : 1, height: tickH,
-              background: is5 ? 'var(--text-secondary)' : 'var(--text-muted)',
-              opacity: is5 ? 1 : 0.6,
+    <>
+      <div
+        ref={rulerRef}
+        onMouseDown={e => e.preventDefault()}
+        onClick={handleClick}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setRulerTooltip(null)}
+        style={{
+          position: 'relative', height: H,
+          background: 'var(--bg-subtle)', borderBottom: '2px solid var(--border)',
+          cursor: 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
+        }}
+      >
+        {/* cm-Ticks (0, 1, 2, …, 17) */}
+        {Array.from({ length: RULER_CM + 1 }, (_, i) => {
+          const is5 = i % 5 === 0
+          const tickH = is5 ? TICK_5CM : TICK_1CM
+          return (
+            <div
+              key={i}
+              style={{
+                position: 'absolute', left: cmToPx(i), bottom: 0,
+                width: is5 ? 2 : 1, height: tickH,
+                background: is5 ? 'var(--text-secondary)' : 'var(--text-muted)',
+                opacity: is5 ? 1 : 0.6,
+                pointerEvents: 'none',
+              }}
+            >
+              {/* Maßangabe bei 5er-Schritten: "5 cm", "10 cm", "15 cm" */}
+              {is5 && i > 0 && (
+                <span style={{
+                  position: 'absolute', bottom: tickH + 2, left: i === RULER_CM ? undefined : -4,
+                  right: i === RULER_CM ? 0 : undefined,
+                  fontSize: 9, fontWeight: 600,
+                  color: 'var(--text-secondary)', pointerEvents: 'none',
+                  whiteSpace: 'nowrap', lineHeight: 1,
+                }}>
+                  {i} cm
+                </span>
+              )}
+            </div>
+          )
+        })}
+        {/* Halbe-cm-Ticks */}
+        {Array.from({ length: RULER_CM * 2 }, (_, i) => {
+          if (i % 2 === 0) return null
+          return (
+            <div key={`h${i}`} style={{
+              position: 'absolute', left: cmToPx(i * 0.5), bottom: 0,
+              width: 1, height: TICK_05CM,
+              background: 'var(--text-muted)', opacity: 0.4,
               pointerEvents: 'none',
+            }} />
+          )
+        })}
+        {/* Tab-Stop-Marker */}
+        {tabStops.map(ts => (
+          <div
+            key={`${ts.pos}-${ts.align}`}
+            title={`${TAB_ALIGN_SYMBOL[ts.align]}-Tab bei ${ts.pos.toFixed(2)} cm — klicken zum Ändern/Entfernen`}
+            onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
+            onClick={e => { e.stopPropagation(); onToggle(ts.pos) }}
+            style={{
+              position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1,
+              width: 14, height: H - 2, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', color: TAB_ALIGN_COLORS[ts.align],
+              fontSize: 10, fontWeight: 700, cursor: 'pointer', zIndex: 2,
+              lineHeight: 1,
+              borderLeft: `2px solid ${TAB_ALIGN_COLORS[ts.align]}`,
             }}
           >
-            {/* Maßangabe bei 5er-Schritten: "5 cm", "10 cm", "15 cm" */}
-            {is5 && i > 0 && (
-              <span style={{
-                position: 'absolute', bottom: tickH + 2, left: i === RULER_CM ? undefined : -4,
-                right: i === RULER_CM ? 0 : undefined,
-                fontSize: 9, fontWeight: 600,
-                color: 'var(--text-secondary)', pointerEvents: 'none',
-                whiteSpace: 'nowrap', lineHeight: 1,
-              }}>
-                {i} cm
-              </span>
-            )}
+            <span style={{ marginLeft: 3 }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
           </div>
-        )
-      })}
-      {/* Halbe-cm-Ticks */}
-      {Array.from({ length: RULER_CM * 2 }, (_, i) => {
-        if (i % 2 === 0) return null
-        return (
-          <div key={`h${i}`} style={{
-            position: 'absolute', left: cmToPx(i * 0.5), bottom: 0,
-            width: 1, height: TICK_05CM,
-            background: 'var(--text-muted)', opacity: 0.4,
-            pointerEvents: 'none',
-          }} />
-        )
-      })}
-      {/* Tab-Stop-Marker */}
-      {tabStops.map(ts => (
-        <div
-          key={`${ts.pos}-${ts.align}`}
-          title={`${TAB_ALIGN_SYMBOL[ts.align]}-Tab bei ${ts.pos.toFixed(2)} cm — klicken zum Ändern/Entfernen`}
-          onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
-          onClick={e => { e.stopPropagation(); onToggle(ts.pos) }}
-          style={{
-            position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1,
-            width: 14, height: H - 2, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', color: TAB_ALIGN_COLORS[ts.align],
-            fontSize: 10, fontWeight: 700, cursor: 'pointer', zIndex: 2,
-            lineHeight: 1,
-            borderLeft: `2px solid ${TAB_ALIGN_COLORS[ts.align]}`,
-          }}
-        >
-          <span style={{ marginLeft: 3 }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+      {/* Lineal-Tooltip via Portal — außerhalb overflow:hidden */}
+      {rulerTooltip && createPortal(
+        <div style={{
+          position: 'fixed',
+          left: rulerTooltip.x,
+          top: rulerTooltip.top - 26,
+          transform: 'translateX(-50%)',
+          background: '#111',
+          color: '#fff',
+          fontSize: 10,
+          fontWeight: 500,
+          padding: '3px 8px',
+          borderRadius: 4,
+          pointerEvents: 'none',
+          zIndex: 99999,
+          whiteSpace: 'nowrap',
+          lineHeight: 1.5,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+        }}>
+          {rulerTooltip.cm.toFixed(2)} cm
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
