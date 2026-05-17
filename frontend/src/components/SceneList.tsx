@@ -556,16 +556,6 @@ export default function SceneList({
                   </span>
                 </button>
               )}
-              <button
-                className="scene-ctx-item"
-                style={{ display: 'flex', alignItems: 'center' }}
-                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()); setSelectionAnchor(null) }}
-              >
-                <span style={{ flex: 1 }}>{multiSelectMode ? 'Auswahl beenden' : 'Mehrere auswählen'}</span>
-                {!isTouch && !multiSelectMode && (
-                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{isMac ? '⌘' : 'Ctrl'}+Klick</span>
-                )}
-              </button>
               {/* Kategorie: Farbe */}
               <CategoryDivider label="Farbe" />
               <button
