@@ -204,7 +204,18 @@ export default function EditorPanelHeader({
         )}
       </div>
 
-      {/* Fassungs-Label — nach Werkfassung, vor Version */}
+      {/* Version badge — klickbar, öffnet Werkfassung-Dropdown */}
+      {selectedWerk && (
+        <button
+          onClick={() => setShowMenu(v => !v)}
+          style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}
+        >
+          {versionLabel}
+          <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
+        </button>
+      )}
+
+      {/* Fassungs-Label — nach Version */}
       {selectedWerk && stageLabels.length > 0 && (
         <div style={{ position: 'relative' }}>
           <button
@@ -298,17 +309,6 @@ export default function EditorPanelHeader({
             </div>
           )}
         </div>
-      )}
-
-      {/* Version badge — klickbar, öffnet Werkfassung-Dropdown */}
-      {selectedWerk && (
-        <button
-          onClick={() => setShowMenu(v => !v)}
-          style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}
-        >
-          {versionLabel}
-          <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
-        </button>
       )}
 
       </div>{/* end LEFT */}
