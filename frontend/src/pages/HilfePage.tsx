@@ -117,6 +117,43 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
+// ── FAQ-Akkordeon ─────────────────────────────────────────────────────────────
+function FaqItem({ q, a }: { q: string; a: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{
+      border: `1px solid ${open ? C.blue + '55' : C.border}`,
+      borderRadius: 8, marginBottom: 8, overflow: 'hidden', background: C.surface,
+      transition: 'border-color 0.2s',
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+          width: '100%', padding: '13px 16px', background: 'none', border: 'none',
+          cursor: 'pointer', textAlign: 'left', gap: 12,
+          color: C.text, fontSize: 13, fontWeight: 600, lineHeight: 1.45,
+        }}
+      >
+        <span>{q}</span>
+        <span style={{
+          flexShrink: 0, color: open ? C.blue : C.muted, fontSize: 14, marginTop: 1,
+          display: 'inline-block', transition: 'transform 0.2s, color 0.15s',
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+        }}>▾</span>
+      </button>
+      {open && (
+        <div style={{
+          padding: '4px 16px 16px', borderTop: `1px solid ${C.border}`,
+          fontSize: 13, color: C.text, lineHeight: 1.65, background: C.subtle,
+        }}>
+          {a}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── PWA Installation Tab ──────────────────────────────────────────────────────
 
 function PwaInstallationTab() {
@@ -5129,9 +5166,393 @@ function StoryStaengeTab() {
   )
 }
 
+// ── Such-Ergebnisse ───────────────────────────────────────────────────────────
+function SearchResultsView({
+  query,
+  results,
+  onNavigate,
+}: {
+  query: string
+  results: { id: string; label: string; icon: string }[]
+  onNavigate: (id: string) => void
+}) {
+  return (
+    <div>
+      <h2 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px', paddingBottom: 10, borderBottom: `2px solid ${C.border}` }}>
+        Suchergebnisse
+      </h2>
+      <p style={{ fontSize: 12, color: C.muted, margin: '0 0 20px' }}>
+        {results.length === 0
+          ? `Keine Treffer für „${query}"`
+          : `${results.length} ${results.length === 1 ? 'Treffer' : 'Treffer'} für „${query}"`}
+      </p>
+      {results.length === 0 && (
+        <div style={{ color: C.muted, fontSize: 13, textAlign: 'center', marginTop: 40 }}>
+          Kein Handbuch-Eintrag passt zu dieser Suche.
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {results.map(item => (
+          <button
+            key={item.id}
+            onClick={() => onNavigate(item.id)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '14px 18px',
+              border: `1px solid ${C.border}`,
+              borderRadius: 10,
+              background: C.surface,
+              cursor: 'pointer',
+              textAlign: 'left',
+              width: '100%',
+              transition: 'border-color 0.15s, background 0.15s',
+            }}
+            onMouseEnter={e => {
+              ;(e.currentTarget as HTMLButtonElement).style.borderColor = C.blue + '66'
+              ;(e.currentTarget as HTMLButtonElement).style.background = C.blue + '08'
+            }}
+            onMouseLeave={e => {
+              ;(e.currentTarget as HTMLButtonElement).style.borderColor = C.border
+              ;(e.currentTarget as HTMLButtonElement).style.background = C.surface
+            }}
+          >
+            <span style={{ fontSize: 22, flexShrink: 0, width: 32, textAlign: 'center' }}>{item.icon}</span>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 2 }}>{item.label}</div>
+              <div style={{ fontSize: 11, color: C.muted }}>Im Handbuch öffnen →</div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Potenzielle Fehler Tab (Admin) ────────────────────────────────────────────
+function PotenzielleFehldrTab() {
+  const [localSearch, setLocalSearch] = useState('')
+
+  const FAQS: { kategorie: string; farbe: string; items: { q: string; a: React.ReactNode }[] }[] = [
+    {
+      kategorie: '🔐 Authentifizierung & Session',
+      farbe: C.orange,
+      items: [
+        {
+          q: '„Update on reload" in DevTools aktiviert → Einloggen schlägt fehl',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> Chrome DevTools → Application → Service Workers → „Update on reload" erzwingt bei jedem Seitenaufruf eine neue SW-Aktivierung. Wenn gleichzeitig die Auth-Session abgelaufen ist (HTTP 401), kann der SW-Update-Cycle die Login-Weiterleitung zu <code>auth.serienwerft.studio</code> unterbrechen.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li>DevTools → Application → Service Workers → <strong>„Update on reload" deaktivieren</strong></li>
+                <li>DevTools → Application → Storage → <strong>„Clear site data"</strong> klicken</li>
+                <li>DevTools schließen</li>
+                <li>Direkt <strong>auth.serienwerft.studio</strong> aufrufen und einloggen</li>
+                <li>Dann zu <strong>script.serienwerft.studio</strong> navigieren</li>
+              </ol>
+              <p style={{ color: C.muted, fontSize: 12, margin: '6px 0 0', padding: '8px 10px', background: C.border + '33', borderRadius: 6 }}>
+                <strong>Hinweis:</strong> „Update on reload" ist ein Entwickler-Tool und sollte im normalen Betrieb nie aktiviert sein.
+              </p>
+            </>
+          ),
+        },
+        {
+          q: 'Session abgelaufen — App zeigt Fehler oder leere Ansicht',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> Das Auth-Cookie (JWT) hat eine begrenzte Lebensdauer. Bei Inaktivität oder nach Server-Neustarts kann die Session ablaufen. Die App antwortet dann mit HTTP 401 und leitet zur Login-Seite weiter.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li><strong>auth.serienwerft.studio</strong> direkt aufrufen</li>
+                <li>Einloggen (Cookie wird für <code>.serienwerft.studio</code> gesetzt)</li>
+                <li>Zurück zu <strong>script.serienwerft.studio</strong> navigieren</li>
+              </ol>
+              <p style={{ color: C.muted, fontSize: 12, margin: '6px 0 0' }}>Im Nginx-Log erkennbar als <code>GET /api/... → 401 Unauthorized</code>.</p>
+            </>
+          ),
+        },
+        {
+          q: 'Login-Weiterleitung funktioniert nicht (Endlosschleife oder leere Seite)',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> Die <code>redirect</code>-URL enthält Sonderzeichen die nicht korrekt kodiert wurden, oder der Cookie wird durch SameSite-Einschränkungen beim Cross-Origin-Redirect nicht mitgeschickt.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li>Browser-Cache leeren: <strong>Ctrl+Shift+Delete</strong></li>
+                <li>Manuell <strong>auth.serienwerft.studio</strong> öffnen, einloggen</li>
+                <li>Dann manuell zu <strong>script.serienwerft.studio</strong> navigieren (nicht über Redirect)</li>
+                <li>Falls Problem anhält: alle Cookies für <code>.serienwerft.studio</code> löschen und neu einloggen</li>
+              </ol>
+            </>
+          ),
+        },
+      ],
+    },
+    {
+      kategorie: '⚙️ Service Worker & Cache',
+      farbe: C.blue,
+      items: [
+        {
+          q: 'App lädt sich nach jedem Reload sofort neu (Update-Loop)',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> Kombination aus aktiviertem „Update on reload" + kürzlich deploytem Frontend. Eine neue <code>sw.js</code> installiert sich → <code>skipWaiting()</code> → App zeigt Update-Toast → nach Klick Reload → neue SW → Schleife.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li>DevTools schließen (oder „Update on reload" deaktivieren)</li>
+                <li>DevTools → Application → Service Workers → <strong>Unregister</strong></li>
+                <li>Hard Reload: <strong>Ctrl+Shift+R</strong></li>
+              </ol>
+              <p style={{ color: C.muted, fontSize: 12, margin: '6px 0 0', padding: '8px 10px', background: C.border + '33', borderRadius: 6 }}>
+                <strong>Achtung:</strong> Nach Unregister im DevTools-Offline-Simulator (<code>navigator.onLine = false</code>) kann normaler Reload fehlschlagen. DevTools-Tab schließen und neuen Browser-Tab öffnen.
+              </p>
+            </>
+          ),
+        },
+        {
+          q: 'Veraltete Daten werden angezeigt (Stale Cache)',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> Die Script-App nutzt Workbox (NetworkFirst für Produktionen/Folgen, StaleWhileRevalidate für Szenen). Bei Netzwerkproblemen oder kurz nach einem Deploy können veraltete Inhalte aus dem Cache geliefert werden.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li><strong>Hard Reload</strong>: Ctrl+Shift+R (umgeht Cache für diese Anfrage)</li>
+                <li>DevTools → Application → Storage → <strong>Clear site data</strong></li>
+                <li>Nach einem Deploy: Update-Toast erscheint automatisch → <strong>„Jetzt aktualisieren"</strong> klicken</li>
+              </ol>
+            </>
+          ),
+        },
+        {
+          q: 'Service Worker lässt sich nicht deinstallieren / reagiert nicht',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> SW ist in einem Fehlerzustand (z.B. Install-Phase hängt, Netzwerkfehler beim Precaching).</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li>Chrome: <code>chrome://serviceworker-internals</code> öffnen</li>
+                <li>Eintrag für <code>script.serienwerft.studio</code> suchen</li>
+                <li><strong>„Stop"</strong> → dann <strong>„Unregister"</strong> klicken</li>
+                <li>Browser neu starten, Seite aufrufen</li>
+              </ol>
+              <p style={{ color: C.muted, fontSize: 12, margin: '6px 0 0' }}>Alternative: Inkognito-Fenster öffnen (kein aktiver SW) und dort einloggen.</p>
+            </>
+          ),
+        },
+        {
+          q: 'Offline-Queue synchronisiert nicht nach Reconnect',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> Sync-Queue wurde gespeichert, aber beim Reconnect schlägt der Backend-Endpoint fehl — z.B. Session in der Zwischenzeit abgelaufen oder Backend-Neustart.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li>Netzwerkstatus prüfen (grüner Punkt rechts oben im Header)</li>
+                <li>Kurz warten — automatischer Retry alle 30 Sekunden</li>
+                <li>Falls Session abgelaufen: neu einloggen, App verarbeitet Queue danach automatisch</li>
+                <li>Bei anhaltenden Problemen: Tab offen lassen, <strong>nicht neu laden</strong> (Queue würde geleert)</li>
+              </ol>
+            </>
+          ),
+        },
+      ],
+    },
+    {
+      kategorie: '🖥 Backend & Server',
+      farbe: C.red,
+      items: [
+        {
+          q: 'API antwortet nicht (502 Bad Gateway / 503 Service Unavailable)',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> PM2-Prozess <code>script-backend</code> abgestürzt oder nginx erreicht Port 3014 nicht.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Diagnose & Lösung (SSH auf Server):</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li><code>pm2 status</code> → prüfen ob <code>script-backend</code> (id:31) <code>online</code></li>
+                <li><code>pm2 logs script-backend --lines 50</code> → Fehlermeldungen lesen</li>
+                <li><code>pm2 restart script-backend</code> falls Prozess gestoppt/fehlernd</li>
+                <li><code>curl -s http://127.0.0.1:3014/api/health</code> → sollte <code>200</code> liefern</li>
+                <li>Falls nginx-Problem: <code>nginx -t &amp;&amp; systemctl reload nginx</code></li>
+              </ol>
+            </>
+          ),
+        },
+        {
+          q: 'Hocuspocus WebSocket-Verbindung bricht ständig ab',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> WebSocket-Verbindungen sind anfälliger für Netzwerkunterbrechungen als HTTP. Mögliche Ursachen: Proxy-Timeout, nginx-Config, Session-Ablauf, Server-Neustart.</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li>Verbindungsstatus im Header prüfen (grün = verbunden)</li>
+                <li>Kurz warten — automatischer Reconnect innerhalb ~10s</li>
+                <li>Nginx-Config: <code>/ws/collab</code> braucht <code>proxy_read_timeout 86400s</code> + <code>Upgrade</code>-Header</li>
+                <li>Server-seitig: <code>pm2 logs script-backend</code> auf WebSocket-Fehler prüfen</li>
+              </ol>
+            </>
+          ),
+        },
+        {
+          q: 'Migration schlägt beim Backend-Start fehl',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}><strong>Ursache:</strong> Eine neue Migration ist inkompatibel mit dem aktuellen DB-Schema (Spalte existiert bereits, FK-Constraint verletzt o.ä.).</p>
+              <p style={{ margin: '6px 0 4px' }}><strong>Lösung:</strong></p>
+              <ol style={{ paddingLeft: 20, margin: '4px 0 8px', lineHeight: 1.9 }}>
+                <li><code>pm2 logs script-backend --lines 100</code> → Migrations-Fehler lesen</li>
+                <li>Migrations-SQL manuell prüfen: <code>psql -U script_user -d script_db</code></li>
+                <li>Migration korrigieren, neues Deploy auslösen</li>
+              </ol>
+              <p style={{ color: C.muted, fontSize: 12, margin: '6px 0 0' }}>Migrationen laufen automatisch beim Backend-Start. Aktuelle Version: v77.</p>
+            </>
+          ),
+        },
+      ],
+    },
+    {
+      kategorie: '🔧 Best Practices & Architektur',
+      farbe: C.green,
+      items: [
+        {
+          q: 'Ist der Auth-Ansatz (Cookie-Redirect) best practice — oder kann man das verbessern?',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 8px' }}>Der Redirect-Flow (<code>script → auth.serienwerft.studio → script</code>) ist ein Standard-Pattern für Shared-Domain Cookie-Auth und grundsätzlich solide. Folgende Punkte können verbessert werden:</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginTop: 4 }}>
+                <thead>
+                  <tr style={{ background: C.subtle }}>
+                    {['Aspekt', 'Aktuell', 'Verbesserungspotenzial'].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '7px 10px', borderBottom: `1px solid ${C.border}`, fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { aspekt: 'skipWaiting()', aktuell: 'Automatisch bei jedem SW-Install', besser: 'Nur auf explizite User-Aktion (Toast-Klick) — verhindert Versions-Mismatch bei mehreren offenen Tabs' },
+                    { aspekt: 'Redirect-URL', aktuell: 'In URL-Parameter (sichtbar)', besser: 'Zusätzlich in sessionStorage sichern — widerstandsfähiger gegen SW-Interferenz' },
+                    { aspekt: 'Token-Refresh', aktuell: 'Kein automatisches Refresh', besser: 'Silent Refresh 5min vor Ablauf — verhindert unerwarteten 401 mitten in der Arbeit' },
+                    { aspekt: 'Auth-Check', aktuell: 'Nach App-Load (kurzer Flicker)', besser: 'Proaktiver Check im App-Init vor dem ersten Render' },
+                  ].map((r, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: '7px 10px', fontWeight: 600 }}>{r.aspekt}</td>
+                      <td style={{ padding: '7px 10px', color: C.muted }}>{r.aktuell}</td>
+                      <td style={{ padding: '7px 10px', color: C.green }}>{r.besser}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p style={{ color: C.muted, fontSize: 12, margin: '10px 0 0' }}>
+                Priorität: <strong>Token-Refresh</strong> hat den größten User-Impact (verhindert unerwartet Session-Ablauf). <strong>skipWaiting</strong>-Änderung ist die solideste Architektur-Verbesserung.
+              </p>
+            </>
+          ),
+        },
+        {
+          q: 'Warum erscheint sw.js so oft im Nginx-Access-Log?',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 6px' }}>Browser prüfen automatisch alle <strong>24 Stunden</strong> auf SW-Updates (oder bei jedem Reload wenn „Update on reload" aktiv). Workbox registriert zusätzlich einen <code>updatefound</code>-Listener.</p>
+              <p style={{ margin: '6px 0 0' }}>Die häufigen <code>GET /sw.js 200</code>-Einträge im Log sind <strong>normal und kein Performance-Problem</strong> — sw.js ist nur ~7 KB und wird mit <code>Cache-Control: no-cache</code> ausgeliefert, sodass immer die aktuelle Version geprüft wird.</p>
+            </>
+          ),
+        },
+        {
+          q: 'DevTools-Features, die nur Entwickler nutzen sollten',
+          a: (
+            <>
+              <p style={{ margin: '8px 0 8px' }}>Folgende DevTools-Optionen können im normalen Betrieb Probleme verursachen:</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: C.subtle }}>
+                    {['Feature', 'Wo', 'Effekt'].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '7px 10px', borderBottom: `1px solid ${C.border}`, fontWeight: 600 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    { f: 'Update on reload', wo: 'Application → Service Workers', effekt: 'Erzwingt SW-Update bei jedem Reload → potenzielle Login-Probleme' },
+                    { f: 'Bypass for network', wo: 'Application → Service Workers', effekt: 'SW wird komplett umgangen, keine Offline-Funktionalität' },
+                    { f: 'Offline (Network-Tab)', wo: 'Network → Throttling', effekt: 'Setzt navigator.onLine = false → nach Unregister kein Reload möglich' },
+                  ].map((r, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                      <td style={{ padding: '7px 10px', fontWeight: 600, color: C.red }}>{r.f}</td>
+                      <td style={{ padding: '7px 10px', color: C.muted, fontSize: 11 }}>{r.wo}</td>
+                      <td style={{ padding: '7px 10px' }}>{r.effekt}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p style={{ color: C.muted, fontSize: 12, margin: '10px 0 0' }}>Bei Problemen: DevTools schließen und Seite neu laden ist oft der schnellste Fix.</p>
+            </>
+          ),
+        },
+      ],
+    },
+  ]
+
+  const lq = localSearch.trim().toLowerCase()
+  const filteredFaqs = lq.length >= 2
+    ? FAQS.map(kat => ({
+        ...kat,
+        items: kat.items.filter(item => item.q.toLowerCase().includes(lq)),
+      })).filter(kat => kat.items.length > 0)
+    : FAQS
+
+  return (
+    <div>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px' }}>Potenzielle Fehler</h1>
+        <p style={{ color: C.muted, fontSize: 13, margin: '0 0 16px', lineHeight: 1.6 }}>
+          Häufige Probleme und deren Lösungen — klicke auf eine Frage zum Aufklappen.
+        </p>
+        <div style={{ position: 'relative', maxWidth: 480 }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 13, pointerEvents: 'none' }}>🔍</span>
+          <input
+            type="text"
+            placeholder="In diesen FAQs suchen…"
+            value={localSearch}
+            onChange={e => setLocalSearch(e.target.value)}
+            style={{
+              width: '100%', boxSizing: 'border-box',
+              padding: '9px 32px 9px 32px',
+              border: `1px solid ${lq.length >= 2 ? C.blue + '66' : C.border}`,
+              borderRadius: 8, fontSize: 13,
+              background: 'var(--bg-main)', color: C.text, outline: 'none',
+              transition: 'border-color 0.15s',
+            }}
+          />
+          {localSearch && (
+            <button onClick={() => setLocalSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: 16, lineHeight: 1 }}>×</button>
+          )}
+        </div>
+      </div>
+
+      {lq.length >= 2 && filteredFaqs.length === 0 && (
+        <p style={{ color: C.muted, fontSize: 13 }}>Keine Treffer für „{localSearch}".</p>
+      )}
+
+      {filteredFaqs.map(kat => (
+        <section key={kat.kategorie} style={{ marginBottom: 36 }}>
+          <h2 style={{
+            fontSize: 11, fontWeight: 700, margin: '0 0 12px',
+            paddingBottom: 8, borderBottom: `2px solid ${kat.farbe}`,
+            color: kat.farbe, letterSpacing: 0.5, textTransform: 'uppercase',
+          }}>
+            {kat.kategorie}
+          </h2>
+          {kat.items.map((item, i) => (
+            <FaqItem key={i} q={item.q} a={item.a} />
+          ))}
+        </section>
+      ))}
+    </div>
+  )
+}
+
 function HilfePage() {
   const [activeSection, setActiveSection] = useState<string>('offline')
   const [isAdmin, setIsAdmin] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -5146,42 +5567,75 @@ function HilfePage() {
   }, [])
 
   const NAV_ITEMS = [
-    { id: 'pwa-installation',       label: 'App installieren',          icon: '📲' },
-    { id: 'offline',                label: 'Offline-Modus',             icon: '📶' },
-    { id: 'szenen-editor',          label: 'Szenenübersicht & Editor',   icon: '🖊️' },
-    { id: 'nummerierung',           label: 'Szenen & Nummerierung',      icon: '🔢' },
-    { id: 'dokument-editor',        label: 'Dokument-Editor',            icon: '📝' },
-    { id: 'kommentare',             label: 'Kommentare',                 icon: '💬' },
-    { id: 'szenen-fassungen',       label: 'Szenen & Fassungen',         icon: '🔀' },
-    { id: 'rechtschreibung',        label: 'Rechtschreibung',            icon: '✍️' },
-    { id: 'import-komparsen',       label: 'Import & Komparsen',         icon: '🎬' },
-    { id: 'suchen-ersetzen',        label: 'Suchen & Ersetzen',          icon: '🔍' },
-    { id: 'story-straenge',         label: 'Story-Str\u00e4nge',         icon: '🧶' },
-    { id: 'sonderszenen',           label: 'Sonderszenen',               icon: '🎭' },
-    { id: 'werkstufen-labels',      label: 'Werkstufen & Labels',        icon: '🏷️' },
-    { id: 'datenmodell',            label: 'Datenmodell',                icon: '🗄️' },
-    { id: 'vorlagen-ocr',           label: 'Vorlagen & OCR',             icon: '📄' },
-    { id: 'export-kopfzeilen',      label: 'Export & Kopf-/Fußzeilen',   icon: '📤' },
-    { id: 'datensicherheit-user',   label: 'Datensicherheit',            icon: '🛡️' },
-    { id: 'team-work',              label: 'Team-Work',                  icon: '👥' },
-    { id: 'autorenplan',            label: 'Autorenplan',                icon: '📅' },
-    { id: 'datensicherheit',        label: 'Datensicherheit (Technik)',   icon: '🔒', adminOnly: true },
+    { id: 'pwa-installation',     label: 'App installieren',          icon: '📲',
+      keywords: 'pwa installieren install browser chrome safari ios android desktop homescreen icon update deinstall' },
+    { id: 'offline',              label: 'Offline-Modus',             icon: '📶',
+      keywords: 'offline sync netzwerk verbindung queue warteschlange reconnect datenverlust autosave kein internet' },
+    { id: 'szenen-editor',        label: 'Szenenübersicht & Editor',  icon: '🖊️',
+      keywords: 'szene editor szenenleiste liste scene list drehbuch schreiben bearbeiten scrollen shortcut' },
+    { id: 'nummerierung',         label: 'Szenen & Nummerierung',     icon: '🔢',
+      keywords: 'nummer nummerierung szene a b c suffix wga lock vergabe automatisch manuell' },
+    { id: 'dokument-editor',      label: 'Dokument-Editor',           icon: '📝',
+      keywords: 'dokument editor treatment synopsis recap precap titelseite notiz tiptap rich text' },
+    { id: 'kommentare',           label: 'Kommentare',                icon: '💬',
+      keywords: 'kommentar kommentieren messenger antwort annotation badge ungelesen' },
+    { id: 'szenen-fassungen',     label: 'Szenen & Fassungen',        icon: '🔀',
+      keywords: 'fassung version werkstufe stage status drehbuch vorbereitung dreh schnitt kopieren' },
+    { id: 'rechtschreibung',      label: 'Rechtschreibung',           icon: '✍️',
+      keywords: 'rechtschreibung spellcheck sprache deutsch englisch duden korrektur unterstrichen rot' },
+    { id: 'import-komparsen',     label: 'Import & Komparsen',        icon: '🎬',
+      keywords: 'import komparsen fountain fdx final draft hochladen upload csv excel mapping' },
+    { id: 'suchen-ersetzen',      label: 'Suchen & Ersetzen',         icon: '🔍',
+      keywords: 'suchen ersetzen replace find regex gross klein wort ganze phrase ctrl h' },
+    { id: 'story-straenge',       label: 'Story-Stränge',             icon: '🧶',
+      keywords: 'story strang arc handlung plot linie radar pacing beat farbe' },
+    { id: 'sonderszenen',         label: 'Sonderszenen',              icon: '🎭',
+      keywords: 'sonderszene stockshot wechselschnitt flashback rückblende stimmung archiv' },
+    { id: 'werkstufen-labels',    label: 'Werkstufen & Labels',       icon: '🏷️',
+      keywords: 'werkstufe label status entwurf freigegeben gesperrt team work kollaboration' },
+    { id: 'datenmodell',          label: 'Datenmodell',               icon: '🗄️',
+      keywords: 'datenbank tabelle schema migration sql postgresql technisch architektur' },
+    { id: 'vorlagen-ocr',         label: 'Vorlagen & OCR',            icon: '📄',
+      keywords: 'vorlage template ocr mistral erkennen scan pdf einscannen' },
+    { id: 'export-kopfzeilen',    label: 'Export & Kopf-/Fußzeilen',  icon: '📤',
+      keywords: 'export pdf fountain fdx kopfzeile fusszeile wasserzeichen drucken herunterladen' },
+    { id: 'datensicherheit-user', label: 'Datensicherheit',           icon: '🛡️',
+      keywords: 'datensicherheit backup autosave sync sicherheit verlust daten' },
+    { id: 'team-work',            label: 'Team-Work',                 icon: '👥',
+      keywords: 'team work gruppe kollaboration autoren privat modus sichtbarkeit session' },
+    { id: 'autorenplan',          label: 'Autorenplan',               icon: '📅',
+      keywords: 'autorenplan autor plan kalender woche einsatz future terminplanung' },
+    { id: 'datensicherheit',      label: 'Datensicherheit (Technik)', icon: '🔒', adminOnly: true,
+      keywords: 'technisch architektur backend server postgresql yjs websocket hocuspocus' },
+    { id: 'potenzielle-fehler',   label: 'Potenzielle Fehler',        icon: '⚠️', adminOnly: true,
+      keywords: 'fehler error problem bug service worker sw session login 401 cache offline loop backend server 502 503 devtools update reload cookie auth best practice' },
   ]
 
-  // Arrow key navigation
+  const sq = searchQuery.trim().toLowerCase()
+  const isSearching = sq.length >= 2
+  const searchResults = isSearching
+    ? NAV_ITEMS.filter(item =>
+        (!('adminOnly' in item && item.adminOnly) || isAdmin) &&
+        (item.label + ' ' + item.keywords).toLowerCase().includes(sq)
+      )
+    : []
+
+  // Arrow key navigation (deaktiviert beim Suchen)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
-      const idx = NAV_ITEMS.findIndex(item => item.id === activeSection)
+      if (isSearching) return
+      const visibleItems = NAV_ITEMS.filter(item => !('adminOnly' in item && item.adminOnly) || isAdmin)
+      const idx = visibleItems.findIndex(item => item.id === activeSection)
       if (idx === -1) return
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && idx > 0) setActiveSection(NAV_ITEMS[idx - 1].id)
-      if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && idx < NAV_ITEMS.length - 1) setActiveSection(NAV_ITEMS[idx + 1].id)
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && idx > 0) setActiveSection(visibleItems[idx - 1].id)
+      if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && idx < visibleItems.length - 1) setActiveSection(visibleItems[idx + 1].id)
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [activeSection])
+  }, [activeSection, isSearching, isAdmin])
 
   return (
     <AppShell hideProductionSelector>
@@ -5189,13 +5643,13 @@ function HilfePage() {
 
         {/* ── Side Navigation ── */}
         <nav style={{
-          width: 220, flexShrink: 0,
+          width: 230, flexShrink: 0,
           borderRight: `1px solid ${C.border}`,
           background: C.surface,
           overflowY: 'auto',
           display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: '20px 16px 12px' }}>
+          <div style={{ padding: '20px 16px 10px' }}>
             <button
               onClick={() => navigate(-1)}
               style={{
@@ -5207,13 +5661,47 @@ function HilfePage() {
               ← Zurück
             </button>
             <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>Handbuch</h1>
-            <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 0' }}>Script-App Dokumentation</p>
+            <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 10px' }}>Script-App Dokumentation</p>
+
+            {/* ── Volltext-Suche ── */}
+            <div style={{ position: 'relative' }}>
+              <span style={{
+                position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)',
+                color: C.muted, fontSize: 12, pointerEvents: 'none',
+              }}>🔍</span>
+              <input
+                type="text"
+                placeholder="Handbuch durchsuchen…"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '7px 26px 7px 28px',
+                  border: `1px solid ${isSearching ? C.blue + '66' : C.border}`,
+                  borderRadius: 7, fontSize: 11,
+                  background: 'var(--bg-main)', color: C.text,
+                  outline: 'none', transition: 'border-color 0.15s',
+                }}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  style={{
+                    position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: C.muted, fontSize: 14, padding: '0 2px', lineHeight: 1,
+                  }}
+                >×</button>
+              )}
+            </div>
           </div>
 
           <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {NAV_ITEMS.filter(item => !('adminOnly' in item && item.adminOnly) || isAdmin).map((item, idx, arr) => {
               const prevItem = arr[idx - 1]
               const showSeparator = 'adminOnly' in item && item.adminOnly && prevItem && !('adminOnly' in prevItem && prevItem.adminOnly)
+              const matchesSearch = isSearching && (item.label + ' ' + item.keywords).toLowerCase().includes(sq)
+              const dimmed = isSearching && !matchesSearch
               return (
                 <div key={item.id}>
                   {showSeparator && (
@@ -5224,20 +5712,25 @@ function HilfePage() {
                     </div>
                   )}
                   <button
-                    onClick={() => setActiveSection(item.id)}
+                    onClick={() => { setActiveSection(item.id); setSearchQuery('') }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 10,
                       padding: '9px 12px',
                       border: 'none', borderRadius: 8,
-                      background: activeSection === item.id ? C.blue + '15' : 'transparent',
+                      background: !isSearching && activeSection === item.id
+                        ? C.blue + '15'
+                        : matchesSearch ? C.blue + '0d' : 'transparent',
                       cursor: 'pointer',
                       fontSize: 12,
-                      fontWeight: activeSection === item.id ? 700 : 400,
-                      color: activeSection === item.id ? C.text : C.muted,
+                      fontWeight: !isSearching && activeSection === item.id ? 700 : matchesSearch ? 600 : 400,
+                      color: dimmed ? C.muted : !isSearching && activeSection === item.id ? C.text : C.muted,
                       textAlign: 'left',
                       width: '100%',
-                      transition: 'background 0.15s, color 0.15s',
-                      borderLeft: activeSection === item.id ? `3px solid ${C.blue}` : '3px solid transparent',
+                      transition: 'background 0.15s, color 0.15s, opacity 0.15s',
+                      borderLeft: !isSearching && activeSection === item.id
+                        ? `3px solid ${C.blue}`
+                        : matchesSearch ? `3px solid ${C.blue}55` : '3px solid transparent',
+                      opacity: dimmed ? 0.4 : 1,
                     }}
                   >
                     <span style={{ fontSize: 14, flexShrink: 0, width: 20, textAlign: 'center' }}>{item.icon}</span>
@@ -5257,26 +5750,37 @@ function HilfePage() {
           maxWidth: 880,
           boxSizing: 'border-box',
         }}>
-          {activeSection === 'pwa-installation' && <PwaInstallationTab />}
-          {activeSection === 'offline' && <OfflineTab />}
-          {activeSection === 'szenen-editor' && <SzenenEditorTab />}
-          {activeSection === 'nummerierung' && <NummerierungTab />}
-          {activeSection === 'dokument-editor' && <DokumentEditorHilfeTab />}
-          {activeSection === 'kommentare' && <KommentareTab />}
-          {activeSection === 'szenen-fassungen' && <SzenenFassungenTab />}
-          {activeSection === 'rechtschreibung' && <RechtschreibungTab />}
-          {activeSection === 'import-komparsen' && <ImportKomparsenTab />}
-          {activeSection === 'suchen-ersetzen' && <SuchenErsetzenTab />}
-          {activeSection === 'story-straenge' && <StoryStaengeTab />}
-          {activeSection === 'sonderszenen' && <SonderszenentTab />}
-          {activeSection === 'werkstufen-labels' && <WerkstufenLabelsTab />}
-          {activeSection === 'datenmodell' && <DatenmodellTab />}
-          {activeSection === 'vorlagen-ocr' && <VorlagenOcrTab />}
-          {activeSection === 'export-kopfzeilen' && <ExportKopfzeilen />}
-          {activeSection === 'datensicherheit-user' && <DatensicherheitUserTab />}
-          {activeSection === 'datensicherheit' && <DatensicherheitTab />}
-          {activeSection === 'team-work' && <TeamWorkTab />}
-          {activeSection === 'autorenplan' && <AutorenplanHilfeTab />}
+          {isSearching ? (
+            <SearchResultsView
+              query={sq}
+              results={searchResults}
+              onNavigate={(id) => { setActiveSection(id); setSearchQuery('') }}
+            />
+          ) : (
+            <>
+              {activeSection === 'pwa-installation' && <PwaInstallationTab />}
+              {activeSection === 'offline' && <OfflineTab />}
+              {activeSection === 'szenen-editor' && <SzenenEditorTab />}
+              {activeSection === 'nummerierung' && <NummerierungTab />}
+              {activeSection === 'dokument-editor' && <DokumentEditorHilfeTab />}
+              {activeSection === 'kommentare' && <KommentareTab />}
+              {activeSection === 'szenen-fassungen' && <SzenenFassungenTab />}
+              {activeSection === 'rechtschreibung' && <RechtschreibungTab />}
+              {activeSection === 'import-komparsen' && <ImportKomparsenTab />}
+              {activeSection === 'suchen-ersetzen' && <SuchenErsetzenTab />}
+              {activeSection === 'story-straenge' && <StoryStaengeTab />}
+              {activeSection === 'sonderszenen' && <SonderszenentTab />}
+              {activeSection === 'werkstufen-labels' && <WerkstufenLabelsTab />}
+              {activeSection === 'datenmodell' && <DatenmodellTab />}
+              {activeSection === 'vorlagen-ocr' && <VorlagenOcrTab />}
+              {activeSection === 'export-kopfzeilen' && <ExportKopfzeilen />}
+              {activeSection === 'datensicherheit-user' && <DatensicherheitUserTab />}
+              {activeSection === 'datensicherheit' && <DatensicherheitTab />}
+              {activeSection === 'team-work' && <TeamWorkTab />}
+              {activeSection === 'autorenplan' && <AutorenplanHilfeTab />}
+              {activeSection === 'potenzielle-fehler' && <PotenzielleFehldrTab />}
+            </>
+          )}
         </div>
       </div>
     </AppShell>
