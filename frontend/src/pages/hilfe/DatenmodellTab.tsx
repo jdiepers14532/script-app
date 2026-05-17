@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { C, Badge, Tag, TableCard, Section, FaqItem, FieldBox, InfoBox, WarnBox } from './_shared'
 
 function NetzplanDiagram() {
@@ -154,11 +154,19 @@ function NetzplanDiagram() {
     stat: '#FF9500', comment: '#FFCC00', system: '#8E8E93',
   }
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -0.05 : 0.05
-    setZoom(z => Math.min(2.5, Math.max(0.15, z + delta)))
-  }
+  const canvasRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -0.05 : 0.05
+      setZoom(z => Math.min(2.5, Math.max(0.15, z + delta)))
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   const handleMouseDown = (e: React.MouseEvent) => {
     if (e.button === 0) { setDragging(true); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }) }
   }
@@ -184,12 +192,12 @@ function NetzplanDiagram() {
         </div>
       </div>
       <div
+        ref={canvasRef}
         style={{
           width: '100%', height: 600, overflow: 'hidden',
           border: `1px solid ${C.border}`, borderRadius: 12, background: '#fdfdfd',
           cursor: dragging ? 'grabbing' : 'grab', position: 'relative', userSelect: 'none',
         }}
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
