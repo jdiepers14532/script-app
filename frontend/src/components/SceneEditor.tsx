@@ -728,9 +728,14 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <span className="scene-big">SZ{scene.scene_nummer}</span>
           </span>
 
-          {/* Stoppzeit + Seitenachtel (vertikal gestapelt) */}
+          {/* Stoppzeit + Zap (horizontal) */}
           <div className="stopp-col">
-            <Tooltip text="Stoppzeit (mm:ss)" placement="bottom">
+            <Tooltip
+              text={!compact && scene.page_length != null && scene.page_length > 0
+                ? `Stoppzeit (mm:ss)\n${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)`
+                : 'Stoppzeit (mm:ss)'}
+              placement="bottom"
+            >
               <input
                 key={`stopp-${szeneId}`}
                 className="spielzeit-inp stopp-inp"
@@ -752,22 +757,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 }}
               />
             </Tooltip>
-            {/* Seitenachtel — page_length (unter Stoppzeit, hidden in compact) */}
-            {!compact && scene.page_length != null && scene.page_length > 0 && (
-              <Tooltip text={`Seitenlänge: ${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)\nBerechnung: 56 Zeilen/Seite`} placement="bottom">
-                <span style={{
-                  fontSize: 9,
-                  color: 'var(--text-muted)',
-                  fontVariantNumeric: 'tabular-nums',
-                  marginTop: 1,
-                  cursor: 'default',
-                }}>
-                  {scene.page_length % 8 === 0
-                    ? `${scene.page_length / 8}`
-                    : `${Math.floor(scene.page_length / 8)} ${scene.page_length % 8}/8`}
-                </span>
-              </Tooltip>
-            )}
             {/* Zap-Button: Autoren-Stoppzeit Auto-Berechnung (nur Drehbuch-Werkstufe) */}
             {werkstufTyp === 'drehbuch' && useDokumentSzenen && (
               <Tooltip
@@ -786,7 +775,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     width: 16, height: 16, borderRadius: 3, border: 'none',
                     background: 'transparent', color: 'var(--sw-warning)',
                     cursor: stoppzeitAutoLoading ? 'wait' : 'pointer', padding: 0,
-                    marginTop: 1, opacity: stoppzeitAutoLoading ? 0.5 : 1,
+                    opacity: stoppzeitAutoLoading ? 0.5 : 1,
                   }}
                 >
                   <Zap size={10} />
@@ -1101,9 +1090,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <span style={{ width: 32 }} />
           </span>
           <div className="scene-fields-rows">
-          <div className="sf-row">
+          {/* Zeile 2: Oneliner + Sondertyp-Selector in einer Zeile */}
+          <div className="sf-row" style={{ gap: 6 }}>
             <input
               className="sf-input"
+              style={{ flex: 1, width: 'auto', minWidth: 0 }}
               defaultValue={scene.zusammenfassung ?? ''}
               placeholder="Oneliner…"
               onBlur={e => {
@@ -1112,14 +1103,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
               }}
             />
-          </div>
-          {/* Sondertyp — Wechselschnitt / Stockshot / Flashback */}
-          {scene.sondertyp && (
-            <div className="sf-row" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            {scene.sondertyp ? (
               <select
                 className="sf-input"
-                value={scene.sondertyp ?? ''}
-                style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
+                value={scene.sondertyp}
+                style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, flexShrink: 0, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
                 onChange={e => {
                   const val = e.target.value || null
                   saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
@@ -1130,7 +1118,23 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 <option value="stockshot">{t('stockshot')}</option>
                 <option value="flashback">{t('flashback')}</option>
               </select>
-
+            ) : wsBeteiligt.length === 0 ? (
+              <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
+                <button
+                  className="btn ghost"
+                  style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)', flexShrink: 0 }}
+                  onClick={() => {
+                    saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                  }}
+                >
+                  🎭 Sondertyp
+                </button>
+              </Tooltip>
+            ) : null}
+          </div>
+          {/* Sondertyp Details — Wechselschnitt / Stockshot / Flashback */}
+          {scene.sondertyp && (
+            <div className="sf-row" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               {/* Wechselschnitt: show partner badges */}
               {scene.sondertyp === 'wechselschnitt' && (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
@@ -1280,23 +1284,48 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             </div>
           )}
 
-          {/* Sondertyp toggle — show button to set sondertyp when none is set */}
-          {!scene.sondertyp && wsBeteiligt.length === 0 && (
-            <div className="sf-row">
-              <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
-                <button
-                  className="btn ghost"
-                  style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)' }}
-                  onClick={() => {
-                    saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                  }}
-                >
-                  🎭 Sondertyp
-                </button>
-              </Tooltip>
-            </div>
-          )}
-
+          {/* Strang chips */}
+          <div className="sf-row sf-chars">
+            <span className="sf-tag">S·</span>
+            <span className="sf-charlist">
+              {sceneStraenge.map((s: any) => (
+                <span key={s.strang_id} className="sf-char-chip" style={{ borderLeft: `3px solid ${s.farbe || '#888'}` }}>
+                  {s.strang_name}
+                  <button className="sf-char-remove" title="Entfernen" onClick={() => {
+                    api.removeSzeneStrang(String(szeneId), s.strang_id).then(() => {
+                      setSceneStraenge(prev => prev.filter(x => x.strang_id !== s.strang_id))
+                    }).catch(() => {})
+                  }}><X size={9} /></button>
+                </span>
+              ))}
+              <span className="sf-char-add-wrap" ref={strangDropdownRef}>
+                <button className="sf-char-search" style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }} onClick={() => setStrangDropdownOpen(v => !v)}>+</button>
+                {strangDropdownOpen && (
+                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(strangDropdownRef)}>
+                    {allStraenge
+                      .filter(st => st.status === 'aktiv')
+                      .filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id))
+                      .map(st => (
+                        <div key={st.id} className="sf-dropdown-item"
+                          onMouseDown={e => {
+                            e.preventDefault()
+                            api.addSzeneStrang(String(szeneId), st.id).then(() => {
+                              setSceneStraenge(prev => [...prev, { strang_id: st.id, strang_name: st.name, farbe: st.farbe }])
+                              setStrangDropdownOpen(false)
+                            }).catch(() => {})
+                          }}>
+                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: st.farbe, marginRight: 6 }} />
+                          {st.name}
+                        </div>
+                      ))}
+                    {allStraenge.filter(st => st.status === 'aktiv').filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id)).length === 0 && (
+                      <div className="sf-dropdown-empty">Keine Str\u00e4nge verf\u00fcgbar</div>
+                    )}
+                  </div>
+                )}
+              </span>
+            </span>
+          </div>
           {/* Rollen — editable with autocomplete, only rolle characters */}
           <div className="sf-row sf-chars">
             <span className="sf-tag">R·</span>
@@ -1369,48 +1398,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       ))}
                     {komparseCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase())).length === 0 && (
                       <div className="sf-dropdown-empty">Keine {t('komparse', 'p')} verfügbar</div>
-                    )}
-                  </div>
-                )}
-              </span>
-            </span>
-          </div>
-          {/* Strang chips */}
-          <div className="sf-row sf-chars">
-            <span className="sf-tag">S·</span>
-            <span className="sf-charlist">
-              {sceneStraenge.map((s: any) => (
-                <span key={s.strang_id} className="sf-char-chip" style={{ borderLeft: `3px solid ${s.farbe || '#888'}` }}>
-                  {s.strang_name}
-                  <button className="sf-char-remove" title="Entfernen" onClick={() => {
-                    api.removeSzeneStrang(String(szeneId), s.strang_id).then(() => {
-                      setSceneStraenge(prev => prev.filter(x => x.strang_id !== s.strang_id))
-                    }).catch(() => {})
-                  }}><X size={9} /></button>
-                </span>
-              ))}
-              <span className="sf-char-add-wrap" ref={strangDropdownRef}>
-                <button className="sf-char-search" style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }} onClick={() => setStrangDropdownOpen(v => !v)}>+</button>
-                {strangDropdownOpen && (
-                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(strangDropdownRef)}>
-                    {allStraenge
-                      .filter(st => st.status === 'aktiv')
-                      .filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id))
-                      .map(st => (
-                        <div key={st.id} className="sf-dropdown-item"
-                          onMouseDown={e => {
-                            e.preventDefault()
-                            api.addSzeneStrang(String(szeneId), st.id).then(() => {
-                              setSceneStraenge(prev => [...prev, { strang_id: st.id, strang_name: st.name, farbe: st.farbe }])
-                              setStrangDropdownOpen(false)
-                            }).catch(() => {})
-                          }}>
-                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: st.farbe, marginRight: 6 }} />
-                          {st.name}
-                        </div>
-                      ))}
-                    {allStraenge.filter(st => st.status === 'aktiv').filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id)).length === 0 && (
-                      <div className="sf-dropdown-empty">Keine Str\u00e4nge verf\u00fcgbar</div>
                     )}
                   </div>
                 )}
