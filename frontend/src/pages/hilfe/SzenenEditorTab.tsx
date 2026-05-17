@@ -118,9 +118,10 @@ function SzenenEditorTab() {
                 <li><strong>Suche</strong> — filtert nach Szenennummer, Motivname, Zusammenfassung</li>
                 <li><strong>Farbkodierung</strong> — INT/EXT + Tageszeit bestimmen Farbstreifen (3 Modi: full/subtle/off)</li>
                 <li><strong>Drag & Drop</strong> — Szenen per Drag umsortieren (nur wenn keine Suche aktiv)</li>
-                <li><strong>Kontextmenü</strong> — "Einfügen darunter" (Suffix-System) + "Löschen" (Soft-Delete)</li>
+                <li><strong>Kontextmenü</strong> — "Einfügen darunter" mit Formatauswahl (Drehbuch / Storyline / Notiz) + "Löschen"</li>
                 <li><strong>Neu nummerieren</strong> — Header-Menu: sequentielle Nummerierung oder Position-Logging</li>
-                <li><strong>Neue Szene</strong> — Plus-Button: fuegt am Ende an</li>
+                <li><strong>Neue Szene</strong> — Plus-Button mit Formatauswahl (siehe unten)</li>
+                <li><strong>Notizen-Bereich</strong> — Notizen werden getrennt am Ende der Szenenleiste angezeigt (einklappbar)</li>
                 <li><strong>Kommentar-Badge</strong> — zeigt ungelesene Annotationen aus messenger.app</li>
                 <li><strong>Lock-Indikator</strong> — wenn Episode gelockt ist</li>
                 <li><strong>Szeneninfo-Tooltip</strong> — Info-Icon zeigt redaktionelle Hinweise</li>
@@ -170,6 +171,68 @@ function SzenenEditorTab() {
           Wenn das Suchfeld Text enthaelt, ist Drag & Drop deaktiviert.
           Die gefilterte Ansicht würde sonst zu unerwarteten Umsortierungen führen.
         </WarnBox>
+
+        {/* Neue Szene — Format-Shortcuts */}
+        <div style={{ border: `1px solid ${C.blue}33`, borderRadius: 10, padding: 16, marginTop: 16, background: C.blue + '06' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: C.blue, marginBottom: 10 }}>Neue Szene — Format-Auswahl</div>
+          <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.8, marginBottom: 12 }}>
+            Der <strong>+</strong>-Button am oberen Rand der Szenenleiste legt eine neue Szene am Ende an.
+            Das Format wird über Tastenkürzel (Desktop) oder den <strong>▾</strong>-Pfeil (Tablet) gewählt:
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 10 }}>
+            <tbody>
+              {[
+                { shortcut: 'D + Klick', format: 'Drehbuch', desc: 'Szene mit vollem Szenenkopf (Motiv, I/A, Drehtag, …)' },
+                { shortcut: 'S + Klick oder T + Klick', format: 'Storyline / Treatment', desc: 'Szene im Storyline-Format (T = Treatment, je nach Konfiguration)' },
+                { shortcut: 'N + Klick', format: 'Notiz', desc: 'Freier Notizbereich — kein Szenenkopf, nicht in Statistiken' },
+                { shortcut: 'Klick (ohne Taste)', format: 'Notiz (Standard)', desc: 'Fallback: Notiz — immer klar, dass Format noch gewählt werden muss' },
+              ].map((r, i) => (
+                <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                  <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontWeight: 600, whiteSpace: 'nowrap', fontSize: 10 }}>{r.shortcut}</td>
+                  <td style={{ padding: '5px 8px', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.format}</td>
+                  <td style={{ padding: '5px 8px', color: C.muted }}>{r.desc}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ fontSize: 10, color: C.muted, lineHeight: 1.6 }}>
+            <strong>Tablet:</strong> Neben dem + erscheint ein ▾-Pfeil der ein Formatmenü öffnet.<br/>
+            <strong>"Einfügen darunter"</strong> im Kontextmenü (···) zeigt dieselben 3 Formatoptionen.
+          </div>
+        </div>
+
+        {/* Notiz-Format */}
+        <div style={{ border: `1px solid ${C.orange}33`, borderRadius: 10, padding: 16, marginTop: 16, background: C.orange + '06' }}>
+          <div style={{ fontWeight: 700, fontSize: 12, color: C.orange, marginBottom: 10 }}>Notiz-Format — Soft Separation</div>
+          <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.8 }}>
+            Szenen im Format <Tag color={C.orange}>Notiz</Tag> werden in der Szenenleiste <strong>getrennt</strong> vom Hauptfluss
+            in einem einklappbaren <em>Notizen</em>-Bereich am Ende angezeigt.
+          </div>
+          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.8 }}>
+              <strong>Was Notizen NICHT haben:</strong>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                <li>Szenenkopf (Motiv, I/A, Drehtag, …)</li>
+                <li>Szenen-Nummerierung (zeigt ·)</li>
+                <li>Farbkodierung nach Lichtstimmung</li>
+                <li>Einfluss auf Statistiken (Seiten, Bilder, Spielzeiten)</li>
+              </ul>
+            </div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.8 }}>
+              <strong>Was Notizen HABEN:</strong>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                <li>Freitext-Editor (gleicher Inhalt)</li>
+                <li>Vorlagen-Anbindung ({{'{'}{'{'}}notiz_inhalt{'}'}{'}'}})</li>
+                <li>Kommentar-Badges (messenger.app)</li>
+                <li>Zugang über Notizen-Sektion (einklappbar)</li>
+              </ul>
+            </div>
+          </div>
+          <InfoBox title="Format wechseln" color={C.orange}>
+            Über den Format-Umschalter im Editor-Header kann das Format einer Szene gewechselt werden.
+            Bei bestehendem Inhalt erscheint eine Bestätigung — der Inhalt wird beim Wechsel gelöscht, der Szenenkopf bleibt erhalten.
+          </InfoBox>
+        </div>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}

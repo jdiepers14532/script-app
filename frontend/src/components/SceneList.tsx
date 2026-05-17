@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, CheckSquare, Square, Image, History } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, CheckSquare, Square, Image, History, ChevronDown } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
@@ -62,7 +62,8 @@ export default function SceneList({
   const [deleting, setDeleting] = useState<number | string | null>(null)
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
   const [renumbering, setRenumbering] = useState(false)
-  const [nurSzenen, setNurSzenen] = useState(false)
+  const [notizSectionOpen, setNotizSectionOpen] = useState(false)
+  const [formatPickerOpen, setFormatPickerOpen] = useState(false)
   const [colorOff, setColorOff] = useState(false)
   const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
   const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
@@ -91,6 +92,9 @@ export default function SceneList({
       <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
     </div>
   )
+  const isTouch = useMemo(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches, [])
+  const pressedKeys = useRef<Set<string>>(new Set())
+  const formatPickerRef = useRef<HTMLDivElement | null>(null)
   const menuRef = useRef<HTMLDivElement | null>(null)
   const headerMenuRef = useRef<HTMLDivElement | null>(null)
 
@@ -165,13 +169,34 @@ export default function SceneList({
     return (a.scene_nummer_suffix ?? '').localeCompare(b.scene_nummer_suffix ?? '')
   })
 
-  const filtered = sorted.filter(s => {
-    if (nurSzenen && s.format === 'notiz') return false
-    if (searchQuery === '') return true
-    return `${s.scene_nummer}${s.scene_nummer_suffix || ''}`.includes(searchQuery) ||
-      (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
-  })
+  const matchesSearch = (s: any) => searchQuery === '' ||
+    `${s.scene_nummer}${s.scene_nummer_suffix || ''}`.includes(searchQuery) ||
+    (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
+
+  const filteredRegular = sorted.filter(s => s.format !== 'notiz' && matchesSearch(s))
+  const filteredNotizen = sorted.filter(s => s.format === 'notiz' && matchesSearch(s))
+
+  // Track pressed modifier keys for format shortcuts (D/S/T/N + click on +)
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => pressedKeys.current.add(e.code)
+    const up = (e: KeyboardEvent) => pressedKeys.current.delete(e.code)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+  }, [])
+
+  // Close format picker on outside click
+  useEffect(() => {
+    if (!formatPickerOpen) return
+    const handler = (e: MouseEvent) => {
+      if (formatPickerRef.current && !formatPickerRef.current.contains(e.target as Node)) {
+        setFormatPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [formatPickerOpen])
 
   // Close scene context menu on outside click
   useEffect(() => {
@@ -216,13 +241,22 @@ export default function SceneList({
     }
   }
 
-  const handleNewSzene = async () => {
+  const getFormatFromKeys = (fallback = 'notiz') => {
+    if (pressedKeys.current.has('KeyD')) return 'drehbuch'
+    if (pressedKeys.current.has('KeyS') || pressedKeys.current.has('KeyT')) return 'storyline'
+    if (pressedKeys.current.has('KeyN')) return 'notiz'
+    return fallback
+  }
+
+  const handleNewSzene = async (format?: string) => {
     if (!stageId || creating) return
+    const fmt = format ?? getFormatFromKeys('notiz')
     setCreating(true)
     try {
       const newSzene = await api.createWerkstufeSzene(String(stageId), {
         int_ext: 'INT',
         tageszeit: 'TAG',
+        format: fmt,
       })
       onSzeneCreated?.(newSzene)
     } catch (e) {
@@ -232,16 +266,18 @@ export default function SceneList({
     }
   }
 
-  const handleInsertAfter = async (e: React.MouseEvent, afterSzeneId: number | string) => {
+  const handleInsertAfter = async (e: React.MouseEvent, afterSzeneId: number | string, format?: string) => {
     e.stopPropagation()
     setMenuOpenId(null)
     if (!stageId || creating) return
+    const fmt = format ?? getFormatFromKeys('drehbuch')
     setCreating(true)
     try {
       await api.createWerkstufeSzene(String(stageId), {
         int_ext: 'INT',
         tageszeit: 'TAG',
         after_scene_id: afterSzeneId,
+        format: fmt,
       })
       // Re-fetch all scenes to get correct sort_order + suffix
       const updated = await api.getWerkstufenSzenen(String(stageId))
@@ -374,9 +410,30 @@ export default function SceneList({
             <Lock size={11} style={{ color: 'var(--sw-warning)', display: 'block' }} />
           </span>
         )}
-        <button className="iconbtn" title="Neue Szene" onClick={handleNewSzene} disabled={creating || !stageId} style={{ flexShrink: 0 }}>
-          <Plus size={13} />
-        </button>
+        <Tooltip text={isTouch ? 'Neue Szene' : 'Neue Szene\nD=Drehbuch · S/T=Storyline · N=Notiz\n(Taste halten + Klick)'}>
+          <button className="iconbtn" onClick={() => handleNewSzene()} disabled={creating || !stageId} style={{ flexShrink: 0 }}>
+            <Plus size={13} />
+          </button>
+        </Tooltip>
+        {isTouch && (
+          <div style={{ position: 'relative', flexShrink: 0 }} ref={formatPickerRef}>
+            <button
+              className="iconbtn"
+              style={{ padding: '2px 3px' }}
+              onClick={() => setFormatPickerOpen(v => !v)}
+              disabled={creating || !stageId}
+            >
+              <ChevronDown size={10} />
+            </button>
+            {formatPickerOpen && (
+              <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 130 }}>
+                <button className="scene-ctx-item" onClick={() => { handleNewSzene('drehbuch'); setFormatPickerOpen(false) }}>Drehbuch</button>
+                <button className="scene-ctx-item" onClick={() => { handleNewSzene('storyline'); setFormatPickerOpen(false) }}>Storyline</button>
+                <button className="scene-ctx-item" onClick={() => { handleNewSzene('notiz'); setFormatPickerOpen(false) }}>Notiz</button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Header context menu */}
         <div style={{ position: 'relative', flexShrink: 0 }} ref={headerMenuRef}>
@@ -409,13 +466,6 @@ export default function SceneList({
               >
                 {multiSelectMode ? 'Auswahl beenden' : 'Mehrere auswählen'}
               </button>
-              <button
-                className="scene-ctx-item"
-                onClick={() => { setNurSzenen(v => !v) }}
-              >
-                {nurSzenen ? 'Alles anzeigen' : `Nur ${t('szene')} anzeigen`}
-              </button>
-
               {/* Kategorie: Farbe */}
               <CategoryDivider label="Farbe" />
               <button
@@ -495,7 +545,7 @@ export default function SceneList({
 
       {/* Scene rows */}
       <div className="list">
-        {filtered.length === 0 && (
+        {filteredRegular.length === 0 && filteredNotizen.length === 0 && (
           <div style={{ padding: '16px 20px', color: 'var(--text-muted)', fontSize: 12 }}>
             {szenen.length === 0
               ? (folgeNummer != null
@@ -504,7 +554,7 @@ export default function SceneList({
               : 'Keine Treffer.'}
           </div>
         )}
-        {filtered.map(scene => {
+        {filteredRegular.map(scene => {
           const envKey = getEnvKey(scene)
           const envColor = (isDarkTheme ? ENV_COLORS_DARK : ENV_COLORS)[envKey]
           const isDark = !!envColor.textDark
@@ -615,19 +665,11 @@ export default function SceneList({
                   </button>
                   {isMenuOpen && (
                     <div className="scene-ctx-menu">
-                      <button
-                        className="scene-ctx-item"
-                        onClick={e => handleInsertAfter(e, scene.id)}
-                        disabled={creating}
-                      >
-                        Einfügen darunter
-                      </button>
-                      <button
-                        className="scene-ctx-item danger"
-                        onClick={e => handleDelete(e, scene.id)}
-                      >
-                        Löschen
-                      </button>
+                      <CategoryDivider label="Einfügen darunter" />
+                      <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'drehbuch')} disabled={creating}>Drehbuch</button>
+                      <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'storyline')} disabled={creating}>Storyline</button>
+                      <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Notiz</button>
+                      <button className="scene-ctx-item danger" onClick={e => handleDelete(e, scene.id)}>Löschen</button>
                     </div>
                   )}
                 </div>
@@ -635,6 +677,79 @@ export default function SceneList({
             </div>
           )
         })}
+
+        {/* ── Notizen Section ── */}
+        {filteredNotizen.length > 0 && (
+          <div style={{ borderTop: '1px solid var(--border-subtle)' }}>
+            <button
+              onClick={() => setNotizSectionOpen(v => !v)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px 5px', border: 'none',
+                borderBottom: notizSectionOpen ? '1px solid var(--border-subtle)' : 'none',
+                background: 'transparent', cursor: 'pointer',
+                color: 'var(--text-muted)', fontSize: 11, fontWeight: 500, fontFamily: 'inherit',
+              }}
+            >
+              <span style={{ flex: 1, textAlign: 'left' }}>Notizen ({filteredNotizen.length})</span>
+              <ChevronDown size={11} style={{ transform: notizSectionOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+            {notizSectionOpen && filteredNotizen.map(scene => {
+              const isMenuOpen = menuOpenId === scene.id
+              const isDeleting = deleting === scene.id
+              const unreadCount = commentCounts?.[scene.id] ?? 0
+              return (
+                <div
+                  key={scene.id}
+                  className={['row', scene.id === selectedSzeneId ? 'active' : '', isDeleting ? 'deleting' : ''].filter(Boolean).join(' ')}
+                  style={{ position: 'relative', cursor: 'pointer', opacity: 0.75 }}
+                  onClick={() => !isMenuOpen && onSelectSzene(scene.id)}
+                >
+                  <div className="num">·</div>
+                  <div className="sl-sondertyp-col" />
+                  <div className="body">
+                    <div className="sl-line">
+                      <span className="sl-set" style={{ fontStyle: 'italic' }}>{scene.zusammenfassung || 'Notiz'}</span>
+                    </div>
+                  </div>
+                  <div className="meta"><span className="sl-fmt">N</span></div>
+                  <div className="sl-info">
+                    {scene.szeneninfo && (
+                      <Tooltip text={scene.szeneninfo}>
+                        <Info size={11} style={{ color: 'var(--text-muted)', display: 'block' }} />
+                      </Tooltip>
+                    )}
+                  </div>
+                  <div className="rt">
+                    <div className="badges">
+                      {unreadCount > 0 && (
+                        <div className="comment-bubble" title={`${unreadCount} ungelesene Kommentare`}>
+                          <MessageCircle size={11} />
+                          <span>{unreadCount > 99 ? '99+' : unreadCount}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="scene-ctx-wrap" ref={isMenuOpen ? menuRef : null}>
+                      <button
+                        className={`scene-ctx-btn${isMenuOpen ? ' open' : ''}`}
+                        onClick={e => { e.stopPropagation(); setMenuOpenId(isMenuOpen ? null : scene.id) }}
+                        title="Optionen"
+                        disabled={isDeleting}
+                      >
+                        <MoreHorizontal size={13} />
+                      </button>
+                      {isMenuOpen && (
+                        <div className="scene-ctx-menu">
+                          <button className="scene-ctx-item danger" onClick={e => handleDelete(e, scene.id)}>Löschen</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Bulk assign toolbar */}

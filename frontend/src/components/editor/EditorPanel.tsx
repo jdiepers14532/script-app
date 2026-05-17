@@ -377,7 +377,7 @@ export default function EditorPanel({
       {/* ── Vorlage-Vorschau Modal ── */}
       {showVorlagePreview && vorlagePreviewData && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.55)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '40px 24px 24px' }}>
-          <div style={{ background: 'var(--bg-primary)', borderRadius: 12, width: '100%', maxWidth: 860, maxHeight: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, width: '100%', maxWidth: 860, maxHeight: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', border: '1px solid var(--border)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>Vorlage: {vorlagePreviewData.name}</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>Vorschau (nur lesen)</span>
