@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { C, Badge, Tag, TableCard, Arrow, Section, FaqItem, InfoBox, WarnBox, Connector, FieldBox } from './_shared'
+import { C, Badge, Tag, Arrow, Section, FaqItem, InfoBox, WarnBox, Connector, FieldBox } from './_shared'
 
 function SzenenEditorTab() {
   return (
@@ -205,8 +205,8 @@ function SzenenEditorTab() {
         <div style={{ border: `1px solid ${C.orange}33`, borderRadius: 10, padding: 16, marginTop: 16, background: C.orange + '06' }}>
           <div style={{ fontWeight: 700, fontSize: 12, color: C.orange, marginBottom: 10 }}>Notiz-Format — Soft Separation</div>
           <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.8 }}>
-            Szenen im Format <Tag color={C.orange}>Notiz</Tag> werden in der Szenenleiste <strong>getrennt</strong> vom Hauptfluss
-            in einem einklappbaren <em>Notizen</em>-Bereich am Ende angezeigt.
+            Szenen im Format <Tag color={C.orange}>Notiz</Tag> können <strong>frei positioniert</strong> werden wie normale Szenen.
+            Neue Notizen werden am Ende der Liste eingefügt. Drag &amp; Drop zum Umsortieren.
           </div>
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.8 }}>
@@ -224,7 +224,7 @@ function SzenenEditorTab() {
                 <li>Freitext-Editor (gleicher Inhalt)</li>
                 <li>Vorlagen-Anbindung ({'{{'+'notiz_inhalt'+'}}'}) </li>
                 <li>Kommentar-Badges (messenger.app)</li>
-                <li>Zugang über Notizen-Sektion (einklappbar)</li>
+                <li>Werden in neue Werkstufen übernommen (Checkbox)</li>
               </ul>
             </div>
           </div>
@@ -233,6 +233,67 @@ function SzenenEditorTab() {
             Bei bestehendem Inhalt erscheint eine Bestätigung — der Inhalt wird beim Wechsel gelöscht, der Szenenkopf bleibt erhalten.
           </InfoBox>
         </div>
+      </Section>
+
+      {/* ══════════════════════════════════════════════════════════════════════════ */}
+      {/* 2b. Neue Werkstufe — Übernahme-Optionen */}
+      {/* ══════════════════════════════════════════════════════════════════════════ */}
+      <Section title="2b. Neue Werkstufe anlegen — Übernahme-Optionen">
+        <p style={{ fontSize: 12, color: C.muted, marginBottom: 16 }}>
+          Im Dokument-Editor-Header (Panel-Leiste) öffnen <strong>+ Neue Drehbuch-Version</strong> und{' '}
+          <strong>+ Neue Storyline-Version</strong> einen Dialog mit Kopier-Optionen.
+          So können Szenenköpfe und/oder Inhalte aus einer Vorfassung übernommen werden.
+        </p>
+
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, marginBottom: 4 }}>
+          <thead>
+            <tr style={{ borderBottom: `2px solid ${C.border}`, background: C.subtle }}>
+              {['Option', 'Szenenköpfe', 'Body-Inhalt', 'Format'].map(h => (
+                <th key={h} style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600 }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { opt: 'Vollständig duplizieren', kopfe: 'Ja', body: 'Ja (unverändert)', fmt: 'Gleich wie Vorfassung' },
+              { opt: 'Nur Szenenkopf übernehmen', kopfe: 'Ja (inkl. Oneliner)', body: 'Leer', fmt: 'Ziel-Typ' },
+              { opt: 'Storyline-Text als TXT', kopfe: 'Ja', body: 'Als TXT-Absatzformat', fmt: 'Drehbuch' },
+              { opt: 'Leere Werkstufe', kopfe: 'Nein', body: 'Leer', fmt: 'Ziel-Typ' },
+              { opt: 'Platzhalter-Szenen', kopfe: 'Nein', body: 'Leer', fmt: 'Ziel-Typ' },
+            ].map((r, i) => (
+              <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
+                <td style={{ padding: '5px 10px', fontWeight: 600 }}>{r.opt}</td>
+                <td style={{ padding: '5px 10px', color: r.kopfe === 'Nein' ? C.red : C.green }}>{r.kopfe}</td>
+                <td style={{ padding: '5px 10px', color: C.muted }}>{r.body}</td>
+                <td style={{ padding: '5px 10px', color: C.muted }}>{r.fmt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 14 }}>
+            <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 8 }}>Notizen übernehmen</div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+              Checkbox (Standard: an) — Notiz-Szenen werden unabhängig vom Haupt-Kopiermodus
+              immer vollständig in die neue Werkstufe übernommen.
+            </div>
+          </div>
+          <div style={{ border: `1px solid ${C.blue}33`, borderRadius: 10, padding: 14, background: C.blue + '06' }}>
+            <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 8, color: C.blue }}>Dualview öffnen</div>
+            <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+              Checkbox — öffnet automatisch die Nebeneinander-Ansicht:
+              alte Fassung links, neue Fassung rechts.
+              Entspricht dem Dualview im <em>Ansicht</em>-Modal.
+            </div>
+          </div>
+        </div>
+
+        <WarnBox title="Cross-Format Warnung">
+          Wenn für eine Folge bereits eine Drehbuch-Fassung existiert und eine Storyline-Fassung
+          angelegt wird (oder umgekehrt), erscheint ein Hinweis. Es ist technisch erlaubt, aber ungewöhnlich.
+          Drehbuch- und Storyline-Szenen können nicht in derselben Werkstufe gemischt werden.
+        </WarnBox>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}

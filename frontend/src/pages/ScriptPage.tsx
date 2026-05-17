@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo, useContext } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api, preloadScene, preloadAllScenes } from '../api/client'
@@ -8,7 +8,7 @@ import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
 import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
-import { useFocus, useSelectedProduction, PanelModeContext, useTweaks } from '../contexts'
+import { useFocus, useSelectedProduction, PanelModeContext, useTweaks, usePanelMode } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import { useWerkstufe } from '../hooks/useDokument'
 import SearchReplaceDialog from '../components/SearchReplaceDialog'
@@ -25,7 +25,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
   onNavigateNext?: () => void; onNavigatePrev?: () => void
   onSzeneUpdated?: (updated: any) => void; onMarkCommentsRead?: (szeneId: number) => void
 }) {
-  const { panelMode } = useContext(PanelModeContext)
+  const { panelMode, setPanelMode } = usePanelMode()
   const { tweaks } = useTweaks()
   const sceneEditorMode = tweaks.sceneEditorMode ?? 'single'
   const [folgeId, setFolgeId] = useState<number | null>(null)
@@ -56,6 +56,16 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
   // Track selected werkstufe per panel (for SceneEditor per panel)
   const [leftWerkId, setLeftWerkId] = useState<string | null>(null)
   const [rightWerkId, setRightWerkId] = useState<string | null>(null)
+
+  // Dual-view activation (from NeueWerkstufeModal)
+  const [activateLeftWerkId, setActivateLeftWerkId] = useState<string | null>(null)
+  const [activateRightWerkId, setActivateRightWerkId] = useState<string | null>(null)
+
+  const handleNewWerkCreated = useCallback((newWerkId: string, oldWerkId: string | null) => {
+    setPanelMode('both')
+    if (oldWerkId) setActivateLeftWerkId(oldWerkId)
+    setActivateRightWerkId(newWerkId)
+  }, [setPanelMode])
 
   // Resizable split
   const [splitRatio, setSplitRatio] = useState(0.5)
@@ -156,11 +166,13 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             defaultTyp="storyline"
             selectedSzeneId={selectedSzeneId}
             useDokumentSzenen={useDokumentSzenen}
+            activateWerkId={activateLeftWerkId}
             onCreateWerkstufe={handleCreate}
             onReloadWerkstufen={reloadWerkstufen}
             onNavigateNext={onNavigateNext}
             onNavigatePrev={onNavigatePrev}
             onWerkstufSelected={setLeftWerkId}
+            onNewWerkCreated={handleNewWerkCreated}
           />
         </div>
       )}
@@ -214,11 +226,13 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             defaultTyp="drehbuch"
             selectedSzeneId={selectedSzeneId}
             useDokumentSzenen={useDokumentSzenen}
+            activateWerkId={activateRightWerkId}
             onCreateWerkstufe={handleCreate}
             onReloadWerkstufen={reloadWerkstufen}
             onNavigateNext={onNavigateNext}
             onNavigatePrev={onNavigatePrev}
             onWerkstufSelected={setRightWerkId}
+            onNewWerkCreated={handleNewWerkCreated}
           />
         </div>
       )}

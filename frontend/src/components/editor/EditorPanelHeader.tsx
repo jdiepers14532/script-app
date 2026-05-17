@@ -53,6 +53,7 @@ interface Props {
   sceneFormat?: string | null
   onSelectWerkstufe: (id: string) => void
   onCreateWerkstufe: (typ: string) => void
+  onNeueFassungClick?: (requestedTyp: 'drehbuch' | 'storyline') => void
   onReloadWerkstufen: () => void
   onChangeSceneFormat?: (format: string) => void
   saveStatus?: SaveStatus
@@ -64,7 +65,7 @@ interface Props {
 
 export default function EditorPanelHeader({
   selectedWerk, werkstufen, produktionId, folgeNummer, folgeId,
-  sceneFormat, onSelectWerkstufe, onCreateWerkstufe, onReloadWerkstufen,
+  sceneFormat, onSelectWerkstufe, onCreateWerkstufe, onNeueFassungClick, onReloadWerkstufen,
   onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot, rightSlot,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
@@ -191,15 +192,28 @@ export default function EditorPanelHeader({
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
               {/* New werkstufe options */}
-              {['drehbuch', 'storyline', 'notiz'].map(typ => (
+              {(['drehbuch', 'storyline'] as const).map(typ => (
                 <button
                   key={typ}
-                  onClick={() => { onCreateWerkstufe(typ); setShowMenu(false) }}
+                  onClick={() => {
+                    setShowMenu(false)
+                    if (onNeueFassungClick) {
+                      onNeueFassungClick(typ)
+                    } else {
+                      onCreateWerkstufe(typ)
+                    }
+                  }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '7px 12px', fontSize: 12, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sw-info)', fontFamily: 'inherit' }}
                 >
-                  <Plus size={11} /> Neue {TYP_LABELS[typ] ?? typ}
+                  <Plus size={11} /> Neue {TYP_LABELS[typ]}-Version
                 </button>
               ))}
+              <button
+                onClick={() => { onCreateWerkstufe('notiz'); setShowMenu(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '7px 12px', fontSize: 12, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sw-info)', fontFamily: 'inherit' }}
+              >
+                <Plus size={11} /> Neue Notiz
+              </button>
             </div>
           </>
         )}

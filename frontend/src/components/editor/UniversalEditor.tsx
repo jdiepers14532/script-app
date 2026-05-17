@@ -877,7 +877,7 @@ export default function UniversalEditor({
                           transition: '0.1s',
                         }}
                       >
-                        {type === 'scene_heading' ? 'SH' : type === 'parenthetical' ? 'PAR' : type.slice(0, 4).toUpperCase()}
+                        {type === 'scene_heading' ? 'TXT' : type === 'parenthetical' ? 'PAR' : type.slice(0, 4).toUpperCase()}
                       </button>
                     </Tooltip>
                   ))}

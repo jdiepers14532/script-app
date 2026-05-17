@@ -493,7 +493,13 @@ export const api = {
   getWerkstufen: (folgeId: number) =>
     request<any[]>('GET', `/v2/folgen/${folgeId}/werkstufen`),
   getWerkstufe: (id: string) => request<any>('GET', `/werkstufen/${id}`),
-  createWerkstufe: (folgeId: number, data: { typ: string; label?: string }) =>
+  createWerkstufe: (folgeId: number, data: {
+    typ: string
+    label?: string
+    mode?: 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty'
+    vorgaenger_id?: string
+    kopiere_notizen?: boolean
+  }) =>
     request<any>('POST', `/v2/folgen/${folgeId}/werkstufen`, data),
   updateWerkstufe: (id: string, data: { label?: string; bearbeitung_status?: string }) =>
     request<any>('PUT', `/werkstufen/${id}`, data),

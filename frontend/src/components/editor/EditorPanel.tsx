@@ -13,6 +13,8 @@ import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
 import { Clock } from 'lucide-react'
 import Tooltip from '../Tooltip'
+import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
+import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 
 interface Props {
   produktionId: string
@@ -23,17 +25,20 @@ interface Props {
   defaultTyp?: string
   selectedSzeneId?: number | string | null
   useDokumentSzenen?: boolean
+  activateWerkId?: string | null
   onCreateWerkstufe: (typ: string) => void
-  onReloadWerkstufen: () => void
+  onReloadWerkstufen: () => void | Promise<void>
   onNavigateNext?: () => void
   onNavigatePrev?: () => void
   onWerkstufSelected?: (werkId: string | null) => void
+  onNewWerkCreated?: (newWerkId: string, oldWerkId: string | null) => void
 }
 
 export default function EditorPanel({
   produktionId, folgeNummer, folgeId, werkstufen, formatElements = [],
-  defaultTyp, selectedSzeneId, useDokumentSzenen, onCreateWerkstufe, onReloadWerkstufen,
-  onNavigateNext, onNavigatePrev, onWerkstufSelected,
+  defaultTyp, selectedSzeneId, useDokumentSzenen, activateWerkId,
+  onCreateWerkstufe, onReloadWerkstufen,
+  onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
@@ -52,6 +57,10 @@ export default function EditorPanel({
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Neue Werkstufe Modal ──────────────────────────────────────────────────
+  const [neueFassungModal, setNeueFassungModal] = useState<'drehbuch' | 'storyline' | null>(null)
+  const [platzhalterWerkId, setPlatzhalterWerkId] = useState<string | null>(null)
 
   // ── Snapshot state ────────────────────────────────────────────────────────
   const [snapshotOpen, setSnapshotOpen] = useState(false)
@@ -98,10 +107,43 @@ export default function EditorPanel({
     setSelectedWerkId(preferred?.id ?? werkstufen[0]?.id ?? null)
   }, [werkstufen]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Force-select activateWerkId when it changes (dual-view activation from modal)
+  useEffect(() => {
+    if (!activateWerkId) return
+    if (werkstufen.some(w => w.id === activateWerkId)) {
+      setSelectedWerkId(activateWerkId)
+    }
+  }, [activateWerkId, werkstufen])
+
   const selectedWerk = werkstufen.find(w => w.id === selectedWerkId) ?? null
 
   // Report werkstufId changes to parent
   useEffect(() => { onWerkstufSelected?.(selectedWerkId) }, [selectedWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Neue Werkstufe: confirm handler
+  const handleNeueFassungConfirm = useCallback(async (params: NeueWerkstufeParams) => {
+    if (!folgeId) return
+    const oldWerkId = selectedWerkId
+    setNeueFassungModal(null)
+    try {
+      const newWerk = await api.createWerkstufe(folgeId, {
+        typ: params.typ,
+        mode: params.mode === 'platzhalter' ? 'empty' : params.mode,
+        vorgaenger_id: params.vorgaenger_id,
+        kopiere_notizen: params.kopiere_notizen,
+      })
+      await onReloadWerkstufen()
+      setSelectedWerkId(newWerk.id)
+      if (params.dualview) {
+        onNewWerkCreated?.(newWerk.id, oldWerkId)
+      }
+      if (params.mode === 'platzhalter') {
+        setPlatzhalterWerkId(newWerk.id)
+      }
+    } catch (err) {
+      console.error('Fehler beim Erstellen der Werkstufe:', err)
+    }
+  }, [folgeId, selectedWerkId, onReloadWerkstufen, onNewWerkCreated])
 
   // Load content for the SELECTED scene only (per-scene editing)
   useEffect(() => {
@@ -335,6 +377,7 @@ export default function EditorPanel({
         sceneFormat={currentSzene?.format ?? null}
         onSelectWerkstufe={setSelectedWerkId}
         onCreateWerkstufe={onCreateWerkstufe}
+        onNeueFassungClick={folgeId ? (typ) => setNeueFassungModal(typ) : undefined}
         onReloadWerkstufen={onReloadWerkstufen}
         onChangeSceneFormat={async (fmt) => {
           if (!currentSzene?.id || typeof currentSzene.id !== 'string') return
@@ -538,10 +581,10 @@ export default function EditorPanel({
             </p>
             {werkstufen.length === 0 && folgeId && (
               <div style={{ display: 'flex', gap: 8 }}>
-                {['drehbuch', 'storyline'].map(typ => (
-                  <button key={typ} onClick={() => onCreateWerkstufe(typ)}
+                {(['drehbuch', 'storyline'] as const).map(typ => (
+                  <button key={typ} onClick={() => setNeueFassungModal(typ)}
                     style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
-                    {typ}
+                    + {typ === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
                   </button>
                 ))}
               </div>
@@ -584,6 +627,29 @@ export default function EditorPanel({
           </Suspense>
         )}
       </div>
+
+      {/* Neue Werkstufe Modal */}
+      {neueFassungModal && folgeId && (
+        <NeueWerkstufeModal
+          requestedTyp={neueFassungModal}
+          werkstufen={werkstufen}
+          folgeNummer={folgeNummer}
+          produktionId={produktionId}
+          onConfirm={handleNeueFassungConfirm}
+          onClose={() => setNeueFassungModal(null)}
+        />
+      )}
+
+      {/* Platzhalter-Szenen Dialog (after neue werkstufe creation) */}
+      {platzhalterWerkId && (
+        <PlatzhalterSzenenDialog
+          werkstufId={platzhalterWerkId}
+          produktionId={produktionId}
+          open={true}
+          onClose={() => setPlatzhalterWerkId(null)}
+          onCreated={() => setPlatzhalterWerkId(null)}
+        />
+      )}
     </div>
   )
 }

@@ -461,7 +461,7 @@ export default function SceneList({
             <Lock size={11} style={{ color: 'var(--sw-warning)', display: 'block' }} />
           </span>
         )}
-        <Tooltip text={isTouch
+        <Tooltip placement="bottom" text={isTouch
           ? `Neue ${nativeLabel}-Szene`
           : `Neue Szene\n${isDrehbuchWerk ? 'D=Drehbuch' : 'S/T=Storyline'} · N=Notiz\n(Taste halten + Klick)`
         }>

@@ -57,25 +57,43 @@ folgeWerkstufenRouter.get('/', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 folgeWerkstufenRouter.post('/', async (req, res) => {
   const folgeId = parseInt((req.params as any).folgeId)
-  const { typ, label, sichtbarkeit, vorgaenger_id } = req.body
+  const {
+    typ, label, sichtbarkeit, vorgaenger_id,
+    mode = 'full',         // 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty'
+    kopiere_notizen = true, // bool — copy notiz-format scenes from predecessor
+  } = req.body
   const user = req.user!
 
   if (!typ) return res.status(400).json({ error: 'typ required' })
+
+  // Transform content nodes to use a specific absatzformat ID (for storyline_body_as_txt)
+  function transformContentToFormat(node: any, formatId: string): any {
+    if (!node || typeof node !== 'object') return node
+    if (Array.isArray(node)) return node.map((n: any) => transformContentToFormat(n, formatId))
+    if (node.type === 'absatz') {
+      return { ...node, attrs: { ...(node.attrs || {}), format_id: formatId } }
+    }
+    if (node.content) {
+      return { ...node, content: transformContentToFormat(node.content, formatId) }
+    }
+    return node
+  }
 
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
 
-    // Verify folge exists
-    const folge = await client.query('SELECT id FROM folgen WHERE id = $1', [folgeId])
+    // Verify folge exists and get produktion_id (needed for TXT format lookup)
+    const folge = await client.query('SELECT id, produktion_id FROM folgen WHERE id = $1', [folgeId])
     if (folge.rows.length === 0) {
       await client.query('ROLLBACK')
       return res.status(404).json({ error: 'Folge nicht gefunden' })
     }
+    const produktionId = folge.rows[0].produktion_id
 
     // Determine predecessor: explicit or highest version of same typ
-    let predecessorId = vorgaenger_id
-    if (!predecessorId) {
+    let predecessorId = vorgaenger_id || null
+    if (!predecessorId && mode !== 'empty') {
       const prev = await client.query(
         `SELECT id FROM werkstufen
          WHERE folge_id = $1 AND typ = $2
@@ -100,34 +118,117 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
     )
     const werkstufe = wsRes.rows[0]
 
-    // Copy dokument_szenen from predecessor (if any)
     let copiedCount = 0
-    if (predecessorId) {
-      const copyRes = await client.query(
-        `INSERT INTO dokument_szenen
-           (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-            format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-            szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by, page_length)
-         SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
-                format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-                szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, $2, page_length
-         FROM dokument_szenen
-         WHERE werkstufe_id = $3 AND geloescht = false`,
-        [werkstufe.id, user.name || user.user_id, predecessorId]
-      )
-      copiedCount = copyRes.rowCount ?? 0
 
-      // Copy scene_characters from predecessor with new werkstufe_id
-      await client.query(
-        `INSERT INTO scene_characters
-           (werkstufe_id, scene_identity_id, character_id, kategorie_id,
-            anzahl, spiel_typ, repliken_anzahl, header_o_t)
-         SELECT $1, scene_identity_id, character_id, kategorie_id,
-                anzahl, spiel_typ, repliken_anzahl, header_o_t
-         FROM scene_characters
-         WHERE werkstufe_id = $2`,
-        [werkstufe.id, predecessorId]
-      )
+    if (predecessorId && mode !== 'empty') {
+      if (mode === 'full') {
+        // Copy all non-notiz scenes with full content
+        const copyRes = await client.query(
+          `INSERT INTO dokument_szenen
+             (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+              format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+              szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by, page_length)
+           SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                  format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+                  szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, $2, page_length
+           FROM dokument_szenen
+           WHERE werkstufe_id = $3 AND geloescht = false
+             AND (format IS NULL OR format != 'notiz')`,
+          [werkstufe.id, user.name || user.user_id, predecessorId]
+        )
+        copiedCount = copyRes.rowCount ?? 0
+
+      } else if (mode === 'headers_only') {
+        // Copy scene headers, clear body content (but keep zusammenfassung/oneliner)
+        const copyRes = await client.query(
+          `INSERT INTO dokument_szenen
+             (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+              format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+              szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by, page_length)
+           SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                  $4, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+                  szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, NULL, $2, NULL
+           FROM dokument_szenen
+           WHERE werkstufe_id = $3 AND geloescht = false
+             AND (format IS NULL OR format != 'notiz')`,
+          [werkstufe.id, user.name || user.user_id, predecessorId, typ]
+        )
+        copiedCount = copyRes.rowCount ?? 0
+
+      } else if (mode === 'storyline_body_as_txt') {
+        // Cross-format: copy storyline body text, assign TXT absatzformat, change format → target typ
+        // Find TXT absatzformat for this produktion
+        const txtFmtRes = await client.query(
+          `SELECT id FROM absatzformate WHERE produktion_id = $1 AND kuerzel = 'TXT' LIMIT 1`,
+          [produktionId]
+        )
+        const txtFormatId = txtFmtRes.rows[0]?.id ?? null
+
+        // Fetch predecessor scenes (non-notiz)
+        const predScenes = await client.query(
+          `SELECT scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                  ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+                  szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content
+           FROM dokument_szenen
+           WHERE werkstufe_id = $1 AND geloescht = false
+             AND (format IS NULL OR format != 'notiz')`,
+          [predecessorId]
+        )
+
+        for (const s of predScenes.rows) {
+          let transformedContent = s.content
+          if (txtFormatId && s.content) {
+            try {
+              const parsed = typeof s.content === 'string' ? JSON.parse(s.content) : s.content
+              transformedContent = transformContentToFormat(parsed, txtFormatId)
+            } catch { /* keep original if parse fails */ }
+          }
+          await client.query(
+            `INSERT INTO dokument_szenen
+               (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+                szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+            [
+              werkstufe.id, s.scene_identity_id, s.sort_order, s.scene_nummer, s.scene_nummer_suffix,
+              typ, s.ort_name, s.int_ext, s.tageszeit, s.spieltag, s.zusammenfassung, s.spielzeit,
+              s.szeneninfo, s.seiten, s.stoppzeit_sek, s.dauer_min, s.dauer_sek, s.is_wechselschnitt,
+              transformedContent ? JSON.stringify(transformedContent) : null, user.name || user.user_id,
+            ]
+          )
+          copiedCount++
+        }
+      }
+
+      // Copy scene_characters from predecessor (only for full copy)
+      if (mode === 'full') {
+        await client.query(
+          `INSERT INTO scene_characters
+             (werkstufe_id, scene_identity_id, character_id, kategorie_id,
+              anzahl, spiel_typ, repliken_anzahl, header_o_t)
+           SELECT $1, scene_identity_id, character_id, kategorie_id,
+                  anzahl, spiel_typ, repliken_anzahl, header_o_t
+           FROM scene_characters
+           WHERE werkstufe_id = $2`,
+          [werkstufe.id, predecessorId]
+        )
+      }
+
+      // Copy notiz scenes separately if requested (always full copy)
+      if (kopiere_notizen) {
+        await client.query(
+          `INSERT INTO dokument_szenen
+             (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+              format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+              szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, updated_by, page_length)
+           SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                  format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+                  szeneninfo, seiten, stoppzeit_sek, dauer_min, dauer_sek, is_wechselschnitt, content, $2, page_length
+           FROM dokument_szenen
+           WHERE werkstufe_id = $3 AND geloescht = false AND format = 'notiz'`,
+          [werkstufe.id, user.name || user.user_id, predecessorId]
+        )
+      }
     }
 
     await client.query('COMMIT')
