@@ -267,44 +267,64 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
     onToggle(pos)
   }
 
+  // Höhe: 29px (≈ 24px + 20%)
+  const H = 29
+  // Tick-Höhen
+  const TICK_5CM  = Math.round(H * 0.62)  // ~18px — alle 5 cm
+  const TICK_1CM  = Math.round(H * 0.38)  // ~11px — jeder cm
+  const TICK_05CM = Math.round(H * 0.21)  //  ~6px — halbe cm
+
   return (
     <div
       ref={rulerRef}
-      onMouseDown={e => e.preventDefault()}  // Fokus-Verlust verhindern
+      onMouseDown={e => e.preventDefault()}
       onClick={handleClick}
       title="Klicken = L-Tab setzen · nochmal = C-Tab · nochmal = R-Tab · nochmal = entfernen"
       style={{
-        position: 'relative', height: 24,
-        background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)',
+        position: 'relative', height: H,
+        background: 'var(--bg-subtle)', borderBottom: '2px solid var(--border)',
         cursor: 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
       }}
     >
-      {/* cm-Ticks */}
-      {Array.from({ length: RULER_CM + 1 }, (_, i) => (
-        <div
-          key={i}
-          style={{
-            position: 'absolute', left: cmToPx(i), bottom: 0, width: 1,
-            height: i % 5 === 0 ? 13 : 7,
-            background: i % 5 === 0 ? 'var(--text-muted)' : 'var(--border)',
-            pointerEvents: 'none',
-          }}
-        >
-          {i > 0 && i % 5 === 0 && (
-            <span style={{
-              position: 'absolute', bottom: 14, left: -4,
-              fontSize: 8, color: 'var(--text-muted)', pointerEvents: 'none',
-            }}>{i}</span>
-          )}
-        </div>
-      ))}
+      {/* cm-Ticks (0, 1, 2, …, 17) */}
+      {Array.from({ length: RULER_CM + 1 }, (_, i) => {
+        const is5 = i % 5 === 0
+        const tickH = is5 ? TICK_5CM : TICK_1CM
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute', left: cmToPx(i), bottom: 0,
+              width: is5 ? 2 : 1, height: tickH,
+              background: is5 ? 'var(--text-secondary)' : 'var(--text-muted)',
+              opacity: is5 ? 1 : 0.6,
+              pointerEvents: 'none',
+            }}
+          >
+            {/* Maßangabe bei 5er-Schritten: "5 cm", "10 cm", "15 cm" */}
+            {is5 && i > 0 && (
+              <span style={{
+                position: 'absolute', bottom: tickH + 2, left: i === RULER_CM ? undefined : -4,
+                right: i === RULER_CM ? 0 : undefined,
+                fontSize: 9, fontWeight: 600,
+                color: 'var(--text-secondary)', pointerEvents: 'none',
+                whiteSpace: 'nowrap', lineHeight: 1,
+              }}>
+                {i} cm
+              </span>
+            )}
+          </div>
+        )
+      })}
       {/* Halbe-cm-Ticks */}
       {Array.from({ length: RULER_CM * 2 }, (_, i) => {
         if (i % 2 === 0) return null
         return (
           <div key={`h${i}`} style={{
             position: 'absolute', left: cmToPx(i * 0.5), bottom: 0,
-            width: 1, height: 4, background: 'var(--border)', pointerEvents: 'none',
+            width: 1, height: TICK_05CM,
+            background: 'var(--text-muted)', opacity: 0.4,
+            pointerEvents: 'none',
           }} />
         )
       })}
@@ -316,14 +336,15 @@ function RulerBar({ tabStops, onToggle, containerRef }: RulerBarProps) {
           onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
           onClick={e => { e.stopPropagation(); onToggle(ts.pos) }}
           style={{
-            position: 'absolute', left: cmToPx(ts.pos) - 6, bottom: 2,
-            width: 12, height: 16, display: 'flex', alignItems: 'flex-end',
+            position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1,
+            width: 14, height: H - 2, display: 'flex', alignItems: 'center',
             justifyContent: 'center', color: TAB_ALIGN_COLORS[ts.align],
             fontSize: 10, fontWeight: 700, cursor: 'pointer', zIndex: 2,
             lineHeight: 1,
+            borderLeft: `2px solid ${TAB_ALIGN_COLORS[ts.align]}`,
           }}
         >
-          {TAB_ALIGN_SYMBOL[ts.align]}
+          <span style={{ marginLeft: 3 }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
         </div>
       ))}
     </div>
