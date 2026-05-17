@@ -558,17 +558,27 @@ export default function AppShell({
 
   // ── User-Info same-origin laden (zuverlässig nach Refresh) ──────────────
   useEffect(() => {
+    // sessionStorage-Redirect-Fallback: nach erfolgreichem Login zurücknavigieren
+    const pendingRedirect = sessionStorage.getItem('auth_redirect_after_login')
+
     fetch('/api/me/whoami', { credentials: 'include' })
       .then(r => {
         if (r.status === 401) {
-          const redirect = encodeURIComponent(window.location.href)
-          window.location.href = `https://auth.serienwerft.studio/?redirect=${redirect}`
+          const redirectUrl = window.location.href
+          sessionStorage.setItem('auth_redirect_after_login', redirectUrl)
+          window.location.href = `https://auth.serienwerft.studio/?redirect=${encodeURIComponent(redirectUrl)}`
           return null
         }
         return r.ok ? r.json() : null
       })
       .then((data: any) => {
-        if (data) setCurrentUser({ username: data.name, email: data.email, user_id: data.user_id })
+        if (!data) return
+        setCurrentUser({ username: data.name, email: data.email, user_id: data.user_id })
+        // Authentifiziert → pendingRedirect abarbeiten
+        if (pendingRedirect && pendingRedirect !== window.location.href) {
+          sessionStorage.removeItem('auth_redirect_after_login')
+          window.location.href = pendingRedirect
+        }
       })
       .catch(() => {})
 
@@ -586,6 +596,51 @@ export default function AppShell({
     api.getDkProductions()
       .then(d => setHasDkAccess(d.global || d.production_ids.length > 0))
       .catch(() => setHasDkAccess(false))
+
+    // ── Silent Token-Refresh (5 Minuten vor Ablauf) ───────────────────────
+    // Versucht exp-Timestamp aus /api/auth/me zu lesen.
+    // Fallback: alle 50 Minuten refreshen (konservativ bei 60min Session).
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null
+
+    const scheduleRefresh = (expMs: number) => {
+      const msUntilRefresh = expMs - Date.now() - 5 * 60 * 1000
+      if (msUntilRefresh <= 0) {
+        doSilentRefresh()
+        return
+      }
+      refreshTimer = setTimeout(doSilentRefresh, msUntilRefresh)
+    }
+
+    const doSilentRefresh = () => {
+      fetch('https://auth.serienwerft.studio/api/auth/refresh', { credentials: 'include' })
+        .then(r => {
+          if (!r.ok) {
+            // Refresh fehlgeschlagen → Auth-Redirect
+            const redirectUrl = window.location.href
+            sessionStorage.setItem('auth_redirect_after_login', redirectUrl)
+            window.location.href = `https://auth.serienwerft.studio/?redirect=${encodeURIComponent(redirectUrl)}`
+          }
+        })
+        .catch(() => {})
+    }
+
+    fetch('https://auth.serienwerft.studio/api/auth/me', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        if (data?.exp) {
+          scheduleRefresh(data.exp * 1000)
+        } else {
+          // Kein exp-Timestamp → alle 50 Minuten refreshen
+          refreshTimer = setTimeout(doSilentRefresh, 50 * 60 * 1000)
+        }
+      })
+      .catch(() => {
+        // non-critical — kein Refresh wenn auth.app nicht erreichbar
+      })
+
+    return () => {
+      if (refreshTimer !== null) clearTimeout(refreshTimer)
+    }
   }, [])
 
   // ── Notifications laden + alle 60s pollen ────────────────────────────────

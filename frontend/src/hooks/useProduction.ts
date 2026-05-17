@@ -27,8 +27,9 @@ export function useProduction() {
     Promise.all([
       fetch('/api/me/productions', { credentials: 'include' }).then(r => {
         if (r.status === 401) {
-          const redirect = encodeURIComponent(window.location.href)
-          window.location.href = `https://auth.serienwerft.studio/?redirect=${redirect}`
+          const redirectUrl = window.location.href
+          sessionStorage.setItem('auth_redirect_after_login', redirectUrl)
+          window.location.href = `https://auth.serienwerft.studio/?redirect=${encodeURIComponent(redirectUrl)}`
           return []
         }
         return r.json()

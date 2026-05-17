@@ -70,8 +70,9 @@ async function doRequest<T>(method: string, path: string, body?: unknown): Promi
     body: body ? JSON.stringify(body) : undefined,
   })
   if (res.status === 401) {
-    const redirectUrl = encodeURIComponent(window.location.href)
-    window.location.href = `https://auth.serienwerft.studio/?redirect=${redirectUrl}`
+    const redirectUrl = window.location.href
+    sessionStorage.setItem('auth_redirect_after_login', redirectUrl)
+    window.location.href = `https://auth.serienwerft.studio/?redirect=${encodeURIComponent(redirectUrl)}`
     return new Promise(() => {}) // halt execution while redirecting
   }
   if (!res.ok) {
