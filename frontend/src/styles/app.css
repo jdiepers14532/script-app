@@ -419,19 +419,6 @@
 .detail { flex-shrink:0; width:100%; display:flex; flex-direction:column; background:var(--bg-page); overflow:hidden; }
 /* Compact mode: flex column (scene-fields hidden) */
 .detail .detail-head { flex-shrink:0; z-index:5; background:var(--bg-page); border-bottom:1px solid var(--border); padding:10px 20px 6px; display:flex; flex-direction:column; gap:2px; }
-/* Non-compact: unified grid — all rows share exact column widths */
-.detail .detail-head.detail-head-grid { display:grid; grid-template-columns:auto auto 1fr auto auto auto; column-gap:8px; row-gap:3px; align-items:baseline; }
-/* scene-r1 as subgrid row spanning all 6 columns */
-.detail-head-grid .scene-r1 { grid-column:1/-1; display:grid; grid-template-columns:subgrid; align-items:baseline; }
-/* scene-fields + rows: transparent wrappers, children become direct grid items */
-.detail-head-grid .scene-fields { display:contents; }
-.detail-head-grid .scene-fields-rows { display:contents; }
-/* Field rows in col 3 (motiv column) */
-.detail-head-grid .sf-row { grid-column:3; }
-/* Sondertyp cell in col 4 (spielzeit column) — same row as oneliner */
-.sf-sondertyp-cell { grid-column:4; display:flex; align-items:center; }
-/* Wide rows spanning cols 3–4 (sondertyp details, wechselschnitt info) */
-.detail-head-grid .sf-wide { grid-column:3/5; }
 
 /* Zeile 1 — CSS Grid für saubere Ausrichtung */
 .scene-r1 { display:grid; grid-template-columns:auto auto 1fr auto auto auto auto; align-items:baseline; gap:8px; }

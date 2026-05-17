@@ -727,170 +727,561 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         }}
       >
 
-        {/* Zeile 1: SZ | Stoppzeit-Input | Motiv | [Rollen compact] | Spielzeit | DT · I/T | buttons */}
-        <div className={`scene-r1${compact ? ' scene-r1-compact' : ''}`}>
-          {/* SZ-Nummer */}
-          <span className="sz-group">
-            <span className="scene-big">SZ{scene.scene_nummer}</span>
-          </span>
+        {/* Non-compact: HTML table for guaranteed column alignment */}
+        {!compact && (
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+            <tbody>
+              <tr style={{ verticalAlign: 'baseline' }}>
+                {/* Col 1: SZ-Nummer */}
+                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                  <span className="sz-group"><span className="scene-big">SZ{scene.scene_nummer}</span></span>
+                </td>
+                {/* Col 2: Stoppzeit */}
+                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                  <div className="stopp-col">
+                    <Tooltip
+                      text={scene.page_length != null && scene.page_length > 0
+                        ? `Stoppzeit (mm:ss)\n${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)`
+                        : 'Stoppzeit (mm:ss)'}
+                      placement="bottom"
+                    >
+                      <input
+                        key={`stopp-${szeneId}`}
+                        className="spielzeit-inp stopp-inp"
+                        defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
+                        placeholder="0:00"
+                        onBlur={e => {
+                          const raw = e.target.value.trim()
+                          if (!raw) {
+                            if (scene.stoppzeit_sek != null)
+                              saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                            return
+                          }
+                          const parts = raw.split(':')
+                          const mins = parseInt(parts[0] || '0', 10) || 0
+                          const secs = parseInt(parts[1] || '0', 10) || 0
+                          const total = mins * 60 + secs
+                          if (total !== (scene.stoppzeit_sek ?? null))
+                            saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                        }}
+                      />
+                    </Tooltip>
+                    {werkstufTyp === 'drehbuch' && useDokumentSzenen && (
+                      <Tooltip
+                        text={`Stoppzeit automatisch berechnen\n${getShortcutLabel('vorstoppAuto', layout, isMac)}: Ganze Folge\nKlick: Nur diese Szene`}
+                        placement="bottom"
+                      >
+                        <button
+                          className="stopp-auto-btn"
+                          disabled={stoppzeitAutoLoading}
+                          onClick={e => {
+                            if (e.altKey) { e.preventDefault(); setStoppzeitAutoModal(true) }
+                            else handleStoppzeitAuto('scene')
+                          }}
+                          style={{ cursor: stoppzeitAutoLoading ? 'wait' : 'pointer', opacity: stoppzeitAutoLoading ? 0.5 : 1 }}
+                        >
+                          <Zap size={10} />
+                        </button>
+                      </Tooltip>
+                    )}
+                  </div>
+                </td>
+                {/* Col 3: Motiv (width:100%) */}
+                <td style={{ paddingRight: 8, width: '100%', paddingBottom: 4 }}>
+                  <div className="sf-motiv-group" style={{ display: 'flex', gap: 4, minWidth: 0, alignItems: 'center' }}>
+                    <div className="sf-motiv-wrap" ref={motivDropdownRef}>
+                      <input
+                        className="sf-motiv sf-motiv-input"
+                        value={motivDropdownOpen ? motivSearch : ((() => {
+                          const curMotiv = allMotive.find(m => m.id === scene.motiv_id)
+                          const parent = curMotiv?.parent_id ? allMotive.find(m => m.id === curMotiv.parent_id) : curMotiv
+                          return parent ? motivDisplayLabel(parent) : (scene.ort_name ?? '')
+                        })())}
+                        placeholder={`${t('motiv')}…`}
+                        onChange={e => { setMotivSearch(e.target.value); if (!motivDropdownOpen) setMotivDropdownOpen(true) }}
+                        onFocus={() => { setMotivDropdownOpen(true); setMotivSearch('') }}
+                        onBlur={() => {
+                          setTimeout(() => {
+                            if (!motivDropdownRef.current?.contains(document.activeElement)) setMotivDropdownOpen(false)
+                          }, 150)
+                        }}
+                      />
+                      {motivDropdownOpen && (
+                        <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(motivDropdownRef)}>
+                          {parentMotive
+                            .filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase()))
+                            .map(m => (
+                              <div key={m.id} className="sf-dropdown-item"
+                                onMouseDown={e => { e.preventDefault(); handleMotivSelect(m) }}>
+                                <span>{motivDisplayLabel(m)}</span>
+                                {childrenOf[m.id] && <span style={{ color: 'var(--text-muted)', marginLeft: 4, fontSize: 10 }}>▸</span>}
+                              </div>
+                            ))}
+                          {parentMotive.filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase())).length === 0 && (
+                            <div className="sf-dropdown-empty">Kein {t('motiv')} gefunden</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    {selectedMotivId && childrenOf[selectedMotivId] && childrenOf[selectedMotivId].length > 0 && (
+                      <>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>/</span>
+                        <div className="sf-motiv-wrap" ref={untermotivDropdownRef}>
+                          <input
+                            className="sf-motiv sf-motiv-input sf-motiv-sub"
+                            value={untermotivDropdownOpen ? untermotivSearch : ((() => {
+                              const curMotiv = allMotive.find(m => m.id === scene.motiv_id)
+                              return curMotiv?.parent_id ? curMotiv.name : ''
+                            })())}
+                            placeholder="Untermotiv…"
+                            onChange={e => { setUntermotivSearch(e.target.value); if (!untermotivDropdownOpen) setUntermotivDropdownOpen(true) }}
+                            onFocus={() => { setUntermotivDropdownOpen(true); setUntermotivSearch('') }}
+                            onBlur={() => {
+                              setTimeout(() => {
+                                if (!untermotivDropdownRef.current?.contains(document.activeElement)) setUntermotivDropdownOpen(false)
+                              }, 150)
+                            }}
+                          />
+                          {untermotivDropdownOpen && (
+                            <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(untermotivDropdownRef)}>
+                              <div className="sf-dropdown-item" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}
+                                onMouseDown={e => {
+                                  e.preventDefault()
+                                  setUntermotivDropdownOpen(false)
+                                  setUntermotivSearch('')
+                                  const parentMotiv = allMotive.find(m => m.id === selectedMotivId)
+                                  if (parentMotiv) {
+                                    const ortName = buildOrtName(parentMotiv)
+                                    saveScene({ ort_name: ortName, motiv_id: parentMotiv.id }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                                  }
+                                }}>
+                                — kein Untermotiv —
+                              </div>
+                              {childrenOf[selectedMotivId]
+                                .filter(m => !untermotivSearch || m.name.toLowerCase().includes(untermotivSearch.toLowerCase()))
+                                .map(m => (
+                                  <div key={m.id} className="sf-dropdown-item"
+                                    onMouseDown={e => { e.preventDefault(); handleUntermotivSelect(m) }}>
+                                    {m.name}
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </td>
+                {/* Col 4: Spielzeit */}
+                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                  <span
+                    className="spielzeit-wrap"
+                    onMouseEnter={() => setShowSpielzeitInfo(true)}
+                    onMouseLeave={() => setShowSpielzeitInfo(false)}
+                    style={{ position: 'relative' }}
+                  >
+                    <span className="spiel-field-lbl">Sp</span>
+                    <input
+                      key={`sz-${szeneId}`}
+                      className="spielzeit-inp"
+                      defaultValue={scene.spielzeit ?? ''}
+                      placeholder="00:00"
+                      onBlur={e => {
+                        const val = e.target.value.trim() || null
+                        if (val !== (scene.spielzeit ?? null))
+                          saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                      }}
+                    />
+                    {showSpielzeitInfo && (
+                      <div className="spielzeit-info-pop">
+                        <strong>Spielzeit</strong>
+                        <p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen.</p>
+                      </div>
+                    )}
+                  </span>
+                </td>
+                {/* Col 5: I/T + DT */}
+                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                  <span className="ie-group">
+                    <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
+                      <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
+                    </Tooltip>
+                    <span className="ie-sep">/</span>
+                    <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
+                      <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
+                    </Tooltip>
+                    <span className="ie-sep">·</span>
+                    <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
+                      <span className="ie-field-wrap">
+                        <span className="ie-lbl">DT</span>
+                        <input
+                          key={`dt-${szeneId}`}
+                          className="ie-num-inp"
+                          defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''}
+                          placeholder="—"
+                          type="number"
+                          min={1}
+                          onBlur={e => {
+                            const raw = e.target.value.trim()
+                            const val = raw ? parseInt(raw, 10) : null
+                            if (val !== (scene.spieltag ?? null))
+                              saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                          }}
+                        />
+                      </span>
+                    </Tooltip>
+                  </span>
+                </td>
+                {/* Col 6: Save indicator + Annotations */}
+                <td style={{ whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                    {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
+                    {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
+                    <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
+                      <button
+                        className={`btn ghost${showAnnotations ? ' active' : ''}`}
+                        style={showAnnotations ? { color: 'var(--sw-green)' } : undefined}
+                        onClick={() => {
+                          const next = !showAnnotations
+                          setShowAnnotations(next)
+                          if (!next && kommentareCount > 0 && typeof szeneId === 'number') onMarkCommentsRead?.(szeneId)
+                        }}
+                      >
+                        <MessageSquare size={12} />
+                        {kommentareCount > 0 && !showAnnotations && (
+                          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--sw-green)', marginLeft: 1 }}>{kommentareCount}</span>
+                        )}
+                      </button>
+                    </Tooltip>
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+            {/* Field rows — key resets uncontrolled inputs on scene change */}
+            <tbody key={szeneId}>
+              {/* Row 2: Oneliner (col 3) + Sondertyp (col 4) — same <tr> guarantees alignment with Sp */}
+              <tr style={{ verticalAlign: 'baseline' }}>
+                <td colSpan={2} style={{ padding: 0 }} />
+                <td style={{ paddingRight: 8, paddingBottom: 2 }}>
+                  <input
+                    className="sf-input"
+                    style={{ width: '100%' }}
+                    defaultValue={scene.zusammenfassung ?? ''}
+                    placeholder="Oneliner…"
+                    onBlur={e => {
+                      const val = e.target.value.trim() || null
+                      if (val !== (scene.zusammenfassung ?? null))
+                        saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                    }}
+                  />
+                </td>
+                <td style={{ paddingRight: 8, paddingBottom: 2, whiteSpace: 'nowrap' }}>
+                  {(scene.sondertyp || wsBeteiligt.length === 0) && (
+                    scene.sondertyp ? (
+                      <select
+                        className="sf-input"
+                        value={scene.sondertyp}
+                        style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
+                        onChange={e => {
+                          const val = e.target.value || null
+                          saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                        }}
+                      >
+                        <option value="">Normal</option>
+                        <option value="wechselschnitt">Wechselschnitt</option>
+                        <option value="stockshot">{t('stockshot')}</option>
+                        <option value="flashback">{t('flashback')}</option>
+                      </select>
+                    ) : (
+                      <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
+                        <button
+                          className="btn ghost"
+                          style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)' }}
+                          onClick={() => { saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}
+                        >
+                          Sondertyp 🎭
+                        </button>
+                      </Tooltip>
+                    )
+                  )}
+                </td>
+                <td colSpan={2} style={{ padding: 0 }} />
+              </tr>
+              {/* Row: Sondertyp details */}
+              {scene.sondertyp && (
+                <tr>
+                  <td colSpan={2} style={{ padding: 0 }} />
+                  <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {scene.sondertyp === 'wechselschnitt' && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                          <span style={{ fontWeight: 500 }}>Partner:</span>
+                          {wsPartner.length === 0 && !wsDropdownOpen && <span style={{ fontStyle: 'italic' }}>keine</span>}
+                          {wsPartner.map((p: any) => (
+                            <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#007AFF18', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#007AFF' }}>
+                              Sz. {p.partner_scene_nummer ?? '?'}
+                              <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#007AFF', fontSize: 10 }} onClick={() => { const next = wsPartner.filter((pp: any) => pp.id !== p.id); api.setWechselschnittPartner(scene.id, next.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i }))).then(setWsPartner).catch(() => {}) }}>×</button>
+                            </span>
+                          ))}
+                          <span className="sf-char-add-wrap" ref={wsDropdownRef}>
+                            <button className="sf-char-search" style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }}
+                              onClick={() => { if (allSceneIdentities.length === 0 && werkstufId) { api.getWerkstufenSzenen(werkstufId).then(scenes => { setAllSceneIdentities(scenes); setWsDropdownOpen(true) }).catch(() => setWsDropdownOpen(true)) } else { setWsDropdownOpen(v => !v) } }}>+</button>
+                            {wsDropdownOpen && (
+                              <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(wsDropdownRef)}>
+                                <input className="sf-dropdown-search" autoFocus placeholder="Szene suchen…" value={wsSearch} onChange={e => setWsSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setWsDropdownOpen(false) }} style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }} />
+                                {allSceneIdentities.filter(s => s.scene_identity_id !== scene.scene_identity_id).filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id)).filter(s => { if (!wsSearch.trim()) return true; const q = wsSearch.toLowerCase(); return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q) }).map(s => (
+                                  <div key={s.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); const next = [...wsPartner.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i })), { partner_identity_id: s.scene_identity_id, position: wsPartner.length }]; api.setWechselschnittPartner(scene.id, next).then(updated => { setWsPartner(updated); setWsDropdownOpen(false); setWsSearch('') }).catch(() => {}) }}>
+                                    <span style={{ fontWeight: 600, marginRight: 6 }}>Sz. {s.scene_nummer ?? '?'}</span>
+                                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{[s.int_ext, s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
+                                  </div>
+                                ))}
+                                {allSceneIdentities.filter(s => s.scene_identity_id !== scene.scene_identity_id).filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id)).filter(s => { if (!wsSearch.trim()) return true; const q = wsSearch.toLowerCase(); return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q) }).length === 0 && (
+                                  <div className="sf-dropdown-empty">Keine Szenen verfügbar</div>
+                                )}
+                              </div>
+                            )}
+                          </span>
+                        </span>
+                      )}
+                      {scene.sondertyp === 'stockshot' && (
+                        <>
+                          <select className="sf-input" value={scene.stockshot_kategorie ?? ''} style={{ width: 'auto', maxWidth: 150, fontSize: 11 }} onChange={e => { const val = e.target.value || null; saveScene({ stockshot_kategorie: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}>
+                            <option value="">Kategorie…</option>
+                            <option value="ortswechsel">Ortswechsel</option>
+                            <option value="zeit_vergeht">Zeit vergeht</option>
+                            <option value="stimmungswechsel">Stimmungswechsel</option>
+                          </select>
+                          {scene.stockshot_kategorie === 'stimmungswechsel' && (
+                            <input className="sf-input" defaultValue={scene.stockshot_stimmung ?? ''} placeholder="Stimmung…" style={{ width: 100, fontSize: 11 }} onBlur={e => { const val = e.target.value.trim() || null; saveScene({ stockshot_stimmung: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                          )}
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: scene.stockshot_neu_drehen ? '#FF3B30' : 'var(--text-muted)', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={scene.stockshot_neu_drehen ?? false} onChange={e => { saveScene({ stockshot_neu_drehen: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} style={{ accentColor: '#FF3B30' }} />
+                            Neu zu drehen
+                          </label>
+                        </>
+                      )}
+                      {scene.sondertyp === 'flashback' && scene.flashback_referenz_id && (
+                        <span style={{ fontSize: 11, color: '#AF52DE', fontWeight: 500 }}>
+                          → Referenz: {scene.flashback_referenz_scene_nummer ? `Sz. ${scene.flashback_referenz_scene_nummer}` : scene.flashback_referenz_id.slice(0, 8)}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+              {/* Row: Wechselschnitt beteiligt (read-only) */}
+              {!scene.sondertyp && wsBeteiligt.length > 0 && (
+                <tr>
+                  <td colSpan={2} style={{ padding: 0 }} />
+                  <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2, fontSize: 11, color: '#007AFF', fontStyle: 'italic' }}>
+                    ⇄ Beteiligt an Wechselschnitt (Sz. {wsBeteiligt.map((b: any) => b.scene_nummer ?? '?').join(', ')})
+                  </td>
+                </tr>
+              )}
+              {/* Row: R· Rollen (col 3) + S· Strang (col 4) — same row */}
+              <tr style={{ verticalAlign: 'baseline' }}>
+                <td colSpan={2} style={{ padding: 0 }} />
+                <td style={{ paddingRight: 8, paddingBottom: 2 }}>
+                  <div className="sf-row sf-chars">
+                    <span className="sf-tag">R·</span>
+                    <span className="sf-charlist">
+                      {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any) => (
+                        <span key={c.character_id} className="sf-char-chip">{c.name}<button className="sf-char-remove" title="Entfernen" onClick={() => handleRemoveCharacter(c.character_id)}><X size={9} /></button></span>
+                      ))}
+                      <span className="sf-char-add-wrap" ref={rolleDropdownRef}>
+                        <input className="sf-char-search" value={charSearchRolle} placeholder="+" onChange={e => { setCharSearchRolle(e.target.value); setCharDropdownRolle(true) }} onFocus={() => setCharDropdownRolle(true)} style={{ width: charSearchRolle ? 100 : 20 }} />
+                        {charDropdownRolle && (
+                          <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(rolleDropdownRef)}>
+                            {rolleCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase())).slice(0, 15).map(ch => (
+                              <div key={ch.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, rolleKatId); setCharSearchRolle(''); setCharDropdownRolle(false) }}>{ch.name}</div>
+                            ))}
+                            {rolleCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase())).length === 0 && (
+                              <div className="sf-dropdown-empty">Keine Rollen verfügbar</div>
+                            )}
+                          </div>
+                        )}
+                      </span>
+                    </span>
+                  </div>
+                </td>
+                <td style={{ paddingRight: 8, paddingBottom: 2 }}>
+                  <div className="sf-row sf-chars">
+                    <span className="sf-tag">S·</span>
+                    <span className="sf-charlist">
+                      {sceneStraenge.map((s: any) => (
+                        <span key={s.strang_id} className="sf-char-chip" style={{ borderLeft: `3px solid ${s.farbe || '#888'}` }}>
+                          {s.strang_name}<button className="sf-char-remove" title="Entfernen" onClick={() => { api.removeSzeneStrang(String(szeneId), s.strang_id).then(() => { setSceneStraenge(prev => prev.filter(x => x.strang_id !== s.strang_id)) }).catch(() => {}) }}><X size={9} /></button>
+                        </span>
+                      ))}
+                      <span className="sf-char-add-wrap" ref={strangDropdownRef}>
+                        <button className="sf-char-search" style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }} onClick={() => setStrangDropdownOpen(v => !v)}>+</button>
+                        {strangDropdownOpen && (
+                          <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(strangDropdownRef)}>
+                            {allStraenge.filter(st => st.status === 'aktiv').filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id)).map(st => (
+                              <div key={st.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); api.addSzeneStrang(String(szeneId), st.id).then(() => { setSceneStraenge(prev => [...prev, { strang_id: st.id, strang_name: st.name, farbe: st.farbe }]); setStrangDropdownOpen(false) }).catch(() => {}) }}>
+                                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: st.farbe, marginRight: 6 }} />{st.name}
+                              </div>
+                            ))}
+                            {allStraenge.filter(st => st.status === 'aktiv').filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id)).length === 0 && (
+                              <div className="sf-dropdown-empty">Keine Stränge verfügbar</div>
+                            )}
+                          </div>
+                        )}
+                      </span>
+                    </span>
+                  </div>
+                </td>
+                <td colSpan={2} style={{ padding: 0 }} />
+              </tr>
+              {/* Row: K· Komparsen */}
+              <tr style={{ verticalAlign: 'baseline' }}>
+                <td colSpan={2} style={{ padding: 0 }} />
+                <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
+                  <div className="sf-row sf-chars">
+                    <span className="sf-tag">K·</span>
+                    <span className="sf-charlist">
+                      {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => (
+                        <span key={c.character_id} className="sf-char-chip">{c.name}<button className="sf-char-remove" title="Entfernen" onClick={() => handleRemoveCharacter(c.character_id)}><X size={9} /></button></span>
+                      ))}
+                      <span className="sf-char-add-wrap" ref={komparseDropdownRef}>
+                        <input className="sf-char-search" value={charSearchKomparse} placeholder="+" onChange={e => { setCharSearchKomparse(e.target.value); setCharDropdownKomparse(true) }} onFocus={() => setCharDropdownKomparse(true)} style={{ width: charSearchKomparse ? 100 : 20 }} />
+                        {charDropdownKomparse && (
+                          <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(komparseDropdownRef)}>
+                            {komparseCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase())).slice(0, 15).map(ch => (
+                              <div key={ch.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, komparseKatId); setCharSearchKomparse(''); setCharDropdownKomparse(false) }}>{ch.name}</div>
+                            ))}
+                            {komparseCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase())).length === 0 && (
+                              <div className="sf-dropdown-empty">Keine {t('komparse', 'p')} verfügbar</div>
+                            )}
+                          </div>
+                        )}
+                      </span>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+              {/* Row: Szeneninfo */}
+              <tr style={{ verticalAlign: 'baseline' }}>
+                <td colSpan={2} style={{ padding: 0 }} />
+                <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
+                  <input key={`sinfo-${szeneId}`} className="sf-input sf-input-info" defaultValue={scene.szeneninfo ?? ''} placeholder={`${t('szene','c')}info…`} style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic', width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.szeneninfo ?? null)) saveScene({ szeneninfo: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                </td>
+              </tr>
+              {/* Row: Notiz */}
+              <tr style={{ verticalAlign: 'baseline' }}>
+                <td colSpan={2} style={{ padding: 0 }} />
+                <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
+                  <textarea key={`notiz-${szeneId}`} className="sf-input sf-notiz" defaultValue={scene.notiz ?? ''} placeholder="Notiz…" rows={2} style={{ width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.notiz ?? null)) saveScene({ notiz: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                </td>
+              </tr>
+              {/* Row: Revision badge */}
+              {changedBlocks.size > 0 && revisionColor && (
+                <tr>
+                  <td colSpan={2} style={{ padding: 0 }} />
+                  <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: `${revisionColor}22`, border: `1px solid ${revisionColor}66`, color: revisionColor }}>
+                        <span style={{ fontWeight: 900 }}>*</span>
+                        Revision · {changedBlocks.size} geänd. {changedBlocks.size === 1 ? 'Block' : 'Blöcke'}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
 
-          {/* Stoppzeit + Zap (horizontal) */}
-          <div className="stopp-col">
-            <Tooltip
-              text={!compact && scene.page_length != null && scene.page_length > 0
-                ? `Stoppzeit (mm:ss)\n${Math.floor(scene.page_length / 8)}${scene.page_length % 8 ? ' ' + (scene.page_length % 8) + '/8' : ''} Seite(n)`
-                : 'Stoppzeit (mm:ss)'}
-              placement="bottom"
-            >
-              <input
-                key={`stopp-${szeneId}`}
-                className="spielzeit-inp stopp-inp"
-                defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
-                placeholder="0:00"
-                onBlur={e => {
-                  const raw = e.target.value.trim()
-                  if (!raw) {
-                    if (scene.stoppzeit_sek != null)
-                      saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                    return
-                  }
-                  const parts = raw.split(':')
-                  const mins = parseInt(parts[0] || '0', 10) || 0
-                  const secs = parseInt(parts[1] || '0', 10) || 0
-                  const total = mins * 60 + secs
-                  if (total !== (scene.stoppzeit_sek ?? null))
-                    saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                }}
-              />
-            </Tooltip>
-            {/* Zap-Button: Autoren-Stoppzeit Auto-Berechnung (nur Drehbuch-Werkstufe) */}
-            {werkstufTyp === 'drehbuch' && useDokumentSzenen && (
-              <Tooltip
-                text={`Stoppzeit automatisch berechnen\n${getShortcutLabel('vorstoppAuto', layout, isMac)}: Ganze Folge\nKlick: Nur diese Szene`}
-                placement="bottom"
-              >
-                <button
-                  className="stopp-auto-btn"
-                  disabled={stoppzeitAutoLoading}
-                  onClick={e => {
-                    if (e.altKey) { e.preventDefault(); setStoppzeitAutoModal(true) }
-                    else handleStoppzeitAuto('scene')
+        {/* Compact: original grid layout */}
+        {compact && (
+          <div className="scene-r1 scene-r1-compact">
+            <span className="sz-group"><span className="scene-big">SZ{scene.scene_nummer}</span></span>
+            <div className="stopp-col">
+              <Tooltip text="Stoppzeit (mm:ss)" placement="bottom">
+                <input
+                  key={`stopp-${szeneId}`}
+                  className="spielzeit-inp stopp-inp"
+                  defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
+                  placeholder="0:00"
+                  onBlur={e => {
+                    const raw = e.target.value.trim()
+                    if (!raw) {
+                      if (scene.stoppzeit_sek != null)
+                        saveScene({ stoppzeit_sek: null }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                      return
+                    }
+                    const parts = raw.split(':')
+                    const mins = parseInt(parts[0] || '0', 10) || 0
+                    const secs = parseInt(parts[1] || '0', 10) || 0
+                    const total = mins * 60 + secs
+                    if (total !== (scene.stoppzeit_sek ?? null))
+                      saveScene({ stoppzeit_sek: total }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
                   }}
-                  style={{
-                    cursor: stoppzeitAutoLoading ? 'wait' : 'pointer',
-                    opacity: stoppzeitAutoLoading ? 0.5 : 1,
-                  }}
-                >
-                  <Zap size={10} />
-                </button>
+                />
               </Tooltip>
-            )}
-          </div>
-
-          {/* Motiv + Untermotiv dropdowns (+ compact chars) */}
-          <div className={`sf-motiv-group${compact ? ' sf-motiv-compact' : ''}`} style={{ display: 'flex', flex: 1, gap: 4, minWidth: 0, alignItems: 'center' }}>
-            {/* Motiv (parent) dropdown */}
-            <div className="sf-motiv-wrap" ref={motivDropdownRef}>
-              <input
-                className="sf-motiv sf-motiv-input"
-                value={motivDropdownOpen ? motivSearch : ((() => {
-                  // Show parent motiv name (with drehort label)
-                  const curMotiv = allMotive.find(m => m.id === scene.motiv_id)
-                  const parent = curMotiv?.parent_id ? allMotive.find(m => m.id === curMotiv.parent_id) : curMotiv
-                  return parent ? motivDisplayLabel(parent) : (scene.ort_name ?? '')
-                })())}
-                placeholder={`${t('motiv')}…`}
-                onChange={e => { setMotivSearch(e.target.value); if (!motivDropdownOpen) setMotivDropdownOpen(true) }}
-                onFocus={() => { setMotivDropdownOpen(true); setMotivSearch('') }}
-                onBlur={() => {
-                  setTimeout(() => {
-                    if (!motivDropdownRef.current?.contains(document.activeElement)) setMotivDropdownOpen(false)
-                  }, 150)
-                }}
-              />
-              {motivDropdownOpen && (
-                <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(motivDropdownRef)}>
-                  {parentMotive
-                    .filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase()))
-                    .map(m => (
-                      <div key={m.id} className="sf-dropdown-item"
-                        onMouseDown={e => { e.preventDefault(); handleMotivSelect(m) }}>
+              {werkstufTyp === 'drehbuch' && useDokumentSzenen && (
+                <Tooltip text={`Stoppzeit automatisch berechnen\n${getShortcutLabel('vorstoppAuto', layout, isMac)}: Ganze Folge\nKlick: Nur diese Szene`} placement="bottom">
+                  <button className="stopp-auto-btn" disabled={stoppzeitAutoLoading} onClick={e => { if (e.altKey) { e.preventDefault(); setStoppzeitAutoModal(true) } else handleStoppzeitAuto('scene') }} style={{ cursor: stoppzeitAutoLoading ? 'wait' : 'pointer', opacity: stoppzeitAutoLoading ? 0.5 : 1 }}>
+                    <Zap size={10} />
+                  </button>
+                </Tooltip>
+              )}
+            </div>
+            <div className="sf-motiv-group sf-motiv-compact" style={{ display: 'flex', gap: 4, minWidth: 0, alignItems: 'center' }}>
+              <div className="sf-motiv-wrap" ref={motivDropdownRef}>
+                <input
+                  className="sf-motiv sf-motiv-input"
+                  value={motivDropdownOpen ? motivSearch : ((() => {
+                    const curMotiv = allMotive.find(m => m.id === scene.motiv_id)
+                    const parent = curMotiv?.parent_id ? allMotive.find(m => m.id === curMotiv.parent_id) : curMotiv
+                    return parent ? motivDisplayLabel(parent) : (scene.ort_name ?? '')
+                  })())}
+                  placeholder={`${t('motiv')}…`}
+                  onChange={e => { setMotivSearch(e.target.value); if (!motivDropdownOpen) setMotivDropdownOpen(true) }}
+                  onFocus={() => { setMotivDropdownOpen(true); setMotivSearch('') }}
+                  onBlur={() => { setTimeout(() => { if (!motivDropdownRef.current?.contains(document.activeElement)) setMotivDropdownOpen(false) }, 150) }}
+                />
+                {motivDropdownOpen && (
+                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(motivDropdownRef)}>
+                    {parentMotive.filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase())).map(m => (
+                      <div key={m.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); handleMotivSelect(m) }}>
                         <span>{motivDisplayLabel(m)}</span>
                         {childrenOf[m.id] && <span style={{ color: 'var(--text-muted)', marginLeft: 4, fontSize: 10 }}>▸</span>}
                       </div>
                     ))}
-                  {parentMotive.filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase())).length === 0 && (
-                    <div className="sf-dropdown-empty">Kein {t('motiv')} gefunden</div>
-                  )}
-                </div>
+                    {parentMotive.filter(m => !motivSearch || motivDisplayLabel(m).toLowerCase().includes(motivSearch.toLowerCase())).length === 0 && (
+                      <div className="sf-dropdown-empty">Kein {t('motiv')} gefunden</div>
+                    )}
+                  </div>
+                )}
+              </div>
+              {selectedMotivId && childrenOf[selectedMotivId] && childrenOf[selectedMotivId].length > 0 && (
+                <>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>/</span>
+                  <div className="sf-motiv-wrap" ref={untermotivDropdownRef}>
+                    <input
+                      className="sf-motiv sf-motiv-input sf-motiv-sub"
+                      value={untermotivDropdownOpen ? untermotivSearch : ((() => { const curMotiv = allMotive.find(m => m.id === scene.motiv_id); return curMotiv?.parent_id ? curMotiv.name : '' })())}
+                      placeholder="Untermotiv…"
+                      onChange={e => { setUntermotivSearch(e.target.value); if (!untermotivDropdownOpen) setUntermotivDropdownOpen(true) }}
+                      onFocus={() => { setUntermotivDropdownOpen(true); setUntermotivSearch('') }}
+                      onBlur={() => { setTimeout(() => { if (!untermotivDropdownRef.current?.contains(document.activeElement)) setUntermotivDropdownOpen(false) }, 150) }}
+                    />
+                    {untermotivDropdownOpen && (
+                      <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(untermotivDropdownRef)}>
+                        <div className="sf-dropdown-item" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}
+                          onMouseDown={e => { e.preventDefault(); setUntermotivDropdownOpen(false); setUntermotivSearch(''); const parentMotiv = allMotive.find(m => m.id === selectedMotivId); if (parentMotiv) { const ortName = buildOrtName(parentMotiv); saveScene({ ort_name: ortName, motiv_id: parentMotiv.id }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) } }}>
+                          — kein Untermotiv —
+                        </div>
+                        {childrenOf[selectedMotivId].filter(m => !untermotivSearch || m.name.toLowerCase().includes(untermotivSearch.toLowerCase())).map(m => (
+                          <div key={m.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); handleUntermotivSelect(m) }}>{m.name}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </div>
-
-            {/* Untermotiv (child) dropdown — only if selectedMotivId has children */}
-            {selectedMotivId && childrenOf[selectedMotivId] && childrenOf[selectedMotivId].length > 0 && (
-              <>
-                <span style={{ color: 'var(--text-muted)', fontSize: 11, flexShrink: 0 }}>/</span>
-                <div className="sf-motiv-wrap" ref={untermotivDropdownRef}>
-                  <input
-                    className="sf-motiv sf-motiv-input sf-motiv-sub"
-                    value={untermotivDropdownOpen ? untermotivSearch : ((() => {
-                      const curMotiv = allMotive.find(m => m.id === scene.motiv_id)
-                      return curMotiv?.parent_id ? curMotiv.name : ''
-                    })())}
-                    placeholder="Untermotiv…"
-                    onChange={e => { setUntermotivSearch(e.target.value); if (!untermotivDropdownOpen) setUntermotivDropdownOpen(true) }}
-                    onFocus={() => { setUntermotivDropdownOpen(true); setUntermotivSearch('') }}
-                    onBlur={() => {
-                      setTimeout(() => {
-                        if (!untermotivDropdownRef.current?.contains(document.activeElement)) setUntermotivDropdownOpen(false)
-                      }, 150)
-                    }}
-                  />
-                  {untermotivDropdownOpen && (
-                    <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(untermotivDropdownRef)}>
-                      {/* Option: no untermotiv (clear) */}
-                      <div className="sf-dropdown-item" style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}
-                        onMouseDown={e => {
-                          e.preventDefault()
-                          setUntermotivDropdownOpen(false)
-                          setUntermotivSearch('')
-                          const parentMotiv = allMotive.find(m => m.id === selectedMotivId)
-                          if (parentMotiv) {
-                            const ortName = buildOrtName(parentMotiv)
-                            saveScene({ ort_name: ortName, motiv_id: parentMotiv.id }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                          }
-                        }}>
-                        — kein Untermotiv —
-                      </div>
-                      {childrenOf[selectedMotivId]
-                        .filter(m => !untermotivSearch || m.name.toLowerCase().includes(untermotivSearch.toLowerCase()))
-                        .map(m => (
-                          <div key={m.id} className="sf-dropdown-item"
-                            onMouseDown={e => { e.preventDefault(); handleUntermotivSelect(m) }}>
-                            {m.name}
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Flashback "ganze Szene" — Badge hinter Motiv */}
-            {scene?.sondertyp === 'flashback' && scene?.flashback_ganze_szene && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: '#AF52DE',
-                background: '#AF52DE18', border: '1px solid #AF52DE66',
-                borderRadius: 4, padding: '1px 5px', whiteSpace: 'nowrap', alignSelf: 'center',
-              }}>
-                (Flashback)
-              </span>
-            )}
-
-          </div>
-
-          {/* Compact mode: chars as own grid column */}
-          {compact && (
             <span className="compact-chars-inline">
               {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any, i: number, arr: any[]) => (
                 <span key={c.character_id} className="compact-char-name">{c.name}{i < arr.length - 1 ? ', ' : ''}</span>
@@ -904,126 +1295,56 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 </>
               )}
               <span className="compact-char-add-wrap" ref={compactCharRef}>
-                <button
-                  className="compact-char-add-btn"
-                  onClick={e => { e.stopPropagation(); setCompactCharDropdown(v => !v); setCompactCharSearch('') }}
-                >+</button>
+                <button className="compact-char-add-btn" onClick={e => { e.stopPropagation(); setCompactCharDropdown(v => !v); setCompactCharSearch('') }}>+</button>
                 {compactCharDropdown && (
                   <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(compactCharRef)}>
-                    <input
-                      className="compact-char-filter"
-                      value={compactCharSearch}
-                      onChange={e => setCompactCharSearch(e.target.value)}
-                      placeholder="Suchen…"
-                      autoFocus
-                      onBlur={() => setTimeout(() => {
-                        if (!compactCharRef.current?.contains(document.activeElement)) setCompactCharDropdown(false)
-                      }, 150)}
-                    />
-                    {[...rolleCharacters, ...komparseCharacters]
-                      .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
-                      .filter(ch => !compactCharSearch || ch.name.toLowerCase().includes(compactCharSearch.toLowerCase()))
-                      .slice(0, 15)
-                      .map(ch => {
-                        const isRolle = ch.kategorie_typ === 'rolle'
-                        return (
-                          <div key={ch.id} className="sf-dropdown-item"
-                            onMouseDown={e => {
-                              e.preventDefault()
-                              handleAddCharacter(ch, isRolle ? rolleKatId : komparseKatId)
-                              setCompactCharSearch('')
-                              setCompactCharDropdown(false)
-                            }}>
-                            <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', marginRight: 4 }}>{isRolle ? 'R' : 'K'}</span>
-                            {ch.name}
-                          </div>
-                        )
-                      })}
+                    <input className="compact-char-filter" value={compactCharSearch} onChange={e => setCompactCharSearch(e.target.value)} placeholder="Suchen…" autoFocus onBlur={() => setTimeout(() => { if (!compactCharRef.current?.contains(document.activeElement)) setCompactCharDropdown(false) }, 150)} />
+                    {[...rolleCharacters, ...komparseCharacters].filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !compactCharSearch || ch.name.toLowerCase().includes(compactCharSearch.toLowerCase())).slice(0, 15).map(ch => {
+                      const isRolle = ch.kategorie_typ === 'rolle'
+                      return (
+                        <div key={ch.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, isRolle ? rolleKatId : komparseKatId); setCompactCharSearch(''); setCompactCharDropdown(false) }}>
+                          <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', marginRight: 4 }}>{isRolle ? 'R' : 'K'}</span>
+                          {ch.name}
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </span>
             </span>
-          )}
-
-          {/* Spielzeit mit Hover-Info */}
-          <span
-            className="spielzeit-wrap"
-            onMouseEnter={() => setShowSpielzeitInfo(true)}
-            onMouseLeave={() => setShowSpielzeitInfo(false)}
-            style={{ position: 'relative' }}
-          >
-            <span className="spiel-field-lbl">Sp</span>
-            <input
-              key={`sz-${szeneId}`}
-              className="spielzeit-inp"
-              defaultValue={scene.spielzeit ?? ''}
-              placeholder="00:00"
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.spielzeit ?? null))
-                  saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
-            {showSpielzeitInfo && (
-              <div className="spielzeit-info-pop">
-                <strong>Spielzeit</strong>
-                <p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen.</p>
-              </div>
-            )}
-          </span>
-
-          {/* A/T + DT — A/T zuerst, dann Dramaturgischer Tag */}
-          <span className="ie-group">
-            <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
-              <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
-            </Tooltip>
-            <span className="ie-sep">/</span>
-            <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
-              <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
-            </Tooltip>
-            <span className="ie-sep">·</span>
-            <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
-              <span className="ie-field-wrap">
-                <span className="ie-lbl">DT</span>
-                <input
-                  key={`dt-${szeneId}`}
-                  className="ie-num-inp"
-                  defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''}
-                  placeholder="—"
-                  type="number"
-                  min={1}
-                  onBlur={e => {
-                    const raw = e.target.value.trim()
-                    const val = raw ? parseInt(raw, 10) : null
-                    if (val !== (scene.spieltag ?? null))
-                      saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                  }}
-                />
-              </span>
-            </Tooltip>
-          </span>
-
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-            {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
-            {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
-            <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
-              <button
-                className={`btn ghost${showAnnotations ? ' active' : ''}`}
-                style={showAnnotations ? { color: 'var(--sw-green)' } : undefined}
-                onClick={() => {
-                  const next = !showAnnotations
-                  setShowAnnotations(next)
-                  if (!next && kommentareCount > 0 && typeof szeneId === 'number') onMarkCommentsRead?.(szeneId)
-                }}
-              >
-                <MessageSquare size={12} />
-                {kommentareCount > 0 && !showAnnotations && (
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--sw-green)', marginLeft: 1 }}>{kommentareCount}</span>
-                )}
-              </button>
-            </Tooltip>
-          </span>
-        </div>
+            <span className="spielzeit-wrap" onMouseEnter={() => setShowSpielzeitInfo(true)} onMouseLeave={() => setShowSpielzeitInfo(false)} style={{ position: 'relative' }}>
+              <span className="spiel-field-lbl">Sp</span>
+              <input key={`sz-${szeneId}`} className="spielzeit-inp" defaultValue={scene.spielzeit ?? ''} placeholder="00:00" onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.spielzeit ?? null)) saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+              {showSpielzeitInfo && (<div className="spielzeit-info-pop"><strong>Spielzeit</strong><p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen.</p></div>)}
+            </span>
+            <span className="ie-group">
+              <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
+                <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
+              </Tooltip>
+              <span className="ie-sep">/</span>
+              <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
+                <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
+              </Tooltip>
+              <span className="ie-sep">·</span>
+              <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
+                <span className="ie-field-wrap">
+                  <span className="ie-lbl">DT</span>
+                  <input key={`dt-${szeneId}`} className="ie-num-inp" defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''} placeholder="—" type="number" min={1} onBlur={e => { const raw = e.target.value.trim(); const val = raw ? parseInt(raw, 10) : null; if (val !== (scene.spieltag ?? null)) saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                </span>
+              </Tooltip>
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+              {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
+              {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
+              <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
+                <button className={`btn ghost${showAnnotations ? ' active' : ''}`} style={showAnnotations ? { color: 'var(--sw-green)' } : undefined} onClick={() => { const next = !showAnnotations; setShowAnnotations(next); if (!next && kommentareCount > 0 && typeof szeneId === 'number') onMarkCommentsRead?.(szeneId) }}>
+                  <MessageSquare size={12} />
+                  {kommentareCount > 0 && !showAnnotations && (<span style={{ fontSize: 10, fontWeight: 600, color: 'var(--sw-green)', marginLeft: 1 }}>{kommentareCount}</span>)}
+                </button>
+              </Tooltip>
+            </span>
+          </div>
+        )}
 
         {/* Compact hover popover — rendered as portal to avoid clipping */}
         {compact && compactHover && scene && createPortal(
@@ -1090,478 +1411,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           </div>,
           document.body
         )}
-
-        {/* Zeilen 2–N: Felder — grid-col 3 durch detail-head-grid (hidden in compact mode) */}
-        {!compact && <div className="scene-fields" key={szeneId}>
-          <div className="scene-fields-rows">
-          {/* Zeile 2a: Oneliner (grid-col 3) */}
-          <div className="sf-row">
-            <input
-              className="sf-input"
-              style={{ flex: 1, minWidth: 0 }}
-              defaultValue={scene.zusammenfassung ?? ''}
-              placeholder="Oneliner…"
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.zusammenfassung ?? null))
-                  saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
-          </div>
-          {/* Zeile 2b: Sondertyp (grid-col 4 = Sp-Spalte, selbe Zeile wie Oneliner via CSS auto-placement) */}
-          {(scene.sondertyp || wsBeteiligt.length === 0) && (
-            <div className="sf-sondertyp-cell">
-              {scene.sondertyp ? (
-                <select
-                  className="sf-input"
-                  value={scene.sondertyp}
-                  style={{ width: 'auto', maxWidth: 160, fontSize: 11, fontWeight: 600, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}
-                  onChange={e => {
-                    const val = e.target.value || null
-                    saveScene({ sondertyp: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                  }}
-                >
-                  <option value="">Normal</option>
-                  <option value="wechselschnitt">Wechselschnitt</option>
-                  <option value="stockshot">{t('stockshot')}</option>
-                  <option value="flashback">{t('flashback')}</option>
-                </select>
-              ) : (
-                <Tooltip text="Als Sonderszene markieren (Wechselschnitt / Stockshot / Flashback)" placement="bottom">
-                  <button
-                    className="btn ghost"
-                    style={{ fontSize: 10, padding: '1px 6px', color: 'var(--text-muted)' }}
-                    onClick={() => {
-                      saveScene({ sondertyp: 'wechselschnitt' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                    }}
-                  >
-                    Sondertyp 🎭
-                  </button>
-                </Tooltip>
-              )}
-            </div>
-          )}
-          {/* Sondertyp Details — cols 3–4 (sf-wide) */}
-          {scene.sondertyp && (
-            <div className="sf-row sf-wide" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              {/* Wechselschnitt: show partner badges */}
-              {scene.sondertyp === 'wechselschnitt' && (
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)' }}>
-                  <span style={{ fontWeight: 500 }}>Partner:</span>
-                  {wsPartner.length === 0 && !wsDropdownOpen && <span style={{ fontStyle: 'italic' }}>keine</span>}
-                  {wsPartner.map((p: any) => (
-                    <span key={p.id} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 3,
-                      background: '#007AFF18', border: '1px solid #007AFF44', borderRadius: 4,
-                      padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#007AFF',
-                    }}>
-                      Sz. {p.partner_scene_nummer ?? '?'}
-                      <button
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#007AFF', fontSize: 10 }}
-                        onClick={() => {
-                          const next = wsPartner.filter((pp: any) => pp.id !== p.id)
-                          api.setWechselschnittPartner(scene.id, next.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i }))).then(setWsPartner).catch(() => {})
-                        }}
-                      >×</button>
-                    </span>
-                  ))}
-                  <span className="sf-char-add-wrap" ref={wsDropdownRef}>
-                    <button
-                      className="sf-char-search"
-                      style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }}
-                      onClick={() => {
-                        if (allSceneIdentities.length === 0 && werkstufId) {
-                          api.getWerkstufenSzenen(werkstufId).then(scenes => {
-                            setAllSceneIdentities(scenes)
-                            setWsDropdownOpen(true)
-                          }).catch(() => setWsDropdownOpen(true))
-                        } else {
-                          setWsDropdownOpen(v => !v)
-                        }
-                      }}
-                    >+</button>
-                    {wsDropdownOpen && (
-                      <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(wsDropdownRef)}>
-                        <input
-                          className="sf-dropdown-search"
-                          autoFocus
-                          placeholder="Szene suchen…"
-                          value={wsSearch}
-                          onChange={e => setWsSearch(e.target.value)}
-                          onKeyDown={e => { if (e.key === 'Escape') setWsDropdownOpen(false) }}
-                          style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }}
-                        />
-                        {allSceneIdentities
-                          .filter(s => s.scene_identity_id !== scene.scene_identity_id)
-                          .filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id))
-                          .filter(s => {
-                            if (!wsSearch.trim()) return true
-                            const q = wsSearch.toLowerCase()
-                            return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q)
-                          })
-                          .map(s => (
-                            <div key={s.id} className="sf-dropdown-item"
-                              onMouseDown={e => {
-                                e.preventDefault()
-                                const next = [
-                                  ...wsPartner.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i })),
-                                  { partner_identity_id: s.scene_identity_id, position: wsPartner.length }
-                                ]
-                                api.setWechselschnittPartner(scene.id, next).then(updated => {
-                                  setWsPartner(updated)
-                                  setWsDropdownOpen(false)
-                                  setWsSearch('')
-                                }).catch(() => {})
-                              }}
-                            >
-                              <span style={{ fontWeight: 600, marginRight: 6 }}>Sz. {s.scene_nummer ?? '?'}</span>
-                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{[s.int_ext, s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
-                            </div>
-                          ))}
-                        {allSceneIdentities
-                          .filter(s => s.scene_identity_id !== scene.scene_identity_id)
-                          .filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id))
-                          .filter(s => {
-                            if (!wsSearch.trim()) return true
-                            const q = wsSearch.toLowerCase()
-                            return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q)
-                          }).length === 0 && (
-                          <div className="sf-dropdown-empty">Keine Szenen verfügbar</div>
-                        )}
-                      </div>
-                    )}
-                  </span>
-                </span>
-              )}
-
-              {/* Stockshot: show kategorie + neu_drehen */}
-              {scene.sondertyp === 'stockshot' && (
-                <>
-                  <select
-                    className="sf-input"
-                    value={scene.stockshot_kategorie ?? ''}
-                    style={{ width: 'auto', maxWidth: 150, fontSize: 11 }}
-                    onChange={e => {
-                      const val = e.target.value || null
-                      saveScene({ stockshot_kategorie: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                    }}
-                  >
-                    <option value="">Kategorie…</option>
-                    <option value="ortswechsel">Ortswechsel</option>
-                    <option value="zeit_vergeht">Zeit vergeht</option>
-                    <option value="stimmungswechsel">Stimmungswechsel</option>
-                  </select>
-                  {scene.stockshot_kategorie === 'stimmungswechsel' && (
-                    <input
-                      className="sf-input"
-                      defaultValue={scene.stockshot_stimmung ?? ''}
-                      placeholder="Stimmung…"
-                      style={{ width: 100, fontSize: 11 }}
-                      onBlur={e => {
-                        const val = e.target.value.trim() || null
-                        saveScene({ stockshot_stimmung: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                      }}
-                    />
-                  )}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: scene.stockshot_neu_drehen ? '#FF3B30' : 'var(--text-muted)', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={scene.stockshot_neu_drehen ?? false}
-                      onChange={e => {
-                        saveScene({ stockshot_neu_drehen: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                      }}
-                      style={{ accentColor: '#FF3B30' }}
-                    />
-                    Neu zu drehen
-                  </label>
-                </>
-              )}
-
-              {/* Flashback: Ganze-Szene + Referenz-Picker */}
-              {scene.sondertyp === 'flashback' && (
-                <>
-                  <Tooltip
-                    text={'Ganze Szene: Die gesamte Szene ist ein Flashback.\nIn der Motivzeile wird automatisch „(Flashback)" angezeigt.\n\nTeil-Flashback: Nur ein Abschnitt der Szene ist Rückblende — kein Motivzeilen-Zusatz.'}
-                    placement="bottom"
-                  >
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, cursor: 'pointer', color: scene.flashback_ganze_szene ? '#AF52DE' : 'var(--text-muted)' }}>
-                      <input
-                        type="checkbox"
-                        checked={scene.flashback_ganze_szene ?? false}
-                        onChange={e => {
-                          saveScene({ flashback_ganze_szene: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                        }}
-                        style={{ accentColor: '#AF52DE' }}
-                      />
-                      Ganze Szene
-                    </label>
-                  </Tooltip>
-
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
-                    <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>Referenz:</span>
-                    {scene.flashback_referenz_id ? (
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 3,
-                        background: '#AF52DE18', border: '1px solid #AF52DE44', borderRadius: 4,
-                        padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#AF52DE',
-                      }}>
-                        {scene.flashback_referenz_folge_nummer != null ? `Folge ${scene.flashback_referenz_folge_nummer}, ` : ''}
-                        Sz. {scene.flashback_referenz_scene_nummer ?? '?'}
-                        {scene.flashback_referenz_ort_name && (
-                          <span style={{ fontWeight: 400, color: '#AF52DEBB', marginLeft: 2 }}>· {scene.flashback_referenz_ort_name}</span>
-                        )}
-                        <button
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#AF52DE', fontSize: 10 }}
-                          title="Referenz entfernen"
-                          onClick={() => {
-                            saveScene({ flashback_referenz_id: '__null__', flashback_referenz_werkstufe_id: '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                          }}
-                        >×</button>
-                      </span>
-                    ) : (
-                      <span style={{ fontStyle: 'italic', color: 'var(--text-muted)', fontSize: 10 }}>keine</span>
-                    )}
-
-                    {/* Szene-Picker */}
-                    <span className="sf-char-add-wrap" ref={fbDropdownRef}>
-                      <Tooltip
-                        text={'Szene aus einer anderen Episode verknüpfen.\nNützlich wenn bereits gedrehtes Material eingeschnitten wird.\n(Suche nach Szenennummer oder Motiv)'}
-                        placement="bottom"
-                      >
-                        <button
-                          className="sf-char-search"
-                          style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }}
-                          onClick={() => {
-                            const opening = !fbDropdownOpen
-                            setFbDropdownOpen(opening)
-                            if (opening && werkstufId) {
-                              api.getFlashbackReferenzSzenen(werkstufId, fbSearch).then(setAllFbSzenen).catch(() => setAllFbSzenen([]))
-                            }
-                          }}
-                        >
-                          {scene.flashback_referenz_id ? '✎' : '+'}
-                        </button>
-                      </Tooltip>
-                      {fbDropdownOpen && (
-                        <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(fbDropdownRef)}>
-                          <input
-                            className="sf-dropdown-search"
-                            autoFocus
-                            placeholder="Sz.-Nr. oder Motiv…"
-                            value={fbSearch}
-                            onChange={e => {
-                              setFbSearch(e.target.value)
-                              if (werkstufId) {
-                                api.getFlashbackReferenzSzenen(werkstufId, e.target.value).then(setAllFbSzenen).catch(() => {})
-                              }
-                            }}
-                            onKeyDown={e => { if (e.key === 'Escape') setFbDropdownOpen(false) }}
-                            style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }}
-                          />
-                          {allFbSzenen.map((s: any) => (
-                            <div key={s.id} className="sf-dropdown-item"
-                              onMouseDown={e => {
-                                e.preventDefault()
-                                saveScene({ flashback_referenz_id: s.scene_identity_id, flashback_referenz_werkstufe_id: s.werkstufe_id }).then(updated => {
-                                  setScene(updated)
-                                  onSzeneUpdated?.(updated)
-                                  setFbDropdownOpen(false)
-                                  setFbSearch('')
-                                }).catch(() => {})
-                              }}
-                            >
-                              <span style={{ fontWeight: 700, color: '#AF52DE', marginRight: 4, fontSize: 10 }}>Folge {s.folge_nummer}</span>
-                              <span style={{ fontWeight: 600, marginRight: 6 }}>Sz. {s.scene_nummer ?? '?'}{s.scene_nummer_suffix ?? ''}</span>
-                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{[s.int_ext, s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
-                            </div>
-                          ))}
-                          {allFbSzenen.length === 0 && (
-                            <div className="sf-dropdown-empty">Keine Szenen in anderen Episoden gefunden</div>
-                          )}
-                        </div>
-                      )}
-                    </span>
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Wechselschnitt beteiligt (read-only, shown on partner scenes) */}
-          {!scene.sondertyp && wsBeteiligt.length > 0 && (
-            <div className="sf-row sf-wide" style={{ fontSize: 11, color: '#007AFF', fontStyle: 'italic' }}>
-              ⇄ Beteiligt an Wechselschnitt (Sz. {wsBeteiligt.map((b: any) => b.scene_nummer ?? '?').join(', ')})
-            </div>
-          )}
-
-          {/* Strang chips */}
-          <div className="sf-row sf-chars">
-            <span className="sf-tag">S·</span>
-            <span className="sf-charlist">
-              {sceneStraenge.map((s: any) => (
-                <span key={s.strang_id} className="sf-char-chip" style={{ borderLeft: `3px solid ${s.farbe || '#888'}` }}>
-                  {s.strang_name}
-                  <button className="sf-char-remove" title="Entfernen" onClick={() => {
-                    api.removeSzeneStrang(String(szeneId), s.strang_id).then(() => {
-                      setSceneStraenge(prev => prev.filter(x => x.strang_id !== s.strang_id))
-                    }).catch(() => {})
-                  }}><X size={9} /></button>
-                </span>
-              ))}
-              <span className="sf-char-add-wrap" ref={strangDropdownRef}>
-                <button className="sf-char-search" style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }} onClick={() => setStrangDropdownOpen(v => !v)}>+</button>
-                {strangDropdownOpen && (
-                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(strangDropdownRef)}>
-                    {allStraenge
-                      .filter(st => st.status === 'aktiv')
-                      .filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id))
-                      .map(st => (
-                        <div key={st.id} className="sf-dropdown-item"
-                          onMouseDown={e => {
-                            e.preventDefault()
-                            api.addSzeneStrang(String(szeneId), st.id).then(() => {
-                              setSceneStraenge(prev => [...prev, { strang_id: st.id, strang_name: st.name, farbe: st.farbe }])
-                              setStrangDropdownOpen(false)
-                            }).catch(() => {})
-                          }}>
-                          <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: st.farbe, marginRight: 6 }} />
-                          {st.name}
-                        </div>
-                      ))}
-                    {allStraenge.filter(st => st.status === 'aktiv').filter(st => !sceneStraenge.some(ss => ss.strang_id === st.id)).length === 0 && (
-                      <div className="sf-dropdown-empty">Keine Str\u00e4nge verf\u00fcgbar</div>
-                    )}
-                  </div>
-                )}
-              </span>
-            </span>
-          </div>
-          {/* Rollen — editable with autocomplete, only rolle characters */}
-          <div className="sf-row sf-chars">
-            <span className="sf-tag">R·</span>
-            <span className="sf-charlist">
-              {sceneChars.filter((c: any) => c.kategorie_typ === 'rolle').map((c: any) => (
-                <span key={c.character_id} className="sf-char-chip">
-                  {c.name}
-                  <button className="sf-char-remove" title="Entfernen" onClick={() => handleRemoveCharacter(c.character_id)}><X size={9} /></button>
-                </span>
-              ))}
-              <span className="sf-char-add-wrap" ref={rolleDropdownRef}>
-                <input
-                  className="sf-char-search"
-                  value={charSearchRolle}
-                  placeholder="+"
-                  onChange={e => { setCharSearchRolle(e.target.value); setCharDropdownRolle(true) }}
-                  onFocus={() => setCharDropdownRolle(true)}
-                  style={{ width: charSearchRolle ? 100 : 20 }}
-                />
-                {charDropdownRolle && (
-                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(rolleDropdownRef)}>
-                    {rolleCharacters
-                      .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
-                      .filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase()))
-                      .slice(0, 15)
-                      .map(ch => (
-                        <div key={ch.id} className="sf-dropdown-item"
-                          onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, rolleKatId); setCharSearchRolle(''); setCharDropdownRolle(false) }}>
-                          {ch.name}
-                        </div>
-                      ))}
-                    {rolleCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase())).length === 0 && (
-                      <div className="sf-dropdown-empty">Keine Rollen verfügbar</div>
-                    )}
-                  </div>
-                )}
-              </span>
-            </span>
-          </div>
-          {/* Komparsen — editable with autocomplete, only komparse characters */}
-          <div className="sf-row sf-chars">
-            <span className="sf-tag">K·</span>
-            <span className="sf-charlist">
-              {sceneChars.filter((c: any) => c.kategorie_typ === 'komparse').map((c: any) => (
-                <span key={c.character_id} className="sf-char-chip">
-                  {c.name}
-                  <button className="sf-char-remove" title="Entfernen" onClick={() => handleRemoveCharacter(c.character_id)}><X size={9} /></button>
-                </span>
-              ))}
-              <span className="sf-char-add-wrap" ref={komparseDropdownRef}>
-                <input
-                  className="sf-char-search"
-                  value={charSearchKomparse}
-                  placeholder="+"
-                  onChange={e => { setCharSearchKomparse(e.target.value); setCharDropdownKomparse(true) }}
-                  onFocus={() => setCharDropdownKomparse(true)}
-                  style={{ width: charSearchKomparse ? 100 : 20 }}
-                />
-                {charDropdownKomparse && (
-                  <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(komparseDropdownRef)}>
-                    {komparseCharacters
-                      .filter(ch => !sceneChars.some(sc => sc.character_id === ch.id))
-                      .filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase()))
-                      .slice(0, 15)
-                      .map(ch => (
-                        <div key={ch.id} className="sf-dropdown-item"
-                          onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, komparseKatId); setCharSearchKomparse(''); setCharDropdownKomparse(false) }}>
-                          {ch.name}
-                        </div>
-                      ))}
-                    {komparseCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchKomparse || ch.name.toLowerCase().includes(charSearchKomparse.toLowerCase())).length === 0 && (
-                      <div className="sf-dropdown-empty">Keine {t('komparse', 'p')} verfügbar</div>
-                    )}
-                  </div>
-                )}
-              </span>
-            </span>
-          </div>
-          {/* Szeneninfo — editable */}
-          <div className="sf-row">
-            <input
-              key={`sinfo-${szeneId}`}
-              className="sf-input sf-input-info"
-              defaultValue={scene.szeneninfo ?? ''}
-              placeholder={`${t('szene','c')}info…`}
-              style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic' }}
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.szeneninfo ?? null))
-                  saveScene({ szeneninfo: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
-          </div>
-          {/* Notiz — editable */}
-          <div className="sf-row">
-            <textarea
-              key={`notiz-${szeneId}`}
-              className="sf-input sf-notiz"
-              defaultValue={scene.notiz ?? ''}
-              placeholder="Notiz…"
-              rows={2}
-              onBlur={e => {
-                const val = e.target.value.trim() || null
-                if (val !== (scene.notiz ?? null))
-                  saveScene({ notiz: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-              }}
-            />
-          </div>
-
-          {/* Revision badge — when this scene/stage has revision markings */}
-          {changedBlocks.size > 0 && revisionColor && (
-            <div className="sf-row" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 4,
-                padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600,
-                background: `${revisionColor}22`, border: `1px solid ${revisionColor}66`,
-                color: revisionColor,
-              }}>
-                <span style={{ fontWeight: 900 }}>*</span>
-                Revision · {changedBlocks.size} geänd. {changedBlocks.size === 1 ? 'Block' : 'Blöcke'}
-              </span>
-            </div>
-          )}
-
-          </div>{/* end scene-fields-rows */}
-        </div>}
       </div>}
 
       {/* Imported content (read-only display of textelemente from import, hidden in compact) */}
