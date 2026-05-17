@@ -391,7 +391,7 @@ export default function SceneList({
             <MoreVertical size={13} />
           </button>
           {headerMenuOpen && (
-            <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 190 }}>
+            <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 190 }} onMouseLeave={() => setHeaderMenuOpen(false)}>
               {/* Top — no category */}
               {onOpenSearch && (
                 <button
@@ -407,22 +407,22 @@ export default function SceneList({
               )}
               <button
                 className="scene-ctx-item"
-                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()); setHeaderMenuOpen(false) }}
+                onClick={() => { setMultiSelectMode(v => !v); setSelectedIds(new Set()) }}
               >
                 {multiSelectMode ? 'Auswahl beenden' : 'Mehrere auswählen'}
               </button>
               <button
                 className="scene-ctx-item"
-                onClick={() => { setNurSzenen(v => !v); setHeaderMenuOpen(false) }}
+                onClick={() => { setNurSzenen(v => !v) }}
               >
-                {nurSzenen ? 'Alles anzeigen' : `Nur ${t('szene', 'p')}`}
+                {nurSzenen ? 'Alles anzeigen' : `Nur ${t('szene')} anzeigen`}
               </button>
 
               {/* Kategorie: Farbe */}
               <CategoryDivider label="Farbe" />
               <button
                 className="scene-ctx-item"
-                onClick={() => { setFarbModus(nextFarbModus); setColorOff(nextFarbModus === 'aus'); setHeaderMenuOpen(false) }}
+                onClick={() => { setFarbModus(nextFarbModus); setColorOff(nextFarbModus === 'aus') }}
               >
                 {FARB_LABELS[nextFarbModus]}
               </button>
