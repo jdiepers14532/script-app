@@ -175,7 +175,13 @@ function HilfePage() {
         }}>
           <div style={{ padding: '20px 16px 10px' }}>
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                if ((window.history.state?.idx ?? 0) > 0) {
+                  navigate(-1)
+                } else {
+                  navigate('/')
+                }
+              }}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 background: 'none', border: 'none', cursor: 'pointer',
