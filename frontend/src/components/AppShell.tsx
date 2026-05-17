@@ -1338,6 +1338,7 @@ export default function AppShell({
                 className="cm-menu-item-wrap"
                 onMouseEnter={() => setBuchMenuOpen(true)}
                 onMouseLeave={() => setBuchMenuOpen(false)}
+                onClick={() => setBuchMenuOpen(v => !v)}
               >
                 <button className="cm-menu-item disabled">
                   <span className="cm-menu-item-icon"><CreditCard size={14} /></span>

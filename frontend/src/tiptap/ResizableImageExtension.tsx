@@ -28,16 +28,30 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
 
   const wrapperRef = useRef<HTMLSpanElement>(null)
 
-  const onResizeStart = (e: React.MouseEvent) => {
+  // Tap-to-show handle on touch: hide when tapping outside
+  useEffect(() => {
+    if (!hovered || resizing) return
+    const hide = (e: TouchEvent) => {
+      if (!wrapperRef.current?.contains(e.target as Node)) setHovered(false)
+    }
+    document.addEventListener('touchstart', hide)
+    return () => document.removeEventListener('touchstart', hide)
+  }, [hovered, resizing])
+
+  const onResizeStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setResizing(true)
-    startData.current = { x: e.clientX, w: displayWidth }
+    const startX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    startData.current = { x: startX, w: displayWidth }
     // Cap to container width so images can't push the parent layout
     const containerW = wrapperRef.current?.parentElement?.clientWidth ?? 800
 
-    const onMove = (ev: MouseEvent) => {
-      const delta = ev.clientX - startData.current.x
+    const getX = (ev: MouseEvent | TouchEvent) =>
+      'touches' in ev ? ev.touches[0].clientX : (ev as MouseEvent).clientX
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      const delta = getX(ev) - startData.current.x
       const newW = Math.max(24, Math.min(containerW, Math.round(startData.current.w + delta)))
       setDisplayWidth(newW)        // instant visual update
       updateAttributes({ width: newW })  // persist to document
@@ -46,9 +60,13 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
       setResizing(false)
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove as EventListener)
+      window.removeEventListener('touchend', onUp)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove as EventListener, { passive: false })
+    window.addEventListener('touchend', onUp)
   }
 
   const showHandle = hovered || resizing
@@ -60,6 +78,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
       contentEditable={false}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { if (!resizing) setHovered(false) }}
+      onTouchStart={() => setHovered(true)}
       style={{ display: 'inline-block', position: 'relative', verticalAlign: 'middle', cursor: 'default', maxWidth: '100%' }}
     >
       <img
@@ -75,9 +94,10 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
         }}
         draggable={false}
       />
-      {/* Resize handle — always visible on hover */}
+      {/* Resize handle — always visible on hover, tap-to-show on touch */}
       <span
         onMouseDown={onResizeStart}
+        onTouchStart={onResizeStart}
         style={{
           position: 'absolute', right: -5, bottom: -5,
           width: 12, height: 12,

@@ -1071,6 +1071,7 @@ export default function UniversalEditor({
           className="focus-hover-strip"
           onMouseEnter={() => { if (focus) setHoverOpen(true) }}
           onMouseLeave={() => { if (focus) setHoverOpen(false) }}
+          onTouchStart={() => { if (focus) setHoverOpen(v => !v) }}
         />
         <PageWrapper className="page" seitenformat={seitenformat} showShadow={showShadow} pageMarginMm={pageMarginMm}>
           <EditorContent

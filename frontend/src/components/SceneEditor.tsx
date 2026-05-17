@@ -664,6 +664,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       style={focusStyle}
       onMouseEnter={() => { if (focus) setHoverOpen(true) }}
       onMouseLeave={() => { if (focus && !focusPinned) setHoverOpen(false) }}
+      onTouchStart={() => { if (focus) setHoverOpen(v => !v) }}
     >
       {/* Focus mode drag header */}
       {focus && (
