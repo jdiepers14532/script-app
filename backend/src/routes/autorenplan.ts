@@ -306,7 +306,7 @@ router.post('/einsaetze', async (req, res) => {
     vertragsdb_person_id, platzhalter_name, person_cache_name,
     vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
     block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
-    von_datum, bis_datum,
+    von_datum, bis_datum, gage_kat,
   } = req.body
 
   if (!produktion_db_id || !woche_von || (!job_kategorie_id && !prozess_id)) {
@@ -319,8 +319,8 @@ router.post('/einsaetze', async (req, res) => {
         vertragsdb_person_id, platzhalter_name, person_cache_name,
         vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
         block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
-        von_datum, bis_datum, erstellt_von)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+        von_datum, bis_datum, gage_kat, erstellt_von)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [
       produktion_db_id, job_kategorie_id || null, prozess_id || null, woche_von,
@@ -328,7 +328,7 @@ router.post('/einsaetze', async (req, res) => {
       vertragsdb_taetigkeit_id || null, vertragsdb_vertrag_id || null,
       block_nummer || null, folge_nummer || null,
       status || 'geplant', kostenstelle || null, ist_homeoffice_override ?? null, notiz || null,
-      von_datum || null, bis_datum || null,
+      von_datum || null, bis_datum || null, gage_kat ?? null,
       uid(req),
     ]
   )
@@ -353,7 +353,7 @@ router.put('/einsaetze/:id', async (req, res) => {
     vertragsdb_person_id, platzhalter_name, person_cache_name,
     vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
     block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz, woche_von,
-    von_datum, bis_datum,
+    von_datum, bis_datum, gage_kat,
   } = req.body
 
   const result = await pool.query(
@@ -372,8 +372,9 @@ router.put('/einsaetze/:id', async (req, res) => {
        woche_von              = COALESCE($12, woche_von),
        von_datum              = $13,
        bis_datum              = $14,
+       gage_kat               = $15,
        aktualisiert_am        = NOW()
-     WHERE id = $15
+     WHERE id = $16
      RETURNING *`,
     [
       vertragsdb_person_id ?? null, platzhalter_name ?? null, person_cache_name ?? null,
@@ -381,7 +382,7 @@ router.put('/einsaetze/:id', async (req, res) => {
       block_nummer ?? null, folge_nummer ?? null,
       status ?? null, kostenstelle ?? null, ist_homeoffice_override ?? null,
       notiz ?? null, woche_von ?? null,
-      von_datum ?? null, bis_datum ?? null,
+      von_datum ?? null, bis_datum ?? null, gage_kat ?? null,
       req.params.id,
     ]
   )
