@@ -1169,26 +1169,28 @@ function AutorenplanGrid({
               {weeks.map((w, wi) => {
                 const nots = notizen.filter(n => n.woche_von === dateKey(w))
                 const typColor = nots[0]?.typ === 'zusatzkosten' ? '#FF9500' : nots[0]?.typ === 'sperrer' ? '#FF3B30' : '#9E9E9E'
+                const isToday = dateKey(w) === dateKey(today)
+                const baseBg = isToday ? '#007AFF08' : nots.length ? typColor + '15' : 'transparent'
                 return (
                   <td key={wi} onClick={() => setNoteModal({ woche: w, notiz: nots[0] })}
                     style={{
                       height: ROW_H, borderLeft: '1px solid var(--border)', borderTop: '1px solid var(--border)',
                       cursor: 'pointer', padding: '2px 4px', verticalAlign: 'middle',
-                      background: nots.length ? typColor + '15' : 'transparent',
+                      background: baseBg,
                     }}
                     onMouseEnter={e => { if (!nots.length) e.currentTarget.style.background = 'var(--bg-subtle)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = nots.length ? typColor + '15' : 'transparent' }}>
-                    {nots.length > 0 ? (
-                      <Tooltip text={nots.map(n => n.text).join('\n')}>
-                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    onMouseLeave={e => { e.currentTarget.style.background = baseBg }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: ROW_H - 4 }}>
+                      {nots.length > 0 ? (
+                        <Tooltip text={nots.map(n => n.text).join('\n')}>
                           <div style={{ width: 6, height: 6, borderRadius: '50%', background: typColor }} />
-                        </div>
-                      </Tooltip>
-                    ) : (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.2 }}>
-                        <Plus size={9} />
-                      </div>
-                    )}
+                        </Tooltip>
+                      ) : (
+                        <Tooltip text="Wochennotiz hinzufügen">
+                          <Plus size={9} style={{ opacity: 0.4, display: 'block' }} />
+                        </Tooltip>
+                      )}
+                    </div>
                   </td>
                 )
               })}
@@ -1424,7 +1426,7 @@ export default function AutorenplanTab({ produktionDbId }: { produktionDbId: str
           { id: 'futures', label: 'Futures', icon: '📋' },
           { id: 'jobedit', label: 'Job-Kategorien', icon: <Settings size={12} /> },
         ].map(tab => (
-          <button key={tab.id} onClick={() => setView(tab.id as any)} style={{
+          <button key={tab.id} onClick={() => { setView(tab.id as any); if (tab.id === 'plan') loadJobKategorien() }} style={{
             display: 'flex', alignItems: 'center', gap: 6,
             padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
             fontSize: 12, fontWeight: view === tab.id ? 700 : 400,
