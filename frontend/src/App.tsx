@@ -21,7 +21,9 @@ import {
   AppSettingsContext,
   DEFAULT_KUERZEL,
   LN_SETTINGS_DEFAULTS,
+  DEFAULT_PAGE_MARGINS,
   type LnSettings,
+  type PageMargins,
 } from './contexts'
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 import { TerminologieProvider, TERM_DEFAULTS, OfflineQueueProvider } from './sw-ui'
@@ -36,7 +38,7 @@ export default function App() {
   const [sceneEnvColors, setSceneEnvColors] = useState<Record<string, any> | null>(null)
   const [terminologie, setTerminologie] = useState<TerminologieConfig>({ ...TERM_DEFAULTS })
   const [lnSettings, setLnSettings] = useState<LnSettings>(LN_SETTINGS_DEFAULTS)
-  const [pageMarginMm, setPageMarginMm] = useState(25)
+  const [pageMargins, setPageMargins] = useState<PageMargins>(DEFAULT_PAGE_MARGINS)
 
   useEffect(() => {
     const loadSettings = (e?: Event) => {
@@ -74,16 +76,13 @@ export default function App() {
             try {
               const parsed = JSON.parse(data.ln_settings)
               setLnSettings({ ...LN_SETTINGS_DEFAULTS, ...parsed })
-              // When triggered by a DK-Settings save (productionId present), reset the
-              // per-user margin override to the new production default.
-              if (productionId && typeof parsed.marginCm === 'number') {
-                window.dispatchEvent(new CustomEvent('ln-default-changed', { detail: { marginCm: parsed.marginCm } }))
-              }
             } catch {}
           }
-          if (data?.page_margin_mm) {
-            const v = parseFloat(data.page_margin_mm)
-            if (v >= 10 && v <= 50) setPageMarginMm(v)
+          if (data?.page_margins) {
+            try {
+              const pm = typeof data.page_margins === 'string' ? JSON.parse(data.page_margins) : data.page_margins
+              setPageMargins(prev => ({ ...DEFAULT_PAGE_MARGINS, ...prev, ...pm }))
+            } catch {}
           }
           // PWA Admin-Steuerung (v67): einmalig ausführen, dann sofort zurücksetzen
           if (data?.pwa_update_action === 'update') {
@@ -117,7 +116,7 @@ export default function App() {
   return (
     <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMarginMm }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>

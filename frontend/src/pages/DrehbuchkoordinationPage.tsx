@@ -24,7 +24,7 @@ const DK_TABS = [
   { id: 'lock-regeln',           label: 'Lock-Regeln' },
   { id: 'dokument-typen',        label: 'Absatzformat-Vorlagen' },
   { id: 'gruppen-register',      label: 'Gruppen-Register' },
-  { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
+
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
   { id: 'stockshot-templates',    label: 'Stockshot-Vorlagen' },
@@ -157,7 +157,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [lnFont, setLnFont] = useState("'Courier Prime', 'Courier New', monospace")
   const [lnSize, setLnSize] = useState(10)
   const [lnColor, setLnColor] = useState('#999999')
-  const [lnMargin, setLnMargin] = useState(1)
   const [lnSaving, setLnSaving] = useState(false)
 
   useEffect(() => {
@@ -195,7 +194,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
             if (s.fontFamily) setLnFont(s.fontFamily)
             if (typeof s.fontSizePt === 'number') setLnSize(s.fontSizePt)
             if (s.color) setLnColor(s.color)
-            if (typeof s.marginCm === 'number') setLnMargin(s.marginCm)
           } catch {}
         }
       })
@@ -286,7 +284,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const saveLnSettings = async () => {
     setLnSaving(true)
     await api.updateDkAppSetting(productionId, 'ln_settings', JSON.stringify({
-      fontFamily: lnFont, fontSizePt: lnSize, color: lnColor, marginCm: lnMargin,
+      fontFamily: lnFont, fontSizePt: lnSize, color: lnColor,
     })).catch(() => {})
     window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId } }))
     setLnSaving(false)
@@ -462,12 +460,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
               <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{lnColor}</span>
             </div>
           </label>
-          <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Abstand vom Textrand (cm)</span>
-            <input type="number" min={0.5} max={3} step={0.1} value={lnMargin}
-              onChange={e => setLnMargin(Math.max(0.5, Math.min(3, parseFloat(e.target.value) || 1)))}
-              style={{ width: 60, fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', textAlign: 'center' }} />
-          </label>
+
         </div>
         <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12 }}>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Vorschau:</span>
@@ -1161,6 +1154,7 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: JSON.stringify(next) }),
     }).catch(() => {})
+    window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId: produktionId } }))
   }
 
   // Erstes Preset vorauswählen wenn Presets geladen
@@ -2057,63 +2051,6 @@ const LN_FONT_OPTIONS = [
   { label: 'Arial', value: "Arial, sans-serif" },
 ]
 
-function DokumentEinstellungenTab() {
-  const { selectedProduction } = useSelectedProduction()
-  const produktionId = selectedProduction?.id ?? null
-  const [msg, setMsg] = useState<string | null>(null)
-
-  // Page margin
-  const [pageMarginMm, setPageMarginMm] = useState(25)
-
-  useEffect(() => {
-    if (produktionId) {
-      api.getDkAppSettings(produktionId).then((data: any) => {
-        if (data?.page_margin_mm) {
-          const v = parseFloat(data.page_margin_mm)
-          if (v >= 10 && v <= 50) setPageMarginMm(v)
-        }
-      }).catch(() => {})
-    }
-  }, [produktionId])
-
-  const handleSave = async () => {
-    try {
-      if (produktionId) {
-        await api.updateDkAppSetting(produktionId, 'page_margin_mm', String(pageMarginMm))
-        window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId: produktionId } }))
-      }
-      setMsg('Gespeichert.')
-    } catch (e: any) { setMsg(e.message) }
-  }
-
-  return (
-    <div style={{ maxWidth: 600 }}>
-
-      <section style={{ marginBottom: 32 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Seitenrand</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Abstand vom physischen Papierrand zum Textbereich (alle Seiten).
-          Standard: 25 mm (≈ 1 Zoll). Gilt für alle Editoren dieser Produktion.
-        </p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input type="number" min={10} max={50} step={1} value={pageMarginMm}
-            onChange={e => setPageMarginMm(Math.max(10, Math.min(50, parseInt(e.target.value) || 25)))}
-            style={{ width: 60, fontSize: 12, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', textAlign: 'center' }} />
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>mm</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
-            ({Math.round(pageMarginMm * 96 / 25.4)} px)
-          </span>
-        </div>
-      </section>
-
-      {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
-      <button onClick={handleSave}
-        style={{ padding: '8px 24px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-        Speichern
-      </button>
-    </div>
-  )
-}
 
 // ── Copy Settings Section (sidebar bottom) ───────────────────────────────────────
 
@@ -2584,8 +2521,7 @@ export default function DrehbuchkoordinationPage() {
         return <DokumentTypenTab headerSlot={headerSlot} />
       case 'gruppen-register':
         return produktionId ? <GruppenRegisterTab /> : <NoProduction />
-      case 'dokument-einstellungen':
-        return <DokumentEinstellungenTab />
+
       case 'statistik-panel':
         return produktionId
           ? <StatistikPanelTab productionId={produktionId} sections={statSections} onSectionsChange={setStatSections} />

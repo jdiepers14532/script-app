@@ -1,11 +1,14 @@
 import { ReactNode } from 'react'
+import type { PageMargins } from '../../contexts'
+
+const DEFAULT_MARGINS: PageMargins = { oben: 25, unten: 20, links: 25, rechts: 20 }
 
 interface PageWrapperProps {
   children: ReactNode
   seitenformat?: 'a4' | 'letter'
   showShadow?: boolean
   className?: string
-  pageMarginMm?: number
+  pageMargins?: PageMargins
 }
 
 // Standard screenplay page dimensions (at 96 DPI):
@@ -24,10 +27,13 @@ export default function PageWrapper({
   seitenformat = 'a4',
   showShadow = true,
   className,
-  pageMarginMm = 25,
+  pageMargins = DEFAULT_MARGINS,
 }: PageWrapperProps) {
-  const dim = DIMENSIONS[seitenformat]
-  const paddingPx = Math.round(pageMarginMm * MM_TO_PX)
+  const dim    = DIMENSIONS[seitenformat]
+  const ptTop    = Math.round(pageMargins.oben   * MM_TO_PX)
+  const ptBottom = Math.round(pageMargins.unten  * MM_TO_PX)
+  const ptLeft   = Math.round(pageMargins.links  * MM_TO_PX)
+  const ptRight  = Math.round(pageMargins.rechts * MM_TO_PX)
 
   if (showShadow) {
     // ── Blatt-Modus: weißes Blatt mit Schatten, subtile Trennlinie ────────
@@ -36,7 +42,7 @@ export default function PageWrapper({
         <div
           className={className}
           style={{
-            '--page-padding': `${paddingPx}px`,
+            '--page-padding': `${ptLeft}px`,
             width: dim.width,
             minHeight: dim.height,
             maxWidth: '100%',
@@ -44,7 +50,8 @@ export default function PageWrapper({
             background: 'var(--bg-surface)',
             boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
             borderRadius: 2,
-            padding: `${paddingPx}px`,
+            paddingTop: ptTop, paddingBottom: ptBottom,
+            paddingLeft: ptLeft, paddingRight: ptRight,
             position: 'relative',
             backgroundImage: `repeating-linear-gradient(
               to bottom,
@@ -64,19 +71,20 @@ export default function PageWrapper({
 
   // ── Fließtext-Modus: kein Blatt, druckgenaue Seitentrennlinie ────────
   // contentHeight = nutzbare Höhe pro Seite (ohne oberer + unterer Rand)
-  const contentHeight = dim.height - paddingPx * 2
+  const contentHeight = dim.height - ptTop - ptBottom
 
   return (
     <div style={{ background: 'var(--bg-page)', padding: '0 32px', minHeight: '100%', overflowY: 'auto' }}>
       <div
         className={className}
         style={{
-          '--page-padding': `${paddingPx}px`,
+          '--page-padding': `${ptLeft}px`,
           width: dim.width,
           maxWidth: '100%',
           margin: '0 auto',
           background: 'transparent',
-          padding: `0 ${paddingPx}px`,
+          paddingLeft: ptLeft, paddingRight: ptRight,
+          paddingTop: 0, paddingBottom: 0,
           position: 'relative',
           // Trennlinie exakt an Druckseiten-Ende — jede contentHeight-px
           backgroundImage: `repeating-linear-gradient(

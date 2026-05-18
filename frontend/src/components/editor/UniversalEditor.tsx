@@ -490,7 +490,7 @@ export default function UniversalEditor({
   }, [editor, ydoc])
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
-  const { lnSettings, pageMarginMm } = useAppSettings()
+  const { lnSettings, pageMargins } = useAppSettings()
 
   // ── Replik number plugin ──────────────────────────────────────────────────
   useEffect(() => {
@@ -1153,7 +1153,7 @@ export default function UniversalEditor({
           onMouseLeave={() => { if (focus) setHoverOpen(false) }}
           onTouchStart={() => { if (focus) setHoverOpen(v => !v) }}
         />
-        <PageWrapper className="page" seitenformat={seitenformat} showShadow={showShadow} pageMarginMm={pageMarginMm}>
+        <PageWrapper className="page" seitenformat={seitenformat} showShadow={showShadow} pageMargins={pageMargins}>
           <EditorContent
             editor={editor}
             style={{ outline: 'none', minHeight: '100%' }}
