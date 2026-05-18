@@ -181,6 +181,52 @@ revisionColorsRouter.delete('/:colorId', async (req, res) => {
   }
 })
 
+// POST /api/produktionen/:produktionId/revision-colors/wga-preset
+const WGA_COLORS = [
+  { name: 'Weiß',       color: '#FFFFFF' },
+  { name: 'Blau',       color: '#AECFED' },
+  { name: 'Pink',       color: '#FFB3C6' },
+  { name: 'Gelb',       color: '#FFF2A0' },
+  { name: 'Grün',       color: '#B5EAB5' },
+  { name: 'Goldenrod',  color: '#EDCA74' },
+  { name: 'Buff',       color: '#F5DEB3' },
+  { name: 'Lachs',      color: '#FFB89A' },
+  { name: 'Kirsche',    color: '#E07070' },
+  { name: 'Tan',        color: '#CDB99A' },
+  { name: 'Lavendel',   color: '#D8C8F0' },
+]
+
+revisionColorsRouter.post('/wga-preset', async (req, res) => {
+  const { produktionId } = req.params as any
+  try {
+    const existing = await query(
+      `SELECT name FROM revision_colors WHERE produktion_id = $1`,
+      [produktionId]
+    )
+    const existingNames = new Set(existing.map((r: any) => r.name))
+    const maxOrder = await queryOne(
+      `SELECT COALESCE(MAX(sort_order), 0) AS m FROM revision_colors WHERE produktion_id = $1`,
+      [produktionId]
+    )
+    let order = maxOrder.m
+    for (const c of WGA_COLORS) {
+      if (existingNames.has(c.name)) continue
+      order++
+      await queryOne(
+        `INSERT INTO revision_colors (produktion_id, name, color, sort_order) VALUES ($1, $2, $3, $4)`,
+        [produktionId, c.name, c.color, order]
+      )
+    }
+    const rows = await query(
+      `SELECT * FROM revision_colors WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktionId]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // PATCH /api/produktionen/:produktionId/revision-colors/reorder
 revisionColorsRouter.patch('/reorder', async (req, res) => {
   const { produktionId } = req.params as any

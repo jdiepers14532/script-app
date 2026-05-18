@@ -812,6 +812,13 @@ function ProduktionTab() {
       <section style={sectionStyle}>
         <h3 style={h3Style}>Revisions-Farben (WGA-Standard)</h3>
         <p style={subStyle}>Farbmarkierung für Revisionsstände. Reihenfolge bestimmt die Revisions-Sequenz.</p>
+        <button
+          onClick={handleWgaPreset}
+          disabled={busy('wga')}
+          style={{ fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 12, background: wgaPresetDone ? '#00C853' : 'transparent', color: wgaPresetDone ? '#fff' : 'var(--text)', transition: 'background 0.2s, color 0.2s' }}
+        >
+          {busy('wga') ? 'Wird eingefügt...' : wgaPresetDone ? 'WGA-Farben eingefügt' : 'WGA-Standard-Farben einfügen'}
+        </button>
 
         <SortableList
           items={colors}

@@ -212,6 +212,8 @@ export const api = {
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors/${colorId}`),
   reorderRevisionColors: (produktionId: string, order: {id: number, sort_order: number}[]) =>
     request<any[]>('PATCH', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors/reorder`, { order }),
+  revisionColorsWgaPreset: (produktionId: string) =>
+    request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors/wga-preset`),
 
   // Revision Einstellungen
   getRevisionEinstellungen: (produktionId: string) =>
