@@ -99,7 +99,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
       flashback_referenz_freitext,
       vorlage_id, clear_content,
-      ws_spezifikation,
+      ws_spezifikation, element_type,
     } = req.body
 
     // When clear_content is true, wipe the scene body
@@ -144,6 +144,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         flashback_referenz_freitext = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25, flashback_referenz_freitext) END,
         vorlage_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, vorlage_id) END,
         ws_spezifikation = CASE WHEN $26::text = '__null__' THEN NULL ELSE COALESCE($26, ws_spezifikation) END,
+        element_type = CASE WHEN $27::text = '__null__' THEN NULL ELSE COALESCE($27, element_type) END,
         updated_at = NOW(),
         updated_by = $11
        WHERE id = $15 RETURNING *`,
@@ -169,6 +170,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         flashback_referenz_werkstufe_id !== undefined ? (flashback_referenz_werkstufe_id === null ? '__null__' : flashback_referenz_werkstufe_id) : null,
         flashback_referenz_freitext !== undefined ? (flashback_referenz_freitext === null ? '__null__' : flashback_referenz_freitext) : null,
         ws_spezifikation !== undefined ? (ws_spezifikation === null ? '__null__' : ws_spezifikation) : null,
+        element_type !== undefined ? (element_type === null ? '__null__' : element_type) : null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
