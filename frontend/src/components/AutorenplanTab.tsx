@@ -1544,9 +1544,9 @@ function AutorenplanGrid({
                             folgeNr ? `${folgeLabel} ${folgeNr}` : '',
                             einsatz.notiz || '',
                           ].filter(Boolean).join('\n')}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: '100%' }}>
-                              <div style={{ width: 3, height: 26, borderRadius: 2, background: isCellPlatzhalter ? 'var(--border)' : statusColor(einsatz.status), flexShrink: 0, borderLeft: isCellPlatzhalter ? '1px dashed var(--border)' : 'none' }} />
-                              <div style={{ overflow: 'hidden', flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'stretch', gap: 3, height: ROW_H - 4 }}>
+                              <div style={{ width: 3, borderRadius: 2, background: isCellPlatzhalter ? 'var(--border)' : statusColor(einsatz.status), flexShrink: 0 }} />
+                              <div style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
                                 <div style={{ fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)', fontStyle: isCellPlatzhalter ? 'italic' : 'normal' }}>
                                   {name || '—'}
                                 </div>
