@@ -4273,6 +4273,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
           key={activeTyp}
           value={currentConfig}
           onChange={handleChange}
+          previewContext={previewContext}
         />
       </div>
     </div>

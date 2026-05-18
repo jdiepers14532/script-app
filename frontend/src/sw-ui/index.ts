@@ -25,4 +25,4 @@ export type { RulerBarProps } from './editor/primitives/RulerBar';
 export { TabKeyExtension, TAB_ALIGN_NEXT, TAB_ALIGN_SYMBOL, TAB_ALIGN_COLORS } from './editor/primitives/TabStopExtension';
 export type { TabAlign, TabStop } from './editor/primitives/TabStopExtension';
 export { default as KopfZeilenEditor, emptyKopfZeilenEditorValue } from './editor/KopfZeilenEditor';
-export type { KopfZeilenEditorValue } from './editor/KopfZeilenEditor';
+export type { KopfZeilenEditorValue, KZPreviewContext } from './editor/KopfZeilenEditor';

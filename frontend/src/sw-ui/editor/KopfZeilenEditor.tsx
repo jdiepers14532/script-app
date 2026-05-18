@@ -26,7 +26,7 @@ import { TAB_ALIGN_NEXT } from './primitives/TabStopExtension'
 import { FontSizeExtension } from './extensions/FontSizeExtension'
 import { ParagraphStyleExtension } from './extensions/ParagraphStyleExtension'
 import { ResizableImageExtension } from './extensions/ResizableImageExtension'
-import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderColor, getPlaceholderLabel } from './extensions/PlaceholderChipExtension'
+import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderColor, getPlaceholderLabel, PLACEHOLDER_DEFS } from './extensions/PlaceholderChipExtension'
 import type { PlaceholderZone } from './extensions/PlaceholderChipExtension'
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
@@ -102,6 +102,225 @@ const KZ_EXTENSIONS = [
   PlaceholderChipExtension,
   TabKeyExtension,
 ]
+
+// ── Preview ────────────────────────────────────────────────────────────────────
+
+export interface KZPreviewContext {
+  produktion?: string; staffel?: string; block?: string; folge?: string | number
+  folgentitel?: string; werkstufe?: string; fassung?: string; version?: string
+  stand_datum?: string; autor?: string; regie?: string; firmenname?: string
+  sender?: string; buero_adresse?: string; tel_produktion?: string
+  sendedatum?: string; produktionszeitraum?: string; aktuelles_datum?: string
+  aktuelles_uhrzeit?: string; aktuelles_jahr?: string; folge_laenge_netto?: string
+  firmen_adresse?: string; rechtsform?: string; handelsregister?: string
+  ust_id?: string; geschaeftsfuehrung?: string; firmen_email?: string
+  firmen_telefon?: string; notiz_inhalt?: string
+}
+
+const DUMMY_CTX: KZPreviewContext = {
+  produktion: 'Rote Rosen', staffel: '41', block: 'Block 4', folge: '8271',
+  folgentitel: 'Das Familienrezept', werkstufe: 'Drehbuch', fassung: 'Rohfassung',
+  version: 'V1', stand_datum: '15.05.2026', autor: 'Max Mustermann',
+  regie: 'Lena Kaufmann', firmenname: 'Serienwerft GmbH', sender: 'Das Erste',
+  buero_adresse: 'Hansestraße 1, 21335 Lüneburg', tel_produktion: '+49 4131 12345',
+  sendedatum: 'Mo. 16.06.2026', produktionszeitraum: '01.02.2026 – 31.07.2026',
+  aktuelles_datum: new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+  aktuelles_uhrzeit: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+  aktuelles_jahr: String(new Date().getFullYear()),
+  folge_laenge_netto: '42:18', firmen_adresse: 'Hansestraße 1, 21335 Lüneburg',
+  rechtsform: 'GmbH', handelsregister: 'Amtsgericht Lüneburg HRB 205045',
+  ust_id: 'DE118621282', geschaeftsfuehrung: 'Jan Diepers',
+  firmen_email: 'info@serienwerft.studio', firmen_telefon: '+49 4131 98765',
+  notiz_inhalt: '(Notiz-Inhalt)',
+}
+
+function buildCtxMap(ctx: KZPreviewContext): Record<string, string> {
+  const map: Record<string, string> = {}
+  PLACEHOLDER_DEFS.forEach(p => { map[p.key] = '' })
+  map['{{produktion}}']         = String(ctx.produktion ?? '')
+  map['{{staffel}}']            = String(ctx.staffel ?? '')
+  map['{{block}}']              = String(ctx.block ?? '')
+  map['{{folge}}']              = String(ctx.folge ?? '')
+  map['{{folgentitel}}']        = String(ctx.folgentitel ?? '')
+  map['{{werkstufe}}']          = String(ctx.werkstufe ?? '')
+  map['{{fassung}}']            = String(ctx.fassung ?? '')
+  map['{{version}}']            = String(ctx.version ?? '')
+  map['{{stand_datum}}']        = String(ctx.stand_datum ?? '')
+  map['{{autor}}']              = String(ctx.autor ?? '')
+  map['{{regie}}']              = String(ctx.regie ?? '')
+  map['{{firmenname}}']         = String(ctx.firmenname ?? '')
+  map['{{firmen_adresse}}']     = String(ctx.firmen_adresse ?? '')
+  map['{{rechtsform}}']         = String(ctx.rechtsform ?? '')
+  map['{{handelsregister}}']    = String(ctx.handelsregister ?? '')
+  map['{{ust_id}}']             = String(ctx.ust_id ?? '')
+  map['{{geschaeftsfuehrung}}'] = String(ctx.geschaeftsfuehrung ?? '')
+  map['{{firmen_email}}']       = String(ctx.firmen_email ?? '')
+  map['{{firmen_telefon}}']     = String(ctx.firmen_telefon ?? '')
+  map['{{sender}}']             = String(ctx.sender ?? '')
+  map['{{buero_adresse}}']      = String(ctx.buero_adresse ?? '')
+  map['{{tel_produktion}}']     = String(ctx.tel_produktion ?? '')
+  map['{{sendedatum}}']         = String(ctx.sendedatum ?? '')
+  map['{{produktionszeitraum}}'] = String(ctx.produktionszeitraum ?? '')
+  map['{{aktuelles_datum}}']    = String(ctx.aktuelles_datum ?? '')
+  map['{{aktuelles_uhrzeit}}']  = String(ctx.aktuelles_uhrzeit ?? '')
+  map['{{aktuelles_jahr}}']     = String(ctx.aktuelles_jahr ?? '')
+  map['{{folge_laenge_netto}}'] = String(ctx.folge_laenge_netto ?? '')
+  map['{{notiz_inhalt}}']       = String(ctx.notiz_inhalt ?? '')
+  map['{{seite}}']              = '42'
+  map['{{seiten_gesamt}}']      = '84'
+  return map
+}
+
+function pmInlineToReact(node: any, ctxMap: Record<string, string>, key: string): React.ReactNode {
+  if (node.type === 'text') {
+    let el: React.ReactNode = node.text ?? ''
+    const marks: any[] = node.marks ?? []
+    const tsAttr = marks.find((m: any) => m.type === 'textStyle')?.attrs ?? {}
+    const style: React.CSSProperties = {}
+    if (tsAttr.fontFamily) style.fontFamily = tsAttr.fontFamily
+    if (tsAttr.fontSize)   style.fontSize   = tsAttr.fontSize
+    if (Object.keys(style).length) el = <span style={style}>{el}</span>
+    if (marks.find((m: any) => m.type === 'bold'))      el = <strong>{el}</strong>
+    if (marks.find((m: any) => m.type === 'italic'))    el = <em>{el}</em>
+    if (marks.find((m: any) => m.type === 'underline')) el = <u>{el}</u>
+    return <span key={key}>{el}</span>
+  }
+  if (node.type === 'placeholder_chip') {
+    const chipKey = node.attrs?.key ?? ''
+    const val = ctxMap[chipKey] ?? chipKey
+    return <span key={key} style={{ color: getPlaceholderColor(chipKey) }}>{val}</span>
+  }
+  if (node.type === 'hard_break') return <br key={key} />
+  return null
+}
+
+function pmDocToReact(json: any, ctxMap: Record<string, string>): React.ReactNode {
+  if (!json) return null
+  const nodes = json.content ?? []
+  return nodes.map((node: any, pi: number) => {
+    if (node.type !== 'paragraph') return null
+    const pa = node.attrs ?? {}
+    const style: React.CSSProperties = {
+      margin: 0,
+      fontFamily: pa.fontFamily ?? undefined,
+      fontSize:   pa.fontSize   ?? 10,
+      lineHeight: pa.lineHeight ?? 1.4,
+      textAlign:  pa.textAlign  ?? undefined,
+    }
+    const children = (node.content ?? []).map((child: any, ci: number) =>
+      pmInlineToReact(child, ctxMap, `${pi}-${ci}`)
+    )
+    return <p key={pi} style={style}>{children.length ? children : <br />}</p>
+  })
+}
+
+function ZonePreviewCell({ json, ctxMap, align }: { json: any; ctxMap: Record<string, string>; align: 'left' | 'center' | 'right' }) {
+  return (
+    <div style={{ flex: 1, textAlign: align, overflow: 'hidden' }}>
+      {json ? pmDocToReact(json, ctxMap) : <span style={{ color: '#ddd', fontSize: 9 }}>—</span>}
+    </div>
+  )
+}
+
+const MM_TO_PX_PREV = 96 / 25.4
+
+function KZPreviewModal({ value, previewContext, onClose }: {
+  value: KopfZeilenEditorValue; previewContext?: KZPreviewContext; onClose: () => void
+}) {
+  const ctx    = previewContext ?? DUMMY_CTX
+  const ctxMap = buildCtxMap(ctx)
+  const sl     = value.seiten_layout
+  const kz     = normalizeZone(value.kopfzeile_content)
+  const fz     = normalizeZone(value.fusszeile_content)
+
+  const A4_W   = 794
+  const mL     = Math.round(sl.margin_left   * MM_TO_PX_PREV)
+  const mR     = Math.round(sl.margin_right  * MM_TO_PX_PREV)
+  const mT     = Math.round(sl.margin_top    * MM_TO_PX_PREV)
+  const mB     = Math.round(sl.margin_bottom * MM_TO_PX_PREV)
+  const SCALE  = Math.min(0.78, (window.innerWidth * 0.85) / A4_W)
+
+  return createPortal(
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      zIndex: 99998, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      paddingTop: 50, overflowY: 'auto',
+    }} onClick={onClose}>
+      <div style={{
+        background: 'var(--bg-surface, #fff)', borderRadius: 12,
+        padding: '16px 20px 20px',
+        width: Math.round(A4_W * SCALE) + 64,
+        maxWidth: '95vw', boxShadow: '0 8px 40px rgba(0,0,0,0.3)', marginBottom: 40,
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* Modal-Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+            Vorschau Kopf-/Fußzeile — {sl.format === 'a4' ? 'A4' : 'US Letter'}
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-secondary)', lineHeight: 1, padding: '0 4px' }}>×</button>
+        </div>
+
+        {/* Seiten-Simulation */}
+        <div style={{ zoom: `${SCALE}`, width: A4_W, transformOrigin: 'top left' }}>
+          <div style={{ width: A4_W, background: '#fff', color: '#000', border: '1px solid #ccc', borderRadius: 2, boxShadow: '0 2px 12px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+
+            {/* Kopfzeile */}
+            {value.kopfzeile_aktiv ? (
+              <div style={{ paddingTop: mT, paddingLeft: mL, paddingRight: mR, paddingBottom: 8, borderBottom: '1px dashed #007AFF44' }}>
+                <div style={{ fontSize: 8, color: '#007AFF', fontWeight: 700, marginBottom: 4, letterSpacing: 0.5 }}>KOPFZEILE</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <ZonePreviewCell json={kz.links}  ctxMap={ctxMap} align="left" />
+                  <ZonePreviewCell json={kz.mitte}  ctxMap={ctxMap} align="center" />
+                  <ZonePreviewCell json={kz.rechts} ctxMap={ctxMap} align="right" />
+                </div>
+              </div>
+            ) : (
+              <div style={{ paddingTop: mT, paddingLeft: mL, paddingRight: mR, paddingBottom: 8 }}>
+                <div style={{ fontSize: 8, color: '#ccc' }}>KOPFZEILE (deaktiviert)</div>
+              </div>
+            )}
+
+            {/* Seiten-Inhalt (Platzhalter) */}
+            <div style={{
+              margin: `12px ${mL}px`,
+              height: 220,
+              background: 'repeating-linear-gradient(0deg, #fafafa, #fafafa 15px, #f0f0f0 15px, #f0f0f0 16px)',
+              borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <span style={{ fontSize: 10, color: '#ccc', fontStyle: 'italic' }}>Seiteninhalt</span>
+            </div>
+
+            {/* Fußzeile */}
+            {value.fusszeile_aktiv ? (
+              <div style={{ paddingBottom: mB, paddingLeft: mL, paddingRight: mR, paddingTop: 8, borderTop: '1px dashed #FF950044' }}>
+                <div style={{ fontSize: 8, color: '#FF9500', fontWeight: 700, marginBottom: 4, letterSpacing: 0.5 }}>FUSSZEILE</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <ZonePreviewCell json={fz.links}  ctxMap={ctxMap} align="left" />
+                  <ZonePreviewCell json={fz.mitte}  ctxMap={ctxMap} align="center" />
+                  <ZonePreviewCell json={fz.rechts} ctxMap={ctxMap} align="right" />
+                </div>
+              </div>
+            ) : (
+              <div style={{ paddingBottom: mB, paddingLeft: mL, paddingRight: mR, paddingTop: 8 }}>
+                <div style={{ fontSize: 8, color: '#ccc' }}>FUSSZEILE (deaktiviert)</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Footer-Hinweis */}
+        <div style={{ marginTop: 10, fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+          {previewContext ? 'Echte Vorschau-Daten' : 'Demo-Daten'} · L {sl.margin_left}mm / R {sl.margin_right}mm · T {sl.margin_top}mm / B {sl.margin_bottom}mm
+          {value.erste_seite_kein_header && (
+            <span style={{ marginLeft: 8 }}>· Erste Seite ohne KZ/FZ</span>
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
 
@@ -320,15 +539,17 @@ interface KopfZeilenEditorProps {
   value: KopfZeilenEditorValue
   onChange: (v: KopfZeilenEditorValue) => void
   readOnly?: boolean
+  previewContext?: KZPreviewContext
 }
 
 type ZeileName = 'kopfzeile' | 'fusszeile'
 type ZoneName  = 'links' | 'mitte' | 'rechts'
 
-export default function KopfZeilenEditor({ value, onChange, readOnly = false }: KopfZeilenEditorProps) {
+export default function KopfZeilenEditor({ value, onChange, readOnly = false, previewContext }: KopfZeilenEditorProps) {
   injectCss()
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const [activeZeile, setActiveZeile]   = useState<ZeileName>('kopfzeile')
   const [activeZone,  setActiveZone]    = useState<ZoneName>('links')
@@ -552,6 +773,33 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false }: 
       </div>
 
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
+
+      {/* Footer: Vorschau-Button */}
+      <div style={{
+        padding: '4px 8px', borderTop: '1px solid var(--border, #e0e0e0)',
+        background: 'var(--bg-subtle, #f5f5f5)',
+        display: 'flex', justifyContent: 'flex-end', flexShrink: 0,
+      }}>
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => setShowPreview(true)}
+          style={{
+            padding: '2px 10px', borderRadius: 4, fontSize: 10, cursor: 'pointer',
+            background: 'transparent', border: '1px solid var(--border, #e0e0e0)',
+            color: 'var(--text-secondary)', fontFamily: 'inherit',
+          }}
+        >
+          Vorschau
+        </button>
+      </div>
+
+      {showPreview && (
+        <KZPreviewModal
+          value={value}
+          previewContext={previewContext}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </div>
   )
 }
