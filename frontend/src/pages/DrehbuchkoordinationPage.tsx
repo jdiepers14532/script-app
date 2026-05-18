@@ -4096,7 +4096,9 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     firmen_email:        previewMeta.firmenEmail ?? undefined,
     firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
   }
-  const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
+  // activeTyp = der im Editor angezeigte Typ (Quelle); syncTypen = alle die Änderungen empfangen
+  const [activeTyp, setActiveTyp] = useState<string>('drehbuch')
+  const [syncTypen, setSyncTypen] = useState<Set<string>>(new Set(['drehbuch']))
   const [configs, setConfigs] = useState<Record<string, KopfZeilenEditorValue | null>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -4125,25 +4127,42 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
   const getCurrentValue = (): KopfZeilenEditorValue =>
     configs[activeTyp] ?? emptyKopfZeilenEditorValue()
 
+  // Änderung gilt für alle in syncTypen
   const handleChange = (v: KopfZeilenEditorValue) => {
-    setConfigs(prev => ({ ...prev, [activeTyp]: v }))
-    setDirty(prev => ({ ...prev, [activeTyp]: true }))
+    setConfigs(prev => {
+      const next = { ...prev }
+      syncTypen.forEach(t => { next[t] = v })
+      return next
+    })
+    setDirty(prev => {
+      const next = { ...prev }
+      syncTypen.forEach(t => { next[t] = true })
+      return next
+    })
   }
 
+  // Speichern aller dirty syncTypen
   const save = async () => {
     setSaving(true)
     try {
       const v = getCurrentValue()
-      await api.saveKopfFusszeilenTyp(productionId, activeTyp, {
-        kopfzeile_content:       v.kopfzeile_content,
-        fusszeile_content:       v.fusszeile_content,
-        kopfzeile_aktiv:         v.kopfzeile_aktiv,
-        fusszeile_aktiv:         v.fusszeile_aktiv,
-        erste_seite_kein_header: v.erste_seite_kein_header,
-        erste_seite_kein_footer: false,
-        seiten_layout:           v.seiten_layout,
+      const targets = [...syncTypen].filter(t => dirty[t])
+      await Promise.all(targets.map(typ =>
+        api.saveKopfFusszeilenTyp(productionId, typ, {
+          kopfzeile_content:       v.kopfzeile_content,
+          fusszeile_content:       v.fusszeile_content,
+          kopfzeile_aktiv:         v.kopfzeile_aktiv,
+          fusszeile_aktiv:         v.fusszeile_aktiv,
+          erste_seite_kein_header: v.erste_seite_kein_header,
+          erste_seite_kein_footer: false,
+          seiten_layout:           v.seiten_layout,
+        })
+      ))
+      setDirty(prev => {
+        const next = { ...prev }
+        targets.forEach(t => { next[t] = false })
+        return next
       })
-      setDirty(prev => ({ ...prev, [activeTyp]: false }))
     } catch (err: any) {
       alert('Fehler: ' + err.message)
     } finally {
@@ -4151,34 +4170,75 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     }
   }
 
+  // Klick auf Typ-Button: Strg/Meta = zur Auswahl hinzufügen/entfernen, sonst Einzelauswahl
+  const handleTypClick = (id: string, e: React.MouseEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      setSyncTypen(prev => {
+        const next = new Set(prev)
+        if (next.has(id) && next.size > 1) {
+          next.delete(id)
+          if (activeTyp === id) setActiveTyp([...next][0])
+        } else {
+          next.add(id)
+          setActiveTyp(id)
+        }
+        return next
+      })
+    } else {
+      setActiveTyp(id)
+      setSyncTypen(new Set([id]))
+    }
+  }
+
   if (loading) return <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lade...</div>
 
   const currentConfig = getCurrentValue()
-  const isDirty = dirty[activeTyp] ?? false
+  const isMultiSync = syncTypen.size > 1
+  const isDirty = [...syncTypen].some(t => dirty[t])
   const activeColor = KF_TYPEN.find(t => t.id === activeTyp)?.color ?? '#007AFF'
+  const syncLabels = KF_TYPEN.filter(t => syncTypen.has(t.id)).map(t => t.label).join(', ')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
+      {/* Erklärleiste Mehrfachauswahl */}
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+        Mehrfachauswahl möglich — Strg+Klick zum Hinzufügen/Entfernen
+      </div>
+
       {/* Sub-tab bar + save button */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
-          {KF_TYPEN.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setActiveTyp(t.id)}
-              style={{
-                fontSize: 13, padding: '6px 16px', borderRadius: 7, cursor: 'pointer',
-                fontFamily: 'inherit', fontWeight: activeTyp === t.id ? 600 : 400,
-                border: `1px solid ${activeTyp === t.id ? t.color : 'var(--border)'}`,
-                background: activeTyp === t.id ? t.color + '15' : 'transparent',
-                color: activeTyp === t.id ? t.color : 'var(--text-secondary)',
-              }}
-            >
-              {t.label}
-              {dirty[t.id] && <span style={{ marginLeft: 5, color: t.color, fontSize: 10 }}>●</span>}
-            </button>
-          ))}
+          {KF_TYPEN.map(t => {
+            const isActive   = activeTyp === t.id
+            const isInSync   = syncTypen.has(t.id)
+            return (
+              <button
+                key={t.id}
+                onClick={e => handleTypClick(t.id, e)}
+                title={`Klick = nur ${t.label} | Strg+Klick = zur Auswahl hinzufügen/entfernen`}
+                style={{
+                  fontSize: 13, padding: '6px 16px', borderRadius: 7, cursor: 'pointer',
+                  fontFamily: 'inherit', fontWeight: isActive ? 600 : 400,
+                  border: `${isActive ? 2 : 1}px solid ${isInSync ? t.color : 'var(--border)'}`,
+                  background: isActive ? t.color + '22' : isInSync ? t.color + '0d' : 'transparent',
+                  color: isInSync ? t.color : 'var(--text-secondary)',
+                  position: 'relative',
+                }}
+              >
+                {t.label}
+                {isInSync && !isActive && (
+                  <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.7 }}>✓</span>
+                )}
+                {dirty[t.id] && <span style={{ marginLeft: 4, color: t.color, fontSize: 10 }}>●</span>}
+              </button>
+            )
+          })}
         </div>
+        {isMultiSync && (
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+            Änderungen gelten für: {syncLabels}
+          </span>
+        )}
         <div style={{ flex: 1 }} />
         <button
           onClick={save}
@@ -4191,7 +4251,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
             fontWeight: 600, fontFamily: 'inherit', transition: 'background 0.15s',
           }}
         >
-          {saving ? 'Speichere...' : 'Speichern'}
+          {saving ? 'Speichere...' : isMultiSync ? `Speichern (${syncTypen.size})` : 'Speichern'}
         </button>
       </div>
 
@@ -4202,12 +4262,9 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
         background: 'var(--bg-subtle)', borderRadius: 7,
         border: `1px solid ${activeColor}33`,
       }}>
-        <strong style={{ color: activeColor }}>
-          {KF_TYPEN.find(t => t.id === activeTyp)?.label}
-        </strong>
-        {' '}— Globale Kopf-/Fußzeile für alle{' '}
-        {activeTyp === 'drehbuch' ? 'Drehbuch-' : activeTyp === 'storyline' ? 'Storyline-' : 'Notiz-'}
-        Fassungen dieser Produktion. Gilt auf jeder Seite des Exports (außer ggf. erste Seite).
+        <strong style={{ color: activeColor }}>{syncLabels}</strong>
+        {' '}— Globale Kopf-/Fußzeile für die ausgewählten Fassungstypen.
+        Gilt auf jeder Seite des Exports (außer ggf. erste Seite).
       </div>
 
       {/* Editor — KopfZeilenEditor mit SK-UX + Lineal */}
