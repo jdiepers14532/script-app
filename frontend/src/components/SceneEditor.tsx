@@ -253,24 +253,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     } catch {}
   }, [scene, szeneId, onSzeneUpdated])
 
-  const cycleTageszeit = useCallback(async () => {
-    const order = ['TAG', 'NACHT', 'ABEND']
-    const prev = scene?.tageszeit ?? 'TAG'
-    const idx = order.indexOf(prev)
-    const next = order[(idx + 1) % order.length]
-    try {
-      const updated = await saveScene({ tageszeit: next })
-      setScene(updated); onSzeneUpdated?.(updated)
-      if (tweaks.autoStimmungPropagation && scene?.id) {
-        const isNewDay = prev === 'NACHT' && (next === 'TAG' || next === 'MORGEN')
-        const result = await api.bulkTageszeitPropagate(scene.id, { tageszeit: next, increment_spieltag: isNewDay })
-        if (result.updated_count > 0) {
-          showToast(`Stimmung: ${result.updated_count} folgende Szene${result.updated_count > 1 ? 'n' : ''} auf ${next} gesetzt`, 'info')
-        }
-      }
-    } catch {}
-  }, [scene, tweaks.autoStimmungPropagation, saveScene, onSzeneUpdated, showToast])
-
   const ieAbbr = (ie: string) => ie === 'int' ? 'I' : 'A'
   const tzAbbr = (tz: string) => ({ TAG: 'T', NACHT: 'N', ABEND: 'A' }[tz] ?? 'T')
 
@@ -462,6 +444,24 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     }
     return api.updateSzene(szeneId as number, data)
   }, [szeneId, useDokumentSzenen, werkstufId, sceneIdentityId, scene])
+
+  const cycleTageszeit = useCallback(async () => {
+    const order = ['TAG', 'NACHT', 'ABEND']
+    const prev = scene?.tageszeit ?? 'TAG'
+    const idx = order.indexOf(prev)
+    const next = order[(idx + 1) % order.length]
+    try {
+      const updated = await saveScene({ tageszeit: next })
+      setScene(updated); onSzeneUpdated?.(updated)
+      if (tweaks.autoStimmungPropagation && scene?.id) {
+        const isNewDay = prev === 'NACHT' && (next === 'TAG' || next === 'MORGEN')
+        const result = await api.bulkTageszeitPropagate(scene.id, { tageszeit: next, increment_spieltag: isNewDay })
+        if (result.updated_count > 0) {
+          showToast(`Stimmung: ${result.updated_count} folgende Szene${result.updated_count > 1 ? 'n' : ''} auf ${next} gesetzt`, 'info')
+        }
+      }
+    } catch {}
+  }, [scene, tweaks.autoStimmungPropagation, saveScene, onSzeneUpdated, showToast])
 
   // Autoren-Stoppzeit: Auto-Berechnung (einzelne Szene oder ganze Folge)
   const handleStoppzeitAuto = useCallback(async (scope: 'scene' | 'folge') => {
