@@ -53,7 +53,7 @@ router.post('/job-kategorien', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const {
     produktion_db_id, label, beschreibung, vertragsdb_taetigkeit_id,
-    gage_betrag, gage_waehrung, abrechnungstyp, lst_rg,
+    gage_betrag, gage_waehrung, abrechnungstyp, lst_rg, gagen,
     max_slots, slots_gleich_folgen,
     dauer_wochen, bezugseinheit, praesenz_wochen,
     erster_block_start, farbe, sortierung,
@@ -66,15 +66,16 @@ router.post('/job-kategorien', async (req, res) => {
   const result = await pool.query(
     `INSERT INTO autorenplan_job_kategorien
        (produktion_db_id, label, beschreibung, vertragsdb_taetigkeit_id,
-        gage_betrag, gage_waehrung, abrechnungstyp, lst_rg,
+        gage_betrag, gage_waehrung, abrechnungstyp, lst_rg, gagen,
         max_slots, slots_gleich_folgen,
         dauer_wochen, bezugseinheit, praesenz_wochen,
         erster_block_start, farbe, sortierung, erstellt_von)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
      RETURNING *`,
     [
       produktion_db_id, label.trim(), beschreibung || null, vertragsdb_taetigkeit_id || null,
       gage_betrag || null, gage_waehrung || 'EUR', abrechnungstyp || 'pauschal', lst_rg || 'RG',
+      gagen ? JSON.stringify(gagen) : '[]',
       max_slots ?? 1, slots_gleich_folgen ?? false,
       dauer_wochen ?? 1, bezugseinheit || 'block',
       praesenz_wochen?.length ? praesenz_wochen : [1],
@@ -90,7 +91,7 @@ router.put('/job-kategorien/:id', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   const {
     label, beschreibung, vertragsdb_taetigkeit_id,
-    gage_betrag, gage_waehrung, abrechnungstyp, lst_rg,
+    gage_betrag, gage_waehrung, abrechnungstyp, lst_rg, gagen,
     max_slots, slots_gleich_folgen,
     dauer_wochen, bezugseinheit, praesenz_wochen,
     erster_block_start, farbe, sortierung,
@@ -105,20 +106,22 @@ router.put('/job-kategorien/:id', async (req, res) => {
        gage_waehrung       = COALESCE($5, gage_waehrung),
        abrechnungstyp      = COALESCE($6, abrechnungstyp),
        lst_rg              = COALESCE($7, lst_rg),
-       max_slots           = COALESCE($8, max_slots),
-       slots_gleich_folgen = COALESCE($9, slots_gleich_folgen),
-       dauer_wochen        = COALESCE($10, dauer_wochen),
-       bezugseinheit       = COALESCE($11, bezugseinheit),
-       praesenz_wochen     = COALESCE($12, praesenz_wochen),
-       erster_block_start  = $13,
-       farbe               = COALESCE($14, farbe),
-       sortierung          = COALESCE($15, sortierung),
+       gagen               = COALESCE($8, gagen),
+       max_slots           = COALESCE($9, max_slots),
+       slots_gleich_folgen = COALESCE($10, slots_gleich_folgen),
+       dauer_wochen        = COALESCE($11, dauer_wochen),
+       bezugseinheit       = COALESCE($12, bezugseinheit),
+       praesenz_wochen     = COALESCE($13, praesenz_wochen),
+       erster_block_start  = $14,
+       farbe               = COALESCE($15, farbe),
+       sortierung          = COALESCE($16, sortierung),
        aktualisiert_am     = NOW()
-     WHERE id = $16
+     WHERE id = $17
      RETURNING *`,
     [
       label?.trim() || null, beschreibung ?? null, vertragsdb_taetigkeit_id ?? null,
       gage_betrag ?? null, gage_waehrung || null, abrechnungstyp || null, lst_rg || null,
+      gagen ? JSON.stringify(gagen) : null,
       max_slots ?? null, slots_gleich_folgen ?? null,
       dauer_wochen ?? null, bezugseinheit || null,
       praesenz_wochen?.length ? praesenz_wochen : null,

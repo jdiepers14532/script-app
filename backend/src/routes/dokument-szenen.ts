@@ -727,13 +727,14 @@ stockshotTemplatesRouter.get('/:produktionId', async (req, res) => {
 
 // POST /api/stockshot-templates/:produktionId
 stockshotTemplatesRouter.post('/:produktionId', async (req, res) => {
-  const { kategorie, name, oneliner_vorlage, sortierung } = req.body
+  const { kategorie, name, oneliner_vorlage, sortierung, stoppzeit_sek, innen_aussen, stimmung, bodytext, motiv_id } = req.body
   if (!kategorie || !name) return res.status(400).json({ error: 'kategorie + name required' })
   try {
     const row = await queryOne(
-      `INSERT INTO stockshot_templates (produktion_id, kategorie, name, oneliner_vorlage, sortierung)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [req.params.produktionId, kategorie, name, oneliner_vorlage ?? '', sortierung ?? 0]
+      `INSERT INTO stockshot_templates (produktion_id, kategorie, name, oneliner_vorlage, sortierung, stoppzeit_sek, innen_aussen, stimmung, bodytext, motiv_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+      [req.params.produktionId, kategorie, name, oneliner_vorlage ?? '', sortierung ?? 0,
+       stoppzeit_sek ?? null, innen_aussen ?? null, stimmung ?? null, bodytext ?? null, motiv_id ?? null]
     )
     res.json(row)
   } catch (err) {
@@ -743,15 +744,21 @@ stockshotTemplatesRouter.post('/:produktionId', async (req, res) => {
 
 // PUT /api/stockshot-templates/:produktionId/:id
 stockshotTemplatesRouter.put('/:produktionId/:id', async (req, res) => {
-  const { name, oneliner_vorlage, sortierung } = req.body
+  const { name, oneliner_vorlage, sortierung, stoppzeit_sek, innen_aussen, stimmung, bodytext, motiv_id } = req.body
   try {
     const row = await queryOne(
       `UPDATE stockshot_templates SET
         name = COALESCE($1, name),
         oneliner_vorlage = COALESCE($2, oneliner_vorlage),
-        sortierung = COALESCE($3, sortierung)
+        sortierung = COALESCE($3, sortierung),
+        stoppzeit_sek = $6,
+        innen_aussen = $7,
+        stimmung = $8,
+        bodytext = $9,
+        motiv_id = $10
        WHERE id = $4 AND produktion_id = $5 RETURNING *`,
-      [name ?? null, oneliner_vorlage ?? null, sortierung ?? null, req.params.id, req.params.produktionId]
+      [name ?? null, oneliner_vorlage ?? null, sortierung ?? null, req.params.id, req.params.produktionId,
+       stoppzeit_sek ?? null, innen_aussen ?? null, stimmung ?? null, bodytext ?? null, motiv_id ?? null]
     )
     if (!row) return res.status(404).json({ error: 'Template nicht gefunden' })
     res.json(row)

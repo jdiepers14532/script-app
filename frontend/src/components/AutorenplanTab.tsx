@@ -24,6 +24,14 @@ interface JobKategorie {
   erster_block_start?: string
   farbe: string
   sortierung: number
+  gagen?: GageEntry[]
+}
+
+interface GageEntry {
+  kat: string
+  abrechnungstyp: string
+  betrag: string
+  lst_rg: string
 }
 
 interface Block {
@@ -134,6 +142,7 @@ const ABRECHNUNGSTYPEN = [
   { id: 'pro_woche',  label: 'Pro Woche' },
   { id: 'pro_tag',    label: 'Pro Tag' },
   { id: 'pro_buch',   label: 'Pro Buch' },
+  { id: 'pro_block',  label: 'Pro Block' },
 ]
 
 function statusColor(s: string): string {
@@ -450,19 +459,22 @@ function JobKategorieModal({
   const [beschreibung, setBeschreibung] = useState(jk?.beschreibung || '')
   const [taetigkeitId, setTaetigkeitId] = useState<number | undefined>(jk?.vertragsdb_taetigkeit_id)
   const [taetigkeitLabel, setTaetigkeitLabel] = useState(jk?.vertragsdb_taetigkeit_label || '')
-  const [gageBetrag, setGageBetrag] = useState(jk?.gage_betrag ? String(jk.gage_betrag) : '')
-  const [abrechnungstyp, setAbrechnungstyp] = useState(jk?.abrechnungstyp || 'pauschal')
-  const [lstRg, setLstRg] = useState(jk?.lst_rg || 'RG')
+  const [gagen, setGagen] = useState<GageEntry[]>(() => {
+    if (jk?.gagen && Array.isArray(jk.gagen) && jk.gagen.length > 0) return jk.gagen as GageEntry[]
+    return [{ kat: '1', abrechnungstyp: jk?.abrechnungstyp || 'pauschal', betrag: jk?.gage_betrag ? String(jk.gage_betrag) : '', lst_rg: jk?.lst_rg || 'RG' }]
+  })
   const [maxSlots, setMaxSlots] = useState(jk?.max_slots ?? 1)
   const [slotsGleichFollen, setSlotsGleichFolgen] = useState(jk?.slots_gleich_folgen ?? false)
   const [dauerWochen, setDauerWochen] = useState(jk?.dauer_wochen ?? 1)
   const [praesenzWochen, setPraesenzWochen] = useState<number[]>(jk?.praesenz_wochen ?? [1])
-  const [ersterBlockStart, setErsterBlockStart] = useState(jk?.erster_block_start || '')
   const [farbe, setFarbe] = useState(jk?.farbe || '#007AFF')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [newTaetigkeitConfirm, setNewTaetigkeitConfirm] = useState<string | null>(null)
+
+  const updateGage = (i: number, field: keyof GageEntry, val: string) =>
+    setGagen(prev => prev.map((g, j) => j === i ? { ...g, [field]: val } : g))
 
   const togglePraesenzWoche = (w: number) => {
     setPraesenzWochen(prev =>
@@ -494,18 +506,19 @@ function JobKategorieModal({
     if (!label.trim()) return
     setSaving(true)
     try {
+      const g0 = gagen[0]
       await onSave({
         label: label.trim(),
         beschreibung: beschreibung || undefined,
         vertragsdb_taetigkeit_id: taetigkeitId,
-        gage_betrag: gageBetrag ? parseFloat(gageBetrag) : undefined,
-        abrechnungstyp,
-        lst_rg: lstRg,
+        gagen,
+        gage_betrag: g0?.betrag ? parseFloat(g0.betrag) : undefined,
+        abrechnungstyp: g0?.abrechnungstyp || 'pauschal',
+        lst_rg: g0?.lst_rg || 'RG',
         max_slots: maxSlots,
         slots_gleich_folgen: slotsGleichFollen,
         dauer_wochen: dauerWochen,
         praesenz_wochen: praesenzWochen,
-        erster_block_start: ersterBlockStart || undefined,
         farbe,
       })
       onClose()
@@ -548,33 +561,48 @@ function JobKategorieModal({
 
         <div style={{ padding: '20px 24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-          {/* Tätigkeit aus Vertragsdb */}
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
-              Job aus Vertragsdatenbank
-            </label>
-            {taetigkeitId && (
-              <div style={{ fontSize: 12, color: '#007AFF', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#007AFF', display: 'inline-block' }} />
-                {taetigkeitLabel} (ID: {taetigkeitId})
-                <button onClick={() => { setTaetigkeitId(undefined); setTaetigkeitLabel('') }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11 }}>× löschen</button>
+          {/* Tätigkeit aus Vertragsdb + Anzeige-Label — 2 Spalten */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                Job aus Vertragsdatenbank
               </div>
-            )}
-            <TaetigkeitPicker
-              value={taetigkeitId}
-              displayLabel={taetigkeitLabel}
-              onSelect={t => { setTaetigkeitId(t.id); setTaetigkeitLabel(t.bezeichnung); if (!label) setLabel(t.bezeichnung) }}
-              onNew={handleTaetigkeitNew}
-            />
+              {taetigkeitId ? (
+                <div style={{ fontSize: 12, color: '#007AFF', display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 6, background: '#007AFF10', border: '1px solid #007AFF30' }}>
+                  <span style={{ flex: 1, fontWeight: 500 }}>{taetigkeitLabel}</span>
+                  <span style={{ fontSize: 10, color: '#007AFF99' }}>ID {taetigkeitId}</span>
+                  <button onClick={() => { setTaetigkeitId(undefined); setTaetigkeitLabel('') }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#007AFF', fontSize: 14, lineHeight: 1, padding: 0 }}>×</button>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '7px 10px', borderRadius: 6, background: 'var(--bg-subtle)', border: '1px solid var(--border)', fontStyle: 'italic' }}>
+                  Keine Verknüpfung
+                </div>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                Tätigkeit suchen
+              </div>
+              <TaetigkeitPicker
+                value={taetigkeitId}
+                displayLabel={taetigkeitLabel}
+                onSelect={t => { setTaetigkeitId(t.id); setTaetigkeitLabel(t.bezeichnung); if (!label) setLabel(t.bezeichnung) }}
+                onNew={handleTaetigkeitNew}
+              />
+            </div>
           </div>
 
-          {/* Label */}
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
-              Anzeige-Label *
+          {/* Anzeige-Label — inline */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+              Anzeige-Label
+              <Tooltip text="Der Name der Job-Kategorie wie er im Autorenplan-Raster angezeigt wird. Pflichtfeld.">
+                <Info size={11} style={{ color: 'var(--text-secondary)' }} />
+              </Tooltip>
             </label>
-            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="z. B. Storyedit" style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, color: 'var(--text-primary)' }} />
+            <input value={label} onChange={e => setLabel(e.target.value)} placeholder="z. B. Storyedit"
+              style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, color: 'var(--text-primary)' }} />
           </div>
 
           {/* Beschreibung */}
@@ -585,33 +613,49 @@ function JobKategorieModal({
             <textarea value={beschreibung} onChange={e => setBeschreibung(e.target.value)} rows={2} placeholder="Optionale Beschreibung des Jobs..." style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'none' }} />
           </div>
 
-          {/* Gage */}
+          {/* Gagenkategorien — mehrere */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 8 }}>
-              Gagenkategorie
+              Gagenkategorien
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 80px', gap: 8, marginBottom: 8 }}>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Abrechnungstyp</div>
-                <select value={abrechnungstyp} onChange={e => setAbrechnungstyp(e.target.value)}
-                  style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}>
-                  {ABRECHNUNGSTYPEN.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
-                </select>
+            {gagen.map((g, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 100px 68px 28px', gap: 6, marginBottom: 6, alignItems: 'end' }}>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>Kat.</div>
+                  <input type="number" min={1} value={g.kat} onChange={e => updateGage(i, 'kat', e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '6px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, textAlign: 'center' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>Abrechnungstyp</div>
+                  <select value={g.abrechnungstyp} onChange={e => updateGage(i, 'abrechnungstyp', e.target.value)}
+                    style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}>
+                    {ABRECHNUNGSTYPEN.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>Betrag (€)</div>
+                  <input type="number" value={g.betrag} onChange={e => updateGage(i, 'betrag', e.target.value)}
+                    placeholder="0,00" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12 }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>LSt / RG</div>
+                  <select value={g.lst_rg} onChange={e => updateGage(i, 'lst_rg', e.target.value)}
+                    style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}>
+                    <option value="RG">RG</option>
+                    <option value="LSt">LSt</option>
+                  </select>
+                </div>
+                <button onClick={() => setGagen(prev => prev.filter((_, j) => j !== i))}
+                  disabled={gagen.length <= 1}
+                  style={{ padding: '6px 0', background: 'none', border: 'none', cursor: gagen.length > 1 ? 'pointer' : 'default', color: gagen.length > 1 ? '#FF3B30' : 'var(--border)', fontSize: 16, lineHeight: 1, alignSelf: 'flex-end' }}>
+                  ×
+                </button>
               </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Betrag (€)</div>
-                <input type="number" value={gageBetrag} onChange={e => setGageBetrag(e.target.value)}
-                  placeholder="0,00" style={{ width: '100%', boxSizing: 'border-box', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }} />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4 }}>Art</div>
-                <select value={lstRg} onChange={e => setLstRg(e.target.value)}
-                  style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}>
-                  <option value="RG">RG</option>
-                  <option value="LSt">LSt</option>
-                </select>
-              </div>
-            </div>
+            ))}
+            <button onClick={() => setGagen(prev => [...prev, { kat: String(prev.length + 1), abrechnungstyp: 'pauschal', betrag: '', lst_rg: 'RG' }])}
+              style={{ fontSize: 11, padding: '5px 12px', borderRadius: 6, border: '1px dashed var(--border)', background: 'none', cursor: 'pointer', color: '#007AFF', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Plus size={11} /> Gagenkategorie hinzufügen
+            </button>
           </div>
 
           {/* Slots */}
@@ -619,29 +663,30 @@ function JobKategorieModal({
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 8 }}>
               Slots (Y-Achse)
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, cursor: 'pointer', fontSize: 12 }}>
-              <input type="checkbox" checked={slotsGleichFollen} onChange={e => setSlotsGleichFolgen(e.target.checked)} />
-              Anzahl Slots = Folgenanzahl des Blocks
-              <Tooltip text="Das Raster zeigt so viele Slots wie Folgen im Block vorhanden sind (aus Prod-DB). Überschreitung wird als Warnung angezeigt.">
-                <Info size={12} style={{ color: 'var(--text-secondary)' }} />
-              </Tooltip>
-            </label>
-            {!slotsGleichFollen && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Feste Anzahl Slots:</div>
                 <input type="number" min={1} max={20} value={maxSlots} onChange={e => setMaxSlots(parseInt(e.target.value) || 1)}
-                  style={{ width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, textAlign: 'center' }} />
+                  disabled={slotsGleichFollen}
+                  style={{ width: 55, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: slotsGleichFollen ? 'var(--bg-subtle)' : 'var(--bg-subtle)', fontSize: 12, textAlign: 'center', opacity: slotsGleichFollen ? 0.4 : 1 }} />
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>feste Anzahl Slots</span>
               </div>
-            )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
+                <input type="checkbox" checked={slotsGleichFollen} onChange={e => setSlotsGleichFolgen(e.target.checked)} />
+                <span>= Folgenanzahl des Blocks</span>
+                <Tooltip text="Das Raster zeigt so viele Slots wie Folgen im Block vorhanden sind (aus Prod-DB). Überschreitung wird als Warnung angezeigt.">
+                  <Info size={11} style={{ color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </label>
+            </div>
           </div>
 
-          {/* Dauer & HO/Präsenz */}
+          {/* Zeitkonfiguration */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 8 }}>
               Zeitkonfiguration
             </label>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Dauer pro Block:</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Einsatz pro Block:</div>
               <input type="number" min={1} max={12} value={dauerWochen} onChange={e => setDauerWochen(parseInt(e.target.value) || 1)}
                 style={{ width: 60, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, textAlign: 'center' }} />
               <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Wochen</div>
@@ -662,18 +707,6 @@ function JobKategorieModal({
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Blockkalender */}
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
-              Blockkalender — Startdatum
-            </label>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
-              Wann beginnt die Arbeit am ersten Block? (Montag der Startwoche)
-            </div>
-            <input type="date" value={ersterBlockStart} onChange={e => setErsterBlockStart(e.target.value)}
-              style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }} />
           </div>
 
           {/* Farbe */}
@@ -1107,50 +1140,91 @@ function EinsatzModal({
 // ── WochenNotizModal ──────────────────────────────────────────────────────────
 
 function WochenNotizModal({
-  woche, notiz, produktionDbId, onSave, onDelete, onClose,
+  woche, notizen, onAdd, onDeleteNotiz, onClose,
 }: {
-  woche: Date; notiz?: WochenNotiz; produktionDbId: string
-  onSave: (text: string, typ: string) => Promise<void>
-  onDelete?: () => Promise<void>
+  woche: Date
+  notizen: WochenNotiz[]
+  onAdd: (text: string, typ: string) => Promise<void>
+  onDeleteNotiz: (id: string) => Promise<void>
   onClose: () => void
 }) {
-  const [text, setText] = useState(notiz?.text || '')
-  const [typ, setTyp] = useState(notiz?.typ || 'allgemein')
-  const [saving, setSaving] = useState(false)
+  const [newText, setNewText] = useState('')
+  const [newTyp, setNewTyp] = useState('allgemein')
+  const [adding, setAdding] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const handleAdd = async () => {
+    if (!newText.trim()) return
+    setAdding(true)
+    try { await onAdd(newText.trim(), newTyp); setNewText('') }
+    finally { setAdding(false) }
+  }
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--bg-page)', borderRadius: 12, width: 420, padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Wochennotiz · {formatWoche(woche)}</div>
+      <div style={{ background: 'var(--bg-page)', borderRadius: 12, width: 440, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 600 }}>Wochennotizen · {formatWoche(woche)}</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={16} /></button>
         </div>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-          {['allgemein', 'zusatzkosten', 'sperrer'].map(t => {
-            const c = NOTIZ_FARBEN[t]
-            return (
-              <button key={t} onClick={() => setTyp(t)} style={{
-                padding: '4px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer',
-                border: typ === t ? `1.5px solid ${c}` : '1px solid var(--border)',
-                background: typ === t ? `${c}20` : 'none',
-                color: typ === t ? c : 'var(--text-secondary)',
-              }}>
-                {t === 'allgemein' ? 'Allgemein' : t === 'zusatzkosten' ? 'Zusatzkosten' : 'Sperrer'}
-              </button>
-            )
-          })}
-        </div>
-        <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Notiz eingeben..." style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: `1px solid ${NOTIZ_FARBEN[typ]}40`, background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'vertical' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
-          <div>{onDelete && <button onClick={onDelete} style={{ padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid #FF3B30', background: 'none', color: '#FF3B30' }}>Löschen</button>}</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)' }}>Abbrechen</button>
-            <button
-              onClick={async () => { setSaving(true); try { await onSave(text, typ) } finally { setSaving(false) } }}
-              disabled={saving || !text.trim()}
+
+        {/* Bestehende Notizen */}
+        {notizen.length > 0 && (
+          <div style={{ overflowY: 'auto', padding: '12px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            {notizen.map(n => {
+              const c = NOTIZ_FARBEN[n.typ] || '#007AFF'
+              return (
+                <div key={n.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8, padding: '8px 10px', borderRadius: 8, background: `${c}10`, border: `1px solid ${c}30` }}>
+                  <div style={{ width: 4, height: 16, borderRadius: 2, background: c, marginTop: 2, flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: c, textTransform: 'uppercase', marginBottom: 2 }}>
+                      {n.typ === 'allgemein' ? 'Allgemein' : n.typ === 'zusatzkosten' ? 'Zusatzkosten' : 'Sperrer'}
+                    </div>
+                    <div style={{ fontSize: 12, lineHeight: 1.4, color: 'var(--text-primary)' }}>{n.text}</div>
+                  </div>
+                  <button
+                    onClick={() => { setDeletingId(n.id); onDeleteNotiz(n.id).finally(() => setDeletingId(null)) }}
+                    disabled={deletingId === n.id}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 16, lineHeight: 1, padding: '0 2px', flexShrink: 0, opacity: deletingId === n.id ? 0.4 : 1 }}>
+                    ×
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Neue Notiz */}
+        <div style={{ padding: '16px 20px', flex: 1 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+            {notizen.length > 0 ? '+ Weitere Notiz' : 'Notiz hinzufügen'}
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+            {['allgemein', 'zusatzkosten', 'sperrer'].map(t => {
+              const c = NOTIZ_FARBEN[t]
+              return (
+                <button key={t} onClick={() => setNewTyp(t)} style={{
+                  padding: '4px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer',
+                  border: newTyp === t ? `1.5px solid ${c}` : '1px solid var(--border)',
+                  background: newTyp === t ? `${c}20` : 'none',
+                  color: newTyp === t ? c : 'var(--text-secondary)',
+                }}>
+                  {t === 'allgemein' ? 'Allgemein' : t === 'zusatzkosten' ? 'Zusatzkosten' : 'Sperrer'}
+                </button>
+              )
+            })}
+          </div>
+          <textarea value={newText} onChange={e => setNewText(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) handleAdd() }}
+            rows={3} placeholder="Notiztext eingeben... (Strg+Enter zum Speichern)"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: `1px solid ${NOTIZ_FARBEN[newTyp]}40`, background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'vertical' }} />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
+            <button onClick={onClose} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)' }}>Schließen</button>
+            <button onClick={handleAdd} disabled={adding || !newText.trim()}
               style={{ padding: '6px 16px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none', background: '#000', color: '#fff', fontWeight: 600 }}>
-              {saving ? '...' : 'Speichern'}
+              {adding ? '...' : '+ Hinzufügen'}
             </button>
           </div>
         </div>
@@ -1176,7 +1250,7 @@ function AutorenplanGrid({
   const [windowStart, setWindowStart] = useState<Date>(() => addWeeks(mondayOf(new Date()), -4))
   const WEEKS_VISIBLE = 20
   const [modal, setModal] = useState<{ einsatz?: Einsatz; jk: JobKategorie; woche: Date } | null>(null)
-  const [noteModal, setNoteModal] = useState<{ woche: Date; notiz?: WochenNotiz } | null>(null)
+  const [noteModal, setNoteModal] = useState<Date | null>(null)
   const [showKostenstellen, setShowKostenstellen] = useState(false)
 
   const weeks = Array.from({ length: WEEKS_VISIBLE }, (_, i) => addWeeks(windowStart, i))
@@ -1492,7 +1566,7 @@ function AutorenplanGrid({
                 const isToday = dateKey(w) === dateKey(today)
                 const baseBg = isToday ? '#007AFF08' : nots.length ? typColor + '15' : 'transparent'
                 return (
-                  <td key={wi} onClick={() => setNoteModal({ woche: w, notiz: nots[0] })}
+                  <td key={wi} onClick={() => setNoteModal(w)}
                     style={{
                       height: ROW_H, borderLeft: '1px solid var(--border)', borderTop: '1px solid var(--border)',
                       cursor: 'pointer', padding: '2px 4px', verticalAlign: 'middle',
@@ -1544,31 +1618,20 @@ function AutorenplanGrid({
       )}
       {noteModal && (
         <WochenNotizModal
-          woche={noteModal.woche}
-          notiz={noteModal.notiz}
-          produktionDbId={produktionDbId}
-          onSave={async (text, typ) => {
-            if (noteModal.notiz) {
-              await fetch(`/api/autorenplan/wochen-notizen/${noteModal.notiz.id}`, {
-                method: 'PUT', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, typ }),
-              })
-            } else {
-              await fetch('/api/autorenplan/wochen-notizen', {
-                method: 'POST', credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ produktion_db_id: produktionDbId, woche_von: dateKey(noteModal.woche), text, typ }),
-              })
-            }
+          woche={noteModal}
+          notizen={notizen.filter(n => (n.woche_von || '').slice(0, 10) === dateKey(noteModal))}
+          onAdd={async (text, typ) => {
+            await fetch('/api/autorenplan/wochen-notizen', {
+              method: 'POST', credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ produktion_db_id: produktionDbId, woche_von: dateKey(noteModal), text, typ }),
+            })
             await loadData()
-            setNoteModal(null)
           }}
-          onDelete={noteModal.notiz ? async () => {
-            await fetch(`/api/autorenplan/wochen-notizen/${noteModal.notiz!.id}`, { method: 'DELETE', credentials: 'include' })
-            loadData()
-            setNoteModal(null)
-          } : undefined}
+          onDeleteNotiz={async (id) => {
+            await fetch(`/api/autorenplan/wochen-notizen/${id}`, { method: 'DELETE', credentials: 'include' })
+            await loadData()
+          }}
           onClose={() => setNoteModal(null)}
         />
       )}

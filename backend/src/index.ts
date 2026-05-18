@@ -318,6 +318,7 @@ async function runMigrations() {
     'v91_stockshot_template_felder.sql',
     'v92_einsatz_datumfelder.sql',
     'v93_prozess_id_nullable.sql',
+    'v94_job_kat_gagen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

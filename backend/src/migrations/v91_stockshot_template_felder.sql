@@ -1,0 +1,6 @@
+ALTER TABLE stockshot_templates
+  ADD COLUMN IF NOT EXISTS stoppzeit_sek   INT     DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS innen_aussen    TEXT    DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS stimmung        TEXT    DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS bodytext        TEXT    DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS motiv_id        UUID    DEFAULT NULL;
