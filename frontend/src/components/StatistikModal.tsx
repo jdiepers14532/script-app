@@ -402,7 +402,13 @@ function UebersichtSection({ report }: { report: any }) {
         <SummaryItem label={`${t('szene', 'p')} insgesamt`} value={report.szenen_insgesamt ?? report.bilder_insgesamt} />
         <SummaryItem label="Anzahl an Drehbuchseiten" value={report.drehbuchseiten_display || '-'} />
         <SummaryItem label="Vorstopp (mm:ss)" value={formatTime(report.vorstopp_sek || 0)} />
-        <SummaryItem label="Geplante Drehdauer (hh:mm)" value={report.vorstopp_sek ? formatDrehdauer(report.vorstopp_sek) : '-'} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Geplante Drehdauer (hh:mm)</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontWeight: 600, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{report.vorstopp_sek ? formatDrehdauer(report.vorstopp_sek) : '-'}</span>
+            <span style={{ fontSize: 10, fontWeight: 500, color: '#007AFF', background: 'rgba(0,122,255,0.1)', borderRadius: 4, padding: '1px 5px' }}>kommt bald</span>
+          </span>
+        </div>
       </div>
     </Section>
   )
