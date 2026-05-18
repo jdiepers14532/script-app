@@ -28,6 +28,7 @@ const ABRECHNUNGSTYPEN = [
   { id: 'pro_woche', label: 'Pro Woche' },
   { id: 'pro_tag',   label: 'Pro Tag' },
   { id: 'pro_buch',  label: 'Pro Buch' },
+  { id: 'pro_monat', label: 'Pro Monat' },
   { id: 'pro_block', label: 'Pro Block' },
 ]
 
@@ -291,7 +292,7 @@ function PausenkalenderTab({ produktionDbId }: { produktionDbId: string }) {
   const toggleWoche = async (monday: Date) => {
     const key = isoDate(monday)
     if (pauseSet.has(key)) {
-      const pw = pausenwochen.find(p => p.woche_von === key)
+      const pw = pausenwochen.find(p => p.woche_von.slice(0, 10) === key)
       if (!pw) return
       await fetch(`/api/autorenplan/pausenwochen/${pw.id}`, { method: 'DELETE', credentials: 'include' })
     } else {
@@ -332,7 +333,7 @@ function PausenkalenderTab({ produktionDbId }: { produktionDbId: string }) {
       {/* Legende */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 11, color: 'var(--text-secondary)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <div style={{ width: 12, height: 12, borderRadius: 3, background: '#FF3B3022', border: '1px solid #FF3B3066' }} />
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: '#00C85322', border: '1px solid #00C85366' }} />
           <span>Pause / keine Arbeit</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -371,21 +372,21 @@ function PausenkalenderTab({ produktionDbId }: { produktionDbId: string }) {
                           style={{
                             width: '100%', display: 'flex', alignItems: 'center', gap: 6,
                             padding: '5px 10px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                            background: isPause ? '#FF3B3014' : 'transparent',
+                            background: isPause ? '#00C85314' : 'transparent',
                             borderBottom: '1px solid var(--border-subtle, var(--border))',
                             transition: 'background 0.1s',
                           }}
                         >
                           <span style={{
                             fontSize: 10, fontWeight: 700, minWidth: 28,
-                            color: isPause ? '#FF3B30' : 'var(--text-secondary)',
+                            color: isPause ? '#00C853' : 'var(--text-secondary)',
                           }}>
                             {String(w.kw).padStart(2, '0')}
                           </span>
-                          <span style={{ fontSize: 11, color: isPause ? '#FF3B30' : 'var(--text-primary)', flex: 1 }}>
+                          <span style={{ fontSize: 11, color: isPause ? '#00C853' : 'var(--text-primary)', flex: 1 }}>
                             {formatDay(w.monday)}–{formatDay(sunday)}
                           </span>
-                          {isPause && <Check size={10} color="#FF3B30" />}
+                          {isPause && <Check size={10} color="#00C853" />}
                         </button>
                       </Tooltip>
                     )

@@ -154,6 +154,7 @@ const ABRECHNUNGSTYPEN = [
   { id: 'pro_woche',  label: 'Pro Woche' },
   { id: 'pro_tag',    label: 'Pro Tag' },
   { id: 'pro_buch',   label: 'Pro Buch' },
+  { id: 'pro_monat',  label: 'Pro Monat' },
   { id: 'pro_block',  label: 'Pro Block' },
 ]
 
