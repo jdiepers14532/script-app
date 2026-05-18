@@ -8,7 +8,20 @@ interface GageKategorie {
   id: string
   label: string
   kat_nr?: number
+  beschreibung?: string
+  abrechnungstyp?: string
+  betrag?: number
+  waehrung?: string
+  lst_rg?: string
 }
+
+const ABRECHNUNGSTYPEN = [
+  { id: 'pauschal',    label: 'Pauschal' },
+  { id: 'pro_tag',     label: 'Pro Tag' },
+  { id: 'pro_woche',   label: 'Pro Woche' },
+  { id: 'pro_monat',   label: 'Pro Monat' },
+  { id: 'pro_buch',    label: 'Pro Buch' },
+]
 
 interface Pausenwoche {
   id: string
@@ -89,7 +102,7 @@ function GagenkategorienTab() {
 
   const startNew = () => {
     const nextKat = list.reduce((max, g) => Math.max(max, g.kat_nr ?? 0), 0) + 1
-    setForm({ label: '', kat_nr: nextKat })
+    setForm({ label: '', kat_nr: nextKat, abrechnungstyp: 'pauschal', waehrung: 'EUR', lst_rg: 'rg' })
     setIsNew(true)
     setEditing(null)
   }
@@ -158,7 +171,7 @@ function GagenkategorienTab() {
           background: 'var(--bg-surface)', border: '1px solid var(--border)',
           borderRadius: 10, padding: 16, marginBottom: 12,
         }}>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end' }}>
             <div style={{ width: 80 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Kat.-Nr.</label>
               <input type="number" min={1} style={{ ...inp, width: '100%', boxSizing: 'border-box', textAlign: 'center' }}
@@ -169,6 +182,38 @@ function GagenkategorienTab() {
               <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
                 value={form.label ?? ''} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder="z.B. Erstautor" autoFocus />
             </div>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Abrechnung</label>
+              <select style={{ ...inp }} value={form.abrechnungstyp ?? 'pauschal'}
+                onChange={e => setForm(f => ({ ...f, abrechnungstyp: e.target.value }))}>
+                {ABRECHNUNGSTYPEN.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+              </select>
+            </div>
+            <div style={{ width: 110 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Betrag</label>
+              <input type="number" min={0} step={0.01} style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
+                value={form.betrag ?? ''} onChange={e => setForm(f => ({ ...f, betrag: e.target.value ? Number(e.target.value) : undefined }))} placeholder="0,00" />
+            </div>
+            <div style={{ width: 65 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Währung</label>
+              <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
+                value={form.waehrung ?? 'EUR'} onChange={e => setForm(f => ({ ...f, waehrung: e.target.value }))} placeholder="EUR" maxLength={3} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>LSt/RG</label>
+              <select style={{ ...inp }} value={form.lst_rg ?? 'rg'}
+                onChange={e => setForm(f => ({ ...f, lst_rg: e.target.value }))}>
+                <option value="rg">RG</option>
+                <option value="lst">LSt</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Beschreibung</label>
+            <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
+              value={form.beschreibung ?? ''} onChange={e => setForm(f => ({ ...f, beschreibung: e.target.value }))} placeholder="Optionale Beschreibung" />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button onClick={cancel} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>Abbrechen</button>
@@ -188,9 +233,12 @@ function GagenkategorienTab() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: 'var(--bg-subtle)' }}>
-                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 60 }}>Kat.</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 55 }}>Kat.</th>
                 <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Bezeichnung</th>
-                <th style={{ width: 80, borderBottom: '1px solid var(--border)' }} />
+                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 110 }}>Abrechnung</th>
+                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 100 }}>Betrag</th>
+                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 55 }}>LSt/RG</th>
+                <th style={{ width: 72, borderBottom: '1px solid var(--border)' }} />
               </tr>
             </thead>
             <tbody>
@@ -201,6 +249,16 @@ function GagenkategorienTab() {
                   </td>
                   <td style={{ padding: '9px 12px', color: 'var(--text-primary)', fontWeight: 500 }}>
                     {gk.label}
+                    {gk.beschreibung && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{gk.beschreibung}</div>}
+                  </td>
+                  <td style={{ padding: '9px 12px', color: 'var(--text-secondary)', fontSize: 12 }}>
+                    {ABRECHNUNGSTYPEN.find(a => a.id === gk.abrechnungstyp)?.label ?? gk.abrechnungstyp ?? '—'}
+                  </td>
+                  <td style={{ padding: '9px 12px', textAlign: 'right', color: 'var(--text-primary)', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
+                    {gk.betrag != null ? `${Number(gk.betrag).toLocaleString('de-DE', { minimumFractionDigits: 2 })} ${gk.waehrung || 'EUR'}` : '—'}
+                  </td>
+                  <td style={{ padding: '9px 12px', textAlign: 'center', fontSize: 11, fontWeight: 600, color: gk.lst_rg === 'lst' ? '#007AFF' : '#FF9500' }}>
+                    {gk.lst_rg?.toUpperCase() ?? '—'}
                   </td>
                   <td style={{ padding: '9px 8px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>

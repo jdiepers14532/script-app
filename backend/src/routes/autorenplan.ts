@@ -764,7 +764,8 @@ router.delete('/platzhalter-cache/:id', async (req: any, res) => {
 router.get('/gage-kategorien', async (_req, res) => {
   try {
     const { rows } = await pool.query(
-      'SELECT id, label, kat_nr, sortierung FROM autorenplan_gage_kategorien ORDER BY kat_nr NULLS LAST, sortierung, erstellt_am'
+      `SELECT id, label, kat_nr, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg, sortierung
+       FROM autorenplan_gage_kategorien ORDER BY kat_nr NULLS LAST, sortierung, erstellt_am`
     )
     res.json({ gage_kategorien: rows })
   } catch (err) { res.status(500).json({ error: String(err) }) }
@@ -772,13 +773,14 @@ router.get('/gage-kategorien', async (_req, res) => {
 
 // POST /api/autorenplan/gage-kategorien
 router.post('/gage-kategorien', async (req, res) => {
-  const { label, kat_nr } = req.body
+  const { label, kat_nr, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg } = req.body
   if (!label?.trim()) return res.status(400).json({ error: 'label erforderlich' })
   try {
     const { rows } = await pool.query(
-      `INSERT INTO autorenplan_gage_kategorien (label, kat_nr)
-       VALUES ($1, $2) RETURNING id, label, kat_nr, sortierung`,
-      [label.trim(), kat_nr ?? null]
+      `INSERT INTO autorenplan_gage_kategorien (label, kat_nr, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, label, kat_nr, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg, sortierung`,
+      [label.trim(), kat_nr ?? null, beschreibung || null, abrechnungstyp || 'pauschal', betrag ?? null, waehrung || 'EUR', lst_rg || 'rg']
     )
     res.status(201).json(rows[0])
   } catch (err) { res.status(500).json({ error: String(err) }) }
@@ -786,15 +788,21 @@ router.post('/gage-kategorien', async (req, res) => {
 
 // PUT /api/autorenplan/gage-kategorien/:id
 router.put('/gage-kategorien/:id', async (req, res) => {
-  const { label, kat_nr } = req.body
+  const { label, kat_nr, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg } = req.body
   try {
     const { rows } = await pool.query(
       `UPDATE autorenplan_gage_kategorien SET
          label           = COALESCE($1, label),
          kat_nr          = $2,
+         beschreibung    = $3,
+         abrechnungstyp  = COALESCE($4, abrechnungstyp),
+         betrag          = $5,
+         waehrung        = COALESCE($6, waehrung),
+         lst_rg          = COALESCE($7, lst_rg),
          aktualisiert_am = NOW()
-       WHERE id = $3 RETURNING id, label, kat_nr, sortierung`,
-      [label ?? null, kat_nr ?? null, req.params.id]
+       WHERE id = $8
+       RETURNING id, label, kat_nr, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg, sortierung`,
+      [label ?? null, kat_nr ?? null, beschreibung ?? null, abrechnungstyp ?? null, betrag ?? null, waehrung ?? null, lst_rg ?? null, req.params.id]
     )
     if (!rows[0]) return res.status(404).json({ error: 'Nicht gefunden' })
     res.json(rows[0])
