@@ -89,6 +89,7 @@ interface Einsatz {
   bis_datum?: string
   gage_kat?: number
   gage_kategorie_id?: string
+  is_zusatz?: boolean
   erstellt_am?: string
   angefragt_am?: string
   angefragt_von?: string
@@ -1314,7 +1315,7 @@ function AutorenplanGrid({
   const [blockInfo, setBlockInfo] = useState<BlockInfo | null>(null)
   const [windowStart, setWindowStart] = useState<Date>(() => addWeeks(mondayOf(new Date()), -4))
   const WEEKS_VISIBLE = 20
-  const [modal, setModal] = useState<{ einsatz?: Einsatz; jk: JobKategorie; woche: Date } | null>(null)
+  const [modal, setModal] = useState<{ einsatz?: Einsatz; jk: JobKategorie; woche: Date; isZusatz?: boolean } | null>(null)
   const [noteModal, setNoteModal] = useState<Date | null>(null)
   const [showKostenstellen, setShowKostenstellen] = useState(false)
   const [zusatzMode, setZusatzMode] = useState<'inline' | 'separate'>('inline')
@@ -1380,6 +1381,7 @@ function AutorenplanGrid({
       const key = e.job_kategorie_id ?? e.prozess_id
       if (key !== jk.id && key !== jk.id) return false
       if (e.job_kategorie_id !== jk.id) return false
+      if (e.is_zusatz) return false
       if (e.status === 'abgesagt') return false
       const start = new Date(e.woche_von)
       const end = addWeeks(start, jk.dauer_wochen)
@@ -1433,15 +1435,17 @@ function AutorenplanGrid({
 
   const handleCellClick = (jk: JobKategorie, week: Date, einsatz?: Einsatz) => {
     if (zPressedRef.current) {
-      setZusatzModal({ jk, woche: week })
+      setModal({ jk, woche: week, isZusatz: true })
     } else {
       setModal({ einsatz, jk, woche: week })
     }
   }
 
-  function getZusatzForCell(jk: JobKategorie, weekDate: Date): Zusatz[] {
+  function getZusatzForCell(jk: JobKategorie, weekDate: Date): (Zusatz | Einsatz)[] {
     const wKey = dateKey(weekDate)
-    return zusatz.filter(z => z.job_kategorie_id === jk.id && (z.woche_von || '').slice(0, 10) === wKey)
+    const legacy = zusatz.filter(z => z.job_kategorie_id === jk.id && (z.woche_von || '').slice(0, 10) === wKey)
+    const fromEinsaetze = einsaetze.filter(e => e.is_zusatz && e.job_kategorie_id === jk.id && (e.woche_von || '').slice(0, 10) === wKey)
+    return [...legacy, ...fromEinsaetze]
   }
 
   function maxZusatzForCategory(jk: JobKategorie): number {
@@ -1449,6 +1453,7 @@ function AutorenplanGrid({
   }
 
   const handleSaveEinsatz = async (data: Partial<Einsatz>) => {
+    if (modal?.isZusatz && !modal?.einsatz) data = { ...data, is_zusatz: true }
     if (modal?.einsatz) {
       await fetch(`/api/autorenplan/einsaetze/${modal.einsatz.id}`, {
         method: 'PUT', credentials: 'include',
@@ -1661,7 +1666,7 @@ function AutorenplanGrid({
                         {abgesagtList.map((abs, ai) => (
                           <Tooltip key={abs.id} text={[
                             `Abgesagt: ${abs.person_cache_name || abs.platzhalter_name || '—'}`,
-                            abs.abgesagt_am ? `${fmtDate(abs.abgesagt_am)}${abs.abgesagt_von ? ` · ${abs.abgesagt_von}` : ''}` : '',
+                            abs.abgesagt_am ? `${fmtDate(abs.abgesagt_am)}${abs.abgesagt_von ? ` · ${/^[0-9a-f]{8}-/.test(abs.abgesagt_von) ? 'Nutzer' : abs.abgesagt_von}` : ''}` : '',
                             abs.notiz || '',
                           ].filter(Boolean).join('\n')}>
                             <div
@@ -1690,7 +1695,7 @@ function AutorenplanGrid({
                       const isToday = dateKey(week) === dateKey(today)
                       return (
                         <td key={wi}
-                          onClick={() => setZusatzModal({ jk, woche: week })}
+                          onClick={() => setModal({ jk, woche: week, isZusatz: true })}
                           style={{
                             width: CELL_W, minWidth: CELL_W, height: ROW_H, padding: '2px 4px',
                             borderLeft: '1px dashed var(--border)',
@@ -1818,7 +1823,7 @@ function AutorenplanGrid({
                     const isToday = dateKey(week) === dateKey(today)
                     return (
                       <td key={wi}
-                        onClick={() => setZusatzModal({ jk, woche: week })}
+                        onClick={() => setModal({ jk, woche: week, isZusatz: true })}
                         style={{
                           width: CELL_W, minWidth: CELL_W, height: ROW_H, padding: '2px 4px',
                           borderLeft: '1px dashed var(--border)',
