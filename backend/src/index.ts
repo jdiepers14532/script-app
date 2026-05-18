@@ -320,6 +320,7 @@ async function runMigrations() {
     'v93_prozess_id_nullable.sql',
     'v94_job_kat_gagen.sql',
     'v95_dk_glossar.sql',
+    'v96_ws_spezifikation.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

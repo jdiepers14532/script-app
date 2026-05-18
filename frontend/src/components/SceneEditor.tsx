@@ -1058,9 +1058,15 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   </div>
                 </td>
                 <td colSpan={3} style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
-                  {/* WS: Partner-Chips + Picker */}
+                  {/* WS: Spezifikation + Partner-Chips + Picker */}
                   {scene.sondertyp === 'wechselschnitt' && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                      <select className="sf-input" value={scene.ws_spezifikation ?? ''} style={{ width: 'auto', maxWidth: 120, fontSize: 11, margin: 0 }} onChange={e => { const val = e.target.value || null; saveScene({ ws_spezifikation: val ?? '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}>
+                        <option value="">Spez…</option>
+                        <option value="standard">Standard</option>
+                        <option value="splitscreen">Splitscreen</option>
+                        <option value="telefonat">2W Telefonat</option>
+                      </select>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Partner:</span>
                       {wsPartner.map((p: any) => (
                         <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#007AFF18', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#007AFF' }}>
@@ -1505,7 +1511,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               <div className="compact-hover-row">
                 <span className="compact-hover-label">Sondertyp</span>
                 <span style={{ fontWeight: 600, color: scene.sondertyp === 'wechselschnitt' ? '#007AFF' : scene.sondertyp === 'stockshot' ? '#FF9500' : '#AF52DE' }}>
-                  {scene.sondertyp === 'wechselschnitt' ? 'Wechselschnitt' : scene.sondertyp === 'stockshot' ? t('stockshot') : t('flashback')}
+                  {scene.sondertyp === 'wechselschnitt'
+                    ? ('Wechselschnitt' + (scene.ws_spezifikation === 'splitscreen' ? ' · Splitscreen' : scene.ws_spezifikation === 'telefonat' ? ' · 2W Telefonat' : ''))
+                    : scene.sondertyp === 'stockshot' ? t('stockshot') : t('flashback')}
                 </span>
               </div>
             )}
