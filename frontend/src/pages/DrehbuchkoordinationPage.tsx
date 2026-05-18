@@ -1319,7 +1319,7 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
       {selectedPreset && (
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 600 }}>Szenenkopf-Vorlage</span>
+            <span style={{ fontSize: 12, fontWeight: 600 }}>Szenenkopf-Vorlage</span>
             {selectedPreset.ist_system && !isSuperadmin && (
               <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                 System-Preset — nur lesbar
@@ -2757,7 +2757,7 @@ export default function DrehbuchkoordinationPage() {
           gap: 16,
         }}>
           <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
               Drehbuchkoordination
             </h2>
             <button

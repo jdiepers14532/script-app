@@ -45,6 +45,8 @@ export const SK_CHIPS: SKChipDef[] = [
   { key: 'partner',      label: 'WS Sz',     shortLabel: 'WS',  color: '#AF52DE', beschreibung: 'Weiterlaufende/Referenzszene' },
   { key: 'staffel',      label: 'Staffel',   shortLabel: 'S',   color: '#8E8E93', beschreibung: 'Staffel-Nummer' },
   { key: 'episode',      label: 'Episode',   shortLabel: 'Ep',  color: '#8E8E93', beschreibung: 'Episoden-Nummer' },
+  { key: 'sk_kat',       label: 'SK Kat',    shortLabel: 'SK',  color: '#00C7BE', beschreibung: 'Stockshot-Kategorie' },
+  { key: 'fb_ref',       label: 'FB Ref',    shortLabel: 'FB',  color: '#5856D6', beschreibung: 'Flashback-Referenzszene' },
 ]
 
 // ── Uppercase Mark ─────────────────────────────────────────────────────────────
@@ -536,6 +538,7 @@ export function renderSKTemplate(
 
   const lines: string[] = []
   for (const para of (doc.content ?? [])) {
+    if (para.type === 'horizontal_rule') { lines.push('---'); continue }
     if (para.type !== 'paragraph') continue
     let lineText = ''
     let hasNonEmptyChip = false
@@ -585,85 +588,119 @@ const DUMMY_FIELDS: Record<string, string> = {
   notiz:        'vgl. Staffel 38, Ep. 8104',
   sondertyp:    'Flashback',
   partner:      'Referenz: Sz. 18 (Ep. 8104)',
+  sk_kat:       'Garten',
+  fb_ref:       'Sz. 7 (Ep. 8090)',
 }
 
-function renderPreviewLines(stored: string): Array<{ text: string; style: CSSProperties }> {
+type PreviewItem = { type: 'text'; text: string; style: CSSProperties } | { type: 'hr' }
+
+function renderPreviewLines(stored: string): PreviewItem[] {
   let doc: any
   try { doc = parseSKTemplate(stored) } catch { return [] }
 
-  const result: Array<{ text: string; style: CSSProperties }> = []
-  for (const para of (doc.content ?? [])) {
-    if (para.type !== 'paragraph') continue
+  const result: PreviewItem[] = []
+  for (const node of (doc.content ?? [])) {
+    if (node.type === 'horizontal_rule') { result.push({ type: 'hr' }); continue }
+    if (node.type !== 'paragraph') continue
     let lineText = ''
     let hasNonEmptyChip = false
     let skipDepth = 0
-    for (const node of (para.content ?? [])) {
-      if (node.type === 'sk_if') {
-        const val = DUMMY_FIELDS[node.attrs?.ref_key] ?? ''
+    for (const child of (node.content ?? [])) {
+      if (child.type === 'sk_if') {
+        const val = DUMMY_FIELDS[child.attrs?.ref_key] ?? ''
         if (!val.trim()) skipDepth++
         continue
       }
-      if (node.type === 'sk_endif') { if (skipDepth > 0) skipDepth--; continue }
+      if (child.type === 'sk_endif') { if (skipDepth > 0) skipDepth--; continue }
       if (skipDepth > 0) continue
-      if (node.type === 'text') lineText += node.text ?? ''
-      else if (node.type === 'sk_chip') {
-        const val = DUMMY_FIELDS[node.attrs?.key] ?? ''
+      if (child.type === 'text') lineText += child.text ?? ''
+      else if (child.type === 'sk_chip') {
+        const val = DUMMY_FIELDS[child.attrs?.key] ?? ''
         lineText += val
         if (val.trim()) hasNonEmptyChip = true
       }
     }
     const hasText = lineText.replace(/\s/g, '').length > 0
     if (!hasText || (!hasNonEmptyChip && lineText.match(/^\s*$/))) continue
-    const { fontFamily, fontSize, lineHeight } = para.attrs ?? {}
-    const style: CSSProperties = {}
-    if (fontFamily) style.fontFamily = fontFamily
-    if (fontSize) style.fontSize = fontSize
-    if (lineHeight) style.lineHeight = lineHeight
-    result.push({ text: lineText.trim(), style })
+    const { fontFamily, fontSize, lineHeight } = node.attrs ?? {}
+    const style: CSSProperties = {
+      fontFamily: fontFamily ?? "'Courier Prime','Courier New',monospace",
+      fontSize: fontSize ?? 12,
+      lineHeight: lineHeight ?? 1.7,
+      whiteSpace: 'pre-wrap',
+    }
+    result.push({ type: 'text', text: lineText, style })
   }
   return result
 }
 
-function PreviewModal({ stored, onClose }: { stored: string; onClose: () => void }) {
-  const lines = renderPreviewLines(stored)
+function PreviewModal({
+  stored, seitenformat, marginLeft, marginRight, onClose,
+}: {
+  stored: string
+  seitenformat: 'a4' | 'letter'
+  marginLeft: number
+  marginRight: number
+  onClose: () => void
+}) {
+  const items = renderPreviewLines(stored)
+  const rulerCm = seitenformat === 'letter' ? 16.5 : 17
+  // 1cm = 37.795px bei 96dpi
+  const CM_PX = 37.795
+  const contentWidthPx = Math.round(rulerCm * CM_PX)            // ~642px A4
+  const plPx = Math.round((marginLeft  / 10) / rulerCm * contentWidthPx)
+  const prPx = Math.round((marginRight / 10) / rulerCm * contentWidthPx)
+
   return createPortal(
     <div
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-        zIndex: 99998, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 99998, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        paddingTop: 60, overflowY: 'auto',
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: 'var(--bg-surface)', borderRadius: 10, padding: '18px 22px',
-          width: 'min(90vw, 720px)', maxHeight: '85vh',
-          display: 'flex', flexDirection: 'column',
+          background: 'var(--bg-surface)', borderRadius: 10,
+          padding: '16px 20px 20px',
+          width: contentWidthPx + 40,
+          maxWidth: '95vw',
           boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+          marginBottom: 40,
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>Vorschau Szenenkopf</span>
-          <button
-            onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-secondary)', lineHeight: 1, padding: '0 2px' }}
-          >×</button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+            Vorschau Szenenkopf — {seitenformat === 'a4' ? 'A4' : 'Letter'} 1:1
+          </span>
+          <button onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-secondary)', lineHeight: 1, padding: '0 4px' }}>
+            ×
+          </button>
         </div>
+        {/* Seiten-Simulation */}
         <div style={{
-          padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 6,
-          fontFamily: "'Courier Prime','Courier New',monospace", fontSize: 12, lineHeight: 1.7,
-          border: '1px solid var(--border)', overflowY: 'auto', flex: 1,
+          width: contentWidthPx, background: '#fff', color: '#000',
+          border: '1px solid #ccc', borderRadius: 3,
+          paddingTop: 10, paddingBottom: 10,
+          paddingLeft: plPx, paddingRight: prPx,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
         }}>
-          {lines.length === 0
-            ? <span style={{ color: 'var(--text-muted)' }}>— Keine sichtbaren Zeilen —</span>
-            : lines.map((l, i) => (
-              <div key={i} style={l.style}>{l.text}</div>
+          {items.length === 0
+            ? <span style={{ fontSize: 11, color: '#888', fontFamily: "'Courier Prime','Courier New',monospace" }}>
+                — Keine sichtbaren Zeilen —
+              </span>
+            : items.map((item, i) => (
+              item.type === 'hr'
+                ? <hr key={i} style={{ border: 'none', borderTop: '1px solid #000', margin: '4px 0' }} />
+                : <div key={i} style={item.style}>{item.text}</div>
             ))
           }
         </div>
-        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
-          Demo-Daten — echte Werte werden zur Laufzeit eingesetzt
+        <div style={{ marginTop: 8, fontSize: 9, color: 'var(--text-secondary)' }}>
+          Demo-Daten · Seitenränder: L {marginLeft}mm / R {marginRight}mm
         </div>
       </div>
     </div>,
@@ -756,6 +793,14 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
         style={fmtBtn(editor.isActive('underline'), { textDecoration: 'underline' })}>U</button>
       <button onMouseDown={e => { e.preventDefault(); editor.commands.toggleUppercase() }}
         style={fmtBtn(editor.isActive('uppercase'))}>UC</button>
+
+      <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+
+      <button
+        title="Horizontale Trennlinie einfügen"
+        onMouseDown={e => { e.preventDefault(); editor.chain().focus().setHorizontalRule().run() }}
+        style={{ ...fmtBtn(false), fontWeight: 400, letterSpacing: 1, fontSize: 10 }}
+      >─ HR</button>
     </div>
   )
 }
@@ -958,7 +1003,7 @@ export default function SzenenKopfVorlagenEditor({
         paragraph: false,
         strike: false, code: false, codeBlock: false, heading: false, blockquote: false,
         bulletList: false, orderedList: false, listItem: false,
-        horizontalRule: false, hardBreak: false,
+        hardBreak: false,
         dropcursor: false, gapcursor: false,
       }),
       Underline,
@@ -1131,7 +1176,15 @@ export default function SzenenKopfVorlagenEditor({
         </button>
       </div>
 
-      {showPreview && <PreviewModal stored={value} onClose={() => setShowPreview(false)} />}
+      {showPreview && (
+        <PreviewModal
+          stored={value}
+          seitenformat={seitenformat}
+          marginLeft={marginLeft}
+          marginRight={marginRight}
+          onClose={() => setShowPreview(false)}
+        />
+      )}
     </div>
   )
 }
