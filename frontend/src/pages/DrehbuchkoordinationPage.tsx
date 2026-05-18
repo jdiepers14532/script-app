@@ -504,10 +504,28 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 // ── Glossar-Sektion (innerhalb AllgemeinTab) ──────────────────────────────────
 
 const GLOSSAR_DEFAULTS = [
-  { kuerzel: 'NMDP', name: 'Nach Möglichkeit der Produktion', erklaerung: 'Inhalt, der in der Produktionsvorbereitung angepasst werden soll. Es handelt sich um ein Beispiel, das nicht 1:1 umgesetzt werden muss – die 1:1-Umsetzung ist für den Inhalt nicht relevant.' },
-  { kuerzel: 'SBSA', name: 'Sex bahnt sich an', erklaerung: 'Zwei Figuren sind kurz davor, Sex zu haben (z. B. beim Küssen oder Entkleiden). Die Szene endet oder blendet aus, bevor es jugendschutzrelevant wird.' },
-  { kuerzel: 'CLIFF', name: 'Cliffhanger', erklaerung: 'Offenes, spannungsgeladenes Ende einer Szene oder Folge, das den Zuschauer zum Weiterschauen animiert.' },
+  // Struktur / Dramaturgie
+  { kuerzel: 'CLIFF', name: 'Cliffhanger', erklaerung: 'Letzte Szene einer Folge: offen-eskalierend, spannungsgeladen – animiert zum Weiterschauen.' },
   { kuerzel: 'PEN', name: 'Penultimate', erklaerung: 'Die vorletzte Szene – der Vor-Cliff, der die Spannung unmittelbar vor dem Cliffhanger aufbaut.' },
+  { kuerzel: 'PU', name: 'Pick-Up', erklaerung: 'Oberbegriff für die Wiederaufnahme eines Strangs aus einer vorangegangenen Folge. Unterformen: DPU (direkter) und IPU (indirekter Pick-Up).' },
+  { kuerzel: 'DPU', name: 'Direkter Pick-Up', erklaerung: 'Erste Szene einer Folge mit direktem Anschluss an den Cliffhanger der Vorfolge – Continuous Action, kein Zeitsprung. Emotionale und zeitliche Fortsetzung.' },
+  { kuerzel: 'IPU', name: 'Indirekter Pick-Up', erklaerung: 'Erste Szene einer Folge, die einen Strang aus der Vorfolge wieder aufnimmt, aber mit Zeitsprung beginnt. Neue Handlung, kein direkter Anschluss.' },
+  { kuerzel: 'SOLO', name: 'Solo', erklaerung: 'Szene mit einer einzelnen Person allein – oft Reflexion, innerer Monolog oder Mini-Strang-Abschluss.' },
+  { kuerzel: 'Parken', name: 'Strang parken', erklaerung: 'Ein Erzählstrang wird bewusst für eine Weile nicht weitererzählt und für spätere Folgen zurückgestellt. Gegenteil: Wiederaufnahme (Pick-Up).' },
+  // Schnitt / Bild
+  { kuerzel: 'WS', name: 'Wechselschnitt', erklaerung: 'Zwei parallele Handlungen werden abwechselnd gegeneinander geschnitten, z. B. zwei gleichzeitige Szenen.' },
+  { kuerzel: 'Split-Screen', name: 'Split-Screen', erklaerung: 'Wie Wechselschnitt, aber beide Szenen werden gleichzeitig nebeneinander als Bildteilung gezeigt.' },
+  { kuerzel: 'One-Way', name: 'One-Way-Telefonat', erklaerung: 'Telefonszene, bei der nur eine Seite des Gesprächs im Bild zu sehen ist.' },
+  { kuerzel: 'Two-Way', name: 'Two-Way-Telefonat', erklaerung: 'Telefonszene, bei der beide Gesprächspartner gezeigt werden – eine Variante des Wechselschnitts.' },
+  // Ton / Audio
+  { kuerzel: 'VO', name: 'Voice Over', erklaerung: 'Gedankenstimme oder Kommentar einer Figur aus dem Off; die Person ist nicht im Bild zu sehen.' },
+  { kuerzel: 'OFF', name: 'Off', erklaerung: 'Eine Person ist hörbar, aber nicht im Bild sichtbar (z. B. aus einem Nebenzimmer).' },
+  { kuerzel: 'NT', name: 'Nur Ton', erklaerung: 'Dialog oder Szene, die ausschließlich als Tonaufnahme produziert wird, ohne Bild.' },
+  { kuerzel: 'Einspieler', name: 'Einspieler', erklaerung: 'Musik, die beim Dreh live eingespielt wird, oder eine Videoeinspielung innerhalb der Szene.' },
+  // Produktion / Komparsen
+  { kuerzel: 'NMDP', name: 'Nach Möglichkeit der Produktion', erklaerung: 'Beispielhafte Setzung im Treatment, die in der Produktionsvorbereitung angepasst wird. Die 1:1-Umsetzung ist nicht erforderlich. Gilt auch für Komparsen: Szene mit Komparsen nur wenn Budget vorhanden, sonst ohne.' },
+  { kuerzel: 'o.T.', name: 'Ohne Text', erklaerung: 'Komparsen oder Nebenfiguren ohne Sprechrolle.' },
+  { kuerzel: 'SBSA', name: 'Sex bahnt sich an', erklaerung: 'Zwei Figuren sind kurz davor, Sex zu haben (z. B. beim Küssen oder Entkleiden). Die Szene endet oder blendet aus, bevor es jugendschutzrelevant wird.' },
 ]
 
 type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; sort_order: number }
