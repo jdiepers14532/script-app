@@ -326,18 +326,22 @@ export default function EditorPanel({
           await api.updateSzene(selectedSzeneId, { content })
         }
         setSaveStatus('saved')
-      } catch {
-        // Tier 1: Offline-Write-Schutz — Änderung in IndexedDB-Queue einreihen
-        const url = useDokumentSzenen && typeof selectedSzeneId === 'string'
-          ? `/api/dokument-szenen/${selectedSzeneId}`
-          : `/api/szenen/${selectedSzeneId}`
-        const client_version = currentSzene?.updated_at
-        // _meta wird vom Server ignoriert — nur für den Konflikt-Dialog
-        enqueue('PUT', url, {
-          content,
-          _meta: { szene: currentSzene?.scene_nummer, ort: currentSzene?.ort_name },
-        }, client_version)
-        setSaveStatus('queued')
+      } catch (err) {
+        // TypeError = Netzwerkfehler (offline) → in IndexedDB-Queue einreihen
+        // Sonstige Fehler (404, 500) = Serverfehler → nicht enqueuen, still verwerfen
+        if (err instanceof TypeError) {
+          const url = useDokumentSzenen && typeof selectedSzeneId === 'string'
+            ? `/api/dokument-szenen/${selectedSzeneId}`
+            : `/api/szenen/${selectedSzeneId}`
+          const client_version = currentSzene?.updated_at
+          enqueue('PUT', url, {
+            content,
+            _meta: { szene: currentSzene?.scene_nummer, ort: currentSzene?.ort_name },
+          }, client_version)
+          setSaveStatus('queued')
+        } else {
+          setSaveStatus('saved')
+        }
       }
     }, 1500)
   }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue, scheduleSnapshot])
