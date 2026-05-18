@@ -917,7 +917,7 @@ function EinsatzModal({
       <div style={{ background: 'var(--bg-page)', borderRadius: 12, width: 440, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{isNew ? (isZusatz ? 'Zusatzpersonal planen' : 'Einsatz anlegen') : (isZusatz ? 'Zusatzpersonal bearbeiten' : 'Einsatz bearbeiten')}</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{isNew ? (isZusatz ? 'Zusatzpersonal planen' : 'Einsatz planen') : (isZusatz ? 'Zusatzpersonal bearbeiten' : 'Einsatz bearbeiten')}</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: jk.farbe, flexShrink: 0 }} />
               <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{jk.label}</span>
@@ -1036,8 +1036,8 @@ function EinsatzModal({
             )}
           </div>
 
-          {/* Status */}
-          <div>
+          {/* Status — nur bei regulären Einsätzen */}
+          {!isZusatz && <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Status</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {STATUS_LIST.map(s => {
@@ -1053,7 +1053,7 @@ function EinsatzModal({
                   <button key={s.id} onClick={() => setStatus(s.id)} style={{
                     padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
                     border: isActive ? `1.5px solid ${s.farbe}` : isAbgesagt ? `1px solid #FF3B3040` : '1px solid var(--border)',
-                    background: isActive ? s.farbe + '20' : isAbgesagt ? '#FF3B3015' : 'none',
+                    background: isActive ? s.farbe + '20' : isAbgesagt ? '#FF3B300D' : 'none',
                     color: isActive ? s.farbe : isAbgesagt ? '#FF3B30aa' : 'var(--text-secondary)',
                     fontWeight: isActive ? 600 : 400,
                   }}>{s.label}</button>
@@ -1063,7 +1063,7 @@ function EinsatzModal({
                   : <span key={s.id}>{btn}</span>
               })}
             </div>
-          </div>
+          </div>}
 
           {/* Notiz */}
           <div>
@@ -1094,8 +1094,8 @@ function EinsatzModal({
             <div>{onDelete && <button onClick={handleDelete} disabled={deleting} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #FF3B30', background: 'none', color: '#FF3B30', cursor: 'pointer', fontSize: 12 }}>{deleting ? '...' : 'Löschen'}</button>}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>Abbrechen</button>
-              <button onClick={handleSave} disabled={saving} style={{ padding: '7px 20px', borderRadius: 7, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                {saving ? '...' : 'Speichern'}
+              <button onClick={handleSave} disabled={saving} style={{ padding: '7px 20px', borderRadius: 7, border: 'none', background: 'rgba(0,0,0,0.75)', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                {saving ? '...' : isNew ? 'Planen' : 'Speichern'}
               </button>
             </div>
           </div>
@@ -1193,103 +1193,6 @@ function WochenNotizModal({
             <button onClick={handleAdd} disabled={adding || !newText.trim()}
               style={{ padding: '6px 16px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none', background: '#000', color: '#fff', fontWeight: 600 }}>
               {adding ? '...' : '+ Hinzufügen'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── ZusatzpersonalModal ────────────────────────────────────────────────────────
-
-function ZusatzpersonalModal({
-  jk, woche, produktionDbId, onSave, onClose,
-}: {
-  jk: JobKategorie
-  woche: Date
-  produktionDbId: string
-  onSave: () => Promise<void>
-  onClose: () => void
-}) {
-  const [personId, setPersonId] = useState<number | undefined>()
-  const [personName, setPersonName] = useState('')
-  const [isPlatzhalter, setIsPlatzhalter] = useState(false)
-  const [notiz, setNotiz] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const handleSave = async () => {
-    if (!personName.trim()) return
-    setSaving(true)
-    try {
-      await fetch('/api/autorenplan/zusatz', {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_kategorie_id: jk.id,
-          produktion_db_id: produktionDbId,
-          woche_von: dateKey(mondayOf(woche)),
-          vertragsdb_person_id: isPlatzhalter ? undefined : personId,
-          platzhalter_name: isPlatzhalter ? personName : undefined,
-          person_cache_name: personName,
-          notiz: notiz || undefined,
-        }),
-      })
-      await onSave()
-      onClose()
-    } finally { setSaving(false) }
-  }
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--bg-page)', borderRadius: 12, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>Zusatzpersonal buchen</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: jk.farbe, marginRight: 4 }} />
-              {jk.label} · {formatWoche(woche)}
-            </div>
-          </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
-        </div>
-        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Person */}
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Person</label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', marginLeft: 'auto' }}>
-                <input type="checkbox" checked={isPlatzhalter} onChange={e => { setIsPlatzhalter(e.target.checked); setPersonId(undefined) }} />
-                Platzhalter
-              </label>
-            </div>
-            {isPlatzhalter ? (
-              <input
-                value={personName}
-                onChange={e => setPersonName(e.target.value)}
-                placeholder="Platzhalter-Name..."
-                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, color: 'var(--text-primary)' }}
-              />
-            ) : (
-              <PersonPicker
-                value={personId}
-                displayName={personName}
-                onSelect={p => { setPersonId(p.id); setPersonName(p.name) }}
-                onTextChange={v => { if (!personId) setPersonName(v) }}
-              />
-            )}
-          </div>
-          {/* Notiz */}
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Notiz</label>
-            <textarea value={notiz} onChange={e => setNotiz(e.target.value)} rows={2} placeholder="Optionale Anmerkung..."
-              style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'none' }} />
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>Abbrechen</button>
-            <button onClick={handleSave} disabled={saving || !personName.trim()} style={{ padding: '7px 20px', borderRadius: 7, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-              {saving ? '...' : 'Buchen'}
             </button>
           </div>
         </div>
