@@ -327,6 +327,7 @@ async function runMigrations() {
     'v100_einsatz_gage_kategorie_id.sql',
     'v101_status_tracking.sql',
     'v102_gage_kat_nr.sql',
+    'v103_einsatz_is_zusatz.sql',
     'v104_jk_kostenstelle.sql',
     'v105_zusatz_standalone.sql',
   ]

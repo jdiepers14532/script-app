@@ -767,7 +767,7 @@ function fmtDate(s?: string): string {
 
 function EinsatzModal({
   einsatz, jk, wocheDatum, produktionDbId, blockInfo, blockLabel, folgeLabel,
-  einsaetze, onSave, onDelete, onClose,
+  einsaetze, isZusatz, onSave, onDelete, onClose,
 }: {
   einsatz?: Einsatz
   jk: JobKategorie
@@ -777,6 +777,7 @@ function EinsatzModal({
   blockLabel: string
   folgeLabel: string
   einsaetze?: Einsatz[]
+  isZusatz?: boolean
   onSave: (data: Partial<Einsatz>) => Promise<void>
   onDelete?: () => Promise<void>
   onClose: () => void
@@ -915,7 +916,7 @@ function EinsatzModal({
       <div style={{ background: 'var(--bg-page)', borderRadius: 12, width: 440, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>{isNew ? 'Einsatz anlegen' : 'Einsatz bearbeiten'}</div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>{isNew ? (isZusatz ? 'Zusatzpersonal planen' : 'Einsatz anlegen') : (isZusatz ? 'Zusatzpersonal bearbeiten' : 'Einsatz bearbeiten')}</div>
             <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: jk.farbe, flexShrink: 0 }} />
               <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{jk.label}</span>
@@ -1314,7 +1315,6 @@ function AutorenplanGrid({
   const [windowStart, setWindowStart] = useState<Date>(() => addWeeks(mondayOf(new Date()), -4))
   const WEEKS_VISIBLE = 20
   const [modal, setModal] = useState<{ einsatz?: Einsatz; jk: JobKategorie; woche: Date } | null>(null)
-  const [zusatzModal, setZusatzModal] = useState<{ jk: JobKategorie; woche: Date } | null>(null)
   const [noteModal, setNoteModal] = useState<Date | null>(null)
   const [showKostenstellen, setShowKostenstellen] = useState(false)
   const [zusatzMode, setZusatzMode] = useState<'inline' | 'separate'>('inline')
@@ -1713,7 +1713,7 @@ function AutorenplanGrid({
                                   {z.person_cache_name || z.platzhalter_name || '—'}
                                 </div>
                                 <button
-                                  onClick={async e => { e.stopPropagation(); await fetch(`/api/autorenplan/zusatz/${z.id}`, { method: 'DELETE', credentials: 'include' }); loadData() }}
+                                  onClick={async e => { e.stopPropagation(); const ep = ('status' in (z as any)) ? 'einsaetze' : 'zusatz'; await fetch(`/api/autorenplan/${ep}/${z.id}`, { method: 'DELETE', credentials: 'include' }); loadData() }}
                                   style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
                               </div>
                             </Tooltip>
@@ -1834,7 +1834,7 @@ function AutorenplanGrid({
                               {z.person_cache_name || z.platzhalter_name || '—'}
                             </div>
                             <button
-                              onClick={async e => { e.stopPropagation(); await fetch(`/api/autorenplan/zusatz/${z.id}`, { method: 'DELETE', credentials: 'include' }); loadData() }}
+                              onClick={async e => { e.stopPropagation(); const ep = ('status' in (z as any)) ? 'einsaetze' : 'zusatz'; await fetch(`/api/autorenplan/${ep}/${z.id}`, { method: 'DELETE', credentials: 'include' }); loadData() }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
                           </div>
                         ) : (
@@ -1863,6 +1863,7 @@ function AutorenplanGrid({
           blockLabel={blockLabel}
           folgeLabel={folgeLabel}
           einsaetze={einsaetze}
+          isZusatz={modal.isZusatz}
           onSave={handleSaveEinsatz}
           onDelete={modal.einsatz ? () => handleDeleteEinsatz(modal.einsatz!.id) : undefined}
           onClose={() => setModal(null)}
@@ -1887,15 +1888,7 @@ function AutorenplanGrid({
           onClose={() => setNoteModal(null)}
         />
       )}
-      {zusatzModal && (
-        <ZusatzpersonalModal
-          jk={zusatzModal.jk}
-          woche={zusatzModal.woche}
-          produktionDbId={produktionDbId}
-          onSave={async () => { await loadData() }}
-          onClose={() => setZusatzModal(null)}
-        />
-      )}
+
     </div>
   )
 

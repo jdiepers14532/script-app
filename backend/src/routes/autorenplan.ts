@@ -14,7 +14,7 @@ function uid(req: Request): string {
 }
 
 function uname(req: Request): string {
-  return req.user?.name || req.user?.user_id || 'unknown'
+  return req.user?.name?.trim() || req.user?.email?.split('@')[0] || req.user?.user_id || 'unknown'
 }
 
 // ── Helper: call vertragsdb internal API ──────────────────────────────────────
@@ -313,7 +313,7 @@ router.post('/einsaetze', async (req, res) => {
     vertragsdb_person_id, platzhalter_name, person_cache_name,
     vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
     block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
-    von_datum, bis_datum, gage_kat, gage_kategorie_id,
+    von_datum, bis_datum, gage_kat, gage_kategorie_id, is_zusatz,
   } = req.body
 
   if (!produktion_db_id || !woche_von || (!job_kategorie_id && !prozess_id)) {
@@ -326,8 +326,8 @@ router.post('/einsaetze', async (req, res) => {
         vertragsdb_person_id, platzhalter_name, person_cache_name,
         vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
         block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz,
-        von_datum, bis_datum, gage_kat, gage_kategorie_id, erstellt_von)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+        von_datum, bis_datum, gage_kat, gage_kategorie_id, is_zusatz, erstellt_von)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
      RETURNING *`,
     [
       produktion_db_id, job_kategorie_id || null, prozess_id || null, woche_von,
@@ -335,7 +335,7 @@ router.post('/einsaetze', async (req, res) => {
       vertragsdb_taetigkeit_id || null, vertragsdb_vertrag_id || null,
       block_nummer || null, folge_nummer || null,
       status || 'geplant', kostenstelle || null, ist_homeoffice_override ?? null, notiz || null,
-      von_datum || null, bis_datum || null, gage_kat ?? null, gage_kategorie_id || null,
+      von_datum || null, bis_datum || null, gage_kat ?? null, gage_kategorie_id || null, is_zusatz ?? false,
       uid(req),
     ]
   )
@@ -374,7 +374,7 @@ router.put('/einsaetze/:id', async (req, res) => {
     vertragsdb_person_id, platzhalter_name, person_cache_name,
     vertragsdb_taetigkeit_id, vertragsdb_vertrag_id,
     block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz, woche_von,
-    von_datum, bis_datum, gage_kat, gage_kategorie_id,
+    von_datum, bis_datum, gage_kat, gage_kategorie_id, is_zusatz,
   } = req.body
 
   // Alten Status lesen, um Tracking-Änderung zu erkennen
@@ -402,8 +402,9 @@ router.put('/einsaetze/:id', async (req, res) => {
        bis_datum              = $14,
        gage_kat               = $15,
        gage_kategorie_id      = $16,
+       is_zusatz              = COALESCE($17, is_zusatz),
        aktualisiert_am        = NOW()
-     WHERE id = $17
+     WHERE id = $18
      RETURNING *`,
     [
       vertragsdb_person_id ?? null, platzhalter_name ?? null, person_cache_name ?? null,
@@ -411,7 +412,7 @@ router.put('/einsaetze/:id', async (req, res) => {
       block_nummer ?? null, folge_nummer ?? null,
       status ?? null, kostenstelle ?? null, ist_homeoffice_override ?? null,
       notiz ?? null, woche_von ?? null,
-      von_datum ?? null, bis_datum ?? null, gage_kat ?? null, gage_kategorie_id || null,
+      von_datum ?? null, bis_datum ?? null, gage_kat ?? null, gage_kategorie_id || null, is_zusatz ?? null,
       req.params.id,
     ]
   )
