@@ -5,8 +5,8 @@ import {
 } from 'lucide-react'
 import {
   LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS,
-  FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX, DEFAULT_TWEAKS,
-} from './AppShell'
+  FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX,
+} from './appShellConstants'
 import { useTweaks, useAppSettings } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
