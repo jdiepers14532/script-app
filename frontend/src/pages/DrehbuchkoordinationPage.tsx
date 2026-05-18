@@ -495,19 +495,23 @@ function FigurenTab() {
       )}
 
       {produktionId && (
-        <>
-          <section>
+        <section style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+            Eigene Felder erweitern das Profil jeder Figur, jedes {t('komparse', 's')} oder Motivs um produktionsspezifische Angaben — z.B. Sprachkenntnisse, Fahrzeuge oder Kleidergroesse. Sie erscheinen als zusaetzliche Eingabefelder im jeweiligen Profil.
+          </p>
+
+          <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {figurenLabel} & {t('komparse', 'p')}</h3>
             <FeldListe felder={rollenFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
-          </section>
+          </div>
 
-          <section>
+          <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {t('motiv', 'p')}</h3>
             <FeldListe felder={motivFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
-          </section>
+          </div>
 
           {/* Rollenprofil preset */}
-          <section>
+          <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Rollenprofil-Standardfelder</h3>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
               Fuegt die Standard-Rollenprofil-Felder hinzu (Alter, Geburtsort, Charakter, Backstory usw.). Bereits vorhandene Felder werden nicht ueberschrieben.
@@ -519,50 +523,48 @@ function FigurenTab() {
             >
               {presetLoading ? 'Wird hinzugefuegt...' : presetDone ? 'Felder hinzugefuegt' : 'Rollenprofil-Felder hinzufuegen'}
             </button>
-          </section>
+          </div>
 
           {/* Add field form */}
-          <section style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: 0 }}>Feld hinzufuegen</h3>
-            {newFeld ? (
-              <>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                  <input placeholder="Feldname" value={newFeld.name} onChange={e => setNewFeld({ ...newFeld, name: e.target.value })}
-                    style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }} />
-                  <select value={newFeld.typ} onChange={e => setNewFeld({ ...newFeld, typ: e.target.value })}
-                    style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}>
-                    {['text', 'richtext', 'select', 'link', 'date', 'number'].map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <select value={newFeld.gilt_fuer} onChange={e => setNewFeld({ ...newFeld, gilt_fuer: e.target.value })}
-                    style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}>
-                    <option value="alle">Alle</option>
-                    <option value="rolle">Nur {figurenLabel}</option>
-                    <option value="komparse">Nur {t('komparse', 'p')}</option>
-                    <option value="motiv">Nur Motive</option>
-                  </select>
-                </div>
-                {newFeld.typ === 'select' && (
-                  <input placeholder="Optionen (kommagetrennt)" value={newFeld.optionen} onChange={e => setNewFeld({ ...newFeld, optionen: e.target.value })}
-                    style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }} />
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={handleCreateFeld} disabled={!newFeld.name.trim() || feldSaving}
-                    style={{ fontSize: 12, padding: '6px 14px', background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
-                    {feldSaving ? 'Speichern...' : 'Speichern'}
-                  </button>
-                  <button onClick={() => setNewFeld(null)} style={{ fontSize: 12, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
-                    Abbrechen
-                  </button>
-                </div>
-              </>
-            ) : (
-              <button onClick={() => setNewFeld({ name: '', typ: 'text', gilt_fuer: 'alle', optionen: '' })}
-                style={{ alignSelf: 'flex-start', fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
-                + Feld hinzufuegen
-              </button>
-            )}
-          </section>
-        </>
+          {newFeld ? (
+            <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Neues Feld</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                <input placeholder="Feldname" value={newFeld.name} onChange={e => setNewFeld({ ...newFeld, name: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }} />
+                <select value={newFeld.typ} onChange={e => setNewFeld({ ...newFeld, typ: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}>
+                  {['text', 'richtext', 'select', 'link', 'date', 'number'].map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <select value={newFeld.gilt_fuer} onChange={e => setNewFeld({ ...newFeld, gilt_fuer: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}>
+                  <option value="alle">Alle</option>
+                  <option value="rolle">Nur {figurenLabel}</option>
+                  <option value="komparse">Nur {t('komparse', 'p')}</option>
+                  <option value="motiv">Nur Motive</option>
+                </select>
+              </div>
+              {newFeld.typ === 'select' && (
+                <input placeholder="Optionen (kommagetrennt)" value={newFeld.optionen} onChange={e => setNewFeld({ ...newFeld, optionen: e.target.value })}
+                  style={{ fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }} />
+              )}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={handleCreateFeld} disabled={!newFeld.name.trim() || feldSaving}
+                  style={{ fontSize: 12, padding: '6px 14px', background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 6, cursor: 'pointer' }}>
+                  {feldSaving ? 'Speichern...' : 'Speichern'}
+                </button>
+                <button onClick={() => setNewFeld(null)} style={{ fontSize: 12, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setNewFeld({ name: '', typ: 'text', gilt_fuer: 'alle', optionen: '' })}
+              style={{ alignSelf: 'flex-start', fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
+              + Feld hinzufuegen
+            </button>
+          )}
+        </section>
       )}
     </div>
   )
