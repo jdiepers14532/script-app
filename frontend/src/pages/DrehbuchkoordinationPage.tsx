@@ -496,33 +496,21 @@ function FigurenTab() {
 
       {produktionId && (
         <section style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-            Eigene Felder erweitern das Profil jeder Figur, jedes {t('komparse', 's')} oder Motivs um produktionsspezifische Angaben — z.B. Sprachkenntnisse, Fahrzeuge oder Kleidergroesse. Sie erscheinen als zusaetzliche Eingabefelder im jeweiligen Profil.
-          </p>
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>Felder für {figurenLabel} und {t('komparse', 'p')}</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+              Eigene Felder erweitern das Profil jeder Figur, jedes {t('komparse', 's')} oder Motivs um charakterisierende Angaben — hier sind nur dramaturgische Anforderungen oder Spezifikationen aus der Geschichte gemeint. Angaben zum eventuellen Motiv oder Drehort erfolgen ausschließlich in der Motiv-Datenbank durch das Szenenbild.
+            </p>
+          </div>
 
           <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {figurenLabel} & {t('komparse', 'p')}</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder für {figurenLabel} & {t('komparse', 'p')}</h3>
             <FeldListe felder={rollenFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
           </div>
 
           <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder fuer {t('motiv', 'p')}</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Felder für {t('motiv', 'p')}</h3>
             <FeldListe felder={motivFelder} onDelete={id => setDeleteConfirm(id)} deleteConfirm={deleteConfirm} onConfirmDelete={handleDeleteFeld} onCancelDelete={() => setDeleteConfirm(null)} />
-          </div>
-
-          {/* Rollenprofil preset */}
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Rollenprofil-Standardfelder</h3>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
-              Fuegt die Standard-Rollenprofil-Felder hinzu (Alter, Geburtsort, Charakter, Backstory usw.). Bereits vorhandene Felder werden nicht ueberschrieben.
-            </p>
-            <button
-              onClick={handleRollenprofilPreset}
-              disabled={presetLoading}
-              style={{ fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: presetDone ? '#00C853' : 'transparent', color: presetDone ? '#fff' : 'var(--text)', transition: 'background 0.2s, color 0.2s' }}
-            >
-              {presetLoading ? 'Wird hinzugefuegt...' : presetDone ? 'Felder hinzugefuegt' : 'Rollenprofil-Felder hinzufuegen'}
-            </button>
           </div>
 
           {/* Add field form */}
@@ -561,9 +549,24 @@ function FigurenTab() {
           ) : (
             <button onClick={() => setNewFeld({ name: '', typ: 'text', gilt_fuer: 'alle', optionen: '' })}
               style={{ alignSelf: 'flex-start', fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: 'transparent', color: 'var(--text)' }}>
-              + Feld hinzufuegen
+              + Feld hinzufügen
             </button>
           )}
+
+          {/* Rollenprofil preset */}
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Rollenprofil-Standardfelder</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+              Fügt die Standard-Rollenprofil-Felder hinzu (Alter, Geburtsort, Charakter, Backstory usw.). Bereits vorhandene Felder werden nicht überschrieben.
+            </p>
+            <button
+              onClick={handleRollenprofilPreset}
+              disabled={presetLoading}
+              style={{ fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', background: presetDone ? '#00C853' : 'transparent', color: presetDone ? '#fff' : 'var(--text)', transition: 'background 0.2s, color 0.2s' }}
+            >
+              {presetLoading ? 'Wird hinzugefügt...' : presetDone ? 'Felder hinzugefügt' : 'Rollenprofil-Felder hinzufügen'}
+            </button>
+          </div>
         </section>
       )}
     </div>
