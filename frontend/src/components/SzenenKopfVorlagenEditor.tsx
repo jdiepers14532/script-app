@@ -812,7 +812,7 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
   }
 
   const H = 29
-  const TICK_5CM  = Math.round(H * 0.62)
+  const TICK_5CM  = Math.round(H * 0.50)   // war 0.62, 20% kürzer
   const TICK_1CM  = Math.round(H * 0.38)
   const TICK_05CM = Math.round(H * 0.21)
 
@@ -932,10 +932,24 @@ export default function SzenenKopfVorlagenEditor({
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeTabStops, setActiveTabStops] = useState<TabStop[]>([])
   const [showPreview, setShowPreview] = useState(false)
+  const [containerWidth, setContainerWidth] = useState(600)
 
   const rulerCm = seitenformat === 'letter' ? 16.5 : 17
   const marginLeftCm  = marginLeft  / 10
   const marginRightCm = marginRight / 10
+
+  // Container-Breite tracken für proportionale Editor-Ränder
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([e]) => setContainerWidth(e.contentRect.width))
+    obs.observe(el)
+    setContainerWidth(el.getBoundingClientRect().width)
+    return () => obs.disconnect()
+  }, [])
+
+  const editorPL = Math.round((marginLeftCm  / rulerCm) * containerWidth)
+  const editorPR = Math.round((marginRightCm / rulerCm) * containerWidth)
 
   const editor = useEditor({
     editable: !readOnly,
@@ -1084,7 +1098,9 @@ export default function SzenenKopfVorlagenEditor({
       <div
         className="sk-vorlage-editor"
         style={{
-          padding: '8px 12px', flex: 1,
+          paddingTop: 8, paddingBottom: 8,
+          paddingLeft: editorPL, paddingRight: editorPR,
+          flex: 1,
           fontFamily: "'Courier Prime','Courier New',monospace",
           fontSize: 12, lineHeight: 1.7, cursor: readOnly ? 'default' : 'text',
         }}

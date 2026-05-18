@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
@@ -925,7 +926,7 @@ function ProduktionTab() {
 // ── Tab: Dokument-Typen (Absatzformate) ─────────────────────────────────────────
 
 
-function DokumentTypenTab() {
+function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }) {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? ''
   const [formate, setFormate] = useState<any[]>([])
@@ -1149,163 +1150,131 @@ function DokumentTypenTab() {
 
   if (!produktionId) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion wählen.</p>
 
-  return (
-    <div style={{ maxWidth: 960 }}>
-
-      {/* ── Seitenformat + Seitenränder (eine Zeile) ───────────────────── */}
-      <div style={{ marginBottom: 16, padding: '7px 12px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
+  // Preset/Format-Bar im Header via Portal
+  const headerBarContent = headerSlot ? createPortal(
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+      {/* Format + Ränder */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
         <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
           {(['a4', 'letter'] as const).map(opt => (
-            <button
-              key={opt}
-              className={seitenformat === opt ? 'on' : ''}
-              onClick={() => saveSeitenformat(opt)}
-              disabled={seitenformatSaving}
+            <button key={opt} className={seitenformat === opt ? 'on' : ''}
+              onClick={() => saveSeitenformat(opt)} disabled={seitenformatSaving}
               title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
-              style={{ fontSize: 11 }}
-            >
+              style={{ fontSize: 10, padding: '1px 7px' }}>
               {opt === 'a4' ? 'A4' : 'Letter'}
             </button>
           ))}
         </div>
-        <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
+        <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
         {(['oben', 'unten', 'links', 'rechts'] as const).map(side => (
-          <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>
+          <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
             <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
-            <input
-              type="number" min={0} max={60}
-              value={margins[side]}
-              onChange={e => {
-                const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0))
-                setMargins(m => ({ ...m, [side]: v }))
-              }}
+            <input type="number" min={0} max={60} value={margins[side]}
+              onChange={e => { const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)); setMargins(m => ({ ...m, [side]: v })) }}
               onBlur={() => saveMargins(margins)}
-              style={{ width: 40, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }}
-            />
+              style={{ width: 36, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border)', fontSize: 10, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }} />
           </label>
         ))}
-        {seitenformatSaving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>…</span>}
       </div>
-
-      {/* ── Preset-Sektion ─────────────────────────────────────────────── */}
-      <section style={{ marginBottom: 28, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-
-        {/* Preset-Auswahl + Aktionen */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', background: 'var(--bg-subtle)', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Preset:</span>
-
-          {/* Dropdown */}
-          {renamingPreset ? (
-            <>
-              <input
-                value={renamingValue}
-                onChange={e => setRenamingValue(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleRenamePreset(); if (e.key === 'Escape') { setRenamingPreset(false); setRenamingValue('') } }}
-                autoFocus
-                style={{ ...selectStyle, minWidth: 200, fontSize: 11, padding: '3px 8px' }}
-              />
-              <button onClick={handleRenamePreset}
-                style={{ padding: '3px 10px', borderRadius: 5, border: 'none', background: '#00C853', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
-                OK
-              </button>
-              <button onClick={() => { setRenamingPreset(false); setRenamingValue('') }}
-                style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
-                Abbrechen
-              </button>
-            </>
-          ) : (
-            <select
-              value={selectedPresetId ?? ''}
-              onChange={e => handleSelectPreset(e.target.value)}
-              style={{ ...selectStyle, minWidth: 220, fontSize: 12, padding: '4px 8px', fontWeight: 500 }}
-            >
-              {presets.length === 0 && <option value="">— keine Presets —</option>}
-              {presets.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.name}{p.ist_system ? ' (System)' : ''}
-                </option>
-              ))}
-            </select>
-          )}
-
-          {/* Aktions-Buttons */}
-          {!renamingPreset && selectedPreset && (
-            <>
-              <button onClick={handleApplyPreset} title="Dieses Preset auf die aktuelle Produktion anwenden"
-                style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'var(--text-primary)', color: '#fff', flexShrink: 0 }}>
-                Anwenden
-              </button>
-              <button onClick={handleDuplicatePreset} title="Dieses Preset duplizieren"
-                style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
-                Duplizieren
-              </button>
-              {!selectedPreset.ist_system && (
-                <>
-                  <button onClick={() => { setRenamingPreset(true); setRenamingValue(selectedPreset.name) }}
-                    title="Preset umbenennen"
-                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
-                    Umbenennen
-                  </button>
-                  <button onClick={handleDeletePreset} title="Preset löschen"
-                    style={{ padding: '3px 8px', borderRadius: 5, border: '1px solid #FF3B30', fontSize: 11, cursor: 'pointer', background: 'transparent', color: '#FF3B30' }}>
-                    Löschen
-                  </button>
-                </>
-              )}
-            </>
-          )}
-
-          <div style={{ flex: 1 }} />
-          <button onClick={() => setShowSavePreset(true)}
-            style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
-            Als Preset speichern…
-          </button>
-        </div>
-
-        {/* Szenenkopf-Vorlage-Editor */}
-        {selectedPreset && (
-          <div style={{ padding: '12px 14px', background: 'var(--bg-surface)' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 600 }}>Szenenkopf-Vorlage</span>
-              {selectedPreset.ist_system && !isSuperadmin && (
-                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                  System-Preset — nur lesbar
-                </span>
-              )}
-              {selectedPreset.ist_system && isSuperadmin && (
-                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: '#007AFF22', color: '#007AFF', border: '1px solid #007AFF55' }}>
-                  System-Preset — Superadmin
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: 'var(--text-primary)', marginBottom: 8 }}>
-              Definiert den Szenenkopf für den Drehbuch-Export. Jede Zeile mit leeren Feldern werden ausgeblendet.
-            </div>
-            <SzenenKopfVorlagenEditor
-              value={templateValue}
-              readOnly={!canEditTemplate}
-              onChange={v => setTemplateEdit(v)}
-              seitenformat={seitenformat}
-              marginLeft={margins.links}
-              marginRight={margins.rechts}
-            />
-            {canEditTemplate && templateDirty && (
-              <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-                <button onClick={handleSaveTemplate}
-                  style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
-                  Speichern
+      {/* Preset */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Preset:</span>
+        {renamingPreset ? (
+          <>
+            <input value={renamingValue} onChange={e => setRenamingValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleRenamePreset(); if (e.key === 'Escape') { setRenamingPreset(false); setRenamingValue('') } }}
+              autoFocus style={{ minWidth: 180, fontSize: 10, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }} />
+            <button onClick={handleRenamePreset} style={{ padding: '2px 8px', borderRadius: 4, border: 'none', background: '#00C853', color: '#fff', fontSize: 10, cursor: 'pointer' }}>OK</button>
+            <button onClick={() => { setRenamingPreset(false); setRenamingValue('') }} style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 10, cursor: 'pointer' }}>Abbrechen</button>
+          </>
+        ) : (
+          <select value={selectedPresetId ?? ''} onChange={e => handleSelectPreset(e.target.value)}
+            style={{ minWidth: 200, fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontWeight: 500 }}>
+            {presets.length === 0 && <option value="">— keine Presets —</option>}
+            {presets.map(p => <option key={p.id} value={p.id}>{p.name}{p.ist_system ? ' (System)' : ''}</option>)}
+          </select>
+        )}
+        {!renamingPreset && selectedPreset && (
+          <>
+            <button onClick={handleApplyPreset} title="Dieses Preset auf die aktuelle Produktion anwenden"
+              style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'var(--text-primary)', color: '#fff', flexShrink: 0 }}>
+              Anwenden
+            </button>
+            <button onClick={handleDuplicatePreset}
+              style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
+              Duplizieren
+            </button>
+            {!selectedPreset.ist_system && (
+              <>
+                <button onClick={() => { setRenamingPreset(true); setRenamingValue(selectedPreset.name) }}
+                  style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+                  Umbenennen
                 </button>
-                <button onClick={() => setTemplateEdit(null)}
-                  style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
-                  Abbrechen
+                <button onClick={handleDeletePreset}
+                  style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid #FF3B30', fontSize: 10, cursor: 'pointer', background: 'transparent', color: '#FF3B30' }}>
+                  Löschen
                 </button>
-              </div>
+              </>
+            )}
+          </>
+        )}
+        <div style={{ flex: 1 }} />
+        <button onClick={() => setShowSavePreset(true)}
+          style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
+          Als Preset speichern…
+        </button>
+      </div>
+    </div>,
+    headerSlot
+  ) : null
+
+  return (
+    <div style={{ maxWidth: 960 }}>
+      {headerBarContent}
+
+      {/* Szenenkopf-Vorlage (kein Border) */}
+      {selectedPreset && (
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>Szenenkopf-Vorlage</span>
+            {selectedPreset.ist_system && !isSuperadmin && (
+              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                System-Preset — nur lesbar
+              </span>
+            )}
+            {selectedPreset.ist_system && isSuperadmin && (
+              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: '#007AFF22', color: '#007AFF', border: '1px solid #007AFF55' }}>
+                System-Preset — Superadmin
+              </span>
             )}
           </div>
-        )}
-      </section>
+          <div style={{ fontSize: 10, color: 'var(--text-primary)', marginBottom: 8 }}>
+            Definiert den Szenenkopf für den Drehbuch-Export. Jede Zeile mit leeren Feldern werden ausgeblendet.
+          </div>
+          <SzenenKopfVorlagenEditor
+            value={templateValue}
+            readOnly={!canEditTemplate}
+            onChange={v => setTemplateEdit(v)}
+            seitenformat={seitenformat}
+            marginLeft={margins.links}
+            marginRight={margins.rechts}
+          />
+          {canEditTemplate && templateDirty && (
+            <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+              <button onClick={handleSaveTemplate}
+                style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer' }}>
+                Speichern
+              </button>
+              <button onClick={() => setTemplateEdit(null)}
+                style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>
+                Abbrechen
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Formate dieser Produktion ─────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -2560,6 +2529,7 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
 
 export default function DrehbuchkoordinationPage() {
   const [activeTab, setActiveTab] = useState('allgemein')
+  const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [copyOpen, setCopyOpen] = useState(false)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
@@ -2661,7 +2631,7 @@ export default function DrehbuchkoordinationPage() {
       case 'lock-regeln':
         return <Placeholder label="Lock-Regeln" />
       case 'dokument-typen':
-        return <DokumentTypenTab />
+        return <DokumentTypenTab headerSlot={headerSlot} />
       case 'gruppen-register':
         return produktionId ? <GruppenRegisterTab /> : <NoProduction />
       case 'format-templates':
@@ -2706,7 +2676,7 @@ export default function DrehbuchkoordinationPage() {
           gap: 16,
         }}>
           <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
               Drehbuchkoordination
             </h2>
             <button
@@ -2720,6 +2690,8 @@ export default function DrehbuchkoordinationPage() {
               &#8592; Zurück
             </button>
           </div>
+          {/* Slot für Preset/Format-Bar (nur Absatzformat-Tab) */}
+          <div ref={setHeaderSlot} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch' }} />
           <div style={{
             fontSize: 13, fontWeight: 500,
             padding: '6px 14px', borderRadius: 8,
