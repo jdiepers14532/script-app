@@ -300,6 +300,21 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 32 }}>
 
       <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Zugriff</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+          User mit Zugriff auf die Script-App werden in der Auth-App verwaltet.
+        </p>
+        <div className="admin-roles-list">
+          {roles === null
+            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt...</span>
+            : roles.length === 0
+            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>--</span>
+            : roles.map(r => <span key={r} className="admin-role-chip">{r}</span>)
+          }
+        </div>
+      </section>
+
+      <section>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Datumsformat</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
           Format für Datumsangaben in Kopf-/Fußzeilen und Exporten dieser Produktion.
@@ -481,21 +496,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       </section>
 
       <GlossarSection productionId={productionId} />
-
-      <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Zugriff</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          User mit Zugriff auf die Script-App werden in der Auth-App verwaltet.
-        </p>
-        <div className="admin-roles-list">
-          {roles === null
-            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt...</span>
-            : roles.length === 0
-            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>--</span>
-            : roles.map(r => <span key={r} className="admin-role-chip">{r}</span>)
-          }
-        </div>
-      </section>
 
     </div>
   )
