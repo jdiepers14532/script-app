@@ -1101,16 +1101,14 @@ function DokumentTypenTab() {
               className={seitenformat === opt ? 'on' : ''}
               onClick={() => saveSeitenformat(opt)}
               disabled={seitenformatSaving}
+              title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
               style={{ fontSize: 11 }}
             >
-              {opt === 'a4' ? 'A4 (210 × 297 mm)' : 'US Letter (8.5 × 11 in)'}
+              {opt === 'a4' ? 'A4' : 'Letter'}
             </button>
           ))}
         </div>
         {seitenformatSaving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wird gespeichert…</span>}
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 8 }}>
-          Beeinflusst Linealbreite im Szenenkopf-Editor
-        </span>
       </div>
 
       {/* ── Preset-Sektion ─────────────────────────────────────────────── */}
@@ -1231,7 +1229,9 @@ function DokumentTypenTab() {
 
       {/* ── Formate dieser Produktion ─────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, fontWeight: 600 }}>Formate dieser Produktion</span>
+        <span style={{ fontSize: 12, fontWeight: 600 }}>
+          Absatz-Formatierungen{selectedPreset ? ` von „${selectedPreset.name}"` : ''}
+        </span>
         <div style={{ flex: 1 }} />
         <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Filter:</label>
         <select value={filterKat} onChange={e => setFilterKat(e.target.value)} style={selectStyle}>

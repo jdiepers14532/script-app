@@ -42,7 +42,7 @@ export const SK_CHIPS: SKChipDef[] = [
   { key: 'page_length',  label: 'Seiten',    shortLabel: 'S.',  color: '#8E8E93', beschreibung: 'Seitenlänge der Szene (z.B. 2/8)' },
   { key: 'notiz',        label: 'Notiz',     shortLabel: 'N',   color: '#FF9500', beschreibung: 'Szenennotiz / Zusatzinfo' },
   { key: 'sondertyp',    label: 'Sondertyp', shortLabel: 'ST',  color: '#FF3B30', beschreibung: 'Sonder-Szenentyp (Flashback, Stockshot …)' },
-  { key: 'partner',      label: 'Partner',   shortLabel: 'P',   color: '#AF52DE', beschreibung: 'Flashback-Partner / Referenzszene' },
+  { key: 'partner',      label: 'WS Sz',     shortLabel: 'WS',  color: '#AF52DE', beschreibung: 'Weiterlaufende/Referenzszene' },
   { key: 'staffel',      label: 'Staffel',   shortLabel: 'S',   color: '#8E8E93', beschreibung: 'Staffel-Nummer' },
   { key: 'episode',      label: 'Episode',   shortLabel: 'Ep',  color: '#8E8E93', beschreibung: 'Episoden-Nummer' },
 ]
@@ -153,12 +153,13 @@ const SKChipExtension = Node.create({
         const label = attrs.collapsed
           ? (chip?.shortLabel ?? attrs.key)
           : (chip?.label ?? attrs.key)
+        const padding = attrs.collapsed ? '0 2px' : '1px 7px'
         span.setAttribute('data-sk-key', attrs.key)
         span.style.cssText = [
           'display:inline-flex', 'align-items:center',
           `background:${color}22`, `color:${color}`,
           `border:1px solid ${color}66`,
-          'border-radius:4px', 'padding:1px 7px',
+          'border-radius:4px', `padding:${padding}`,
           'font-size:inherit', 'line-height:1.5',
           'white-space:nowrap', 'user-select:none',
           'cursor:pointer', 'vertical-align:middle', 'font-weight:500',
@@ -376,7 +377,7 @@ const DUMMY_FIELDS: Record<string, string> = {
   stoppzeit:    '01:23',
   motiv:        'BÜRO ROSEN',
   innen_aussen: 'I',
-  dt:           'Tag 3',
+  dt:           '3',
   oneliner:     'Laura und Max streiten sich über das Familienrezept',
   rollen:       'Laura, Max, Kellner',
   komparsen:    'Gäste (3)',
@@ -431,11 +432,13 @@ function PreviewModal({ stored, onClose }: { stored: string; onClose: () => void
       <div
         style={{
           background: 'var(--bg-surface)', borderRadius: 10, padding: '18px 22px',
-          minWidth: 360, maxWidth: 560, boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+          width: 'min(90vw, 720px)', maxHeight: '85vh',
+          display: 'flex', flexDirection: 'column',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexShrink: 0 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>Vorschau Szenenkopf</span>
           <button
             onClick={onClose}
@@ -444,8 +447,8 @@ function PreviewModal({ stored, onClose }: { stored: string; onClose: () => void
         </div>
         <div style={{
           padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 6,
-          fontFamily: "'Courier Prime','Courier New',monospace", fontSize: 11, lineHeight: 1.7,
-          border: '1px solid var(--border)',
+          fontFamily: "'Courier Prime','Courier New',monospace", fontSize: 12, lineHeight: 1.7,
+          border: '1px solid var(--border)', overflowY: 'auto', flex: 1,
         }}>
           {lines.length === 0
             ? <span style={{ color: 'var(--text-muted)' }}>— Keine sichtbaren Zeilen —</span>
@@ -454,7 +457,7 @@ function PreviewModal({ stored, onClose }: { stored: string; onClose: () => void
             ))
           }
         </div>
-        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-secondary)' }}>
+        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
           Demo-Daten — echte Werte werden zur Laufzeit eingesetzt
         </div>
       </div>
