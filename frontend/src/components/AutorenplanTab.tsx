@@ -61,6 +61,8 @@ interface Einsatz {
   kostenstelle?: string
   ist_homeoffice_override?: boolean
   notiz?: string
+  von_datum?: string
+  bis_datum?: string
   erstellt_am?: string
 }
 
@@ -186,36 +188,40 @@ function blockFuerWoche(jk: JobKategorie, weekDate: Date, blockInfo: BlockInfo |
 // ── PersonPicker ──────────────────────────────────────────────────────────────
 
 function PersonPicker({
-  value, displayName, onSelect, onNew, onTextChange,
+  value, displayName, onSelect, onPlatzhalter, onTextChange,
 }: {
   value?: number
   displayName?: string
   onSelect: (p: Person) => void
-  onNew: (name: string) => void
+  onPlatzhalter?: (name: string) => void
   onTextChange?: (text: string) => void
 }) {
   const [q, setQ] = useState(displayName || '')
   const [results, setResults] = useState<Person[]>([])
   const [loading, setLoading] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
   const debounceRef = useRef<any>(null)
 
   useEffect(() => { setQ(displayName || '') }, [displayName])
 
   const search = useCallback((query: string) => {
-    if (query.trim().length < 2) { setResults([]); return }
+    if (query.trim().length < 2) { setResults([]); setHasSearched(false); return }
     setLoading(true)
     fetch(`/api/autorenplan/personen-suche?name=${encodeURIComponent(query)}`, { credentials: 'include' })
       .then(r => r.json())
-      .then(d => { setResults(d.personen || []); setLoading(false) })
+      .then(d => { setResults(d.personen || []); setHasSearched(true); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
 
   const handleInput = (val: string) => {
     setQ(val)
     onTextChange?.(val)
+    setHasSearched(false)
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => search(val), 300)
   }
+
+  const showZeroResults = hasSearched && results.length === 0 && q.trim().length >= 2
 
   return (
     <div style={{ position: 'relative' }}>
@@ -239,7 +245,7 @@ function PersonPicker({
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 200, overflowY: 'auto',
         }}>
           {results.map(p => (
-            <div key={p.id} onClick={() => { onSelect(p); setQ(p.name); setResults([]) }}
+            <div key={p.id} onClick={() => { onSelect(p); setQ(p.name); setResults([]); setHasSearched(false) }}
               style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
               onMouseLeave={e => (e.currentTarget.style.background = '')}>
@@ -247,17 +253,29 @@ function PersonPicker({
               {p.email && <div style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{p.email}</div>}
             </div>
           ))}
-          {q.trim().length >= 2 && (
-            <div onClick={() => { onNew(q); setResults([]) }}
-              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, color: '#007AFF', display: 'flex', alignItems: 'center', gap: 6 }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-              onMouseLeave={e => (e.currentTarget.style.background = '')}>
-              <Plus size={12} /> „{q}" neu in Vertragsdb anlegen
-            </div>
-          )}
         </div>
       )}
       {loading && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Suche...</div>}
+      {showZeroResults && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+          <button
+            onClick={() => { onPlatzhalter?.(q); setHasSearched(false) }}
+            style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'left' }}>
+            Als Platzhalter eintragen
+          </button>
+          <button
+            onClick={() => {
+              window.open(
+                `https://vertraege.serienwerft.studio/adressbuch?neu=1&name=${encodeURIComponent(q)}`,
+                'vertraege-neuer-kontakt',
+                'width=860,height=720,left=180,top=80'
+              )
+            }}
+            style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none', background: '#007AFF', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, textAlign: 'right' }}>
+            + In Firmenadressbuch anlegen
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -621,6 +639,12 @@ function JobKategorieModal({
 
 // ── EinsatzModal ──────────────────────────────────────────────────────────────
 
+function mondayPlusDays(d: Date, n: number): string {
+  const r = new Date(d)
+  r.setDate(r.getDate() + n)
+  return dateKey(r)
+}
+
 function EinsatzModal({
   einsatz, jk, wocheDatum, produktionDbId, blockInfo, blockLabel, folgeLabel,
   onSave, onDelete, onClose,
@@ -644,6 +668,8 @@ function EinsatzModal({
   const [blockNr, setBlockNr] = useState<number | undefined>(einsatz?.block_nummer)
   const [folgeNr, setFolgeNr] = useState<number | undefined>(einsatz?.folge_nummer)
   const [notiz, setNotiz] = useState(einsatz?.notiz || '')
+  const [vonDatum, setVonDatum] = useState(einsatz?.von_datum || mondayPlusDays(wocheDatum, 0))
+  const [bisDatum, setBisDatum] = useState(einsatz?.bis_datum || mondayPlusDays(wocheDatum, 4))
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [savedPlatzhalterName, setSavedPlatzhalterName] = useState<string | null>(null)
@@ -683,16 +709,6 @@ function EinsatzModal({
     }
   }
 
-  const handleNewPerson = async (name: string) => {
-    const res = await fetch('/api/autorenplan/personen-anlegen', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    })
-    const d = await res.json()
-    if (d.personen_id) { setPersonId(d.personen_id); setPersonName(name); setIsPlatzhalter(false) }
-  }
-
   const handleSave = async () => {
     setSaving(true)
     const isPlatzhalterSave = !personId && !!personName
@@ -708,6 +724,8 @@ function EinsatzModal({
         folge_nummer: folgeNr,
         status,
         notiz: notiz || undefined,
+        von_datum: vonDatum || undefined,
+        bis_datum: bisDatum || undefined,
       })
       if (isPlatzhalterSave) {
         setSavedPlatzhalterName(personName)
@@ -736,6 +754,15 @@ function EinsatzModal({
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={16} /></button>
+        </div>
+        {/* Datumleiste */}
+        <div style={{ padding: '8px 20px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Vertragszeitraum:</div>
+          <input type="date" value={vonDatum} onChange={e => setVonDatum(e.target.value)}
+            style={{ padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-page)', fontSize: 11, color: 'var(--text-primary)' }} />
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>–</div>
+          <input type="date" value={bisDatum} onChange={e => setBisDatum(e.target.value)}
+            style={{ padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-page)', fontSize: 11, color: 'var(--text-primary)' }} />
         </div>
 
         {savedPlatzhalterName ? (
@@ -815,8 +842,13 @@ function EinsatzModal({
               </div>
             ) : (
               <div>
-                <PersonPicker value={personId} displayName={personName} onSelect={handlePersonSelect} onNew={handleNewPerson} onTextChange={name => { setPersonName(name); setPersonId(undefined) }} />
-                <button onClick={() => { setIsPlatzhalter(true); setPersonId(undefined) }} style={{ marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', padding: 0 }}>Als Platzhalter eintragen</button>
+                <PersonPicker
+                  value={personId}
+                  displayName={personName}
+                  onSelect={handlePersonSelect}
+                  onPlatzhalter={name => { setPersonName(name); setPersonId(undefined); setIsPlatzhalter(true) }}
+                  onTextChange={name => { setPersonName(name); setPersonId(undefined) }}
+                />
               </div>
             )}
           </div>
