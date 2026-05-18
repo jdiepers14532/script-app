@@ -1287,7 +1287,7 @@ function AutorenplanGrid({
   const bisDate = dateKey(addWeeks(windowStart, WEEKS_VISIBLE))
 
   const CELL_W = 80
-  const ROW_H = 46
+  const ROW_H = 36
   const LABEL_W = 140
 
   // Block-Info einmalig laden
@@ -1552,8 +1552,9 @@ function AutorenplanGrid({
                                   {name || '—'}
                                 </div>
                                 <div style={{ fontSize: 9, display: 'flex', gap: 3, alignItems: 'center' }}>
+                                  {blockNr && <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Bl {blockNr}</span>}
+                                  {blockNr && <span style={{ color: 'var(--border)' }}>·</span>}
                                   <span style={{ color: statusColor(einsatz.status), fontWeight: 600 }}>{statusAbbr(einsatz.status)}</span>
-                                  {blockNr && <span style={{ color: 'var(--text-secondary)' }}>· {blockLabel.slice(0, 1)}{blockNr}</span>}
                                 </div>
                               </div>
                               {isOverbooked && slotIdx === 0 && !isCellPlatzhalter && (
