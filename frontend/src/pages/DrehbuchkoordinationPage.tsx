@@ -480,6 +480,8 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         </button>
       </section>
 
+      <GlossarSection productionId={productionId} />
+
       <section>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Zugriff</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
@@ -496,6 +498,277 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       </section>
 
     </div>
+  )
+}
+
+// ── Glossar-Sektion (innerhalb AllgemeinTab) ──────────────────────────────────
+
+const GLOSSAR_DEFAULTS = [
+  { kuerzel: 'NMDP', name: 'Nach Möglichkeit der Produktion', erklaerung: 'Inhalt, der in der Produktionsvorbereitung angepasst werden soll. Es handelt sich um ein Beispiel, das nicht 1:1 umgesetzt werden muss – die 1:1-Umsetzung ist für den Inhalt nicht relevant.' },
+  { kuerzel: 'SBSA', name: 'Sex bahnt sich an', erklaerung: 'Zwei Figuren sind kurz davor, Sex zu haben (z. B. beim Küssen oder Entkleiden). Die Szene endet oder blendet aus, bevor es jugendschutzrelevant wird.' },
+  { kuerzel: 'CLIFF', name: 'Cliffhanger', erklaerung: 'Offenes, spannungsgeladenes Ende einer Szene oder Folge, das den Zuschauer zum Weiterschauen animiert.' },
+  { kuerzel: 'PEN', name: 'Penultimate', erklaerung: 'Die vorletzte Szene – der Vor-Cliff, der die Spannung unmittelbar vor dem Cliffhanger aufbaut.' },
+]
+
+type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; sort_order: number }
+type GlossarDraft = { kuerzel: string; name: string; erklaerung: string }
+
+function GlossarSection({ productionId }: { productionId: string }) {
+  const [entries, setEntries] = useState<GlossarEntry[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [editId, setEditId] = useState<number | null>(null)
+  const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '' })
+  const [newDraft, setNewDraft] = useState<GlossarDraft | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/dk-settings/${productionId}/glossar`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(setEntries)
+      .catch(() => setEntries([]))
+      .finally(() => setLoading(false))
+  }, [productionId])
+
+  const filtered = entries.filter(e => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    return e.kuerzel.toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.erklaerung.toLowerCase().includes(q)
+  })
+
+  const startEdit = (e: GlossarEntry) => {
+    setEditId(e.id)
+    setEditDraft({ kuerzel: e.kuerzel, name: e.name, erklaerung: e.erklaerung })
+    setNewDraft(null)
+  }
+
+  const saveEdit = async () => {
+    if (!editId) return
+    setSaving(true)
+    try {
+      const r = await fetch(`/api/dk-settings/${productionId}/glossar/${editId}`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editDraft),
+      })
+      if (r.ok) {
+        const updated = await r.json()
+        setEntries(prev => prev.map(e => e.id === editId ? updated : e))
+      }
+    } finally { setSaving(false); setEditId(null) }
+  }
+
+  const cancelEdit = () => setEditId(null)
+
+  const saveNew = async () => {
+    if (!newDraft || !newDraft.kuerzel.trim() || !newDraft.name.trim()) return
+    setSaving(true)
+    try {
+      const r = await fetch(`/api/dk-settings/${productionId}/glossar`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDraft),
+      })
+      if (r.ok) {
+        const created = await r.json()
+        setEntries(prev => [...prev, created])
+        setNewDraft(null)
+      }
+    } finally { setSaving(false) }
+  }
+
+  const deleteEntry = async (id: number) => {
+    await fetch(`/api/dk-settings/${productionId}/glossar/${id}`, { method: 'DELETE', credentials: 'include' })
+    setEntries(prev => prev.filter(e => e.id !== id))
+    setDeleteConfirm(null)
+  }
+
+  const insertDefaults = async () => {
+    setSaving(true)
+    const created: GlossarEntry[] = []
+    for (const d of GLOSSAR_DEFAULTS) {
+      const r = await fetch(`/api/dk-settings/${productionId}/glossar`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(d),
+      }).catch(() => null)
+      if (r?.ok) created.push(await r.json())
+    }
+    setEntries(prev => [...prev, ...created])
+    setSaving(false)
+  }
+
+  const inputSt: React.CSSProperties = {
+    padding: '4px 8px', borderRadius: 5, border: '1px solid var(--border)',
+    background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 12, fontFamily: 'inherit',
+  }
+
+  return (
+    <section>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Glossar</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+        Abkürzungsverzeichnis für diese Produktion — Kürzel, vollständiger Name und Erklärung.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+        <input
+          type="text"
+          placeholder="Suchen…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ ...inputSt, width: 220 }}
+        />
+        {search && (
+          <button onClick={() => setSearch('')}
+            style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+            ✕ Löschen
+          </button>
+        )}
+        <div style={{ flex: 1 }} />
+        <button
+          onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '' }); setEditId(null) }}
+          disabled={!!newDraft}
+          style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+          + Eintrag
+        </button>
+      </div>
+
+      {loading ? (
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt…</span>
+      ) : (
+        <>
+          {entries.length === 0 && !newDraft && (
+            <div style={{ padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Noch keine Einträge.</span>
+              <button onClick={insertDefaults} disabled={saving}
+                style={{ padding: '4px 12px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, cursor: 'pointer' }}>
+                {saving ? 'Wird eingefügt…' : 'Standard-Einträge einfügen'}
+              </button>
+            </div>
+          )}
+
+          {filtered.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 80 }}>Kürzel</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 160 }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Erklärung</th>
+                  <th style={{ width: 72 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(entry => (
+                  <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    {editId === entry.id ? (
+                      <>
+                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                          <input value={editDraft.kuerzel} onChange={e => setEditDraft(d => ({ ...d, kuerzel: e.target.value }))}
+                            style={{ ...inputSt, width: 64, textTransform: 'uppercase' }} autoFocus />
+                        </td>
+                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                          <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                            style={{ ...inputSt, width: '100%' }} />
+                        </td>
+                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                          <textarea value={editDraft.erklaerung} onChange={e => setEditDraft(d => ({ ...d, erklaerung: e.target.value }))}
+                            rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
+                        </td>
+                        <td style={{ padding: '6px 8px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
+                          <button onClick={saveEdit} disabled={saving}
+                            style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer', marginRight: 4 }}>
+                            {saving ? '…' : 'OK'}
+                          </button>
+                          <button onClick={cancelEdit}
+                            style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', fontSize: 11, cursor: 'pointer' }}>
+                            ✕
+                          </button>
+                        </td>
+                      </>
+                    ) : deleteConfirm === entry.id ? (
+                      <>
+                        <td colSpan={3} style={{ padding: '8px', color: 'var(--text-secondary)', fontSize: 12 }}>
+                          <strong style={{ color: 'var(--text-primary)' }}>{entry.kuerzel}</strong> wirklich löschen?
+                        </td>
+                        <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
+                          <button onClick={() => deleteEntry(entry.id)}
+                            style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: '#FF3B30', color: '#fff', fontSize: 11, cursor: 'pointer', marginRight: 4 }}>
+                            Löschen
+                          </button>
+                          <button onClick={() => setDeleteConfirm(null)}
+                            style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', fontSize: 11, cursor: 'pointer' }}>
+                            Abbrechen
+                          </button>
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ padding: '8px', fontWeight: 600, verticalAlign: 'top' }}>{entry.kuerzel}</td>
+                        <td style={{ padding: '8px', verticalAlign: 'top' }}>{entry.name}</td>
+                        <td style={{ padding: '8px', color: 'var(--text-secondary)', verticalAlign: 'top', lineHeight: 1.5 }}>{entry.erklaerung}</td>
+                        <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                          <button onClick={() => startEdit(entry)}
+                            title="Bearbeiten"
+                            style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', fontSize: 11, cursor: 'pointer', marginRight: 4 }}>
+                            ✎
+                          </button>
+                          <button onClick={() => setDeleteConfirm(entry.id)}
+                            title="Löschen"
+                            style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', fontSize: 11, cursor: 'pointer', color: '#FF3B30' }}>
+                            ✕
+                          </button>
+                        </td>
+                      </>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {search && filtered.length === 0 && entries.length > 0 && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>Keine Einträge für „{search}".</p>
+          )}
+
+          {newDraft && (
+            <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KÜRZEL</span>
+                  <input value={newDraft.kuerzel} onChange={e => setNewDraft(d => d ? { ...d, kuerzel: e.target.value } : d)}
+                    placeholder="z. B. NMDP" autoFocus
+                    style={{ ...inputSt, width: 80, textTransform: 'uppercase' }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 140 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>NAME</span>
+                  <input value={newDraft.name} onChange={e => setNewDraft(d => d ? { ...d, name: e.target.value } : d)}
+                    placeholder="Vollständiger Name"
+                    style={{ ...inputSt, width: '100%' }} />
+                </label>
+              </div>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>ERKLÄRUNG</span>
+                <textarea value={newDraft.erklaerung} onChange={e => setNewDraft(d => d ? { ...d, erklaerung: e.target.value } : d)}
+                  placeholder="Bedeutung und Verwendung…"
+                  rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
+              </label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={saveNew} disabled={saving || !newDraft.kuerzel.trim() || !newDraft.name.trim()}
+                  style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+                  {saving ? 'Wird gespeichert…' : 'Hinzufügen'}
+                </button>
+                <button onClick={() => setNewDraft(null)}
+                  style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', fontSize: 12, cursor: 'pointer' }}>
+                  Abbrechen
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   )
 }
 

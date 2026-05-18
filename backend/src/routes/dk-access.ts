@@ -78,6 +78,76 @@ router.put('/:productionId/app-settings/:key',
   }
 )
 
+// ── Glossar CRUD ──────────────────────────────────────────────────────────────
+
+// GET /api/dk-settings/:productionId/glossar
+router.get('/:productionId/glossar',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const { rows } = await pool.query(
+        'SELECT id, kuerzel, name, erklaerung, sort_order FROM dk_glossar WHERE production_id = $1 ORDER BY sort_order, kuerzel',
+        [req.params.productionId]
+      )
+      res.json(rows)
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// POST /api/dk-settings/:productionId/glossar
+router.post('/:productionId/glossar',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const { kuerzel, name, erklaerung } = req.body
+      const { rows } = await pool.query(
+        `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, sort_order)
+         VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM dk_glossar WHERE production_id = $1))
+         RETURNING id, kuerzel, name, erklaerung, sort_order`,
+        [req.params.productionId, (kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim()]
+      )
+      res.json(rows[0])
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// PUT /api/dk-settings/:productionId/glossar/:id
+router.put('/:productionId/glossar/:id',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const { kuerzel, name, erklaerung } = req.body
+      const { rows } = await pool.query(
+        `UPDATE dk_glossar SET kuerzel = $1, name = $2, erklaerung = $3, updated_at = NOW()
+         WHERE id = $4 AND production_id = $5
+         RETURNING id, kuerzel, name, erklaerung, sort_order`,
+        [(kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), req.params.id, req.params.productionId]
+      )
+      if (!rows[0]) return res.status(404).json({ error: 'Not found' })
+      res.json(rows[0])
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// DELETE /api/dk-settings/:productionId/glossar/:id
+router.delete('/:productionId/glossar/:id',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      await pool.query('DELETE FROM dk_glossar WHERE id = $1 AND production_id = $2', [req.params.id, req.params.productionId])
+      res.json({ ok: true })
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
 // ── Admin: DK-Zugriffsverwaltung ──────────────────────────────────────────────
 
 const adminRouter = Router()
