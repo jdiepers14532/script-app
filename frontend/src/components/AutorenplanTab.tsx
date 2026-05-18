@@ -142,11 +142,11 @@ const NOTIZ_FARBEN: Record<string, string> = {
 const STATUS_LIST = [
   { id: 'geplant',             label: 'Geplant',              farbe: '#9E9E9E' },
   { id: 'angefragt',           label: 'Angefragt',            farbe: '#007AFF' },
-  { id: 'zugesagt',            label: 'Zugesagt',             farbe: '#FF9500' },
-  { id: 'vertrag_geschrieben', label: 'Vertrag geschrieben',  farbe: '#AF52DE' },
-  { id: 'vertrag_zurueck',     label: 'Vertrag zurück',       farbe: '#00C853' },
+  { id: 'zugesagt',            label: 'Zugesagt',             farbe: '#34C759' },
+  { id: 'vertrag_geschrieben', label: 'Vertrag geschrieben',  farbe: '#00C853' },
+  { id: 'vertrag_zurueck',     label: 'Vertrag zurück',       farbe: '#1B7A4E' },
   { id: 'abgesagt',            label: 'Abgesagt',             farbe: '#FF3B30' },
-  { id: 'rechnung_erhalten',   label: 'Rechnung erhalten',    farbe: '#34C759' },
+  { id: 'rechnung_erhalten',   label: 'Rechnung erhalten',    farbe: '#FF9500' },
 ]
 
 const ABRECHNUNGSTYPEN = [
@@ -1052,13 +1052,15 @@ function EinsatzModal({
                   ? (einsatz?.[amKey] as string | undefined) : undefined
                 const trackedVon = trackedAm ? (einsatz?.[vonKey] as string | undefined) : undefined
                 const tooltipText = trackedAm ? `${fmtDate(trackedAm)}${trackedVon ? ` · ${trackedVon}` : ''}` : ''
+                const isAbgesagt = s.id === 'abgesagt'
+                const isActive = status === s.id
                 const btn = (
                   <button key={s.id} onClick={() => setStatus(s.id)} style={{
                     padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-                    border: status === s.id ? `1.5px solid ${s.farbe}` : '1px solid var(--border)',
-                    background: status === s.id ? s.farbe + '20' : 'none',
-                    color: status === s.id ? s.farbe : 'var(--text-secondary)',
-                    fontWeight: status === s.id ? 600 : 400,
+                    border: isActive ? `1.5px solid ${s.farbe}` : isAbgesagt ? `1px solid #FF3B3040` : '1px solid var(--border)',
+                    background: isActive ? s.farbe + '20' : isAbgesagt ? '#FF3B3015' : 'none',
+                    color: isActive ? s.farbe : isAbgesagt ? '#FF3B30aa' : 'var(--text-secondary)',
+                    fontWeight: isActive ? 600 : 400,
                   }}>{s.label}</button>
                 )
                 return tooltipText

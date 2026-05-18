@@ -13,6 +13,10 @@ function uid(req: Request): string {
   return req.user?.user_id || req.user?.name || 'unknown'
 }
 
+function uname(req: Request): string {
+  return req.user?.name || req.user?.user_id || 'unknown'
+}
+
 // ── Helper: call vertragsdb internal API ──────────────────────────────────────
 
 async function vertragsdbGet(path: string): Promise<any> {
@@ -349,7 +353,7 @@ router.post('/einsaetze', async (req, res) => {
   if (insertedStatus && TRACKED_STATUSES.includes(insertedStatus)) {
     await pool.query(
       `UPDATE autorenplan_einsaetze SET ${insertedStatus}_am = NOW(), ${insertedStatus}_von = $1 WHERE id = $2`,
-      [uid(req), result.rows[0].id]
+      [uname(req), result.rows[0].id]
     ).catch(() => {})
     const fresh = await pool.query('SELECT * FROM autorenplan_einsaetze WHERE id = $1', [result.rows[0].id])
     if (fresh.rows.length) return res.json({ einsatz: fresh.rows[0] })
@@ -426,7 +430,7 @@ router.put('/einsaetze/:id', async (req, res) => {
     // Whitelist geprüft — sicher für Column-Name-Interpolation
     await pool.query(
       `UPDATE autorenplan_einsaetze SET ${status}_am = NOW(), ${status}_von = $1 WHERE id = $2`,
-      [uid(req), req.params.id]
+      [uname(req), req.params.id]
     ).catch(() => {})
     // Frischen Datensatz mit Tracking-Feldern zurückgeben
     const fresh = await pool.query('SELECT * FROM autorenplan_einsaetze WHERE id = $1', [req.params.id])
