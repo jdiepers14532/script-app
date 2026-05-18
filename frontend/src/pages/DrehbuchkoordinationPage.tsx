@@ -1097,6 +1097,7 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
   const [editData, setEditData] = useState<any>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [showSavePreset, setShowSavePreset] = useState(false)
+  const [showUpdatePreset, setShowUpdatePreset] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [filterKat, setFilterKat] = useState<string>('alle')
   // Preset-Dropdown state
@@ -1196,13 +1197,25 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 
-  const handleDuplicatePreset = async () => {
-    if (!selectedPresetId) return
+  const handleUpdatePreset = async () => {
+    if (!selectedPresetId || !selectedPreset) return
+    const presetFormate = formate.map(f => ({
+      name: f.name, kuerzel: f.kuerzel, textbaustein: f.textbaustein,
+      font_family: f.font_family, font_size: f.font_size,
+      bold: f.bold, italic: f.italic, underline: f.underline,
+      uppercase: f.uppercase, text_align: f.text_align,
+      margin_left: f.margin_left, margin_right: f.margin_right,
+      space_before: f.space_before, space_after: f.space_after,
+      line_height: f.line_height, sort_order: f.sort_order,
+      ist_standard: f.ist_standard, kategorie: f.kategorie,
+      shortcut: f.shortcut ?? null,
+      enter_next: formate.find(x => x.id === f.enter_next_format)?.name ?? null,
+      tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
+    }))
     try {
-      const copy = await api.duplicateAbsatzformatPreset(selectedPresetId)
-      await load()
-      setSelectedPresetId(copy.id)
-      setMsg(`Preset „${copy.name}" erstellt.`)
+      await api.patchAbsatzformatPreset(selectedPresetId, { formate: presetFormate, seitenformat, page_margins: margins })
+      setShowUpdatePreset(false)
+      await load(); setMsg(`Preset „${selectedPreset.name}" aktualisiert.`)
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 
@@ -1363,12 +1376,12 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
               style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'var(--text-primary)', color: '#fff', flexShrink: 0 }}>
               Anwenden
             </button>
-            <button onClick={handleDuplicatePreset}
-              style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
-              Duplizieren
-            </button>
             {!selectedPreset.ist_system && (
               <>
+                <button onClick={() => setShowUpdatePreset(true)}
+                  style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid #007AFF55', fontSize: 10, cursor: 'pointer', background: 'transparent', color: '#007AFF', flexShrink: 0 }}>
+                  Preset aktualisieren…
+                </button>
                 <button onClick={() => { setRenamingPreset(true); setRenamingValue(selectedPreset.name) }}
                   style={{ padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
                   Umbenennen
@@ -1619,13 +1632,15 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
       {/* Save-as-Preset Dialog */}
       {showSavePreset && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, padding: 24, minWidth: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, padding: 24, minWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Als Preset speichern</h3>
             <input value={presetName} onChange={e => setPresetName(e.target.value)} placeholder="Preset-Name"
               style={{ ...inputStyle, width: '100%', marginBottom: 12, padding: '8px 12px', fontSize: 13 }} />
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              Speichert die {formate.length} aktuellen Absatzformate als wiederverwendbares Preset.
-            </p>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16, background: 'var(--bg-subtle)', borderRadius: 6, padding: '8px 12px', lineHeight: 1.8 }}>
+              <div><strong>Formate:</strong> {formate.length} Absatzformate</div>
+              <div><strong>Seitenformat:</strong> {seitenformat.toUpperCase()}</div>
+              <div><strong>Ränder:</strong> O {margins.oben} · U {margins.unten} · L {margins.links} · R {margins.rechts} mm</div>
+            </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => { setShowSavePreset(false); setPresetName('') }}
                 style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
@@ -1634,6 +1649,34 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
               <button onClick={handleSaveAsPreset} disabled={!presetName.trim()}
                 style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer', opacity: presetName.trim() ? 1 : 0.5 }}>
                 Speichern
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update-Preset Dialog */}
+      {showUpdatePreset && selectedPreset && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, padding: 24, minWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Preset aktualisieren</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
+              Überschreibt <strong>„{selectedPreset.name}"</strong> mit den aktuellen Einstellungen:
+            </p>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 16, background: 'var(--bg-subtle)', borderRadius: 6, padding: '8px 12px', lineHeight: 1.8 }}>
+              <div><strong>Formate:</strong> {formate.length} Absatzformate</div>
+              <div><strong>Seitenformat:</strong> {seitenformat.toUpperCase()}</div>
+              <div><strong>Ränder:</strong> O {margins.oben} · U {margins.unten} · L {margins.links} · R {margins.rechts} mm</div>
+              <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>Szenenkopf-Vorlage wird nicht verändert.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setShowUpdatePreset(false)}
+                style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
+                Abbrechen
+              </button>
+              <button onClick={handleUpdatePreset}
+                style={{ padding: '6px 14px', borderRadius: 6, border: 'none', background: '#007AFF', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+                Aktualisieren
               </button>
             </div>
           </div>

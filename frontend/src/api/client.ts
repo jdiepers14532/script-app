@@ -603,7 +603,7 @@ export const api = {
     request<any>('POST', '/absatzformat-presets', data),
   deleteAbsatzformatPreset: (id: string) =>
     request<void>('DELETE', `/absatzformat-presets/${id}`),
-  patchAbsatzformatPreset: (id: string, data: { name?: string; beschreibung?: string; szenen_kopf_template?: string }) =>
+  patchAbsatzformatPreset: (id: string, data: { name?: string; beschreibung?: string; szenen_kopf_template?: string; seitenformat?: string; page_margins?: Record<string, number>; formate?: any[] }) =>
     request<any>('PATCH', `/absatzformat-presets/${id}`, data),
   duplicateAbsatzformatPreset: (id: string) =>
     request<any>('POST', `/absatzformat-presets/${id}/duplicate`),

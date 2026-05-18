@@ -435,7 +435,7 @@ absatzformatPresetsRouter.post('/', async (req, res) => {
 // System-Presets: nur Superadmin darf ändern
 absatzformatPresetsRouter.patch('/:id', async (req, res) => {
   try {
-    const { name, beschreibung, szenen_kopf_template, seitenformat, page_margins } = req.body
+    const { name, beschreibung, szenen_kopf_template, seitenformat, page_margins, formate } = req.body
     const isSuperadmin = (req as any).user?.roles?.includes('superadmin')
     const updates: string[] = []
     const params: any[] = []
@@ -446,6 +446,7 @@ absatzformatPresetsRouter.patch('/:id', async (req, res) => {
     if (szenen_kopf_template !== undefined) { updates.push(`szenen_kopf_template = $${n++}`); params.push(szenen_kopf_template) }
     if (seitenformat !== undefined) { updates.push(`seitenformat = $${n++}`); params.push(seitenformat) }
     if (page_margins !== undefined) { updates.push(`page_margins = $${n++}`); params.push(page_margins ? JSON.stringify(page_margins) : null) }
+    if (formate !== undefined) { updates.push(`formate = $${n++}`); params.push(JSON.stringify(formate)) }
 
     if (updates.length === 0) return res.status(400).json({ error: 'Nichts zu aktualisieren' })
 
