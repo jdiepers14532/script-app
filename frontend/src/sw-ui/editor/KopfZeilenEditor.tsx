@@ -267,12 +267,17 @@ function KZPreviewModal({ value, previewContext, onClose }: {
 
             {/* Kopfzeile */}
             {value.kopfzeile_aktiv ? (
-              <div style={{ paddingTop: mT, paddingLeft: mL, paddingRight: mR, paddingBottom: 8, borderBottom: '1px dashed #007AFF44' }}>
-                <div style={{ fontSize: 8, color: '#007AFF', fontWeight: 700, marginBottom: 4, letterSpacing: 0.5 }}>KOPFZEILE</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <ZonePreviewCell json={kz.links}  ctxMap={ctxMap} align="left" />
-                  <ZonePreviewCell json={kz.mitte}  ctxMap={ctxMap} align="center" />
-                  <ZonePreviewCell json={kz.rechts} ctxMap={ctxMap} align="right" />
+              <div style={{ paddingTop: mT, paddingBottom: 8, borderBottom: '1px dashed #007AFF44', position: 'relative' }}>
+                {/* Rand-Führungslinien (weiß) */}
+                <div style={{ position: 'absolute', left: mL, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
+                <div style={{ position: 'absolute', right: mR, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
+                <div style={{ paddingLeft: mL, paddingRight: mR }}>
+                  <div style={{ fontSize: 8, color: '#007AFF', fontWeight: 700, marginBottom: 4, letterSpacing: 0.5 }}>KOPFZEILE</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <ZonePreviewCell json={kz.links}  ctxMap={ctxMap} align="left" />
+                    <ZonePreviewCell json={kz.mitte}  ctxMap={ctxMap} align="center" />
+                    <ZonePreviewCell json={kz.rechts} ctxMap={ctxMap} align="right" />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -293,12 +298,17 @@ function KZPreviewModal({ value, previewContext, onClose }: {
 
             {/* Fußzeile */}
             {value.fusszeile_aktiv ? (
-              <div style={{ paddingBottom: mB, paddingLeft: mL, paddingRight: mR, paddingTop: 8, borderTop: '1px dashed #FF950044' }}>
-                <div style={{ fontSize: 8, color: '#FF9500', fontWeight: 700, marginBottom: 4, letterSpacing: 0.5 }}>FUSSZEILE</div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <ZonePreviewCell json={fz.links}  ctxMap={ctxMap} align="left" />
-                  <ZonePreviewCell json={fz.mitte}  ctxMap={ctxMap} align="center" />
-                  <ZonePreviewCell json={fz.rechts} ctxMap={ctxMap} align="right" />
+              <div style={{ paddingBottom: mB, paddingTop: 8, borderTop: '1px dashed #FF950044', position: 'relative' }}>
+                {/* Rand-Führungslinien (weiß) */}
+                <div style={{ position: 'absolute', left: mL, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
+                <div style={{ position: 'absolute', right: mR, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
+                <div style={{ paddingLeft: mL, paddingRight: mR }}>
+                  <div style={{ fontSize: 8, color: '#FF9500', fontWeight: 700, marginBottom: 4, letterSpacing: 0.5 }}>FUSSZEILE</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <ZonePreviewCell json={fz.links}  ctxMap={ctxMap} align="left" />
+                    <ZonePreviewCell json={fz.mitte}  ctxMap={ctxMap} align="center" />
+                    <ZonePreviewCell json={fz.rechts} ctxMap={ctxMap} align="right" />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -571,6 +581,10 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, pr
   const marginLeftCm  = sl.margin_left  / 10
   const marginRightCm = sl.margin_right / 10
   const tabStops      = value.tab_stops ?? []
+  // Prozentuale Einrückung der Zonen-Editoren (Rand-Einhaltung)
+  const totalMm       = rulerCm * 10
+  const zoneInsetL    = `${(sl.margin_left  / totalMm * 100).toFixed(3)}%`
+  const zoneInsetR    = `${(sl.margin_right / totalMm * 100).toFixed(3)}%`
 
   const setActiveByZoneZeile = (zeile: ZeileName, zone: ZoneName) => {
     const map: Record<string, Editor | null> = {
@@ -735,7 +749,14 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, pr
       </div>
 
       {/* Editor-Bereiche */}
-      <div style={{ display: 'flex', minHeight: 60, position: 'relative' }}>
+      <div style={{ display: 'flex', minHeight: 60, position: 'relative', paddingLeft: zoneInsetL, paddingRight: zoneInsetR }}>
+        {/* Rand-Führungslinien */}
+        {sl.margin_left > 0 && (
+          <div style={{ position: 'absolute', left: zoneInsetL, top: 0, bottom: 0, width: 1, background: 'rgba(0,122,255,0.18)', pointerEvents: 'none', zIndex: 1 }} />
+        )}
+        {sl.margin_right > 0 && (
+          <div style={{ position: 'absolute', right: zoneInsetR, top: 0, bottom: 0, width: 1, background: 'rgba(0,122,255,0.18)', pointerEvents: 'none', zIndex: 1 }} />
+        )}
         {/* Kopfzeile Zonen */}
         {activeZeile === 'kopfzeile' && (
           <>
