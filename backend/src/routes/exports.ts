@@ -513,11 +513,15 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
     let bodyHtml = ''
     for (const szene of szenen) {
       if (szene.format === 'notiz') {
-        // Notiz scenes: render via vorlage if set, otherwise render content directly
         const sceneContent = szene.content
           ? (typeof szene.content === 'string' ? JSON.parse(szene.content) : szene.content)
           : null
-        if (szene.vorlage_id) {
+        if (szene.wysiwyg_merged) {
+          // WYSIWYG-Modus: body_content ist bereits in scene.content eingebettet.
+          // vorlage_id liefert nur noch KZ/FZ/Layout — Body direkt aus content rendern.
+          bodyHtml += sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
+        } else if (szene.vorlage_id) {
+          // Alter Export-Modus: body_content der Vorlage wrапpt den Notiz-Inhalt.
           const vorlage = await queryOne('SELECT body_content FROM dokument_vorlagen WHERE id = $1', [szene.vorlage_id])
           if (vorlage?.body_content) {
             const vorlageContent = typeof vorlage.body_content === 'string' ? JSON.parse(vorlage.body_content) : vorlage.body_content

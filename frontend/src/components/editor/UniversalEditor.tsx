@@ -34,6 +34,7 @@ import { useUserPrefs, useFocus, useAppSettings } from '../../contexts'
 import { LineNumberOverlay } from './LineNumberOverlay'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 import { createRevisionMarginPlugin, REVISION_MARGIN_CSS } from '../../tiptap/RevisionMarginPlugin'
+import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS } from '../../sw-ui/editor/extensions/PlaceholderChipExtension'
 
 // ── Platform detection ──────────────────────────────────────────────────────
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
@@ -92,6 +93,16 @@ function injectRevisionCSS() {
   const style = document.createElement('style')
   style.id = 'revision-margin-css'
   style.textContent = REVISION_MARGIN_CSS
+  document.head.appendChild(style)
+}
+
+let chipCssInjected = false
+function injectChipCSS() {
+  if (chipCssInjected) return
+  chipCssInjected = true
+  const style = document.createElement('style')
+  style.id = 'placeholder-chip-css'
+  style.textContent = PLACEHOLDER_CHIP_CSS
   document.head.appendChild(style)
 }
 
@@ -235,6 +246,7 @@ export default function UniversalEditor({
   loadCourierPrime()
   injectLTCSS()
   injectReplikCSS()
+  injectChipCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
@@ -458,6 +470,7 @@ export default function UniversalEditor({
       AlignmentShortcuts,
       AnnotationMark,
       SearchHighlightExtension,
+      PlaceholderChipExtension,
       Placeholder.configure({
         placeholder,
         emptyEditorClass: 'universal-editor-empty',

@@ -11,6 +11,7 @@ import { useUserPrefs } from '../../contexts'
 import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
+import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
 import { Clock } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
@@ -54,6 +55,7 @@ export default function EditorPanel({
   const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string; zeilennummerierung_unterbinden?: boolean }>>([])
   const [vorlagePreviewData, setVorlagePreviewData] = useState<any>(null)
   const [showVorlagePreview, setShowVorlagePreview] = useState(false)
+  const [isApplyingVorlage, setIsApplyingVorlage] = useState(false)
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -503,44 +505,66 @@ export default function EditorPanel({
         </div>
       )}
 
-      {/* ── Notiz-Vorlage-Selector ── */}
-      {currentSzene?.format === 'notiz' && (
-        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-          <div style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Vorlage</span>
-            <select
-              value={currentSzene?.vorlage_id ?? ''}
-              onChange={async (e) => {
-                if (!currentSzene?.id) return
-                const newId = e.target.value || null
-                try {
-                  await api.updateDokumentSzene(currentSzene.id, { vorlage_id: newId ?? '__null__' })
-                  setCurrentSzene((prev: any) => prev ? { ...prev, vorlage_id: newId } : prev)
-                } catch { /* ignore */ }
-              }}
-              style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', flex: 1, maxWidth: 240 }}
+      {/* ── Notiz-Vorlage-Selector (WYSIWYG-Merge) ── */}
+      {currentSzene?.format === 'notiz' && vorlagen.length > 0 && (
+        <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)', padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Vorlage</span>
+          <select
+            value=""
+            disabled={isApplyingVorlage}
+            onChange={async (e) => {
+              const vorlageId = e.target.value
+              if (!vorlageId || !currentSzene?.id) return
+              setIsApplyingVorlage(true)
+              try {
+                // Aktuellen Inhalt als {{notiz_inhalt}}-Zuweisung verwenden
+                const rawContent = currentSzene?.content
+                const currentNodes: any[] = Array.isArray(rawContent)
+                  ? rawContent
+                  : (rawContent?.content ?? [])
+
+                // Vorlage vollständig laden (inkl. body_content)
+                const vorlage = await api.getDokumentVorlage(produktionId, vorlageId)
+                const bodyContent = typeof vorlage.body_content === 'string'
+                  ? JSON.parse(vorlage.body_content)
+                  : vorlage.body_content
+
+                // Merge: Vorlage-Body + aktueller Inhalt → finales Tiptap-Dokument
+                const merged = mergeVorlageWithContent(bodyContent, currentNodes)
+
+                // Editor sofort aktualisieren (Remount via contentResetCounter)
+                setSceneContent(merged)
+                setContentResetCounter(c => c + 1)
+                setCurrentSzene((prev: any) => prev
+                  ? { ...prev, vorlage_id: vorlageId, content: merged.content, wysiwyg_merged: true }
+                  : prev
+                )
+                setVorlagePreviewData(vorlage)
+
+                // Persistieren: gemergter Content + vorlage_id + wysiwyg_merged-Flag
+                await api.updateDokumentSzene(currentSzene.id, {
+                  content: merged.content,
+                  vorlage_id: vorlageId,
+                  wysiwyg_merged: true,
+                })
+              } catch { /* ignore — Netzwerkfehler werden vom Offline-Queue behandelt */ }
+              finally { setIsApplyingVorlage(false) }
+            }}
+            style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', maxWidth: 220, opacity: isApplyingVorlage ? 0.5 : 1 }}
+          >
+            <option value="">{isApplyingVorlage ? 'Wird eingefügt…' : '– Vorlage einfügen –'}</option>
+            {vorlagen.map(v => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
+          {currentSzene?.vorlage_id && vorlagePreviewData && (
+            <button
+              onClick={() => setShowVorlagePreview(true)}
+              style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
             >
-              <option value="">– keine –</option>
-              {vorlagen.map(v => (
-                <option key={v.id} value={v.id}>{v.name}</option>
-              ))}
-            </select>
-          </div>
-          {currentSzene?.vorlage_id && (() => {
-            const v = vorlagen.find(x => x.id === currentSzene.vorlage_id)
-            return v ? (
-              <div style={{ padding: '3px 12px 5px', fontSize: 10, color: '#FF9F0A', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>■</span>
-                <span>Vorlage <strong>{v.name}</strong> wird beim Export angewendet. Der Notiz-Inhalt erscheint an der Stelle des {'\u007b\u007bnotiz_inhalt\u007d\u007d'}-Chips.</span>
-                <button
-                  onClick={() => setShowVorlagePreview(true)}
-                  style={{ marginLeft: 4, padding: '1px 7px', borderRadius: 4, border: '1px solid #FF9F0A', background: 'transparent', color: '#FF9F0A', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-                >
-                  Vorlage anzeigen
-                </button>
-              </div>
-            ) : null
-          })()}
+              Vorschau
+            </button>
+          )}
         </div>
       )}
 
