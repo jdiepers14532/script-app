@@ -441,6 +441,9 @@ function FigurenTab() {
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [presetLoading, setPresetLoading] = useState(false)
   const [presetDone, setPresetDone] = useState(false)
+  const [kategorien, setKategorien] = useState<any[]>([])
+  const [newKat, setNewKat] = useState({ name: '', typ: 'rolle' as 'rolle' | 'komparse' })
+  const [katSaving, setKatSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/app-settings', { credentials: 'include' })
@@ -452,7 +455,28 @@ function FigurenTab() {
   useEffect(() => {
     if (!produktionId) return
     api.getCharakterFelder(produktionId).then(setFelder).catch(() => {})
+    api.getCharKategorien(produktionId).then(setKategorien).catch(() => setKategorien([]))
   }, [produktionId])
+
+  const addKat = async () => {
+    if (!newKat.name.trim() || !produktionId) return
+    setKatSaving(true)
+    try {
+      const r = await api.createCharKategorie(produktionId, newKat)
+      setKategorien(prev => [...prev, r])
+      setNewKat({ name: '', typ: 'rolle' })
+    } catch {} finally { setKatSaving(false) }
+  }
+  const delKat = async (id: number) => {
+    if (!produktionId) return
+    try { await api.deleteCharKategorie(produktionId, id); setKategorien(prev => prev.filter(k => k.id !== id)) } catch {}
+  }
+  const reorderKat = async (ordered: any[]) => {
+    if (!produktionId) return
+    setKategorien(ordered)
+    const order = ordered.map((k, i) => ({ id: k.id, sort_order: i + 1 }))
+    try { const r = await api.reorderCharKategorien(produktionId, order); setKategorien(r) } catch {}
+  }
 
   const handleCreateFeld = async () => {
     if (!newFeld || !produktionId || !newFeld.name.trim()) return
@@ -568,6 +592,46 @@ function FigurenTab() {
             </button>
           </div>
         </section>
+
+        {/* Charakter-Kategorien */}
+        <section style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Charakter-Kategorien</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+              Definiert die Kategorien für {figurenLabel} und {t('komparse', 'p')} in dieser Produktion. Reihenfolge per Drag &amp; Drop.
+            </p>
+          </div>
+          <SortableList
+            items={kategorien}
+            onReorder={reorderKat}
+            renderItem={(k, handle) => (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 4 }}>
+                {handle}
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 7px', borderRadius: 99, fontWeight: 600, textTransform: 'uppercase' as const, flexShrink: 0 }}>
+                  {k.typ === 'komparse' ? t('komparse') : 'Rolle'}
+                </span>
+                <span style={{ flex: 1, fontSize: 13 }}>{k.name}</span>
+                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px', lineHeight: 1 }} onClick={() => delKat(k.id)} title="Löschen">x</button>
+              </div>
+            )}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              style={{ flex: 1, fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none' }}
+              placeholder="Neue Kategorie..."
+              value={newKat.name}
+              onChange={e => setNewKat(v => ({ ...v, name: e.target.value }))}
+              onKeyDown={e => e.key === 'Enter' && addKat()}
+            />
+            <select style={{ fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none' }} value={newKat.typ} onChange={e => setNewKat(v => ({ ...v, typ: e.target.value as any }))}>
+              <option value="rolle">Rolle</option>
+              <option value="komparse">{t('komparse')}</option>
+            </select>
+            <button style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }} onClick={addKat} disabled={katSaving || !newKat.name.trim()}>
+              {katSaving ? '...' : '+ Hinzufügen'}
+            </button>
+          </div>
+        </section>
       )}
     </div>
   )
@@ -580,7 +644,6 @@ function ProduktionTab() {
   const produktionId = selectedProduction?.id ?? ''
   const { t } = useTerminologie()
 
-  const [kategorien, setKategorien] = useState<any[]>([])
   const [labels, setLabels] = useState<any[]>([])
   const [colors, setColors] = useState<any[]>([])
   const [memoSchwelle, setMemoSchwelle] = useState<number>(100)
@@ -590,13 +653,11 @@ function ProduktionTab() {
   const [saving, setSaving] = useState<Record<string, boolean>>({})
 
   // New-item input state
-  const [newKat, setNewKat] = useState({ name: '', typ: 'rolle' as 'rolle' | 'komparse' })
   const [newLabel, setNewLabel] = useState({ name: '', is_produktionsfassung: false })
   const [newColor, setNewColor] = useState({ name: '', color: '#4A90D9' })
 
   useEffect(() => {
     if (!produktionId) return
-    api.getCharKategorien(produktionId).then(setKategorien).catch(() => setKategorien([]))
     api.getStageLabels(produktionId).then(setLabels).catch(() => setLabels([]))
     api.getRevisionColors(produktionId).then(setColors).catch(() => setColors([]))
     api.getRevisionEinstellungen(produktionId).then(e => setMemoSchwelle(e.memo_schwellwert_zeichen ?? 100)).catch(() => {})
@@ -609,25 +670,6 @@ function ProduktionTab() {
 
   const busy = (key: string) => saving[key]
   const set = (key: string, v: boolean) => setSaving(s => ({ ...s, [key]: v }))
-
-  // ── Character Kategorien ──
-  const addKat = async () => {
-    if (!newKat.name.trim()) return
-    set('kat', true)
-    try {
-      const r = await api.createCharKategorie(produktionId, newKat)
-      setKategorien(prev => [...prev, r])
-      setNewKat({ name: '', typ: 'rolle' })
-    } catch {} finally { set('kat', false) }
-  }
-  const delKat = async (id: number) => {
-    try { await api.deleteCharKategorie(produktionId, id); setKategorien(prev => prev.filter(k => k.id !== id)) } catch {}
-  }
-  const reorderKat = async (ordered: any[]) => {
-    setKategorien(ordered)
-    const order = ordered.map((k, i) => ({ id: k.id, sort_order: i + 1 }))
-    try { const r = await api.reorderCharKategorien(produktionId, order); setKategorien(r) } catch {}
-  }
 
   // ── Stage Labels ──
   const addLabel = async () => {
@@ -701,44 +743,6 @@ function ProduktionTab() {
 
   return (
     <div style={{ maxWidth: 640 }}>
-
-      {/* ── Character Kategorien ── */}
-      <section style={sectionStyle}>
-        <h3 style={h3Style}>Charakter-Kategorien</h3>
-        <p style={subStyle}>Definiert die Kategorien fuer Rollen und {t('komparse', 'p')} in dieser Produktion. Reihenfolge per Drag &amp; Drop.</p>
-
-        <SortableList
-          items={kategorien}
-          onReorder={reorderKat}
-          renderItem={(k, handle) => (
-            <div style={rowStyle}>
-              {handle}
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg-subtle)', padding: '2px 7px', borderRadius: 99, fontWeight: 600, textTransform: 'uppercase', flexShrink: 0 }}>
-                {k.typ === 'komparse' ? t('komparse') : 'Rolle'}
-              </span>
-              <span style={{ flex: 1, fontSize: 13 }}>{k.name}</span>
-              <button style={delBtnStyle} onClick={() => delKat(k.id)} title="Löschen">x</button>
-            </div>
-          )}
-        />
-
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <input
-            style={{ ...inputStyle, flex: 1 }}
-            placeholder="Neue Kategorie..."
-            value={newKat.name}
-            onChange={e => setNewKat(v => ({ ...v, name: e.target.value }))}
-            onKeyDown={e => e.key === 'Enter' && addKat()}
-          />
-          <select style={inputStyle} value={newKat.typ} onChange={e => setNewKat(v => ({ ...v, typ: e.target.value as any }))}>
-            <option value="rolle">Rolle</option>
-            <option value="komparse">{t('komparse')}</option>
-          </select>
-          <button style={btnStyle} onClick={addKat} disabled={busy('kat') || !newKat.name.trim()}>
-            {busy('kat') ? '...' : '+ Hinzufügen'}
-          </button>
-        </div>
-      </section>
 
       {/* ── Stage Labels ── */}
       <section style={sectionStyle}>
