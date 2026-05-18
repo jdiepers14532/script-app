@@ -7,12 +7,7 @@ import Tooltip from './Tooltip'
 interface GageKategorie {
   id: string
   label: string
-  beschreibung?: string
-  abrechnungstyp: string
-  betrag?: number
-  waehrung: string
-  lst_rg: string
-  sortierung: number
+  kat_nr?: number
 }
 
 interface Pausenwoche {
@@ -22,15 +17,6 @@ interface Pausenwoche {
 }
 
 // ── Konstanten ────────────────────────────────────────────────────────────────
-
-const ABRECHNUNGSTYPEN = [
-  { id: 'pauschal',  label: 'Pauschal' },
-  { id: 'pro_woche', label: 'Pro Woche' },
-  { id: 'pro_tag',   label: 'Pro Tag' },
-  { id: 'pro_buch',  label: 'Pro Buch' },
-  { id: 'pro_monat', label: 'Pro Monat' },
-  { id: 'pro_block', label: 'Pro Block' },
-]
 
 const MONATE = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez']
 
@@ -102,7 +88,8 @@ function GagenkategorienTab() {
   useEffect(() => { load() }, [load])
 
   const startNew = () => {
-    setForm({ label: '', abrechnungstyp: 'pauschal', waehrung: 'EUR', lst_rg: 'rg', betrag: undefined, sortierung: list.length })
+    const nextKat = list.reduce((max, g) => Math.max(max, g.kat_nr ?? 0), 0) + 1
+    setForm({ label: '', kat_nr: nextKat })
     setIsNew(true)
     setEditing(null)
   }
@@ -153,7 +140,7 @@ function GagenkategorienTab() {
         <div>
           <div style={{ fontSize: 13, fontWeight: 600 }}>Globale Gagenkategorien</div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-            Produktionsübergreifend — Vorlage für Einsätze im Autorenplan
+            Produktionsübergreifend — über Kat.-Nr. mit Einsätzen verknüpfbar
           </div>
         </div>
         <button onClick={startNew} style={{
@@ -171,43 +158,16 @@ function GagenkategorienTab() {
           background: 'var(--bg-surface)', border: '1px solid var(--border)',
           borderRadius: 10, padding: 16, marginBottom: 12,
         }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-            <div>
+          <div style={{ display: 'flex', gap: 10, marginBottom: 12, alignItems: 'flex-end' }}>
+            <div style={{ width: 80 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Kat.-Nr.</label>
+              <input type="number" min={1} style={{ ...inp, width: '100%', boxSizing: 'border-box', textAlign: 'center' }}
+                value={form.kat_nr ?? ''} onChange={e => setForm(f => ({ ...f, kat_nr: e.target.value ? Number(e.target.value) : undefined }))} placeholder="1" />
+            </div>
+            <div style={{ flex: 1 }}>
               <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Bezeichnung *</label>
               <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
-                value={form.label ?? ''} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder="z.B. Erstautor" />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Beschreibung</label>
-              <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
-                value={form.beschreibung ?? ''} onChange={e => setForm(f => ({ ...f, beschreibung: e.target.value }))} placeholder="Optional" />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Abrechnungstyp</label>
-              <select style={{ ...inp, width: '100%' }}
-                value={form.abrechnungstyp ?? 'pauschal'} onChange={e => setForm(f => ({ ...f, abrechnungstyp: e.target.value }))}>
-                {ABRECHNUNGSTYPEN.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
-              </select>
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Betrag</label>
-                <input type="number" min={0} style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
-                  value={form.betrag ?? ''} onChange={e => setForm(f => ({ ...f, betrag: e.target.value ? Number(e.target.value) : undefined }))} placeholder="0" />
-              </div>
-              <div style={{ width: 70 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>Währung</label>
-                <input style={{ ...inp, width: '100%', boxSizing: 'border-box' }}
-                  value={form.waehrung ?? 'EUR'} maxLength={3} onChange={e => setForm(f => ({ ...f, waehrung: e.target.value.toUpperCase() }))} />
-              </div>
-              <div style={{ width: 60 }}>
-                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>LSt/RG</label>
-                <select style={{ ...inp, width: '100%' }}
-                  value={form.lst_rg ?? 'rg'} onChange={e => setForm(f => ({ ...f, lst_rg: e.target.value }))}>
-                  <option value="lst">LSt</option>
-                  <option value="rg">RG</option>
-                </select>
-              </div>
+                value={form.label ?? ''} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder="z.B. Erstautor" autoFocus />
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
@@ -228,28 +188,19 @@ function GagenkategorienTab() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr style={{ background: 'var(--bg-subtle)' }}>
+                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 60 }}>Kat.</th>
                 <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Bezeichnung</th>
-                <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Abrechnung</th>
-                <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 100 }}>Betrag</th>
-                <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)', width: 60 }}>LSt/RG</th>
                 <th style={{ width: 80, borderBottom: '1px solid var(--border)' }} />
               </tr>
             </thead>
             <tbody>
               {list.map((gk, i) => (
                 <tr key={gk.id} style={{ background: i % 2 === 0 ? 'var(--bg-page)' : 'var(--bg-subtle)' }}>
+                  <td style={{ padding: '9px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 700, fontSize: 13 }}>
+                    {gk.kat_nr ?? '—'}
+                  </td>
                   <td style={{ padding: '9px 12px', color: 'var(--text-primary)', fontWeight: 500 }}>
                     {gk.label}
-                    {gk.beschreibung && <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 6, fontWeight: 400 }}>{gk.beschreibung}</span>}
-                  </td>
-                  <td style={{ padding: '9px 12px', color: 'var(--text-secondary)' }}>
-                    {ABRECHNUNGSTYPEN.find(a => a.id === gk.abrechnungstyp)?.label ?? gk.abrechnungstyp}
-                  </td>
-                  <td style={{ padding: '9px 12px', textAlign: 'right', color: 'var(--text-primary)' }}>
-                    {gk.betrag != null ? `${gk.betrag.toLocaleString('de-DE')} ${gk.waehrung}` : '—'}
-                  </td>
-                  <td style={{ padding: '9px 12px', textAlign: 'center', color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: 11 }}>
-                    {gk.lst_rg}
                   </td>
                   <td style={{ padding: '9px 8px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>

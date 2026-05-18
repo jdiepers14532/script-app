@@ -769,7 +769,7 @@ function EinsatzModal({
   const [bisDatum, setBisDatum] = useState(einsatz?.bis_datum || mondayPlusDays(mondayOf(wocheDatum), 4))
   const [gageKat, setGageKat] = useState<number | undefined>(einsatz?.gage_kat)
   const [gageKategorieId, setGageKategorieId] = useState<string | undefined>(einsatz?.gage_kategorie_id)
-  const [globalKategorien, setGlobalKategorien] = useState<Array<{id: string; label: string; abrechnungstyp: string; betrag?: number; waehrung: string}>>( [])
+  const [globalKategorien, setGlobalKategorien] = useState<Array<{id: string; label: string; kat_nr?: number}>>( [])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [cacheResults, setCacheResults] = useState<string[]>([])
@@ -905,7 +905,6 @@ function EinsatzModal({
         von_datum: vonDatum || undefined,
         bis_datum: bisDatum || undefined,
         gage_kat: gageKat,
-        gage_kategorie_id: gageKategorieId,
       })
       onClose()
     } finally { setSaving(false) }
@@ -1112,25 +1111,22 @@ function EinsatzModal({
           )}
 
           {/* Gagenkategorie */}
-          {globalKategorien.length > 0 && (
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
-                Gagenkategorie
-              </label>
-              <select
-                value={gageKategorieId ?? ''}
-                onChange={e => setGageKategorieId(e.target.value || undefined)}
-                style={{ padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', width: '100%', maxWidth: 280 }}
-              >
-                <option value="">— keine —</option>
-                {globalKategorien.map(gk => (
-                  <option key={gk.id} value={gk.id}>
-                    {gk.label}{gk.betrag != null ? ` · ${gk.betrag.toLocaleString('de-DE')} ${gk.waehrung}` : ''}{' '}({ABRECHNUNGSTYPEN.find(a => a.id === gk.abrechnungstyp)?.label ?? gk.abrechnungstyp})
-                  </option>
-                ))}
-              </select>
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Kat.</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="number" min={1}
+                value={gageKat ?? ''}
+                onChange={e => setGageKat(e.target.value ? Number(e.target.value) : undefined)}
+                placeholder="—"
+                style={{ width: 60, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, textAlign: 'center', color: 'var(--text-primary)' }}
+              />
+              {gageKat !== undefined && (() => {
+                const match = globalKategorien.find(g => g.kat_nr === gageKat)
+                return match ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{match.label}</span> : null
+              })()}
             </div>
-          )}
+          </div>
 
           {/* Buttons */}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
