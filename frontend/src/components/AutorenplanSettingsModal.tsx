@@ -286,7 +286,7 @@ function PausenkalenderTab({ produktionDbId }: { produktionDbId: string }) {
 
   useEffect(() => { load() }, [load])
 
-  const pauseSet = new Set(pausenwochen.map(p => p.woche_von))
+  const pauseSet = new Set(pausenwochen.map(p => p.woche_von.slice(0, 10)))
 
   const toggleWoche = async (monday: Date) => {
     const key = isoDate(monday)

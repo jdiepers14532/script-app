@@ -73,6 +73,7 @@ interface Einsatz {
   von_datum?: string
   bis_datum?: string
   gage_kat?: number
+  gage_kategorie_id?: string
   erstellt_am?: string
 }
 
@@ -797,9 +798,18 @@ function EinsatzModal({
   const [vonDatum, setVonDatum] = useState(einsatz?.von_datum || mondayPlusDays(mondayOf(wocheDatum), 0))
   const [bisDatum, setBisDatum] = useState(einsatz?.bis_datum || mondayPlusDays(mondayOf(wocheDatum), 4))
   const [gageKat, setGageKat] = useState<number | undefined>(einsatz?.gage_kat)
+  const [gageKategorieId, setGageKategorieId] = useState<string | undefined>(einsatz?.gage_kategorie_id)
+  const [globalKategorien, setGlobalKategorien] = useState<Array<{id: string; label: string; abrechnungstyp: string; betrag?: number; waehrung: string}>>( [])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [cacheResults, setCacheResults] = useState<string[]>([])
+
+  useEffect(() => {
+    fetch('/api/autorenplan/gage-kategorien', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setGlobalKategorien(d.gage_kategorien || []))
+      .catch(() => {})
+  }, [])
   const cacheDebounceRef = useRef<any>(null)
 
   const weekBase = mondayOf(wocheDatum)
@@ -925,6 +935,7 @@ function EinsatzModal({
         von_datum: vonDatum || undefined,
         bis_datum: bisDatum || undefined,
         gage_kat: gageKat,
+        gage_kategorie_id: gageKategorieId,
       })
       onClose()
     } finally { setSaving(false) }
@@ -1120,33 +1131,23 @@ function EinsatzModal({
           )}
 
           {/* Gagenkategorie */}
-          {jk.gagen && jk.gagen.length > 0 && (
+          {globalKategorien.length > 0 && (
             <div>
               <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
-                Kat.
-                <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 6, color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: 0 }}>
-                  ({jk.gagen.map(g => g.kat).join(', ')})
-                </span>
+                Gagenkategorie
               </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <input
-                  type="text"
-                  value={gageKat !== undefined ? (jk.gagen[gageKat]?.kat ?? '') : ''}
-                  onChange={e => {
-                    const val = e.target.value.trim()
-                    const idx = jk.gagen!.findIndex(g => g.kat === val)
-                    setGageKat(idx >= 0 ? idx : undefined)
-                  }}
-                  placeholder="—"
-                  maxLength={3}
-                  style={{ width: 52, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, textAlign: 'center', color: 'var(--text-primary)' }}
-                />
-                {gageKat !== undefined && jk.gagen[gageKat] && (
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {ABRECHNUNGSTYPEN.find(a => a.id === jk.gagen![gageKat].abrechnungstyp)?.label ?? jk.gagen![gageKat].abrechnungstyp}
-                  </span>
-                )}
-              </div>
+              <select
+                value={gageKategorieId ?? ''}
+                onChange={e => setGageKategorieId(e.target.value || undefined)}
+                style={{ padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', width: '100%', maxWidth: 280 }}
+              >
+                <option value="">— keine —</option>
+                {globalKategorien.map(gk => (
+                  <option key={gk.id} value={gk.id}>
+                    {gk.label}{gk.betrag != null ? ` · ${gk.betrag.toLocaleString('de-DE')} ${gk.waehrung}` : ''}{' '}({ABRECHNUNGSTYPEN.find(a => a.id === gk.abrechnungstyp)?.label ?? gk.abrechnungstyp})
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 
