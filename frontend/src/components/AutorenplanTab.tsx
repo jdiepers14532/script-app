@@ -1546,24 +1546,16 @@ function AutorenplanGrid({
                             einsatz.notiz || '',
                           ].filter(Boolean).join('\n')}>
                             <div style={{ display: 'flex', alignItems: 'stretch', gap: 3, height: ROW_H - 4 }}>
-                              <div style={{ width: 3, borderRadius: 2, background: isCellPlatzhalter ? 'var(--border)' : statusColor(einsatz.status), flexShrink: 0 }} />
+                              <div style={{ width: 3, borderRadius: 2, background: statusColor(einsatz.status), flexShrink: 0 }} />
                               <div style={{ overflow: 'hidden', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
                                 <div style={{ fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)', fontStyle: isCellPlatzhalter ? 'italic' : 'normal' }}>
                                   {name || '—'}
                                 </div>
                                 <div style={{ fontSize: 9, display: 'flex', gap: 3, alignItems: 'center' }}>
-                                  {isCellPlatzhalter
-                                    ? <span style={{ color: 'var(--text-secondary)' }}>Platzh.</span>
-                                    : <>
-                                        <span style={{ color: statusColor(einsatz.status), fontWeight: 600 }}>{statusAbbr(einsatz.status)}</span>
-                                        {blockNr && <span style={{ color: 'var(--text-secondary)' }}>· {blockLabel.slice(0, 1)}{blockNr}</span>}
-                                      </>
-                                  }
+                                  <span style={{ color: statusColor(einsatz.status), fontWeight: 600 }}>{statusAbbr(einsatz.status)}</span>
+                                  {blockNr && <span style={{ color: 'var(--text-secondary)' }}>· {blockLabel.slice(0, 1)}{blockNr}</span>}
                                 </div>
                               </div>
-                              {isCellPlatzhalter && (
-                                <Search size={8} style={{ color: 'var(--text-secondary)', flexShrink: 0, opacity: 0.6 }} />
-                              )}
                               {isOverbooked && slotIdx === 0 && !isCellPlatzhalter && (
                                 <AlertCircle size={8} style={{ color: '#FF3B30', flexShrink: 0 }} />
                               )}
