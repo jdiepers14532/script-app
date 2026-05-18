@@ -11,6 +11,7 @@ const ADMIN_TABS = [
   { id: 'wasserzeichen',  label: 'Wasserzeichen & Export-Log' },
   { id: 'dk-zugriff',     label: 'DK-Zugriff' },
   { id: 'fassungen',      label: 'Fassungen & Revision' },
+  { id: 'dokument',       label: 'Dokument' },
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
   { id: 'pwa',            label: 'App / PWA' },
@@ -370,6 +371,112 @@ function DkZugriffTab() {
           </button>
         </>
       )}
+    </div>
+  )
+}
+
+// ── Dokument Tab ──────────────────────────────────────────────────────────────
+
+function DokumentAdminTab() {
+  const [overrideRollen, setOverrideRollen] = useState<string[]>([])
+  const [newRolle, setNewRolle] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/dokument-override-rollen', { credentials: 'include' })
+      .then(r => r.json())
+      .then((d: any) => setOverrideRollen(d.rollen ?? []))
+      .catch(() => {})
+  }, [])
+
+  const addRolle = () => {
+    const r = newRolle.trim()
+    if (!r || overrideRollen.includes(r)) return
+    setOverrideRollen(prev => [...prev, r])
+    setNewRolle('')
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setMsg(null)
+    try {
+      await fetch('/api/admin/dokument-override-rollen', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rollen: overrideRollen }),
+      })
+      setMsg('Gespeichert.')
+    } catch (e: any) { setMsg(e.message) }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 600 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>Dokument-Einstellungen</h2>
+
+      <section style={{ marginBottom: 32 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Status-Override-Rollen</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+          Nutzer mit diesen Rollen können alle Dokumente lesen und bearbeiten,
+          unabhängig von der Sichtbarkeits-Einstellung der Werkstufe.
+        </p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <input
+            value={newRolle}
+            onChange={e => setNewRolle(e.target.value)}
+            placeholder="z.B. herstellungsleitung"
+            onKeyDown={e => e.key === 'Enter' && addRolle()}
+            style={{
+              padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)',
+              fontSize: 12, background: 'var(--bg-surface)', color: 'var(--text-primary)',
+              fontFamily: 'inherit', width: 240,
+            }}
+          />
+          <button
+            onClick={addRolle}
+            disabled={!newRolle.trim()}
+            style={{
+              padding: '7px 14px', borderRadius: 7, border: 'none',
+              background: newRolle.trim() ? 'var(--text-primary)' : 'var(--bg-subtle)',
+              color: newRolle.trim() ? '#fff' : 'var(--text-muted)',
+              fontSize: 12, cursor: newRolle.trim() ? 'pointer' : 'not-allowed',
+              fontFamily: 'inherit',
+            }}
+          >
+            + Hinzufügen
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 20 }}>
+          {overrideRollen.map(r => (
+            <span key={r} style={{
+              display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px',
+              borderRadius: 99, background: 'var(--bg-subtle)', border: '1px solid var(--border)', fontSize: 12,
+            }}>
+              {r}
+              <button
+                onClick={() => setOverrideRollen(prev => prev.filter(x => x !== r))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, lineHeight: 1, padding: 0 }}
+              >×</button>
+            </span>
+          ))}
+          {overrideRollen.length === 0 && (
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Override-Rollen konfiguriert.</span>
+          )}
+        </div>
+        {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            padding: '8px 24px', borderRadius: 8, border: 'none',
+            background: 'var(--text-primary)', color: '#fff',
+            fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          {saving ? 'Speichert…' : 'Speichern'}
+        </button>
+      </section>
     </div>
   )
 }
@@ -785,6 +892,7 @@ export default function AdminPage() {
           {activeTab === 'wasserzeichen'  && <WasserzeichenTab />}
           {activeTab === 'dk-zugriff'     && <DkZugriffTab />}
           {activeTab === 'fassungen'      && <FassungenRevisionTab />}
+          {activeTab === 'dokument'       && <DokumentAdminTab />}
           {activeTab === 'users'          && (
             <div style={{ padding: '28px 32px', color: 'var(--text-secondary)', fontSize: 13 }}>
               Benutzer & Rollen werden in der Auth-App verwaltet.

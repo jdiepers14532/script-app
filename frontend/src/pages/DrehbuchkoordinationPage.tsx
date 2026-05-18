@@ -24,7 +24,7 @@ const DK_TABS = [
   { id: 'lock-regeln',           label: 'Lock-Regeln' },
   { id: 'dokument-typen',        label: 'Absatzformat-Vorlagen' },
   { id: 'gruppen-register',      label: 'Gruppen-Register' },
-  { id: 'dokument-einstellungen', label: 'Admin-Einstellungen' },
+  { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
   { id: 'stockshot-templates',    label: 'Stockshot-Vorlagen' },
@@ -2060,15 +2060,12 @@ const LN_FONT_OPTIONS = [
 function DokumentEinstellungenTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
-  const [overrideRollen, setOverrideRollen] = useState<string[]>([])
-  const [newRolle, setNewRolle] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
 
   // Page margin
   const [pageMarginMm, setPageMarginMm] = useState(25)
 
   useEffect(() => {
-    api.getOverrideRollen().then((d: any) => setOverrideRollen(d.rollen ?? [])).catch(() => {})
     if (produktionId) {
       api.getDkAppSettings(produktionId).then((data: any) => {
         if (data?.page_margin_mm) {
@@ -2081,7 +2078,6 @@ function DokumentEinstellungenTab() {
 
   const handleSave = async () => {
     try {
-      await api.updateOverrideRollen(overrideRollen)
       if (produktionId) {
         await api.updateDkAppSetting(produktionId, 'page_margin_mm', String(pageMarginMm))
         window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId: produktionId } }))
@@ -2090,42 +2086,8 @@ function DokumentEinstellungenTab() {
     } catch (e: any) { setMsg(e.message) }
   }
 
-  const addRolle = () => {
-    const r = newRolle.trim()
-    if (!r || overrideRollen.includes(r)) return
-    setOverrideRollen(prev => [...prev, r]); setNewRolle('')
-  }
-
   return (
     <div style={{ maxWidth: 600 }}>
-
-      <section style={{ marginBottom: 32 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Status-Override-Rollen</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Nutzer mit diesen Rollen können alle Dokumente lesen und bearbeiten,
-          unabhängig von der Sichtbarkeits-Einstellung.
-        </p>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-          <input value={newRolle} onChange={e => setNewRolle(e.target.value)} placeholder="z.B. herstellungsleitung"
-            onKeyDown={e => e.key === 'Enter' && addRolle()}
-            style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, width: 220 }} />
-          <button onClick={addRolle}
-            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-            Hinzufügen
-          </button>
-        </div>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {overrideRollen.map(r => (
-            <span key={r} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 99,
-              background: 'var(--bg-subtle)', border: '1px solid var(--border)', fontSize: 12 }}>
-              {r}
-              <button onClick={() => setOverrideRollen(prev => prev.filter(x => x !== r))}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, lineHeight: 1, padding: 0 }}>x</button>
-            </span>
-          ))}
-          {overrideRollen.length === 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Keine Override-Rollen.</span>}
-        </div>
-      </section>
 
       <section style={{ marginBottom: 32 }}>
         <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Seitenrand</h3>
