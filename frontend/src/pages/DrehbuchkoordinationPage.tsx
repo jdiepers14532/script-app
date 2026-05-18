@@ -2704,7 +2704,7 @@ export default function DrehbuchkoordinationPage() {
       case 'export-vorlagen':
         return <Placeholder label="Export-Vorlagen" />
       case 'lock-regeln':
-        return <Placeholder label="Lock-Regeln" />
+        return <LockRegelnTab />
       case 'dokument-typen':
         return <DokumentTypenTab headerSlot={headerSlot} />
       case 'gruppen-register':
@@ -3301,6 +3301,112 @@ function DailyRegelnTab({ productionId }: { productionId: string }) {
       )}
 
       {saving && <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</p>}
+    </div>
+  )
+}
+
+// ── Tab: Lock-Regeln ─────────────────────────────────────────────────────────────
+
+const GEPLANTE_REGELN: { kategorie: string; regeln: string[] }[] = [
+  {
+    kategorie: 'Vollständigkeit',
+    regeln: [
+      'Alle Szenen haben einen Szenenkopf (Motiv, I/A, DT)',
+      'Keine Szene ohne Inhalt (leerer Editor)',
+      'Alle Rollen in Szenen sind im Figurenregister vorhanden',
+      'Stoppzeit ist bei allen Szenen gesetzt',
+    ],
+  },
+  {
+    kategorie: 'Konsistenz',
+    regeln: [
+      'Motivschreibweisen sind einheitlich (Groß-/Kleinschreibung, Abkürzungen)',
+      'Rollennamen sind einheitlich geschrieben (z.B. „LAURA" vs. „Laura")',
+      'Keine doppelten Szenennummern innerhalb einer Folge',
+    ],
+  },
+  {
+    kategorie: 'Formales',
+    regeln: [
+      'Seitenanzahl liegt im erlaubten Bereich (konfigurierbar, z.B. 52–56 Seiten)',
+      'Alle Dialoge enden mit Satzzeichen',
+      'Keine Zeile beginnt mit Leerzeichen',
+    ],
+  },
+  {
+    kategorie: 'Dramaturgie (optional)',
+    regeln: [
+      'Jede Hauptfigur hat mindestens X Szenen (konfigurierbar)',
+      'Kein Block ohne Pre-Teaser-Szene',
+      'Sonderszenen (Flashback, Stockshot) sind korrekt markiert',
+    ],
+  },
+]
+
+function LockRegelnTab() {
+  const sectionStyle: React.CSSProperties = { marginBottom: 32 }
+  const h3Style: React.CSSProperties = { fontSize: 14, fontWeight: 600, margin: '0 0 8px' }
+  const subStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, margin: '0 0 12px' }
+
+  return (
+    <div style={{ maxWidth: 680, display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      {/* Erklärung */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Lock-Regeln</h3>
+        <p style={subStyle}>
+          Hier werden die Regeln definiert, die geprüft werden, wenn ein Drehbuch gelockt wird.
+          Beim Lock-Vorgang wird das Dokument auf eventuelle Fehler oder Unvollständigkeiten geprüft —
+          je nach Konfiguration als harter Blocker (Lock verhindert) oder als Warnung (Lock möglich, aber mit Hinweis).
+        </p>
+        <p style={subStyle}>
+          Perspektivisch sollen diese Regeln auch im <strong>kontinuierlichen Betrieb</strong> laufen —
+          d.h. Hinweise werden bereits während der Bearbeitung angezeigt, ohne dass ein Lock ausgelöst werden muss
+          (ähnlich einer Rechtschreibprüfung).
+        </p>
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: 'var(--text-secondary)' }}>
+          <strong style={{ color: 'var(--text)' }}>Status:</strong> Die technische Infrastruktur (Lock-Mechanismus, Werkstufen-Status) ist vorhanden.
+          Die Regel-Engine ist noch nicht implementiert. Regelwünsche können unten gemeldet werden.
+        </div>
+      </section>
+
+      {/* Geplante Regeln */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Geplante Regeln — Wunschliste</h3>
+        <p style={subStyle}>
+          Diese Regeln sind vorgesehen und können nach Bedarf priorisiert werden.
+          Neue Regelwünsche bitte direkt an den Entwickler melden.
+        </p>
+        {GEPLANTE_REGELN.map(gruppe => (
+          <div key={gruppe.kategorie} style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase' as const, color: 'var(--text-muted)', letterSpacing: '0.05em', marginBottom: 6 }}>
+              {gruppe.kategorie}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 4 }}>
+              {gruppe.regeln.map(regel => (
+                <div key={regel} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, padding: '6px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 7 }}>
+                  <span style={{ color: 'var(--text-muted)', marginTop: 1, flexShrink: 0 }}>○</span>
+                  <span>{regel}</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>geplant</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      {/* Regelwunsch melden */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Regelwunsch melden</h3>
+        <p style={subStyle}>
+          Welche Fehler oder Inkonsistenzen soll das System beim Lock erkennen?
+          Bitte so konkret wie möglich beschreiben (Bedingung + erwartetes Verhalten).
+        </p>
+        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+          Direkter Kanal zum Entwickler: Nachricht über den Messenger senden oder per Kommentar in einer beliebigen Szene vermerken und taggen.
+        </div>
+      </section>
+
     </div>
   )
 }
