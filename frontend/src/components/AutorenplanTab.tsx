@@ -201,6 +201,8 @@ function PersonPicker({
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const debounceRef = useRef<any>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { setQ(displayName || '') }, [displayName])
 
@@ -221,6 +223,51 @@ function PersonPicker({
     debounceRef.current = setTimeout(() => search(val), 300)
   }
 
+  const selectResult = (p: Person) => {
+    onSelect(p); setQ(p.name); setResults([]); setHasSearched(false)
+  }
+
+  const closeDropdown = () => {
+    setResults([]); setHasSearched(false)
+  }
+
+  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Tab' && results.length > 0) {
+      e.preventDefault()
+      const first = dropdownRef.current?.querySelector<HTMLElement>('[data-item]')
+      first?.focus()
+    } else if (e.key === 'Escape') {
+      closeDropdown()
+    } else if (e.key === 'ArrowDown' && results.length > 0) {
+      e.preventDefault()
+      const first = dropdownRef.current?.querySelector<HTMLElement>('[data-item]')
+      first?.focus()
+    }
+  }
+
+  const handleItemKeyDown = (e: React.KeyboardEvent<HTMLDivElement>, p: Person, idx: number) => {
+    if (e.key === 'Enter') {
+      e.preventDefault(); selectResult(p)
+    } else if (e.key === 'Tab') {
+      // Tab schließt Dropdown; natürlicher Focus-Fluss weiter
+      closeDropdown()
+    } else if (e.key === 'Escape') {
+      closeDropdown(); inputRef.current?.focus()
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      const items = dropdownRef.current?.querySelectorAll<HTMLElement>('[data-item]')
+      items?.[idx + 1]?.focus()
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (idx === 0) {
+        inputRef.current?.focus()
+      } else {
+        const items = dropdownRef.current?.querySelectorAll<HTMLElement>('[data-item]')
+        items?.[idx - 1]?.focus()
+      }
+    }
+  }
+
   const showZeroResults = hasSearched && results.length === 0 && q.trim().length >= 2
 
   return (
@@ -228,8 +275,10 @@ function PersonPicker({
       <div style={{ position: 'relative' }}>
         <Search size={12} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
         <input
+          ref={inputRef}
           value={q}
           onChange={e => handleInput(e.target.value)}
+          onKeyDown={handleInputKeyDown}
           placeholder="Name suchen..."
           style={{
             width: '100%', boxSizing: 'border-box',
@@ -239,16 +288,24 @@ function PersonPicker({
         />
       </div>
       {results.length > 0 && (
-        <div style={{
+        <div ref={dropdownRef} style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
           background: 'var(--bg-page)', border: '1px solid var(--border)', borderRadius: 6,
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)', maxHeight: 200, overflowY: 'auto',
         }}>
-          {results.map(p => (
-            <div key={p.id} onClick={() => { onSelect(p); setQ(p.name); setResults([]); setHasSearched(false) }}
-              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)' }}
+          {results.map((p, idx) => (
+            <div
+              key={p.id}
+              data-item
+              tabIndex={0}
+              onClick={() => selectResult(p)}
+              onKeyDown={e => handleItemKeyDown(e, p, idx)}
+              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: 12, borderBottom: '1px solid var(--border)', outline: 'none' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
-              onMouseLeave={e => (e.currentTarget.style.background = '')}>
+              onMouseLeave={e => (e.currentTarget.style.background = '')}
+              onFocus={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+              onBlur={e => (e.currentTarget.style.background = '')}
+            >
               <div style={{ fontWeight: 500 }}>{p.name}</div>
               {p.email && <div style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{p.email}</div>}
             </div>
