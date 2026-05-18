@@ -167,6 +167,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   showReplikNumbers: false,
   keyboardLayout: 'qwertz',  // German app default — QWERTZ
   spellcheckLang: 'de-DE',
+  autoStimmungPropagation: true,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -577,10 +578,12 @@ export default function AppShell({
       .then((data: any) => {
         if (!data) return
         setCurrentUser({ username: data.name, email: data.email, user_id: data.user_id })
-        // Authentifiziert → pendingRedirect abarbeiten
-        if (pendingRedirect && pendingRedirect !== window.location.href) {
+        // Authentifiziert → pendingRedirect abarbeiten (immer löschen, auch wenn kein Redirect nötig)
+        if (pendingRedirect) {
           sessionStorage.removeItem('auth_redirect_after_login')
-          window.location.href = pendingRedirect
+          if (pendingRedirect !== window.location.href) {
+            window.location.href = pendingRedirect
+          }
         }
       })
       .catch(() => {})
