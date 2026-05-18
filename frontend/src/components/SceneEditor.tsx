@@ -902,7 +902,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   </div>
                 </td>
                 {/* Col 4: Spielzeit */}
-                <td style={{ width: 58, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
+                <td style={{ width: 99, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
                   <span
                     className="spielzeit-wrap"
                     onMouseEnter={() => setShowSpielzeitInfo(true)}
