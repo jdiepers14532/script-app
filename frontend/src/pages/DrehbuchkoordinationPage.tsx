@@ -10,7 +10,7 @@ import { DEFAULT_SECTIONS, type StatModalSection } from '../components/Statistik
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
 import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, renderPmToPreviewHtml, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
-import SzenenKopfVorlagenEditor from '../components/SzenenKopfVorlagenEditor'
+import { SzenenKopfVorlagenEditor } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
@@ -1434,6 +1434,10 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
             seitenformat={seitenformat}
             marginLeft={margins.links}
             marginRight={margins.rechts}
+            onMarginChange={(side, mm) => setMargins(prev => ({
+              ...prev,
+              [side === 'left' ? 'links' : 'rechts']: mm,
+            }))}
           />
           {canEditTemplate && templateDirty && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>

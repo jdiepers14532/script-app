@@ -814,14 +814,27 @@ interface RulerBarProps {
   rulerCm: number
   marginLeftCm: number
   marginRightCm: number
+  onMarginChange?: (side: 'left' | 'right', mm: number) => void
 }
 
-function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, marginRightCm }: RulerBarProps) {
+function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, marginRightCm, onMarginChange }: RulerBarProps) {
   const [width, setWidth] = useState(600)
   const rulerRef = useRef<HTMLDivElement>(null)
-  const [rulerTooltip, setRulerTooltip] = useState<{ x: number; top: number; cm: number } | null>(null)
+  const [rulerTooltip, setRulerTooltip] = useState<{ x: number; top: number; cm: number; nearHandle: 'left' | 'right' | null } | null>(null)
   // 'physical' = Maß ab Seitenrand (Standard); 'content' = Maß ab gesetztem Textrand
   const [rulerOrigin, setRulerOrigin] = useState<'physical' | 'content'>('physical')
+  // Drag-Zustand für Rand-Verschiebung
+  const [dragging, setDragging] = useState<{ side: 'left' | 'right'; startX: number; startMm: number } | null>(null)
+
+  // Refs für stabilen Drag-Handler (kein Effect-Neustart bei Prop-Änderung)
+  const widthRef  = useRef(width)
+  const mLRef     = useRef(marginLeftCm)
+  const mRRef     = useRef(marginRightCm)
+  const onMargRef = useRef(onMarginChange)
+  useEffect(() => { widthRef.current  = width },          [width])
+  useEffect(() => { mLRef.current     = marginLeftCm },   [marginLeftCm])
+  useEffect(() => { mRRef.current     = marginRightCm },  [marginRightCm])
+  useEffect(() => { onMargRef.current = onMarginChange }, [onMarginChange])
 
   useEffect(() => {
     const el = containerRef.current
@@ -831,6 +844,39 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
     setWidth(el.getBoundingClientRect().width)
     return () => obs.disconnect()
   }, [containerRef])
+
+  // Drag-Event-Listener (nur aktiv während eines Drag)
+  useEffect(() => {
+    if (!dragging) return
+    document.body.style.cursor = 'col-resize'
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      if ('touches' in e) e.preventDefault()
+      const clientX = 'touches' in e ? e.touches[0].clientX : (e as MouseEvent).clientX
+      const dx = clientX - dragging.startX
+      const dMm = (dx / widthRef.current) * rulerCm * 10
+      const mL = mLRef.current
+      const mR = mRRef.current
+      if (dragging.side === 'left') {
+        const newMm = Math.round(Math.max(0, Math.min((rulerCm - mR - 2) * 10, dragging.startMm + dMm)))
+        onMargRef.current?.('left', newMm)
+      } else {
+        const newMm = Math.round(Math.max(0, Math.min((rulerCm - mL - 2) * 10, dragging.startMm - dMm)))
+        onMargRef.current?.('right', newMm)
+      }
+    }
+    const onUp = () => { setDragging(null); document.body.style.cursor = '' }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    document.addEventListener('touchmove', onMove as EventListener, { passive: false })
+    document.addEventListener('touchend', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('touchmove', onMove as EventListener)
+      document.removeEventListener('touchend', onUp)
+      document.body.style.cursor = ''
+    }
+  }, [dragging, rulerCm])
 
   const cmToPx = (cm: number) => (cm / rulerCm) * width
 
@@ -855,7 +901,21 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
     if (!rect) return
     const x = e.clientX - rect.left
     const cm = Math.max(0, Math.min(rulerCm, (x / width) * rulerCm))
-    setRulerTooltip({ x: e.clientX, top: rect.top, cm })
+    // Nähe zur Randlinie erkennen (±5 px)
+    let nearHandle: 'left' | 'right' | null = null
+    if (onMarginChange) {
+      if (marginLeftCm > 0  && Math.abs(x - cmToPx(marginLeftCm)) <= 5) nearHandle = 'left'
+      else if (marginRightCm > 0 && Math.abs(x - cmToPx(rulerCm - marginRightCm)) <= 5) nearHandle = 'right'
+    }
+    setRulerTooltip({ x: e.clientX, top: rect.top, cm, nearHandle })
+  }
+
+  const startDrag = (side: 'left' | 'right') => (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+    const startMm = side === 'left' ? marginLeftCm * 10 : marginRightCm * 10
+    setDragging({ side, startX: clientX, startMm })
   }
 
   const toggleOrigin = (e: React.MouseEvent) => {
@@ -950,7 +1010,7 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
               position: 'absolute', left: 0, top: 0, bottom: 0,
               width: cmToPx(marginLeftCm),
               background: contentMode ? 'rgba(0,122,255,0.10)' : 'rgba(0,0,0,0.08)',
-              borderRight: `1px solid ${contentMode ? 'rgba(0,122,255,0.35)' : 'rgba(0,0,0,0.18)'}`,
+              borderRight: `${dragging?.side === 'left' ? 2 : 1}px solid ${dragging?.side === 'left' ? '#007AFF' : contentMode ? 'rgba(0,122,255,0.35)' : 'rgba(0,0,0,0.18)'}`,
               cursor: 'pointer', zIndex: 3,
             }}
           />
@@ -962,8 +1022,30 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
               position: 'absolute', left: cmToPx(rulerCm - marginRightCm), top: 0, bottom: 0,
               width: cmToPx(marginRightCm),
               background: contentMode ? 'rgba(0,122,255,0.10)' : 'rgba(0,0,0,0.08)',
-              borderLeft: `1px solid ${contentMode ? 'rgba(0,122,255,0.35)' : 'rgba(0,0,0,0.18)'}`,
+              borderLeft: `${dragging?.side === 'right' ? 2 : 1}px solid ${dragging?.side === 'right' ? '#007AFF' : contentMode ? 'rgba(0,122,255,0.35)' : 'rgba(0,0,0,0.18)'}`,
               cursor: 'pointer', zIndex: 3,
+            }}
+          />
+        )}
+
+        {/* Drag-Handles an den Randlinien */}
+        {onMarginChange && marginLeftCm > 0 && (
+          <div
+            onMouseDown={startDrag('left')}
+            onTouchStart={startDrag('left')}
+            style={{
+              position: 'absolute', left: cmToPx(marginLeftCm) - 4, top: 0, bottom: 0,
+              width: 8, cursor: 'col-resize', zIndex: 5,
+            }}
+          />
+        )}
+        {onMarginChange && marginRightCm > 0 && (
+          <div
+            onMouseDown={startDrag('right')}
+            onTouchStart={startDrag('right')}
+            style={{
+              position: 'absolute', left: cmToPx(rulerCm - marginRightCm) - 4, top: 0, bottom: 0,
+              width: 8, cursor: 'col-resize', zIndex: 5,
             }}
           />
         )}
@@ -996,13 +1078,13 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
           pointerEvents: 'none', zIndex: 99999, whiteSpace: 'nowrap',
           lineHeight: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}>
-          {inMargin(rulerTooltip.cm)
-            ? (hasMargins
-                ? (contentMode
-                    ? 'Klick: Maß ab Seitenrand anzeigen'
-                    : 'Klick: Maß ab Textrand anzeigen')
-                : 'Seitenrand')
-            : `${displayCm(rulerTooltip.cm).toFixed(2)} cm · Klick = Tab`
+          {rulerTooltip.nearHandle
+            ? `Rand ${rulerTooltip.nearHandle === 'left' ? 'links' : 'rechts'} verschieben`
+            : inMargin(rulerTooltip.cm)
+              ? (hasMargins
+                  ? (contentMode ? 'Klick: Maß ab Seitenrand anzeigen' : 'Klick: Maß ab Textrand anzeigen')
+                  : 'Seitenrand')
+              : `${displayCm(rulerTooltip.cm).toFixed(2)} cm · Klick = Tab`
           }
         </div>,
         document.body
@@ -1020,6 +1102,7 @@ interface SzenenKopfVorlagenEditorProps {
   seitenformat?: 'a4' | 'letter'
   marginLeft?: number   // mm
   marginRight?: number  // mm
+  onMarginChange?: (side: 'left' | 'right', mm: number) => void
 }
 
 export default function SzenenKopfVorlagenEditor({
@@ -1029,6 +1112,7 @@ export default function SzenenKopfVorlagenEditor({
   seitenformat = 'a4',
   marginLeft = 25,
   marginRight = 20,
+  onMarginChange,
 }: SzenenKopfVorlagenEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeTabStops, setActiveTabStops] = useState<TabStop[]>([])
@@ -1182,6 +1266,7 @@ export default function SzenenKopfVorlagenEditor({
           rulerCm={rulerCm}
           marginLeftCm={marginLeftCm}
           marginRightCm={marginRightCm}
+          onMarginChange={onMarginChange}
         />
       )}
 

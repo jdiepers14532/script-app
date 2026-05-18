@@ -15,3 +15,7 @@ export { useOfflineQueue } from './useOfflineQueue';
 export type { QueuedRequest, SyncConflict, ReconnectResult, UseOfflineQueueOptions } from './useOfflineQueue';
 export { OfflineQueueProvider, useOfflineQueueContext } from './OfflineQueueContext';
 export type { OfflineQueueProviderProps } from './OfflineQueueContext';
+
+export { default as SzenenKopfVorlagenEditor } from './SzenenKopfVorlagenEditor';
+export type { SKChipDef } from './SzenenKopfVorlagenEditor';
+export { SK_CHIPS } from './SzenenKopfVorlagenEditor';
