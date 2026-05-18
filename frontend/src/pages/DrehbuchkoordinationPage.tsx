@@ -11,7 +11,7 @@ import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } 
 import type { TermKey, TerminologieConfig } from '../sw-ui'
 import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, renderPmToPreviewHtml, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
 import { SzenenKopfVorlagenEditor, KopfZeilenEditor, emptyKopfZeilenEditorValue } from '../sw-ui'
-import type { KopfZeilenEditorValue } from '../sw-ui'
+import type { KopfZeilenEditorValue, SeitenLayout } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
@@ -2581,7 +2581,7 @@ export default function DrehbuchkoordinationPage() {
       case 'vorlagen':
         return produktionId ? <VorlagenTab productionId={produktionId} /> : <NoProduction />
       case 'kopf-fusszeilen':
-        return produktionId ? <KopfFusszeileTab productionId={produktionId} /> : <NoProduction />
+        return produktionId ? <KopfFusszeileTab productionId={produktionId} seitenformat={seitenformat} margins={margins} /> : <NoProduction />
       case 'autorenplan':
         return produktionId ? <AutorenplanTab produktionDbId={produktionId} /> : <NoProduction />
       default:
@@ -4188,11 +4188,20 @@ async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
   return { folgeNummer, airDate, datumsformat, firmenname, block, firmenAdresse, rechtsform, handelsregister, ustId, geschaeftsfuehrung, firmenEmail, firmenTelefon }
 }
 
-function KopfFusszeileTab({ productionId }: { productionId: string }) {
+function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionId: string; seitenformat: 'a4' | 'letter'; margins: DokTypenMargins }) {
   const { selectedProduction } = useSelectedProduction()
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
+
+  // Globale Ränder aus der Drehbuch-Formatierung — überschreiben die gespeicherten seiten_layout-Werte
+  const forcedLayout: SeitenLayout = {
+    format:        seitenformat,
+    margin_top:    margins.oben,
+    margin_bottom: margins.unten,
+    margin_left:   margins.links,
+    margin_right:  margins.rechts,
+  }
   const [previewMeta, setPreviewMeta] = useState<PreviewMeta>({ folgeNummer: null, airDate: null, datumsformat: 'de', firmenname: null, block: null, firmenAdresse: null, rechtsform: null, handelsregister: null, ustId: null, geschaeftsfuehrung: null, firmenEmail: null, firmenTelefon: null })
   useEffect(() => { loadPreviewMeta(productionId).then(setPreviewMeta).catch(() => {}) }, [productionId])
   const previewContext: PreviewContext = {
@@ -4245,7 +4254,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
             kopfzeile_aktiv:         row.kopfzeile_aktiv ?? false,
             fusszeile_aktiv:         row.fusszeile_aktiv ?? false,
             erste_seite_kein_header: row.erste_seite_kein_header ?? true,
-            seiten_layout:           row.seiten_layout ?? emptyKopfZeilenEditorValue().seiten_layout,
+            seiten_layout:           forcedLayout,
           }
         }
         setConfigs(map)
@@ -4253,8 +4262,10 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
       .finally(() => setLoading(false))
   }, [productionId])
 
-  const getCurrentValue = (): KopfZeilenEditorValue =>
-    configs[activeTyp] ?? emptyKopfZeilenEditorValue()
+  const getCurrentValue = (): KopfZeilenEditorValue => {
+    const v = configs[activeTyp] ?? emptyKopfZeilenEditorValue()
+    return { ...v, seiten_layout: forcedLayout }
+  }
 
   // Änderung gilt für alle in syncTypen
   const handleChange = (v: KopfZeilenEditorValue) => {
@@ -4402,6 +4413,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
           key={activeTyp}
           value={currentConfig}
           onChange={handleChange}
+          readOnlyLayout
           previewContext={previewContext}
         />
       </div>
