@@ -594,7 +594,7 @@ export const api = {
     request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/from-produktion`, { source_produktion_id: sourceId }),
   getAbsatzformatPresets: () =>
     request<any[]>('GET', '/absatzformat-presets'),
-  createAbsatzformatPreset: (data: { name: string; beschreibung?: string; formate: any[]; erstellt_von?: string }) =>
+  createAbsatzformatPreset: (data: { name: string; beschreibung?: string; formate: any[]; erstellt_von?: string; seitenformat?: string; page_margins?: Record<string, number> }) =>
     request<any>('POST', '/absatzformat-presets', data),
   deleteAbsatzformatPreset: (id: string) =>
     request<void>('DELETE', `/absatzformat-presets/${id}`),

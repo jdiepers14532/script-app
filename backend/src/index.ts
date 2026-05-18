@@ -309,6 +309,7 @@ async function runMigrations() {
     'v83_flashback_werkstufe_ref.sql',
     'v84_flashback_freitext.sql',
     'v85_drop_stockshot_stimmung.sql',
+    'v86_preset_layout_settings.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

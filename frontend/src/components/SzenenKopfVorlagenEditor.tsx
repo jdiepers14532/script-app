@@ -775,6 +775,7 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
   const [width, setWidth] = useState(600)
   const rulerRef = useRef<HTMLDivElement>(null)
   const [rulerTooltip, setRulerTooltip] = useState<{ x: number; top: number; cm: number } | null>(null)
+  const [cursorInMargin, setCursorInMargin] = useState(false)
 
   useEffect(() => {
     const el = containerRef.current
@@ -793,8 +794,13 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
     const x = e.clientX - rect.left
     const pos = Math.round((x / width) * rulerCm * 4) / 4
     if (pos < 0.1 || pos > rulerCm - 0.1) return
+    // Keine Tab-Stops im Seitenrand-Bereich
+    if (pos <= marginLeftCm || pos >= rulerCm - marginRightCm) return
     onToggle(pos)
   }
+
+  const inMargin = (cm: number) =>
+    (marginLeftCm > 0 && cm <= marginLeftCm) || (marginRightCm > 0 && cm >= rulerCm - marginRightCm)
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = rulerRef.current?.getBoundingClientRect()
@@ -802,6 +808,7 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
     const x = e.clientX - rect.left
     const cm = Math.max(0, Math.min(rulerCm, (x / width) * rulerCm))
     setRulerTooltip({ x: e.clientX, top: rect.top, cm })
+    setCursorInMargin(inMargin(cm))
   }
 
   const H = 29
@@ -816,11 +823,11 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
         onMouseDown={e => e.preventDefault()}
         onClick={handleClick}
         onMouseMove={handleMouseMove}
-        onMouseLeave={() => setRulerTooltip(null)}
+        onMouseLeave={() => { setRulerTooltip(null); setCursorInMargin(false) }}
         style={{
           position: 'relative', height: H,
           background: 'var(--bg-subtle)', borderBottom: '2px solid var(--border)',
-          cursor: 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
+          cursor: cursorInMargin ? 'not-allowed' : 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
         }}
       >
         {Array.from({ length: rulerCm + 1 }, (_, i) => {
@@ -895,7 +902,7 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
           pointerEvents: 'none', zIndex: 99999, whiteSpace: 'nowrap',
           lineHeight: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}>
-          {rulerTooltip.cm.toFixed(2)} cm · Klick = tab
+          {inMargin(rulerTooltip.cm) ? `${rulerTooltip.cm.toFixed(2)} cm · Seitenrand` : `${rulerTooltip.cm.toFixed(2)} cm · Klick = tab`}
         </div>,
         document.body
       )}

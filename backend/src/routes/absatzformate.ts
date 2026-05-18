@@ -415,14 +415,14 @@ absatzformatPresetsRouter.get('/:id', async (req, res) => {
 // POST /api/absatzformat-presets — save current production config as new preset
 absatzformatPresetsRouter.post('/', async (req, res) => {
   try {
-    const { name, beschreibung, formate, erstellt_von } = req.body
+    const { name, beschreibung, formate, erstellt_von, seitenformat, page_margins } = req.body
     if (!name || !formate) return res.status(400).json({ error: 'name and formate required' })
 
     const row = await queryOne(
-      `INSERT INTO absatzformat_presets (name, beschreibung, formate, ist_system, erstellt_von)
-       VALUES ($1, $2, $3, false, $4)
+      `INSERT INTO absatzformat_presets (name, beschreibung, formate, ist_system, erstellt_von, seitenformat, page_margins)
+       VALUES ($1, $2, $3, false, $4, $5, $6)
        RETURNING *`,
-      [name, beschreibung ?? null, JSON.stringify(formate), erstellt_von ?? null]
+      [name, beschreibung ?? null, JSON.stringify(formate), erstellt_von ?? null, seitenformat ?? 'a4', page_margins ? JSON.stringify(page_margins) : null]
     )
     res.status(201).json(row)
   } catch (err: any) {
@@ -435,7 +435,7 @@ absatzformatPresetsRouter.post('/', async (req, res) => {
 // System-Presets: nur Superadmin darf ändern
 absatzformatPresetsRouter.patch('/:id', async (req, res) => {
   try {
-    const { name, beschreibung, szenen_kopf_template } = req.body
+    const { name, beschreibung, szenen_kopf_template, seitenformat, page_margins } = req.body
     const isSuperadmin = (req as any).user?.roles?.includes('superadmin')
     const updates: string[] = []
     const params: any[] = []
@@ -444,6 +444,8 @@ absatzformatPresetsRouter.patch('/:id', async (req, res) => {
     if (name !== undefined) { updates.push(`name = $${n++}`); params.push(name) }
     if (beschreibung !== undefined) { updates.push(`beschreibung = $${n++}`); params.push(beschreibung) }
     if (szenen_kopf_template !== undefined) { updates.push(`szenen_kopf_template = $${n++}`); params.push(szenen_kopf_template) }
+    if (seitenformat !== undefined) { updates.push(`seitenformat = $${n++}`); params.push(seitenformat) }
+    if (page_margins !== undefined) { updates.push(`page_margins = $${n++}`); params.push(page_margins ? JSON.stringify(page_margins) : null) }
 
     if (updates.length === 0) return res.status(400).json({ error: 'Nichts zu aktualisieren' })
 
@@ -480,8 +482,8 @@ absatzformatPresetsRouter.post('/:id/duplicate', async (req, res) => {
     }
 
     const row = await queryOne(
-      `INSERT INTO absatzformat_presets (name, beschreibung, formate, szenen_kopf_template, ist_system, erstellt_von)
-       VALUES ($1, $2, $3, $4, false, $5)
+      `INSERT INTO absatzformat_presets (name, beschreibung, formate, szenen_kopf_template, ist_system, erstellt_von, seitenformat, page_margins)
+       VALUES ($1, $2, $3, $4, false, $5, $6, $7)
        RETURNING *`,
       [
         name,
@@ -489,6 +491,8 @@ absatzformatPresetsRouter.post('/:id/duplicate', async (req, res) => {
         JSON.stringify(source.formate),
         source.szenen_kopf_template ?? null,
         (req as any).user?.user_id ?? null,
+        source.seitenformat ?? 'a4',
+        source.page_margins ?? null,
       ]
     )
     res.status(201).json(row)

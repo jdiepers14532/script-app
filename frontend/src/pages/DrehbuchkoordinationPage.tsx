@@ -37,7 +37,7 @@ const KUERZEL_FIELDS = [
   { key: 'ext',       label: 'Aussen (EXT)' },
   { key: 'tag',       label: 'Tag' },
   { key: 'nacht',     label: 'Nacht' },
-  { key: 'daemmerung',label: 'Daemmerung' },
+  { key: 'daemmerung',label: 'Dämmerung' },
   { key: 'abend',     label: 'Abend' },
 ]
 const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
@@ -127,7 +127,7 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
           <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{f.gilt_fuer}</span>
           {deleteConfirm === f.id ? (
             <span style={{ fontSize: 11, display: 'flex', gap: 4, alignItems: 'center' }}>
-              <span style={{ color: '#FF3B30' }}>Alle Werte werden geloescht!</span>
+              <span style={{ color: '#FF3B30' }}>Alle Werte werden gelöscht!</span>
               <button onClick={() => onConfirmDelete(f.id)} style={{ fontSize: 11, padding: '2px 8px', background: '#FF3B30', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Löschen</button>
               <button onClick={onCancelDelete} style={{ fontSize: 11, padding: '2px 8px', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'transparent' }}>Abbrechen</button>
             </span>
@@ -993,6 +993,18 @@ function DokumentTypenTab() {
     setSelectedPresetId(id)
     setTemplateEdit(null)
     setRenamingPreset(false)
+    // Layout-Felder aus Preset laden, wenn vorhanden
+    const preset = presets.find(p => p.id === id)
+    if (preset) {
+      if (preset.seitenformat) saveSeitenformat(preset.seitenformat)
+      if (preset.page_margins) {
+        let pm = preset.page_margins
+        if (typeof pm === 'string') { try { pm = JSON.parse(pm) } catch {} }
+        const next = { ...margins, ...pm }
+        setMargins(next)
+        saveMargins(next)
+      }
+    }
   }
 
   const handleApplyPreset = async () => {
@@ -1080,7 +1092,12 @@ function DokumentTypenTab() {
       tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
     }))
     try {
-      const saved = await api.createAbsatzformatPreset({ name: presetName.trim(), formate: presetFormate })
+      const saved = await api.createAbsatzformatPreset({
+        name: presetName.trim(),
+        formate: presetFormate,
+        seitenformat,
+        page_margins: margins,
+      })
       setShowSavePreset(false); setPresetName('')
       await load(); setSelectedPresetId(saved.id); setMsg('Preset gespeichert.')
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
@@ -1118,48 +1135,41 @@ function DokumentTypenTab() {
   return (
     <div style={{ maxWidth: 960 }}>
 
-      {/* ── Seitenformat + Seitenränder ────────────────────────────────── */}
-      <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Seitenformat:</span>
-          <div className="seg" style={{ display: 'inline-flex' }}>
-            {(['a4', 'letter'] as const).map(opt => (
-              <button
-                key={opt}
-                className={seitenformat === opt ? 'on' : ''}
-                onClick={() => saveSeitenformat(opt)}
-                disabled={seitenformatSaving}
-                title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
-                style={{ fontSize: 11 }}
-              >
-                {opt === 'a4' ? 'A4' : 'Letter'}
-              </button>
-            ))}
-          </div>
-          {seitenformatSaving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wird gespeichert…</span>}
-        </div>
-
-        {/* Seitenränder */}
-        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Seitenränder (mm):</span>
-          {(['oben', 'unten', 'links', 'rechts'] as const).map(side => (
-            <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
-              <span style={{ textTransform: 'capitalize' }}>{side}</span>
-              <input
-                type="number"
-                min={0}
-                max={60}
-                value={margins[side]}
-                onChange={e => {
-                  const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0))
-                  setMargins(m => ({ ...m, [side]: v }))
-                }}
-                onBlur={() => saveMargins(margins)}
-                style={{ width: 48, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }}
-              />
-            </label>
+      {/* ── Seitenformat + Seitenränder (eine Zeile) ───────────────────── */}
+      <div style={{ marginBottom: 16, padding: '7px 12px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
+        <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
+          {(['a4', 'letter'] as const).map(opt => (
+            <button
+              key={opt}
+              className={seitenformat === opt ? 'on' : ''}
+              onClick={() => saveSeitenformat(opt)}
+              disabled={seitenformatSaving}
+              title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
+              style={{ fontSize: 11 }}
+            >
+              {opt === 'a4' ? 'A4' : 'Letter'}
+            </button>
           ))}
         </div>
+        <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
+        {(['oben', 'unten', 'links', 'rechts'] as const).map(side => (
+          <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}>
+            <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
+            <input
+              type="number" min={0} max={60}
+              value={margins[side]}
+              onChange={e => {
+                const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0))
+                setMargins(m => ({ ...m, [side]: v }))
+              }}
+              onBlur={() => saveMargins(margins)}
+              style={{ width: 40, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }}
+            />
+          </label>
+        ))}
+        {seitenformatSaving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>…</span>}
       </div>
 
       {/* ── Preset-Sektion ─────────────────────────────────────────────── */}
@@ -2670,7 +2680,7 @@ export default function DrehbuchkoordinationPage() {
       }}>
         {/* Header */}
         <div style={{
-          padding: '14px 24px',
+          padding: '10px 24px',
           borderBottom: '1px solid var(--border)',
           background: 'var(--bg-page)',
           flexShrink: 0,
@@ -2678,20 +2688,21 @@ export default function DrehbuchkoordinationPage() {
           alignItems: 'center',
           gap: 16,
         }}>
-          <button
-            onClick={() => navigate('/')}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-secondary)', fontSize: 13, padding: '2px 6px 2px 0',
-              flexShrink: 0,
-            }}
-          >
-            &#8592; Zurück
-          </button>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0, color: 'var(--text-primary)', flex: 1 }}>
-            Drehbuchkoordination
-          </h2>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
+              Drehbuchkoordination
+            </h2>
+            <button
+              onClick={() => navigate('/')}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-secondary)', fontSize: 11, padding: 0, marginTop: 1,
+                display: 'flex', alignItems: 'center', gap: 3,
+              }}
+            >
+              &#8592; Zurück
+            </button>
+          </div>
           <div style={{
             fontSize: 13, fontWeight: 500,
             padding: '6px 14px', borderRadius: 8,
