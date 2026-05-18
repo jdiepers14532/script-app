@@ -108,6 +108,8 @@ export interface TweakState {
   keyboardLayout: KeyboardLayout
   /** Language code for LanguageTool spellcheck, e.g. 'de-DE', 'en-US' */
   spellcheckLang: string
+  /** Tageszeit-Änderung automatisch auf alle folgenden Szenen der Folge übertragen */
+  autoStimmungPropagation: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState

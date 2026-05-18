@@ -747,6 +747,8 @@ export const api = {
     request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-partner`),
   setWechselschnittPartner: (szeneId: string, partners: { partner_identity_id: string; position: number }[]) =>
     request<any[]>('PUT', `/dokument-szenen/${szeneId}/wechselschnitt-partner`, { partners }),
+  bulkTageszeitPropagate: (szeneId: string, data: { tageszeit: string; increment_spieltag: boolean }) =>
+    request<{ updated_count: number }>('PUT', `/dokument-szenen/${szeneId}/bulk-tageszeit-propagate`, data),
   getWechselschnittBeteiligt: (szeneId: string) =>
     request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-beteiligt`),
 

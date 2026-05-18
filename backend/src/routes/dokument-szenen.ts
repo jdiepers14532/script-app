@@ -95,7 +95,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       int_ext, tageszeit, ort_name, zusammenfassung,
       sort_order, seiten, spieltag, spielzeit, szeneninfo, content,
       stoppzeit_sek, notiz, motiv_id, format,
-      sondertyp, stockshot_kategorie, stockshot_stimmung, stockshot_neu_drehen,
+      sondertyp, stockshot_kategorie, stockshot_neu_drehen,
       flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
       flashback_referenz_freitext,
       vorlage_id, clear_content,
@@ -136,13 +136,12 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         page_length = COALESCE($17, page_length),
         sondertyp = CASE WHEN $18::text = '__null__' THEN NULL ELSE COALESCE($18, sondertyp) END,
         stockshot_kategorie = CASE WHEN $19::text = '__null__' THEN NULL ELSE COALESCE($19, stockshot_kategorie) END,
-        stockshot_stimmung = CASE WHEN $20::text = '__null__' THEN NULL ELSE COALESCE($20, stockshot_stimmung) END,
-        stockshot_neu_drehen = COALESCE($21, stockshot_neu_drehen),
-        flashback_referenz_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, flashback_referenz_id) END,
-        flashback_ganze_szene = COALESCE($24, flashback_ganze_szene),
-        flashback_referenz_werkstufe_id = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25::uuid, flashback_referenz_werkstufe_id) END,
-        flashback_referenz_freitext = CASE WHEN $26::text = '__null__' THEN NULL ELSE COALESCE($26, flashback_referenz_freitext) END,
-        vorlage_id = CASE WHEN $23::text = '__null__' THEN NULL ELSE COALESCE($23::uuid, vorlage_id) END,
+        stockshot_neu_drehen = COALESCE($20, stockshot_neu_drehen),
+        flashback_referenz_id = CASE WHEN $21::text = '__null__' THEN NULL ELSE COALESCE($21::uuid, flashback_referenz_id) END,
+        flashback_ganze_szene = COALESCE($23, flashback_ganze_szene),
+        flashback_referenz_werkstufe_id = CASE WHEN $24::text = '__null__' THEN NULL ELSE COALESCE($24::uuid, flashback_referenz_werkstufe_id) END,
+        flashback_referenz_freitext = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25, flashback_referenz_freitext) END,
+        vorlage_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, vorlage_id) END,
         updated_at = NOW(),
         updated_by = $11
        WHERE id = $15 RETURNING *`,
@@ -161,7 +160,6 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
         pageLength,
         sondertyp !== undefined ? (sondertyp === null ? '__null__' : sondertyp) : null,
         stockshot_kategorie !== undefined ? (stockshot_kategorie === null ? '__null__' : stockshot_kategorie) : null,
-        stockshot_stimmung !== undefined ? (stockshot_stimmung === null ? '__null__' : stockshot_stimmung) : null,
         stockshot_neu_drehen ?? null,
         flashback_referenz_id !== undefined ? (flashback_referenz_id === null ? '__null__' : flashback_referenz_id) : null,
         vorlage_id !== undefined ? (vorlage_id === null ? '__null__' : vorlage_id) : null,
@@ -480,7 +478,7 @@ dokumentSzenenRouter.get('/:id/wechselschnitt-partner', async (req, res) => {
   }
 })
 
-// PUT /api/dokument-szenen/:id/wechselschnitt-partner — replace all partners
+// PUT /api/dokument-szenen/:id/wechselschnitt-partner — replace all partners + reciprocal linking
 dokumentSzenenRouter.put('/:id/wechselschnitt-partner', async (req, res) => {
   const { partners } = req.body // [{ partner_identity_id, position }]
   if (!Array.isArray(partners)) return res.status(400).json({ error: 'partners array required' })
@@ -494,6 +492,42 @@ dokumentSzenenRouter.put('/:id/wechselschnitt-partner', async (req, res) => {
         [req.params.id, p.partner_identity_id, p.position ?? 0]
       )
     }
+    // Reciprocal: ensure partner scenes have sondertyp=wechselschnitt + point back to current scene
+    const currentRes = await client.query(
+      'SELECT scene_identity_id, werkstufe_id FROM dokument_szenen WHERE id = $1',
+      [req.params.id]
+    )
+    const { scene_identity_id: currentIdentityId, werkstufe_id: werkstufId } = currentRes.rows[0] ?? {}
+    if (currentIdentityId && werkstufId && partners.length > 0) {
+      for (const p of partners) {
+        const partnerRes = await client.query(
+          'SELECT id, sondertyp FROM dokument_szenen WHERE scene_identity_id = $1 AND werkstufe_id = $2 LIMIT 1',
+          [p.partner_identity_id, werkstufId]
+        )
+        if (!partnerRes.rows[0]) continue
+        const { id: partnerDsId, sondertyp } = partnerRes.rows[0]
+        if (sondertyp !== 'wechselschnitt') {
+          await client.query(
+            "UPDATE dokument_szenen SET sondertyp = 'wechselschnitt', updated_at = NOW() WHERE id = $1",
+            [partnerDsId]
+          )
+        }
+        const existing = await client.query(
+          'SELECT 1 FROM wechselschnitt_partner WHERE dokument_szene_id = $1 AND partner_identity_id = $2',
+          [partnerDsId, currentIdentityId]
+        )
+        if (existing.rows.length === 0) {
+          const posRes = await client.query(
+            'SELECT COALESCE(MAX(position), -1) + 1 AS next FROM wechselschnitt_partner WHERE dokument_szene_id = $1',
+            [partnerDsId]
+          )
+          await client.query(
+            'INSERT INTO wechselschnitt_partner (dokument_szene_id, partner_identity_id, position) VALUES ($1, $2, $3)',
+            [partnerDsId, currentIdentityId, posRes.rows[0].next ?? 0]
+          )
+        }
+      }
+    }
     await client.query('COMMIT')
     const rows = await query('SELECT * FROM wechselschnitt_partner WHERE dokument_szene_id = $1 ORDER BY position', [req.params.id])
     res.json(rows)
@@ -502,6 +536,37 @@ dokumentSzenenRouter.put('/:id/wechselschnitt-partner', async (req, res) => {
     res.status(500).json({ error: String(err) })
   } finally {
     client.release()
+  }
+})
+
+// PUT /api/dokument-szenen/:id/bulk-tageszeit-propagate — update tageszeit for all following scenes in same werkstufe
+dokumentSzenenRouter.put('/:id/bulk-tageszeit-propagate', async (req, res) => {
+  const { tageszeit, increment_spieltag } = req.body
+  if (!tageszeit) return res.status(400).json({ error: 'tageszeit required' })
+  try {
+    const current = await queryOne(
+      'SELECT sort_order, werkstufe_id FROM dokument_szenen WHERE id = $1',
+      [req.params.id]
+    )
+    if (!current) return res.status(404).json({ error: 'Szene nicht gefunden' })
+    let sql: string
+    if (increment_spieltag) {
+      sql = `UPDATE dokument_szenen
+             SET tageszeit = $1,
+                 spieltag = CASE WHEN spieltag IS NOT NULL THEN spieltag + 1 ELSE NULL END,
+                 updated_at = NOW()
+             WHERE werkstufe_id = $2 AND sort_order > $3 AND geloescht IS NOT TRUE
+             RETURNING id`
+    } else {
+      sql = `UPDATE dokument_szenen
+             SET tageszeit = $1, updated_at = NOW()
+             WHERE werkstufe_id = $2 AND sort_order > $3 AND geloescht IS NOT TRUE
+             RETURNING id`
+    }
+    const rows = await query(sql, [tageszeit, current.werkstufe_id, current.sort_order])
+    res.json({ updated_count: rows.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
   }
 })
 
@@ -717,7 +782,7 @@ stockshotTemplatesRouter.delete('/:produktionId/:id', async (req, res) => {
 dokumentSzenenRouter.get('/stimmung-check/:werkstufId', async (req, res) => {
   try {
     const scenes = await query(
-      `SELECT id, scene_nummer, scene_nummer_suffix, ort_name, tageszeit, sondertyp, stockshot_kategorie, stockshot_stimmung
+      `SELECT id, scene_nummer, scene_nummer_suffix, ort_name, tageszeit, sondertyp, stockshot_kategorie
        FROM dokument_szenen
        WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
        ORDER BY sort_order`,
@@ -728,9 +793,8 @@ dokumentSzenenRouter.get('/stimmung-check/:werkstufId', async (req, res) => {
     let stimmungSource: number | null = null
 
     for (const s of scenes) {
-      if (s.sondertyp === 'stockshot' && s.stockshot_kategorie === 'stimmungswechsel' && s.stockshot_stimmung) {
-        currentStimmung = s.stockshot_stimmung.toUpperCase()
-        stimmungSource = s.scene_nummer
+      if (false) {
+        // stockshot_stimmung removed — stimmung-check no longer generates warnings
       } else if (currentStimmung && s.sondertyp !== 'stockshot') {
         const sceneTz = (s.tageszeit ?? '').toUpperCase()
         if (sceneTz && sceneTz !== currentStimmung) {

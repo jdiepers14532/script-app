@@ -192,6 +192,14 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
+            <div style={rowStyle}>
+              <span style={labelStyle}>Automatische Stimmungsanpassung</span>
+              <div className="seg">
+                <Tooltip text="Tageszeit-Änderung auf alle folgenden Szenen der Folge übertragen"><button className={tweaks.autoStimmungPropagation ? 'on' : ''} onClick={() => set('autoStimmungPropagation', true)}>An</button></Tooltip>
+                <Tooltip text="Nur diese Szene ändern"><button className={!tweaks.autoStimmungPropagation ? 'on' : ''} onClick={() => set('autoStimmungPropagation', false)}>Aus</button></Tooltip>
+              </div>
+            </div>
+
             <div style={{ ...rowStyle, borderBottom: 'none' }}>
               <span style={labelStyle}>Scroll-Nav Verzögerung</span>
               <div className="seg">

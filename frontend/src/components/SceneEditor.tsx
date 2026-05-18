@@ -4,7 +4,7 @@ import { MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } 
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api, peekCache } from '../api/client'
-import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus } from '../contexts'
+import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus, useToast } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import { getShortcutLabel } from '../shortcuts'
 
@@ -101,6 +101,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const { scrollNavDelay } = useUserPrefs()
   const { tweaks } = useTweaks()
   const { focus, setHoverOpen } = useFocus()
+  const { showToast } = useToast()
   const { t } = useTerminologie()
   const compact = compactProp ?? tweaks.sceneHeaderCompact
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform)
@@ -254,13 +255,21 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
   const cycleTageszeit = useCallback(async () => {
     const order = ['TAG', 'NACHT', 'ABEND']
-    const idx = order.indexOf(scene?.tageszeit ?? 'TAG')
+    const prev = scene?.tageszeit ?? 'TAG'
+    const idx = order.indexOf(prev)
     const next = order[(idx + 1) % order.length]
     try {
       const updated = await saveScene({ tageszeit: next })
       setScene(updated); onSzeneUpdated?.(updated)
+      if (tweaks.autoStimmungPropagation && scene?.id) {
+        const isNewDay = prev === 'NACHT' && (next === 'TAG' || next === 'MORGEN')
+        const result = await api.bulkTageszeitPropagate(scene.id, { tageszeit: next, increment_spieltag: isNewDay })
+        if (result.updated_count > 0) {
+          showToast(`Stimmung: ${result.updated_count} folgende Szene${result.updated_count > 1 ? 'n' : ''} auf ${next} gesetzt`, 'info')
+        }
+      }
     } catch {}
-  }, [scene, szeneId, onSzeneUpdated])
+  }, [scene, tweaks.autoStimmungPropagation, saveScene, onSzeneUpdated, showToast])
 
   const ieAbbr = (ie: string) => ie === 'int' ? 'I' : 'A'
   const tzAbbr = (tz: string) => ({ TAG: 'T', NACHT: 'N', ABEND: 'A' }[tz] ?? 'T')
@@ -746,15 +755,15 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
         {/* Non-compact: HTML table for guaranteed column alignment */}
         {!compact && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
             <tbody>
               <tr style={{ verticalAlign: 'baseline' }}>
                 {/* Col 1: SZ-Nummer */}
-                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                <td style={{ width: 56, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
                   <span className="sz-group"><span className="scene-big">SZ{scene.scene_nummer}</span></span>
                 </td>
                 {/* Col 2: Stoppzeit */}
-                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                <td style={{ width: 82, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
                   <div className="stopp-col">
                     <Tooltip
                       text={scene.page_length != null && scene.page_length > 0
@@ -803,8 +812,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     )}
                   </div>
                 </td>
-                {/* Col 3: Motiv (width:70%) */}
-                <td style={{ paddingRight: 8, width: '70%', paddingBottom: 4 }}>
+                {/* Col 3: Motiv — auto (fills remaining after fixed cols) */}
+                <td style={{ paddingRight: 8, paddingBottom: 4, overflow: 'hidden', minWidth: 0 }}>
                   <div className="sf-motiv-group" style={{ display: 'flex', gap: 4, minWidth: 0, alignItems: 'center' }}>
                     <div className="sf-motiv-wrap" ref={motivDropdownRef}>
                       <input
@@ -893,7 +902,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   </div>
                 </td>
                 {/* Col 4: Spielzeit */}
-                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                <td style={{ width: 58, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
                   <span
                     className="spielzeit-wrap"
                     onMouseEnter={() => setShowSpielzeitInfo(true)}
@@ -920,8 +929,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     )}
                   </span>
                 </td>
-                {/* Col 5: I/T + DT */}
-                <td style={{ paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                {/* Col 5: I/A + SP */}
+                <td style={{ width: 100, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
                   <span className="ie-group">
                     <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
                       <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
@@ -931,9 +940,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
                     </Tooltip>
                     <span className="ie-sep">·</span>
-                    <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
+                    <Tooltip text={`Spieltag (SP) / Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung${tweaks.autoStimmungPropagation ? '\nBei NACHT→TAG: alle folgenden Szenen werden automatisch aktualisiert' : ''}\nManuell überschreibbar`} placement="bottom">
                       <span className="ie-field-wrap">
-                        <span className="ie-lbl">DT</span>
+                        <span className="ie-lbl">SP</span>
                         <input
                           key={`dt-${szeneId}`}
                           className="ie-num-inp"
@@ -953,7 +962,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   </span>
                 </td>
                 {/* Col 6: Save indicator + Annotations */}
-                <td style={{ whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                <td style={{ width: 50, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
                     {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
@@ -1045,24 +1054,25 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   {/* WS: Partner-Chips + Picker */}
                   {scene.sondertyp === 'wechselschnitt' && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>Partner:</span>
                       {wsPartner.map((p: any) => (
-                        <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#007AFF18', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 600, color: '#007AFF' }}>
-                          Sz.{p.partner_scene_nummer ?? '?'}
+                        <span key={p.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: '#007AFF18', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 6px', fontSize: 10, fontWeight: 700, color: '#007AFF' }}>
+                          ⇄ Sz.{p.partner_scene_nummer ?? '?'}
                           <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1, color: '#007AFF', fontSize: 10 }} onClick={() => { const next = wsPartner.filter((pp: any) => pp.id !== p.id); api.setWechselschnittPartner(scene.id, next.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i }))).then(setWsPartner).catch(() => {}) }}>×</button>
                         </span>
                       ))}
                       <span className="sf-char-add-wrap" ref={wsDropdownRef}>
-                        <Tooltip text="Partner-Szene aus dieser Folge" placement="bottom">
+                        <Tooltip text="Partner-Szene verknüpfen (Wechselschnitt)" placement="bottom">
                           <button className="sf-char-search" style={{ width: 20, border: 'none', background: 'none', cursor: 'pointer', padding: 0, fontSize: 12, color: 'var(--text-muted)' }}
                             onClick={() => { if (allSceneIdentities.length === 0 && werkstufId) { api.getWerkstufenSzenen(werkstufId).then(scenes => { setAllSceneIdentities(scenes); setWsDropdownOpen(true) }).catch(() => setWsDropdownOpen(true)) } else { setWsDropdownOpen(v => !v) } }}>+</button>
                         </Tooltip>
                         {wsDropdownOpen && (
                           <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyleLeft(wsDropdownRef)}>
-                            <input className="sf-dropdown-search" autoFocus placeholder="Szene suchen…" value={wsSearch} onChange={e => setWsSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setWsDropdownOpen(false) }} style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }} />
+                            <input className="sf-dropdown-search" autoFocus placeholder="Sz-Nr. oder Motiv…" value={wsSearch} onChange={e => setWsSearch(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setWsDropdownOpen(false) }} style={{ margin: '4px 8px', width: 'calc(100% - 16px)', fontSize: 11 }} />
                             {allSceneIdentities.filter(s => s.scene_identity_id !== scene.scene_identity_id).filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id)).filter(s => { if (!wsSearch.trim()) return true; const q = wsSearch.toLowerCase(); return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q) }).map(s => (
                               <div key={s.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); const next = [...wsPartner.map((pp: any, i: number) => ({ partner_identity_id: pp.partner_identity_id, position: i })), { partner_identity_id: s.scene_identity_id, position: wsPartner.length }]; api.setWechselschnittPartner(scene.id, next).then(updated => { setWsPartner(updated); setWsDropdownOpen(false); setWsSearch('') }).catch(() => {}) }}>
-                                <span style={{ fontWeight: 600, marginRight: 6 }}>Sz.{s.scene_nummer ?? '?'}</span>
-                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{[s.int_ext, s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
+                                <span style={{ fontWeight: 700, marginRight: 6, color: '#007AFF', fontSize: 12 }}>Sz.{s.scene_nummer ?? '?'}</span>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{[s.int_ext?.toUpperCase(), s.ort_name, s.tageszeit].filter(Boolean).join(' · ')}</span>
                               </div>
                             ))}
                             {allSceneIdentities.filter(s => s.scene_identity_id !== scene.scene_identity_id).filter(s => !wsPartner.some((pp: any) => pp.partner_identity_id === s.scene_identity_id)).filter(s => { if (!wsSearch.trim()) return true; const q = wsSearch.toLowerCase(); return String(s.scene_nummer ?? '').includes(q) || (s.ort_name ?? '').toLowerCase().includes(q) }).length === 0 && (
@@ -1137,9 +1147,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                         <option value="zeit_vergeht">Zeit vergeht</option>
                         <option value="stimmungswechsel">Stimmungswechsel</option>
                       </select>
-                      {scene.stockshot_kategorie === 'stimmungswechsel' && (
-                        <input className="sf-input" defaultValue={scene.stockshot_stimmung ?? ''} placeholder="Stimmung…" style={{ width: 100, fontSize: 11 }} onBlur={e => { const val = e.target.value.trim() || null; saveScene({ stockshot_stimmung: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
-                      )}
                       <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: scene.stockshot_neu_drehen ? '#FF3B30' : 'var(--text-muted)', cursor: 'pointer' }}>
                         <input type="checkbox" checked={scene.stockshot_neu_drehen ?? false} onChange={e => { saveScene({ stockshot_neu_drehen: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} style={{ accentColor: '#FF3B30' }} />
                         Neu zu drehen
