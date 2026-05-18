@@ -75,6 +75,14 @@ interface Einsatz {
   gage_kat?: number
   gage_kategorie_id?: string
   erstellt_am?: string
+  angefragt_am?: string
+  angefragt_von?: string
+  zugesagt_am?: string
+  zugesagt_von?: string
+  vertrag_zurueck_am?: string
+  vertrag_zurueck_von?: string
+  abgesagt_am?: string
+  abgesagt_von?: string
 }
 
 interface WochenNotiz {
@@ -137,6 +145,7 @@ const STATUS_LIST = [
   { id: 'zugesagt',            label: 'Zugesagt',             farbe: '#FF9500' },
   { id: 'vertrag_geschrieben', label: 'Vertrag geschrieben',  farbe: '#AF52DE' },
   { id: 'vertrag_zurueck',     label: 'Vertrag zurück',       farbe: '#00C853' },
+  { id: 'abgesagt',            label: 'Abgesagt',             farbe: '#FF3B30' },
   { id: 'rechnung_erhalten',   label: 'Rechnung erhalten',    farbe: '#34C759' },
 ]
 
@@ -157,7 +166,7 @@ function statusLabel(s: string): string {
 function statusAbbr(s: string): string {
   const abbrs: Record<string, string> = {
     geplant: 'Gep', angefragt: 'Ang', zugesagt: 'Zug',
-    vertrag_geschrieben: 'VG', vertrag_zurueck: 'VZ', rechnung_erhalten: 'RE',
+    vertrag_geschrieben: 'VG', vertrag_zurueck: 'VZ', abgesagt: 'Abs', rechnung_erhalten: 'RE',
   }
   return abbrs[s] ?? s.slice(0, 3)
 }
@@ -469,10 +478,16 @@ function JobKategorieModal({
   const [beschreibung, setBeschreibung] = useState(jk?.beschreibung || '')
   const [taetigkeitId, setTaetigkeitId] = useState<number | undefined>(jk?.vertragsdb_taetigkeit_id)
   const [taetigkeitLabel, setTaetigkeitLabel] = useState(jk?.vertragsdb_taetigkeit_label || '')
-  const [gagen, setGagen] = useState<GageEntry[]>(() => {
-    if (jk?.gagen && Array.isArray(jk.gagen) && jk.gagen.length > 0) return jk.gagen as GageEntry[]
-    return [{ kat: '1', abrechnungstyp: jk?.abrechnungstyp || 'pauschal', betrag: jk?.gage_betrag ? String(jk.gage_betrag) : '', lst_rg: jk?.lst_rg || 'RG' }]
-  })
+
+  // Tätigkeit-Name aus Vertragsdb nachladen, falls nur ID vorhanden
+  useEffect(() => {
+    if (taetigkeitId && !taetigkeitLabel) {
+      fetch(`/api/autorenplan/taetigkeiten?ids=${taetigkeitId}`, { credentials: 'include' })
+        .then(r => r.json())
+        .then(d => { const t = d.taetigkeiten?.[0]; if (t?.bezeichnung) setTaetigkeitLabel(t.bezeichnung) })
+        .catch(() => {})
+    }
+  }, [])
   const [maxSlots, setMaxSlots] = useState(jk?.max_slots ?? 1)
   const [slotsGleichFollen, setSlotsGleichFolgen] = useState(jk?.slots_gleich_folgen ?? false)
   const [dauerWochen, setDauerWochen] = useState(jk?.dauer_wochen ?? 1)
@@ -482,9 +497,6 @@ function JobKategorieModal({
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [newTaetigkeitConfirm, setNewTaetigkeitConfirm] = useState<string | null>(null)
-
-  const updateGage = (i: number, field: keyof GageEntry, val: string) =>
-    setGagen(prev => prev.map((g, j) => j === i ? { ...g, [field]: val } : g))
 
   const togglePraesenzWoche = (w: number) => {
     setPraesenzWochen(prev =>
@@ -516,15 +528,10 @@ function JobKategorieModal({
     if (!label.trim()) return
     setSaving(true)
     try {
-      const g0 = gagen[0]
       await onSave({
         label: label.trim(),
         beschreibung: beschreibung || undefined,
         vertragsdb_taetigkeit_id: taetigkeitId,
-        gagen,
-        gage_betrag: g0?.betrag ? parseFloat(g0.betrag) : undefined,
-        abrechnungstyp: g0?.abrechnungstyp || 'pauschal',
-        lst_rg: g0?.lst_rg || 'RG',
         max_slots: maxSlots,
         slots_gleich_folgen: slotsGleichFollen,
         dauer_wochen: dauerWochen,
@@ -621,51 +628,6 @@ function JobKategorieModal({
               Kurzbeschreibung
             </label>
             <textarea value={beschreibung} onChange={e => setBeschreibung(e.target.value)} rows={2} placeholder="Optionale Beschreibung des Jobs..." style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'none' }} />
-          </div>
-
-          {/* Gagenkategorien — mehrere */}
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 8 }}>
-              Gagenkategorien
-            </label>
-            {gagen.map((g, i) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '48px 1fr 100px 68px 28px', gap: 6, marginBottom: 6, alignItems: 'end' }}>
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>Kat.</div>
-                  <input type="number" min={1} value={g.kat} onChange={e => updateGage(i, 'kat', e.target.value)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '6px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, textAlign: 'center' }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>Abrechnungstyp</div>
-                  <select value={g.abrechnungstyp} onChange={e => updateGage(i, 'abrechnungstyp', e.target.value)}
-                    style={{ width: '100%', padding: '6px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}>
-                    {ABRECHNUNGSTYPEN.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>Betrag (€)</div>
-                  <input type="number" value={g.betrag} onChange={e => updateGage(i, 'betrag', e.target.value)}
-                    placeholder="0,00" style={{ width: '100%', boxSizing: 'border-box', padding: '6px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12 }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 3 }}>LSt / RG</div>
-                  <select value={g.lst_rg} onChange={e => updateGage(i, 'lst_rg', e.target.value)}
-                    style={{ width: '100%', padding: '6px 4px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}>
-                    <option value="RG">RG</option>
-                    <option value="LSt">LSt</option>
-                  </select>
-                </div>
-                <button onClick={() => setGagen(prev => prev.filter((_, j) => j !== i))}
-                  disabled={gagen.length <= 1}
-                  style={{ padding: '6px 0', background: 'none', border: 'none', cursor: gagen.length > 1 ? 'pointer' : 'default', color: gagen.length > 1 ? '#FF3B30' : 'var(--border)', fontSize: 16, lineHeight: 1, alignSelf: 'flex-end' }}>
-                  ×
-                </button>
-              </div>
-            ))}
-            <button onClick={() => setGagen(prev => [...prev, { kat: String(prev.length + 1), abrechnungstyp: 'pauschal', betrag: '', lst_rg: 'RG' }])}
-              style={{ fontSize: 11, padding: '5px 12px', borderRadius: 6, border: '1px dashed var(--border)', background: 'none', cursor: 'pointer', color: '#007AFF', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Plus size={11} /> Gagenkategorie hinzufügen
-            </button>
           </div>
 
           {/* Slots */}
@@ -769,6 +731,13 @@ function fmtShortDate(s?: string): string {
   if (!s) return ''
   const parts = s.slice(0, 10).split('-')
   return `${parts[2]}.${parts[1]}.`
+}
+
+function fmtDate(s?: string): string {
+  if (!s) return ''
+  const d = new Date(s)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${String(d.getFullYear()).slice(2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 function EinsatzModal({
@@ -1076,15 +1045,26 @@ function EinsatzModal({
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Status</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              {STATUS_LIST.map(s => (
-                <button key={s.id} onClick={() => setStatus(s.id)} style={{
-                  padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
-                  border: status === s.id ? `1.5px solid ${s.farbe}` : '1px solid var(--border)',
-                  background: status === s.id ? s.farbe + '20' : 'none',
-                  color: status === s.id ? s.farbe : 'var(--text-secondary)',
-                  fontWeight: status === s.id ? 600 : 400,
-                }}>{s.label}</button>
-              ))}
+              {STATUS_LIST.map(s => {
+                const amKey = `${s.id}_am` as keyof Einsatz
+                const vonKey = `${s.id}_von` as keyof Einsatz
+                const trackedAm = ['angefragt','zugesagt','vertrag_zurueck','abgesagt'].includes(s.id)
+                  ? (einsatz?.[amKey] as string | undefined) : undefined
+                const trackedVon = trackedAm ? (einsatz?.[vonKey] as string | undefined) : undefined
+                const tooltipText = trackedAm ? `${fmtDate(trackedAm)}${trackedVon ? ` · ${trackedVon}` : ''}` : ''
+                const btn = (
+                  <button key={s.id} onClick={() => setStatus(s.id)} style={{
+                    padding: '4px 10px', borderRadius: 20, fontSize: 11, cursor: 'pointer',
+                    border: status === s.id ? `1.5px solid ${s.farbe}` : '1px solid var(--border)',
+                    background: status === s.id ? s.farbe + '20' : 'none',
+                    color: status === s.id ? s.farbe : 'var(--text-secondary)',
+                    fontWeight: status === s.id ? 600 : 400,
+                  }}>{s.label}</button>
+                )
+                return tooltipText
+                  ? <Tooltip key={s.id} text={tooltipText}>{btn}</Tooltip>
+                  : <span key={s.id}>{btn}</span>
+              })}
             </div>
           </div>
 
@@ -1312,13 +1292,27 @@ function AutorenplanGrid({
 
   useEffect(() => { loadData() }, [loadData])
 
-  // Slots für Zelle berechnen
+  // Abgesagte Einträge für Zelle (Overlay-Badges)
+  function getAbgesagtForCell(jk: JobKategorie, weekDate: Date): Einsatz[] {
+    const wKey = dateKey(weekDate)
+    return einsaetze.filter(e => {
+      if (e.job_kategorie_id !== jk.id) return false
+      if (e.status !== 'abgesagt') return false
+      const start = new Date(e.woche_von)
+      const end = addWeeks(start, Math.max(jk.dauer_wochen, 1))
+      if (jk.dauer_wochen === 1) return (e.woche_von || '').slice(0, 10) === wKey
+      return weekDate >= start && weekDate < end
+    })
+  }
+
+  // Slots für Zelle berechnen (abgesagt ausgeschlossen)
   function getSlotsForCell(jk: JobKategorie, weekDate: Date): (Einsatz | null)[] {
     const wKey = dateKey(weekDate)
     const active = einsaetze.filter(e => {
       const key = e.job_kategorie_id ?? e.prozess_id
       if (key !== jk.id && key !== jk.id) return false
       if (e.job_kategorie_id !== jk.id) return false
+      if (e.status === 'abgesagt') return false
       const start = new Date(e.woche_von)
       const end = addWeeks(start, jk.dauer_wochen)
       return weekDate >= start && weekDate < end
@@ -1514,6 +1508,7 @@ function AutorenplanGrid({
                     const slots = getSlotsForCell(jk, week)
                     const maxSlots = maxSlotsForCell(jk, week)
                     const einsatz = slots[slotIdx] || null
+                    const abgesagtList = slotIdx === 0 ? getAbgesagtForCell(jk, week) : []
                     const isToday = dateKey(week) === dateKey(today)
                     const isOverbooked = jk.slots_gleich_folgen && slots.filter(Boolean).length > maxSlots
                     const isLastSlot = slotIdx === globalMaxSlots - 1
@@ -1568,6 +1563,25 @@ function AutorenplanGrid({
                             <Plus size={10} />
                           </div>
                         )}
+                        {/* Abgesagt-Overlay-Badges */}
+                        {abgesagtList.map((abs, ai) => (
+                          <Tooltip key={abs.id} text={[
+                            `Abgesagt: ${abs.person_cache_name || abs.platzhalter_name || '—'}`,
+                            abs.abgesagt_am ? `${fmtDate(abs.abgesagt_am)}${abs.abgesagt_von ? ` · ${abs.abgesagt_von}` : ''}` : '',
+                            abs.notiz || '',
+                          ].filter(Boolean).join('\n')}>
+                            <div
+                              onClick={e => { e.stopPropagation(); handleCellClick(jk, week, abs) }}
+                              style={{
+                                position: 'absolute', top: 2 + ai * 14, right: 2,
+                                width: 12, height: 12, borderRadius: '50%',
+                                background: '#FF3B30', color: '#fff',
+                                fontSize: 9, fontWeight: 700, lineHeight: '12px', textAlign: 'center',
+                                cursor: 'pointer', zIndex: 2, userSelect: 'none',
+                              }}
+                            >!</div>
+                          </Tooltip>
+                        ))}
                       </td>
                     )
                   })}

@@ -325,6 +325,7 @@ async function runMigrations() {
     'v98_glossar_defaults_data.sql',
     'v99_autorenplan_settings.sql',
     'v100_einsatz_gage_kategorie_id.sql',
+    'v101_status_tracking.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

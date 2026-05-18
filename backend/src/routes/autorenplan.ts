@@ -343,8 +343,22 @@ router.post('/einsaetze', async (req, res) => {
       [platzhalter_name.trim()]
     ).catch(() => {}) // Non-critical
   }
+
+  // Status-Tracking bei Anlage mit bereits getracktem Status
+  const insertedStatus: string = result.rows[0].status
+  if (insertedStatus && TRACKED_STATUSES.includes(insertedStatus)) {
+    await pool.query(
+      `UPDATE autorenplan_einsaetze SET ${insertedStatus}_am = NOW(), ${insertedStatus}_von = $1 WHERE id = $2`,
+      [uid(req), result.rows[0].id]
+    ).catch(() => {})
+    const fresh = await pool.query('SELECT * FROM autorenplan_einsaetze WHERE id = $1', [result.rows[0].id])
+    if (fresh.rows.length) return res.json({ einsatz: fresh.rows[0] })
+  }
+
   res.json({ einsatz: result.rows[0] })
 })
+
+const TRACKED_STATUSES = ['angefragt', 'zugesagt', 'vertrag_zurueck', 'abgesagt']
 
 // PUT /api/autorenplan/einsaetze/:id
 router.put('/einsaetze/:id', async (req, res) => {
@@ -355,6 +369,13 @@ router.put('/einsaetze/:id', async (req, res) => {
     block_nummer, folge_nummer, status, kostenstelle, ist_homeoffice_override, notiz, woche_von,
     von_datum, bis_datum, gage_kat, gage_kategorie_id,
   } = req.body
+
+  // Alten Status lesen, um Tracking-Änderung zu erkennen
+  let oldStatus: string | null = null
+  if (status && TRACKED_STATUSES.includes(status)) {
+    const old = await pool.query('SELECT status FROM autorenplan_einsaetze WHERE id = $1', [req.params.id])
+    oldStatus = old.rows[0]?.status ?? null
+  }
 
   const result = await pool.query(
     `UPDATE autorenplan_einsaetze SET
@@ -388,6 +409,7 @@ router.put('/einsaetze/:id', async (req, res) => {
     ]
   )
   if (!result.rows.length) return res.status(404).json({ error: 'Nicht gefunden' })
+
   if (platzhalter_name?.trim()) {
     await pool.query(
       `INSERT INTO autorenplan_platzhalter_cache (name)
@@ -398,6 +420,19 @@ router.put('/einsaetze/:id', async (req, res) => {
       [platzhalter_name.trim()]
     ).catch(() => {})
   }
+
+  // Status-Tracking: Zeitstempel + User setzen wenn Status sich ändert
+  if (status && status !== oldStatus && TRACKED_STATUSES.includes(status)) {
+    // Whitelist geprüft — sicher für Column-Name-Interpolation
+    await pool.query(
+      `UPDATE autorenplan_einsaetze SET ${status}_am = NOW(), ${status}_von = $1 WHERE id = $2`,
+      [uid(req), req.params.id]
+    ).catch(() => {})
+    // Frischen Datensatz mit Tracking-Feldern zurückgeben
+    const fresh = await pool.query('SELECT * FROM autorenplan_einsaetze WHERE id = $1', [req.params.id])
+    if (fresh.rows.length) return res.json({ einsatz: fresh.rows[0] })
+  }
+
   res.json({ einsatz: result.rows[0] })
 })
 
