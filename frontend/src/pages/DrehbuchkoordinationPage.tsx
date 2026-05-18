@@ -23,14 +23,11 @@ const DK_TABS = [
   { id: 'produktion',            label: 'Produktion' },
   { id: 'export-vorlagen',       label: 'Export-Vorlagen' },
   { id: 'lock-regeln',           label: 'Lock-Regeln' },
-  { id: 'dokument-typen',        label: 'Absatzformat-Vorlagen' },
+  { id: 'dokument-typen',        label: 'Dokumenten-Formatierung' },
   { id: 'gruppen-register',      label: 'Gruppen-Register' },
 
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
-  { id: 'stockshot-templates',    label: 'Stockshot-Templates' },
-  { id: 'vorlagen',               label: 'Vorlagen' },
-  { id: 'kopf-fusszeilen',        label: 'Kopf-/Fußzeilen' },
   { id: 'autorenplan',            label: 'Autorenplan' },
 ]
 
@@ -2669,23 +2666,6 @@ export default function DrehbuchkoordinationPage() {
           </div>
         </div>
 
-        {/* Sub-Navigation: Format-Template-Tabs */}
-        {FORMAT_TEMPLATE_TABS.includes(activeTab) && (
-          <div style={{ padding: '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg-page)', display: 'flex', flexShrink: 0 }}>
-            {FORMAT_SUB_NAV.map(({ id, label }) => (
-              <button key={id} onClick={() => setActiveTab(id)} style={{
-                background: 'none', border: 'none', padding: '7px 16px 6px',
-                cursor: 'pointer', fontSize: 12,
-                fontWeight: activeTab === id ? 600 : 400,
-                color: activeTab === id ? '#007AFF' : 'var(--text-secondary)',
-                borderBottom: activeTab === id ? '2px solid #007AFF' : '2px solid transparent',
-              }}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* Body: Sidebar + Content */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
@@ -2769,8 +2749,26 @@ export default function DrehbuchkoordinationPage() {
           </div>
 
           {/* Content area */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
-            {renderContent()}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Sub-Navigation: Format-Template-Tabs */}
+            {FORMAT_TEMPLATE_TABS.includes(activeTab) && (
+              <div style={{ padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-page)', display: 'flex', flexShrink: 0 }}>
+                {FORMAT_SUB_NAV.map(({ id, label }) => (
+                  <button key={id} onClick={() => setActiveTab(id)} style={{
+                    background: 'none', border: 'none', padding: '7px 14px 6px',
+                    cursor: 'pointer', fontSize: 12,
+                    fontWeight: activeTab === id ? 600 : 400,
+                    color: activeTab === id ? '#007AFF' : 'var(--text-secondary)',
+                    borderBottom: activeTab === id ? '2px solid #007AFF' : '2px solid transparent',
+                  }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
+              {renderContent()}
+            </div>
           </div>
         </div>
       </div>
