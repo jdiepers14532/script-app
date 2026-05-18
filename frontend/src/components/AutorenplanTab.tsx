@@ -114,6 +114,12 @@ interface Taetigkeit {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
+const NOTIZ_FARBEN: Record<string, string> = {
+  allgemein:    '#007AFF',
+  zusatzkosten: '#AF52DE',
+  sperrer:      '#8B0000',
+}
+
 const STATUS_LIST = [
   { id: 'geplant',             label: 'Geplant',              farbe: '#9E9E9E' },
   { id: 'angefragt',           label: 'Angefragt',            farbe: '#007AFF' },
@@ -268,7 +274,7 @@ function PersonPicker({
     }
   }
 
-  const showZeroResults = hasSearched && results.length === 0 && q.trim().length >= 2
+  const showNeuAnlegen = hasSearched && results.length === 0 && q.trim().length >= 2
 
   return (
     <div style={{ position: 'relative' }}>
@@ -313,24 +319,27 @@ function PersonPicker({
         </div>
       )}
       {loading && <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>Suche...</div>}
-      {showZeroResults && (
+      {q.trim().length >= 1 && (
         <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
           <button
-            onClick={() => { onPlatzhalter?.(q); setHasSearched(false) }}
+            onMouseDown={e => { e.preventDefault(); onPlatzhalter?.(q); setHasSearched(false) }}
             style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'left' }}>
             Als Platzhalter eintragen
           </button>
-          <button
-            onClick={() => {
-              window.open(
-                `https://vertraege.serienwerft.studio/adressbuch?neu=1&name=${encodeURIComponent(q)}`,
-                'vertraege-neuer-kontakt',
-                'width=860,height=720,left=180,top=80'
-              )
-            }}
-            style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none', background: '#007AFF', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, textAlign: 'right' }}>
-            + In Firmenadressbuch anlegen
-          </button>
+          {showNeuAnlegen && (
+            <button
+              onMouseDown={e => {
+                e.preventDefault()
+                window.open(
+                  `https://vertraege.serienwerft.studio/adressbuch?neu=1&name=${encodeURIComponent(q)}`,
+                  'vertraege-neuer-kontakt',
+                  'width=860,height=720,left=180,top=80'
+                )
+              }}
+              style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: 'none', background: '#007AFF', color: '#fff', cursor: 'pointer', fontSize: 11, fontWeight: 600, textAlign: 'right' }}>
+              + In Firmenadressbuch anlegen
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -729,9 +738,20 @@ function EinsatzModal({
   const [bisDatum, setBisDatum] = useState(einsatz?.bis_datum || mondayPlusDays(wocheDatum, 4))
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [savedPlatzhalterName, setSavedPlatzhalterName] = useState<string | null>(null)
   const [cacheResults, setCacheResults] = useState<string[]>([])
   const cacheDebounceRef = useRef<any>(null)
+  // Zusatzpersonal
+  const [zusatzList, setZusatzList] = useState<{ id: string; beschreibung: string; status: string }[]>([])
+  const [newZusatz, setNewZusatz] = useState('')
+  const [savingZusatz, setSavingZusatz] = useState(false)
+
+  useEffect(() => {
+    if (!einsatz?.id) return
+    fetch(`/api/autorenplan/einsaetze/${einsatz.id}/zusatz`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setZusatzList(d.zusatz || []))
+      .catch(() => {})
+  }, [einsatz?.id])
 
   // Auto-Block aus Blockkalender
   useEffect(() => {
@@ -766,9 +786,27 @@ function EinsatzModal({
     }
   }
 
+  const handleAddZusatz = async () => {
+    if (!newZusatz.trim() || !einsatz?.id) return
+    setSavingZusatz(true)
+    try {
+      const res = await fetch(`/api/autorenplan/einsaetze/${einsatz.id}/zusatz`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platzhalter_name: newZusatz.trim(), beschreibung: newZusatz.trim() }),
+      })
+      const d = await res.json()
+      if (d.zusatz) { setZusatzList(prev => [...prev, d.zusatz]); setNewZusatz('') }
+    } finally { setSavingZusatz(false) }
+  }
+
+  const handleDeleteZusatz = async (id: string) => {
+    await fetch(`/api/autorenplan/zusatz/${id}`, { method: 'DELETE', credentials: 'include' })
+    setZusatzList(prev => prev.filter(z => z.id !== id))
+  }
+
   const handleSave = async () => {
     setSaving(true)
-    const isPlatzhalterSave = !personId && !!personName
     try {
       await onSave({
         job_kategorie_id: jk.id,
@@ -776,7 +814,7 @@ function EinsatzModal({
         produktion_db_id: produktionDbId,
         vertragsdb_person_id: personId,
         person_cache_name: personId ? personName : undefined,
-        platzhalter_name: isPlatzhalterSave ? personName : undefined,
+        platzhalter_name: !personId && personName ? personName : undefined,
         block_nummer: blockNr,
         folge_nummer: folgeNr,
         status,
@@ -784,11 +822,7 @@ function EinsatzModal({
         von_datum: vonDatum || undefined,
         bis_datum: bisDatum || undefined,
       })
-      if (isPlatzhalterSave) {
-        setSavedPlatzhalterName(personName)
-      } else {
-        onClose()
-      }
+      onClose()
     } finally { setSaving(false) }
   }
 
@@ -822,43 +856,6 @@ function EinsatzModal({
             style={{ padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-page)', fontSize: 11, color: 'var(--text-primary)' }} />
         </div>
 
-        {savedPlatzhalterName ? (
-          /* ── Post-Save: Platzhalter-Prompt ────────────────────────── */
-          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
-              <div style={{ fontSize: 22, marginBottom: 6 }}>✓</div>
-              <div style={{ fontSize: 13, fontWeight: 700 }}>Einsatz gespeichert</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                „{savedPlatzhalterName}" als Platzhalter eingetragen.
-              </div>
-            </div>
-            <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '14px 16px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>In der Firmendatenbank anlegen?</div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
-                Du kannst den Kontakt jetzt direkt im Adressbuch der Vertrags-App anlegen. Das Formular öffnet sich in einem separaten Fenster. Der Einsatz bleibt als Platzhalter bestehen und kann später bei Bedarf verknüpft werden.
-              </div>
-              <button
-                onClick={() => {
-                  window.open(
-                    `https://vertraege.serienwerft.studio/adressbuch?neu=1&name=${encodeURIComponent(savedPlatzhalterName)}`,
-                    'vertraege-neuer-kontakt',
-                    'width=860,height=720,left=180,top=80'
-                  )
-                  onClose()
-                }}
-                style={{ width: '100%', padding: '9px 16px', borderRadius: 7, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, marginBottom: 8 }}
-              >
-                In der Firmendatenbank anlegen
-              </button>
-              <button
-                onClick={onClose}
-                style={{ width: '100%', padding: '8px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
-              >
-                Fertig — als Platzhalter behalten
-              </button>
-            </div>
-          </div>
-        ) : (
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Person */}
           <div>
@@ -963,6 +960,42 @@ function EinsatzModal({
             <textarea value={notiz} onChange={e => setNotiz(e.target.value)} rows={2} placeholder="Optionale Anmerkung..." style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'none' }} />
           </div>
 
+          {/* Zusatzpersonal — nur bei bestehendem Einsatz */}
+          {!isNew && (
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
+                Zusatzpersonal
+                <Tooltip text="Zusatzpersonal überschreitet die regulären Slots dieser Job-Kategorie und wird separat erfasst.">
+                  <Info size={11} style={{ marginLeft: 4, verticalAlign: 'middle', color: 'var(--text-secondary)' }} />
+                </Tooltip>
+              </label>
+              {zusatzList.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+                  {zusatzList.map(z => (
+                    <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+                      <Users size={11} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 12 }}>{z.beschreibung}</span>
+                      <button onClick={() => handleDeleteZusatz(z.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0 2px', fontSize: 14, lineHeight: 1 }}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  value={newZusatz}
+                  onChange={e => setNewZusatz(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddZusatz() } }}
+                  placeholder="Name / Bezeichnung..."
+                  style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}
+                />
+                <button onClick={handleAddZusatz} disabled={!newZusatz.trim() || savingZusatz}
+                  style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#007AFF', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Buttons */}
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <div>{onDelete && <button onClick={handleDelete} disabled={deleting} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #FF3B30', background: 'none', color: '#FF3B30', cursor: 'pointer', fontSize: 12 }}>{deleting ? '...' : 'Löschen'}</button>}</div>
@@ -974,7 +1007,6 @@ function EinsatzModal({
             </div>
           </div>
         </div>
-        )} {/* Ende savedPlatzhalterName-Ternary */}
       </div>
     </div>
   )
@@ -1003,23 +1035,29 @@ function WochenNotizModal({
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={16} /></button>
         </div>
         <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
-          {['allgemein', 'zusatzkosten', 'sperrer'].map(t => (
-            <button key={t} onClick={() => setTyp(t)} style={{
-              padding: '4px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer',
-              border: typ === t ? '1.5px solid #007AFF' : '1px solid var(--border)',
-              background: typ === t ? '#007AFF20' : 'none',
-              color: typ === t ? '#007AFF' : 'var(--text-secondary)',
-            }}>
-              {t === 'allgemein' ? 'Allgemein' : t === 'zusatzkosten' ? 'Zusatzkosten' : 'Sperrer'}
-            </button>
-          ))}
+          {['allgemein', 'zusatzkosten', 'sperrer'].map(t => {
+            const c = NOTIZ_FARBEN[t]
+            return (
+              <button key={t} onClick={() => setTyp(t)} style={{
+                padding: '4px 10px', borderRadius: 5, fontSize: 11, cursor: 'pointer',
+                border: typ === t ? `1.5px solid ${c}` : '1px solid var(--border)',
+                background: typ === t ? `${c}20` : 'none',
+                color: typ === t ? c : 'var(--text-secondary)',
+              }}>
+                {t === 'allgemein' ? 'Allgemein' : t === 'zusatzkosten' ? 'Zusatzkosten' : 'Sperrer'}
+              </button>
+            )
+          })}
         </div>
-        <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Notiz eingeben..." style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'vertical' }} />
+        <textarea value={text} onChange={e => setText(e.target.value)} rows={4} placeholder="Notiz eingeben..." style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: `1px solid ${NOTIZ_FARBEN[typ]}40`, background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'vertical' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
           <div>{onDelete && <button onClick={onDelete} style={{ padding: '6px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid #FF3B30', background: 'none', color: '#FF3B30' }}>Löschen</button>}</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={onClose} style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)' }}>Abbrechen</button>
-            <button onClick={async () => { setSaving(true); await onSave(text, typ); setSaving(false) }} disabled={saving || !text.trim()} style={{ padding: '6px 16px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none', background: '#000', color: '#fff', fontWeight: 600 }}>
+            <button
+              onClick={async () => { setSaving(true); try { await onSave(text, typ) } finally { setSaving(false) } }}
+              disabled={saving || !text.trim()}
+              style={{ padding: '6px 16px', borderRadius: 6, fontSize: 12, cursor: 'pointer', border: 'none', background: '#000', color: '#fff', fontWeight: 600 }}>
               {saving ? '...' : 'Speichern'}
             </button>
           </div>
@@ -1358,7 +1396,7 @@ function AutorenplanGrid({
               </td>
               {weeks.map((w, wi) => {
                 const nots = notizen.filter(n => n.woche_von === dateKey(w))
-                const typColor = nots[0]?.typ === 'zusatzkosten' ? '#FF9500' : nots[0]?.typ === 'sperrer' ? '#FF3B30' : '#9E9E9E'
+                const typColor = NOTIZ_FARBEN[nots[0]?.typ] ?? NOTIZ_FARBEN.allgemein
                 const isToday = dateKey(w) === dateKey(today)
                 const baseBg = isToday ? '#007AFF08' : nots.length ? typColor + '15' : 'transparent'
                 return (
