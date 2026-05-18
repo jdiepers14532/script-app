@@ -549,14 +549,15 @@ interface KopfZeilenEditorProps {
   value: KopfZeilenEditorValue
   onChange: (v: KopfZeilenEditorValue) => void
   readOnly?: boolean
-  readOnlyLayout?: boolean
+  /** Globaler Dokumentrand als Referenz — zeigt Hint + Reset-Button wenn KZ/FZ abweicht */
+  defaultLayout?: SeitenLayout
   previewContext?: KZPreviewContext
 }
 
 type ZeileName = 'kopfzeile' | 'fusszeile'
 type ZoneName  = 'links' | 'mitte' | 'rechts'
 
-export default function KopfZeilenEditor({ value, onChange, readOnly = false, readOnlyLayout = false, previewContext }: KopfZeilenEditorProps) {
+export default function KopfZeilenEditor({ value, onChange, readOnly = false, defaultLayout, previewContext }: KopfZeilenEditorProps) {
   injectCss()
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -661,33 +662,40 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, re
           </label>
         ))}
         <div style={{ width: 1, height: 16, background: 'var(--border, #e0e0e0)' }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12 }}>
-          <input type="checkbox" checked={value.erste_seite_kein_header}
-            onChange={e => onChange({ ...value, erste_seite_kein_header: e.target.checked })} />
-          Erste Seite: kein KZ/FZ
+        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
+          KZ/FZ ab Seite
+          <input type="number" min={1} max={99} value={value.erste_seite_kein_header ? 2 : 1}
+            onChange={e => onChange({ ...value, erste_seite_kein_header: Number(e.target.value) >= 2 })}
+            style={selStyle({ width: 42, textAlign: 'center' })} />
         </label>
         <div style={{ flex: 1 }} />
-        {/* Seitenformat + Ränder — readonly wenn global verwaltet */}
-        {readOnlyLayout ? (
-          <span style={{ fontSize: 11, color: 'var(--text-secondary, #666)', fontVariantNumeric: 'tabular-nums' }}>
-            {sl.format.toUpperCase()} · L {sl.margin_left} · R {sl.margin_right}
-          </span>
-        ) : (
+        {/* Seitenformat + Ränder — editierbar, mit Dokumentrand als Referenz */}
+        <select value={sl.format}
+          onChange={e => onChange({ ...value, seiten_layout: { ...sl, format: e.target.value as 'a4' | 'letter' } })}
+          style={selStyle({ fontSize: 11 })}>
+          <option value="a4">A4</option>
+          <option value="letter">US Letter</option>
+        </select>
+        <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)' }}>L</label>
+        <input type="number" value={sl.margin_left} min={0} max={80}
+          onChange={e => onChange({ ...value, seiten_layout: { ...sl, margin_left: Number(e.target.value) } })}
+          style={selStyle({ width: 42, textAlign: 'right' })} />
+        <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)' }}>R</label>
+        <input type="number" value={sl.margin_right} min={0} max={80}
+          onChange={e => onChange({ ...value, seiten_layout: { ...sl, margin_right: Number(e.target.value) } })}
+          style={selStyle({ width: 42, textAlign: 'right' })} />
+        {defaultLayout && (
           <>
-            <select value={sl.format}
-              onChange={e => onChange({ ...value, seiten_layout: { ...sl, format: e.target.value as 'a4' | 'letter' } })}
-              style={selStyle({ fontSize: 11 })}>
-              <option value="a4">A4</option>
-              <option value="letter">US Letter</option>
-            </select>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)' }}>L</label>
-            <input type="number" value={sl.margin_left} min={0} max={80}
-              onChange={e => onChange({ ...value, seiten_layout: { ...sl, margin_left: Number(e.target.value) } })}
-              style={selStyle({ width: 42, textAlign: 'right' })} />
-            <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)' }}>R</label>
-            <input type="number" value={sl.margin_right} min={0} max={80}
-              onChange={e => onChange({ ...value, seiten_layout: { ...sl, margin_right: Number(e.target.value) } })}
-              style={selStyle({ width: 42, textAlign: 'right' })} />
+            <span style={{ fontSize: 10, color: 'var(--text-muted, #aaa)', whiteSpace: 'nowrap' }}>
+              Dok: {defaultLayout.margin_left}/{defaultLayout.margin_right}
+            </span>
+            {(sl.margin_left !== defaultLayout.margin_left || sl.margin_right !== defaultLayout.margin_right || sl.format !== defaultLayout.format) && (
+              <button
+                title="Auf Dokumentrand zurücksetzen"
+                onClick={() => onChange({ ...value, seiten_layout: { ...sl, format: defaultLayout.format, margin_left: defaultLayout.margin_left, margin_right: defaultLayout.margin_right } })}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary, #666)', padding: '0 2px', lineHeight: 1 }}
+              >↺</button>
+            )}
           </>
         )}
       </div>

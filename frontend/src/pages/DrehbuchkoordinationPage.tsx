@@ -2478,8 +2478,8 @@ export default function DrehbuchkoordinationPage() {
       .then(r => r.ok ? r.json() : null)
       .then((data: any) => {
         setSeitenformat(data?.seitenformat === 'letter' ? 'letter' : 'a4')
-        if (data?.page_margins) {
-          try { setMargins(m => ({ ...m, ...JSON.parse(data.page_margins) })) } catch {}
+        if (data?.page_margin_mm) {
+          try { setMargins(m => ({ ...m, ...JSON.parse(data.page_margin_mm) })) } catch {}
         }
       })
       .catch(() => {})
@@ -2497,7 +2497,7 @@ export default function DrehbuchkoordinationPage() {
 
   const saveMargins = async (next: typeof margins) => {
     setMargins(next)
-    await fetch(`/api/dk-settings/${produktionId}/app-settings/page_margins`, {
+    await fetch(`/api/dk-settings/${produktionId}/app-settings/page_margin_mm`, {
       method: 'PUT', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ value: JSON.stringify(next) }),
@@ -4254,7 +4254,7 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
             kopfzeile_aktiv:         row.kopfzeile_aktiv ?? false,
             fusszeile_aktiv:         row.fusszeile_aktiv ?? false,
             erste_seite_kein_header: row.erste_seite_kein_header ?? true,
-            seiten_layout:           forcedLayout,
+            seiten_layout:           row.seiten_layout ?? forcedLayout,
           }
         }
         setConfigs(map)
@@ -4262,10 +4262,8 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
       .finally(() => setLoading(false))
   }, [productionId])
 
-  const getCurrentValue = (): KopfZeilenEditorValue => {
-    const v = configs[activeTyp] ?? emptyKopfZeilenEditorValue()
-    return { ...v, seiten_layout: forcedLayout }
-  }
+  const getCurrentValue = (): KopfZeilenEditorValue =>
+    configs[activeTyp] ?? { ...emptyKopfZeilenEditorValue(), seiten_layout: forcedLayout }
 
   // Änderung gilt für alle in syncTypen
   const handleChange = (v: KopfZeilenEditorValue) => {
@@ -4413,7 +4411,7 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
           key={activeTyp}
           value={currentConfig}
           onChange={handleChange}
-          readOnlyLayout
+          defaultLayout={forcedLayout}
           previewContext={previewContext}
         />
       </div>
