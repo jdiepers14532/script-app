@@ -3509,7 +3509,6 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
       <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Stockshot-Templates</h2>
       <p style={{ fontSize: 12, color: '#757575', marginBottom: 20, lineHeight: 1.6 }}>
         Templates für Stockshot-Szenen. Bei Auswahl im Editor werden alle Felder automatisch übernommen.
-        Oneliner-Platzhalter: <code>{'{motiv}'}</code>, <code>{'{stimmung}'}</code>
       </p>
 
       {['ortswechsel', 'zeit_vergeht', 'stimmungswechsel'].map(kat => {
