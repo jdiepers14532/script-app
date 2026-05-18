@@ -1068,48 +1068,92 @@ function AutorenplanGrid({
           </thead>
           <tbody>
             {jobKategorien.map(jk => {
-              return weeks.map((week, wi) => {
-                const maxSlots = maxSlotsForCell(jk, week)
-                const slots = getSlotsForCell(jk, week)
-                // Warn wenn Slots > maxSlots (nur bei slots_gleich_folgen)
-                const isOverbooked = jk.slots_gleich_folgen && slots.filter(Boolean).length > maxSlots
-                const isToday = dateKey(week) === dateKey(today)
-
-                if (wi === 0) {
-                  // Erste Woche: render Label-Spalte + erste Zelle zusammen
-                  return (
-                    <tr key={`${jk.id}-${wi}`}>
-                      <td style={{
-                        position: 'sticky', left: 0, zIndex: 5,
-                        background: 'var(--bg-page)', borderRight: '1px solid var(--border)',
-                        borderBottom: '1px solid var(--border)',
-                        padding: '0 8px', height: ROW_H * maxSlots || ROW_H,
-                        verticalAlign: 'middle',
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <div style={{ width: 3, height: 20, borderRadius: 2, background: jk.farbe, flexShrink: 0 }} />
-                          <div>
-                            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
-                              {jk.label}
-                            </div>
-                            {showKostenstellen && (
-                              <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
-                                {jk.gage_betrag ? `${jk.gage_betrag.toLocaleString('de-DE')} € ${ABRECHNUNGSTYPEN.find(a => a.id === jk.abrechnungstyp)?.label ?? ''}` : '—'}
-                              </div>
-                            )}
+              const globalMaxSlots = Math.max(1, ...weeks.map(w => maxSlotsForCell(jk, w)))
+              return Array.from({ length: globalMaxSlots }, (_, slotIdx) => (
+                <tr key={`${jk.id}-${slotIdx}`}>
+                  {slotIdx === 0 && (
+                    <td rowSpan={globalMaxSlots} style={{
+                      position: 'sticky', left: 0, zIndex: 5,
+                      background: 'var(--bg-page)', borderRight: '1px solid var(--border)',
+                      borderBottom: '2px solid var(--border)',
+                      padding: '0 8px', height: ROW_H * globalMaxSlots || ROW_H,
+                      verticalAlign: 'middle',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <div style={{ width: 3, height: 20, borderRadius: 2, background: jk.farbe, flexShrink: 0 }} />
+                        <div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
+                            {jk.label}
                           </div>
+                          {showKostenstellen && (
+                            <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
+                              {jk.gage_betrag ? `${jk.gage_betrag.toLocaleString('de-DE')} € ${ABRECHNUNGSTYPEN.find(a => a.id === jk.abrechnungstyp)?.label ?? ''}` : '—'}
+                            </div>
+                          )}
                         </div>
+                      </div>
+                    </td>
+                  )}
+                  {weeks.map((week, wi) => {
+                    const slots = getSlotsForCell(jk, week)
+                    const maxSlots = maxSlotsForCell(jk, week)
+                    const einsatz = slots[slotIdx] || null
+                    const isToday = dateKey(week) === dateKey(today)
+                    const isOverbooked = jk.slots_gleich_folgen && slots.filter(Boolean).length > maxSlots
+                    const isLastSlot = slotIdx === globalMaxSlots - 1
+                    const color = jk.farbe
+                    const name = einsatz?.person_cache_name || einsatz?.platzhalter_name || ''
+                    const isHO = einsatz ? isHOWeek(jk, week, einsatz) : false
+                    const blockNr = einsatz?.block_nummer
+                    const folgeNr = einsatz?.folge_nummer
+                    return (
+                      <td key={wi}
+                        onClick={() => handleCellClick(jk, week, einsatz || undefined)}
+                        style={{
+                          width: CELL_W, minWidth: CELL_W, height: ROW_H, padding: '2px 4px',
+                          borderLeft: '1px solid var(--border)',
+                          borderBottom: isLastSlot ? '2px solid var(--border)' : '1px solid var(--border)',
+                          background: isToday ? '#007AFF08' : einsatz ? `${color}15` : 'transparent',
+                          cursor: 'pointer', verticalAlign: 'middle', position: 'relative',
+                        }}
+                        onMouseEnter={e => { if (!einsatz) e.currentTarget.style.background = 'var(--bg-subtle)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = isToday ? '#007AFF08' : einsatz ? `${color}15` : 'transparent' }}
+                      >
+                        {einsatz ? (
+                          <Tooltip text={[
+                            `${jk.label} · ${statusLabel(einsatz.status)}`,
+                            name,
+                            isHO ? 'HomeOffice' : 'Präsenz (Writers Room)',
+                            blockNr ? `${blockLabel} ${blockNr}` : '',
+                            folgeNr ? `${folgeLabel} ${folgeNr}` : '',
+                            einsatz.notiz || '',
+                          ].filter(Boolean).join('\n')}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: '100%' }}>
+                              <div style={{ width: 3, height: 26, borderRadius: 2, background: statusColor(einsatz.status), flexShrink: 0 }} />
+                              <div style={{ overflow: 'hidden', flex: 1 }}>
+                                <div style={{ fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
+                                  {name || '—'}
+                                </div>
+                                <div style={{ fontSize: 9, color: 'var(--text-secondary)', display: 'flex', gap: 3 }}>
+                                  <span style={{ color: isHO ? 'var(--text-secondary)' : '#FF9500' }}>{isHO ? 'HO' : 'Präs'}</span>
+                                  {blockNr && <span>· {blockLabel.slice(0, 2)}{blockNr}</span>}
+                                </div>
+                              </div>
+                              {isOverbooked && slotIdx === 0 && (
+                                <AlertCircle size={8} style={{ color: '#FF3B30', flexShrink: 0 }} />
+                              )}
+                            </div>
+                          </Tooltip>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.25 }}>
+                            <Plus size={10} />
+                          </div>
+                        )}
                       </td>
-                      {renderWeekCells(jk, week, slots, maxSlots, isToday, isOverbooked)}
-                    </tr>
-                  )
-                }
-                return (
-                  <tr key={`${jk.id}-${wi}`}>
-                    {renderWeekCells(jk, week, slots, maxSlots, isToday, isOverbooked)}
-                  </tr>
-                )
-              })
+                    )
+                  })}
+                </tr>
+              ))
             })}
 
             {/* Wochennotizen-Zeile */}
@@ -1201,71 +1245,6 @@ function AutorenplanGrid({
     </div>
   )
 
-  function renderWeekCells(
-    jk: JobKategorie, week: Date,
-    slots: (Einsatz | null)[], maxSlots: number,
-    isToday: boolean, isOverbooked: boolean
-  ) {
-    return (
-      <>
-        {Array.from({ length: maxSlots }, (_, slotIdx) => {
-          const einsatz = slots[slotIdx] || null
-          const color = jk.farbe
-          const name = einsatz?.person_cache_name || einsatz?.platzhalter_name || ''
-          const isHO = einsatz ? isHOWeek(jk, week, einsatz) : false
-          const blockNr = einsatz?.block_nummer
-          const folgeNr = einsatz?.folge_nummer
-          const isLastSlot = slotIdx === maxSlots - 1
-
-          return (
-            <td key={slotIdx}
-              onClick={() => handleCellClick(jk, week, einsatz || undefined)}
-              style={{
-                width: CELL_W, minWidth: CELL_W, height: ROW_H, padding: '2px 4px',
-                borderLeft: '1px solid var(--border)',
-                borderBottom: isLastSlot ? '2px solid var(--border)' : '1px solid var(--border)',
-                background: isToday ? '#007AFF08' : einsatz ? `${color}15` : 'transparent',
-                cursor: 'pointer', verticalAlign: 'middle', position: 'relative',
-              }}
-              onMouseEnter={e => { if (!einsatz) e.currentTarget.style.background = 'var(--bg-subtle)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = isToday ? '#007AFF08' : einsatz ? `${color}15` : 'transparent' }}
-            >
-              {einsatz ? (
-                <Tooltip text={[
-                  `${jk.label} · ${statusLabel(einsatz.status)}`,
-                  name,
-                  isHO ? 'HomeOffice' : 'Präsenz (Writers Room)',
-                  blockNr ? `${blockLabel} ${blockNr}` : '',
-                  folgeNr ? `${folgeLabel} ${folgeNr}` : '',
-                  einsatz.notiz || '',
-                ].filter(Boolean).join('\n')}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: '100%' }}>
-                    <div style={{ width: 3, height: 26, borderRadius: 2, background: statusColor(einsatz.status), flexShrink: 0 }} />
-                    <div style={{ overflow: 'hidden', flex: 1 }}>
-                      <div style={{ fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
-                        {name || '—'}
-                      </div>
-                      <div style={{ fontSize: 9, color: 'var(--text-secondary)', display: 'flex', gap: 3 }}>
-                        <span style={{ color: isHO ? 'var(--text-secondary)' : '#FF9500' }}>{isHO ? 'HO' : 'Präs'}</span>
-                        {blockNr && <span>· {blockLabel.slice(0, 2)}{blockNr}</span>}
-                      </div>
-                    </div>
-                    {isOverbooked && slotIdx === 0 && (
-                      <AlertCircle size={8} style={{ color: '#FF3B30', flexShrink: 0 }} />
-                    )}
-                  </div>
-                </Tooltip>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.25 }}>
-                  <Plus size={10} />
-                </div>
-              )}
-            </td>
-          )
-        })}
-      </>
-    )
-  }
 }
 
 // ── JobKategorienPanel (Y-Achse konfigurieren) ────────────────────────────────
