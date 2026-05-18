@@ -504,28 +504,33 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 // ── Glossar-Sektion (innerhalb AllgemeinTab) ──────────────────────────────────
 
 const GLOSSAR_DEFAULTS = [
-  // Struktur / Dramaturgie
-  { kuerzel: 'CLIFF', name: 'Cliffhanger', erklaerung: 'Letzte Szene einer Folge: offen-eskalierend, spannungsgeladen – animiert zum Weiterschauen.' },
-  { kuerzel: 'PEN', name: 'Penultimate', erklaerung: 'Die vorletzte Szene – der Vor-Cliff, der die Spannung unmittelbar vor dem Cliffhanger aufbaut.' },
-  { kuerzel: 'PU', name: 'Pick-Up', erklaerung: 'Oberbegriff für die Wiederaufnahme eines Strangs aus einer vorangegangenen Folge. Unterformen: DPU (direkter) und IPU (indirekter Pick-Up).' },
-  { kuerzel: 'DPU', name: 'Direkter Pick-Up', erklaerung: 'Erste Szene einer Folge mit direktem Anschluss an den Cliffhanger der Vorfolge – Continuous Action, kein Zeitsprung. Emotionale und zeitliche Fortsetzung.' },
-  { kuerzel: 'IPU', name: 'Indirekter Pick-Up', erklaerung: 'Erste Szene einer Folge, die einen Strang aus der Vorfolge wieder aufnimmt, aber mit Zeitsprung beginnt. Neue Handlung, kein direkter Anschluss.' },
-  { kuerzel: 'SOLO', name: 'Solo', erklaerung: 'Szene mit einer einzelnen Person allein – oft Reflexion, innerer Monolog oder Mini-Strang-Abschluss.' },
-  { kuerzel: 'Parken', name: 'Strang parken', erklaerung: 'Ein Erzählstrang wird bewusst für eine Weile nicht weitererzählt und für spätere Folgen zurückgestellt. Gegenteil: Wiederaufnahme (Pick-Up).' },
+  // Pick-Up / Strang-Wiederaufnahme
+  { kuerzel: 'PU',   name: 'Pick-Up',                           erklaerung: 'Wiederaufnahme eines Strangs nach einer bewussten Pause. Oberbegriff für DPU und IPU.' },
+  { kuerzel: 'DPU',  name: 'Direkter Pick-Up',                  erklaerung: 'Wiederaufnahme ohne Zeitsprung – Continuous Action (CA). Die Zeit zwischen den Szenen vergeht nicht.' },
+  { kuerzel: 'CA',   name: 'Continuous Action',                 erklaerung: 'Synonym für / Bestandteil von DPU: keine Zeitlücke zwischen aufeinanderfolgenden Szenen.' },
+  { kuerzel: 'IPU',  name: 'Indirekter Pick-Up',                erklaerung: 'Wiederaufnahme eines Strangs mit Zeitsprung.' },
+  { kuerzel: 'DPU.', name: 'Direkter Pick-Up (Eröffnungs-Marker)',   erklaerung: 'Eröffnungs-Marker: erste Szene einer Folge knüpft direkt (Continuous Action) an den Cliffhanger der Vorfolge an.' },
+  { kuerzel: 'IPU.', name: 'Indirekter Pick-Up (Eröffnungs-Marker)', erklaerung: 'Eröffnungs-Marker: erste Szene einer Folge nimmt einen Strang der Vorfolge wieder auf, aber mit Zeitsprung – kein direkter Anschluss.' },
+  { kuerzel: 'Parken', name: 'Strang parken',                   erklaerung: 'Bewusste Pause eines Erzählstrangs – kein Fehler, sondern dramaturgisches Mittel. Der Strang wird später per Pick-Up wieder aufgenommen.' },
+  // Struktur
+  { kuerzel: 'PEN',  name: 'Penultimate',                       erklaerung: 'Vorletzte Szene einer Folge – der Vor-Cliff, der die Spannung unmittelbar vor dem Cliffhanger aufbaut.' },
+  { kuerzel: 'CLIFF', name: 'Cliffhanger',                      erklaerung: 'Letzte Szene einer Folge: offen-eskalierend, spannungsgeladen – animiert zum Weiterschauen.' },
+  { kuerzel: 'SOLO', name: 'Solo',                              erklaerung: 'Szene mit einer einzelnen Figur allein.' },
   // Schnitt / Bild
-  { kuerzel: 'WS', name: 'Wechselschnitt', erklaerung: 'Zwei parallele Handlungen werden abwechselnd gegeneinander geschnitten, z. B. zwei gleichzeitige Szenen.' },
-  { kuerzel: 'Split-Screen', name: 'Split-Screen', erklaerung: 'Wie Wechselschnitt, aber beide Szenen werden gleichzeitig nebeneinander als Bildteilung gezeigt.' },
-  { kuerzel: 'One-Way', name: 'One-Way-Telefonat', erklaerung: 'Telefonszene, bei der nur eine Seite des Gesprächs im Bild zu sehen ist.' },
-  { kuerzel: 'Two-Way', name: 'Two-Way-Telefonat', erklaerung: 'Telefonszene, bei der beide Gesprächspartner gezeigt werden – eine Variante des Wechselschnitts.' },
+  { kuerzel: 'WS',          name: 'Wechselschnitt',             erklaerung: 'Zwei parallele Szenen werden abwechselnd gegeneinander geschnitten.' },
+  { kuerzel: 'Split-Screen', name: 'Split-Screen',              erklaerung: 'Wie Wechselschnitt, aber als Bildteilung: beide Szenen gleichzeitig nebeneinander sichtbar statt alternierend geschnitten.' },
+  { kuerzel: '1W',  name: 'One-Way-Telefonat',                  erklaerung: 'Telefonszene, bei der nur eine Seite des Gesprächs im Bild zu sehen ist.' },
+  { kuerzel: '2W',  name: 'Two-Way-Telefonat',                  erklaerung: 'Telefonszene, bei der beide Gesprächspartner gezeigt werden – eine Variante des Wechselschnitts.' },
   // Ton / Audio
-  { kuerzel: 'VO', name: 'Voice Over', erklaerung: 'Gedankenstimme oder Kommentar einer Figur aus dem Off; die Person ist nicht im Bild zu sehen.' },
-  { kuerzel: 'OFF', name: 'Off', erklaerung: 'Eine Person ist hörbar, aber nicht im Bild sichtbar (z. B. aus einem Nebenzimmer).' },
-  { kuerzel: 'NT', name: 'Nur Ton', erklaerung: 'Dialog oder Szene, die ausschließlich als Tonaufnahme produziert wird, ohne Bild.' },
-  { kuerzel: 'Einspieler', name: 'Einspieler', erklaerung: 'Musik, die beim Dreh live eingespielt wird, oder eine Videoeinspielung innerhalb der Szene.' },
+  { kuerzel: 'VO',  name: 'Voice Over',                         erklaerung: 'Gedankenstimme oder innerer Monolog einer Figur; die Person ist nicht im Bild zu sehen.' },
+  { kuerzel: 'OFF', name: 'Off',                                erklaerung: 'Stimme einer Person, die hörbar, aber nicht im Bild sichtbar ist.' },
+  { kuerzel: 'NT',  name: 'Nur Ton',                            erklaerung: 'Dialog, der ausschließlich akustisch aufgenommen wird, ohne Bild.' },
+  { kuerzel: 'Einspieler', name: 'Einspieler',                  erklaerung: 'Musik, die beim Dreh live eingespielt wird, oder eine Videoeinspielung innerhalb der Szene.' },
   // Produktion / Komparsen
-  { kuerzel: 'NMDP', name: 'Nach Möglichkeit der Produktion', erklaerung: 'Beispielhafte Setzung im Treatment, die in der Produktionsvorbereitung angepasst wird. Die 1:1-Umsetzung ist nicht erforderlich. Gilt auch für Komparsen: Szene mit Komparsen nur wenn Budget vorhanden, sonst ohne.' },
-  { kuerzel: 'o.T.', name: 'Ohne Text', erklaerung: 'Komparsen oder Nebenfiguren ohne Sprechrolle.' },
-  { kuerzel: 'SBSA', name: 'Sex bahnt sich an', erklaerung: 'Zwei Figuren sind kurz davor, Sex zu haben (z. B. beim Küssen oder Entkleiden). Die Szene endet oder blendet aus, bevor es jugendschutzrelevant wird.' },
+  { kuerzel: 'NMDP',            name: 'Nach Möglichkeit der Produktion', erklaerung: 'Beispielhafte Setzung im Treatment – 1:1-Umsetzung nicht erforderlich. Die Produktion entscheidet in der Vorbereitung, was realisiert wird.' },
+  { kuerzel: 'NMDP-Komparsen',  name: 'NMDP für Komparsen',    erklaerung: 'Komparsen erscheinen in dieser Szene nur, wenn das Produktionsbudget es erlaubt.' },
+  { kuerzel: 'o.T.', name: 'Ohne Text',                         erklaerung: 'Komparsen oder Nebenfiguren ohne Sprechrolle.' },
+  { kuerzel: 'SBSA', name: 'Sex bahnt sich an',                 erklaerung: 'Zwei Figuren sind kurz davor, Sex zu haben. Die Szene endet oder blendet aus, bevor es jugendschutzrelevant wird (Pre-Coitus, jugendschutzkonform ausgeblendet).' },
 ]
 
 type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; sort_order: number }
