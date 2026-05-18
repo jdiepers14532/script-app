@@ -2706,7 +2706,7 @@ export default function DrehbuchkoordinationPage() {
           gap: 16,
         }}>
           <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
+            <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
               Drehbuchkoordination
             </h2>
             <button
