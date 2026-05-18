@@ -10,7 +10,8 @@ import { DEFAULT_SECTIONS, type StatModalSection } from '../components/Statistik
 import { useTerminologie, TERM_OPTIONS, TERM_DEFAULTS, TERM_KEYS, TERM_LABELS } from '../sw-ui'
 import type { TermKey, TerminologieConfig } from '../sw-ui'
 import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, renderPmToPreviewHtml, type DokumentVorlagenEditorValue, type PreviewContext } from '../components/editor/DokumentVorlagenEditor'
-import { SzenenKopfVorlagenEditor } from '../sw-ui'
+import { SzenenKopfVorlagenEditor, KopfZeilenEditor, emptyKopfZeilenEditorValue } from '../sw-ui'
+import type { KopfZeilenEditorValue } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
@@ -4078,7 +4079,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
   }
   const [activeTyp, setActiveTyp] = useState<'drehbuch' | 'storyline' | 'notiz'>('drehbuch')
-  const [configs, setConfigs] = useState<Record<string, DokumentVorlagenEditorValue | null>>({})
+  const [configs, setConfigs] = useState<Record<string, KopfZeilenEditorValue | null>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState<Record<string, boolean>>({})
@@ -4087,16 +4088,15 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
     setLoading(true)
     api.getKopfFusszeilen(productionId)
       .then(rows => {
-        const map: Record<string, DokumentVorlagenEditorValue> = {}
+        const map: Record<string, KopfZeilenEditorValue> = {}
         for (const row of rows) {
           map[row.werkstufe_typ] = {
-            body_content:            null,
             kopfzeile_content:       row.kopfzeile_content,
             fusszeile_content:       row.fusszeile_content,
             kopfzeile_aktiv:         row.kopfzeile_aktiv ?? false,
             fusszeile_aktiv:         row.fusszeile_aktiv ?? false,
             erste_seite_kein_header: row.erste_seite_kein_header ?? true,
-            seiten_layout:           row.seiten_layout ?? emptyVorlagenEditorValue().seiten_layout,
+            seiten_layout:           row.seiten_layout ?? emptyKopfZeilenEditorValue().seiten_layout,
           }
         }
         setConfigs(map)
@@ -4104,10 +4104,10 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
       .finally(() => setLoading(false))
   }, [productionId])
 
-  const getCurrentValue = (): DokumentVorlagenEditorValue =>
-    configs[activeTyp] ?? { ...emptyVorlagenEditorValue(), body_content: null }
+  const getCurrentValue = (): KopfZeilenEditorValue =>
+    configs[activeTyp] ?? emptyKopfZeilenEditorValue()
 
-  const handleChange = (v: DokumentVorlagenEditorValue) => {
+  const handleChange = (v: KopfZeilenEditorValue) => {
     setConfigs(prev => ({ ...prev, [activeTyp]: v }))
     setDirty(prev => ({ ...prev, [activeTyp]: true }))
   }
@@ -4192,15 +4192,12 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
         Fassungen dieser Produktion. Gilt auf jeder Seite des Exports (außer ggf. erste Seite).
       </div>
 
-      {/* Editor — noBody=true, only KZ + FZ zones */}
+      {/* Editor — KopfZeilenEditor mit SK-UX + Lineal */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        <DokumentVorlagenEditor
+        <KopfZeilenEditor
           key={activeTyp}
           value={currentConfig}
           onChange={handleChange}
-          noBody
-          produktionsLogoUrl={produktionsLogoUrl}
-          previewContext={previewContext}
         />
       </div>
     </div>

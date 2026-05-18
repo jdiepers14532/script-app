@@ -16,6 +16,9 @@ import { FontSizeExtension } from './extensions/FontSizeExtension'
 import { ParagraphStyleExtension } from './extensions/ParagraphStyleExtension'
 import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel, getPlaceholderColor } from './extensions/PlaceholderChipExtension'
 import type { PlaceholderZone } from './extensions/PlaceholderChipExtension'
+import { RulerBar } from './primitives/RulerBar'
+import { TabKeyExtension, TAB_ALIGN_NEXT } from './primitives/TabStopExtension'
+import type { TabStop } from './primitives/TabStopExtension'
 
 // ── CSS injection ─────────────────────────────────────────────────────────────
 let chipCssInjected = false
@@ -90,6 +93,7 @@ export interface DokumentVorlagenEditorValue {
   fusszeile_aktiv:         boolean
   erste_seite_kein_header: boolean
   seiten_layout:           SeitenLayout
+  tab_stops?:              TabStop[]
 }
 
 /** Real values shown in the preview strip instead of placeholder keys */
@@ -324,6 +328,7 @@ const TIPTAP_EXTENSIONS = [
   TableCell,
   TableHeader,
   TableStyleExtension,
+  TabKeyExtension,
 ]
 
 // ── Single-zone editor (used for body) ───────────────────────────────────────
@@ -1233,6 +1238,10 @@ export default function DokumentVorlagenEditor({
 
   const [bodyEditor, setBodyEditor] = useState<Editor | null>(null)
   const bodyFileRef = useRef<HTMLInputElement>(null)
+  const bodyContainerRef = useRef<HTMLDivElement>(null)
+
+  const localTabStops: TabStop[] = value.tab_stops ?? []
+  const rulerCm = layout.format === 'letter' ? 21.59 : 21.0
 
   const update = useCallback((patch: Partial<DokumentVorlagenEditorValue>) => {
     onChange({ ...value, ...patch })
@@ -1251,6 +1260,23 @@ export default function DokumentVorlagenEditor({
     reader.readAsDataURL(file)
     e.target.value = ''
   }
+
+  const handleBodyTabToggle = useCallback((pos: number) => {
+    const existing = localTabStops.find(ts => ts.pos === pos)
+    if (existing) {
+      const next = TAB_ALIGN_NEXT[existing.align]
+      update({ tab_stops: next === null
+        ? localTabStops.filter(ts => ts.pos !== pos)
+        : localTabStops.map(ts => ts.pos === pos ? { ...ts, align: next } : ts)
+      })
+    } else {
+      update({ tab_stops: [...localTabStops, { pos, align: 'left' as const }].sort((a, b) => a.pos - b.pos) })
+    }
+  }, [localTabStops, update])
+
+  const handleBodyMarginChange = useCallback((side: 'left' | 'right', mm: number) => {
+    update({ seiten_layout: { ...layout, [side === 'left' ? 'margin_left' : 'margin_right']: mm } })
+  }, [layout, update])
 
   return (
     <div style={{ background: noHeaderFooter || sidebarMode ? 'transparent' : 'var(--bg-subtle)', padding: noHeaderFooter || sidebarMode ? '0' : '24px 16px', borderRadius: 8 }}>
@@ -1299,6 +1325,21 @@ export default function DokumentVorlagenEditor({
               onAktivChange={v => update({ kopfzeile_aktiv: v })}
               onErsteSeiteOhneChange={v => update({ erste_seite_kein_header: v })}
               onChange={c => update({ kopfzeile_content: c })}
+            />
+          </div>
+        )}
+
+        {/* Lineal für Body-Zone */}
+        {!noBody && !sidebarMode && !noHeaderFooter && (
+          <div ref={bodyContainerRef}>
+            <RulerBar
+              tabStops={localTabStops}
+              onToggle={handleBodyTabToggle}
+              containerRef={bodyContainerRef}
+              rulerCm={rulerCm}
+              marginLeftCm={layout.margin_left / 10}
+              marginRightCm={layout.margin_right / 10}
+              onMarginChange={readOnly ? undefined : handleBodyMarginChange}
             />
           </div>
         )}

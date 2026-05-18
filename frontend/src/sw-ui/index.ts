@@ -19,3 +19,10 @@ export type { OfflineQueueProviderProps } from './OfflineQueueContext';
 export { default as SzenenKopfVorlagenEditor } from './SzenenKopfVorlagenEditor';
 export type { SKChipDef } from './SzenenKopfVorlagenEditor';
 export { SK_CHIPS } from './SzenenKopfVorlagenEditor';
+
+export { RulerBar } from './editor/primitives/RulerBar';
+export type { RulerBarProps } from './editor/primitives/RulerBar';
+export { TabKeyExtension, TAB_ALIGN_NEXT, TAB_ALIGN_SYMBOL, TAB_ALIGN_COLORS } from './editor/primitives/TabStopExtension';
+export type { TabAlign, TabStop } from './editor/primitives/TabStopExtension';
+export { default as KopfZeilenEditor, emptyKopfZeilenEditorValue } from './editor/KopfZeilenEditor';
+export type { KopfZeilenEditorValue } from './editor/KopfZeilenEditor';
