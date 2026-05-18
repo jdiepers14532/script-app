@@ -30,7 +30,7 @@ import {
 } from './routes/vorstopp'
 import {
   stageLabelsRouter, revisionColorsRouter,
-  revisionEinstellungenRouter,
+  revisionEinstellungenRouter, revisionFarbenPresetsRouter,
 } from './routes/revision'
 import dokAdminRouter from './routes/dokument-admin'
 import autocompleteRouter from './routes/autocomplete'
@@ -151,6 +151,7 @@ app.use('/api/produktionen/:produktionId/vorstopp-einstellungen', (req, _res, ne
 app.use('/api/produktionen/:produktionId/stage-labels', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, stageLabelsRouter)
 app.use('/api/produktionen/:produktionId/revision-colors', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, revisionColorsRouter)
 app.use('/api/produktionen/:produktionId/revision-einstellungen', (req, _res, next) => { (req.params as any).produktionId = req.params.produktionId; next() }, revisionEinstellungenRouter)
+app.use('/api/revision-farben-presets', revisionFarbenPresetsRouter)
 
 // Werkstufen-Modell (v2)
 app.use('/api/v2/folgen', folgenV2Router)
@@ -310,6 +311,7 @@ async function runMigrations() {
     'v84_flashback_freitext.sql',
     'v85_drop_stockshot_stimmung.sql',
     'v86_preset_layout_settings.sql',
+    'v87_revision_farben_presets.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

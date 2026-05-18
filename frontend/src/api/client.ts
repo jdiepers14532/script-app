@@ -215,6 +215,14 @@ export const api = {
   revisionColorsWgaPreset: (produktionId: string) =>
     request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors/wga-preset`),
 
+  // Globale Revisions-Farben-Presets
+  getRevisionFarbenPresets: () =>
+    request<any[]>('GET', `/revision-farben-presets`),
+  createRevisionFarbenPreset: (data: { name: string; farben: { name: string; color: string }[] }) =>
+    request<any>('POST', `/revision-farben-presets`, data),
+  deleteRevisionFarbenPreset: (id: number) =>
+    request<void>('DELETE', `/revision-farben-presets/${id}`),
+
   // Revision Einstellungen
   getRevisionEinstellungen: (produktionId: string) =>
     request<any>('GET', `/produktionen/${encodeURIComponent(produktionId)}/revision-einstellungen`),

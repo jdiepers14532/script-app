@@ -97,8 +97,8 @@ vorstoppEinstellungenRouter.get('/', async (req, res) => {
 vorstoppEinstellungenRouter.put('/', async (req, res) => {
   const { produktionId } = req.params as any
   const { methode, menge, dauer_sekunden } = req.body
-  if (methode && !['seiten', 'zeichen', 'woerter'].includes(methode)) {
-    return res.status(400).json({ error: 'methode muss seiten, zeichen oder woerter sein' })
+  if (methode && !['seiten', 'zeichen', 'zeichen_mit_leerzeichen', 'woerter'].includes(methode)) {
+    return res.status(400).json({ error: 'methode muss seiten, zeichen, zeichen_mit_leerzeichen oder woerter sein' })
   }
   try {
     const row = await queryOne(
@@ -161,6 +161,11 @@ szenenVorstoppRouter.post('/auto', async (req, res) => {
       const text = content.map((b: any) => b.text ?? '').join(' ')
       menge_ist = text.replace(/\s/g, '').length
       methode_used = 'auto_zeichen'
+    } else if (einst.methode === 'zeichen_mit_leerzeichen') {
+      const content = Array.isArray(szene.content) ? szene.content : []
+      const text = content.map((b: any) => b.text ?? '').join(' ')
+      menge_ist = text.length
+      methode_used = 'auto_zeichen_mit_leerzeichen'
     } else if (einst.methode === 'woerter') {
       const content = Array.isArray(szene.content) ? szene.content : []
       const text = content.map((b: any) => b.text ?? '').join(' ')

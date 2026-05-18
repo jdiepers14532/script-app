@@ -5,6 +5,7 @@ import { authMiddleware } from '../auth'
 export const stageLabelsRouter = Router({ mergeParams: true })
 export const revisionColorsRouter = Router({ mergeParams: true })
 export const revisionEinstellungenRouter = Router({ mergeParams: true })
+export const revisionFarbenPresetsRouter = Router()
 
 stageLabelsRouter.use(authMiddleware)
 revisionColorsRouter.use(authMiddleware)
@@ -247,6 +248,44 @@ revisionColorsRouter.patch('/reorder', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
+})
+
+// ── Globale Revisions-Farben-Presets ──────────────────────────────────────────
+
+revisionFarbenPresetsRouter.use(authMiddleware)
+
+// GET /api/revision-farben-presets
+revisionFarbenPresetsRouter.get('/', async (_req, res) => {
+  try {
+    const rows = await query(`SELECT * FROM revision_farben_presets ORDER BY erstellt_am`, [])
+    res.json(rows)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// POST /api/revision-farben-presets
+revisionFarbenPresetsRouter.post('/', async (req, res) => {
+  const { name, farben } = req.body
+  const user = (req as any).user
+  if (!name || !Array.isArray(farben)) return res.status(400).json({ error: 'name und farben[] required' })
+  try {
+    const row = await queryOne(
+      `INSERT INTO revision_farben_presets (name, farben, erstellt_von) VALUES ($1, $2, $3) RETURNING *`,
+      [name, JSON.stringify(farben), user?.name ?? null]
+    )
+    res.status(201).json(row)
+  } catch (err: any) {
+    if (err.code === '23505') return res.status(409).json({ error: 'Preset-Name bereits vorhanden' })
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// DELETE /api/revision-farben-presets/:id
+revisionFarbenPresetsRouter.delete('/:id', async (req, res) => {
+  try {
+    const row = await queryOne(`DELETE FROM revision_farben_presets WHERE id = $1 RETURNING id`, [req.params.id])
+    if (!row) return res.status(404).json({ error: 'Preset nicht gefunden' })
+    res.json({ ok: true })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
 // ── Revision Export Einstellungen ─────────────────────────────────────────────

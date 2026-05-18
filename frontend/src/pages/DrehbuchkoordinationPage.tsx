@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
+import Tooltip from '../components/Tooltip'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
 import { DEFAULT_ENV_COLORS, DEFAULT_ENV_COLORS_DARK, type EnvKey, type EnvColor } from '../data/scenes'
@@ -659,6 +660,13 @@ function ProduktionTab() {
   const [newLabel, setNewLabel] = useState({ name: '', is_produktionsfassung: false })
   const [newColor, setNewColor] = useState({ name: '', color: '#4A90D9' })
   const [wgaPresetDone, setWgaPresetDone] = useState(false)
+  const [farbenPresets, setFarbenPresets] = useState<any[]>([])
+  const [newPresetName, setNewPresetName] = useState('')
+  const [savePresetOpen, setSavePresetOpen] = useState(false)
+
+  useEffect(() => {
+    api.getRevisionFarbenPresets().then(setFarbenPresets).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!produktionId) return
@@ -738,6 +746,33 @@ function ProduktionTab() {
     catch {} finally { set('vs', false) }
   }
 
+  const savePreset = async () => {
+    if (!newPresetName.trim() || !colors.length) return
+    set('preset', true)
+    try {
+      const r = await api.createRevisionFarbenPreset({ name: newPresetName.trim(), farben: colors.map(c => ({ name: c.name, color: c.color })) })
+      setFarbenPresets(prev => [...prev, r])
+      setNewPresetName('')
+      setSavePresetOpen(false)
+    } catch {} finally { set('preset', false) }
+  }
+  const deletePreset = async (id: number) => {
+    try { await api.deleteRevisionFarbenPreset(id); setFarbenPresets(prev => prev.filter(p => p.id !== id)) } catch {}
+  }
+  const loadPreset = (preset: any) => {
+    const farben: { name: string; color: string }[] = Array.isArray(preset.farben) ? preset.farben : JSON.parse(preset.farben ?? '[]')
+    // Bestehende Farben dieser Produktion löschen und durch Preset ersetzen (nach Bestätigung)
+    if (!window.confirm(`Preset "$\{preset.name\}" laden? Alle aktuellen Farben dieser Produktion werden ersetzt.`)) return
+    Promise.all(colors.map(c => api.deleteRevisionColor(produktionId, c.id).catch(() => {}))).then(async () => {
+      const added: any[] = []
+      for (let i = 0; i < farben.length; i++) {
+        const r = await api.createRevisionColor(produktionId, { ...farben[i], sort_order: i + 1 }).catch(() => null)
+        if (r) added.push(r)
+      }
+      setColors(added)
+    })
+  }
+
   const sectionStyle: React.CSSProperties = { marginBottom: 40 }
   const h3Style: React.CSSProperties = { fontSize: 13, fontWeight: 600, margin: '0 0 4px' }
   const subStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }
@@ -811,15 +846,56 @@ function ProduktionTab() {
 
       {/* ── Revision Colors ── */}
       <section style={sectionStyle}>
-        <h3 style={h3Style}>Revisions-Farben (WGA-Standard)</h3>
+        <h3 style={{ ...h3Style, display: 'flex', alignItems: 'center', gap: 6 }}>
+          Revisions-Farben (Textänderungen)
+          <Tooltip text={'Farbkodierung für Revisionsrunden (geänderte Seiten werden farbig gedruckt).
+
+WGA-Standard (USA/UK): 11 Farben in festgelegter Reihenfolge (Weiß → Blau → Pink → Gelb → Grün → …)
+
+ARD/ZDF/Deutschland: keine Normierung — jede Produktion wählt selbst.
+
+Eigene Farbpresets können unten gespeichert und in allen Produktionen wiederverwendet werden.'}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, cursor: 'default', border: '1px solid var(--border)', borderRadius: 99, padding: '1px 6px' }}>?</span>
+          </Tooltip>
+        </h3>
         <p style={subStyle}>Farbmarkierung für Revisionsstände. Reihenfolge bestimmt die Revisions-Sequenz.</p>
-        <button
-          onClick={handleWgaPreset}
-          disabled={busy('wga')}
-          style={{ fontSize: 12, padding: '7px 14px', border: '1px solid var(--border)', borderRadius: 8, cursor: 'pointer', marginBottom: 12, background: wgaPresetDone ? '#00C853' : 'transparent', color: wgaPresetDone ? '#fff' : 'var(--text)', transition: 'background 0.2s, color 0.2s' }}
-        >
-          {busy('wga') ? 'Wird eingefügt...' : wgaPresetDone ? 'WGA-Farben eingefügt' : 'WGA-Standard-Farben einfügen'}
-        </button>
+
+        {/* Preset-Leiste */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button
+            onClick={handleWgaPreset}
+            disabled={busy('wga')}
+            style={{ fontSize: 12, padding: '6px 12px', border: '1px solid var(--border)', borderRadius: 7, cursor: 'pointer', background: wgaPresetDone ? '#00C853' : 'transparent', color: wgaPresetDone ? '#fff' : 'var(--text)', transition: 'background 0.2s, color 0.2s' }}
+          >
+            {busy('wga') ? '...' : wgaPresetDone ? 'WGA eingefügt' : 'WGA-Standard'}
+          </button>
+          {farbenPresets.map(p => (
+            <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
+              <button onClick={() => loadPreset(p)} style={{ fontSize: 12, padding: '6px 10px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text)' }}>{p.name}</button>
+              <button onClick={() => deletePreset(p.id)} style={{ fontSize: 11, padding: '6px 6px', background: 'transparent', border: 'none', borderLeft: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+            </div>
+          ))}
+          {savePresetOpen ? (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input
+                style={{ ...inputStyle, fontSize: 12, padding: '5px 8px', width: 160 }}
+                placeholder="Preset-Name..."
+                value={newPresetName}
+                onChange={e => setNewPresetName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && savePreset()}
+                autoFocus
+              />
+              <button style={{ ...btnStyle, fontSize: 12 }} onClick={savePreset} disabled={busy('preset') || !newPresetName.trim() || !colors.length}>
+                {busy('preset') ? '...' : 'Speichern'}
+              </button>
+              <button style={{ ...btnStyle, fontSize: 12 }} onClick={() => { setSavePresetOpen(false); setNewPresetName('') }}>Abbrechen</button>
+            </div>
+          ) : (
+            <button onClick={() => setSavePresetOpen(true)} style={{ fontSize: 12, padding: '6px 10px', border: '1px dashed var(--border)', borderRadius: 7, cursor: 'pointer', background: 'transparent', color: 'var(--text-secondary)' }}>
+              + Als Preset speichern
+            </button>
+          )}
+        </div>
 
         <SortableList
           items={colors}
@@ -877,8 +953,11 @@ function ProduktionTab() {
       {/* ── Vorstopp Einstellungen ── */}
       <section style={sectionStyle}>
         <h3 style={h3Style}>Vorstopp-Einstellungen</h3>
-        <p style={subStyle}>Basis für die automatische Vorstopp-Berechnung aus der Seitenanzahl einer Szene.</p>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        <p style={subStyle}>
+          Verhältnis für die automatische Vorstopp-Berechnung: <em>X Einheiten entsprechen Y Sekunden.</em><br />
+          Beispiel: 54 Seiten = 60 Sek. → jede Seite ≈ 1,11 Sek.
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Methode</span>
             <select
@@ -886,25 +965,27 @@ function ProduktionTab() {
               value={vorstoppEin.methode}
               onChange={e => setVorstoppEin(v => ({ ...v, methode: e.target.value }))}
             >
-              <option value="seiten">Seiten</option>
-              <option value="sekunden">Sekunden direkt</option>
+              <option value="seiten">Seiten : Sek.</option>
+              <option value="zeichen">Zeichen o. Leerz. : Sek.</option>
+              <option value="zeichen_mit_leerzeichen">Zeichen m. Leerz. : Sek.</option>
             </select>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {vorstoppEin.methode === 'seiten' ? 'Sekunden pro Seite (1/8)' : 'Menge'}
+              {vorstoppEin.methode === 'seiten' ? 'Seiten' : vorstoppEin.methode === 'zeichen' ? 'Zeichen (o. Leerz.)' : 'Zeichen (m. Leerz.)'}
             </span>
             <input
               type="number"
-              style={{ ...inputStyle, width: 120 }}
+              style={{ ...inputStyle, width: 110 }}
               value={vorstoppEin.menge}
               min={0}
-              step={0.5}
+              step={vorstoppEin.methode === 'seiten' ? 0.125 : 10}
               onChange={e => setVorstoppEin(v => ({ ...v, menge: parseFloat(e.target.value) || 0 }))}
             />
           </div>
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)', paddingBottom: 8 }}>entsprechen</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Dauer gesamt (Sek.)</span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Sekunden</span>
             <input
               type="number"
               style={{ ...inputStyle, width: 100 }}
