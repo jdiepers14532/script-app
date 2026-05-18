@@ -793,22 +793,29 @@ function EinsatzModal({
   const [blockNr, setBlockNr] = useState<number | undefined>(einsatz?.block_nummer)
   const [folgeNr, setFolgeNr] = useState<number | undefined>(einsatz?.folge_nummer)
   const [notiz, setNotiz] = useState(einsatz?.notiz || '')
-  const [vonDatum, setVonDatum] = useState(einsatz?.von_datum || mondayPlusDays(wocheDatum, 0))
-  const [bisDatum, setBisDatum] = useState(einsatz?.bis_datum || mondayPlusDays(wocheDatum, 4))
+  const [vonDatum, setVonDatum] = useState(einsatz?.von_datum || mondayPlusDays(mondayOf(wocheDatum), 0))
+  const [bisDatum, setBisDatum] = useState(einsatz?.bis_datum || mondayPlusDays(mondayOf(wocheDatum), 4))
   const [gageKat, setGageKat] = useState<number | undefined>(einsatz?.gage_kat)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [cacheResults, setCacheResults] = useState<string[]>([])
   const cacheDebounceRef = useRef<any>(null)
 
-  const weekMonday = mondayPlusDays(wocheDatum, 0)
-  const weekSunday = mondayPlusDays(wocheDatum, 6)
+  const weekBase = mondayOf(wocheDatum)
+  const weekMonday = mondayPlusDays(weekBase, 0)
+  const weekSunday = mondayPlusDays(weekBase, 6)
 
-  // Gesamt-Vertragszeit aus benachbarten Einsätzen derselben Person
+  // Gesamt-Vertragszeit aus benachbarten Einsätzen derselben Person (auch Platzhalter)
+  const hasPersonMatch = personId !== undefined || (isPlatzhalter && !!personName)
+  const matchesPerson = (e: Einsatz) =>
+    personId !== undefined
+      ? e.vertragsdb_person_id === personId
+      : (e.platzhalter_name || '') === (personName || '')
+
   let gesamtVertragszeit: { von: string; bis: string; wochen: number } | null = null
-  if (personId && einsaetze && einsaetze.length > 0) {
+  if (hasPersonMatch && einsaetze && einsaetze.length > 0) {
     const others = einsaetze.filter(e =>
-      e.vertragsdb_person_id === personId &&
+      matchesPerson(e) &&
       e.job_kategorie_id === jk.id &&
       e.id !== einsatz?.id
     )
@@ -1114,16 +1121,31 @@ function EinsatzModal({
           {/* Gagenkategorie */}
           {jk.gagen && jk.gagen.length > 0 && (
             <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Kat.</label>
-              <select value={gageKat ?? ''} onChange={e => setGageKat(e.target.value !== '' ? parseInt(e.target.value) : undefined)}
-                style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}>
-                <option value="">— ohne Zuordnung —</option>
-                {jk.gagen.map((g, i) => (
-                  <option key={i} value={i}>
-                    Kat. {g.kat}{g.betrag ? ` · ${g.betrag} €` : ''} · {ABRECHNUNGSTYPEN.find(a => a.id === g.abrechnungstyp)?.label ?? g.abrechnungstyp}
-                  </option>
-                ))}
-              </select>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
+                Kat.
+                <span style={{ fontSize: 10, fontWeight: 400, marginLeft: 6, color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: 0 }}>
+                  ({jk.gagen.map(g => g.kat).join(', ')})
+                </span>
+              </label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <input
+                  type="text"
+                  value={gageKat !== undefined ? (jk.gagen[gageKat]?.kat ?? '') : ''}
+                  onChange={e => {
+                    const val = e.target.value.trim()
+                    const idx = jk.gagen!.findIndex(g => g.kat === val)
+                    setGageKat(idx >= 0 ? idx : undefined)
+                  }}
+                  placeholder="—"
+                  maxLength={3}
+                  style={{ width: 52, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, textAlign: 'center', color: 'var(--text-primary)' }}
+                />
+                {gageKat !== undefined && jk.gagen[gageKat] && (
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {ABRECHNUNGSTYPEN.find(a => a.id === jk.gagen![gageKat].abrechnungstyp)?.label ?? jk.gagen![gageKat].abrechnungstyp}
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -1264,7 +1286,7 @@ function AutorenplanGrid({
   const bisDate = dateKey(addWeeks(windowStart, WEEKS_VISIBLE))
 
   const CELL_W = 80
-  const ROW_H = 34
+  const ROW_H = 46
   const LABEL_W = 140
 
   // Block-Info einmalig laden
@@ -1514,7 +1536,7 @@ function AutorenplanGrid({
                       >
                         {einsatz ? (
                           <Tooltip text={[
-                            `${jk.label} · ${statusLabel(einsatz.status)}`,
+                            statusLabel(einsatz.status),
                             name,
                             isCellPlatzhalter ? 'Platzhalter (nicht in Firmendatenbank)' : '',
                             isHO ? 'HomeOffice' : 'Präsenz (Writers Room)',
@@ -1582,19 +1604,28 @@ function AutorenplanGrid({
                     }}
                     onMouseEnter={e => { if (!nots.length) e.currentTarget.style.background = 'var(--bg-subtle)' }}
                     onMouseLeave={e => { e.currentTarget.style.background = baseBg }}>
-                    <div style={{ display: 'flex', alignItems: 'center', height: ROW_H - 4, padding: '0 2px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', height: ROW_H - 6, padding: '0 2px' }}>
                       {nots.length > 0 ? (
-                        <Tooltip text={nots.map(n => `[${n.typ.charAt(0).toUpperCase() + n.typ.slice(1)}] ${n.text}`).join('\n\n')}>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, width: '100%', overflow: 'hidden' }}>
+                        <Tooltip text={nots.map(n => {
+                            const dot = n.typ === 'allgemein' ? '🔵' : n.typ === 'zusatzkosten' ? '🟡' : '🔴'
+                            return `${dot} ${n.text}`
+                          }).join('\n\n')}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 3, width: '100%', overflow: 'hidden', height: '100%' }}>
                             <div style={{ width: 3, minHeight: 20, borderRadius: 2, background: typColor, flexShrink: 0, alignSelf: 'stretch' }} />
-                            <div style={{ flex: 1, overflow: 'hidden' }}>
-                              {nots.slice(0, 2).map((n, ni) => (
-                                <div key={n.id} style={{ fontSize: 9, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-                                  {n.text}
-                                </div>
-                              ))}
-                              {nots.length > 2 && (
-                                <div style={{ fontSize: 9, color: typColor, fontWeight: 600, lineHeight: 1.4 }}>+{nots.length - 2}</div>
+                            <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1 }}>
+                              {nots.slice(0, 3).map((n) => {
+                                const c = NOTIZ_FARBEN[n.typ] || '#007AFF'
+                                return (
+                                  <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 3, overflow: 'hidden' }}>
+                                    <div style={{ width: 4, height: 4, borderRadius: '50%', background: c, flexShrink: 0 }} />
+                                    <div style={{ fontSize: 9, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }}>
+                                      {n.text}
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                              {nots.length > 3 && (
+                                <div style={{ fontSize: 9, color: typColor, fontWeight: 600, lineHeight: 1.3 }}>+{nots.length - 3}</div>
                               )}
                             </div>
                           </div>
