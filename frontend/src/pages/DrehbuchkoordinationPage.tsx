@@ -274,7 +274,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       <section>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Datumsformat</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
-          Format fuer Datumsangaben in Kopf-/Fusszeilen und Exporten dieser Produktion.
+          Format für Datumsangaben in Kopf-/Fußzeilen und Exporten dieser Produktion.
         </p>
         <div className="seg" style={{ display: 'inline-flex' }}>
           {([
@@ -403,7 +403,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
           onClick={resetEnvColorsToDefault}
           disabled={envColorsSaving}
         >
-          Auf Standard zuruecksetzen
+          Auf Standard zurücksetzen
         </button>
         {envColorsSaving && <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
       </section>
@@ -415,7 +415,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         </p>
         <div className="admin-roles-list">
           {roles === null
-            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Laedt...</span>
+            ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt...</span>
             : roles.length === 0
             ? <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>--</span>
             : roles.map(r => <span key={r} className="admin-role-chip">{r}</span>)
@@ -515,7 +515,7 @@ function FigurenTab() {
   return (
     <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 32 }}>
       {!produktionId && (
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bitte eine Produktion auswaehlen, um Felder zu konfigurieren.</p>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bitte eine Produktion auswählen, um Felder zu konfigurieren.</p>
       )}
 
       {produktionId && (
@@ -657,6 +657,7 @@ function ProduktionTab() {
   // New-item input state
   const [newLabel, setNewLabel] = useState({ name: '', is_produktionsfassung: false })
   const [newColor, setNewColor] = useState({ name: '', color: '#4A90D9' })
+  const [wgaPresetDone, setWgaPresetDone] = useState(false)
 
   useEffect(() => {
     if (!produktionId) return
@@ -716,6 +717,15 @@ function ProduktionTab() {
     const order = ordered.map((c, i) => ({ id: c.id, sort_order: i + 1 }))
     try { const r = await api.reorderRevisionColors(produktionId, order); setColors(r) } catch {}
   }
+  const handleWgaPreset = async () => {
+    set('wga', true)
+    try {
+      const rows = await api.revisionColorsWgaPreset(produktionId)
+      setColors(rows)
+      setWgaPresetDone(true)
+      setTimeout(() => setWgaPresetDone(false), 3000)
+    } catch {} finally { set('wga', false) }
+  }
   const saveMemo = async () => {
     set('memo', true)
     try { await api.updateRevisionEinstellungen(produktionId, { memo_schwellwert_zeichen: memoSchwelle }) }
@@ -738,7 +748,7 @@ function ProduktionTab() {
   if (!selectedProduction) {
     return (
       <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-        Keine Produktion ausgewaehlt. Waehle eine Produktion im Header aus.
+        Keine Produktion ausgewählt. Wähle eine Produktion im Header aus.
       </div>
     )
   }
@@ -749,7 +759,7 @@ function ProduktionTab() {
       {/* ── Stage Labels ── */}
       <section style={sectionStyle}>
         <h3 style={h3Style}>Fassungs-Labels</h3>
-        <p style={subStyle}>Labels fuer Fassungen (Stages) dieser Produktion. Ein Label kann als Produktionsfassung markiert werden -- dieses loest den Schloss-Mechanismus aus.</p>
+        <p style={subStyle}>Labels für Fassungen (Stages) dieser Produktion. Ein Label kann als Produktionsfassung markiert werden -- dieses löst den Schloss-Mechanismus aus.</p>
 
         <SortableList
           items={labels}
@@ -801,7 +811,7 @@ function ProduktionTab() {
       {/* ── Revision Colors ── */}
       <section style={sectionStyle}>
         <h3 style={h3Style}>Revisions-Farben (WGA-Standard)</h3>
-        <p style={subStyle}>Farbmarkierung fuer Revisionsstaende. Reihenfolge bestimmt die Revisions-Sequenz.</p>
+        <p style={subStyle}>Farbmarkierung für Revisionsstände. Reihenfolge bestimmt die Revisions-Sequenz.</p>
 
         <SortableList
           items={colors}
@@ -859,7 +869,7 @@ function ProduktionTab() {
       {/* ── Vorstopp Einstellungen ── */}
       <section style={sectionStyle}>
         <h3 style={h3Style}>Vorstopp-Einstellungen</h3>
-        <p style={subStyle}>Basis fuer die automatische Vorstopp-Berechnung aus der Seitenanzahl einer Szene.</p>
+        <p style={subStyle}>Basis für die automatische Vorstopp-Berechnung aus der Seitenanzahl einer Szene.</p>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Methode</span>
@@ -1054,7 +1064,7 @@ function DokumentTypenTab() {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Absatzformat "${name}" loeschen?`)) return
+    if (!confirm(`Absatzformat "${name}" löschen?`)) return
     try { await api.deleteAbsatzformat(produktionId, id); await load() } catch (e: any) { setMsg(e.message) }
   }
 
@@ -1130,7 +1140,7 @@ function DokumentTypenTab() {
   const inputStyle = { padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, width: '100%', background: 'var(--bg-surface)', color: 'var(--text-primary)' } as const
   const selectStyle = { ...inputStyle, width: 'auto' } as const
 
-  if (!produktionId) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion waehlen.</p>
+  if (!produktionId) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion wählen.</p>
 
   return (
     <div style={{ maxWidth: 960 }}>
@@ -1306,7 +1316,7 @@ function DokumentTypenTab() {
       </div>
 
       {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
-      {loading && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Laedt...</p>}
+      {loading && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Lädt...</p>}
 
       {/* Absatzformate-Tabelle */}
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
@@ -1462,7 +1472,7 @@ function DokumentTypenTab() {
         {!showAdd ? (
           <button onClick={() => setShowAdd(true)}
             style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 11, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
-            + Format hinzufuegen
+            + Format hinzufügen
           </button>
         ) : (
           <AbsatzformatAddForm formate={formate} onAdd={handleAdd} onCancel={() => setShowAdd(false)} />
@@ -2225,7 +2235,7 @@ function CopySection({ produktionId, onCopied }: { produktionId: string; onCopie
     <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
       <h4 style={{ fontSize: 13, fontWeight: 600, margin: 0 }}>Von Produktion kopieren</h4>
       <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-        Uebernimmt Einstellungen einer anderen Produktion in die aktuelle.
+        Übernimmt Einstellungen einer anderen Produktion in die aktuelle.
       </p>
 
       {/* Source autocomplete */}
@@ -2616,14 +2626,14 @@ export default function DrehbuchkoordinationPage() {
 
   const renderContent = () => {
     if (hasAccess === null) {
-      return <div style={{ padding: '28px 32px', fontSize: 13, color: 'var(--text-secondary)' }}>Zugriff wird geprueft...</div>
+      return <div style={{ padding: '28px 32px', fontSize: 13, color: 'var(--text-secondary)' }}>Zugriff wird geprüft...</div>
     }
     if (hasAccess === false) {
       return (
         <div style={{ padding: '28px 32px', fontSize: 13, color: 'var(--text-secondary)' }}>
           <strong>Kein Zugriff</strong>
           <p style={{ marginTop: 8, lineHeight: 1.6 }}>
-            Du hast keinen Zugriff auf die Drehbuchkoordination fuer diese Produktion.
+            Du hast keinen Zugriff auf die Drehbuchkoordination für diese Produktion.
             Wende dich an einen Administrator.
           </p>
         </div>
@@ -2790,7 +2800,7 @@ export default function DrehbuchkoordinationPage() {
               )}
               {copyOpen && !produktionId && (
                 <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
-                  Keine Produktion ausgewaehlt.
+                  Keine Produktion ausgewählt.
                 </div>
               )}
             </div>
@@ -3041,7 +3051,7 @@ function StatistikPanelTab({
       {/* Panel-Rubriken */}
       <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Statistik-Panel — Rubriken</h3>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
-        Lege fest, welche Rubriken im Statistik-Panel angezeigt werden und in welcher Reihenfolge. Ziehe die Eintraege per Drag & Drop.
+        Lege fest, welche Rubriken im Statistik-Panel angezeigt werden und in welcher Reihenfolge. Ziehe die Einträge per Drag & Drop.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -3158,7 +3168,7 @@ function DailyRegelnTab({ productionId }: { productionId: string }) {
       <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Daily-Regeln</h3>
       <p style={descStyle}>
         Steuert die Sommer/Winter-Anzeige im Header. Bei aktivierter Anzeige wird basierend auf dem Sonnenuntergang berechnet,
-        wie viele Nachtbilder vor Drehschluss moeglich sind.
+        wie viele Nachtbilder vor Drehschluss möglich sind.
       </p>
 
       {/* Toggle */}
@@ -3188,7 +3198,7 @@ function DailyRegelnTab({ productionId }: { productionId: string }) {
           <div style={{ marginBottom: 16 }}>
             <div style={labelStyle}>Drehlänge Nachtbild (Minuten)</div>
             <p style={descStyle}>
-              Wie lange dauert ein Nachtbild durchschnittlich? Wird zur Berechnung der moeglichen Nachtbilder vor Drehschluss verwendet.
+              Wie lange dauert ein Nachtbild durchschnittlich? Wird zur Berechnung der möglichen Nachtbilder vor Drehschluss verwendet.
             </p>
             <input
               type="number"
@@ -3229,7 +3239,7 @@ function DailyRegelnTab({ productionId }: { productionId: string }) {
                 const dsMins = h * 60 + m
                 const ssMins = 17 * 60 + 50
                 const n = Math.floor((dsMins - ssMins) / (nachtbildMin || 20))
-                return n > 0 ? `Winter + ${n} (${n} Nachtbild${n !== 1 ? 'er' : ''} moeglich)` : 'Sommer'
+                return n > 0 ? `Winter + ${n} (${n} Nachtbild${n !== 1 ? 'er' : ''} möglich)` : 'Sommer'
               })()}
             </p>
           </div>
@@ -3405,7 +3415,7 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
     <div style={{ padding: 24, maxWidth: 700 }}>
       <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Stockshot-Vorlagen</h2>
       <p style={{ fontSize: 12, color: '#757575', marginBottom: 20, lineHeight: 1.6 }}>
-        Vorlagen fuer Stockshot-Oneliner nach Kategorie. Platzhalter: <code>{'{motiv}'}</code>, <code>{'{stimmung}'}</code>
+        Vorlagen für Stockshot-Oneliner nach Kategorie. Platzhalter: <code>{'{motiv}'}</code>, <code>{'{stimmung}'}</code>
       </p>
 
       {['ortswechsel', 'zeit_vergeht', 'stimmungswechsel'].map(kat => {
@@ -4184,7 +4194,7 @@ function KopfFusszeileTab({ productionId }: { productionId: string }) {
 function NoProduction() {
   return (
     <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-      Keine Produktion ausgewaehlt. Waehle eine Produktion im Header aus.
+      Keine Produktion ausgewählt. Wähle eine Produktion im Header aus.
     </div>
   )
 }
