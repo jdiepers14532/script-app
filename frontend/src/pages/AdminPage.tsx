@@ -587,6 +587,83 @@ function AutorenplanAdminTab() {
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic' }}>Noch keine Platzhalter gespeichert.</div>
         )}
       </div>
+
+      {/* Einstellungs-Zugriff */}
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Einstellungs-Zugriff</div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 14, lineHeight: 1.6, maxWidth: 560 }}>
+          Welche Rollen dürfen das Einstellungs-Zahnrad im Autorenplan sehen und Gagenkategorien sowie Pausenwochen verwalten?
+        </p>
+        <AutorenplanRollenConfig />
+      </div>
+    </div>
+  )
+}
+
+// ── Autorenplan Rollen-Konfigurator ───────────────────────────────────────────
+
+const ALL_ROLLEN = [
+  'superadmin', 'geschaeftsfuehrung', 'herstellungsleitung', 'hauptbuchhaltung',
+  'produktionsleitung', 'produktionsbuero', 'aufnahmeleitung', 'drehplanung',
+  'vertragserstellung', 'buchhaltung_produktion',
+]
+
+function AutorenplanRollenConfig() {
+  const [selected, setSelected] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/app-settings', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => {
+        try { setSelected(JSON.parse(d.autorenplan_settings_rollen || '[]')) }
+        catch { setSelected([]) }
+      })
+      .catch(() => {})
+  }, [])
+
+  const toggle = (rolle: string) => {
+    setSelected(prev => prev.includes(rolle) ? prev.filter(r => r !== rolle) : [...prev, rolle])
+    setSaved(false)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    await fetch('/api/admin/app-settings/autorenplan_settings_rollen', {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(selected) }),
+    })
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+        {ALL_ROLLEN.map(rolle => (
+          <button key={rolle} onClick={() => toggle(rolle)} style={{
+            padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+            border: selected.includes(rolle) ? '1.5px solid #000' : '1px solid var(--border)',
+            background: selected.includes(rolle) ? '#000' : 'var(--bg-subtle)',
+            color: selected.includes(rolle) ? '#fff' : 'var(--text-primary)',
+            fontWeight: selected.includes(rolle) ? 600 : 400,
+            transition: 'all 0.1s',
+          }}>
+            {rolle}
+          </button>
+        ))}
+      </div>
+      <button onClick={save} disabled={saving} style={{
+        padding: '7px 20px', borderRadius: 7, border: 'none',
+        background: saved ? '#00C853' : '#000', color: '#fff',
+        fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        transition: 'background 0.3s',
+      }}>
+        {saving ? '...' : saved ? 'Gespeichert ✓' : 'Speichern'}
+      </button>
     </div>
   )
 }

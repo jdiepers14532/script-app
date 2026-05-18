@@ -655,4 +655,107 @@ router.delete('/platzhalter-cache/:id', async (req: any, res) => {
   res.json({ ok: true })
 })
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Globale Gagenkategorien (v99)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/autorenplan/gage-kategorien
+router.get('/gage-kategorien', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM autorenplan_gage_kategorien ORDER BY sortierung, erstellt_am'
+    )
+    res.json({ gage_kategorien: rows })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// POST /api/autorenplan/gage-kategorien
+router.post('/gage-kategorien', async (req, res) => {
+  const { label, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg, sortierung } = req.body
+  if (!label?.trim()) return res.status(400).json({ error: 'label erforderlich' })
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO autorenplan_gage_kategorien
+         (label, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg, sortierung)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [label.trim(), beschreibung ?? null, abrechnungstyp ?? 'pauschal',
+       betrag ?? null, waehrung ?? 'EUR', lst_rg ?? 'rg', sortierung ?? 0]
+    )
+    res.status(201).json(rows[0])
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// PUT /api/autorenplan/gage-kategorien/:id
+router.put('/gage-kategorien/:id', async (req, res) => {
+  const { label, beschreibung, abrechnungstyp, betrag, waehrung, lst_rg, sortierung } = req.body
+  try {
+    const { rows } = await pool.query(
+      `UPDATE autorenplan_gage_kategorien SET
+         label          = COALESCE($1, label),
+         beschreibung   = $2,
+         abrechnungstyp = COALESCE($3, abrechnungstyp),
+         betrag         = $4,
+         waehrung       = COALESCE($5, waehrung),
+         lst_rg         = COALESCE($6, lst_rg),
+         sortierung     = COALESCE($7, sortierung),
+         aktualisiert_am = NOW()
+       WHERE id = $8 RETURNING *`,
+      [label ?? null, beschreibung ?? null, abrechnungstyp ?? null,
+       betrag ?? null, waehrung ?? null, lst_rg ?? null,
+       sortierung ?? null, req.params.id]
+    )
+    if (!rows[0]) return res.status(404).json({ error: 'Nicht gefunden' })
+    res.json(rows[0])
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// DELETE /api/autorenplan/gage-kategorien/:id
+router.delete('/gage-kategorien/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM autorenplan_gage_kategorien WHERE id = $1', [req.params.id])
+    res.status(204).send()
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Pausenwochen (v99)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/autorenplan/pausenwochen?produktion_db_id=X
+router.get('/pausenwochen', async (req, res) => {
+  const { produktion_db_id } = req.query
+  if (!produktion_db_id) return res.status(400).json({ error: 'produktion_db_id erforderlich' })
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM autorenplan_pausenwochen WHERE produktion_db_id = $1 ORDER BY woche_von',
+      [produktion_db_id]
+    )
+    res.json({ pausenwochen: rows })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// POST /api/autorenplan/pausenwochen (toggle: upsert or delete)
+router.post('/pausenwochen', async (req: any, res) => {
+  const { produktion_db_id, woche_von, notiz } = req.body
+  if (!produktion_db_id || !woche_von) return res.status(400).json({ error: 'produktion_db_id und woche_von erforderlich' })
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO autorenplan_pausenwochen (produktion_db_id, woche_von, notiz, erstellt_von)
+       VALUES ($1,$2,$3,$4)
+       ON CONFLICT (produktion_db_id, woche_von) DO UPDATE SET notiz = EXCLUDED.notiz
+       RETURNING *`,
+      [produktion_db_id, woche_von, notiz ?? null, req.user?.name ?? null]
+    )
+    res.status(201).json(rows[0])
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// DELETE /api/autorenplan/pausenwochen/:id
+router.delete('/pausenwochen/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM autorenplan_pausenwochen WHERE id = $1', [req.params.id])
+    res.status(204).send()
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 export { router as autorenplanRouter }

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Plus, ChevronLeft, ChevronRight, Settings, Users, Edit2, Trash2, Search, AlertCircle, GripVertical, Info, Clock } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { useTerminologie } from '../sw-ui'
+import AutorenplanSettingsModal from './AutorenplanSettingsModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1844,6 +1845,21 @@ export default function AutorenplanTab({ produktionDbId }: { produktionDbId: str
   const [view, setView] = useState<'plan' | 'futures' | 'jobedit'>('plan')
   const [jobKategorien, setJobKategorien] = useState<JobKategorie[]>([])
   const [loading, setLoading] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [canSettings, setCanSettings] = useState(false)
+
+  useEffect(() => {
+    // Prüfen ob dieser User Zugriff auf Autorenplan-Einstellungen hat
+    Promise.all([
+      fetch('/api/admin/app-settings', { credentials: 'include' }).then(r => r.json()),
+      fetch('/api/me/whoami', { credentials: 'include' }).then(r => r.json()),
+    ]).then(([settings, me]) => {
+      let allowed: string[] = []
+      try { allowed = JSON.parse(settings.autorenplan_settings_rollen || '[]') } catch { allowed = [] }
+      const userRoles: string[] = me.roles || (me.role ? [me.role] : [])
+      setCanSettings(userRoles.some((r: string) => allowed.includes(r)))
+    }).catch(() => {})
+  }, [])
 
   const loadJobKategorien = useCallback(() => {
     fetch(`/api/autorenplan/job-kategorien?produktion_db_id=${produktionDbId}`, { credentials: 'include' })
@@ -1857,23 +1873,38 @@ export default function AutorenplanTab({ produktionDbId }: { produktionDbId: str
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       {/* Tab Navigation */}
-      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', padding: '0 0 0 0', background: 'var(--bg-page)', flexShrink: 0 }}>
-        {[
-          { id: 'plan', label: 'Plan', icon: '📅' },
-          { id: 'futures', label: 'Futures', icon: '📋' },
-          { id: 'jobedit', label: 'Job-Kategorien', icon: <Settings size={12} /> },
-        ].map(tab => (
-          <button key={tab.id} onClick={() => { setView(tab.id as any); if (tab.id === 'plan') loadJobKategorien() }} style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
-            fontSize: 12, fontWeight: view === tab.id ? 700 : 400,
-            color: view === tab.id ? 'var(--text-primary)' : 'var(--text-secondary)',
-            borderBottom: view === tab.id ? '2px solid #000' : '2px solid transparent',
-          }}>
-            {typeof tab.icon === 'string' ? tab.icon : tab.icon}
-            {tab.label}
-          </button>
-        ))}
+      <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--bg-page)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 2, flex: 1 }}>
+          {[
+            { id: 'plan', label: 'Plan', icon: '📅' },
+            { id: 'futures', label: 'Futures', icon: '📋' },
+            { id: 'jobedit', label: 'Job-Kategorien', icon: <Settings size={12} /> },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => { setView(tab.id as any); if (tab.id === 'plan') loadJobKategorien() }} style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: view === tab.id ? 700 : 400,
+              color: view === tab.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+              borderBottom: view === tab.id ? '2px solid #000' : '2px solid transparent',
+            }}>
+              {typeof tab.icon === 'string' ? tab.icon : tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {canSettings && (
+          <Tooltip text="Autorenplan-Einstellungen">
+            <button onClick={() => setSettingsOpen(true)} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              padding: '6px 10px', marginRight: 8,
+              border: '1px solid var(--border)', borderRadius: 6,
+              background: 'none', cursor: 'pointer',
+              color: 'var(--text-secondary)',
+            }}>
+              <Settings size={14} />
+            </button>
+          </Tooltip>
+        )}
       </div>
 
       {/* Content */}
@@ -1902,6 +1933,13 @@ export default function AutorenplanTab({ produktionDbId }: { produktionDbId: str
           </>
         )}
       </div>
+
+      {settingsOpen && (
+        <AutorenplanSettingsModal
+          produktionDbId={produktionDbId}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   )
 }

@@ -35,6 +35,8 @@ router.put('/:key', async (req, res) => {
     'pwa_update_action',
     // Team-Work (v68)
     'privat_modus_ablauf_stunden',
+    // Autorenplan-Einstellungen (v99)
+    'autorenplan_settings_rollen',
   ]
 
   if (!allowed.includes(key)) {
