@@ -519,6 +519,7 @@ function FigurenTab() {
       )}
 
       {produktionId && (
+        <>
         <section style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 8px' }}>Felder für {figurenLabel} und {t('komparse', 'p')}</h3>
@@ -632,6 +633,7 @@ function FigurenTab() {
             </button>
           </div>
         </section>
+        </>
       )}
     </div>
   )
