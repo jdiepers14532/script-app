@@ -1071,7 +1071,7 @@ function AutorenplanGrid({
               const globalMaxSlots = Math.max(1, ...weeks.map(w => maxSlotsForCell(jk, w)))
               console.log('[AutorenplanGrid] jk:', jk.label, 'max_slots:', jk.max_slots, 'slots_gleich_folgen:', jk.slots_gleich_folgen, 'globalMaxSlots:', globalMaxSlots)
               return Array.from({ length: globalMaxSlots }, (_, slotIdx) => (
-                <tr key={`${jk.id}-${slotIdx}`}>
+                <tr key={`${jk.id}-${slotIdx}`} data-slot={slotIdx} data-total={globalMaxSlots}>
                   {slotIdx === 0 && (
                     <td rowSpan={globalMaxSlots} style={{
                       position: 'sticky', left: 0, zIndex: 5,
