@@ -331,6 +331,7 @@ async function runMigrations() {
     'v104_jk_kostenstelle.sql',
     'v105_zusatz_standalone.sql',
     'v106_wysiwyg_merged.sql',
+    'v107_pre_vorlage_content.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

@@ -517,11 +517,14 @@ export default function EditorPanel({
               if (!vorlageId || !currentSzene?.id) return
               setIsApplyingVorlage(true)
               try {
-                // Aktuellen Inhalt als {{notiz_inhalt}}-Zuweisung verwenden
+                // Originaltext: pre_vorlage_content hat Priorität (falls Vorlage schon angewendet wurde)
+                // So wird beim Vorlage-Wechsel immer der originale Szenentext eingesetzt, nicht der gemergte Body
                 const rawContent = currentSzene?.content
-                const currentNodes: any[] = Array.isArray(rawContent)
-                  ? rawContent
-                  : (rawContent?.content ?? [])
+                const preVorlage = currentSzene?.pre_vorlage_content
+                const sourceContent = preVorlage ?? rawContent
+                const sourceNodes: any[] = Array.isArray(sourceContent)
+                  ? sourceContent
+                  : (sourceContent?.content ?? [])
 
                 // Vorlage vollständig laden (inkl. body_content)
                 const vorlage = await api.getDokumentVorlage(produktionId, vorlageId)
@@ -529,23 +532,26 @@ export default function EditorPanel({
                   ? JSON.parse(vorlage.body_content)
                   : vorlage.body_content
 
-                // Merge: Vorlage-Body + aktueller Inhalt → finales Tiptap-Dokument
-                const merged = mergeVorlageWithContent(bodyContent, currentNodes)
+                // Merge: Vorlage-Body + Szenentext → finales Tiptap-Dokument
+                const merged = mergeVorlageWithContent(bodyContent, sourceNodes)
 
                 // Editor sofort aktualisieren (Remount via contentResetCounter)
                 setSceneContent(merged)
                 setContentResetCounter(c => c + 1)
                 setCurrentSzene((prev: any) => prev
-                  ? { ...prev, vorlage_id: vorlageId, content: merged.content, wysiwyg_merged: true }
+                  ? { ...prev, vorlage_id: vorlageId, content: merged.content, wysiwyg_merged: true,
+                      pre_vorlage_content: prev.pre_vorlage_content ?? sourceContent }
                   : prev
                 )
                 setVorlagePreviewData(vorlage)
 
                 // Persistieren: gemergter Content + vorlage_id + wysiwyg_merged-Flag
+                // pre_vorlage_content nur beim ersten Mal speichern (bei Vorlage-Wechsel bleibt der Original)
                 await api.updateDokumentSzene(currentSzene.id, {
                   content: merged.content,
                   vorlage_id: vorlageId,
                   wysiwyg_merged: true,
+                  ...(!currentSzene.pre_vorlage_content && { pre_vorlage_content: sourceContent }),
                 })
               } catch { /* ignore — Netzwerkfehler werden vom Offline-Queue behandelt */ }
               finally { setIsApplyingVorlage(false) }
