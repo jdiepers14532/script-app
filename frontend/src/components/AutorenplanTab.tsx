@@ -186,12 +186,13 @@ function blockFuerWoche(jk: JobKategorie, weekDate: Date, blockInfo: BlockInfo |
 // ── PersonPicker ──────────────────────────────────────────────────────────────
 
 function PersonPicker({
-  value, displayName, onSelect, onNew,
+  value, displayName, onSelect, onNew, onTextChange,
 }: {
   value?: number
   displayName?: string
   onSelect: (p: Person) => void
   onNew: (name: string) => void
+  onTextChange?: (text: string) => void
 }) {
   const [q, setQ] = useState(displayName || '')
   const [results, setResults] = useState<Person[]>([])
@@ -211,6 +212,7 @@ function PersonPicker({
 
   const handleInput = (val: string) => {
     setQ(val)
+    onTextChange?.(val)
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => search(val), 300)
   }
@@ -724,7 +726,7 @@ function EinsatzModal({
               </div>
             ) : (
               <div>
-                <PersonPicker value={personId} displayName={personName} onSelect={handlePersonSelect} onNew={handleNewPerson} />
+                <PersonPicker value={personId} displayName={personName} onSelect={handlePersonSelect} onNew={handleNewPerson} onTextChange={name => { setPersonName(name); setPersonId(undefined) }} />
                 <button onClick={() => { setIsPlatzhalter(true); setPersonId(undefined) }} style={{ marginTop: 4, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', padding: 0 }}>Als Platzhalter eintragen</button>
               </div>
             )}
@@ -981,6 +983,7 @@ function AutorenplanGrid({
   }
 
   const today = mondayOf(new Date())
+  const showBlockHeader = !!(blockInfo?.bloecke.length && jobKategorien.some(j => j.erster_block_start))
 
   return (
     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -1041,7 +1044,7 @@ function AutorenplanGrid({
             {/* Wochen-Header */}
             <tr>
               <th style={{
-                position: 'sticky', left: 0, top: blockInfo ? 20 : 0, zIndex: 12,
+                position: 'sticky', left: 0, top: showBlockHeader ? 20 : 0, zIndex: 12,
                 background: 'var(--bg-page)', borderRight: '1px solid var(--border)',
                 borderBottom: '2px solid var(--border)', fontSize: 10, fontWeight: 600,
                 padding: '4px 12px', textAlign: 'left', color: 'var(--text-secondary)',
@@ -1052,7 +1055,7 @@ function AutorenplanGrid({
                 const isToday = dateKey(w) === dateKey(today)
                 return (
                   <th key={wi} style={{
-                    height: 32, position: 'sticky', top: blockInfo?.bloecke.length ? 20 : 0, zIndex: 8,
+                    height: 32, position: 'sticky', top: showBlockHeader ? 20 : 0, zIndex: 8,
                     background: isToday ? '#007AFF08' : 'var(--bg-page)',
                     borderLeft: '1px solid var(--border)', borderBottom: isToday ? '2px solid transparent' : '2px solid var(--border)',
                     fontSize: 9, fontWeight: isToday ? 700 : 400,
@@ -1069,9 +1072,8 @@ function AutorenplanGrid({
           <tbody>
             {jobKategorien.map(jk => {
               const globalMaxSlots = Math.max(1, ...weeks.map(w => maxSlotsForCell(jk, w)))
-              console.log('[AutorenplanGrid] jk:', jk.label, 'max_slots:', jk.max_slots, 'slots_gleich_folgen:', jk.slots_gleich_folgen, 'globalMaxSlots:', globalMaxSlots)
               return Array.from({ length: globalMaxSlots }, (_, slotIdx) => (
-                <tr key={`${jk.id}-${slotIdx}`} data-slot={slotIdx} data-total={globalMaxSlots}>
+                <tr key={`${jk.id}-${slotIdx}`}>
                   {slotIdx === 0 && (
                     <td rowSpan={globalMaxSlots} style={{
                       position: 'sticky', left: 0, zIndex: 5,
