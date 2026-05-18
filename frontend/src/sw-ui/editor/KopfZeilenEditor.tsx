@@ -65,6 +65,8 @@ export interface KopfZeilenEditorValue {
   kopfzeile_aktiv:         boolean
   fusszeile_aktiv:         boolean
   erste_seite_kein_header: boolean
+  /** Ab welcher Seite KZ/FZ erscheinen. 1 = alle Seiten, 2 = ab Seite 2 (= erste_seite_kein_header), usw. */
+  kz_fz_ab_seite?:         number
   seiten_layout:           SeitenLayout
   tab_stops?:              TabStop[]
 }
@@ -76,6 +78,7 @@ export function emptyKopfZeilenEditorValue(): KopfZeilenEditorValue {
     kopfzeile_aktiv:         true,
     fusszeile_aktiv:         true,
     erste_seite_kein_header: true,
+    kz_fz_ab_seite:          2,
     seiten_layout:           { format: 'a4', margin_top: 20, margin_bottom: 20, margin_left: 30, margin_right: 25 },
     tab_stops:               [],
   }
@@ -662,12 +665,28 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, de
           </label>
         ))}
         <div style={{ width: 1, height: 16, background: 'var(--border, #e0e0e0)' }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-          KZ/FZ ab Seite
-          <input type="number" min={1} max={99} value={value.erste_seite_kein_header ? 2 : 1}
-            onChange={e => onChange({ ...value, erste_seite_kein_header: Number(e.target.value) >= 2 })}
-            style={selStyle({ width: 42, textAlign: 'center' })} />
-        </label>
+        {(() => {
+          const abSeite = value.kz_fz_ab_seite ?? (value.erste_seite_kein_header ? 2 : 1)
+          const checked = abSeite > 1
+          return (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12 }}>
+              <input type="checkbox" checked={checked}
+                onChange={e => {
+                  const next = e.target.checked
+                  onChange({ ...value, kz_fz_ab_seite: next ? Math.max(2, abSeite) : 1, erste_seite_kein_header: next })
+                }} />
+              KZ/FZ ab Seite
+              {checked && (
+                <input type="number" min={2} max={999} value={abSeite}
+                  onChange={e => {
+                    const n = Math.max(2, Number(e.target.value) || 2)
+                    onChange({ ...value, kz_fz_ab_seite: n, erste_seite_kein_header: true })
+                  }}
+                  style={selStyle({ width: 46, textAlign: 'center' })} />
+              )}
+            </label>
+          )
+        })()}
         <div style={{ flex: 1 }} />
         {/* Seitenformat + Ränder — editierbar, mit Dokumentrand als Referenz */}
         <select value={sl.format}
