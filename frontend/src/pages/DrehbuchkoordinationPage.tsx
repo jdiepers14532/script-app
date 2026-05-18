@@ -495,13 +495,11 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         </button>
       </section>
 
-      <GlossarSection productionId={productionId} />
-
     </div>
   )
 }
 
-// ── Glossar-Sektion (innerhalb AllgemeinTab) ──────────────────────────────────
+// ── Glossar-Sektion ───────────────────────────────────────────────────────────
 
 type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; sort_order: number }
 type GlossarDraft = { kuerzel: string; name: string; erklaerung: string }
@@ -2503,6 +2501,7 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
   const { config: currentConfig } = useTerminologie()
   const [config, setConfig] = useState<TerminologieConfig>({ ...currentConfig })
   const [saving, setSaving] = useState(false)
+  const [glossarOpen, setGlossarOpen] = useState(false)
   const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline'>('Treatment')
   const [treatmentSaving, setTreatmentSaving] = useState(false)
   const [figurenLabel, setFigurenLabel] = useState<'Rollen' | 'Figuren' | 'Charaktere'>('Rollen')
@@ -2576,10 +2575,20 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
 
   return (
     <div style={{ maxWidth: 680 }}>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 24px', lineHeight: 1.6 }}>
-        In der Branche werden für dieselben Konzepte unterschiedliche Begriffe verwendet.
-        Hier legst du fest, welcher Begriff in der gesamten App verwendet wird.
-      </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+          In der Branche werden für dieselben Konzepte unterschiedliche Begriffe verwendet.
+          Hier legst du fest, welcher Begriff in der gesamten App verwendet wird.
+        </p>
+        {productionId ? (
+          <button
+            onClick={() => setGlossarOpen(true)}
+            style={{ flexShrink: 0, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Glossar
+          </button>
+        ) : null}
+      </div>
 
       {/* Bezeichnungen */}
       <div style={{ marginBottom: 24 }}>
@@ -2658,6 +2667,24 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
         </button>
         {saving && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Wird gespeichert...</span>}
       </div>
+
+      {glossarOpen && productionId && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setGlossarOpen(false) }}
+        >
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.25)', padding: 24, maxWidth: 720, width: '90%', maxHeight: '80vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Glossar</h2>
+              <button
+                onClick={() => setGlossarOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, lineHeight: 1, color: 'var(--text-secondary)', padding: '0 4px' }}
+              >✕</button>
+            </div>
+            <GlossarSection productionId={productionId} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
