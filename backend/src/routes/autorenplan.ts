@@ -327,6 +327,17 @@ router.post('/einsaetze', async (req, res) => {
       uid(req),
     ]
   )
+  // Platzhalter-Namen für Auto-Vervollständigung cachen
+  if (platzhalter_name?.trim()) {
+    await pool.query(
+      `INSERT INTO autorenplan_platzhalter_cache (name)
+       VALUES ($1)
+       ON CONFLICT (name) DO UPDATE
+         SET used_count = autorenplan_platzhalter_cache.used_count + 1,
+             last_used_at = NOW()`,
+      [platzhalter_name.trim()]
+    ).catch(() => {}) // Non-critical
+  }
   res.json({ einsatz: result.rows[0] })
 })
 
@@ -365,6 +376,16 @@ router.put('/einsaetze/:id', async (req, res) => {
     ]
   )
   if (!result.rows.length) return res.status(404).json({ error: 'Nicht gefunden' })
+  if (platzhalter_name?.trim()) {
+    await pool.query(
+      `INSERT INTO autorenplan_platzhalter_cache (name)
+       VALUES ($1)
+       ON CONFLICT (name) DO UPDATE
+         SET used_count = autorenplan_platzhalter_cache.used_count + 1,
+             last_used_at = NOW()`,
+      [platzhalter_name.trim()]
+    ).catch(() => {})
+  }
   res.json({ einsatz: result.rows[0] })
 })
 
@@ -571,6 +592,55 @@ router.put('/futures/autoren/:id', async (req, res) => {
 router.delete('/futures/autoren/:id', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
   await pool.query('DELETE FROM autorenplan_future_autoren WHERE id = $1', [req.params.id])
+  res.json({ ok: true })
+})
+
+// ── Platzhalter-Cache ──────────────────────────────────────────────────────────
+
+// GET /api/autorenplan/platzhalter-cache?q=
+router.get('/platzhalter-cache', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const { q } = req.query as Record<string, string>
+  if (!q || q.trim().length < 1) return res.json({ names: [] })
+  const rows = await pool.query(
+    `SELECT name FROM autorenplan_platzhalter_cache
+     WHERE name ILIKE $1
+     ORDER BY used_count DESC, last_used_at DESC
+     LIMIT 8`,
+    [`%${q.trim()}%`]
+  )
+  res.json({ names: rows.rows.map((r: any) => r.name) })
+})
+
+// GET /api/autorenplan/platzhalter-cache/list (Admin: alle Einträge)
+router.get('/platzhalter-cache/list', async (req: any, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const roles = req.user?.roles || [req.user?.role]
+  const isAdmin = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung'].some((r: string) => roles.includes(r))
+  if (!isAdmin) return res.status(403).json({ error: 'Keine Berechtigung' })
+  const rows = await pool.query(
+    'SELECT id, name, used_count, last_used_at FROM autorenplan_platzhalter_cache ORDER BY used_count DESC, last_used_at DESC'
+  )
+  res.json({ entries: rows.rows, total: rows.rowCount })
+})
+
+// DELETE /api/autorenplan/platzhalter-cache (Admin: gesamten Cache leeren)
+router.delete('/platzhalter-cache', async (req: any, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const roles = req.user?.roles || [req.user?.role]
+  const isAdmin = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung'].some((r: string) => roles.includes(r))
+  if (!isAdmin) return res.status(403).json({ error: 'Keine Berechtigung' })
+  const result = await pool.query('DELETE FROM autorenplan_platzhalter_cache')
+  res.json({ ok: true, deleted: result.rowCount })
+})
+
+// DELETE /api/autorenplan/platzhalter-cache/:id (Admin: einzelnen Eintrag löschen)
+router.delete('/platzhalter-cache/:id', async (req: any, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const roles = req.user?.roles || [req.user?.role]
+  const isAdmin = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung'].some((r: string) => roles.includes(r))
+  if (!isAdmin) return res.status(403).json({ error: 'Keine Berechtigung' })
+  await pool.query('DELETE FROM autorenplan_platzhalter_cache WHERE id = $1', [req.params.id])
   res.json({ ok: true })
 })
 

@@ -314,6 +314,8 @@ async function runMigrations() {
     'v87_revision_farben_presets.sql',
     'v88_drop_format_templates.sql',
     'v89_vorlage_zeilennummerierung.sql',
+    'v90_platzhalter_cache.sql',
+    'v91_stockshot_template_felder.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Plus, ChevronLeft, ChevronRight, Settings, Users, Edit2, Trash2, Search, AlertCircle, GripVertical, Info } from 'lucide-react'
+import { X, Plus, ChevronLeft, ChevronRight, Settings, Users, Edit2, Trash2, Search, AlertCircle, GripVertical, Info, Clock } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { useTerminologie } from '../sw-ui'
 
@@ -646,6 +646,9 @@ function EinsatzModal({
   const [notiz, setNotiz] = useState(einsatz?.notiz || '')
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [savedPlatzhalterName, setSavedPlatzhalterName] = useState<string | null>(null)
+  const [cacheResults, setCacheResults] = useState<string[]>([])
+  const cacheDebounceRef = useRef<any>(null)
 
   // Auto-Block aus Blockkalender
   useEffect(() => {
@@ -665,6 +668,21 @@ function EinsatzModal({
     setPersonId(p.id); setPersonName(p.name); setIsPlatzhalter(false)
   }
 
+  const handlePlatzhalterInput = (val: string) => {
+    setPersonName(val)
+    clearTimeout(cacheDebounceRef.current)
+    if (val.trim().length >= 1) {
+      cacheDebounceRef.current = setTimeout(() => {
+        fetch(`/api/autorenplan/platzhalter-cache?q=${encodeURIComponent(val)}`, { credentials: 'include' })
+          .then(r => r.json())
+          .then(d => setCacheResults(d.names || []))
+          .catch(() => {})
+      }, 250)
+    } else {
+      setCacheResults([])
+    }
+  }
+
   const handleNewPerson = async (name: string) => {
     const res = await fetch('/api/autorenplan/personen-anlegen', {
       method: 'POST', credentials: 'include',
@@ -677,6 +695,7 @@ function EinsatzModal({
 
   const handleSave = async () => {
     setSaving(true)
+    const isPlatzhalterSave = !personId && !!personName
     try {
       await onSave({
         job_kategorie_id: jk.id,
@@ -684,13 +703,17 @@ function EinsatzModal({
         produktion_db_id: produktionDbId,
         vertragsdb_person_id: personId,
         person_cache_name: personId ? personName : undefined,
-        platzhalter_name: !personId && personName ? personName : undefined,
+        platzhalter_name: isPlatzhalterSave ? personName : undefined,
         block_nummer: blockNr,
         folge_nummer: folgeNr,
         status,
         notiz: notiz || undefined,
       })
-      onClose()
+      if (isPlatzhalterSave) {
+        setSavedPlatzhalterName(personName)
+      } else {
+        onClose()
+      }
     } finally { setSaving(false) }
   }
 
@@ -715,14 +738,80 @@ function EinsatzModal({
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={16} /></button>
         </div>
 
+        {savedPlatzhalterName ? (
+          /* ── Post-Save: Platzhalter-Prompt ────────────────────────── */
+          <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+              <div style={{ fontSize: 22, marginBottom: 6 }}>✓</div>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>Einsatz gespeichert</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                „{savedPlatzhalterName}" als Platzhalter eingetragen.
+              </div>
+            </div>
+            <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '14px 16px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>In der Firmendatenbank anlegen?</div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 12 }}>
+                Du kannst den Kontakt jetzt direkt im Adressbuch der Vertrags-App anlegen. Das Formular öffnet sich in einem separaten Fenster. Der Einsatz bleibt als Platzhalter bestehen und kann später bei Bedarf verknüpft werden.
+              </div>
+              <button
+                onClick={() => {
+                  window.open(
+                    `https://vertraege.serienwerft.studio/adressbuch?neu=1&name=${encodeURIComponent(savedPlatzhalterName)}`,
+                    'vertraege-neuer-kontakt',
+                    'width=860,height=720,left=180,top=80'
+                  )
+                  onClose()
+                }}
+                style={{ width: '100%', padding: '9px 16px', borderRadius: 7, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600, marginBottom: 8 }}
+              >
+                In der Firmendatenbank anlegen
+              </button>
+              <button
+                onClick={onClose}
+                style={{ width: '100%', padding: '8px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
+              >
+                Fertig — als Platzhalter behalten
+              </button>
+            </div>
+          </div>
+        ) : (
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Person */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Person</label>
             {isPlatzhalter ? (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input value={personName} onChange={e => setPersonName(e.target.value)} placeholder="Platzhalter-Bezeichnung" style={{ flex: 1, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }} />
-                <button onClick={() => setIsPlatzhalter(false)} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Suchen</button>
+              <div>
+                <div style={{ display: 'flex', gap: 6, position: 'relative' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      value={personName}
+                      onChange={e => handlePlatzhalterInput(e.target.value)}
+                      onFocus={() => { if (personName.trim().length >= 1) handlePlatzhalterInput(personName) }}
+                      onBlur={() => setTimeout(() => setCacheResults([]), 150)}
+                      placeholder="Platzhalter-Bezeichnung"
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}
+                    />
+                    {cacheResults.length > 0 && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, background: 'var(--bg-page)', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+                        {cacheResults.map(name => (
+                          <div key={name} onMouseDown={() => { setPersonName(name); setCacheResults([]) }}
+                            style={{ padding: '7px 10px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = '')}>
+                            <Clock size={11} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
+                            {name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => { setIsPlatzhalter(false); setCacheResults([]) }} style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                    <Search size={12} style={{ display: 'inline', marginRight: 4 }} />Suchen
+                  </button>
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 5, lineHeight: 1.5 }}>
+                  Firmendatenbank verknüpfen oder neuen Kontakt anlegen? Nach dem Speichern kannst du den Kontakt direkt im Adressbuch erstellen.
+                </div>
               </div>
             ) : (
               <div>
@@ -796,6 +885,7 @@ function EinsatzModal({
             </div>
           </div>
         </div>
+        )} {/* Ende savedPlatzhalterName-Ternary */}
       </div>
     </div>
   )
@@ -1106,6 +1196,7 @@ function AutorenplanGrid({
                     const isLastSlot = slotIdx === globalMaxSlots - 1
                     const color = jk.farbe
                     const name = einsatz?.person_cache_name || einsatz?.platzhalter_name || ''
+                    const isCellPlatzhalter = !!einsatz && !einsatz.vertragsdb_person_id && !!einsatz.platzhalter_name
                     const isHO = einsatz ? isHOWeek(jk, week, einsatz) : false
                     const blockNr = einsatz?.block_nummer
                     const folgeNr = einsatz?.folge_nummer
@@ -1114,7 +1205,7 @@ function AutorenplanGrid({
                         onClick={() => handleCellClick(jk, week, einsatz || undefined)}
                         style={{
                           width: CELL_W, minWidth: CELL_W, height: ROW_H, padding: '2px 4px',
-                          borderLeft: '1px solid var(--border)',
+                          borderLeft: isCellPlatzhalter ? '1px dashed var(--border)' : '1px solid var(--border)',
                           borderBottom: isLastSlot ? '2px solid var(--border)' : '1px solid var(--border)',
                           background: isToday ? '#007AFF08' : einsatz ? `${color}15` : 'transparent',
                           cursor: 'pointer', verticalAlign: 'middle', position: 'relative',
@@ -1126,23 +1217,30 @@ function AutorenplanGrid({
                           <Tooltip text={[
                             `${jk.label} · ${statusLabel(einsatz.status)}`,
                             name,
+                            isCellPlatzhalter ? 'Platzhalter (nicht in Firmendatenbank)' : '',
                             isHO ? 'HomeOffice' : 'Präsenz (Writers Room)',
                             blockNr ? `${blockLabel} ${blockNr}` : '',
                             folgeNr ? `${folgeLabel} ${folgeNr}` : '',
                             einsatz.notiz || '',
                           ].filter(Boolean).join('\n')}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: '100%' }}>
-                              <div style={{ width: 3, height: 26, borderRadius: 2, background: statusColor(einsatz.status), flexShrink: 0 }} />
+                              <div style={{ width: 3, height: 26, borderRadius: 2, background: isCellPlatzhalter ? 'var(--border)' : statusColor(einsatz.status), flexShrink: 0, borderLeft: isCellPlatzhalter ? '1px dashed var(--border)' : 'none' }} />
                               <div style={{ overflow: 'hidden', flex: 1 }}>
-                                <div style={{ fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
+                                <div style={{ fontSize: 10, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)', fontStyle: isCellPlatzhalter ? 'italic' : 'normal' }}>
                                   {name || '—'}
                                 </div>
                                 <div style={{ fontSize: 9, color: 'var(--text-secondary)', display: 'flex', gap: 3 }}>
-                                  <span style={{ color: isHO ? 'var(--text-secondary)' : '#FF9500' }}>{isHO ? 'HO' : 'Präs'}</span>
-                                  {blockNr && <span>· {blockLabel.slice(0, 2)}{blockNr}</span>}
+                                  {isCellPlatzhalter
+                                    ? <span style={{ color: 'var(--text-secondary)' }}>Platzh.</span>
+                                    : <><span style={{ color: isHO ? 'var(--text-secondary)' : '#FF9500' }}>{isHO ? 'HO' : 'Präs'}</span>
+                                       {blockNr && <span>· {blockLabel.slice(0, 2)}{blockNr}</span>}</>
+                                  }
                                 </div>
                               </div>
-                              {isOverbooked && slotIdx === 0 && (
+                              {isCellPlatzhalter && (
+                                <Search size={8} style={{ color: 'var(--text-secondary)', flexShrink: 0, opacity: 0.6 }} />
+                              )}
+                              {isOverbooked && slotIdx === 0 && !isCellPlatzhalter && (
                                 <AlertCircle size={8} style={{ color: '#FF3B30', flexShrink: 0 }} />
                               )}
                             </div>

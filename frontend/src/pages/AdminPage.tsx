@@ -12,6 +12,7 @@ const ADMIN_TABS = [
   { id: 'dk-zugriff',     label: 'DK-Zugriff' },
   { id: 'fassungen',      label: 'Fassungen & Revision' },
   { id: 'dokument',       label: 'Dokument' },
+  { id: 'autorenplan',    label: 'Autorenplan' },
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
   { id: 'pwa',            label: 'App / PWA' },
@@ -481,6 +482,115 @@ function DokumentAdminTab() {
   )
 }
 
+// ── Autorenplan Tab ───────────────────────────────────────────────────────────
+
+function AutorenplanAdminTab() {
+  const [entries, setEntries] = useState<{ id: number; name: string; used_count: number; last_used_at: string }[]>([])
+  const [total, setTotal] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [clearing, setClearing] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+
+  const load = () => {
+    setLoading(true)
+    fetch('/api/autorenplan/platzhalter-cache/list', { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => { setEntries(d.entries || []); setTotal(d.total || 0) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  const handleClearAll = async () => {
+    setClearing(true)
+    await fetch('/api/autorenplan/platzhalter-cache', { method: 'DELETE', credentials: 'include' })
+    setEntries([]); setTotal(0); setConfirmClear(false); setClearing(false)
+  }
+
+  const handleDeleteOne = async (id: number) => {
+    setDeletingId(id)
+    await fetch(`/api/autorenplan/platzhalter-cache/${id}`, { method: 'DELETE', credentials: 'include' })
+    setEntries(prev => prev.filter(e => e.id !== id))
+    setTotal(prev => prev - 1)
+    setDeletingId(null)
+  }
+
+  const sectionStyle: React.CSSProperties = { marginBottom: 32 }
+  const sectionTitleStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-secondary)', marginBottom: 10 }
+
+  return (
+    <div style={{ padding: '28px 32px' }}>
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Platzhalter-Cache</div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6, maxWidth: 600 }}>
+          Wenn im Autorenplan ein <strong>Platzhalter</strong> (noch kein verknüpfter Kontakt aus der Firmendatenbank)
+          eingetragen wird, speichert die App den Namen automatisch in diesem Cache.
+          Beim nächsten Eingeben eines Platzhalters erscheinen gespeicherte Namen als Vorschläge —
+          das beschleunigt die Eingabe bei wiederkehrenden Platzhaltern.
+          Der Cache enthält keine personenbezogenen Daten aus der Firmendatenbank.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>
+            {loading ? '...' : `${total} ${total === 1 ? 'Eintrag' : 'Einträge'} gespeichert`}
+          </div>
+          <div style={{ flex: 1 }} />
+          {!confirmClear ? (
+            <button
+              onClick={() => setConfirmClear(true)}
+              disabled={total === 0}
+              style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #FF3B30', background: 'none', color: '#FF3B30', cursor: total === 0 ? 'not-allowed' : 'pointer', fontSize: 12, opacity: total === 0 ? 0.4 : 1 }}
+            >
+              Cache leeren
+            </button>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Wirklich alle {total} Einträge löschen?</span>
+              <button onClick={() => setConfirmClear(false)} style={{ padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 12 }}>Abbrechen</button>
+              <button onClick={handleClearAll} disabled={clearing} style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: '#FF3B30', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+                {clearing ? '...' : 'Löschen'}
+              </button>
+            </div>
+          )}
+        </div>
+        {!loading && entries.length > 0 && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', maxHeight: 400, overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-subtle)' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600, borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>Name</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', width: 80 }}>Verwendet</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600, borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)', width: 130 }}>Zuletzt</th>
+                  <th style={{ width: 36, borderBottom: '1px solid var(--border)' }} />
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((e, i) => (
+                  <tr key={e.id} style={{ background: i % 2 === 0 ? 'var(--bg-page)' : 'var(--bg-subtle)' }}>
+                    <td style={{ padding: '7px 12px', color: 'var(--text-primary)' }}>{e.name}</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{e.used_count}×</td>
+                    <td style={{ padding: '7px 12px', textAlign: 'right', color: 'var(--text-secondary)' }}>{new Date(e.last_used_at).toLocaleDateString('de-DE')}</td>
+                    <td style={{ padding: '7px 8px', textAlign: 'center' }}>
+                      <button onClick={() => handleDeleteOne(e.id)} disabled={deletingId === e.id}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FF3B30', fontSize: 14, lineHeight: 1, padding: '2px 4px', opacity: deletingId === e.id ? 0.4 : 1 }}>
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {!loading && entries.length === 0 && (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic' }}>Noch keine Platzhalter gespeichert.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Main AdminPage ────────────────────────────────────────────────────────────
 
 // ── PWA / App Tab ─────────────────────────────────────────────────────────────
@@ -903,6 +1013,7 @@ export default function AdminPage() {
               Dieser Bereich ist noch in Entwicklung.
             </div>
           )}
+          {activeTab === 'autorenplan'    && <AutorenplanAdminTab />}
           {activeTab === 'pwa'            && <PwaAdminTab />}
         </div>
       </div>
