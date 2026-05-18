@@ -206,6 +206,7 @@ function PersonPicker({
   const [results, setResults] = useState<Person[]>([])
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
+  const [hadResults, setHadResults] = useState(false)
   const debounceRef = useRef<any>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -217,7 +218,13 @@ function PersonPicker({
     setLoading(true)
     fetch(`/api/autorenplan/personen-suche?name=${encodeURIComponent(query)}`, { credentials: 'include' })
       .then(r => r.json())
-      .then(d => { setResults(d.personen || []); setHasSearched(true); setLoading(false) })
+      .then(d => {
+        const found = d.personen || []
+        setResults(found)
+        setHasSearched(true)
+        setHadResults(found.length > 0)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
   }, [])
 
@@ -225,16 +232,18 @@ function PersonPicker({
     setQ(val)
     onTextChange?.(val)
     setHasSearched(false)
+    setHadResults(false)
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => search(val), 300)
   }
 
   const selectResult = (p: Person) => {
-    onSelect(p); setQ(p.name); setResults([]); setHasSearched(false)
+    onSelect(p); setQ(p.name); setResults([]); setHasSearched(false); setHadResults(false)
   }
 
   const closeDropdown = () => {
     setResults([]); setHasSearched(false)
+    // hadResults bleibt — damit "+ In Firmenadressbuch anlegen" sichtbar bleibt
   }
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -274,7 +283,9 @@ function PersonPicker({
     }
   }
 
-  const showNeuAnlegen = hasSearched && results.length === 0 && q.trim().length >= 2
+  const showNeuAnlegen = q.trim().length >= 2 && (
+    (hasSearched && results.length === 0) || hadResults
+  )
 
   return (
     <div style={{ position: 'relative' }}>
@@ -1106,7 +1117,7 @@ function AutorenplanGrid({
   const blockLabel = blockInfo?.block_label || 'Block'
 
   const loadData = useCallback(() => {
-    Promise.all([
+    return Promise.all([
       fetch(`/api/autorenplan/einsaetze?produktion_db_id=${produktionDbId}&von=${vonDate}&bis=${bisDate}`, { credentials: 'include' })
         .then(r => r.json()).then(d => setEinsaetze(d.einsaetze || [])),
       fetch(`/api/autorenplan/wochen-notizen?produktion_db_id=${produktionDbId}&von=${vonDate}&bis=${bisDate}`, { credentials: 'include' })
@@ -1130,7 +1141,7 @@ function AutorenplanGrid({
 
     if (jk.dauer_wochen === 1) {
       return active
-        .filter(e => e.woche_von === wKey)
+        .filter(e => (e.woche_von || '').slice(0, 10) === wKey)
         .sort((a, b) => (a.erstellt_am || '') > (b.erstellt_am || '') ? 1 : -1)
     } else {
       const slotMap: (Einsatz | null)[] = Array(jk.dauer_wochen).fill(null)
@@ -1191,7 +1202,7 @@ function AutorenplanGrid({
         body: JSON.stringify({ ...data, produktion_db_id: produktionDbId }),
       })
     }
-    loadData()
+    await loadData()
   }
 
   const handleDeleteEinsatz = async (id: string) => {
@@ -1395,7 +1406,7 @@ function AutorenplanGrid({
                 Notizen
               </td>
               {weeks.map((w, wi) => {
-                const nots = notizen.filter(n => n.woche_von === dateKey(w))
+                const nots = notizen.filter(n => (n.woche_von || '').slice(0, 10) === dateKey(w))
                 const typColor = NOTIZ_FARBEN[nots[0]?.typ] ?? NOTIZ_FARBEN.allgemein
                 const isToday = dateKey(w) === dateKey(today)
                 const baseBg = isToday ? '#007AFF08' : nots.length ? typColor + '15' : 'transparent'
@@ -1461,7 +1472,7 @@ function AutorenplanGrid({
                 body: JSON.stringify({ produktion_db_id: produktionDbId, woche_von: dateKey(noteModal.woche), text, typ }),
               })
             }
-            loadData()
+            await loadData()
             setNoteModal(null)
           }}
           onDelete={noteModal.notiz ? async () => {
