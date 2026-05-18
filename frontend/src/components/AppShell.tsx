@@ -695,6 +695,7 @@ export default function AppShell({
           showReplikNumbers: typeof s.showReplikNumbers === 'boolean' ? s.showReplikNumbers : prev.showReplikNumbers,
           keyboardLayout:    s.keyboardLayout ?? 'qwertz',
           spellcheckLang:    s.spellcheckLang ?? 'de-DE',
+          autoStimmungPropagation: typeof s.autoStimmungPropagation === 'boolean' ? s.autoStimmungPropagation : prev.autoStimmungPropagation,
         }))
       }
     }).catch(() => {}).finally(() => {
