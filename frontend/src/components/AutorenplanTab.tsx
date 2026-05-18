@@ -1054,7 +1054,7 @@ function AutorenplanGrid({
                   <th key={wi} style={{
                     height: 32, position: 'sticky', top: blockInfo?.bloecke.length ? 20 : 0, zIndex: 8,
                     background: isToday ? '#007AFF08' : 'var(--bg-page)',
-                    borderLeft: '1px solid var(--border)', borderBottom: '2px solid var(--border)',
+                    borderLeft: '1px solid var(--border)', borderBottom: isToday ? '2px solid transparent' : '2px solid var(--border)',
                     fontSize: 9, fontWeight: isToday ? 700 : 400,
                     color: isToday ? '#007AFF' : 'var(--text-secondary)',
                     padding: '2px 4px', textAlign: 'center',
