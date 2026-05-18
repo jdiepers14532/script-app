@@ -1069,6 +1069,7 @@ function AutorenplanGrid({
           <tbody>
             {jobKategorien.map(jk => {
               const globalMaxSlots = Math.max(1, ...weeks.map(w => maxSlotsForCell(jk, w)))
+              console.log('[AutorenplanGrid] jk:', jk.label, 'max_slots:', jk.max_slots, 'slots_gleich_folgen:', jk.slots_gleich_folgen, 'globalMaxSlots:', globalMaxSlots)
               return Array.from({ length: globalMaxSlots }, (_, slotIdx) => (
                 <tr key={`${jk.id}-${slotIdx}`}>
                   {slotIdx === 0 && (
