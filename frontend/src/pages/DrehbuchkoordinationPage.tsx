@@ -662,9 +662,11 @@ function ProduktionTab() {
   const [farbenPresets, setFarbenPresets] = useState<any[]>([])
   const [newPresetName, setNewPresetName] = useState('')
   const [savePresetOpen, setSavePresetOpen] = useState(false)
+  const [numModus, setNumModus] = useState<'global' | 'per_typ'>('global')
 
   useEffect(() => {
     api.getRevisionFarbenPresets().then(setFarbenPresets).catch(() => {})
+    api.getFassungsNummerierung().then((d: any) => setNumModus((d.modus ?? 'global') as 'global' | 'per_typ')).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -840,6 +842,25 @@ function ProduktionTab() {
           <button style={btnStyle} onClick={addLabel} disabled={busy('lbl') || !newLabel.name.trim()}>
             {busy('lbl') ? '...' : '+ Hinzufügen'}
           </button>
+        </div>
+      </section>
+
+      {/* ── Fassungs-Nummerierung ── */}
+      <section style={sectionStyle}>
+        <h3 style={h3Style}>Fassungs-Nummerierung</h3>
+        <p style={subStyle}>
+          Global: Alle Dokument-Typen teilen eine gemeinsame Nummerierung pro Folge.
+          Pro Typ: Jeder Typ beginnt bei Fassung&nbsp;1.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {(['global', 'per_typ'] as const).map(m => (
+            <button key={m} onClick={async () => { setNumModus(m); try { await api.updateFassungsNummerierung(m) } catch {} }}
+              style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer',
+                background: numModus === m ? 'var(--text-primary)' : 'transparent',
+                color: numModus === m ? '#fff' : 'var(--text-primary)' }}>
+              {m === 'global' ? 'Global' : 'Pro Typ'}
+            </button>
+          ))}
         </div>
       </section>
 
@@ -1968,7 +1989,6 @@ function DokumentEinstellungenTab() {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
   const [overrideRollen, setOverrideRollen] = useState<string[]>([])
-  const [numModus, setNumModus] = useState<'global' | 'per_typ'>('global')
   const [newRolle, setNewRolle] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -1983,7 +2003,6 @@ function DokumentEinstellungenTab() {
 
   useEffect(() => {
     api.getOverrideRollen().then((d: any) => setOverrideRollen(d.rollen ?? [])).catch(() => {})
-    api.getFassungsNummerierung().then((d: any) => setNumModus((d.modus ?? 'global') as 'global' | 'per_typ')).catch(() => {})
     if (produktionId) {
       api.getDkAppSettings(produktionId).then((data: any) => {
         if (data?.ln_settings) {
@@ -2006,7 +2025,6 @@ function DokumentEinstellungenTab() {
   const handleSave = async () => {
     try {
       await api.updateOverrideRollen(overrideRollen)
-      await api.updateFassungsNummerierung(numModus)
       if (produktionId) {
         await api.updateDkAppSetting(produktionId, 'ln_settings', JSON.stringify({
           fontFamily: lnFont, fontSizePt: lnSize, color: lnColor, marginCm: lnMargin,
@@ -2026,24 +2044,6 @@ function DokumentEinstellungenTab() {
 
   return (
     <div style={{ maxWidth: 600 }}>
-
-      <section style={{ marginBottom: 32 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Fassungs-Nummerierung</h3>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
-          Global: Alle Dokument-Typen teilen eine gemeinsame Nummerierung pro Folge.
-          Pro Typ: Jeder Typ beginnt bei Fassung 1.
-        </p>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {(['global', 'per_typ'] as const).map(m => (
-            <button key={m} onClick={() => setNumModus(m)}
-              style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer',
-                background: numModus === m ? 'var(--text-primary)' : 'transparent',
-                color: numModus === m ? '#fff' : 'var(--text-primary)' }}>
-              {m === 'global' ? 'Global' : 'Pro Typ'}
-            </button>
-          ))}
-        </div>
-      </section>
 
       <section style={{ marginBottom: 32 }}>
         <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Status-Override-Rollen</h3>
