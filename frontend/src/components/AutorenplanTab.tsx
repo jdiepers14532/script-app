@@ -722,9 +722,15 @@ function mondayPlusDays(d: Date, n: number): string {
   return dateKey(r)
 }
 
+function fmtShortDate(s?: string): string {
+  if (!s) return ''
+  const parts = s.slice(0, 10).split('-')
+  return `${parts[2]}.${parts[1]}.`
+}
+
 function EinsatzModal({
   einsatz, jk, wocheDatum, produktionDbId, blockInfo, blockLabel, folgeLabel,
-  onSave, onDelete, onClose,
+  einsaetze, onSave, onDelete, onClose,
 }: {
   einsatz?: Einsatz
   jk: JobKategorie
@@ -733,11 +739,14 @@ function EinsatzModal({
   blockInfo: BlockInfo | null
   blockLabel: string
   folgeLabel: string
+  einsaetze?: Einsatz[]
   onSave: (data: Partial<Einsatz>) => Promise<void>
   onDelete?: () => Promise<void>
   onClose: () => void
 }) {
   const isNew = !einsatz
+  const [localWoche, setLocalWoche] = useState<Date>(() => mondayOf(wocheDatum))
+  const [wocheEditMode, setWocheEditMode] = useState(false)
   const [personId, setPersonId] = useState<number | undefined>(einsatz?.vertragsdb_person_id)
   const [personName, setPersonName] = useState(einsatz?.person_cache_name || einsatz?.platzhalter_name || '')
   const [isPlatzhalter, setIsPlatzhalter] = useState(!einsatz?.vertragsdb_person_id && !!einsatz?.platzhalter_name)
@@ -751,6 +760,38 @@ function EinsatzModal({
   const [deleting, setDeleting] = useState(false)
   const [cacheResults, setCacheResults] = useState<string[]>([])
   const cacheDebounceRef = useRef<any>(null)
+
+  const weekMonday = mondayPlusDays(localWoche, 0)
+  const weekSunday = mondayPlusDays(localWoche, 6)
+
+  // Gesamt-Vertragszeit aus benachbarten Einsätzen derselben Person
+  let gesamtVertragszeit: { von: string; bis: string; wochen: number } | null = null
+  if (personId && einsaetze && einsaetze.length > 0) {
+    const others = einsaetze.filter(e =>
+      e.vertragsdb_person_id === personId &&
+      e.job_kategorie_id === jk.id &&
+      e.id !== einsatz?.id
+    )
+    if (others.length > 0) {
+      const currentKey = dateKey(localWoche)
+      const allKeys = new Set([...others.map(e => (e.woche_von || '').slice(0, 10)), currentKey])
+      const adj = (k: string, dir: number) => dateKey(addWeeks(new Date(k + 'T12:00:00'), dir))
+      let gStart = currentKey
+      let gEnd = currentKey
+      while (allKeys.has(adj(gStart, -1))) gStart = adj(gStart, -1)
+      while (allKeys.has(adj(gEnd, 1))) gEnd = adj(gEnd, 1)
+      if (gStart !== gEnd) {
+        const groupOthers = others.filter(e => {
+          const k = (e.woche_von || '').slice(0, 10)
+          return k >= gStart && k <= gEnd
+        })
+        const vonAll = [vonDatum, ...groupOthers.map(e => e.von_datum).filter(Boolean)].sort() as string[]
+        const bisAll = [bisDatum, ...groupOthers.map(e => e.bis_datum).filter(Boolean)].sort().reverse() as string[]
+        const totalWeeks = [...allKeys].filter(k => k >= gStart && k <= gEnd).length
+        gesamtVertragszeit = { von: vonAll[0], bis: bisAll[0], wochen: totalWeeks }
+      }
+    }
+  }
   // Zusatzpersonal
   const [zusatzList, setZusatzList] = useState<{ id: string; beschreibung: string; status: string }[]>([])
   const [newZusatz, setNewZusatz] = useState('')
@@ -821,7 +862,7 @@ function EinsatzModal({
     try {
       await onSave({
         job_kategorie_id: jk.id,
-        woche_von: dateKey(wocheDatum),
+        woche_von: dateKey(localWoche),
         produktion_db_id: produktionDbId,
         vertragsdb_person_id: personId,
         person_cache_name: personId ? personName : undefined,
@@ -850,21 +891,61 @@ function EinsatzModal({
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{isNew ? 'Einsatz anlegen' : 'Einsatz bearbeiten'}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: jk.farbe, marginRight: 4 }} />
-              {jk.label} · {formatWoche(wocheDatum)}
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: jk.farbe, flexShrink: 0 }} />
+              {wocheEditMode ? (
+                <input
+                  type="date"
+                  defaultValue={dateKey(localWoche)}
+                  autoFocus
+                  onBlur={e => {
+                    if (e.target.value) {
+                      const d = mondayOf(new Date(e.target.value + 'T12:00:00'))
+                      setLocalWoche(d)
+                      if (!einsatz?.von_datum) setVonDatum(mondayPlusDays(d, 0))
+                      if (!einsatz?.bis_datum) setBisDatum(mondayPlusDays(d, 4))
+                    }
+                    setWocheEditMode(false)
+                  }}
+                  onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') { (e.target as HTMLInputElement).blur() } }}
+                  style={{ fontSize: 11, border: '1px solid var(--border)', borderRadius: 4, padding: '1px 4px', background: 'var(--bg-page)', color: 'var(--text-primary)' }}
+                />
+              ) : (
+                <span
+                  onClick={() => setWocheEditMode(true)}
+                  title="Klicken um Woche zu ändern"
+                  style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 2 }}
+                >
+                  {jk.label} · {formatWoche(localWoche)}
+                </span>
+              )}
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={16} /></button>
         </div>
         {/* Datumleiste */}
-        <div style={{ padding: '8px 20px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Vertragszeitraum:</div>
-          <input type="date" value={vonDatum} onChange={e => setVonDatum(e.target.value)}
-            style={{ padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-page)', fontSize: 11, color: 'var(--text-primary)' }} />
-          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>–</div>
-          <input type="date" value={bisDatum} onChange={e => setBisDatum(e.target.value)}
-            style={{ padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-page)', fontSize: 11, color: 'var(--text-primary)' }} />
+        <div style={{ padding: '8px 20px', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)' }}>
+          {gesamtVertragszeit && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Gesamt-Vertragszeit:</div>
+              <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary)' }}>
+                {fmtShortDate(gesamtVertragszeit.von)} – {fmtShortDate(gesamtVertragszeit.bis)}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>({gesamtVertragszeit.wochen} Wochen)</div>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+              {gesamtVertragszeit ? 'Diese Woche:' : 'Vertragszeitraum:'}
+            </div>
+            <input type="date" value={vonDatum} onChange={e => setVonDatum(e.target.value)}
+              min={weekMonday} max={weekSunday}
+              style={{ padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-page)', fontSize: 11, color: 'var(--text-primary)' }} />
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>–</div>
+            <input type="date" value={bisDatum} onChange={e => setBisDatum(e.target.value)}
+              min={vonDatum} max={weekSunday}
+              style={{ padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-page)', fontSize: 11, color: 'var(--text-primary)' }} />
+          </div>
         </div>
 
         <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1419,14 +1500,21 @@ function AutorenplanGrid({
                     }}
                     onMouseEnter={e => { if (!nots.length) e.currentTarget.style.background = 'var(--bg-subtle)' }}
                     onMouseLeave={e => { e.currentTarget.style.background = baseBg }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: ROW_H - 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', height: ROW_H - 4, padding: '0 2px' }}>
                       {nots.length > 0 ? (
-                        <Tooltip text={nots.map(n => n.text).join('\n')}>
-                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: typColor }} />
+                        <Tooltip text={nots.map(n => `[${n.typ.charAt(0).toUpperCase() + n.typ.slice(1)}] ${n.text}`).join('\n\n')}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3, width: '100%', overflow: 'hidden' }}>
+                            <div style={{ width: 3, height: 20, borderRadius: 2, background: typColor, flexShrink: 0 }} />
+                            <div style={{ fontSize: 9, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, lineHeight: 1.3 }}>
+                              {nots[0].text}{nots.length > 1 ? <span style={{ color: typColor, fontWeight: 600 }}> +{nots.length - 1}</span> : null}
+                            </div>
+                          </div>
                         </Tooltip>
                       ) : (
                         <Tooltip text="Wochennotiz hinzufügen">
-                          <Plus size={9} style={{ opacity: 0.4, display: 'block' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                            <Plus size={9} style={{ opacity: 0.4, display: 'block' }} />
+                          </div>
                         </Tooltip>
                       )}
                     </div>
@@ -1448,6 +1536,7 @@ function AutorenplanGrid({
           blockInfo={blockInfo}
           blockLabel={blockLabel}
           folgeLabel={folgeLabel}
+          einsaetze={einsaetze}
           onSave={handleSaveEinsatz}
           onDelete={modal.einsatz ? () => handleDeleteEinsatz(modal.einsatz!.id) : undefined}
           onClose={() => setModal(null)}
