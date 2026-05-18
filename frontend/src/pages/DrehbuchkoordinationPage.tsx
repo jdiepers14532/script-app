@@ -503,36 +503,6 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 
 // ── Glossar-Sektion (innerhalb AllgemeinTab) ──────────────────────────────────
 
-const GLOSSAR_DEFAULTS = [
-  // Pick-Up / Strang-Wiederaufnahme
-  { kuerzel: 'PU',   name: 'Pick-Up',                           erklaerung: 'Wiederaufnahme eines Strangs nach einer bewussten Pause. Oberbegriff für DPU und IPU.' },
-  { kuerzel: 'DPU',  name: 'Direkter Pick-Up',                  erklaerung: 'Wiederaufnahme ohne Zeitsprung – Continuous Action (CA). Die Zeit zwischen den Szenen vergeht nicht.' },
-  { kuerzel: 'CA',   name: 'Continuous Action',                 erklaerung: 'Synonym für / Bestandteil von DPU: keine Zeitlücke zwischen aufeinanderfolgenden Szenen.' },
-  { kuerzel: 'IPU',  name: 'Indirekter Pick-Up',                erklaerung: 'Wiederaufnahme eines Strangs mit Zeitsprung.' },
-  { kuerzel: 'DPU.', name: 'Direkter Pick-Up (Eröffnungs-Marker)',   erklaerung: 'Eröffnungs-Marker: erste Szene einer Folge knüpft direkt (Continuous Action) an den Cliffhanger der Vorfolge an.' },
-  { kuerzel: 'IPU.', name: 'Indirekter Pick-Up (Eröffnungs-Marker)', erklaerung: 'Eröffnungs-Marker: erste Szene einer Folge nimmt einen Strang der Vorfolge wieder auf, aber mit Zeitsprung – kein direkter Anschluss.' },
-  { kuerzel: 'Parken', name: 'Strang parken',                   erklaerung: 'Bewusste Pause eines Erzählstrangs – kein Fehler, sondern dramaturgisches Mittel. Der Strang wird später per Pick-Up wieder aufgenommen.' },
-  // Struktur
-  { kuerzel: 'PEN',  name: 'Penultimate',                       erklaerung: 'Vorletzte Szene einer Folge – der Vor-Cliff, der die Spannung unmittelbar vor dem Cliffhanger aufbaut.' },
-  { kuerzel: 'CLIFF', name: 'Cliffhanger',                      erklaerung: 'Letzte Szene einer Folge: offen-eskalierend, spannungsgeladen – animiert zum Weiterschauen.' },
-  { kuerzel: 'SOLO', name: 'Solo',                              erklaerung: 'Szene mit einer einzelnen Figur allein.' },
-  // Schnitt / Bild
-  { kuerzel: 'WS',          name: 'Wechselschnitt',             erklaerung: 'Zwei parallele Szenen werden abwechselnd gegeneinander geschnitten.' },
-  { kuerzel: 'Split-Screen', name: 'Split-Screen',              erklaerung: 'Wie Wechselschnitt, aber als Bildteilung: beide Szenen gleichzeitig nebeneinander sichtbar statt alternierend geschnitten.' },
-  { kuerzel: '1W',  name: 'One-Way-Telefonat',                  erklaerung: 'Telefonszene, bei der nur eine Seite des Gesprächs im Bild zu sehen ist.' },
-  { kuerzel: '2W',  name: 'Two-Way-Telefonat',                  erklaerung: 'Telefonszene, bei der beide Gesprächspartner gezeigt werden – eine Variante des Wechselschnitts.' },
-  // Ton / Audio
-  { kuerzel: 'VO',  name: 'Voice Over',                         erklaerung: 'Gedankenstimme oder innerer Monolog einer Figur; die Person ist nicht im Bild zu sehen.' },
-  { kuerzel: 'OFF', name: 'Off',                                erklaerung: 'Stimme einer Person, die hörbar, aber nicht im Bild sichtbar ist.' },
-  { kuerzel: 'NT',  name: 'Nur Ton',                            erklaerung: 'Dialog, der ausschließlich akustisch aufgenommen wird, ohne Bild.' },
-  { kuerzel: 'Einspieler', name: 'Einspieler',                  erklaerung: 'Musik, die beim Dreh live eingespielt wird, oder eine Videoeinspielung innerhalb der Szene.' },
-  // Produktion / Komparsen
-  { kuerzel: 'NMDP',            name: 'Nach Möglichkeit der Produktion', erklaerung: 'Beispielhafte Setzung im Treatment – 1:1-Umsetzung nicht erforderlich. Die Produktion entscheidet in der Vorbereitung, was realisiert wird.' },
-  { kuerzel: 'NMDP-Komparsen',  name: 'NMDP für Komparsen',    erklaerung: 'Komparsen erscheinen in dieser Szene nur, wenn das Produktionsbudget es erlaubt.' },
-  { kuerzel: 'o.T.', name: 'Ohne Text',                         erklaerung: 'Komparsen oder Nebenfiguren ohne Sprechrolle.' },
-  { kuerzel: 'SBSA', name: 'Sex bahnt sich an',                 erklaerung: 'Zwei Figuren sind kurz davor, Sex zu haben. Die Szene endet oder blendet aus, bevor es jugendschutzrelevant wird (Pre-Coitus, jugendschutzkonform ausgeblendet).' },
-]
-
 type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; sort_order: number }
 type GlossarDraft = { kuerzel: string; name: string; erklaerung: string }
 
@@ -608,21 +578,6 @@ function GlossarSection({ productionId }: { productionId: string }) {
     setDeleteConfirm(null)
   }
 
-  const insertDefaults = async () => {
-    setSaving(true)
-    const created: GlossarEntry[] = []
-    for (const d of GLOSSAR_DEFAULTS) {
-      const r = await fetch(`/api/dk-settings/${productionId}/glossar`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(d),
-      }).catch(() => null)
-      if (r?.ok) created.push(await r.json())
-    }
-    setEntries(prev => [...prev, ...created])
-    setSaving(false)
-  }
-
   const inputSt: React.CSSProperties = {
     padding: '4px 8px', borderRadius: 5, border: '1px solid var(--border)',
     background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 12, fontFamily: 'inherit',
@@ -663,12 +618,8 @@ function GlossarSection({ productionId }: { productionId: string }) {
       ) : (
         <>
           {entries.length === 0 && !newDraft && (
-            <div style={{ padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 12 }}>
               <span style={{ color: 'var(--text-secondary)' }}>Noch keine Einträge.</span>
-              <button onClick={insertDefaults} disabled={saving}
-                style={{ padding: '4px 12px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, cursor: 'pointer' }}>
-                {saving ? 'Wird eingefügt…' : 'Standard-Einträge einfügen'}
-              </button>
             </div>
           )}
 

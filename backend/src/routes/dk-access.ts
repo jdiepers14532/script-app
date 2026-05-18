@@ -85,10 +85,27 @@ router.get('/:productionId/glossar',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { rows } = await pool.query(
+      const pid = req.params.productionId
+      let { rows } = await pool.query(
         'SELECT id, kuerzel, name, erklaerung, sort_order FROM dk_glossar WHERE production_id = $1 ORDER BY sort_order, kuerzel',
-        [req.params.productionId]
+        [pid]
       )
+      // Auto-seed aus dk_glossar_defaults wenn noch keine Einträge vorhanden
+      if (rows.length === 0) {
+        const { rows: defaults } = await pool.query(
+          'SELECT kuerzel, name, erklaerung, sort_order FROM dk_glossar_defaults ORDER BY sort_order'
+        )
+        if (defaults.length > 0) {
+          const values = defaults.map((_, i) => `($1, $${i * 4 + 2}, $${i * 4 + 3}, $${i * 4 + 4}, $${i * 4 + 5})`).join(', ')
+          const params: any[] = [pid]
+          defaults.forEach(d => params.push(d.kuerzel, d.name, d.erklaerung, d.sort_order))
+          const inserted = await pool.query(
+            `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, sort_order) VALUES ${values} RETURNING id, kuerzel, name, erklaerung, sort_order`,
+            params
+          )
+          rows = inserted.rows
+        }
+      }
       res.json(rows)
     } catch (err) {
       res.status(500).json({ error: String(err) })
