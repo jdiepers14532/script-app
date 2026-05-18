@@ -62,6 +62,20 @@ export default function EditorPanel({
   const [neueFassungModal, setNeueFassungModal] = useState<'drehbuch' | 'storyline' | null>(null)
   const [platzhalterWerkId, setPlatzhalterWerkId] = useState<string | null>(null)
 
+  // ── Template content reset (Stockshot-Template applied in SceneEditor) ───
+  const [contentResetCounter, setContentResetCounter] = useState(0)
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.szeneId === selectedSzeneId || detail?.szeneId === String(selectedSzeneId)) {
+        setContentResetCounter(c => c + 1)
+      }
+    }
+    window.addEventListener('template-content-applied', handler)
+    return () => window.removeEventListener('template-content-applied', handler)
+  }, [selectedSzeneId])
+
   // ── Snapshot state ────────────────────────────────────────────────────────
   const [snapshotOpen, setSnapshotOpen] = useState(false)
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -173,7 +187,7 @@ export default function EditorPanel({
     } else {
       setCurrentSzene(null); setSceneContent(null); setLoading(false)
     }
-  }, [selectedSzeneId, selectedWerkId, useDokumentSzenen])
+  }, [selectedSzeneId, selectedWerkId, useDokumentSzenen, contentResetCounter])
 
   // Cleanup save timer
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
@@ -646,7 +660,7 @@ export default function EditorPanel({
         ) : (
           <Suspense fallback={null}>
             <UniversalEditor
-              key={String(selectedSzeneId)}
+              key={`${selectedSzeneId}-${contentResetCounter}`}
               initialContent={sceneContent}
               onSave={isReadOnly ? undefined : scheduleSave}
               readOnly={!!isReadOnly}

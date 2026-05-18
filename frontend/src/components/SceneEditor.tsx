@@ -193,6 +193,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [fbDropdownOpen, setFbDropdownOpen] = useState(false)
   const [fbSearch, setFbSearch] = useState('')
   const [allFbSzenen, setAllFbSzenen] = useState<any[]>([])
+  const [stockshotTemplates, setStockshotTemplates] = useState<any[]>([])
   const [compactHover, setCompactHover] = useState(false)
   const [compactHoverPos, setCompactHoverPos] = useState<React.CSSProperties>({})
   const [compactCharDropdown, setCompactCharDropdown] = useState(false)
@@ -311,6 +312,12 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     api.getCharKategorien(produktionId).then(setCharKategorien).catch(() => setCharKategorien([]))
     api.getStraenge(produktionId).then(setAllStraenge).catch(() => setAllStraenge([]))
   }, [produktionId])
+
+  // Load stockshot templates when sondertyp is 'stockshot'
+  useEffect(() => {
+    if (!produktionId || scene?.sondertyp !== 'stockshot') { setStockshotTemplates([]); return }
+    api.getStockshotTemplates(produktionId).then(setStockshotTemplates).catch(() => setStockshotTemplates([]))
+  }, [scene?.sondertyp, produktionId])
 
   // Load scene strands
   useEffect(() => {
@@ -1138,7 +1145,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       </Tooltip>
                     </span>
                   )}
-                  {/* Stockshot: Kategorie + Stimmung + Neu drehen */}
+                  {/* Stockshot: Kategorie + Neu drehen + Template */}
                   {scene.sondertyp === 'stockshot' && (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                       <select className="sf-input" value={scene.stockshot_kategorie ?? ''} style={{ width: 'auto', maxWidth: 150, fontSize: 11, margin: 0 }} onChange={e => { const val = e.target.value || null; saveScene({ stockshot_kategorie: val || '__null__' }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }}>
@@ -1151,6 +1158,51 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                         <input type="checkbox" checked={scene.stockshot_neu_drehen ?? false} onChange={e => { saveScene({ stockshot_neu_drehen: e.target.checked }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} style={{ accentColor: '#FF3B30' }} />
                         Neu zu drehen
                       </label>
+                      {stockshotTemplates.length > 0 && (
+                        <select
+                          className="sf-input"
+                          value=""
+                          style={{ width: 'auto', maxWidth: 160, fontSize: 11, margin: 0 }}
+                          onChange={async (e) => {
+                            const tmpl = stockshotTemplates.find(t => String(t.id) === e.target.value)
+                            if (!tmpl) return
+                            try {
+                              const updates: Record<string, any> = {}
+                              if (tmpl.innen_aussen) updates.int_ext = tmpl.innen_aussen
+                              if (tmpl.stimmung) updates.tageszeit = tmpl.stimmung
+                              if (tmpl.stoppzeit_sek != null) updates.stoppzeit_sek = tmpl.stoppzeit_sek
+                              if (tmpl.motiv_id) {
+                                const motiv = allMotive.find((m: any) => m.id === tmpl.motiv_id)
+                                if (motiv) {
+                                  const parent = motiv.parent_id ? allMotive.find((m: any) => m.id === motiv.parent_id) : motiv
+                                  updates.motiv_id = tmpl.motiv_id
+                                  updates.ort_name = parent ? buildOrtName(parent, motiv.parent_id ? motiv : undefined) : motiv.name
+                                } else {
+                                  updates.motiv_id = tmpl.motiv_id
+                                }
+                              }
+                              if (Object.keys(updates).length > 0) {
+                                const updated = await saveScene(updates)
+                                setScene(updated)
+                                onSzeneUpdated?.(updated)
+                                if (updated?.motiv_id) setSelectedMotivId(updated.motiv_id)
+                              }
+                              if (scene.id && useDokumentSzenen) {
+                                const nodes = tmpl.bodytext
+                                  ? [{ type: 'paragraph', content: [{ type: 'text', text: tmpl.bodytext }] }]
+                                  : [{ type: 'paragraph' }]
+                                await api.updateDokumentSzene(String(scene.id), { content: nodes })
+                                window.dispatchEvent(new CustomEvent('template-content-applied', { detail: { szeneId: String(scene.id) } }))
+                              }
+                            } catch {}
+                          }}
+                        >
+                          <option value="">Template…</option>
+                          {stockshotTemplates.map((t: any) => (
+                            <option key={t.id} value={t.id}>{t.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </span>
                   )}
                   {/* wsBeteiligt — kein eigener Sondertyp, aber in WS involviert */}
