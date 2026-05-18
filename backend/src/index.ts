@@ -312,6 +312,7 @@ async function runMigrations() {
     'v85_drop_stockshot_stimmung.sql',
     'v86_preset_layout_settings.sql',
     'v87_revision_farben_presets.sql',
+    'v88_drop_format_templates.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

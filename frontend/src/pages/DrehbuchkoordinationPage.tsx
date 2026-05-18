@@ -24,7 +24,6 @@ const DK_TABS = [
   { id: 'lock-regeln',           label: 'Lock-Regeln' },
   { id: 'dokument-typen',        label: 'Absatzformat-Vorlagen' },
   { id: 'gruppen-register',      label: 'Gruppen-Register' },
-  { id: 'format-templates',      label: 'Format-Templates' },
   { id: 'dokument-einstellungen', label: 'Dokument-Einstellungen' },
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
@@ -1956,96 +1955,6 @@ function GruppenRegisterTab() {
   )
 }
 
-// ── Tab: Format-Templates ────────────────────────────────────────────────────────
-
-function FormatTemplatesTab() {
-  const [templates, setTemplates] = useState<any[]>([])
-  const [selectedId, setSelectedId] = useState<number | null>(null)
-  const [elemente, setElemente] = useState<any[]>([])
-  const [msg, setMsg] = useState<string | null>(null)
-
-  useEffect(() => {
-    api.getFormatTemplates().then(setTemplates).catch(() => {})
-  }, [])
-
-  const loadElemente = async (id: number) => {
-    setSelectedId(id)
-    try {
-      const ts = await api.getFormatTemplates()
-      const found = ts.find((x: any) => x.id === id)
-      setElemente(found?.elemente ?? [])
-    } catch {}
-  }
-
-  const handleSaveElemente = async () => {
-    if (!selectedId) return
-    try {
-      await api.updateFormatElemente(selectedId, elemente)
-      setMsg('Gespeichert.')
-    } catch (e: any) { setMsg(e.message) }
-  }
-
-  const updateEl = (idx: number, field: string, val: any) => {
-    setElemente(prev => prev.map((e, i) => i === idx ? { ...e, [field]: val } : e))
-  }
-
-  return (
-    <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        {templates.map(t => (
-          <button key={t.id} onClick={() => loadElemente(t.id)}
-            style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer',
-              background: selectedId === t.id ? 'var(--text-primary)' : 'transparent',
-              color: selectedId === t.id ? '#fff' : 'var(--text-primary)' }}>
-            {t.name}{t.ist_standard ? ' (Standard)' : ''}
-          </button>
-        ))}
-      </div>
-      {selectedId && (
-        <>
-          {msg && <p style={{ fontSize: 12, color: 'var(--sw-info)', marginBottom: 8 }}>{msg}</p>}
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-              <thead><tr style={{ borderBottom: '1px solid var(--border)' }}>
-                {['Element', 'Links %', 'Rechts %', 'Ausrichtung', 'Grossbuchst.', 'Tab-Folge', 'Enter-Folge'].map(h => (
-                  <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {elemente.map((e, i) => (
-                  <tr key={e.element_typ} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '6px 8px', fontWeight: 500 }}>{e.element_typ}</td>
-                    <td style={{ padding: '6px 4px' }}><input type="number" value={e.einrueckung_links} onChange={ev => updateEl(i, 'einrueckung_links', +ev.target.value)}
-                      style={{ width: 48, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
-                    <td style={{ padding: '6px 4px' }}><input type="number" value={e.einrueckung_rechts} onChange={ev => updateEl(i, 'einrueckung_rechts', +ev.target.value)}
-                      style={{ width: 48, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
-                    <td style={{ padding: '6px 4px' }}>
-                      <select value={e.ausrichtung} onChange={ev => updateEl(i, 'ausrichtung', ev.target.value)}
-                        style={{ padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, background: 'var(--bg-surface)' }}>
-                        {['left','center','right'].map(v => <option key={v} value={v}>{v}</option>)}
-                      </select>
-                    </td>
-                    <td style={{ padding: '6px 4px', textAlign: 'center' }}>
-                      <input type="checkbox" checked={!!e.grossbuchstaben} onChange={ev => updateEl(i, 'grossbuchstaben', ev.target.checked)} />
-                    </td>
-                    <td style={{ padding: '6px 4px' }}><input value={e.tab_folge_element ?? ''} onChange={ev => updateEl(i, 'tab_folge_element', ev.target.value)}
-                      style={{ width: 90, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
-                    <td style={{ padding: '6px 4px' }}><input value={e.enter_folge_element ?? ''} onChange={ev => updateEl(i, 'enter_folge_element', ev.target.value)}
-                      style={{ width: 90, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11 }} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button onClick={handleSaveElemente} style={{ marginTop: 16, padding: '8px 20px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
-            Speichern
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
 // ── Tab: Dokument-Einstellungen ──────────────────────────────────────────────────
 
 const LN_FONT_OPTIONS = [
@@ -2709,8 +2618,6 @@ export default function DrehbuchkoordinationPage() {
         return <DokumentTypenTab headerSlot={headerSlot} />
       case 'gruppen-register':
         return produktionId ? <GruppenRegisterTab /> : <NoProduction />
-      case 'format-templates':
-        return <FormatTemplatesTab />
       case 'dokument-einstellungen':
         return <DokumentEinstellungenTab />
       case 'statistik-panel':

@@ -64,15 +64,6 @@ export default function DokumentEditorPage() {
   // Load werkstufen
   const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
 
-  // Format templates from backend
-  const [formatElements, setFormatElements] = useState<any[]>([])
-
-  useEffect(() => {
-    api.getFormatTemplates().then(templates => {
-      const standard = templates.find(t => t.ist_standard)
-      if (standard?.elemente) setFormatElements(standard.elemente)
-    }).catch(() => {})
-  }, [])
 
   const handleCreate = async (typ: string) => {
     await createWerkstufe(typ)
@@ -92,7 +83,6 @@ export default function DokumentEditorPage() {
     folgeNummer,
     folgeId,
     werkstufen,
-    formatElements,
     onCreateWerkstufe: handleCreate,
     onReloadWerkstufen: reloadWerkstufen,
   }

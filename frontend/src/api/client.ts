@@ -362,11 +362,6 @@ export const api = {
   adminRemoveColabMitglied: (gruppeId: number, userId: string) =>
     request<void>('DELETE', `/admin/colab-gruppen/${gruppeId}/mitglieder/${userId}`),
 
-  // Admin: Format-Templates
-  getFormatTemplates: () => request<any[]>('GET', '/admin/format-templates'),
-  updateFormatElemente: (templateId: number, elemente: any[]) =>
-    request<any[]>('PUT', `/admin/format-templates/${templateId}/elemente`, { elemente }),
-
   // Admin: Override-Rollen & Nummerierung
   getOverrideRollen: () => request<{ rollen: string[] }>('GET', '/admin/dokument-override-rollen'),
   updateOverrideRollen: (rollen: string[]) =>

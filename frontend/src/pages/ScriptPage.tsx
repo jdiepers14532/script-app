@@ -29,8 +29,6 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
   const { tweaks } = useTweaks()
   const sceneEditorMode = tweaks.sceneEditorMode ?? 'single'
   const [folgeId, setFolgeId] = useState<number | null>(null)
-  const [formatElements, setFormatElements] = useState<any[]>([])
-
   // Resolve produktionId + folgeNummer → folge_id
   useEffect(() => {
     if (!produktionId || !folgeNummer) { setFolgeId(null); return }
@@ -44,14 +42,6 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
 
   // Load werkstufen for this folge
   const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
-
-  // Load format elements
-  useEffect(() => {
-    api.getFormatTemplates().then((templates: any[]) => {
-      const standard = templates.find((t: any) => t.ist_standard)
-      if (standard?.elemente) setFormatElements(standard.elemente)
-    }).catch(() => {})
-  }, [])
 
   // Track selected werkstufe per panel (for SceneEditor per panel)
   const [leftWerkId, setLeftWerkId] = useState<string | null>(null)
@@ -162,7 +152,6 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             folgeNummer={folgeNummer}
             folgeId={folgeId}
             werkstufen={werkstufen}
-            formatElements={formatElements}
             defaultTyp="storyline"
             selectedSzeneId={selectedSzeneId}
             useDokumentSzenen={useDokumentSzenen}
@@ -222,7 +211,6 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             folgeNummer={folgeNummer}
             folgeId={folgeId}
             werkstufen={werkstufen}
-            formatElements={formatElements}
             defaultTyp="drehbuch"
             selectedSzeneId={selectedSzeneId}
             useDokumentSzenen={useDokumentSzenen}
