@@ -193,6 +193,7 @@ interface UniversalEditorProps {
   onNavigateNext?: () => void
   onNavigatePrev?: () => void
   showLineNumbers?: boolean
+  suppressLineNumbers?: boolean
   lineNumberMarginCm?: number
   showReplikNumbers?: boolean
   replikOffset?: number
@@ -221,6 +222,7 @@ export default function UniversalEditor({
   onNavigateNext,
   onNavigatePrev,
   showLineNumbers = false,
+  suppressLineNumbers = false,
   lineNumberMarginCm = 1,
   showReplikNumbers = false,
   replikOffset = 0,
@@ -1160,7 +1162,7 @@ export default function UniversalEditor({
             spellCheck={spellcheckMode === 'browser'}
           />
           <LineNumberOverlay
-            show={showLineNumbers}
+            show={showLineNumbers && !suppressLineNumbers}
             marginCm={lineNumberMarginCm}
             fontFamily={lnSettings.fontFamily}
             fontSizePt={lnSettings.fontSizePt}

@@ -3550,6 +3550,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [editName, setEditName] = useState('')
   const [editTyp, setEditTyp] = useState('titelseite')
   const [editEditorValue, setEditEditorValue] = useState<DokumentVorlagenEditorValue>(emptyVorlagenEditorValue())
+  const [editZeilennummerierungUnterbinden, setEditZeilennummerierungUnterbinden] = useState(false)
   const [editorKey, setEditorKey] = useState(0)
   const [saving, setSaving] = useState(false)
   const [zoom, setZoom] = useState(0.9)
@@ -3587,6 +3588,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
       erste_seite_kein_header: v.erste_seite_kein_header ?? true,
       seiten_layout:           v.seiten_layout ?? emptyVorlagenEditorValue().seiten_layout,
     })
+    setEditZeilennummerierungUnterbinden(v.zeilennummerierung_unterbinden ?? false)
     setEditorKey(k => k + 1)
   }
 
@@ -3605,13 +3607,14 @@ function VorlagenTab({ productionId }: { productionId: string }) {
       const data = {
         name: editName,
         typ: editTyp,
-        body_content:            editEditorValue.body_content,
-        kopfzeile_content:       editEditorValue.kopfzeile_content,
-        fusszeile_content:       editEditorValue.fusszeile_content,
-        kopfzeile_aktiv:         editEditorValue.kopfzeile_aktiv,
-        fusszeile_aktiv:         editEditorValue.fusszeile_aktiv,
-        erste_seite_kein_header: editEditorValue.erste_seite_kein_header,
-        seiten_layout:           editEditorValue.seiten_layout,
+        body_content:                    editEditorValue.body_content,
+        kopfzeile_content:               editEditorValue.kopfzeile_content,
+        fusszeile_content:               editEditorValue.fusszeile_content,
+        kopfzeile_aktiv:                 editEditorValue.kopfzeile_aktiv,
+        fusszeile_aktiv:                 editEditorValue.fusszeile_aktiv,
+        erste_seite_kein_header:         editEditorValue.erste_seite_kein_header,
+        seiten_layout:                   editEditorValue.seiten_layout,
+        zeilennummerierung_unterbinden:  editZeilennummerierungUnterbinden,
       }
       if (editId === '__new__') {
         await api.createDokumentVorlageManual(productionId, data)
@@ -3636,15 +3639,16 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const duplicateVorlage = async (v: any) => {
     try {
       await api.createDokumentVorlageManual(productionId, {
-        name:                    `Kopie von ${v.name}`,
-        typ:                     v.typ,
-        body_content:            v.body_content,
-        kopfzeile_content:       v.kopfzeile_content,
-        fusszeile_content:       v.fusszeile_content,
-        kopfzeile_aktiv:         v.kopfzeile_aktiv,
-        fusszeile_aktiv:         v.fusszeile_aktiv,
-        erste_seite_kein_header: v.erste_seite_kein_header,
-        seiten_layout:           v.seiten_layout,
+        name:                           `Kopie von ${v.name}`,
+        typ:                            v.typ,
+        body_content:                   v.body_content,
+        kopfzeile_content:              v.kopfzeile_content,
+        fusszeile_content:              v.fusszeile_content,
+        kopfzeile_aktiv:                v.kopfzeile_aktiv,
+        fusszeile_aktiv:                v.fusszeile_aktiv,
+        erste_seite_kein_header:        v.erste_seite_kein_header,
+        seiten_layout:                  v.seiten_layout,
+        zeilennummerierung_unterbinden: v.zeilennummerierung_unterbinden ?? false,
       })
       load()
     } catch (err: any) {
@@ -3744,6 +3748,20 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                 ))}
               </div>
             </div>
+          </div>
+
+          <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
+              <input
+                type="checkbox"
+                checked={editZeilennummerierungUnterbinden}
+                onChange={e => setEditZeilennummerierungUnterbinden(e.target.checked)}
+              />
+              <span>Zeilennummerierung unterdrücken</span>
+            </label>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4, marginBottom: 0 }}>
+              Deaktiviert die Zeilennummern für diesen Dokumenttyp (z.B. Titelblatt).
+            </p>
           </div>
 
           <div style={{ borderBottom: '1px solid var(--border)' }}>

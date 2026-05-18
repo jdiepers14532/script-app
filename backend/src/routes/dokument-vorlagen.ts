@@ -13,6 +13,7 @@ dokumentVorlagenRouter.get('/', async (req, res) => {
       `SELECT id, name, typ, is_aktiv, sektionen, meta_fields,
               body_content, kopfzeile_content, fusszeile_content,
               kopfzeile_aktiv, fusszeile_aktiv, erste_seite_kein_header, seiten_layout,
+              zeilennummerierung_unterbinden,
               created_by, created_at, updated_at
        FROM dokument_vorlagen WHERE produktion_id = $1 ORDER BY typ, is_aktiv DESC, created_at DESC`,
       [(req.params as any).produktionId]
@@ -97,6 +98,7 @@ dokumentVorlagenRouter.put('/:id', async (req, res) => {
     if (fusszeile_aktiv !== undefined)   { sets.push(`fusszeile_aktiv = $${idx++}`); params.push(fusszeile_aktiv) }
     if (erste_seite_kein_header !== undefined) { sets.push(`erste_seite_kein_header = $${idx++}`); params.push(erste_seite_kein_header) }
     if (seiten_layout !== undefined) { sets.push(`seiten_layout = $${idx++}`); params.push(JSON.stringify(seiten_layout)) }
+    if (req.body.zeilennummerierung_unterbinden !== undefined) { sets.push(`zeilennummerierung_unterbinden = $${idx++}`); params.push(req.body.zeilennummerierung_unterbinden) }
     if (sets.length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren' })
     sets.push(`updated_at = NOW()`)
     params.push(req.params.id, (req.params as any).produktionId)
@@ -118,6 +120,7 @@ dokumentVorlagenRouter.post('/create', async (req, res) => {
       name, typ, sektionen, meta_fields,
       body_content, kopfzeile_content, fusszeile_content,
       kopfzeile_aktiv, fusszeile_aktiv, erste_seite_kein_header, seiten_layout,
+      zeilennummerierung_unterbinden,
     } = req.body
     if (!name) return res.status(400).json({ error: 'name required' })
     const row = await queryOne(
@@ -125,8 +128,8 @@ dokumentVorlagenRouter.post('/create', async (req, res) => {
          (produktion_id, name, typ, sektionen, meta_fields,
           body_content, kopfzeile_content, fusszeile_content,
           kopfzeile_aktiv, fusszeile_aktiv, erste_seite_kein_header, seiten_layout,
-          created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+          zeilennummerierung_unterbinden, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [
         (req.params as any).produktionId, name, typ || 'custom',
         JSON.stringify(sektionen || []), JSON.stringify(meta_fields || []),
@@ -137,6 +140,7 @@ dokumentVorlagenRouter.post('/create', async (req, res) => {
         fusszeile_aktiv ?? false,
         erste_seite_kein_header ?? true,
         seiten_layout ? JSON.stringify(seiten_layout) : null,
+        zeilennummerierung_unterbinden ?? false,
         req.user!.name || req.user!.user_id,
       ]
     )

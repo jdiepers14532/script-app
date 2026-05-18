@@ -51,7 +51,7 @@ export default function EditorPanel({
   const [sceneContent, setSceneContent] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string }>>([])
+  const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string; zeilennummerierung_unterbinden?: boolean }>>([])
   const [vorlagePreviewData, setVorlagePreviewData] = useState<any>(null)
   const [showVorlagePreview, setShowVorlagePreview] = useState(false)
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
@@ -79,7 +79,7 @@ export default function EditorPanel({
   useEffect(() => {
     if (!produktionId) return
     api.getDokumentVorlagen(produktionId)
-      .then((list: any[]) => setVorlagen(list.map(v => ({ id: v.id, name: v.name }))))
+      .then((list: any[]) => setVorlagen(list.map(v => ({ id: v.id, name: v.name, zeilennummerierung_unterbinden: v.zeilennummerierung_unterbinden ?? false }))))
       .catch(() => setVorlagen([]))
   }, [produktionId])
 
@@ -661,6 +661,7 @@ export default function EditorPanel({
               onNavigateNext={onNavigateNext}
               onNavigatePrev={onNavigatePrev}
               showLineNumbers={tweaks.showLineNumbers}
+              suppressLineNumbers={!!(currentSzene?.vorlage_id && vorlagen.find(v => v.id === currentSzene.vorlage_id)?.zeilennummerierung_unterbinden)}
               lineNumberMarginCm={tweaks.lineNumberMarginCm}
               showReplikNumbers={tweaks.showReplikNumbers}
               replikOffset={currentReplikOffset}
