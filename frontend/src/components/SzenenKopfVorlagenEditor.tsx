@@ -820,7 +820,8 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
   const [width, setWidth] = useState(600)
   const rulerRef = useRef<HTMLDivElement>(null)
   const [rulerTooltip, setRulerTooltip] = useState<{ x: number; top: number; cm: number } | null>(null)
-  const [cursorInMargin, setCursorInMargin] = useState(false)
+  // 'physical' = Maß ab Seitenrand (Standard); 'content' = Maß ab gesetztem Textrand
+  const [rulerOrigin, setRulerOrigin] = useState<'physical' | 'content'>('physical')
 
   useEffect(() => {
     const el = containerRef.current
@@ -833,19 +834,21 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
 
   const cmToPx = (cm: number) => (cm / rulerCm) * width
 
+  const displayCm = (physCm: number) =>
+    rulerOrigin === 'content' ? physCm - marginLeftCm : physCm
+
+  const inMargin = (cm: number) =>
+    (marginLeftCm > 0 && cm <= marginLeftCm) || (marginRightCm > 0 && cm >= rulerCm - marginRightCm)
+
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!rulerRef.current) return
     const rect = rulerRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const pos = Math.round((x / width) * rulerCm * 4) / 4
     if (pos < 0.1 || pos > rulerCm - 0.1) return
-    // Keine Tab-Stops im Seitenrand-Bereich
     if (pos <= marginLeftCm || pos >= rulerCm - marginRightCm) return
     onToggle(pos)
   }
-
-  const inMargin = (cm: number) =>
-    (marginLeftCm > 0 && cm <= marginLeftCm) || (marginRightCm > 0 && cm >= rulerCm - marginRightCm)
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = rulerRef.current?.getBoundingClientRect()
@@ -853,13 +856,26 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
     const x = e.clientX - rect.left
     const cm = Math.max(0, Math.min(rulerCm, (x / width) * rulerCm))
     setRulerTooltip({ x: e.clientX, top: rect.top, cm })
-    setCursorInMargin(inMargin(cm))
+  }
+
+  const toggleOrigin = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setRulerOrigin(prev => prev === 'physical' ? 'content' : 'physical')
   }
 
   const H = 29
-  const TICK_5CM  = Math.round(H * 0.50)   // war 0.62, 20% kürzer
+  const TICK_5CM  = Math.round(H * 0.50)
   const TICK_1CM  = Math.round(H * 0.38)
   const TICK_05CM = Math.round(H * 0.21)
+
+  const contentMode = rulerOrigin === 'content'
+  const hasMargins  = marginLeftCm > 0 || marginRightCm > 0
+
+  const tickLabel = (i: number) => {
+    if (!contentMode) return `${i} cm`
+    const v = parseFloat((i - marginLeftCm).toFixed(2))
+    return Number.isInteger(v) ? `${v} cm` : `${v.toFixed(1)} cm`
+  }
 
   return (
     <>
@@ -868,13 +884,14 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
         onMouseDown={e => e.preventDefault()}
         onClick={handleClick}
         onMouseMove={handleMouseMove}
-        onMouseLeave={() => { setRulerTooltip(null); setCursorInMargin(false) }}
+        onMouseLeave={() => setRulerTooltip(null)}
         style={{
           position: 'relative', height: H,
           background: 'var(--bg-subtle)', borderBottom: '2px solid var(--border)',
-          cursor: cursorInMargin ? 'not-allowed' : 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
+          cursor: 'crosshair', userSelect: 'none', overflow: 'hidden', flexShrink: 0,
         }}
       >
+        {/* 1 cm-Striche mit Beschriftung */}
         {Array.from({ length: rulerCm + 1 }, (_, i) => {
           const is5 = i % 5 === 0
           const tickH = is5 ? TICK_5CM : TICK_1CM
@@ -892,11 +909,13 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
                   right: i === rulerCm ? 0 : undefined,
                   fontSize: 9, fontWeight: 600, color: 'var(--text-secondary)',
                   pointerEvents: 'none', whiteSpace: 'nowrap', lineHeight: 1,
-                }}>{i} cm</span>
+                }}>{tickLabel(i)}</span>
               )}
             </div>
           )
         })}
+
+        {/* 0,5 cm-Striche */}
         {Array.from({ length: Math.round(rulerCm * 2) }, (_, i) => {
           if (i % 2 === 0) return null
           return (
@@ -907,21 +926,49 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
             }} />
           )
         })}
-        {/* Seitenrand-Overlays */}
-        {marginLeftCm > 0 && (
+
+        {/* "0"-Markierung am Textrand-Beginn im content-Modus */}
+        {contentMode && marginLeftCm > 0 && (
           <div style={{
-            position: 'absolute', left: 0, top: 0, bottom: 0,
-            width: cmToPx(marginLeftCm), background: 'rgba(0,0,0,0.08)',
-            borderRight: '1px solid rgba(0,0,0,0.18)', pointerEvents: 'none', zIndex: 1,
-          }} />
+            position: 'absolute', left: cmToPx(marginLeftCm), bottom: 0,
+            width: 2, height: TICK_5CM,
+            background: '#007AFF', opacity: 0.9, pointerEvents: 'none', zIndex: 4,
+          }}>
+            <span style={{
+              position: 'absolute', bottom: TICK_5CM + 2, left: 2,
+              fontSize: 9, fontWeight: 700, color: '#007AFF',
+              pointerEvents: 'none', whiteSpace: 'nowrap', lineHeight: 1,
+            }}>0</span>
+          </div>
+        )}
+
+        {/* Seitenrand-Overlays — klickbar zum Umschalten des Maß-Ursprungs */}
+        {marginLeftCm > 0 && (
+          <div
+            onClick={toggleOrigin}
+            style={{
+              position: 'absolute', left: 0, top: 0, bottom: 0,
+              width: cmToPx(marginLeftCm),
+              background: contentMode ? 'rgba(0,122,255,0.10)' : 'rgba(0,0,0,0.08)',
+              borderRight: `1px solid ${contentMode ? 'rgba(0,122,255,0.35)' : 'rgba(0,0,0,0.18)'}`,
+              cursor: 'pointer', zIndex: 3,
+            }}
+          />
         )}
         {marginRightCm > 0 && (
-          <div style={{
-            position: 'absolute', left: cmToPx(rulerCm - marginRightCm), top: 0, bottom: 0,
-            width: cmToPx(marginRightCm), background: 'rgba(0,0,0,0.08)',
-            borderLeft: '1px solid rgba(0,0,0,0.18)', pointerEvents: 'none', zIndex: 1,
-          }} />
+          <div
+            onClick={toggleOrigin}
+            style={{
+              position: 'absolute', left: cmToPx(rulerCm - marginRightCm), top: 0, bottom: 0,
+              width: cmToPx(marginRightCm),
+              background: contentMode ? 'rgba(0,122,255,0.10)' : 'rgba(0,0,0,0.08)',
+              borderLeft: `1px solid ${contentMode ? 'rgba(0,122,255,0.35)' : 'rgba(0,0,0,0.18)'}`,
+              cursor: 'pointer', zIndex: 3,
+            }}
+          />
         )}
+
+        {/* Tab-Stops */}
         {tabStops.map(ts => (
           <div
             key={`${ts.pos}-${ts.align}`}
@@ -939,6 +986,8 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
           </div>
         ))}
       </div>
+
+      {/* Tooltip */}
       {rulerTooltip && createPortal(
         <div style={{
           position: 'fixed', left: rulerTooltip.x, top: rulerTooltip.top - 26,
@@ -947,7 +996,14 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
           pointerEvents: 'none', zIndex: 99999, whiteSpace: 'nowrap',
           lineHeight: 1.5, boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
         }}>
-          {inMargin(rulerTooltip.cm) ? `${rulerTooltip.cm.toFixed(2)} cm · Seitenrand` : `${rulerTooltip.cm.toFixed(2)} cm · Klick = tab`}
+          {inMargin(rulerTooltip.cm)
+            ? (hasMargins
+                ? (contentMode
+                    ? 'Klick: Maß ab Seitenrand anzeigen'
+                    : 'Klick: Maß ab Textrand anzeigen')
+                : 'Seitenrand')
+            : `${displayCm(rulerTooltip.cm).toFixed(2)} cm · Klick = Tab`
+          }
         </div>,
         document.body
       )}
