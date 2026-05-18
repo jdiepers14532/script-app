@@ -28,10 +28,18 @@ const DK_TABS = [
 
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
-  { id: 'stockshot-templates',    label: 'Stockshot-Vorlagen' },
+  { id: 'stockshot-templates',    label: 'Stockshot-Templates' },
   { id: 'vorlagen',               label: 'Vorlagen' },
   { id: 'kopf-fusszeilen',        label: 'Kopf-/Fußzeilen' },
   { id: 'autorenplan',            label: 'Autorenplan' },
+]
+
+const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates']
+const FORMAT_SUB_NAV = [
+  { id: 'dokument-typen',      label: 'Drehbuch-Formatierung' },
+  { id: 'kopf-fusszeilen',     label: 'Kopf-/Fußzeile' },
+  { id: 'vorlagen',            label: 'Notiz-Vorlagen' },
+  { id: 'stockshot-templates', label: 'Stockshot-Templates' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -1087,7 +1095,20 @@ function ProduktionTab() {
 // ── Tab: Dokument-Typen (Absatzformate) ─────────────────────────────────────────
 
 
-function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }) {
+type DokTypenMargins = { oben: number; unten: number; links: number; rechts: number }
+
+function DokumentTypenTab({
+  headerSlot, seitenformat, seitenformatSaving, margins,
+  onSeitenformatChange, onMarginsUpdate, onMarginsSave,
+}: {
+  headerSlot?: HTMLDivElement | null
+  seitenformat: 'a4' | 'letter'
+  seitenformatSaving: boolean
+  margins: DokTypenMargins
+  onSeitenformatChange: (val: 'a4' | 'letter') => void
+  onMarginsUpdate: (next: DokTypenMargins) => void
+  onMarginsSave: (next: DokTypenMargins) => void
+}) {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? ''
   const [formate, setFormate] = useState<any[]>([])
@@ -1107,9 +1128,6 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
   const [renamingValue, setRenamingValue] = useState('')
   const [templateEdit, setTemplateEdit] = useState<string | null>(null)
   const [isSuperadmin, setIsSuperadmin] = useState(false)
-  const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
-  const [seitenformatSaving, setSeitenformatSaving] = useState(false)
-  const [margins, setMargins] = useState({ oben: 25, unten: 20, links: 25, rechts: 20 })
 
   const load = async () => {
     if (!produktionId) return
@@ -1127,37 +1145,6 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
   useEffect(() => {
     api.getMe().then(me => setIsSuperadmin(me.roles?.includes('superadmin') ?? false)).catch(() => {})
   }, [])
-  useEffect(() => {
-    if (!produktionId) return
-    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then((data: any) => {
-        if (data?.seitenformat === 'letter') setSeitenformat('letter')
-        if (data?.page_margins) {
-          try { setMargins(m => ({ ...m, ...JSON.parse(data.page_margins) })) } catch {}
-        }
-      })
-      .catch(() => {})
-  }, [produktionId])
-
-  const saveSeitenformat = async (val: 'a4' | 'letter') => {
-    setSeitenformat(val); setSeitenformatSaving(true)
-    await fetch(`/api/dk-settings/${produktionId}/app-settings/seitenformat`, {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: val }),
-    }).catch(() => {})
-    setSeitenformatSaving(false)
-  }
-
-  const saveMargins = async (next: typeof margins) => {
-    await fetch(`/api/dk-settings/${produktionId}/app-settings/page_margins`, {
-      method: 'PUT', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ value: JSON.stringify(next) }),
-    }).catch(() => {})
-    window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId: produktionId } }))
-  }
 
   // Erstes Preset vorauswählen wenn Presets geladen
   useEffect(() => {
@@ -1177,13 +1164,12 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
     // Layout-Felder aus Preset laden, wenn vorhanden
     const preset = presets.find(p => p.id === id)
     if (preset) {
-      if (preset.seitenformat) saveSeitenformat(preset.seitenformat)
+      if (preset.seitenformat) onSeitenformatChange(preset.seitenformat)
       if (preset.page_margins) {
         let pm = preset.page_margins
         if (typeof pm === 'string') { try { pm = JSON.parse(pm) } catch {} }
         const next = { ...margins, ...pm }
-        setMargins(next)
-        saveMargins(next)
+        onMarginsSave(next)
       }
     }
   }
@@ -1325,36 +1311,9 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
 
   if (!produktionId) return <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Bitte zuerst eine Produktion wählen.</p>
 
-  // Preset/Format-Bar im Header via Portal
+  // Preset-Bar im Header via Portal (Format+Ränder wird vom Parent gerendert)
   const headerBarContent = headerSlot ? createPortal(
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
-      {/* Format + Ränder */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
-        <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
-          {(['a4', 'letter'] as const).map(opt => (
-            <button key={opt} className={seitenformat === opt ? 'on' : ''}
-              onClick={() => saveSeitenformat(opt)} disabled={seitenformatSaving}
-              title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
-              style={{ fontSize: 10, padding: '1px 7px' }}>
-              {opt === 'a4' ? 'A4' : 'Letter'}
-            </button>
-          ))}
-        </div>
-        <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
-        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
-        {(['oben', 'unten', 'links', 'rechts'] as const).map(side => (
-          <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
-            <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
-            <input type="number" min={0} max={60} value={margins[side]}
-              onChange={e => { const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)); setMargins(m => ({ ...m, [side]: v })) }}
-              onBlur={() => saveMargins(margins)}
-              style={{ width: 36, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border)', fontSize: 10, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }} />
-          </label>
-        ))}
-      </div>
-      {/* Preset */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', flex: 1, minWidth: 0 }}>
         <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Preset:</span>
         {renamingPreset ? (
           <>
@@ -1400,7 +1359,6 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
           style={{ padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 10, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)', flexShrink: 0 }}>
           Als Preset speichern…
         </button>
-      </div>
     </div>,
     headerSlot
   ) : null
@@ -1435,10 +1393,10 @@ function DokumentTypenTab({ headerSlot }: { headerSlot?: HTMLDivElement | null }
             seitenformat={seitenformat}
             marginLeft={margins.links}
             marginRight={margins.rechts}
-            onMarginChange={(side, mm) => setMargins(prev => ({
-              ...prev,
+            onMarginChange={(side, mm) => onMarginsUpdate({
+              ...margins,
               [side === 'left' ? 'links' : 'rechts']: mm,
-            }))}
+            })}
           />
           {canEditTemplate && templateDirty && (
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
@@ -2467,6 +2425,9 @@ export default function DrehbuchkoordinationPage() {
   const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [copyOpen, setCopyOpen] = useState(false)
+  const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
+  const [seitenformatSaving, setSeitenformatSaving] = useState(false)
+  const [margins, setMargins] = useState({ oben: 25, unten: 20, links: 25, rechts: 20 })
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
   const navigate = useNavigate()
   const { selectedProduction, productions } = useSelectedProduction()
@@ -2512,6 +2473,40 @@ export default function DrehbuchkoordinationPage() {
       })
       .catch(() => {})
   }, [produktionId])
+
+  // Seitenformat + Ränder laden (geteilt für alle Format-Template-Tabs)
+  useEffect(() => {
+    if (!produktionId) return
+    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => {
+        setSeitenformat(data?.seitenformat === 'letter' ? 'letter' : 'a4')
+        if (data?.page_margins) {
+          try { setMargins(m => ({ ...m, ...JSON.parse(data.page_margins) })) } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [produktionId])
+
+  const saveSeitenformat = async (val: 'a4' | 'letter') => {
+    setSeitenformat(val); setSeitenformatSaving(true)
+    await fetch(`/api/dk-settings/${produktionId}/app-settings/seitenformat`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: val }),
+    }).catch(() => {})
+    setSeitenformatSaving(false)
+  }
+
+  const saveMargins = async (next: typeof margins) => {
+    setMargins(next)
+    await fetch(`/api/dk-settings/${produktionId}/app-settings/page_margins`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId: produktionId } }))
+  }
 
   // Arrow key tab navigation
   useEffect(() => {
@@ -2566,7 +2561,15 @@ export default function DrehbuchkoordinationPage() {
       case 'lock-regeln':
         return <LockRegelnTab />
       case 'dokument-typen':
-        return <DokumentTypenTab headerSlot={headerSlot} />
+        return <DokumentTypenTab
+          headerSlot={headerSlot}
+          seitenformat={seitenformat}
+          seitenformatSaving={seitenformatSaving}
+          margins={margins}
+          onSeitenformatChange={saveSeitenformat}
+          onMarginsUpdate={setMargins}
+          onMarginsSave={saveMargins}
+        />
       case 'gruppen-register':
         return produktionId ? <GruppenRegisterTab /> : <NoProduction />
 
@@ -2622,8 +2625,39 @@ export default function DrehbuchkoordinationPage() {
               &#8592; Zurück
             </button>
           </div>
-          {/* Slot für Preset/Format-Bar (nur Absatzformat-Tab) */}
-          <div ref={setHeaderSlot} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch' }} />
+          {/* Format+Ränder (alle Template-Tabs) + Preset-Slot (nur Drehbuch-Formatierung) */}
+          {FORMAT_TEMPLATE_TABS.includes(activeTab) && produktionId ? (
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
+                <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
+                  {(['a4', 'letter'] as const).map(opt => (
+                    <button key={opt} className={seitenformat === opt ? 'on' : ''}
+                      onClick={() => saveSeitenformat(opt)} disabled={seitenformatSaving}
+                      title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
+                      style={{ fontSize: 10, padding: '1px 7px' }}>
+                      {opt === 'a4' ? 'A4' : 'Letter'}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
+                {(['oben', 'unten', 'links', 'rechts'] as const).map(side => (
+                  <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                    <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
+                    <input type="number" min={0} max={60} value={margins[side]}
+                      onChange={e => { const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)); setMargins(m => ({ ...m, [side]: v })) }}
+                      onBlur={() => saveMargins(margins)}
+                      style={{ width: 36, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border)', fontSize: 10, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }} />
+                  </label>
+                ))}
+              </div>
+              {/* Preset-Slot: nur DokumentTypenTab portalt hierhin */}
+              <div ref={setHeaderSlot} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }} />
+            </div>
+          ) : (
+            <div ref={setHeaderSlot} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch' }} />
+          )}
           <div style={{
             fontSize: 13, fontWeight: 500,
             padding: '6px 14px', borderRadius: 8,
@@ -2634,6 +2668,23 @@ export default function DrehbuchkoordinationPage() {
             {prodLabel}
           </div>
         </div>
+
+        {/* Sub-Navigation: Format-Template-Tabs */}
+        {FORMAT_TEMPLATE_TABS.includes(activeTab) && (
+          <div style={{ padding: '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg-page)', display: 'flex', flexShrink: 0 }}>
+            {FORMAT_SUB_NAV.map(({ id, label }) => (
+              <button key={id} onClick={() => setActiveTab(id)} style={{
+                background: 'none', border: 'none', padding: '7px 16px 6px',
+                cursor: 'pointer', fontSize: 12,
+                fontWeight: activeTab === id ? 600 : 400,
+                color: activeTab === id ? '#007AFF' : 'var(--text-secondary)',
+                borderBottom: activeTab === id ? '2px solid #007AFF' : '2px solid transparent',
+              }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Body: Sidebar + Content */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
@@ -3382,40 +3433,66 @@ const VORLAGE_TYPES = [
 
 function StockshotTemplatesTab({ productionId }: { productionId: string }) {
   const [templates, setTemplates] = useState<any[]>([])
+  const [motive, setMotive] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [editId, setEditId] = useState<string | null>(null)
   const [editKat, setEditKat] = useState('ortswechsel')
   const [editName, setEditName] = useState('')
   const [editOneliner, setEditOneliner] = useState('')
+  const [editStoppzeit, setEditStoppzeit] = useState('')
+  const [editInnenAussen, setEditInnenAussen] = useState('')
+  const [editStimmung, setEditStimmung] = useState('')
+  const [editBodytext, setEditBodytext] = useState('')
+  const [editMotivId, setEditMotivId] = useState('')
 
   useEffect(() => {
-    api.getStockshotTemplates(productionId).then(setTemplates).finally(() => setLoading(false))
+    Promise.all([
+      api.getStockshotTemplates(productionId),
+      api.getMotive(productionId),
+    ]).then(([t, m]) => { setTemplates(t); setMotive(m) }).finally(() => setLoading(false))
   }, [productionId])
+
+  const resetEdit = () => {
+    setEditId(null); setEditName(''); setEditOneliner('')
+    setEditStoppzeit(''); setEditInnenAussen(''); setEditStimmung(''); setEditBodytext(''); setEditMotivId('')
+  }
+
+  const openEdit = (t: any) => {
+    setEditId(t.id); setEditKat(t.kategorie); setEditName(t.name)
+    setEditOneliner(t.oneliner_vorlage ?? '')
+    setEditStoppzeit(t.stoppzeit_sek != null ? String(t.stoppzeit_sek) : '')
+    setEditInnenAussen(t.innen_aussen ?? '')
+    setEditStimmung(t.stimmung ?? '')
+    setEditBodytext(t.bodytext ?? '')
+    setEditMotivId(t.motiv_id ?? '')
+  }
 
   const save = async () => {
     if (!editName.trim()) return
+    const payload = {
+      kategorie: editKat,
+      name: editName.trim(),
+      oneliner_vorlage: editOneliner.trim(),
+      stoppzeit_sek: editStoppzeit !== '' ? parseInt(editStoppzeit, 10) : null,
+      innen_aussen: editInnenAussen || null,
+      stimmung: editStimmung || null,
+      bodytext: editBodytext || null,
+      motiv_id: editMotivId || null,
+    }
     if (editId) {
       const res = await fetch(`/api/stockshot-templates/${productionId}/${editId}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name: editName.trim(), oneliner_vorlage: editOneliner.trim(), kategorie: editKat }),
+        credentials: 'include', body: JSON.stringify(payload),
       })
-      if (res.ok) {
-        const updated = await res.json()
-        setTemplates(prev => prev.map(t => t.id === editId ? updated : t))
-      }
+      if (res.ok) setTemplates(prev => prev.map(t => t.id === editId ? { ...t, ...payload, id: editId } : t))
     } else {
       const res = await fetch(`/api/stockshot-templates/${productionId}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ kategorie: editKat, name: editName.trim(), oneliner_vorlage: editOneliner.trim() }),
+        credentials: 'include', body: JSON.stringify(payload),
       })
-      if (res.ok) {
-        const created = await res.json()
-        setTemplates(prev => [...prev, created])
-      }
+      if (res.ok) { const created = await res.json(); setTemplates(prev => [...prev, created]) }
     }
-    setEditId(null); setEditName(''); setEditOneliner('')
+    resetEdit()
   }
 
   const remove = async (id: string) => {
@@ -3425,14 +3502,16 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
 
   const katLabel: Record<string, string> = { ortswechsel: 'Ortswechsel', zeit_vergeht: 'Zeit vergeht', stimmungswechsel: 'Stimmungswechsel' }
   const katColor: Record<string, string> = { ortswechsel: '#007AFF', zeit_vergeht: '#FF9500', stimmungswechsel: '#AF52DE' }
+  const inStyle = { fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)' } as const
 
   if (loading) return <div style={{ padding: 24, color: '#757575' }}>Laden…</div>
 
   return (
-    <div style={{ padding: 24, maxWidth: 700 }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Stockshot-Vorlagen</h2>
+    <div style={{ padding: 24, maxWidth: 800 }}>
+      <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Stockshot-Templates</h2>
       <p style={{ fontSize: 12, color: '#757575', marginBottom: 20, lineHeight: 1.6 }}>
-        Vorlagen für Stockshot-Oneliner nach Kategorie. Platzhalter: <code>{'{motiv}'}</code>, <code>{'{stimmung}'}</code>
+        Templates für Stockshot-Szenen. Bei Auswahl im Editor werden alle Felder automatisch übernommen.
+        Oneliner-Platzhalter: <code>{'{motiv}'}</code>, <code>{'{stimmung}'}</code>
       </p>
 
       {['ortswechsel', 'zeit_vergeht', 'stimmungswechsel'].map(kat => {
@@ -3440,43 +3519,96 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
         return (
           <div key={kat} style={{ marginBottom: 24 }}>
             <div style={{ fontWeight: 600, fontSize: 13, color: katColor[kat], marginBottom: 8 }}>{katLabel[kat]}</div>
-            {items.length === 0 && <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic', marginBottom: 8 }}>Keine Vorlagen</div>}
-            {items.map(t => (
-              <div key={t.id} style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 4,
-                border: '1px solid var(--border)', borderRadius: 6, fontSize: 12,
-              }}>
-                <span style={{ fontWeight: 600, minWidth: 100 }}>{t.name}</span>
-                <span style={{ flex: 1, color: '#757575', fontStyle: 'italic' }}>{t.oneliner_vorlage || '—'}</span>
-                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#007AFF', fontSize: 11 }}
-                  onClick={() => { setEditId(t.id); setEditKat(t.kategorie); setEditName(t.name); setEditOneliner(t.oneliner_vorlage ?? '') }}>
-                  Bearbeiten
-                </button>
-                <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FF3B30', fontSize: 11 }}
-                  onClick={() => remove(t.id)}>
-                  Löschen
-                </button>
-              </div>
-            ))}
+            {items.length === 0 && <div style={{ fontSize: 12, color: '#999', fontStyle: 'italic', marginBottom: 8 }}>Keine Templates</div>}
+            {items.map(t => {
+              const motivName = motive.find(m => m.id === t.motiv_id)?.name
+              return (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', marginBottom: 4, border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }}>
+                  <span style={{ fontWeight: 600, minWidth: 120 }}>{t.name}</span>
+                  <span style={{ color: '#757575', fontStyle: 'italic', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.oneliner_vorlage || '—'}</span>
+                  {t.innen_aussen && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>{t.innen_aussen}</span>}
+                  {t.stimmung && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>{t.stimmung}</span>}
+                  {t.stoppzeit_sek != null && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{Math.floor(t.stoppzeit_sek/60)}:{String(t.stoppzeit_sek%60).padStart(2,'0')}</span>}
+                  {motivName && <span style={{ fontSize: 10, color: 'var(--text-muted)', maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{motivName}</span>}
+                  <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#007AFF', fontSize: 11, flexShrink: 0 }} onClick={() => openEdit(t)}>Bearbeiten</button>
+                  <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#FF3B30', fontSize: 11, flexShrink: 0 }} onClick={() => remove(t.id)}>Löschen</button>
+                </div>
+              )
+            })}
           </div>
         )
       })}
 
-      <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--bg-surface)' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>{editId ? 'Vorlage bearbeiten' : 'Neue Vorlage'}</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <select value={editKat} onChange={e => setEditKat(e.target.value)} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)' }}>
-            <option value="ortswechsel">Ortswechsel</option>
-            <option value="zeit_vergeht">Zeit vergeht</option>
-            <option value="stimmungswechsel">Stimmungswechsel</option>
-          </select>
-          <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Name" style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', width: 120 }} />
-          <input value={editOneliner} onChange={e => setEditOneliner(e.target.value)} placeholder="Oneliner-Vorlage…" style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', flex: 1, minWidth: 160 }} />
-          <button onClick={save} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 4, background: '#007AFF', color: '#fff', border: 'none', cursor: 'pointer' }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 16, background: 'var(--bg-surface)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 12 }}>{editId ? 'Template bearbeiten' : 'Neues Template'}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Kategorie</label>
+            <select value={editKat} onChange={e => setEditKat(e.target.value)} style={inStyle}>
+              <option value="ortswechsel">Ortswechsel</option>
+              <option value="zeit_vergeht">Zeit vergeht</option>
+              <option value="stimmungswechsel">Stimmungswechsel</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Name *</label>
+            <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Ortswechsel Tag" style={{ ...inStyle, width: '100%' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Stoppzeit (Sek.)</label>
+            <input type="number" min={0} value={editStoppzeit} onChange={e => setEditStoppzeit(e.target.value)} placeholder="z.B. 270" style={{ ...inStyle, width: '100%' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>I/A</label>
+            <select value={editInnenAussen} onChange={e => setEditInnenAussen(e.target.value)} style={{ ...inStyle, width: '100%' }}>
+              <option value="">—</option>
+              <option value="I">I</option>
+              <option value="A">A</option>
+              <option value="I/A">I/A</option>
+              <option value="I/AU">I/AU</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Stimmung (Tageszeit)</label>
+            <select value={editStimmung} onChange={e => setEditStimmung(e.target.value)} style={{ ...inStyle, width: '100%' }}>
+              <option value="">—</option>
+              <option value="T">T (Tag)</option>
+              <option value="N">N (Nacht)</option>
+              <option value="DA">DA (Dämmerung Abend)</option>
+              <option value="DZ">DZ (Dämmerung Morgen)</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Motiv</label>
+            <select value={editMotivId} onChange={e => setEditMotivId(e.target.value)} style={{ ...inStyle, width: '100%' }}>
+              <option value="">— kein Motiv —</option>
+              {motive.filter(m => !m.parent_id).map(m => (
+                <optgroup key={m.id} label={m.name}>
+                  <option value={m.id}>{m.name}</option>
+                  {motive.filter(c => c.parent_id === m.id).map(c => (
+                    <option key={c.id} value={c.id}>  {c.name}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Oneliner-Vorlage (Platzhalter: {'{motiv}'}, {'{stimmung}'})</label>
+          <input value={editOneliner} onChange={e => setEditOneliner(e.target.value)} placeholder="z.B. ES FOLGEN AUFNAHMEN EINES {motiv}." style={{ ...inStyle, width: '100%' }} />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginBottom: 2 }}>Szenen-Content (Bodytext)</label>
+          <textarea value={editBodytext} onChange={e => setEditBodytext(e.target.value)} rows={3}
+            placeholder="Wird als Szenen-Inhalt übernommen…"
+            style={{ ...inStyle, width: '100%', resize: 'vertical', fontFamily: 'inherit' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={save} style={{ fontSize: 12, padding: '6px 16px', borderRadius: 5, background: '#007AFF', color: '#fff', border: 'none', cursor: 'pointer' }}>
             {editId ? 'Speichern' : 'Hinzufügen'}
           </button>
           {editId && (
-            <button onClick={() => { setEditId(null); setEditName(''); setEditOneliner('') }} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 4, background: 'transparent', color: '#757575', border: '1px solid var(--border)', cursor: 'pointer' }}>
+            <button onClick={resetEdit} style={{ fontSize: 12, padding: '6px 10px', borderRadius: 5, background: 'transparent', color: '#757575', border: '1px solid var(--border)', cursor: 'pointer' }}>
               Abbrechen
             </button>
           )}
