@@ -858,4 +858,34 @@ router.delete('/pausenwochen/:id', async (req, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
+// GET /api/autorenplan/user-names?ids=uuid1,uuid2,...
+// Resolves user UUIDs to display names via auth backend
+let _userNameCache: { names: Record<string, string>; fetchedAt: number } | null = null
+router.get('/user-names', async (req, res) => {
+  try {
+    const ids = (req.query.ids as string || '').split(',').filter(Boolean)
+    if (ids.length === 0) return res.json({ names: {} })
+
+    // Cache for 5 minutes
+    if (!_userNameCache || Date.now() - _userNameCache.fetchedAt > 5 * 60 * 1000) {
+      const r = await fetch('http://127.0.0.1:3002/api/internal/app-users/script', {
+        headers: { 'x-internal-key': process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP' }
+      })
+      if (!r.ok) throw new Error(`auth backend ${r.status}`)
+      const data: any = await r.json()
+      const names: Record<string, string> = {}
+      for (const u of (data.users || [])) {
+        names[u.id] = (u.username || '').trim() || u.email.split('@')[0]
+      }
+      _userNameCache = { names, fetchedAt: Date.now() }
+    }
+
+    const result: Record<string, string> = {}
+    for (const id of ids) {
+      if (_userNameCache.names[id]) result[id] = _userNameCache.names[id]
+    }
+    res.json({ names: result })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 export { router as autorenplanRouter }

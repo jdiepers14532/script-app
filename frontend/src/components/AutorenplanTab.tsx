@@ -1216,6 +1216,7 @@ function AutorenplanGrid({
   const [zusatz, setZusatz] = useState<Zusatz[]>([])
   const [notizen, setNotizen] = useState<WochenNotiz[]>([])
   const [blockInfo, setBlockInfo] = useState<BlockInfo | null>(null)
+  const [uuidNames, setUuidNames] = useState<Record<string, string>>({})
   const [windowStart, setWindowStart] = useState<Date>(() => addWeeks(mondayOf(new Date()), -4))
   const WEEKS_VISIBLE = 20
   const [modal, setModal] = useState<{ einsatz?: Einsatz; jk: JobKategorie; woche: Date; isZusatz?: boolean } | null>(null)
@@ -1263,6 +1264,18 @@ function AutorenplanGrid({
   }, [produktionDbId, vonDate, bisDate])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // UUID-Benutzernamen auflösen (für abgesagt_von-Tooltips)
+  useEffect(() => {
+    const uuids = [...new Set(
+      einsaetze.map(e => e.abgesagt_von).filter((v): v is string => !!v && /^[0-9a-f]{8}-/.test(v))
+    )]
+    if (uuids.length === 0) return
+    fetch(`/api/autorenplan/user-names?ids=${uuids.join(',')}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then(d => setUuidNames(prev => ({ ...prev, ...d.names })))
+      .catch(() => {})
+  }, [einsaetze])
 
   // Abgesagte Einträge für Zelle (Overlay-Badges)
   function getAbgesagtForCell(jk: JobKategorie, weekDate: Date): Einsatz[] {
@@ -1569,7 +1582,7 @@ function AutorenplanGrid({
                         {abgesagtList.map((abs, ai) => (
                           <Tooltip key={abs.id} text={[
                             `Abgesagt: ${abs.person_cache_name || abs.platzhalter_name || '—'}`,
-                            abs.abgesagt_am ? `${fmtDate(abs.abgesagt_am)}${abs.abgesagt_von ? ` · ${/^[0-9a-f]{8}-/.test(abs.abgesagt_von) ? 'Nutzer' : abs.abgesagt_von}` : ''}` : '',
+                            abs.abgesagt_am ? `${fmtDate(abs.abgesagt_am)}${abs.abgesagt_von ? ` · ${/^[0-9a-f]{8}-/.test(abs.abgesagt_von) ? (uuidNames[abs.abgesagt_von] || 'Nutzer') : abs.abgesagt_von}` : ''}` : '',
                             abs.notiz || '',
                           ].filter(Boolean).join('\n')}>
                             <div
