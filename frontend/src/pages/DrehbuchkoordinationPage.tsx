@@ -1336,7 +1336,7 @@ function ProduktionTab() {
         <h3 style={h3Style}>Vorstopp-Einstellungen</h3>
         <p style={subStyle}>
           Verhältnis für die automatische Vorstopp-Berechnung: <em>X Einheiten entsprechen Y Sekunden.</em><br />
-          Beispiel: 54 Seiten = 60 Sek. → jede Seite ≈ 1,11 Sek.
+          Beispiel: 92 Seiten = 52 Min. → jede Seite ≈ 33 Sek.
         </p>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
