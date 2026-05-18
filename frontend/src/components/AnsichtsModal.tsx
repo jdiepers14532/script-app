@@ -85,6 +85,7 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
       <div style={{
         position: 'fixed', left: pos.left, top: pos.top,
         width: 520, minWidth: 360, minHeight: 300,
+        maxHeight: 'calc(100vh - 40px)',
         background: 'var(--bg-page)', border: '1px solid var(--border)',
         borderRadius: 14, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
         zIndex: 9999, display: 'flex', flexDirection: 'column',
