@@ -848,13 +848,7 @@ function ProduktionTab() {
       <section style={sectionStyle}>
         <h3 style={{ ...h3Style, display: 'flex', alignItems: 'center', gap: 6 }}>
           Revisions-Farben (Textänderungen)
-          <Tooltip text={'Farbkodierung für Revisionsrunden (geänderte Seiten werden farbig gedruckt).
-
-WGA-Standard (USA/UK): 11 Farben in festgelegter Reihenfolge (Weiß → Blau → Pink → Gelb → Grün → …)
-
-ARD/ZDF/Deutschland: keine Normierung — jede Produktion wählt selbst.
-
-Eigene Farbpresets können unten gespeichert und in allen Produktionen wiederverwendet werden.'}>
+          <Tooltip text={`Farbkodierung für Revisionsrunden (geänderte Seiten werden farbig gedruckt).\n\nWGA-Standard (USA/UK): 11 Farben in festgelegter Reihenfolge (Weiß → Blau → Pink → Gelb → Grün → …)\n\nARD/ZDF/Deutschland: keine Normierung — jede Produktion wählt selbst.\n\nEigene Farbpresets können unten gespeichert und in allen Produktionen wiederverwendet werden.`}>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, cursor: 'default', border: '1px solid var(--border)', borderRadius: 99, padding: '1px 6px' }}>?</span>
           </Tooltip>
         </h3>
