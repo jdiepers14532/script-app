@@ -920,6 +920,7 @@ function DokumentTypenTab() {
   const [isSuperadmin, setIsSuperadmin] = useState(false)
   const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
   const [seitenformatSaving, setSeitenformatSaving] = useState(false)
+  const [margins, setMargins] = useState({ oben: 25, unten: 20, links: 25, rechts: 20 })
 
   const load = async () => {
     if (!produktionId) return
@@ -941,7 +942,12 @@ function DokumentTypenTab() {
     if (!produktionId) return
     fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then((data: any) => { if (data?.seitenformat === 'letter') setSeitenformat('letter') })
+      .then((data: any) => {
+        if (data?.seitenformat === 'letter') setSeitenformat('letter')
+        if (data?.page_margins) {
+          try { setMargins(m => ({ ...m, ...JSON.parse(data.page_margins) })) } catch {}
+        }
+      })
       .catch(() => {})
   }, [produktionId])
 
@@ -953,6 +959,14 @@ function DokumentTypenTab() {
       body: JSON.stringify({ value: val }),
     }).catch(() => {})
     setSeitenformatSaving(false)
+  }
+
+  const saveMargins = async (next: typeof margins) => {
+    await fetch(`/api/dk-settings/${produktionId}/app-settings/page_margins`, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
   }
 
   // Erstes Preset vorauswählen wenn Presets geladen
@@ -1095,24 +1109,48 @@ function DokumentTypenTab() {
   return (
     <div style={{ maxWidth: 960 }}>
 
-      {/* ── Seitenformat ───────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, padding: '8px 12px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Seitenformat:</span>
-        <div className="seg" style={{ display: 'inline-flex' }}>
-          {(['a4', 'letter'] as const).map(opt => (
-            <button
-              key={opt}
-              className={seitenformat === opt ? 'on' : ''}
-              onClick={() => saveSeitenformat(opt)}
-              disabled={seitenformatSaving}
-              title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
-              style={{ fontSize: 11 }}
-            >
-              {opt === 'a4' ? 'A4' : 'Letter'}
-            </button>
+      {/* ── Seitenformat + Seitenränder ────────────────────────────────── */}
+      <div style={{ marginBottom: 16, padding: '10px 12px', background: 'var(--bg-subtle)', borderRadius: 7, border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Seitenformat:</span>
+          <div className="seg" style={{ display: 'inline-flex' }}>
+            {(['a4', 'letter'] as const).map(opt => (
+              <button
+                key={opt}
+                className={seitenformat === opt ? 'on' : ''}
+                onClick={() => saveSeitenformat(opt)}
+                disabled={seitenformatSaving}
+                title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
+                style={{ fontSize: 11 }}
+              >
+                {opt === 'a4' ? 'A4' : 'Letter'}
+              </button>
+            ))}
+          </div>
+          {seitenformatSaving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wird gespeichert…</span>}
+        </div>
+
+        {/* Seitenränder */}
+        <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Seitenränder (mm):</span>
+          {(['oben', 'unten', 'links', 'rechts'] as const).map(side => (
+            <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+              <span style={{ textTransform: 'capitalize' }}>{side}</span>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                value={margins[side]}
+                onChange={e => {
+                  const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0))
+                  setMargins(m => ({ ...m, [side]: v }))
+                }}
+                onBlur={() => saveMargins(margins)}
+                style={{ width: 48, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 11, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }}
+              />
+            </label>
           ))}
         </div>
-        {seitenformatSaving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Wird gespeichert…</span>}
       </div>
 
       {/* ── Preset-Sektion ─────────────────────────────────────────────── */}
@@ -1214,6 +1252,8 @@ function DokumentTypenTab() {
               readOnly={!canEditTemplate}
               onChange={v => setTemplateEdit(v)}
               seitenformat={seitenformat}
+              marginLeft={margins.links}
+              marginRight={margins.rechts}
             />
             {canEditTemplate && templateDirty && (
               <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>

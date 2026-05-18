@@ -13,6 +13,18 @@ import { calcPageLength } from '../utils/calcPageLength'
 const UPLOAD_BASE = process.env.UPLOAD_DIR || '/srv/script/uploads/originals'
 
 /** Extract human-readable metadata from Fountain title page or FDX header */
+/** Normalisiert spieltag: "Tag 3" → 3, "Day 3" → 3, 3 → 3, null/ungültig → null */
+function normalizeSpielTag(val: any): number | null {
+  if (val === null || val === undefined) return null
+  if (typeof val === 'number') return isFinite(val) ? Math.round(val) : null
+  const str = String(val).trim()
+  const direct = parseInt(str, 10)
+  if (!isNaN(direct) && String(direct) === str) return direct
+  const m = str.match(/^(?:tag|day)\s*(\d+)$/i)
+  if (m) return parseInt(m[1], 10)
+  return null
+}
+
 function extractFileMetadata(filename: string, buffer: Buffer): Record<string, string> {
   const meta: Record<string, string> = {}
   const text = buffer.toString('utf8').slice(0, 4000) // only scan header area
@@ -636,7 +648,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         intExt: ov.int_ext ?? szene.int_ext ?? null,
         tageszeit: ov.tageszeit ?? szene.tageszeit ?? null,
         ortName: (ov.ort_name ?? szene.ort_name) || null,
-        spieltag: (ov.spieltag ?? szene.spieltag) || null,
+        spieltag: normalizeSpielTag(ov.spieltag ?? szene.spieltag),
         zusammenfassung: (ov.zusammenfassung ?? szene.zusammenfassung) || null,
         szeneninfo: (ov.szeneninfo ?? szene.szeneninfo) || null,
         stoppzeitSek: ov.dauer_sekunden ?? szene.dauer_sekunden ?? null,

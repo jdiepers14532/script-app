@@ -51,8 +51,10 @@ export const SK_CHIPS: SKChipDef[] = [
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
-    sk_chip: { insertSKChip: (key: string) => ReturnType }
-    uppercase: { toggleUppercase: () => ReturnType }
+    sk_chip:   { insertSKChip:   (key: string) => ReturnType }
+    uppercase: { toggleUppercase: ()           => ReturnType }
+    sk_if:     { insertSKIf:     ()            => ReturnType }
+    sk_endif:  { insertSKEndIf:  ()            => ReturnType }
   }
 }
 
@@ -217,6 +219,190 @@ const SKChipExtension = Node.create({
   },
 })
 
+// ── IF / ENDIF Chip-Extensions ───────────────────────────────────────────────
+
+const IF_COLOR = '#5856D6'
+const ENDIF_COLOR = '#8E8E93'
+
+const SKIfExtension = Node.create({
+  name: 'sk_if',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: false,
+
+  addAttributes() {
+    return {
+      ref_key: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-if-ref') || null,
+        renderHTML: attrs => attrs.ref_key ? { 'data-if-ref': attrs.ref_key } : {},
+      },
+    }
+  },
+  parseHTML() { return [{ tag: 'span[data-sk-if]' }] },
+  renderHTML({ node }) {
+    const chip = SK_CHIPS.find(c => c.key === node.attrs.ref_key)
+    const label = chip ? `▶ ${chip.label}` : '▶ ?'
+    const color = chip?.color ?? IF_COLOR
+    return ['span', mergeAttributes(
+      { 'data-sk-if': 'true', contenteditable: 'false' },
+      { style: `display:inline-flex;align-items:center;background:${color}18;color:${color};border:1px dashed ${color}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:pointer;vertical-align:middle;font-weight:500;` }
+    ), label]
+  },
+
+  addNodeView() {
+    return ({ node: initialNode, getPos, editor }: any) => {
+      let currentRef = initialNode.attrs.ref_key
+
+      // Tooltip
+      const tooltipEl = document.createElement('div')
+      tooltipEl.style.cssText = 'position:fixed;background:#111;color:#fff;font-size:11px;line-height:1.5;padding:4px 9px;border-radius:5px;pointer-events:none;z-index:99999;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.35);display:none;max-width:220px;'
+      document.body.appendChild(tooltipEl)
+
+      // Chip-Selector Dropdown
+      const selector = document.createElement('div')
+      selector.style.cssText = 'position:fixed;background:var(--bg-surface,#fff);border:1px solid #E0E0E0;border-radius:6px;padding:4px;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:none;max-height:200px;overflow-y:auto;min-width:140px;'
+      SK_CHIPS.forEach(chip => {
+        const btn = document.createElement('button')
+        btn.textContent = chip.label
+        btn.style.cssText = `display:block;width:100%;text-align:left;padding:3px 8px;border:none;background:none;cursor:pointer;font-size:11px;color:${chip.color};border-radius:3px;`
+        btn.addEventListener('mouseenter', () => { btn.style.background = '#F5F5F5' })
+        btn.addEventListener('mouseleave', () => { btn.style.background = 'none' })
+        btn.addEventListener('mousedown', (e) => { e.preventDefault() })
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          if (typeof getPos === 'function') {
+            const pos = getPos()
+            editor.view.dispatch(
+              editor.state.tr.setNodeMarkup(pos, undefined, { ref_key: chip.key })
+            )
+          }
+          selector.style.display = 'none'
+        })
+        selector.appendChild(btn)
+      })
+      document.body.appendChild(selector)
+
+      const closeSelector = (e: MouseEvent) => {
+        if (!selector.contains(e.target as unknown as globalThis.Node)) selector.style.display = 'none'
+      }
+      document.addEventListener('click', closeSelector)
+
+      // Span
+      const span = document.createElement('span')
+      ;(span as any).contentEditable = 'false'
+
+      const updateDom = (ref_key: string | null) => {
+        currentRef = ref_key
+        const chip = SK_CHIPS.find(c => c.key === ref_key)
+        const label = chip ? `▶ ${chip.label}` : '▶ ?'
+        const color = chip?.color ?? IF_COLOR
+        span.setAttribute('data-sk-if', 'true')
+        if (ref_key) span.setAttribute('data-if-ref', ref_key); else span.removeAttribute('data-if-ref')
+        span.style.cssText = `display:inline-flex;align-items:center;background:${color}18;color:${color};border:1px dashed ${color}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:pointer;vertical-align:middle;font-weight:500;`
+        span.textContent = label
+        tooltipEl.textContent = chip
+          ? `Inhalt anzeigen wenn „${chip.label}" nicht leer ist. Klick = anderen Chip wählen.`
+          : 'Noch kein Chip gewählt — klicken zum Zuweisen.'
+      }
+
+      span.addEventListener('mousedown', (e) => { e.preventDefault() })
+      span.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const rect = span.getBoundingClientRect()
+        selector.style.left = `${rect.left}px`
+        selector.style.top = `${rect.bottom + 4}px`
+        selector.style.display = selector.style.display === 'none' ? 'block' : 'none'
+      })
+      span.addEventListener('mouseenter', () => {
+        const rect = span.getBoundingClientRect()
+        tooltipEl.style.left = `${rect.left + rect.width / 2}px`
+        tooltipEl.style.top = `${rect.top - 30}px`
+        tooltipEl.style.transform = 'translateX(-50%)'
+        tooltipEl.style.display = 'block'
+      })
+      span.addEventListener('mouseleave', () => { tooltipEl.style.display = 'none' })
+
+      updateDom(initialNode.attrs.ref_key)
+
+      return {
+        dom: span,
+        update(updatedNode: any) {
+          if (updatedNode.type.name !== 'sk_if') return false
+          updateDom(updatedNode.attrs.ref_key)
+          return true
+        },
+        destroy() {
+          tooltipEl.remove()
+          selector.remove()
+          document.removeEventListener('click', closeSelector)
+        },
+      }
+    }
+  },
+
+  addCommands() {
+    return {
+      insertSKIf: () => ({ chain }: any) =>
+        chain().insertContent({ type: 'sk_if', attrs: { ref_key: null } }).run(),
+    }
+  },
+})
+
+const SKEndIfExtension = Node.create({
+  name: 'sk_endif',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: false,
+
+  addAttributes() { return {} },
+  parseHTML() { return [{ tag: 'span[data-sk-endif]' }] },
+  renderHTML() {
+    return ['span', {
+      'data-sk-endif': 'true', contenteditable: 'false',
+      style: `display:inline-flex;align-items:center;background:${ENDIF_COLOR}18;color:${ENDIF_COLOR};border:1px dashed ${ENDIF_COLOR}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:default;vertical-align:middle;font-weight:500;`,
+    }, '◀']
+  },
+
+  addNodeView() {
+    return () => {
+      const tooltipEl = document.createElement('div')
+      tooltipEl.style.cssText = 'position:fixed;background:#111;color:#fff;font-size:11px;line-height:1.5;padding:4px 9px;border-radius:5px;pointer-events:none;z-index:99999;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.35);display:none;'
+      tooltipEl.textContent = 'Ende des IF-Blocks — Inhalt davor wird bedingt angezeigt.'
+      document.body.appendChild(tooltipEl)
+      const span = document.createElement('span')
+      ;(span as any).contentEditable = 'false'
+      span.setAttribute('data-sk-endif', 'true')
+      span.style.cssText = `display:inline-flex;align-items:center;background:${ENDIF_COLOR}18;color:${ENDIF_COLOR};border:1px dashed ${ENDIF_COLOR}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:default;vertical-align:middle;font-weight:500;`
+      span.textContent = '◀'
+      span.addEventListener('mouseenter', () => {
+        const rect = span.getBoundingClientRect()
+        tooltipEl.style.left = `${rect.left + rect.width / 2}px`
+        tooltipEl.style.top = `${rect.top - 30}px`
+        tooltipEl.style.transform = 'translateX(-50%)'
+        tooltipEl.style.display = 'block'
+      })
+      span.addEventListener('mouseleave', () => { tooltipEl.style.display = 'none' })
+      return {
+        dom: span,
+        update: (n: any) => n.type.name === 'sk_endif',
+        destroy() { tooltipEl.remove() },
+      }
+    }
+  },
+
+  addCommands() {
+    return {
+      insertSKEndIf: () => ({ chain }: any) =>
+        chain().insertContent({ type: 'sk_endif', attrs: {} }).run(),
+    }
+  },
+})
+
 // ── Tab-Stop-Typen ────────────────────────────────────────────────────────────
 
 export type TabAlign = 'left' | 'center' | 'right'
@@ -353,7 +539,18 @@ export function renderSKTemplate(
     if (para.type !== 'paragraph') continue
     let lineText = ''
     let hasNonEmptyChip = false
+    let skipDepth = 0
     for (const node of (para.content ?? [])) {
+      if (node.type === 'sk_if') {
+        const val = fields[node.attrs?.ref_key] ?? ''
+        if (!val.trim()) skipDepth++
+        continue
+      }
+      if (node.type === 'sk_endif') {
+        if (skipDepth > 0) skipDepth--
+        continue
+      }
+      if (skipDepth > 0) continue
       if (node.type === 'text') {
         lineText += node.text ?? ''
       } else if (node.type === 'sk_chip') {
@@ -399,7 +596,15 @@ function renderPreviewLines(stored: string): Array<{ text: string; style: CSSPro
     if (para.type !== 'paragraph') continue
     let lineText = ''
     let hasNonEmptyChip = false
+    let skipDepth = 0
     for (const node of (para.content ?? [])) {
+      if (node.type === 'sk_if') {
+        const val = DUMMY_FIELDS[node.attrs?.ref_key] ?? ''
+        if (!val.trim()) skipDepth++
+        continue
+      }
+      if (node.type === 'sk_endif') { if (skipDepth > 0) skipDepth--; continue }
+      if (skipDepth > 0) continue
       if (node.type === 'text') lineText += node.text ?? ''
       else if (node.type === 'sk_chip') {
         const val = DUMMY_FIELDS[node.attrs?.key] ?? ''
@@ -562,9 +767,11 @@ interface RulerBarProps {
   onToggle: (pos: number) => void
   containerRef: React.RefObject<HTMLDivElement | null>
   rulerCm: number
+  marginLeftCm: number
+  marginRightCm: number
 }
 
-function RulerBar({ tabStops, onToggle, containerRef, rulerCm }: RulerBarProps) {
+function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, marginRightCm }: RulerBarProps) {
   const [width, setWidth] = useState(600)
   const rulerRef = useRef<HTMLDivElement>(null)
   const [rulerTooltip, setRulerTooltip] = useState<{ x: number; top: number; cm: number } | null>(null)
@@ -648,6 +855,21 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm }: RulerBarProps) 
             }} />
           )
         })}
+        {/* Seitenrand-Overlays */}
+        {marginLeftCm > 0 && (
+          <div style={{
+            position: 'absolute', left: 0, top: 0, bottom: 0,
+            width: cmToPx(marginLeftCm), background: 'rgba(0,0,0,0.08)',
+            borderRight: '1px solid rgba(0,0,0,0.18)', pointerEvents: 'none', zIndex: 1,
+          }} />
+        )}
+        {marginRightCm > 0 && (
+          <div style={{
+            position: 'absolute', left: cmToPx(rulerCm - marginRightCm), top: 0, bottom: 0,
+            width: cmToPx(marginRightCm), background: 'rgba(0,0,0,0.08)',
+            borderLeft: '1px solid rgba(0,0,0,0.18)', pointerEvents: 'none', zIndex: 1,
+          }} />
+        )}
         {tabStops.map(ts => (
           <div
             key={`${ts.pos}-${ts.align}`}
@@ -688,6 +910,8 @@ interface SzenenKopfVorlagenEditorProps {
   onChange: (v: string) => void
   readOnly?: boolean
   seitenformat?: 'a4' | 'letter'
+  marginLeft?: number   // mm
+  marginRight?: number  // mm
 }
 
 export default function SzenenKopfVorlagenEditor({
@@ -695,19 +919,22 @@ export default function SzenenKopfVorlagenEditor({
   onChange,
   readOnly = false,
   seitenformat = 'a4',
+  marginLeft = 25,
+  marginRight = 20,
 }: SzenenKopfVorlagenEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [activeTabStops, setActiveTabStops] = useState<TabStop[]>([])
   const [showPreview, setShowPreview] = useState(false)
 
   const rulerCm = seitenformat === 'letter' ? 16.5 : 17
+  const marginLeftCm  = marginLeft  / 10
+  const marginRightCm = marginRight / 10
 
   const editor = useEditor({
     editable: !readOnly,
     extensions: [
       StarterKit.configure({
         paragraph: false,
-        // Bold und Italic aktiv (für B/I-Toolbar)
         strike: false, code: false, codeBlock: false, heading: false, blockquote: false,
         bulletList: false, orderedList: false, listItem: false,
         horizontalRule: false, hardBreak: false,
@@ -717,6 +944,8 @@ export default function SzenenKopfVorlagenEditor({
       UppercaseMark,
       ParagraphWithStops,
       SKChipExtension,
+      SKIfExtension,
+      SKEndIfExtension,
       TabKeyExtension,
     ],
     content: parseSKTemplate(value),
@@ -808,6 +1037,17 @@ export default function SzenenKopfVorlagenEditor({
               {chip.label}
             </button>
           ))}
+          <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+          <button
+            title="IF-Block beginnen: Inhalt bis [◀] wird nur angezeigt wenn der gewählte Chip einen Wert hat. Klick auf [▶ ?] um Chip zu wählen."
+            onMouseDown={e => { e.preventDefault(); editor?.commands.insertSKIf() }}
+            style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, cursor: 'pointer', background: IF_COLOR + '18', color: IF_COLOR, border: `1px dashed ${IF_COLOR}88`, fontWeight: 500, lineHeight: 1.6 }}
+          >▶ IF</button>
+          <button
+            title="IF-Block beenden"
+            onMouseDown={e => { e.preventDefault(); editor?.commands.insertSKEndIf() }}
+            style={{ padding: '1px 6px', borderRadius: 4, fontSize: 10, cursor: 'pointer', background: ENDIF_COLOR + '18', color: ENDIF_COLOR, border: `1px dashed ${ENDIF_COLOR}88`, fontWeight: 500, lineHeight: 1.6 }}
+          >◀ /IF</button>
         </div>
       )}
 
@@ -818,6 +1058,8 @@ export default function SzenenKopfVorlagenEditor({
           onToggle={handleToggleTabStop}
           containerRef={containerRef}
           rulerCm={rulerCm}
+          marginLeftCm={marginLeftCm}
+          marginRightCm={marginRightCm}
         />
       )}
 
