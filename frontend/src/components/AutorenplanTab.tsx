@@ -857,7 +857,7 @@ function AutorenplanGrid({
   produktionDbId: string
 }) {
   const { t } = useTerminologie()
-  const folgeLabel = t('folge') || 'Folge'
+  const folgeLabel = t('episode')
 
   const [einsaetze, setEinsaetze] = useState<Einsatz[]>([])
   const [notizen, setNotizen] = useState<WochenNotiz[]>([])
