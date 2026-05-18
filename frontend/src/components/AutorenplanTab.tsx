@@ -26,6 +26,21 @@ interface JobKategorie {
   farbe: string
   sortierung: number
   gagen?: GageEntry[]
+  kostenstelle?: string
+}
+
+interface Zusatz {
+  id: string
+  job_kategorie_id?: string
+  produktion_db_id?: string
+  einsatz_id?: string
+  woche_von?: string
+  vertragsdb_person_id?: number
+  platzhalter_name?: string
+  person_cache_name?: string
+  notiz?: string
+  status?: string
+  erstellt_am?: string
 }
 
 interface GageEntry {
@@ -497,6 +512,7 @@ function JobKategorieModal({
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [kostenstelle, setKostenstelle] = useState(jk?.kostenstelle || '')
   const [newTaetigkeitConfirm, setNewTaetigkeitConfirm] = useState<string | null>(null)
 
   const togglePraesenzWoche = (w: number) => {
@@ -532,6 +548,7 @@ function JobKategorieModal({
       await onSave({
         label: label.trim(),
         beschreibung: beschreibung || undefined,
+        kostenstelle: kostenstelle || undefined,
         vertragsdb_taetigkeit_id: taetigkeitId,
         max_slots: maxSlots,
         slots_gleich_folgen: slotsGleichFollen,
@@ -629,6 +646,13 @@ function JobKategorieModal({
               Kurzbeschreibung
             </label>
             <textarea value={beschreibung} onChange={e => setBeschreibung(e.target.value)} rows={2} placeholder="Optionale Beschreibung des Jobs..." style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'none' }} />
+          </div>
+
+          {/* Kostenstelle */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>KST</label>
+            <input value={kostenstelle} onChange={e => setKostenstelle(e.target.value)} placeholder="z. B. 4100"
+              style={{ width: 140, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, color: 'var(--text-primary)' }} />
           </div>
 
           {/* Slots */}
@@ -823,18 +847,6 @@ function EinsatzModal({
       }
     }
   }
-  // Zusatzpersonal
-  const [zusatzList, setZusatzList] = useState<{ id: string; beschreibung: string; status: string }[]>([])
-  const [newZusatz, setNewZusatz] = useState('')
-  const [savingZusatz, setSavingZusatz] = useState(false)
-
-  useEffect(() => {
-    if (!einsatz?.id) return
-    fetch(`/api/autorenplan/einsaetze/${einsatz.id}/zusatz`, { credentials: 'include' })
-      .then(r => r.json())
-      .then(d => setZusatzList(d.zusatz || []))
-      .catch(() => {})
-  }, [einsatz?.id])
 
   // Auto-Block aus Blockkalender
   useEffect(() => {
@@ -867,25 +879,6 @@ function EinsatzModal({
     } else {
       setCacheResults([])
     }
-  }
-
-  const handleAddZusatz = async () => {
-    if (!newZusatz.trim() || !einsatz?.id) return
-    setSavingZusatz(true)
-    try {
-      const res = await fetch(`/api/autorenplan/einsaetze/${einsatz.id}/zusatz`, {
-        method: 'POST', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platzhalter_name: newZusatz.trim(), beschreibung: newZusatz.trim() }),
-      })
-      const d = await res.json()
-      if (d.zusatz) { setZusatzList(prev => [...prev, d.zusatz]); setNewZusatz('') }
-    } finally { setSavingZusatz(false) }
-  }
-
-  const handleDeleteZusatz = async (id: string) => {
-    await fetch(`/api/autorenplan/zusatz/${id}`, { method: 'DELETE', credentials: 'include' })
-    setZusatzList(prev => prev.filter(z => z.id !== id))
   }
 
   const handleSave = async () => {
@@ -1076,42 +1069,6 @@ function EinsatzModal({
             <textarea value={notiz} onChange={e => setNotiz(e.target.value)} rows={2} placeholder="Optionale Anmerkung..." style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'none' }} />
           </div>
 
-          {/* Zusatzpersonal — nur bei bestehendem Einsatz */}
-          {!isNew && (
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>
-                Zusatzpersonal
-                <Tooltip text="Zusatzpersonal überschreitet die regulären Slots dieser Job-Kategorie und wird separat erfasst.">
-                  <Info size={11} style={{ marginLeft: 4, verticalAlign: 'middle', color: 'var(--text-secondary)' }} />
-                </Tooltip>
-              </label>
-              {zusatzList.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
-                  {zusatzList.map(z => (
-                    <div key={z.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px', borderRadius: 6, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
-                      <Users size={11} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-                      <span style={{ flex: 1, fontSize: 12 }}>{z.beschreibung}</span>
-                      <button onClick={() => handleDeleteZusatz(z.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '0 2px', fontSize: 14, lineHeight: 1 }}>×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input
-                  value={newZusatz}
-                  onChange={e => setNewZusatz(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddZusatz() } }}
-                  placeholder="Name / Bezeichnung..."
-                  style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)' }}
-                />
-                <button onClick={handleAddZusatz} disabled={!newZusatz.trim() || savingZusatz}
-                  style={{ padding: '6px 12px', borderRadius: 6, border: 'none', background: '#007AFF', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-                  +
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Gagenkategorie */}
           <div>
             <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Kat.</label>
@@ -1242,6 +1199,103 @@ function WochenNotizModal({
   )
 }
 
+// ── ZusatzpersonalModal ────────────────────────────────────────────────────────
+
+function ZusatzpersonalModal({
+  jk, woche, produktionDbId, onSave, onClose,
+}: {
+  jk: JobKategorie
+  woche: Date
+  produktionDbId: string
+  onSave: () => Promise<void>
+  onClose: () => void
+}) {
+  const [personId, setPersonId] = useState<number | undefined>()
+  const [personName, setPersonName] = useState('')
+  const [isPlatzhalter, setIsPlatzhalter] = useState(false)
+  const [notiz, setNotiz] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!personName.trim()) return
+    setSaving(true)
+    try {
+      await fetch('/api/autorenplan/zusatz', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          job_kategorie_id: jk.id,
+          produktion_db_id: produktionDbId,
+          woche_von: dateKey(mondayOf(woche)),
+          vertragsdb_person_id: isPlatzhalter ? undefined : personId,
+          platzhalter_name: isPlatzhalter ? personName : undefined,
+          person_cache_name: personName,
+          notiz: notiz || undefined,
+        }),
+      })
+      await onSave()
+      onClose()
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: 'var(--bg-page)', borderRadius: 12, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Zusatzpersonal buchen</div>
+            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: jk.farbe, marginRight: 4 }} />
+              {jk.label} · {formatWoche(woche)}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}><X size={18} /></button>
+        </div>
+        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Person */}
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Person</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, cursor: 'pointer', marginLeft: 'auto' }}>
+                <input type="checkbox" checked={isPlatzhalter} onChange={e => { setIsPlatzhalter(e.target.checked); setPersonId(undefined) }} />
+                Platzhalter
+              </label>
+            </div>
+            {isPlatzhalter ? (
+              <input
+                value={personName}
+                onChange={e => setPersonName(e.target.value)}
+                placeholder="Platzhalter-Name..."
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 13, color: 'var(--text-primary)' }}
+              />
+            ) : (
+              <PersonPicker
+                value={personId}
+                displayName={personName}
+                onSelect={p => { setPersonId(p.id); setPersonName(p.name) }}
+                onTextChange={v => { if (!personId) setPersonName(v) }}
+              />
+            )}
+          </div>
+          {/* Notiz */}
+          <div>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 6 }}>Notiz</label>
+            <textarea value={notiz} onChange={e => setNotiz(e.target.value)} rows={2} placeholder="Optionale Anmerkung..."
+              style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, color: 'var(--text-primary)', resize: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>Abbrechen</button>
+            <button onClick={handleSave} disabled={saving || !personName.trim()} style={{ padding: '7px 20px', borderRadius: 7, border: 'none', background: '#000', color: '#fff', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              {saving ? '...' : 'Buchen'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── AutorenplanGrid ───────────────────────────────────────────────────────────
 
 function AutorenplanGrid({
@@ -1254,13 +1308,26 @@ function AutorenplanGrid({
   const folgeLabel = t('episode')
 
   const [einsaetze, setEinsaetze] = useState<Einsatz[]>([])
+  const [zusatz, setZusatz] = useState<Zusatz[]>([])
   const [notizen, setNotizen] = useState<WochenNotiz[]>([])
   const [blockInfo, setBlockInfo] = useState<BlockInfo | null>(null)
   const [windowStart, setWindowStart] = useState<Date>(() => addWeeks(mondayOf(new Date()), -4))
   const WEEKS_VISIBLE = 20
   const [modal, setModal] = useState<{ einsatz?: Einsatz; jk: JobKategorie; woche: Date } | null>(null)
+  const [zusatzModal, setZusatzModal] = useState<{ jk: JobKategorie; woche: Date } | null>(null)
   const [noteModal, setNoteModal] = useState<Date | null>(null)
   const [showKostenstellen, setShowKostenstellen] = useState(false)
+  const [zusatzMode, setZusatzMode] = useState<'inline' | 'separate'>('inline')
+
+  // Z / Y Taste (QWERTZ / QWERTY) gedrückt halten → Zusatzpersonal-Modus
+  const zPressedRef = useRef(false)
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.code === 'KeyZ' || e.code === 'KeyY') zPressedRef.current = true }
+    const up   = (e: KeyboardEvent) => { if (e.code === 'KeyZ' || e.code === 'KeyY') zPressedRef.current = false }
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+  }, [])
 
   const weeks = Array.from({ length: WEEKS_VISIBLE }, (_, i) => addWeeks(windowStart, i))
   const vonDate = dateKey(windowStart)
@@ -1286,6 +1353,8 @@ function AutorenplanGrid({
         .then(r => r.json()).then(d => setEinsaetze(d.einsaetze || [])),
       fetch(`/api/autorenplan/wochen-notizen?produktion_db_id=${produktionDbId}&von=${vonDate}&bis=${bisDate}`, { credentials: 'include' })
         .then(r => r.json()).then(d => setNotizen(d.notizen || [])),
+      fetch(`/api/autorenplan/zusatz?produktion_db_id=${produktionDbId}&von=${vonDate}&bis=${bisDate}`, { credentials: 'include' })
+        .then(r => r.json()).then(d => setZusatz(d.zusatz || [])),
     ]).catch(() => {})
   }, [produktionDbId, vonDate, bisDate])
 
@@ -1363,7 +1432,20 @@ function AutorenplanGrid({
   }
 
   const handleCellClick = (jk: JobKategorie, week: Date, einsatz?: Einsatz) => {
-    setModal({ einsatz, jk, woche: week })
+    if (zPressedRef.current) {
+      setZusatzModal({ jk, woche: week })
+    } else {
+      setModal({ einsatz, jk, woche: week })
+    }
+  }
+
+  function getZusatzForCell(jk: JobKategorie, weekDate: Date): Zusatz[] {
+    const wKey = dateKey(weekDate)
+    return zusatz.filter(z => z.job_kategorie_id === jk.id && (z.woche_von || '').slice(0, 10) === wKey)
+  }
+
+  function maxZusatzForCategory(jk: JobKategorie): number {
+    return Math.max(0, ...weeks.map(w => getZusatzForCell(jk, w).length))
   }
 
   const handleSaveEinsatz = async (data: Partial<Einsatz>) => {
@@ -1415,6 +1497,13 @@ function AutorenplanGrid({
           style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: showKostenstellen ? '#007AFF' : 'var(--text-secondary)' }}>
           KST
         </button>
+        <Tooltip text={zusatzMode === 'inline' ? 'Zusatzpersonal inline (in Kategorie)' : 'Zusatzpersonal separat (unter Notizen)'}>
+          <button onClick={() => setZusatzMode(v => v === 'inline' ? 'separate' : 'inline')}
+            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: zusatz.length > 0 ? '#007AFF' : 'var(--text-secondary)' }}>
+            <Users size={11} />
+            {zusatzMode === 'inline' ? '↕' : '↔'}
+          </button>
+        </Tooltip>
       </div>
 
       {/* Grid */}
@@ -1478,14 +1567,17 @@ function AutorenplanGrid({
           <tbody>
             {jobKategorien.map(jk => {
               const globalMaxSlots = Math.max(1, ...weeks.map(w => maxSlotsForCell(jk, w)))
-              return Array.from({ length: globalMaxSlots }, (_, slotIdx) => (
+              const maxZusatz = zusatzMode === 'inline' ? maxZusatzForCategory(jk) : 0
+              const totalRows = globalMaxSlots + maxZusatz
+              return [
+                ...Array.from({ length: globalMaxSlots }, (_, slotIdx) => (
                 <tr key={`${jk.id}-${slotIdx}`}>
                   {slotIdx === 0 && (
-                    <td rowSpan={globalMaxSlots} style={{
+                    <td rowSpan={totalRows} style={{
                       position: 'sticky', left: 0, zIndex: 5,
                       background: 'var(--bg-page)', borderRight: '1px solid var(--border)',
                       borderBottom: '2px solid var(--border)',
-                      padding: '0 8px', height: ROW_H * globalMaxSlots || ROW_H,
+                      padding: '0 8px', height: ROW_H * totalRows || ROW_H,
                       verticalAlign: 'middle',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -1496,8 +1588,11 @@ function AutorenplanGrid({
                           </div>
                           {showKostenstellen && (
                             <div style={{ fontSize: 9, color: 'var(--text-secondary)' }}>
-                              {jk.gage_betrag ? `${jk.gage_betrag.toLocaleString('de-DE')} € ${ABRECHNUNGSTYPEN.find(a => a.id === jk.abrechnungstyp)?.label ?? ''}` : '—'}
+                              {jk.kostenstelle ? `KST ${jk.kostenstelle}` : jk.gage_betrag ? `${jk.gage_betrag.toLocaleString('de-DE')} €` : '—'}
                             </div>
+                          )}
+                          {maxZusatz > 0 && (
+                            <div style={{ fontSize: 8, color: 'var(--text-secondary)', marginTop: 2, fontStyle: 'italic' }}>+ Zusatzpersonal</div>
                           )}
                         </div>
                       </div>
@@ -1585,7 +1680,54 @@ function AutorenplanGrid({
                     )
                   })}
                 </tr>
-              ))
+              )),
+                // Zusatzpersonal-Zeilen (inline-Modus)
+                ...Array.from({ length: maxZusatz }, (_, zi) => (
+                  <tr key={`${jk.id}-zusatz-${zi}`}>
+                    {weeks.map((week, wi) => {
+                      const zList = getZusatzForCell(jk, week)
+                      const z = zList[zi] || null
+                      const isToday = dateKey(week) === dateKey(today)
+                      return (
+                        <td key={wi}
+                          onClick={() => setZusatzModal({ jk, woche: week })}
+                          style={{
+                            width: CELL_W, minWidth: CELL_W, height: ROW_H, padding: '2px 4px',
+                            borderLeft: '1px dashed var(--border)',
+                            borderBottom: zi === maxZusatz - 1 ? '2px solid var(--border)' : '1px solid var(--border)',
+                            background: isToday ? '#007AFF08' : z ? `${jk.farbe}0A` : 'transparent',
+                            cursor: 'pointer', verticalAlign: 'middle', position: 'relative',
+                          }}
+                          onMouseEnter={e => { if (!z) e.currentTarget.style.background = 'var(--bg-subtle)' }}
+                          onMouseLeave={e => { e.currentTarget.style.background = isToday ? '#007AFF08' : z ? `${jk.farbe}0A` : 'transparent' }}
+                        >
+                          {z ? (
+                            <Tooltip text={[
+                              z.person_cache_name || z.platzhalter_name || '—',
+                              !z.vertragsdb_person_id ? 'Platzhalter' : '',
+                              z.notiz || '',
+                            ].filter(Boolean).join('\n')}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: ROW_H - 4 }}>
+                                <div style={{ width: 3, borderRadius: 2, background: `${jk.farbe}80`, flexShrink: 0, alignSelf: 'stretch' }} />
+                                <div style={{ fontSize: 9, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)', fontStyle: !z.vertragsdb_person_id ? 'italic' : 'normal' }}>
+                                  {z.person_cache_name || z.platzhalter_name || '—'}
+                                </div>
+                                <button
+                                  onClick={async e => { e.stopPropagation(); await fetch(`/api/autorenplan/zusatz/${z.id}`, { method: 'DELETE', credentials: 'include' }); loadData() }}
+                                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+                              </div>
+                            </Tooltip>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.2 }}>
+                              <Users size={9} />
+                            </div>
+                          )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )),
+              ]
             })}
 
             {/* Wochennotizen-Zeile */}
@@ -1650,6 +1792,62 @@ function AutorenplanGrid({
                 )
               })}
             </tr>
+
+            {/* Zusatzpersonal — separate Sektion (unter Notizen) */}
+            {zusatzMode === 'separate' && jobKategorien.map(jk => {
+              const maxZ = maxZusatzForCategory(jk)
+              if (maxZ === 0) return null
+              return Array.from({ length: maxZ }, (_, zi) => (
+                <tr key={`${jk.id}-sep-${zi}`}>
+                  {zi === 0 && (
+                    <td rowSpan={maxZ} style={{
+                      position: 'sticky', left: 0, zIndex: 5,
+                      background: 'var(--bg-page)', borderRight: '1px solid var(--border)',
+                      borderTop: '1px solid var(--border)', borderBottom: '2px solid var(--border)',
+                      padding: '0 8px', verticalAlign: 'middle',
+                    }}>
+                      <div style={{ fontSize: 9, color: 'var(--text-secondary)', fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>
+                        <span style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: jk.farbe, marginRight: 4 }} />
+                        {jk.label}
+                      </div>
+                    </td>
+                  )}
+                  {weeks.map((week, wi) => {
+                    const zList = getZusatzForCell(jk, week)
+                    const z = zList[zi] || null
+                    const isToday = dateKey(week) === dateKey(today)
+                    return (
+                      <td key={wi}
+                        onClick={() => setZusatzModal({ jk, woche: week })}
+                        style={{
+                          width: CELL_W, minWidth: CELL_W, height: ROW_H, padding: '2px 4px',
+                          borderLeft: '1px dashed var(--border)',
+                          borderTop: zi === 0 ? '1px solid var(--border)' : undefined,
+                          borderBottom: zi === maxZ - 1 ? '2px solid var(--border)' : '1px solid var(--border)',
+                          background: isToday ? '#007AFF08' : z ? `${jk.farbe}0A` : 'transparent',
+                          cursor: 'pointer', verticalAlign: 'middle',
+                        }}>
+                        {z ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3, height: ROW_H - 4 }}>
+                            <div style={{ width: 3, borderRadius: 2, background: `${jk.farbe}80`, flexShrink: 0, alignSelf: 'stretch' }} />
+                            <div style={{ fontSize: 9, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)', fontStyle: !z.vertragsdb_person_id ? 'italic' : 'normal', flex: 1 }}>
+                              {z.person_cache_name || z.platzhalter_name || '—'}
+                            </div>
+                            <button
+                              onClick={async e => { e.stopPropagation(); await fetch(`/api/autorenplan/zusatz/${z.id}`, { method: 'DELETE', credentials: 'include' }); loadData() }}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, lineHeight: 1, padding: '0 2px', flexShrink: 0 }}>×</button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', opacity: 0.2 }}>
+                            <Users size={9} />
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))
+            })}
           </tbody>
         </table>
       </div>
@@ -1687,6 +1885,15 @@ function AutorenplanGrid({
             await loadData()
           }}
           onClose={() => setNoteModal(null)}
+        />
+      )}
+      {zusatzModal && (
+        <ZusatzpersonalModal
+          jk={zusatzModal.jk}
+          woche={zusatzModal.woche}
+          produktionDbId={produktionDbId}
+          onSave={async () => { await loadData() }}
+          onClose={() => setZusatzModal(null)}
         />
       )}
     </div>

@@ -60,7 +60,7 @@ router.post('/job-kategorien', async (req, res) => {
     gage_betrag, gage_waehrung, abrechnungstyp, lst_rg, gagen,
     max_slots, slots_gleich_folgen,
     dauer_wochen, bezugseinheit, praesenz_wochen,
-    erster_block_start, farbe, sortierung,
+    erster_block_start, farbe, sortierung, kostenstelle,
   } = req.body
 
   if (!produktion_db_id || !label?.trim()) {
@@ -73,8 +73,8 @@ router.post('/job-kategorien', async (req, res) => {
         gage_betrag, gage_waehrung, abrechnungstyp, lst_rg, gagen,
         max_slots, slots_gleich_folgen,
         dauer_wochen, bezugseinheit, praesenz_wochen,
-        erster_block_start, farbe, sortierung, erstellt_von)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+        erster_block_start, farbe, sortierung, kostenstelle, erstellt_von)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
      RETURNING *`,
     [
       produktion_db_id, label.trim(), beschreibung || null, vertragsdb_taetigkeit_id || null,
@@ -84,6 +84,7 @@ router.post('/job-kategorien', async (req, res) => {
       dauer_wochen ?? 1, bezugseinheit || 'block',
       praesenz_wochen?.length ? praesenz_wochen : [1],
       erster_block_start || null, farbe || '#007AFF', sortierung ?? 0,
+      kostenstelle || null,
       uid(req),
     ]
   )
@@ -98,7 +99,7 @@ router.put('/job-kategorien/:id', async (req, res) => {
     gage_betrag, gage_waehrung, abrechnungstyp, lst_rg, gagen,
     max_slots, slots_gleich_folgen,
     dauer_wochen, bezugseinheit, praesenz_wochen,
-    erster_block_start, farbe, sortierung,
+    erster_block_start, farbe, sortierung, kostenstelle,
   } = req.body
 
   const result = await pool.query(
@@ -119,8 +120,9 @@ router.put('/job-kategorien/:id', async (req, res) => {
        erster_block_start  = $14,
        farbe               = COALESCE($15, farbe),
        sortierung          = COALESCE($16, sortierung),
+       kostenstelle        = $17,
        aktualisiert_am     = NOW()
-     WHERE id = $17
+     WHERE id = $18
      RETURNING *`,
     [
       label?.trim() || null, beschreibung ?? null, vertragsdb_taetigkeit_id ?? null,
@@ -130,6 +132,7 @@ router.put('/job-kategorien/:id', async (req, res) => {
       dauer_wochen ?? null, bezugseinheit || null,
       praesenz_wochen?.length ? praesenz_wochen : null,
       erster_block_start || null, farbe || null, sortierung ?? null,
+      kostenstelle ?? null,
       req.params.id,
     ]
   )
@@ -448,6 +451,63 @@ router.delete('/einsaetze/:id', async (req, res) => {
 })
 
 // ── Zusatzpersonal ─────────────────────────────────────────────────────────────
+
+// GET /api/autorenplan/zusatz?produktion_db_id=&von=&bis= — alle Zusatz im Datumsbereich
+router.get('/zusatz', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const { produktion_db_id, von, bis } = req.query as Record<string, string>
+  if (!produktion_db_id) return res.status(400).json({ error: 'produktion_db_id fehlt' })
+
+  const conditions = ['produktion_db_id = $1']
+  const params: any[] = [produktion_db_id]
+  if (von) { params.push(von); conditions.push(`woche_von >= $${params.length}`) }
+  if (bis) { params.push(bis); conditions.push(`woche_von <= $${params.length}`) }
+
+  const rows = await pool.query(
+    `SELECT * FROM autorenplan_zusatz WHERE ${conditions.join(' AND ')} ORDER BY woche_von, erstellt_am`,
+    params
+  )
+  res.json({ zusatz: rows.rows })
+})
+
+// POST /api/autorenplan/zusatz — standalone (ohne einsatz_id)
+router.post('/zusatz', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  const {
+    job_kategorie_id, produktion_db_id, woche_von,
+    vertragsdb_person_id, platzhalter_name, person_cache_name, notiz,
+  } = req.body
+  if (!job_kategorie_id || !produktion_db_id || !woche_von) {
+    return res.status(400).json({ error: 'job_kategorie_id, produktion_db_id, woche_von erforderlich' })
+  }
+  if (!vertragsdb_person_id && !platzhalter_name?.trim()) {
+    return res.status(400).json({ error: 'Person oder Platzhalter-Name erforderlich' })
+  }
+  const result = await pool.query(
+    `INSERT INTO autorenplan_zusatz
+       (job_kategorie_id, produktion_db_id, woche_von,
+        vertragsdb_person_id, platzhalter_name, person_cache_name,
+        beschreibung, notiz, status, erstellt_von)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'geplant',$9) RETURNING *`,
+    [
+      job_kategorie_id, produktion_db_id, woche_von,
+      vertragsdb_person_id || null,
+      platzhalter_name?.trim() || null,
+      person_cache_name || platzhalter_name?.trim() || null,
+      person_cache_name || platzhalter_name?.trim() || '',
+      notiz || null,
+      uid(req),
+    ]
+  )
+  res.json({ zusatz: result.rows[0] })
+})
+
+// DELETE /api/autorenplan/zusatz/:id
+router.delete('/zusatz/:id', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  await pool.query('DELETE FROM autorenplan_zusatz WHERE id = $1', [req.params.id])
+  res.json({ ok: true })
+})
 
 router.get('/einsaetze/:id/zusatz', async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
