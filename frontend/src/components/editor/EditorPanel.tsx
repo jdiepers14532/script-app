@@ -52,7 +52,7 @@ export default function EditorPanel({
   const [sceneContent, setSceneContent] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
-  const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string; zeilennummerierung_unterbinden?: boolean }>>([])
+  const [vorlagen, setVorlagen] = useState<Array<{ id: string; name: string; zeilennummerierung_unterbinden?: boolean; body_content?: any }>>([])
   const [vorlagePreviewData, setVorlagePreviewData] = useState<any>(null)
   const [showVorlagePreview, setShowVorlagePreview] = useState(false)
   const [isApplyingVorlage, setIsApplyingVorlage] = useState(false)
@@ -95,7 +95,12 @@ export default function EditorPanel({
   useEffect(() => {
     if (!produktionId) return
     api.getDokumentVorlagen(produktionId)
-      .then((list: any[]) => setVorlagen(list.map(v => ({ id: v.id, name: v.name, zeilennummerierung_unterbinden: v.zeilennummerierung_unterbinden ?? false }))))
+      .then((list: any[]) => setVorlagen(list.map(v => ({
+        id: v.id,
+        name: v.name,
+        zeilennummerierung_unterbinden: v.zeilennummerierung_unterbinden ?? false,
+        body_content: typeof v.body_content === 'string' ? JSON.parse(v.body_content) : v.body_content,
+      }))))
       .catch(() => setVorlagen([]))
   }, [produktionId])
 
@@ -515,10 +520,11 @@ export default function EditorPanel({
             onChange={async (e) => {
               const vorlageId = e.target.value
               if (!vorlageId || !currentSzene?.id) return
+              const vorlageItem = vorlagen.find(v => v.id === vorlageId)
+              if (!vorlageItem?.body_content) return  // Vorlage hat keinen WYSIWYG-Body
               setIsApplyingVorlage(true)
               try {
                 // Originaltext: pre_vorlage_content hat Priorität (falls Vorlage schon angewendet wurde)
-                // So wird beim Vorlage-Wechsel immer der originale Szenentext eingesetzt, nicht der gemergte Body
                 const rawContent = currentSzene?.content
                 const preVorlage = currentSzene?.pre_vorlage_content
                 const sourceContent = preVorlage ?? rawContent
@@ -526,14 +532,8 @@ export default function EditorPanel({
                   ? sourceContent
                   : (sourceContent?.content ?? [])
 
-                // Vorlage vollständig laden (inkl. body_content)
-                const vorlage = await api.getDokumentVorlage(produktionId, vorlageId)
-                const bodyContent = typeof vorlage.body_content === 'string'
-                  ? JSON.parse(vorlage.body_content)
-                  : vorlage.body_content
-
                 // Merge: Vorlage-Body + Szenentext → finales Tiptap-Dokument
-                const merged = mergeVorlageWithContent(bodyContent, sourceNodes)
+                const merged = mergeVorlageWithContent(vorlageItem.body_content, sourceNodes)
 
                 // Editor sofort aktualisieren (Remount via contentResetCounter)
                 setSceneContent(merged)
@@ -543,18 +543,18 @@ export default function EditorPanel({
                       pre_vorlage_content: prev.pre_vorlage_content ?? sourceContent }
                   : prev
                 )
-                setVorlagePreviewData(vorlage)
+                setVorlagePreviewData(vorlageItem)
 
                 // Persistieren: gemergter Content + vorlage_id + wysiwyg_merged-Flag
-                // pre_vorlage_content nur beim ersten Mal speichern (bei Vorlage-Wechsel bleibt der Original)
                 await api.updateDokumentSzene(currentSzene.id, {
                   content: merged.content,
                   vorlage_id: vorlageId,
                   wysiwyg_merged: true,
                   ...(!currentSzene.pre_vorlage_content && { pre_vorlage_content: sourceContent }),
                 })
-              } catch { /* ignore — Netzwerkfehler werden vom Offline-Queue behandelt */ }
-              finally { setIsApplyingVorlage(false) }
+              } catch (err) {
+                console.error('[Vorlage apply]', err)
+              } finally { setIsApplyingVorlage(false) }
             }}
             style={{ fontSize: 11, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', maxWidth: 220, opacity: isApplyingVorlage ? 0.5 : 1 }}
           >
