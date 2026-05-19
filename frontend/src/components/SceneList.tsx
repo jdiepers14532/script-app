@@ -300,21 +300,28 @@ export default function SceneList({
     setCreating(true)
     try {
       if (afterSzeneId !== undefined) {
-        await api.createWerkstufeSzene(String(stageId), {
+        const newSzene = await api.createWerkstufeSzene(String(stageId), {
           int_ext: 'INT', tageszeit: 'TAG', format, after_scene_id: afterSzeneId,
         })
-        const updated = await api.getWerkstufenSzenen(String(stageId!))
+        // Insert new scene directly after the reference scene (use POST response, no re-fetch needed)
+        const refIdx = szenen.findIndex((s: any) => String(s.id) === String(afterSzeneId))
+        const updated = [...szenen]
+        if (refIdx !== -1) {
+          updated.splice(refIdx + 1, 0, newSzene)
+        } else {
+          updated.push(newSzene)
+        }
         onSzenesReordered?.(updated)
-        const inserted = updated.find((s: any) => !szenen.some(old => old.id === s.id))
-        if (inserted) onSelectSzene(inserted.id)
+        onSelectSzene(newSzene.id)
       } else {
         const newSzene = await api.createWerkstufeSzene(String(stageId), {
           int_ext: 'INT', tageszeit: 'TAG', format,
         })
         onSzeneCreated?.(newSzene)
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Fehler beim Erstellen der Szene', e)
+      showToast('Fehler beim Erstellen der Szene: ' + (e?.message || String(e)), 'error')
     } finally {
       setCreating(false)
     }
