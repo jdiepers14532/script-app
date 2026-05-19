@@ -535,12 +535,17 @@ export default function EditorPanel({
 
                 // Chip-Werte für die Auflösung zusammenbauen
                 const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                const werkTypLabel = (typ: string) =>
+                  ({ storyline: 'Storyline', drehbuch: 'Drehbuch', notiz: 'Notiz', treatment: 'Treatment' }[typ] ?? typ)
                 const chipValues: Record<string, string> = {
-                  '{{produktion}}':  selectedProduction?.title ?? '',
-                  '{{staffel}}':     selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
-                  '{{folge}}':       folgeNummer ? String(folgeNummer) : '',
+                  '{{produktion}}':      selectedProduction?.title ?? '',
+                  '{{staffel}}':         selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
+                  '{{folge}}':           folgeNummer ? String(folgeNummer) : '',
                   '{{aktuelles_datum}}': today,
-                  '{{stand_datum}}': today,
+                  '{{stand_datum}}':     today,
+                  '{{werkstufe}}':       selectedWerk?.typ ? werkTypLabel(selectedWerk.typ) : '',
+                  '{{fassung}}':         selectedWerk?.label ?? '',
+                  '{{version}}':         selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
                 }
 
                 // Merge: Vorlage-Body + Szenentext + Chip-Werte → finales Tiptap-Dokument (reiner Text, keine Chips)
