@@ -18,6 +18,7 @@ import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
 import Image from '@tiptap/extension-image'
+import { ResizableImageExtension } from '../../sw-ui/editor/extensions/ResizableImageExtension'
 import Placeholder from '@tiptap/extension-placeholder'
 import { ScreenplayExtension, ScreenplayElementType, FormatElement, SCREENPLAY_CSS } from '../../tiptap/ScreenplayExtension'
 import { AbsatzExtension, generateAbsatzCSS, convertScreenplayToAbsatz, type AbsatzFormat } from '../../tiptap/AbsatzExtension'
@@ -469,6 +470,7 @@ export default function UniversalEditor({
       LineSpacingExtension,
       TextAlign.configure({ types: ['heading', 'paragraph', 'absatz', 'screenplay_element'] }),
       Image.configure({ inline: false, allowBase64: true }),
+      ResizableImageExtension,
       ScreenplayExtension.configure({ formatElements }),
       AbsatzExtension.configure({ formate: relevantFormats }),
       AlignmentShortcuts,
