@@ -29,7 +29,7 @@ function injectChipCss() {
   style.id = 'placeholder-chip-css'
   style.textContent = PLACEHOLDER_CHIP_CSS + `
 /* Prevent editor content from expanding its container horizontally */
-.ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; font-family: "Courier New", monospace; }
+.ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; }
 .ProseMirror img { max-width: 100% !important; }
 
 /* Reset browser-default paragraph margins so line-height is the sole spacing control */
