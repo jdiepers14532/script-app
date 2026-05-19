@@ -89,7 +89,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
       <img
         src={src} alt={alt || ''}
         style={{
-          width: displayWidth, maxWidth: '100%', display: 'block',
+          width: displayWidth, height: 'auto', maxWidth: '100%', display: 'block',
           outline: showOverlay ? '2px solid #007AFF88' : 'none',
           outlineOffset: 1, transition: 'outline 0.1s',
         }}

@@ -36,6 +36,7 @@ import { LineNumberOverlay } from './LineNumberOverlay'
 import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
 import { createRevisionMarginPlugin, REVISION_MARGIN_CSS } from '../../tiptap/RevisionMarginPlugin'
 import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS } from '../../sw-ui/editor/extensions/PlaceholderChipExtension'
+import { ParagraphStyleExtension } from '../../sw-ui/editor/extensions/ParagraphStyleExtension'
 import Table from '@tiptap/extension-table'
 import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
@@ -480,6 +481,7 @@ export default function UniversalEditor({
       AnnotationMark,
       SearchHighlightExtension,
       PlaceholderChipExtension,
+      ParagraphStyleExtension,
       Table.configure({ resizable: false }),
       TableRow,
       TableCell,
