@@ -400,7 +400,7 @@ function UebersichtSection({ report }: { report: any }) {
     <Section>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px' }}>
         <SummaryItem label={`${t('szene', 'p')} insgesamt`} value={report.szenen_insgesamt ?? report.bilder_insgesamt} />
-        <SummaryItem label="Anzahl an Drehbuchseiten" value={report.drehbuchseiten_display || '-'} />
+        <SummaryItem label="Anzahl an Drehbuchseiten" value={report.werkstufe_typ !== 'drehbuch' ? 'Nur bei DB' : (report.drehbuchseiten_display || '-')} />
         <SummaryItem label="Vorstopp (mm:ss)" value={formatTime(report.vorstopp_sek || 0)} />
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
           <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Geplante Drehdauer (hh:mm)</span>
