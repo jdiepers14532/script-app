@@ -320,6 +320,7 @@ router.post('/einsaetze', async (req, res) => {
     return res.status(400).json({ error: 'produktion_db_id, woche_von und job_kategorie_id (oder prozess_id) erforderlich' })
   }
 
+  try {
   const result = await pool.query(
     `INSERT INTO autorenplan_einsaetze
        (produktion_db_id, job_kategorie_id, prozess_id, woche_von,
@@ -363,6 +364,10 @@ router.post('/einsaetze', async (req, res) => {
   }
 
   res.json({ einsatz: result.rows[0] })
+  } catch (err: any) {
+    console.error('POST /einsaetze error:', err?.message)
+    res.status(500).json({ error: 'Interner Fehler beim Anlegen des Einsatzes' })
+  }
 })
 
 const TRACKED_STATUSES = ['angefragt', 'zugesagt', 'vertrag_zurueck', 'abgesagt']
