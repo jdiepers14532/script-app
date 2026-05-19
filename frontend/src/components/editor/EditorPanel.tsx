@@ -612,13 +612,13 @@ export default function EditorPanel({
                   '{{fassung}}':             selectedWerk?.label ?? '',
                   '{{version}}':             selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
                   '{{firmenname}}':          firmenname,
-                  '{{firmenadresse}}':       firmenadresse,
+                  '{{firmen_adresse}}':      firmenadresse,
                   '{{rechtsform}}':          rechtsform,
                   '{{handelsregister}}':     handelsregister,
                   '{{ust_id}}':              ustId,
                   '{{geschaeftsfuehrung}}':  geschaeftsfuehrung,
                   '{{firmen_email}}':        firmenEmail,
-                  '{{firmen_tel}}':          firmenTel,
+                  '{{firmen_telefon}}':      firmenTel,
                 }
 
                 // Merge: Vorlage-Body + Szenentext + Chip-Werte → finales Tiptap-Dokument (reiner Text, keine Chips)
