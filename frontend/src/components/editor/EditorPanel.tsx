@@ -562,7 +562,7 @@ export default function EditorPanel({
                   const dt = new Date(sendedatumData.datum + 'T00:00:00')
                   const wd = dt.toLocaleDateString('de-DE', { weekday: 'short' })
                   const d = dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                  return `${wd} ${d}`
+                  return `${wd}, ${d}`
                 })()
 
                 const chipValues: Record<string, string> = {
