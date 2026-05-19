@@ -628,7 +628,7 @@ werkstufenSzenenRouter.post('/', async (req, res) => {
           stoppzeit_sek, updated_by, page_length)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
       [
-        werkId, identityId, finalSortOrder, finalSceneNummer,
+        werkId, identityId, Math.round(finalSortOrder), finalSceneNummer,
         format || ws.typ || 'drehbuch',
         int_ext || 'INT', tageszeit || 'TAG', ort_name || null,
         zusammenfassung || null, JSON.stringify(content || []),
