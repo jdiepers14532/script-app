@@ -400,7 +400,12 @@ function UebersichtSection({ report }: { report: any }) {
     <Section>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px 24px' }}>
         <SummaryItem label={`${t('szene', 'p')} insgesamt`} value={report.szenen_insgesamt ?? report.bilder_insgesamt} />
-        <SummaryItem label="Anzahl an Drehbuchseiten" value={report.werkstufe_typ !== 'drehbuch' ? 'Nur bei DB' : (report.drehbuchseiten_display || '-')} />
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
+          <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Anzahl an Drehbuchseiten</span>
+          {report.werkstufe_typ !== 'drehbuch'
+            ? <span style={{ fontSize: 10, fontWeight: 500, color: '#007AFF', background: 'rgba(0,122,255,0.1)', borderRadius: 4, padding: '1px 5px' }}>Nur bei DB</span>
+            : <span style={{ fontWeight: 600, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{report.drehbuchseiten_display || '-'}</span>}
+        </div>
         <SummaryItem label="Vorstopp (mm:ss)" value={formatTime(report.vorstopp_sek || 0)} />
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid var(--border-subtle, var(--border))' }}>
           <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>Geplante Drehdauer (hh:mm)</span>
