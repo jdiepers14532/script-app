@@ -256,6 +256,9 @@ export default function UniversalEditor({
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
+  // Tabellen-Cursor-Erkennung
+  const [isInTable, setIsInTable] = useState(false)
+
   // Toolbar pin state: button-open = pinned, click-open = not pinned
   const [toolbarPinned, setToolbarPinned] = useState(false)
   useEffect(() => {
@@ -513,6 +516,15 @@ export default function UniversalEditor({
     update()
     return () => { editor.off('transaction', update) }
   }, [editor, ydoc])
+
+  // Cursor-Position in Tabelle tracken
+  useEffect(() => {
+    if (!editor) return
+    const update = () => setIsInTable(editor.isActive('tableCell') || editor.isActive('tableHeader'))
+    editor.on('selectionUpdate', update)
+    editor.on('transaction', update)
+    return () => { editor.off('selectionUpdate', update); editor.off('transaction', update) }
+  }, [editor])
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
   const { lnSettings, pageMargins } = useAppSettings()
@@ -1091,6 +1103,25 @@ export default function UniversalEditor({
             </div>
           )}
 
+          {/* ── Row 3: Tabellen-Toolbar (kontextsensitiv) ───────────────── */}
+          {isInTable && editor && (
+            <div style={{
+              display: 'flex', gap: 2, padding: '3px 8px', flexShrink: 0, alignItems: 'center',
+              borderBottom: '1px solid var(--border)', background: '#FFF8E1', flexWrap: 'wrap',
+            }}>
+              <span style={{ fontSize: 10, color: '#999', marginRight: 4, whiteSpace: 'nowrap' }}>Tabelle</span>
+              <Tooltip text="Zeile oberhalb einfügen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().addRowBefore().run() }} style={tblBtn}>↑ Z</button></Tooltip>
+              <Tooltip text="Zeile unterhalb einfügen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().addRowAfter().run() }} style={tblBtn}>↓ Z</button></Tooltip>
+              <Tooltip text="Zeile löschen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteRow().run() }} style={{ ...tblBtn, color: '#FF3B30' }}>✕ Z</button></Tooltip>
+              <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
+              <Tooltip text="Spalte links einfügen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().addColumnBefore().run() }} style={tblBtn}>← S</button></Tooltip>
+              <Tooltip text="Spalte rechts einfügen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().addColumnAfter().run() }} style={tblBtn}>→ S</button></Tooltip>
+              <Tooltip text="Spalte löschen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteColumn().run() }} style={{ ...tblBtn, color: '#FF3B30' }}>✕ S</button></Tooltip>
+              <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
+              <Tooltip text="Tabelle löschen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteTable().run() }} style={{ ...tblBtn, color: '#FF3B30' }}>Tabelle ✕</button></Tooltip>
+            </div>
+          )}
+
           {/* ── Collapsed bar indicator ─────────────────────────────────── */}
           {(!toolbarPrefs.formatBar || !toolbarPrefs.textBar) && (
             <div style={{
@@ -1244,6 +1275,12 @@ function ToolbarBtn({ active, disabled, onClick, tooltip, children }: {
 
 function Sep() {
   return <div style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+}
+
+const tblBtn: React.CSSProperties = {
+  background: 'none', border: '1px solid #E0C97A', cursor: 'pointer',
+  color: '#6B5900', padding: '1px 6px', borderRadius: 4,
+  fontSize: 10, fontFamily: 'inherit', whiteSpace: 'nowrap', lineHeight: '18px',
 }
 
 const miniBtn: React.CSSProperties = {
