@@ -576,7 +576,7 @@ export default function EditorPanel({
                 const firmenadresse = (() => {
                   const a = companyData?.company_address
                   if (!a) return ''
-                  return [a.street, [a.postal_code, a.city].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ')
+                  return [a.street, [a.zip, a.city].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ')
                 })()
                 const rechtsform = legalFormMap[companyData?.company_legal_form ?? ''] ?? companyData?.company_legal_form ?? ''
                 const handelsregister = [companyData?.company_register_court, companyData?.company_register_number].filter(Boolean).join(' ')
