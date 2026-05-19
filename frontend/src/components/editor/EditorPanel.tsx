@@ -7,7 +7,7 @@ import SnapshotDrawer from './SnapshotDrawer'
 const UniversalEditor = lazy(() => import('./UniversalEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
-import { useUserPrefs } from '../../contexts'
+import { useUserPrefs, useSelectedProduction } from '../../contexts'
 import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
@@ -45,6 +45,7 @@ export default function EditorPanel({
   const { showPageShadow } = useUserPrefs()
   const { tweaks } = useTweaks()
   const { enqueue } = useOfflineQueueContext()
+  const { selectedProduction } = useSelectedProduction()
 
   // ── State declarations (all before first useEffect to prevent TDZ in minified builds) ──
   const [absatzformate, setAbsatzformate] = useState<AbsatzFormat[]>([])
@@ -532,8 +533,18 @@ export default function EditorPanel({
                   ? sourceContent
                   : (sourceContent?.content ?? [])
 
-                // Merge: Vorlage-Body + Szenentext → finales Tiptap-Dokument
-                const merged = mergeVorlageWithContent(vorlageItem.body_content, sourceNodes)
+                // Chip-Werte für die Auflösung zusammenbauen
+                const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                const chipValues: Record<string, string> = {
+                  '{{produktion}}':  selectedProduction?.title ?? '',
+                  '{{staffel}}':     selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
+                  '{{folge}}':       folgeNummer ? String(folgeNummer) : '',
+                  '{{aktuelles_datum}}': today,
+                  '{{stand_datum}}': today,
+                }
+
+                // Merge: Vorlage-Body + Szenentext + Chip-Werte → finales Tiptap-Dokument (reiner Text, keine Chips)
+                const merged = mergeVorlageWithContent(vorlageItem.body_content, sourceNodes, chipValues)
 
                 // Editor sofort aktualisieren (Remount via contentResetCounter)
                 setSceneContent(merged)

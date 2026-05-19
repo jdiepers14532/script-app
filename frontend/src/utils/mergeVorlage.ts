@@ -4,13 +4,9 @@
  * Semantik:
  * - body_content der Vorlage ist ein Tiptap-Dokument mit placeholder_chip-Nodes
  * - {{notiz_inhalt}}-Chip: wird durch currentContentNodes ersetzt (Szenen-Inhalt)
- * - Alle anderen Chips ({{produktion}}, {{folge}} etc.) bleiben als Chip-Nodes erhalten
- *   und werden erst beim PDF-Export aufgelöst. Im Editor sind sie als farbige Pills sichtbar.
- * - {{notiz_inhalt}} als einziger Inline-Inhalt eines Paragraphen:
- *   → wird durch die content-Nodes als Block-Ersatz expandiert
- *   → Formatierung (fontFamily, fontSize, textAlign, lineSpacing) des Vorlage-Paragraphen
- *     wird auf Inhalt-Paragraphen ohne eigene Formatierung übertragen
- *   → wenn contentNodes leer: leerer Paragraph (Tiptap-Placeholder zeigt Ghost-Text)
+ * - Alle anderen Chips: werden durch ihren Wert aus chipValues aufgelöst → reiner Text
+ *   → nach dem Merge gibt es keine Chips mehr, nur editierbaren Text
+ * - Chips ohne Wert in chipValues werden mit leerem String aufgelöst (unsichtbar)
  */
 
 export type TiptapDoc = { type: 'doc'; content: any[] }
@@ -18,6 +14,7 @@ export type TiptapDoc = { type: 'doc'; content: any[] }
 export function mergeVorlageWithContent(
   vorlageBodyContent: TiptapDoc | null | undefined,
   currentContentNodes: any[],
+  chipValues: Record<string, string> = {},
 ): TiptapDoc {
   if (!vorlageBodyContent?.content?.length) {
     return {
@@ -31,7 +28,7 @@ export function mergeVorlageWithContent(
   const result: any[] = []
 
   for (const node of vorlageBodyContent.content) {
-    const processed = processBlock(node, currentContentNodes)
+    const processed = resolveNode(node, currentContentNodes, chipValues)
     if (Array.isArray(processed)) {
       result.push(...processed)
     } else {
@@ -42,9 +39,14 @@ export function mergeVorlageWithContent(
   return { type: 'doc', content: result.length > 0 ? result : [{ type: 'paragraph' }] }
 }
 
-/** Verarbeitet einen einzelnen Block-Node der Vorlage. */
-function processBlock(node: any, contentNodes: any[]): any | any[] {
-  // Paragraph dessen einziger Inline-Inhalt {{notiz_inhalt}} ist → expandieren
+/**
+ * Verarbeitet einen beliebigen Node rekursiv:
+ * - Paragraph dessen einziger Inhalt {{notiz_inhalt}} ist → Szenentext expandieren
+ * - placeholder_chip-Nodes (inline) → durch Text ersetzen
+ * - Block-Nodes mit children → rekursiv verarbeiten (für Tabellen, Listen etc.)
+ */
+function resolveNode(node: any, contentNodes: any[], chipValues: Record<string, string>): any | any[] {
+  // Sonderfall: Paragraph dessen einziger Inline-Inhalt {{notiz_inhalt}} ist → expandieren
   if (
     node.type === 'paragraph' &&
     node.content?.length === 1 &&
@@ -52,42 +54,81 @@ function processBlock(node: any, contentNodes: any[]): any | any[] {
     node.content[0].attrs?.key === '{{notiz_inhalt}}'
   ) {
     if (contentNodes.length > 0) {
-      // Formatierungs-Attrs aus dem Vorlage-Paragraphen extrahieren
-      const paraAttrs = node.attrs ?? {}
-      const fmtAttrs = extractFmtAttrs(paraAttrs)
+      const fmtAttrs = extractFmtAttrs(node.attrs ?? {})
       if (Object.keys(fmtAttrs).length > 0) {
         return contentNodes.map(n => applyFmtIfMissing(n, fmtAttrs))
       }
       return contentNodes
     }
-    // Kein Inhalt → leerer Paragraph mit Vorlage-Formatierung (Placeholder zeigt Ghost-Text)
     return { type: 'paragraph', attrs: node.attrs ?? {} }
   }
 
-  // Alle anderen Nodes unverändert übernehmen
-  // (Chips wie {{produktion}} bleiben als placeholder_chip-Nodes erhalten)
+  // Nodes mit Kinder-Array: rekursiv verarbeiten
+  if (node.content && Array.isArray(node.content)) {
+    const resolvedChildren: any[] = []
+    for (const child of node.content) {
+      if (child.type === 'placeholder_chip') {
+        // Chip → Text auflösen
+        const key: string = child.attrs?.key ?? ''
+        const value = chipValues[key] ?? ''
+        if (value) {
+          // Chip-Formatierung (fontFamily, fontSize etc.) als TextStyle-Mark übertragen
+          const marks = buildTextMarksFromChipAttrs(child.attrs)
+          const textNode: any = { type: 'text', text: value }
+          if (marks.length > 0) textNode.marks = marks
+          resolvedChildren.push(textNode)
+        }
+        // Kein Wert → Chip verschwindet (leerer String → nicht einfügen)
+      } else {
+        const processed = resolveNode(child, contentNodes, chipValues)
+        if (Array.isArray(processed)) {
+          resolvedChildren.push(...processed)
+        } else {
+          resolvedChildren.push(processed)
+        }
+      }
+    }
+    // Paragraph ohne Inhalt → leeren Paragraph behalten (für Abstände)
+    if (resolvedChildren.length === 0 && isParagraphLike(node.type)) {
+      return { ...node, content: [] }
+    }
+    return { ...node, content: resolvedChildren }
+  }
+
   return node
 }
 
-/** Extrahiert nur explizit gesetzte Formatierungs-Attrs (keine null-Werte). */
+function isParagraphLike(type: string): boolean {
+  return type === 'paragraph' || type === 'absatz' || type === 'heading'
+}
+
+/** Extrahiert Formatierungs-Attrs eines Chips für TextStyle-Marks. */
+function buildTextMarksFromChipAttrs(attrs: any): any[] {
+  if (!attrs) return []
+  const styleAttrs: Record<string, string> = {}
+  if (attrs.fontFamily) styleAttrs.fontFamily = attrs.fontFamily
+  if (attrs.fontSize)   styleAttrs.fontSize   = attrs.fontSize
+  if (Object.keys(styleAttrs).length === 0) return []
+  return [{ type: 'textStyle', attrs: styleAttrs }]
+}
+
+/** Extrahiert nur explizit gesetzte Paragraph-Formatierungs-Attrs. */
 function extractFmtAttrs(attrs: any): Record<string, any> {
   const fmt: Record<string, any> = {}
-  const keys = ['fontFamily', 'fontSize', 'textAlign', 'lineSpacing']
-  for (const k of keys) {
+  for (const k of ['fontFamily', 'fontSize', 'textAlign', 'lineSpacing']) {
     if (attrs[k] != null) fmt[k] = attrs[k]
   }
   return fmt
 }
 
 /**
- * Überträgt Vorlage-Formatierung auf einen Paragraphen-Node,
- * wenn dieser kein eigenes Äquivalent hat (Vorlage = Fallback, nicht Override).
+ * Überträgt Vorlage-Formatierung auf einen Paragraphen-Node
+ * als Fallback (bestehende Attrs haben Vorrang).
  */
 function applyFmtIfMissing(node: any, fmtAttrs: Record<string, any>): any {
   if (node.type !== 'paragraph' && node.type !== 'absatz') return node
   const existing = node.attrs ?? {}
   const merged: Record<string, any> = { ...fmtAttrs }
-  // Bestehende nicht-null-Attrs haben Vorrang
   for (const [k, v] of Object.entries(existing)) {
     if (v != null) merged[k] = v
   }
