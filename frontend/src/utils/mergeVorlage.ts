@@ -72,8 +72,15 @@ function resolveNode(node: any, contentNodes: any[], chipValues: Record<string, 
         const key: string = child.attrs?.key ?? ''
         const value = chipValues[key] ?? ''
         if (value) {
-          // Chip-Formatierung (fontFamily, fontSize etc.) als TextStyle-Mark übertragen
-          const marks = buildTextMarksFromChipAttrs(child.attrs)
+          // Paragraph-Attrs als Fallback (CSS inherit), Chip-Attrs haben Vorrang
+          const TEXT_ATTRS = ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration']
+          const paraFallback = node.type === 'paragraph' ? (node.attrs ?? {}) : {}
+          const effectiveAttrs: Record<string, any> = {}
+          for (const k of TEXT_ATTRS) {
+            if (paraFallback[k] != null) effectiveAttrs[k] = paraFallback[k]
+            if (child.attrs?.[k] != null) effectiveAttrs[k] = child.attrs[k]
+          }
+          const marks = buildTextMarksFromChipAttrs(effectiveAttrs)
           const textNode: any = { type: 'text', text: value }
           if (marks.length > 0) textNode.marks = marks
           resolvedChildren.push(textNode)
@@ -102,14 +109,18 @@ function isParagraphLike(type: string): boolean {
   return type === 'paragraph' || type === 'absatz' || type === 'heading'
 }
 
-/** Extrahiert Formatierungs-Attrs eines Chips für TextStyle-Marks. */
+/** Erzeugt Tiptap-Marks aus Chip-/Paragraph-Formatierungs-Attrs. */
 function buildTextMarksFromChipAttrs(attrs: any): any[] {
   if (!attrs) return []
+  const marks: any[] = []
   const styleAttrs: Record<string, string> = {}
   if (attrs.fontFamily) styleAttrs.fontFamily = attrs.fontFamily
   if (attrs.fontSize)   styleAttrs.fontSize   = attrs.fontSize
-  if (Object.keys(styleAttrs).length === 0) return []
-  return [{ type: 'textStyle', attrs: styleAttrs }]
+  if (Object.keys(styleAttrs).length > 0) marks.push({ type: 'textStyle', attrs: styleAttrs })
+  if (attrs.fontWeight === 'bold')          marks.push({ type: 'bold' })
+  if (attrs.fontStyle  === 'italic')        marks.push({ type: 'italic' })
+  if (attrs.textDecoration === 'underline') marks.push({ type: 'underline' })
+  return marks
 }
 
 /** Extrahiert nur explizit gesetzte Paragraph-Formatierungs-Attrs. */

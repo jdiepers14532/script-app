@@ -881,4 +881,19 @@ router.get('/werkstufe/:werkId/export/replacement-pages', async (req, res) => {
   }
 })
 
+// GET /api/werkstufe/:werkId/laenge — Gesamtstoppzeit (für {{folge_laenge_netto}}-Chip)
+router.get('/werkstufe/:werkId/laenge', async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    const sumRow = await queryOne(
+      'SELECT COALESCE(SUM(stoppzeit_sek), 0)::int AS total FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false',
+      [req.params.werkId]
+    )
+    const total = sumRow?.total ?? 0
+    res.json({ stoppzeit_total_sek: total, formatted: formatFolgeLaengeNetto(total) })
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' })
+  }
+})
+
 export default router

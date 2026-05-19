@@ -531,6 +531,9 @@ export const api = {
   applyVorlage: (werkId: string, vorlageId: string) =>
     request<{ ok: boolean; inserted: number }>('POST', `/werkstufen/${werkId}/apply-vorlage`, { vorlage_id: vorlageId }),
 
+  getWerkstufeLaenge: (werkId: string) =>
+    request<{ stoppzeit_total_sek: number; formatted: string | null }>('GET', `/werkstufe/${werkId}/laenge`),
+
   // Dokument-Vorlagen (Templates)
   getDokumentVorlagen: (produktionId: string) =>
     request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen`),

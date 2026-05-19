@@ -537,17 +537,52 @@ export default function EditorPanel({
                 const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
                 const werkTypLabel = (typ: string) =>
                   ({ storyline: 'Storyline', drehbuch: 'Drehbuch', notiz: 'Notiz', treatment: 'Treatment' }[typ] ?? typ)
+
+                // Async: Folge-Metadaten, Sendedatum, Blöcke, Folgelänge parallel laden
+                const [folgeData, sendedatumData, blöckeData, laengeData] = await Promise.all([
+                  folgeNummer ? api.getFolge(produktionId, folgeNummer).catch(() => null) : Promise.resolve(null),
+                  folgeNummer ? api.getSendedatum(produktionId, folgeNummer).catch(() => null) : Promise.resolve(null),
+                  api.getBloecke(produktionId).catch(() => [] as any[]),
+                  selectedWerk?.id ? api.getWerkstufeLaenge(selectedWerk.id).catch(() => null) : Promise.resolve(null),
+                ])
+
+                // Block-Nummer aus Blöcke-Array ermitteln
+                const blockLabel = (() => {
+                  if (!blöckeData?.length || !folgeNummer) return ''
+                  const b = blöckeData.find((b: any) =>
+                    b.folge_von != null && b.folge_bis != null &&
+                    folgeNummer >= b.folge_von && folgeNummer <= b.folge_bis
+                  )
+                  return b ? `Block ${b.block_nummer}` : ''
+                })()
+
+                // Sendedatum formatieren
+                const sendedatumStr = (() => {
+                  if (!sendedatumData?.datum) return ''
+                  const dt = new Date(sendedatumData.datum + 'T00:00:00')
+                  const wd = dt.toLocaleDateString('de-DE', { weekday: 'short' })
+                  const d = dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  return `${wd} ${d}`
+                })()
+
                 const chipValues: Record<string, string> = {
-                  '{{produktion}}':       selectedProduction?.title ?? '',
-                  '{{staffel}}':          selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
-                  '{{folge}}':            folgeNummer ? String(folgeNummer) : '',
-                  '{{aktuelles_datum}}':  today,
-                  '{{stand_datum}}':      today,
-                  '{{aktuelles_jahr}}':   String(new Date().getFullYear()),
-                  '{{aktuelles_uhrzeit}}': new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
-                  '{{werkstufe}}':        selectedWerk?.typ ? werkTypLabel(selectedWerk.typ) : '',
-                  '{{fassung}}':          selectedWerk?.label ?? '',
-                  '{{version}}':          selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
+                  '{{produktion}}':          selectedProduction?.title ?? '',
+                  '{{staffel}}':             selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
+                  '{{folge}}':               folgeNummer ? String(folgeNummer) : '',
+                  '{{folgentitel}}':         folgeData?.arbeitstitel ?? '',
+                  '{{block}}':               blockLabel,
+                  '{{aktuelles_datum}}':     today,
+                  '{{stand_datum}}':         today,
+                  '{{aktuelles_jahr}}':      String(new Date().getFullYear()),
+                  '{{aktuelles_uhrzeit}}':   new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+                  '{{sendedatum}}':          sendedatumStr,
+                  '{{buero_adresse}}':       selectedProduction?.buero_adresse ?? '',
+                  '{{tel_produktion}}':      selectedProduction?.telefon ?? '',
+                  '{{sender}}':              selectedProduction?.sender ?? '',
+                  '{{folge_laenge_netto}}':  laengeData?.formatted ?? '',
+                  '{{werkstufe}}':           selectedWerk?.typ ? werkTypLabel(selectedWerk.typ) : '',
+                  '{{fassung}}':             selectedWerk?.label ?? '',
+                  '{{version}}':             selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
                 }
 
                 // Merge: Vorlage-Body + Szenentext + Chip-Werte → finales Tiptap-Dokument (reiner Text, keine Chips)
