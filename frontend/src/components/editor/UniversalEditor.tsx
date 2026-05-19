@@ -112,6 +112,33 @@ function injectChipCSS() {
   document.head.appendChild(style)
 }
 
+const TABLE_CSS = `
+.ue-editor .ProseMirror table { border-collapse: collapse; width: 100%; margin: 4px 0; }
+.ue-editor .ProseMirror td, .ue-editor .ProseMirror th {
+  border: 1px solid #d0d0d0; padding: 5px 10px; vertical-align: top;
+  min-width: 32px; position: relative; box-sizing: border-box;
+}
+.ue-editor .ProseMirror th { background: #f5f5f5; font-weight: 600; }
+.ue-editor .ProseMirror .selectedCell { background: rgba(0,122,255,0.08) !important; outline: 2px solid #007AFF55; }
+.ue-editor .ProseMirror .column-resize-handle {
+  position: absolute; right: -2px; top: 0; bottom: 0; width: 6px;
+  background: #007AFF88; cursor: col-resize; z-index: 20;
+}
+.ue-editor .ProseMirror .tableWrapper { overflow-x: auto; }
+/* Rahmen ausblenden */
+.ue-editor.ue-no-borders .ProseMirror td,
+.ue-editor.ue-no-borders .ProseMirror th { border-color: transparent; }
+`
+let tableCssInjected = false
+function injectTableCSS() {
+  if (tableCssInjected) return
+  tableCssInjected = true
+  const style = document.createElement('style')
+  style.id = 'ue-table-css'
+  style.textContent = TABLE_CSS
+  document.head.appendChild(style)
+}
+
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -253,12 +280,14 @@ export default function UniversalEditor({
   injectLTCSS()
   injectReplikCSS()
   injectChipCSS()
+  injectTableCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
-  // Tabellen-Cursor-Erkennung
+  // Tabellen-Cursor-Erkennung + Rahmen-Toggle
   const [isInTable, setIsInTable] = useState(false)
+  const [tableBorders, setTableBorders] = useState(true)
 
   // Toolbar pin state: button-open = pinned, click-open = not pinned
   const [toolbarPinned, setToolbarPinned] = useState(false)
@@ -822,7 +851,7 @@ export default function UniversalEditor({
   const allHidden = !toolbarPrefs.formatBar && !toolbarPrefs.textBar
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className={`ue-editor${tableBorders ? '' : ' ue-no-borders'}`} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Hidden file input for image upload */}
       <input
         ref={fileInputRef}
@@ -1121,6 +1150,12 @@ export default function UniversalEditor({
               <Tooltip text="Spalte löschen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteColumn().run() }} style={{ ...tblBtn, color: '#FF3B30' }}>✕ S</button></Tooltip>
               <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px' }} />
               <Tooltip text="Tabelle löschen"><button onMouseDown={e => { e.preventDefault(); editor.chain().focus().deleteTable().run() }} style={{ ...tblBtn, color: '#FF3B30' }}>Tabelle ✕</button></Tooltip>
+              <div style={{ flex: 1 }} />
+              <Tooltip text={tableBorders ? 'Rahmen ausblenden' : 'Rahmen einblenden'}>
+                <button onMouseDown={e => { e.preventDefault(); setTableBorders(v => !v) }} style={{ ...tblBtn, background: tableBorders ? '#E0C97A' : 'none', fontWeight: 600 }}>
+                  {tableBorders ? '⊞ Rahmen' : '⊡ Rahmen'}
+                </button>
+              </Tooltip>
             </div>
           )}
 
