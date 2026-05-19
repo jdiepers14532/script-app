@@ -113,6 +113,8 @@ function injectChipCSS() {
 }
 
 const TABLE_CSS = `
+/* Paragraph-Margin auf 0 setzen (wie im Vorlagen-Editor), damit spaceAfter die alleinige Abstandskontrolle ist */
+.ue-editor .ProseMirror p { margin: 0; }
 .ue-editor .ProseMirror table { border-collapse: collapse; width: 100%; margin: 4px 0; }
 .ue-editor .ProseMirror td, .ue-editor .ProseMirror th {
   border: 1px solid #d0d0d0; padding: 5px 10px; vertical-align: top;

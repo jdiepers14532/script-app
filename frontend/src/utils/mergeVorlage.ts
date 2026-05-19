@@ -115,7 +115,7 @@ function buildTextMarksFromChipAttrs(attrs: any): any[] {
 /** Extrahiert nur explizit gesetzte Paragraph-Formatierungs-Attrs. */
 function extractFmtAttrs(attrs: any): Record<string, any> {
   const fmt: Record<string, any> = {}
-  for (const k of ['fontFamily', 'fontSize', 'textAlign', 'lineSpacing']) {
+  for (const k of ['fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'textDecoration', 'textAlign', 'lineHeight', 'spaceAfter']) {
     if (attrs[k] != null) fmt[k] = attrs[k]
   }
   return fmt

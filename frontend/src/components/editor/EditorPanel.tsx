@@ -538,14 +538,16 @@ export default function EditorPanel({
                 const werkTypLabel = (typ: string) =>
                   ({ storyline: 'Storyline', drehbuch: 'Drehbuch', notiz: 'Notiz', treatment: 'Treatment' }[typ] ?? typ)
                 const chipValues: Record<string, string> = {
-                  '{{produktion}}':      selectedProduction?.title ?? '',
-                  '{{staffel}}':         selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
-                  '{{folge}}':           folgeNummer ? String(folgeNummer) : '',
-                  '{{aktuelles_datum}}': today,
-                  '{{stand_datum}}':     today,
-                  '{{werkstufe}}':       selectedWerk?.typ ? werkTypLabel(selectedWerk.typ) : '',
-                  '{{fassung}}':         selectedWerk?.label ?? '',
-                  '{{version}}':         selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
+                  '{{produktion}}':       selectedProduction?.title ?? '',
+                  '{{staffel}}':          selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
+                  '{{folge}}':            folgeNummer ? String(folgeNummer) : '',
+                  '{{aktuelles_datum}}':  today,
+                  '{{stand_datum}}':      today,
+                  '{{aktuelles_jahr}}':   String(new Date().getFullYear()),
+                  '{{aktuelles_uhrzeit}}': new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+                  '{{werkstufe}}':        selectedWerk?.typ ? werkTypLabel(selectedWerk.typ) : '',
+                  '{{fassung}}':          selectedWerk?.label ?? '',
+                  '{{version}}':          selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
                 }
 
                 // Merge: Vorlage-Body + Szenentext + Chip-Werte → finales Tiptap-Dokument (reiner Text, keine Chips)
