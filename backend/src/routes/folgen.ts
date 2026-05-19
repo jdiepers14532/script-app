@@ -11,7 +11,7 @@ folgenRouter.get('/:produktionId/:folgeNummer', async (req, res) => {
   try {
     const { produktionId, folgeNummer } = req.params
     const row = await queryOne(
-      `SELECT id, produktion_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json
+      `SELECT id, produktion_id, folge_nummer, folgen_titel AS arbeitstitel, synopsis
        FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
       [produktionId, parseInt(folgeNummer)]
     )
@@ -25,16 +25,15 @@ folgenRouter.get('/:produktionId/:folgeNummer', async (req, res) => {
 folgenRouter.put('/:produktionId/:folgeNummer', async (req, res) => {
   try {
     const { produktionId, folgeNummer } = req.params
-    const { arbeitstitel, air_date, synopsis } = req.body
+    const { arbeitstitel, synopsis } = req.body
     const row = await queryOne(
-      `INSERT INTO folgen (produktion_id, folge_nummer, folgen_titel, air_date, synopsis)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO folgen (produktion_id, folge_nummer, folgen_titel, synopsis)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (produktion_id, folge_nummer) DO UPDATE
        SET folgen_titel = COALESCE($3, folgen.folgen_titel),
-           air_date = COALESCE($4, folgen.air_date),
-           synopsis = COALESCE($5, folgen.synopsis)
-       RETURNING id, produktion_id, folge_nummer, folgen_titel AS arbeitstitel, air_date, synopsis, meta_json`,
-      [produktionId, parseInt(folgeNummer), arbeitstitel || null, air_date || null, synopsis || null]
+           synopsis = COALESCE($4, folgen.synopsis)
+       RETURNING id, produktion_id, folge_nummer, folgen_titel AS arbeitstitel, synopsis`,
+      [produktionId, parseInt(folgeNummer), arbeitstitel || null, synopsis || null]
     )
     res.json(row)
   } catch (err) {
