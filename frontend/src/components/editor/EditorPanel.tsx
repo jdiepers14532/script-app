@@ -592,6 +592,20 @@ export default function EditorPanel({
                 const firmenEmail = companyData?.company_email ?? ''
                 const firmenTel = companyData?.company_phone ?? ''
 
+                // Produktionszeitraum: Block-Drehzeitraum > globaler drehzeitraum
+                const produktionszeitraumStr = (() => {
+                  const currentBlock = folgeNummer
+                    ? blöckeData?.find((b: any) => b.folge_von != null && b.folge_bis != null && folgeNummer >= b.folge_von && folgeNummer <= b.folge_bis)
+                    : null
+                  if (currentBlock?.dreh_von) {
+                    const fmt = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                    return currentBlock.dreh_bis
+                      ? `${fmt(currentBlock.dreh_von)} – ${fmt(currentBlock.dreh_bis)}`
+                      : `ab ${fmt(currentBlock.dreh_von)}`
+                  }
+                  return selectedProduction?.drehzeitraum ?? ''
+                })()
+
                 const chipValues: Record<string, string> = {
                   '{{produktion}}':          selectedProduction?.title ?? '',
                   '{{staffel}}':             selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
@@ -606,7 +620,9 @@ export default function EditorPanel({
                   '{{buero_adresse}}':       selectedProduction?.buero_adresse ?? '',
                   '{{tel_produktion}}':      selectedProduction?.telefon ?? '',
                   '{{sender}}':              selectedProduction?.sender ?? '',
-                  '{{produktionszeitraum}}': selectedProduction?.drehzeitraum ?? '',
+                  '{{produktionszeitraum}}': produktionszeitraumStr,
+                  '{{autor}}':               selectedProduction?.autoren ?? '',
+                  '{{regie}}':               '',
                   '{{folge_laenge_netto}}':  laengeData?.formatted ?? '',
                   '{{werkstufe}}':           selectedWerk?.typ ? werkTypLabel(selectedWerk.typ) : '',
                   '{{fassung}}':             selectedWerk?.label ?? '',

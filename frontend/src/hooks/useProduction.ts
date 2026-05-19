@@ -11,6 +11,7 @@ export interface Production {
   telefon:        string | null
   sender:         string | null
   drehzeitraum:   string | null
+  autoren:        string | null
 }
 
 export function productionLabel(p: Production, staffelLabel = 'Staffel'): string {
