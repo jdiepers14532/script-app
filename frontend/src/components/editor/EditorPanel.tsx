@@ -526,7 +526,8 @@ export default function EditorPanel({
               setIsApplyingVorlage(true)
               try {
                 // Originaltext: pre_vorlage_content hat Priorität (falls Vorlage schon angewendet wurde)
-                const rawContent = currentSzene?.content
+                // pendingSnapshotContentRef enthält den aktuellsten Editor-Inhalt (falls Nutzer seit dem Laden getippt hat)
+                const rawContent = pendingSnapshotContentRef.current ?? currentSzene?.content
                 const preVorlage = currentSzene?.pre_vorlage_content
                 const sourceContent = preVorlage ?? rawContent
                 const sourceNodes: any[] = Array.isArray(sourceContent)
@@ -538,12 +539,13 @@ export default function EditorPanel({
                 const werkTypLabel = (typ: string) =>
                   ({ storyline: 'Storyline', drehbuch: 'Drehbuch', notiz: 'Notiz', treatment: 'Treatment' }[typ] ?? typ)
 
-                // Async: Folge-Metadaten, Sendedatum, Blöcke, Folgelänge parallel laden
-                const [folgeData, sendedatumData, blöckeData, laengeData] = await Promise.all([
+                // Async: Folge-Metadaten, Sendedatum, Blöcke, Folgelänge, Firmendaten parallel laden
+                const [folgeData, sendedatumData, blöckeData, laengeData, companyData] = await Promise.all([
                   folgeNummer ? api.getFolge(produktionId, folgeNummer).catch(() => null) : Promise.resolve(null),
                   folgeNummer ? api.getSendedatum(produktionId, folgeNummer).catch(() => null) : Promise.resolve(null),
                   api.getBloecke(produktionId).catch(() => [] as any[]),
                   selectedWerk?.id ? api.getWerkstufeLaenge(selectedWerk.id).catch(() => null) : Promise.resolve(null),
+                  fetch('https://auth.serienwerft.studio/api/public/company-info').then(r => r.ok ? r.json() : null).catch(() => null),
                 ])
 
                 // Block-Nummer aus Blöcke-Array ermitteln
@@ -565,6 +567,31 @@ export default function EditorPanel({
                   return `${wd}, ${d}`
                 })()
 
+                // Firmendaten aus company-info auflösen
+                const legalFormMap: Record<string, string> = {
+                  gmbh: 'GmbH', ag: 'AG', kg: 'KG', ohg: 'OHG', gbr: 'GbR',
+                  ug: 'UG (haftungsbeschränkt)', se: 'SE', ev: 'e.V.',
+                }
+                const firmenname = companyData?.company_name ?? ''
+                const firmenadresse = (() => {
+                  const a = companyData?.company_address
+                  if (!a) return ''
+                  return [a.street, [a.postal_code, a.city].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ')
+                })()
+                const rechtsform = legalFormMap[companyData?.company_legal_form ?? ''] ?? companyData?.company_legal_form ?? ''
+                const handelsregister = [companyData?.company_register_court, companyData?.company_register_number].filter(Boolean).join(' ')
+                const ustId = companyData?.company_vat_id ?? ''
+                const geschaeftsfuehrung = (() => {
+                  const mgmt = companyData?.company_management
+                  if (!mgmt) return ''
+                  try {
+                    const arr = typeof mgmt === 'string' ? JSON.parse(mgmt) : mgmt
+                    return Array.isArray(arr) ? arr.join(', ') : String(mgmt)
+                  } catch { return String(mgmt) }
+                })()
+                const firmenEmail = companyData?.company_email ?? ''
+                const firmenTel = companyData?.company_phone ?? ''
+
                 const chipValues: Record<string, string> = {
                   '{{produktion}}':          selectedProduction?.title ?? '',
                   '{{staffel}}':             selectedProduction?.staffelnummer ? String(selectedProduction.staffelnummer) : '',
@@ -576,7 +603,7 @@ export default function EditorPanel({
                   '{{aktuelles_jahr}}':      String(new Date().getFullYear()),
                   '{{aktuelles_uhrzeit}}':   new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
                   '{{sendedatum}}':          sendedatumStr,
-                  '{{buero_adresse}}':        selectedProduction?.buero_adresse ?? '',
+                  '{{buero_adresse}}':       selectedProduction?.buero_adresse ?? '',
                   '{{tel_produktion}}':      selectedProduction?.telefon ?? '',
                   '{{sender}}':              selectedProduction?.sender ?? '',
                   '{{produktionszeitraum}}': selectedProduction?.drehzeitraum ?? '',
@@ -584,6 +611,14 @@ export default function EditorPanel({
                   '{{werkstufe}}':           selectedWerk?.typ ? werkTypLabel(selectedWerk.typ) : '',
                   '{{fassung}}':             selectedWerk?.label ?? '',
                   '{{version}}':             selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
+                  '{{firmenname}}':          firmenname,
+                  '{{firmenadresse}}':       firmenadresse,
+                  '{{rechtsform}}':          rechtsform,
+                  '{{handelsregister}}':     handelsregister,
+                  '{{ust_id}}':              ustId,
+                  '{{geschaeftsfuehrung}}':  geschaeftsfuehrung,
+                  '{{firmen_email}}':        firmenEmail,
+                  '{{firmen_tel}}':          firmenTel,
                 }
 
                 // Merge: Vorlage-Body + Szenentext + Chip-Werte → finales Tiptap-Dokument (reiner Text, keine Chips)
