@@ -1183,7 +1183,10 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
   const lines = cleanText(rawText, ocrMode)
   const warnings: string[] = []
 
-  const coverMeta = parseCoverMeta(lines)
+  // parseCoverMeta must use raw (uncleaned) lines so that FOOTER_DOC_RE in stripFooterLines
+  // does not remove "Drehbuch - Episode NNNN" from the cover page before we read docType.
+  const rawLines = rawText.replace(/\f/g, '\n').split(/\r?\n/)
+  const coverMeta = parseCoverMeta(rawLines)
   const docType = coverMeta.typ
   const contentStart = findContentStart(lines)
   const { synopsis, recaps, precaps, scenesStart, folgeHeading } = parseSynopsisAndMemo(lines, contentStart)
