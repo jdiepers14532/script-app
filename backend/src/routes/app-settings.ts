@@ -37,6 +37,9 @@ router.put('/:key', async (req, res) => {
     'privat_modus_ablauf_stunden',
     // Autorenplan-Einstellungen (v99)
     'autorenplan_settings_rollen',
+    // Analyse-Editor (v109)
+    'analysis_model',
+    'analysis_allowed_roles',
   ]
 
   if (!allowed.includes(key)) {

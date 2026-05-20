@@ -171,7 +171,8 @@ function preprocessPdfText(text: string): string {
     l = l.replace(/(\d{1,2}:\d{2})\1/g, '$1')
 
     // 5. Duration + trailing content: "1:33Bild aus Block..." (pdf-parse) or "1:52 Wechselschnitt..." (OCR)
-    l = l.replace(/^(\d{1,2}:\d{2})\s*((?:Bild aus Block|Wechselschnitt|Komparsen).*)$/m, '$1\n$2')
+    //    Also handles "1:40 Bitte gelbes Memo (882) beachten." (bbox: duration + memo note on same line)
+    l = l.replace(/^(\d{1,2}:\d{2})\s*((?:Bild aus Block|Wechselschnitt|Komparsen|Bitte).*)$/im, '$1\n$2')
 
     // 6. Dialog number dedup: "1. 1. DANIELDANIEL" → "1. DANIEL" (pdf-parse)
     l = l.replace(/^(\d+\.\s+)\1(.+)\2$/m, '$1$2')
@@ -484,6 +485,15 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   const episodeNr = parseInt(numM[1], 10)
   const sceneNr = parseInt(numM[2], 10)
   let locationOnSameLine = numM[3]?.trim() || ''
+
+  // bbox output: scene number + location + INT/EXT on one line: "4402.15 Außendreh / A. D. Pferdehof E/T4"
+  // Extract the trailing INT/EXT code from locationOnSameLine so int_ext/tageszeit/spieltag are set correctly.
+  let sameLineIntExt: ReturnType<typeof parseIntExtCode> | null = null
+  const intExtSuffix = /\s+([IE]\/[TNAD]\d+)$/.exec(locationOnSameLine)
+  if (intExtSuffix) {
+    sameLineIntExt = parseIntExtCode(intExtSuffix[1])
+    locationOnSameLine = locationOnSameLine.slice(0, intExtSuffix.index).trim()
+  }
 
   let i = skipBlanks(lines, startIdx + 1)
 

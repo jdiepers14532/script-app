@@ -62,6 +62,7 @@ import { notificationsRouter } from './routes/notifications'
 import { autorenplanRouter } from './routes/autorenplan'
 import { taetigkeitenInternalRouter } from './routes/taetigkeitenInternal'
 import { runPrivatModusWorker } from './workers/privatModusWorker'
+import analysisRouter from './routes/analysis'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -181,6 +182,9 @@ app.use('/api/stockshot-templates', stockshotTemplatesRouter)
 
 // Suchen & Ersetzen
 app.use('/api/search', searchRouter)
+
+// Analyse-Editor
+app.use('/api/analysis', analysisRouter)
 
 // Autorenplan
 app.use('/api/autorenplan', autorenplanRouter)
@@ -333,6 +337,7 @@ async function runMigrations() {
     'v106_wysiwyg_merged.sql',
     'v107_pre_vorlage_content.sql',
     'v108_glossar_linear_nonlinear.sql',
+    'v109_analysis_runs.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

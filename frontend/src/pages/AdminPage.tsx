@@ -13,6 +13,7 @@ const ADMIN_TABS = [
   { id: 'fassungen',      label: 'Fassungen & Revision' },
   { id: 'dokument',       label: 'Dokument' },
   { id: 'autorenplan',    label: 'Autorenplan' },
+  { id: 'analyse',        label: 'Analyse' },
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
   { id: 'pwa',            label: 'App / PWA' },
@@ -668,6 +669,187 @@ function AutorenplanRollenConfig() {
   )
 }
 
+// ── Analyse Admin Tab ─────────────────────────────────────────────────────────
+
+const ANALYSIS_ROLLEN_VORSCHLAEGE = [
+  'superadmin', 'Admin', 'Dramaturg', 'Head_Writing', 'Writer_Producing',
+  'Lektor', 'Supervision_Script', 'AvD',
+]
+
+function AnalyseAdminTab() {
+  const [model, setModel]           = useState('')
+  const [models, setModels]         = useState<string[]>([])
+  const [roles, setRoles]           = useState<string[]>([])
+  const [newRole, setNewRole]       = useState('')
+  const [saving, setSaving]         = useState(false)
+  const [saved, setSaved]           = useState(false)
+  const [modelsLoading, setModelsLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/app-settings', { credentials: 'include' })
+      .then(r => r.json())
+      .then((d: any) => {
+        setModel(d.analysis_model || 'claude-opus-4-6')
+        try { setRoles(JSON.parse(d.analysis_allowed_roles || '[]')) } catch { setRoles([]) }
+      })
+      .catch(() => {})
+  }, [])
+
+  const loadModels = () => {
+    setModelsLoading(true)
+    fetch('/api/analysis/models', { credentials: 'include' })
+      .then(r => r.json())
+      .then((d: any) => setModels(d.models || []))
+      .catch(() => {})
+      .finally(() => setModelsLoading(false))
+  }
+
+  useEffect(() => { loadModels() }, [])
+
+  const toggleRole = (r: string) => {
+    setRoles(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])
+    setSaved(false)
+  }
+
+  const addCustomRole = () => {
+    const r = newRole.trim()
+    if (!r || roles.includes(r)) return
+    setRoles(prev => [...prev, r])
+    setNewRole('')
+    setSaved(false)
+  }
+
+  const save = async () => {
+    setSaving(true)
+    setSaved(false)
+    try {
+      await Promise.all([
+        fetch('/api/admin/app-settings/analysis_model', {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: model }),
+        }),
+        fetch('/api/admin/app-settings/analysis_allowed_roles', {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: JSON.stringify(roles) }),
+        }),
+      ])
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch {}
+    finally { setSaving(false) }
+  }
+
+  const sectionStyle: React.CSSProperties = { marginBottom: 28 }
+  const sectionTitleStyle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 600, textTransform: 'uppercase',
+    letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 10,
+  }
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 680 }}>
+
+      {/* Modell */}
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Claude-Modell für Analysen</div>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.6 }}>
+          Modell für Story-Consultant-Methoden. Empfohlen: <code>claude-opus-4-6</code>.
+          Die Liste wird live von der Anthropic-API geladen.
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <select
+            value={model}
+            onChange={e => { setModel(e.target.value); setSaved(false) }}
+            style={{
+              flex: 1, padding: '8px 10px', borderRadius: 6,
+              border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+              fontSize: 13, color: 'var(--text-primary)',
+            }}
+          >
+            {models.map(m => <option key={m} value={m}>{m}</option>)}
+            {!models.includes(model) && model && <option value={model}>{model}</option>}
+          </select>
+          <button
+            onClick={loadModels}
+            disabled={modelsLoading}
+            style={{
+              padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--bg-subtle)', cursor: 'pointer', fontSize: 12,
+              color: 'var(--text-secondary)', opacity: modelsLoading ? 0.5 : 1,
+            }}
+          >
+            {modelsLoading ? '...' : '↻'}
+          </button>
+        </div>
+      </div>
+
+      {/* Berechtigte Rollen */}
+      <div style={sectionStyle}>
+        <div style={sectionTitleStyle}>Berechtigte Rollen</div>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.6 }}>
+          Nur Nutzer mit einer dieser Rollen können Analysen starten.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {ANALYSIS_ROLLEN_VORSCHLAEGE.map(r => (
+            <button key={r} onClick={() => toggleRole(r)} style={{
+              padding: '5px 12px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+              border: roles.includes(r) ? '1.5px solid #000' : '1px solid var(--border)',
+              background: roles.includes(r) ? '#000' : 'var(--bg-subtle)',
+              color: roles.includes(r) ? '#fff' : 'var(--text-primary)',
+              fontWeight: roles.includes(r) ? 600 : 400,
+            }}>
+              {r}
+            </button>
+          ))}
+          {roles.filter(r => !ANALYSIS_ROLLEN_VORSCHLAEGE.includes(r)).map(r => (
+            <span key={r} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '5px 10px', borderRadius: 20, fontSize: 12,
+              background: '#000', color: '#fff', fontWeight: 600,
+            }}>
+              {r}
+              <button onClick={() => toggleRole(r)} style={{
+                background: 'none', border: 'none', cursor: 'pointer', color: '#fff',
+                padding: 0, fontSize: 12, lineHeight: 1,
+              }}>×</button>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input
+            value={newRole}
+            onChange={e => setNewRole(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addCustomRole()}
+            placeholder="Weitere Rolle hinzufügen ..."
+            style={{
+              flex: 1, padding: '7px 10px', borderRadius: 6,
+              border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+              fontSize: 13,
+            }}
+          />
+          <button onClick={addCustomRole} style={{
+            padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)',
+            background: 'var(--bg-subtle)', cursor: 'pointer', fontSize: 12,
+          }}>
+            Hinzufügen
+          </button>
+        </div>
+      </div>
+
+      {/* Speichern */}
+      <button onClick={save} disabled={saving} style={{
+        padding: '9px 24px', borderRadius: 8, border: 'none',
+        background: saved ? '#00C853' : '#000', color: '#fff',
+        fontSize: 13, fontWeight: 600, cursor: 'pointer',
+        transition: 'background 0.3s',
+      }}>
+        {saving ? '...' : saved ? 'Gespeichert ✓' : 'Einstellungen speichern'}
+      </button>
+    </div>
+  )
+}
+
 // ── Main AdminPage ────────────────────────────────────────────────────────────
 
 // ── PWA / App Tab ─────────────────────────────────────────────────────────────
@@ -1091,6 +1273,7 @@ export default function AdminPage() {
             </div>
           )}
           {activeTab === 'autorenplan'    && <AutorenplanAdminTab />}
+          {activeTab === 'analyse'        && <AnalyseAdminTab />}
           {activeTab === 'pwa'            && <PwaAdminTab />}
         </div>
       </div>
