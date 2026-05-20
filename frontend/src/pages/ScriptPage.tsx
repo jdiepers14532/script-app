@@ -154,6 +154,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             werkstufen={werkstufen}
             defaultTyp="storyline"
             selectedSzeneId={selectedSzeneId}
+            sceneIdentityId={sceneIdentityId}
             useDokumentSzenen={useDokumentSzenen}
             activateWerkId={activateLeftWerkId}
             onCreateWerkstufe={handleCreate}
@@ -213,6 +214,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             werkstufen={werkstufen}
             defaultTyp="drehbuch"
             selectedSzeneId={selectedSzeneId}
+            sceneIdentityId={sceneIdentityId}
             useDokumentSzenen={useDokumentSzenen}
             activateWerkId={activateRightWerkId}
             onCreateWerkstufe={handleCreate}

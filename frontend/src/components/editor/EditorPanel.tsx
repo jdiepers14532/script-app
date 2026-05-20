@@ -25,6 +25,7 @@ interface Props {
   formatElements?: any[]
   defaultTyp?: string
   selectedSzeneId?: number | string | null
+  sceneIdentityId?: string | null
   useDokumentSzenen?: boolean
   activateWerkId?: string | null
   onCreateWerkstufe: (typ: string) => void
@@ -37,7 +38,7 @@ interface Props {
 
 export default function EditorPanel({
   produktionId, folgeNummer, folgeId, werkstufen, formatElements = [],
-  defaultTyp, selectedSzeneId, useDokumentSzenen, activateWerkId,
+  defaultTyp, selectedSzeneId, sceneIdentityId, useDokumentSzenen, activateWerkId,
   onCreateWerkstufe, onReloadWerkstufen,
   onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated,
 }: Props) {
@@ -170,40 +171,49 @@ export default function EditorPanel({
 
   // Load content for the SELECTED scene only (per-scene editing)
   useEffect(() => {
-    if (!selectedSzeneId || !selectedWerkId) { setCurrentSzene(null); setSceneContent(null); return }
+    if (!selectedWerkId) { setCurrentSzene(null); setSceneContent(null); return }
+    if (!selectedSzeneId && !sceneIdentityId) { setCurrentSzene(null); setSceneContent(null); return }
     setLoading(true)
 
-    // For werkstufen-based scenes (dokument_szenen), load by szene ID directly
-    if (useDokumentSzenen && typeof selectedSzeneId === 'string') {
-      api.getDokumentSzene(selectedSzeneId)
-        .then(sz => {
-          setCurrentSzene(sz)
-          const nodes = Array.isArray(sz.content) ? sz.content : (sz.content?.content ?? [])
-          setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
-        })
-        .catch((err) => { console.error('Load dokument-szene error:', err); setCurrentSzene(null); setSceneContent(null) })
-        .finally(() => setLoading(false))
-    } else if (typeof selectedSzeneId === 'number') {
-      // Legacy szenen
-      api.getSzene(selectedSzeneId)
-        .then(sz => {
-          setCurrentSzene(sz)
-          const nodes = Array.isArray(sz.content) ? sz.content : (sz.content?.content ?? [])
-          setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
-        })
-        .catch((err) => { console.error('Load szene error:', err); setCurrentSzene(null); setSceneContent(null) })
-        .finally(() => setLoading(false))
-    } else {
-      setCurrentSzene(null); setSceneContent(null); setLoading(false)
+    async function doLoad() {
+      if (useDokumentSzenen) {
+        // Resolve the correct dokument_szene for THIS panel's werkstufe.
+        // If sceneIdentityId is available, look up by (werkstufe + identity) so that
+        // each panel independently shows its own werkstufe's content.
+        let szeneId: string | null = typeof selectedSzeneId === 'string' ? selectedSzeneId : null
+        if (sceneIdentityId && selectedWerkId) {
+          try {
+            const resolved = await api.resolveDokumentSzene(selectedWerkId, sceneIdentityId)
+            if (resolved?.id) szeneId = resolved.id
+          } catch { /* Szene existiert nicht in dieser Werkstufe → Fallback auf primary */ }
+        }
+        if (!szeneId) { setCurrentSzene(null); setSceneContent(null); return }
+        const sz = await api.getDokumentSzene(szeneId)
+        setCurrentSzene(sz)
+        const nodes = Array.isArray(sz.content) ? sz.content : (sz.content?.content ?? [])
+        setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
+      } else if (typeof selectedSzeneId === 'number') {
+        // Legacy szenen
+        const sz = await api.getSzene(selectedSzeneId)
+        setCurrentSzene(sz)
+        const nodes = Array.isArray(sz.content) ? sz.content : (sz.content?.content ?? [])
+        setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
+      } else {
+        setCurrentSzene(null); setSceneContent(null)
+      }
     }
-  }, [selectedSzeneId, selectedWerkId, useDokumentSzenen, contentResetCounter])
+
+    doLoad()
+      .catch((err) => { console.error('Load szene error:', err); setCurrentSzene(null); setSceneContent(null) })
+      .finally(() => setLoading(false))
+  }, [selectedSzeneId, sceneIdentityId, selectedWerkId, useDokumentSzenen, contentResetCounter])
 
   // Cleanup save timer
   useEffect(() => () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }, [])
 
   // ── Snapshot helpers ──────────────────────────────────────────────────────
   // Only for dokument_szenen (new model) — isReadOnly guard handled by caller
-  const canSnapshot = useDokumentSzenen && typeof selectedSzeneId === 'string'
+  const canSnapshot = useDokumentSzenen && !!currentSzene?.id
 
   /** Extract plain text from Tiptap JSON for human-readable preview */
   const extractTextPreview = useCallback((content: any): string => {
@@ -218,7 +228,7 @@ export default function EditorPanel({
   }, [])
 
   const fireSnapshot = useCallback(async (content: any) => {
-    if (!canSnapshot || !selectedSzeneId || typeof selectedSzeneId !== 'string') return
+    if (!canSnapshot || !currentSzene?.id) return
     const json = JSON.stringify(content)
     if (json === lastSnapshotContentRef.current) return // no change since last snapshot
     try {
@@ -226,7 +236,7 @@ export default function EditorPanel({
         ? `${currentSzene.scene_nummer}${currentSzene.scene_nummer_suffix ?? ''}`
         : null
       const szInfo = currentSzene?.ort_name ?? null
-      await api.createSnapshot(selectedSzeneId, {
+      await api.createSnapshot(currentSzene.id, {
         content,
         szene_nummer: szNr,
         szene_info: szInfo,
@@ -234,7 +244,7 @@ export default function EditorPanel({
       })
       lastSnapshotContentRef.current = json
     } catch { /* non-critical */ }
-  }, [canSnapshot, selectedSzeneId, currentSzene, extractTextPreview])
+  }, [canSnapshot, currentSzene, extractTextPreview])
 
   // Schedule idle snapshot: 5 min after last editor change
   const scheduleSnapshot = useCallback((content: any) => {
@@ -263,7 +273,7 @@ export default function EditorPanel({
       }).catch(() => {})
       pendingSnapshotContentRef.current = null
     }
-    prevSzeneIdRef.current = typeof selectedSzeneId === 'string' ? selectedSzeneId : null
+    prevSzeneIdRef.current = currentSzene?.id ?? null
     prevSzeneMetaRef.current = { nr: null, info: null } // reset — will be updated on next save
     lastSnapshotContentRef.current = '' // reset baseline for new scene
     if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current)
@@ -315,9 +325,12 @@ export default function EditorPanel({
     }
   }, [selectedWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save: write content directly to the single selected scene
+  // Save: write content to the RESOLVED scene for this panel's werkstufe
+  // Uses currentSzene.id (set by the loading effect via resolveDokumentSzene) so that
+  // each panel saves to its own werkstufe's scene, not the primary SceneList scene.
   const scheduleSave = useCallback((editorContent: any) => {
-    if (!editorContent || !selectedSzeneId) return
+    const effectiveSzeneId = currentSzene?.id ?? selectedSzeneId
+    if (!editorContent || !effectiveSzeneId) return
     setSaveStatus('saving')
     scheduleSnapshot(editorContent)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
@@ -325,8 +338,8 @@ export default function EditorPanel({
     saveTimerRef.current = setTimeout(async () => {
       const content = editorContent?.content ?? []
       try {
-        if (useDokumentSzenen && typeof selectedSzeneId === 'string') {
-          const updated = await api.updateDokumentSzene(selectedSzeneId, { content })
+        if (useDokumentSzenen && typeof effectiveSzeneId === 'string') {
+          const updated = await api.updateDokumentSzene(effectiveSzeneId, { content })
           // Track updated_at for conflict detection (Tier 2)
           if (updated?.updated_at) {
             setCurrentSzene((prev: any) => prev ? { ...prev, updated_at: updated.updated_at } : prev)
@@ -339,9 +352,9 @@ export default function EditorPanel({
         // TypeError = Netzwerkfehler (offline) → in IndexedDB-Queue einreihen
         // Sonstige Fehler (404, 500) = Serverfehler → nicht enqueuen, still verwerfen
         if (err instanceof TypeError) {
-          const url = useDokumentSzenen && typeof selectedSzeneId === 'string'
-            ? `/api/dokument-szenen/${selectedSzeneId}`
-            : `/api/szenen/${selectedSzeneId}`
+          const url = useDokumentSzenen && typeof effectiveSzeneId === 'string'
+            ? `/api/dokument-szenen/${effectiveSzeneId}`
+            : `/api/szenen/${effectiveSzeneId}`
           const client_version = currentSzene?.updated_at
           enqueue('PUT', url, {
             content,
@@ -364,11 +377,12 @@ export default function EditorPanel({
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!selectedSzeneId) { setChangedBlocks(new Set()); setRevisionColor(null); return }
-    const loadRevisions = useDokumentSzenen && typeof selectedSzeneId === 'string'
-      ? api.getDokumentSzeneRevisionen(selectedSzeneId)
-      : typeof selectedSzeneId === 'number'
-        ? api.getSzeneRevisionen(selectedSzeneId)
+    const szId = currentSzene?.id ?? selectedSzeneId
+    if (!szId) { setChangedBlocks(new Set()); setRevisionColor(null); return }
+    const loadRevisions = useDokumentSzenen && typeof szId === 'string'
+      ? api.getDokumentSzeneRevisionen(szId)
+      : typeof szId === 'number'
+        ? api.getSzeneRevisionen(szId)
         : null
     if (!loadRevisions) { setChangedBlocks(new Set()); setRevisionColor(null); return }
     loadRevisions
@@ -382,7 +396,7 @@ export default function EditorPanel({
         setRevisionColor(colorDelta?.revision_color ?? null)
       })
       .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
-  }, [selectedSzeneId, useDokumentSzenen])
+  }, [currentSzene?.id, selectedSzeneId, useDokumentSzenen])
 
   // ── Replik offsets for numbering ──────────────────────────────────────────
   const [replikOffsets, setReplikOffsets] = useState<Record<string, number>>({})
