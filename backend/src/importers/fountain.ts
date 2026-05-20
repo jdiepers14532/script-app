@@ -51,8 +51,10 @@ function parseFountainInline(text: string): { plain: string; richContent?: Inlin
 
 const SCENE_HEADING_RE = /^(INT\.?\/EXT\.?|INT\.?|EXT\.?|I\/E)\s+.+/i
 const FORCED_SCENE_HEADING_RE = /^\./
-const CHARACTER_RE = /^[A-ZÄÖÜ][A-ZÄÖÜ0-9\s\-_']*$/ // all uppercase
+const CHARACTER_RE = /^[A-ZÄÖÜ][A-ZÄÖÜ0-9\s\-_'.]*$/ // all uppercase (dot for "DR. MÜLLER")
 const FORCED_CHARACTER_RE = /^@/
+// Numbered character cues: "1. DANIEL" or "28. BRITTA (ONE-WAY)"
+const NUMBERED_CHAR_RE = /^(\d+)\.\s+([A-ZÄÖÜ][A-ZÄÖÜ0-9\s\-'.]+?)(\s*\(.*?\))?\s*$/
 const TRANSITION_RE = /^(SCHNITT:|ÜBERBLENDE:|CUT TO:|FADE TO:|DISSOLVE TO:|SMASH CUT TO:)/i
 const FORCED_TRANSITION_RE = /^>\s*.+\s*<$/
 const PARENTHETICAL_RE = /^\(.+\)$/
@@ -163,9 +165,27 @@ export function parseFountain(content: string): ImportResult {
       continue
     }
 
-    // Character
+    // Numbered character cue: "1. DANIEL" or "28. BRITTA (ONE-WAY)"
+    const numberedCharM = NUMBERED_CHAR_RE.exec(trimmed)
+    if (numberedCharM) {
+      const charName = numberedCharM[2].trim()
+      const cleanName = charName.replace(/\s*\(.*?\)\s*/g, '').trim()
+      lastCharacter = cleanName
+      allCharaktere.add(cleanName)
+      const textelement: Textelement = { id: nextId(), type: 'character', text: cleanName }
+      if (!currentScene) { currentScene = makeFallbackScene(szenen.length + 1); szenen.push(currentScene) }
+      currentScene.textelemente.push(textelement)
+      currentScene.charaktere.push(cleanName)
+      lastTextelementType = 'character'
+      i++
+      continue
+    }
+
+    // Character (all-caps, unnumbered)
     const isForcedChar = FORCED_CHARACTER_RE.test(trimmed)
-    const isChar = CHARACTER_RE.test(trimmed) && trimmed.length > 0 && trimmed.length < 60
+    // Strip trailing extension (V.O.), (ONE-WAY) etc. before testing CHARACTER_RE
+    const trimmedForCharTest = trimmed.replace(/\s*\(.*?\)\s*$/, '').trim()
+    const isChar = CHARACTER_RE.test(trimmedForCharTest) && trimmedForCharTest.length > 0 && trimmed.length < 60
     if (isForcedChar || isChar) {
       // Look ahead: next non-empty line should be dialogue or parenthetical
       let nextNonEmpty = ''
@@ -176,7 +196,7 @@ export function parseFountain(content: string): ImportResult {
       const looksLikeCharacter = nextNonEmpty && !SCENE_HEADING_RE.test(nextNonEmpty) && !TRANSITION_RE.test(nextNonEmpty)
       if (looksLikeCharacter || isForcedChar) {
         const charName = isForcedChar ? trimmed.slice(1).toUpperCase().trim() : trimmed.toUpperCase().trim()
-        // Strip extension like (V.O.), (O.S.), (CONT'D)
+        // Strip extension like (V.O.), (O.S.), (CONT'D), (ONE-WAY)
         const cleanName = charName.replace(/\s*\(.*?\)\s*$/, '').trim()
         lastCharacter = cleanName
         allCharaktere.add(cleanName)

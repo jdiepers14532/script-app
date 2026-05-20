@@ -55,7 +55,7 @@ const DURATION_RE = /^(\d{1,2}):(\d{2})$/
 const FOOTER_STAND_RE = /^Stand:\s+\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}$/
 const FOOTER_DOC_RE = /^(Treatment|Drehbuch)\s+-\s+Episode\s+\d+$/
 const FOOTER_PAGE_RE = /^\d+\s+von\s+\d+$/
-const DIALOG_NUM_RE = /^(\d+)\.\s+([A-ZÄÖÜ][A-ZÄÖÜ0-9\s\-']+?)(\s*\(.*?\))?\s*$/
+const DIALOG_NUM_RE = /^(\d+)\.\s+([A-ZÄÖÜ][A-ZÄÖÜ0-9\s\-'.]+?)(\s*\(.*?\))?\s*$/
 const PAREN_RE = /^\(.*\)$/
 const KOMPARSEN_RE = /^Komparsen:\s*(.*)/i
 const CROSSCUT_LOCATION_RE = /^\/\/\s+(.+)/
@@ -527,7 +527,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   // Also handle single-character scenes by looking ahead for INT/EXT pattern
   let charaktere: string[] = []
   if (i < lines.length && isCharacterLine(lines[i])) {
-    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i = skipBlanks(lines, i + 1)
   } else if (i < lines.length) {
     // Lookahead: if next non-blank line is INT/EXT, current line is likely a single character name
@@ -537,7 +537,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     if (candidate && !DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate) &&
         !INT_EXT_SPIELTAG_RE.test(candidate) && INT_EXT_SPIELTAG_RE.test(nextLine) &&
         candidate.length < 40 && candidate.split(/\s+/).length <= 4) {
-      charaktere = candidate.split(',').map(c => c.trim()).filter(Boolean)
+      charaktere = candidate.split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
       i = skipBlanks(lines, i + 1)
     }
   }
@@ -568,7 +568,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   // Mistral OCR sometimes puts characters AFTER I/E (reversed from pdftotext order).
   // If no characters found yet, check again after I/E.
   if (charaktere.length === 0 && i < lines.length && isCharacterLine(lines[i])) {
-    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i = skipBlanks(lines, i + 1)
   } else if (charaktere.length === 0 && i < lines.length) {
     // Single-character check (no commas)
@@ -582,7 +582,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
       const nextIdx = skipBlanks(lines, i + 1)
       const nextLine = lines[nextIdx]?.trim() || ''
       if (nextLine.length > 40 || DURATION_RE.test(nextLine)) {
-        charaktere = candidate.split(',').map(c => c.trim()).filter(Boolean)
+        charaktere = candidate.split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
         i = skipBlanks(lines, i + 1)
       }
     }
@@ -771,7 +771,7 @@ function parseSubSceneHeader(
   i = skipBlanks(lines, i)
   let charaktere: string[] = []
   if (i < endIdx && isCharacterLine(lines[i])) {
-    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i++
   }
 
@@ -788,7 +788,7 @@ function parseSubSceneHeader(
   // Mistral OCR: characters can appear AFTER I/E
   i = skipBlanks(lines, i)
   if (charaktere.length === 0 && i < endIdx && isCharacterLine(lines[i])) {
-    charaktere = lines[i].trim().split(',').map(c => c.trim()).filter(Boolean)
+    charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i++
   }
 
@@ -1022,12 +1022,40 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
   return elems
 }
 
-function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number): { elems: Textelement[]; chars: string[] } {
+function parseDrehbuchContent(
+  lines: string[], startIdx: number, endIdx: number, layout?: BboxLayout
+): { elems: Textelement[]; chars: string[] } {
   const elems: Textelement[] = []
   const chars = new Set<string>()
   let lastCharacter = ''
   let lastType = ''
   let actionBuffer: string[] = []
+
+  // ── bbox indentation setup ─────────────────────────────────────────────────
+  // Use xMin from the layout to distinguish action / dialogue / character by indent.
+  // AbsatzFormat presets (Serienwerft Daily-Standard):
+  //   Action: margin_left 0  →  base xMin
+  //   Dialogue: margin_left 1.5cm  →  +43pt above base
+  //   Character: margin_left 2.5cm  →  +71pt above base
+  // We derive the base ("action") xMin from the 15th percentile of all xMin values
+  // in the layout, then apply those offsets as thresholds.
+  const lineInfoMap = new Map<string, LineInfo>()
+  let CHAR_INDENT_THRESHOLD = Infinity   // disabled if no layout
+  let DIA_INDENT_THRESHOLD = Infinity
+
+  if (layout) {
+    for (const li of layout.lines) lineInfoMap.set(li.text.trim(), li)
+    const xMins = layout.lines.map(l => l.xMin).sort((a, b) => a - b)
+    if (xMins.length > 0) {
+      const actionXMin = xMins[Math.floor(xMins.length * 0.15)]
+      CHAR_INDENT_THRESHOLD = actionXMin + 60   // ≈ 2.1cm above action
+      DIA_INDENT_THRESHOLD  = actionXMin + 30   // ≈ 1.1cm above action
+    }
+  }
+
+  function getXMin(text: string): number {
+    return lineInfoMap.get(text)?.xMin ?? 0
+  }
 
   function flushAction() {
     if (actionBuffer.length > 0) {
@@ -1068,7 +1096,11 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
       continue
     }
 
-    // Parenthetical
+    // Parenthetical — valid in dialog context OR when indentation suggests it
+    const xMin = getXMin(t)
+    const isDiaIndented = xMin > DIA_INDENT_THRESHOLD
+    const isCharIndented = xMin > CHAR_INDENT_THRESHOLD
+
     if (PAREN_RE.test(t) && (lastType === 'character' || lastType === 'dialogue' || lastType === 'parenthetical')) {
       flushAction()
       const cleanChar = lastCharacter.replace(/\s*\(.*?\)\s*/g, '').trim()
@@ -1077,11 +1109,33 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
       continue
     }
 
+    // Unnumbered character cue detection.
+    // Trigger conditions (any of):
+    //   a) After blank / action  (classic path)
+    //   b) After dialogue without blank line — only when bbox shows character-level indent
+    //      OR the next line is short (dialogue lookahead), to catch blocks without spacing
+    const nextLine = lines[i + 1]?.trim() || ''
+    const fromDialogue = lastType === 'dialogue' && isUnnumberedCharacterCue(t, nextLine)
+    const fromActionOrBlank = (lastType === '' || lastType === 'action') && isUnnumberedCharacterCue(t, nextLine)
+    const fromIndent = isCharIndented && isUnnumberedCharacterCue(t, nextLine)
+
+    if (fromActionOrBlank || fromDialogue || fromIndent) {
+      flushAction()
+      const cleanName = t.replace(/\s*\(.*?\)\s*/g, '').trim()
+      chars.add(cleanName)
+      lastCharacter = t
+      elems.push({ id: nextId(), type: 'character', text: t, character: cleanName })
+      lastType = 'character'
+      continue
+    }
+
     // Dialog text (follows character or parenthetical)
     // In Rote Rosen Drehbuch format, dialog is in a narrow centered column (≤36 chars).
-    // Lines > 40 chars after dialog are typically Regieanweisungen (action).
+    // With bbox: also allow lines in the dialogue-indent zone to be treated as dialogue
+    // even if they are slightly longer (PDF line wrapping artifacts).
     if (lastType === 'character' || lastType === 'dialogue' || lastType === 'parenthetical') {
-      if (t.length <= 40) {
+      const maxDialogLen = isDiaIndented ? 60 : 40
+      if (t.length <= maxDialogLen) {
         const cleanChar = lastCharacter.replace(/\s*\(.*?\)\s*/g, '').trim()
         elems.push({ id: nextId(), type: 'dialogue', text: t, character: cleanChar })
         lastType = 'dialogue'
@@ -1109,21 +1163,6 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
       i = j - 1
       lastType = 'direction'; lastCharacter = ''
       continue
-    }
-
-    // Fallback: standard (unnumbered) character cue — all-caps short line followed
-    // by short dialog text. Only trigger when coming from action or after a blank.
-    if (lastType === '' || lastType === 'action') {
-      const nextLine = lines[i + 1]?.trim() || ''
-      if (isUnnumberedCharacterCue(t, nextLine)) {
-        flushAction()
-        const cleanName = t.replace(/\s*\(.*?\)\s*/g, '').trim()
-        chars.add(cleanName)
-        lastCharacter = t
-        elems.push({ id: nextId(), type: 'character', text: t, character: cleanName })
-        lastType = 'character'
-        continue
-      }
     }
 
     // Default: action
@@ -1160,7 +1199,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
       // Content = Status Quo / narrative paragraphs / Anmerkungen that follow the header.
       textelemente = parseTreatmentContent(lines, contentStartIdx, contentEndIdx, layout)
     } else {
-      const parsed = parseDrehbuchContent(lines, contentStartIdx, contentEndIdx)
+      const parsed = parseDrehbuchContent(lines, contentStartIdx, contentEndIdx, layout)
       textelemente = parsed.elems
       sceneChars = parsed.chars
     }
