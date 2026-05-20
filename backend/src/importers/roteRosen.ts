@@ -154,9 +154,12 @@ function preprocessPdfText(text: string): string {
     // Only strip when between non-digit characters (avoids "5 von 33", "Block 882" etc.)
     let l = line.replace(/([a-zA-ZäöüÄÖÜß.,;:!?)])\s+(5|10|15|20|25|30|35|40)\s+([a-zA-ZäöüÄÖÜß(])/g, '$1 $3')
 
-    // 1. Footer: "Stand: DD.MM.YYYY HH:MMTreatment - Episode NNNNN von M" (pdf-parse)
-    l = l.replace(/(Stand:\s+\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2})((?:Treatment|Drehbuch)\s*-\s*Episode)/, '$1\n$2')
-    l = l.replace(/((?:Treatment|Drehbuch)\s*-\s*Episode\s*\d{4})(\d+\s+von\s+\d+)/, '$1\n$2')
+    // 1. Footer: "Stand: DD.MM.YYYY HH:MM[space]Treatment - Episode NNNNN[ ]von M[ rest]" (pdf-parse + bbox)
+    l = l.replace(/(Stand:\s+\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2})\s*((?:Treatment|Drehbuch)\s*-\s*Episode)/, '$1\n$2')
+    // "Drehbuch - Episode 4402 53 von 94[ rest]" → split; preserve any trailing dialog text as new line
+    l = l.replace(/((?:Treatment|Drehbuch)\s*-\s*Episode\s*\d{4})\s*(\d+\s+von\s+\d+)\s*(.*)/, (_, doc, page, rest) =>
+      rest.trim() ? `${doc}\n${page}\n${rest.trim()}` : `${doc}\n${page}`
+    )
 
     // 2. Scene header concatenated: "4402.1Außendreh / A. D. GutshofE/T4" (pdf-parse)
     l = l.replace(/^(\d{4}\.\d{1,3})((?:Stu\.|Außendreh).*?)([IE]\/[TNAD]\d+)$/m, '$1\n$2\n$3')
