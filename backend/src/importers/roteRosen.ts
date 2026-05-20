@@ -170,9 +170,10 @@ function preprocessPdfText(text: string): string {
     // 4. Duration dedup: "1:331:33" → "1:33" (pdf-parse)
     l = l.replace(/(\d{1,2}:\d{2})\1/g, '$1')
 
-    // 5. Duration + trailing content: "1:33Bild aus Block..." (pdf-parse) or "1:52 Wechselschnitt..." (OCR)
-    //    Also handles "1:40 Bitte gelbes Memo (882) beachten." (bbox: duration + memo note on same line)
-    l = l.replace(/^(\d{1,2}:\d{2})\s*((?:Bild aus Block|Wechselschnitt|Komparsen|Bitte).*)$/im, '$1\n$2')
+    // 5. Duration + trailing content: any text after "1:33" on the same line becomes a new line.
+    //    Handles: "1:33Bild aus Block...", "1:52 Wechselschnitt...", "1:40 Bitte gelbes Memo..."
+    //    Use \s* to catch pdf-parse concatenations (no space) and \s+ for normal separation.
+    l = l.replace(/^(\d{1,2}:\d{2})\s*(\S.+)$/m, '$1\n$2')
 
     // 6. Dialog number dedup: "1. 1. DANIELDANIEL" → "1. DANIEL" (pdf-parse)
     l = l.replace(/^(\d+\.\s+)\1(.+)\2$/m, '$1$2')
