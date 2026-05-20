@@ -1375,11 +1375,18 @@ function DokumentTypenTab({
     if (!produktionId) return
     setLoading(true)
     try {
-      const [f, p] = await Promise.all([
+      const [fResult, p] = await Promise.all([
         api.getAbsatzformate(produktionId),
         api.getAbsatzformatPresets(),
       ])
-      setFormate(f); setPresets(p)
+      setFormate(fResult.formate)
+      setPresets(p)
+      // Restore the last applied preset for this production (or default to first preset)
+      if (fResult.applied_preset_id && p.find((pr: any) => pr.id === fResult.applied_preset_id)) {
+        setSelectedPresetId(fResult.applied_preset_id)
+      } else if (p.length > 0) {
+        setSelectedPresetId(p[0].id)
+      }
     } catch {} finally { setLoading(false) }
   }
 
@@ -1387,11 +1394,6 @@ function DokumentTypenTab({
   useEffect(() => {
     api.getMe().then(me => setIsSuperadmin(me.roles?.includes('superadmin') ?? false)).catch(() => {})
   }, [])
-
-  // Erstes Preset vorauswählen wenn Presets geladen
-  useEffect(() => {
-    if (presets.length > 0 && !selectedPresetId) setSelectedPresetId(presets[0].id)
-  }, [presets, selectedPresetId])
 
   const selectedPreset = presets.find(p => p.id === selectedPresetId) ?? null
   const templateValue = templateEdit !== null ? templateEdit : (selectedPreset?.szenen_kopf_template ?? '')

@@ -18,11 +18,14 @@ absatzformatPresetsRouter.use(authMiddleware)
 absatzformateRouter.get('/', async (req, res) => {
   try {
     const pid = (req.params as any).produktionId
-    const rows = await query(
-      `SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order, name`,
-      [pid]
-    )
-    res.json(rows)
+    const [rows, setting] = await Promise.all([
+      query(`SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order, name`, [pid]),
+      queryOne(
+        `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'absatzformat_preset_id'`,
+        [pid]
+      ),
+    ])
+    res.json({ formate: rows, applied_preset_id: setting?.value ?? null })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -341,11 +344,19 @@ absatzformateRouter.post('/from-preset', async (req, res) => {
 
     await client.query('COMMIT')
 
+    // Persist the applied preset so the UI can restore the selection on reload
+    await query(
+      `INSERT INTO production_app_settings (production_id, key, value)
+       VALUES ($1, 'absatzformat_preset_id', $2)
+       ON CONFLICT (production_id, key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`,
+      [pid, preset_id]
+    )
+
     const rows = await query(
       'SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order, name',
       [pid]
     )
-    res.status(201).json({ formate: rows, remapped_scenes: remappedScenes })
+    res.status(201).json({ formate: rows, remapped_scenes: remappedScenes, applied_preset_id: preset_id })
   } catch (err) {
     await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })

@@ -590,7 +590,7 @@ export const api = {
 
   // ── Absatzformate ─────────────────────────────────────────────────────────
   getAbsatzformate: (produktionId: string) =>
-    request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate`),
+    request<{ formate: any[]; applied_preset_id: string | null }>('GET', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate`),
   createAbsatzformat: (produktionId: string, data: any) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate`, data),
   updateAbsatzformat: (produktionId: string, id: string, data: any) =>
