@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { api, preloadScene, preloadAllScenes } from '../api/client'
+import { api, preloadScene, preloadAllScenes, clearCacheByPrefix } from '../api/client'
 import AppShell from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
@@ -248,7 +248,12 @@ export default function ScriptPage() {
 
   // Auto-refresh after import event
   useEffect(() => {
-    const handler = () => setRefreshKey(Date.now())
+    const handler = () => {
+      clearCacheByPrefix('/v2/folgen/')
+      clearCacheByPrefix('/werkstufen/')
+      reloadWerkstufen()
+      setRefreshKey(Date.now())
+    }
     window.addEventListener('script-import-complete', handler)
     // If navigated from import with ?imported= param, clean URL
     const params = new URLSearchParams(window.location.search)
