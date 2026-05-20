@@ -89,7 +89,7 @@ export default function EditorPanel({
   useEffect(() => {
     if (!produktionId) return
     api.getAbsatzformate(produktionId)
-      .then(r => setAbsatzformate(r.formate))
+      .then(r => setAbsatzformate(r.formate ?? []))
       .catch(() => setAbsatzformate([]))
   }, [produktionId])
 

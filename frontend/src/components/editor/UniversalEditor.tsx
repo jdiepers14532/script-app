@@ -419,7 +419,7 @@ export default function UniversalEditor({
 
   // Filter formats by kategorie
   const relevantFormats = useMemo(() =>
-    absatzformate.filter(f => f.kategorie === kategorie || f.kategorie === 'alle'),
+    (absatzformate ?? []).filter(f => f.kategorie === kategorie || f.kategorie === 'alle'),
     [absatzformate, kategorie]
   )
 
