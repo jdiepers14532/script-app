@@ -950,6 +950,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 <td colSpan={2} style={{ padding: 0 }} />
                 <td style={{ paddingRight: 8, paddingBottom: 2 }}>
                   <input
+                    key={`zf-${szeneId}`}
                     className="sf-input"
                     style={{ width: '100%' }}
                     defaultValue={scene.zusammenfassung ?? ''}
