@@ -565,9 +565,10 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   }
 
   // INT/EXT + Spieltag (I/T4, E/N2, etc.) — comes AFTER characters
-  let int_ext: 'INT' | 'EXT' | 'INT/EXT' = 'INT'
-  let tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG' = 'TAG'
-  let spieltag = 1
+  // Fall back to sameLineIntExt when no dedicated I/T line follows (bbox format)
+  let int_ext: 'INT' | 'EXT' | 'INT/EXT' = sameLineIntExt?.int_ext ?? 'INT'
+  let tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG' = sameLineIntExt?.tageszeit ?? 'TAG'
+  let spieltag = sameLineIntExt?.spieltag ?? 1
 
   if (i < lines.length && INT_EXT_SPIELTAG_RE.test(lines[i].trim())) {
     const parsed = parseIntExtCode(lines[i].trim())
