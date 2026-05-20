@@ -106,6 +106,7 @@ export const api = {
     request<any>('GET', `/dokument-szenen/resolve?werkstufe_id=${encodeURIComponent(werkstufId)}&scene_identity_id=${encodeURIComponent(sceneIdentityId)}`),
   updateDokumentSzene: (id: string, data: any) => request<any>('PUT', `/dokument-szenen/${id}`, data),
   deleteDokumentSzene: (id: string) => request<void>('DELETE', `/dokument-szenen/${id}`),
+  bulkDeleteDokumentSzenen: (ids: string[]) => request<void>('DELETE', '/dokument-szenen/bulk', { ids }),
   createDokumentSzene: (fassungId: string, data: any) =>
     request<any>('POST', `/fassungen/${fassungId}/szenen`, data),
   reorderDokumentSzenen: (fassungId: string, order: string[]) =>

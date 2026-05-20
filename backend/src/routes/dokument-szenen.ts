@@ -200,6 +200,21 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// DELETE /api/dokument-szenen/bulk — bulk delete scenes
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.delete('/bulk', async (req, res) => {
+  try {
+    const { ids } = req.body as { ids: string[] }
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids array required' })
+    }
+    await query('DELETE FROM dokument_szenen WHERE id = ANY($1::uuid[])', [ids])
+    res.status(204).send()
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // DELETE /api/dokument-szenen/:id — delete scene from fassung
 // ══════════════════════════════════════════════════════════════════════════════
 dokumentSzenenRouter.delete('/:id', async (req, res) => {

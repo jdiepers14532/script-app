@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api } from '../api/client'
@@ -80,10 +81,14 @@ export default function SceneList({
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkStrangDropdown, setBulkStrangDropdown] = useState(false)
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const [straenge, setStraenge] = useState<any[]>([])
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null)
+  const [bulkPanelPos, setBulkPanelPos] = useState<{ left: number; top: number } | null>(null)
+  const scenesRef = useRef<HTMLDivElement | null>(null)
   const effectiveColorMode = farbModus === 'aus' || colorOff ? 'off' as const : colorMode
 
   const FARB_CYCLE: Array<'licht' | 'strang' | 'aus'> = ['licht', 'strang', 'aus']
@@ -147,9 +152,7 @@ export default function SceneList({
     if (selectedIds.size === 0) return
     try {
       await api.bulkAddSzeneStrang(Array.from(selectedIds), strangId)
-      setMultiSelectMode(false)
-      setSelectedIds(new Set())
-      setBulkStrangDropdown(false)
+      clearSelection()
       if (werkstufId) api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
     } catch (e) { console.error(e) }
   }
@@ -158,10 +161,32 @@ export default function SceneList({
     if (selectedIds.size === 0) return
     try {
       await api.bulkRemoveSzeneStrang(Array.from(selectedIds), strangId)
-      setMultiSelectMode(false)
-      setSelectedIds(new Set())
+      clearSelection()
       if (werkstufId) api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
     } catch (e) { console.error(e) }
+  }
+
+  const clearSelection = useCallback(() => {
+    setMultiSelectMode(false)
+    setSelectedIds(new Set())
+    setSelectionAnchor(null)
+    setBulkStrangDropdown(false)
+    setBulkDeleteConfirm(false)
+  }, [])
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return
+    setBulkDeleting(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await api.bulkDeleteDokumentSzenen(ids)
+      ids.forEach(id => onSzeneDeleted?.(id as any))
+      clearSelection()
+    } catch (e: any) {
+      showToast('Fehler beim Löschen: ' + e.message, 'error')
+    } finally {
+      setBulkDeleting(false)
+    }
   }
 
   const toggleSelect = (id: string) => {
@@ -214,14 +239,23 @@ export default function SceneList({
   // Escape clears multi-selection
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && multiSelectMode) {
-        setMultiSelectMode(false)
-        setSelectedIds(new Set())
-        setSelectionAnchor(null)
-      }
+      if (e.key === 'Escape' && multiSelectMode) clearSelection()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [multiSelectMode, clearSelection])
+
+  // Floating panel position — pinned to right edge of scenes container
+  useEffect(() => {
+    if (!multiSelectMode || !scenesRef.current) { setBulkPanelPos(null); return }
+    const update = () => {
+      if (!scenesRef.current) return
+      const r = scenesRef.current.getBoundingClientRect()
+      setBulkPanelPos({ left: r.right + 8, top: r.top + 60 })
+    }
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
   }, [multiSelectMode])
 
   // Close format picker on outside click
@@ -488,7 +522,7 @@ export default function SceneList({
   const isMultiDrag = dragId !== null && selectedIds.has(String(dragId)) && selectedIds.size > 1
 
   return (
-    <div className="scenes" data-colormode={effectiveColorMode} data-multi-drag={isMultiDrag ? 'true' : undefined}>
+    <div ref={scenesRef} className="scenes" data-colormode={effectiveColorMode} data-multi-drag={isMultiDrag ? 'true' : undefined}>
       {/* Search bar + actions */}
       <div className="searchbar" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}>
         <Search size={11} style={{
@@ -808,31 +842,135 @@ export default function SceneList({
 
       </div>
 
-      {/* Bulk assign toolbar */}
-      {multiSelectMode && selectedIds.size > 0 && (
-        <div className="bulk-toolbar" style={{ padding: '8px 12px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-          <span style={{ fontWeight: 600 }}>{selectedIds.size} {t('szene', selectedIds.size > 1 ? 'p' : 's')}</span>
+      {/* Floating bulk action panel — rendered via portal next to the sidebar */}
+      {multiSelectMode && selectedIds.size > 0 && bulkPanelPos && createPortal(
+        <div style={{
+          position: 'fixed',
+          left: bulkPanelPos.left,
+          top: bulkPanelPos.top,
+          zIndex: 8000,
+          width: 200,
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border)',
+          borderRadius: 10,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+          fontSize: 12,
+          overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{
+            padding: '9px 13px',
+            borderBottom: '1px solid var(--border)',
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          }}>
+            <span>{selectedIds.size} {t('szene', selectedIds.size > 1 ? 'p' : 's')} gewählt</span>
+            <button
+              onClick={clearSelection}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', lineHeight: 1, color: 'var(--text-muted)', fontSize: 14 }}
+              title="Auswahl aufheben (Esc)"
+            >×</button>
+          </div>
+
+          {/* Strang zuweisen */}
           <div style={{ position: 'relative' }}>
-            <button className="btn-sm btn-primary" onClick={() => setBulkStrangDropdown(v => !v)}>Strang zuweisen</button>
+            <button
+              className="scene-ctx-item"
+              style={{ width: '100%', textAlign: 'left', fontWeight: 500 }}
+              onClick={() => setBulkStrangDropdown(v => !v)}
+            >
+              🧶 Strang zuweisen…
+            </button>
             {bulkStrangDropdown && (
-              <div className="scene-ctx-menu" style={{ bottom: '100%', left: 0, minWidth: 160 }}>
+              <div style={{
+                position: 'absolute',
+                left: '100%', top: 0,
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                minWidth: 180,
+                zIndex: 8001,
+                overflow: 'hidden',
+              }}>
+                <div style={{ padding: '5px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+                  Hinzufügen
+                </div>
                 {straenge.filter(s => s.status === 'aktiv').map(s => (
                   <button key={s.id} className="scene-ctx-item" onClick={() => handleBulkAssign(s.id)}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: s.farbe, marginRight: 6 }} />
+                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: s.farbe, marginRight: 6, flexShrink: 0 }} />
                     {s.name}
                   </button>
                 ))}
-                <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                {straenge.filter(s => s.status === 'aktiv').length === 0 && (
+                  <div style={{ padding: '8px 12px', color: 'var(--text-muted)', fontSize: 11 }}>Keine Stränge vorhanden</div>
+                )}
+                <div style={{ borderTop: '1px solid var(--border)', padding: '5px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Entfernen
+                </div>
                 {straenge.filter(s => s.status === 'aktiv').map(s => (
                   <button key={`rm-${s.id}`} className="scene-ctx-item danger" onClick={() => handleBulkRemove(s.id)}>
-                    Entfernen: {s.name}
+                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: s.farbe, marginRight: 6, flexShrink: 0 }} />
+                    {s.name}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <button className="btn-sm" onClick={() => { setMultiSelectMode(false); setSelectedIds(new Set()); setBulkStrangDropdown(false) }}>Abbrechen</button>
-        </div>
+
+          {/* Löschen */}
+          <button
+            className="scene-ctx-item danger"
+            style={{ width: '100%', textAlign: 'left', fontWeight: 500 }}
+            onClick={() => setBulkDeleteConfirm(true)}
+          >
+            🗑 {selectedIds.size} {t('szene', selectedIds.size > 1 ? 'p' : 's')} löschen…
+          </button>
+
+          {/* Abbrechen */}
+          <div style={{ borderTop: '1px solid var(--border)', padding: '6px 8px' }}>
+            <button
+              className="scene-ctx-item"
+              style={{ width: '100%', textAlign: 'left', color: 'var(--text-muted)', fontSize: 11 }}
+              onClick={clearSelection}
+            >
+              Abbrechen (Esc)
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Bulk delete confirmation modal */}
+      {bulkDeleteConfirm && createPortal(
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, padding: '24px 28px', maxWidth: 360, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', border: '1px solid var(--border)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
+              {selectedIds.size} {t('szene', selectedIds.size > 1 ? 'p' : 's')} löschen?
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+              Diese Aktion ist <strong>nicht rückgängig</strong> zu machen. Alle Inhalte, Rollenzuweisungen und Strang-Verknüpfungen der {selectedIds.size > 1 ? 'ausgewählten Szenen werden' : 'Szene wird'} endgültig gelöscht.
+            </div>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setBulkDeleteConfirm(false)}
+                disabled={bulkDeleting}
+                style={{ padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', fontSize: 13, cursor: 'pointer', color: 'var(--text-primary)', fontFamily: 'inherit' }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                style={{ padding: '7px 16px', borderRadius: 6, border: 'none', background: '#FF3B30', color: '#fff', fontSize: 13, cursor: bulkDeleting ? 'not-allowed' : 'pointer', fontWeight: 600, fontFamily: 'inherit', opacity: bulkDeleting ? 0.6 : 1 }}
+              >
+                {bulkDeleting ? 'Löschen…' : `${selectedIds.size} ${t('szene', selectedIds.size > 1 ? 'p' : 's')} löschen`}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Modals */}
