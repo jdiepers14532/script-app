@@ -1418,11 +1418,23 @@ function DokumentTypenTab({
 
   const handleApplyPreset = async () => {
     if (!selectedPresetId) return
-    if (!confirm('Alle bestehenden Absatzformate dieser Produktion werden ersetzt. Fortfahren?')) return
+    const presetName = presets.find(p => p.id === selectedPresetId)?.name ?? 'Preset'
+    if (!confirm(
+      `Preset „${presetName}" anwenden?\n\n` +
+      `Die Absatzformate dieser Produktion werden ersetzt. ` +
+      `Bestehende Szeneninhalte werden automatisch anhand der Formatnamen neu zugeordnet — ` +
+      `Formate, deren Name im neuen Preset nicht existiert, verlieren ihre Zuweisung.\n\n` +
+      `Fortfahren?`
+    )) return
     setMsg(null)
     try {
       const result = await api.applyAbsatzformatPreset(produktionId, selectedPresetId)
-      setFormate(result); setMsg('Preset angewendet.')
+      const formate = Array.isArray(result) ? result : (result?.formate ?? [])
+      const remapped = result?.remapped_scenes ?? null
+      setFormate(formate)
+      setMsg(remapped != null
+        ? `Preset angewendet. ${remapped} Szene(n) neu zugeordnet.`
+        : 'Preset angewendet.')
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 

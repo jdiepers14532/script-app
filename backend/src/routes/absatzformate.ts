@@ -217,9 +217,49 @@ absatzformateRouter.post('/:id/set-standard', async (req, res) => {
   }
 })
 
+// ── Helper: recursively update format_id in Tiptap/absatz content trees ──────
+// absatz nodes store both format_id (UUID) and format_name (display string).
+// When formats are replaced, UUIDs change but names remain stable →
+// walk the tree and patch format_id by looking up format_name in the new map.
+function remapAbsatzFormatIds(node: any, nameToId: Map<string, string>): any {
+  if (!node || typeof node !== 'object') return node
+  if (Array.isArray(node)) return node.map(n => remapAbsatzFormatIds(n, nameToId))
+  const result = { ...node }
+  if (result.type === 'absatz' && result.attrs?.format_name) {
+    result.attrs = {
+      ...result.attrs,
+      format_id: nameToId.get(result.attrs.format_name) ?? null,
+    }
+  }
+  if (result.content) result.content = remapAbsatzFormatIds(result.content, nameToId)
+  return result
+}
+
+// ── Helper: remap all dokument_szenen for a production within a transaction ──
+async function remapSceneFormats(
+  client: any, pid: string, nameToId: Map<string, string>
+): Promise<number> {
+  const rows = await client.query(
+    `SELECT ds.id, ds.content
+     FROM dokument_szenen ds
+     JOIN werkstufen w ON w.id = ds.werkstufe_id
+     JOIN folgen f ON f.id = w.folge_id
+     WHERE f.produktion_id = $1 AND ds.content IS NOT NULL`,
+    [pid]
+  )
+  let remapped = 0
+  for (const row of rows.rows) {
+    if (!row.content) continue
+    const newContent = remapAbsatzFormatIds(row.content, nameToId)
+    await client.query('UPDATE dokument_szenen SET content = $1 WHERE id = $2', [JSON.stringify(newContent), row.id])
+    remapped++
+  }
+  return remapped
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /api/produktionen/:produktionId/absatzformate/from-preset
-// Applies a preset: deletes existing formats and inserts preset formats
+// Applies a preset: replaces formats and remaps existing scene content by name
 // ══════════════════════════════════════════════════════════════════════════════
 absatzformateRouter.post('/from-preset', async (req, res) => {
   const pid = (req.params as any).produktionId
@@ -294,13 +334,18 @@ absatzformateRouter.post('/from-preset', async (req, res) => {
       }
     }
 
+    // Remap format_ids in all scene content for this production.
+    // absatz nodes carry both format_id (UUID) and format_name (stable string).
+    // After replacing formats, patch format_id by looking up format_name in the new set.
+    const remappedScenes = await remapSceneFormats(client, pid, nameToId)
+
     await client.query('COMMIT')
 
     const rows = await query(
       'SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order, name',
       [pid]
     )
-    res.status(201).json(rows)
+    res.status(201).json({ formate: rows, remapped_scenes: remappedScenes })
   } catch (err) {
     await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })
@@ -371,13 +416,21 @@ absatzformateRouter.post('/from-produktion', async (req, res) => {
       }
     }
 
+    // Remap format_ids in scene content by name
+    const nameToId = new Map<string, string>()
+    for (const src of sourceRows.rows) {
+      const newId = oldToNew.get(src.id)
+      if (newId) nameToId.set(src.name, newId)
+    }
+    const remappedScenes = await remapSceneFormats(client, pid, nameToId)
+
     await client.query('COMMIT')
 
     const rows = await query(
       'SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order, name',
       [pid]
     )
-    res.status(201).json(rows)
+    res.status(201).json({ formate: rows, remapped_scenes: remappedScenes })
   } catch (err) {
     await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })
