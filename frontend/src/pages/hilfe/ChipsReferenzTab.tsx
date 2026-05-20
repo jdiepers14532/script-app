@@ -277,7 +277,7 @@ export default function ChipsReferenzTab() {
 
         <InfoBox title="Zonen — wo welche Chips erlaubt sind" color={C.orange}>
           Jeder Placeholder-Chip hat eine Zone: <strong>alle</strong> (Body + Kopf + Fußzeile) oder <strong>fusszeile</strong> (nur Fußzeile).
-          Die Zone bestimmt, wo die Palette den Chip anzeigt. <code style={{ fontFamily: 'monospace' }}>{{'{'}}{'{'}seite{'}'}{'}'}}</code> und <code style={{ fontFamily: 'monospace' }}>{{'{'}}{'{'}seiten_gesamt{'}'}{'}'}}</code> sind die einzigen Fußzeilen-exklusiven Chips —
+          Die Zone bestimmt, wo die Palette den Chip anzeigt. <code style={{ fontFamily: 'monospace' }}>{'{{seite}}'}</code> und <code style={{ fontFamily: 'monospace' }}>{'{{seiten_gesamt}}'}</code> sind die einzigen Fußzeilen-exklusiven Chips —
           wer sie im Body platziert, sieht dort keinen Wert.
         </InfoBox>
 
