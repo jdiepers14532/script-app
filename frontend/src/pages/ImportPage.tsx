@@ -610,6 +610,14 @@ export default function ImportPage() {
                     </button>
                   </div>
                 )}
+                {isPdf && (
+                  <div style={{
+                    padding: '6px 12px', background: '#fffbea', borderBottom: '1px solid #ffe082',
+                    fontSize: 12, color: '#7a5c00', lineHeight: 1.4,
+                  }}>
+                    ⚠️ Bitte Fußzeilen oder Zeilennummern abschneiden, damit der Import fehlerfrei erfolgt.
+                  </div>
+                )}
                 <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
                   {isPdf && fileUrl ? (
                     <PdfPageViewer
