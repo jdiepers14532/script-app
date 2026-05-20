@@ -332,6 +332,7 @@ async function runMigrations() {
     'v105_zusatz_standalone.sql',
     'v106_wysiwyg_merged.sql',
     'v107_pre_vorlage_content.sql',
+    'v108_glossar_linear_nonlinear.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
