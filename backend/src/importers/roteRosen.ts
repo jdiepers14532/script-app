@@ -374,6 +374,8 @@ function parseSynopsisAndMemo(lines: string[], startIdx: number): {
   let synopsis = ''
   const recaps: string[] = []
   const precaps: string[] = []
+  const recapLines: string[] = []
+  const precapLines: string[] = []
   let folgeHeading: string | null = null
   let i = startIdx
   let inSection: string | null = null
@@ -388,10 +390,14 @@ function parseSynopsisAndMemo(lines: string[], startIdx: number): {
     if (/^FOLGE\s+\d+$/i.test(t)) { folgeHeading = t; inSection = 'synopsis'; continue }
     if (!t) continue
 
-    if (inSection === 'recaps') recaps.push(t)
-    else if (inSection === 'precaps') precaps.push(t)
+    if (inSection === 'recaps') recapLines.push(t)
+    else if (inSection === 'precaps') precapLines.push(t)
     else if (inSection === 'synopsis' || inSection === 'synopse_header') synopsis += (synopsis ? '\n' : '') + t
   }
+
+  // Recap and Precap: all lines → one single Notiz-scene per section
+  if (recapLines.length > 0) recaps.push(recapLines.join('\n'))
+  if (precapLines.length > 0) precaps.push(precapLines.join('\n'))
 
   return { synopsis, recaps, precaps, scenesStart: i, folgeHeading }
 }
