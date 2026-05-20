@@ -1418,20 +1418,33 @@ function DokumentTypenTab({
 
   const handleApplyPreset = async () => {
     if (!selectedPresetId) return
-    const presetName = presets.find(p => p.id === selectedPresetId)?.name ?? 'Preset'
-    if (!confirm(
-      `Preset „${presetName}" anwenden?\n\n` +
-      `Die Absatzformate dieser Produktion werden ersetzt. ` +
-      `Bestehende Szeneninhalte werden automatisch anhand der Formatnamen neu zugeordnet — ` +
-      `Formate, deren Name im neuen Preset nicht existiert, verlieren ihre Zuweisung.\n\n` +
-      `Fortfahren?`
-    )) return
+    const preset = presets.find(p => p.id === selectedPresetId)
+    const presetName = preset?.name ?? 'Preset'
+
+    // Pre-flight: find format names in current production that don't exist in the new preset
+    const presetFormatNames = new Set<string>(
+      (preset?.formate ?? []).map((f: any) => f.name as string)
+    )
+    const missing = formate.map(f => f.name).filter(n => !presetFormatNames.has(n))
+
+    if (missing.length > 0) {
+      if (!confirm(
+        `Wollen Sie wirklich das Format ändern?\n\n` +
+        `Folgende Formate aus dem aktuellen Preset existieren in „${presetName}" nicht:\n` +
+        missing.map(n => `  • ${n}`).join('\n') + '\n\n' +
+        `Dieser Wechsel kann die Formatierung bestehender Szenen zerstören.\n\n` +
+        `Trotzdem fortfahren?`
+      )) return
+    } else if (formate.length > 0) {
+      if (!confirm(`Preset „${presetName}" anwenden? Alle Formatnamen sind im neuen Preset vorhanden — bestehende Szenen werden automatisch neu zugeordnet.\n\nFortfahren?`)) return
+    }
+
     setMsg(null)
     try {
       const result = await api.applyAbsatzformatPreset(produktionId, selectedPresetId)
-      const formate = Array.isArray(result) ? result : (result?.formate ?? [])
+      const newFormate = Array.isArray(result) ? result : (result?.formate ?? [])
       const remapped = result?.remapped_scenes ?? null
-      setFormate(formate)
+      setFormate(newFormate)
       setMsg(remapped != null
         ? `Preset angewendet. ${remapped} Szene(n) neu zugeordnet.`
         : 'Preset angewendet.')
