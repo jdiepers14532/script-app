@@ -596,8 +596,13 @@ export function ToolbarContent({
               const v = e.target.value || null
               if (selSnap.current === 'chip') editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
               else if (selSnap.current === 'selection') {
-                if (v) editor?.chain().focus().setFontFamily(v).run()
-                else editor?.chain().focus().unsetFontFamily().run()
+                if (v) {
+                  editor?.chain().focus().setFontFamily(v).run()
+                  editor?.chain().setParagraphFont(v).run()
+                } else {
+                  editor?.chain().focus().unsetFontFamily().run()
+                  editor?.chain().setParagraphFont(null).run()
+                }
               } else editor?.chain().setParagraphFont(v).run()
             }}
             disabled={!editor}
