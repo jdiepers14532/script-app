@@ -648,16 +648,10 @@ export default function SceneList({
               {/* Kategorie: Ansicht */}
               <CategoryDivider label="Ansicht" />
               <button
-                className={`scene-ctx-item${tweaks.sceneListPopup ? ' active' : ''}`}
-                onClick={() => { setTweak('sceneListPopup', true); setHeaderMenuOpen(false) }}
+                className="scene-ctx-item"
+                onClick={() => { setTweak('sceneListPopup', !tweaks.sceneListPopup); setHeaderMenuOpen(false) }}
               >
-                Popup an
-              </button>
-              <button
-                className={`scene-ctx-item${!tweaks.sceneListPopup ? ' active' : ''}`}
-                onClick={() => { setTweak('sceneListPopup', false); setHeaderMenuOpen(false) }}
-              >
-                Popup aus
+                {tweaks.sceneListPopup ? 'Popup aus' : 'Popup an'}
               </button>
 
               {/* Kategorie: Auswertung */}
