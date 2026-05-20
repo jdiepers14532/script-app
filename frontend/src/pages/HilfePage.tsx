@@ -29,6 +29,7 @@ const SearchResultsView    = lazy(() => import('./hilfe/SearchResultsView'))
 const DatenmodellTab       = lazy(() => import('./hilfe/DatenmodellTab'))
 const DatensicherheitTab   = lazy(() => import('./hilfe/DatensicherheitTab'))
 const PotenzielleFehldrTab = lazy(() => import('./hilfe/PotenzielleFehldrTab'))
+const ChipsReferenzTab     = lazy(() => import('./hilfe/ChipsReferenzTab'))
 
 // ── Lade-Platzhalter ──────────────────────────────────────────────────────────
 function TabSpinner() {
@@ -91,6 +92,8 @@ const NAV_ITEMS = [
     keywords: 'technisch architektur backend server postgresql yjs websocket hocuspocus' },
   { id: 'potenzielle-fehler',   label: 'Potenzielle Fehler',        icon: '⚠️', adminOnly: true,
     keywords: 'fehler error problem bug service worker sw session login 401 cache offline loop backend server 502 503 devtools update reload cookie auth' },
+  { id: 'chips-referenz',       label: 'Chips-Referenz',            icon: '🏷️', adminOnly: true,
+    keywords: 'chip chips placeholder rollen komparsen strang wechselschnitt flashback editor datenquelle api tabelle vorlage kopfzeile fusszeile' },
 ]
 
 // ── Haupt-Komponente ──────────────────────────────────────────────────────────
@@ -161,6 +164,7 @@ function HilfePage() {
       case 'datenmodell':        return <DatenmodellTab />
       case 'datensicherheit':    return <DatensicherheitTab />
       case 'potenzielle-fehler': return <PotenzielleFehldrTab />
+      case 'chips-referenz':     return <ChipsReferenzTab />
       default:                   return null
     }
   }
