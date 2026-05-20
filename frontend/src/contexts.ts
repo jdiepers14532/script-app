@@ -112,6 +112,8 @@ export interface TweakState {
   spellcheckLang: string
   /** Tageszeit-Änderung automatisch auf alle folgenden Szenen der Folge übertragen */
   autoStimmungPropagation: boolean
+  /** Hover-Popup in der Szenenübersicht (Oneliner + Rollen) */
+  sceneListPopup: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState

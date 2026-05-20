@@ -54,7 +54,9 @@ export default function SceneList({
 }: SceneListProps) {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
   const { sceneKuerzel } = useAppSettings()
-  const { tweaks } = useTweaks()
+  const { tweaks, set: setTweak } = useTweaks()
+  const [hoverPopup, setHoverPopup] = useState<{ id: string | number; x: number; y: number } | null>(null)
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const { t } = useTerminologie()
   const { showToast } = useToast()
   const isDarkTheme = tweaks.theme === 'dark'
@@ -643,6 +645,21 @@ export default function SceneList({
                 Als Template speichern
               </button>
 
+              {/* Kategorie: Ansicht */}
+              <CategoryDivider label="Ansicht" />
+              <button
+                className={`scene-ctx-item${tweaks.sceneListPopup ? ' active' : ''}`}
+                onClick={() => { setTweak('sceneListPopup', true); setHeaderMenuOpen(false) }}
+              >
+                Popup an
+              </button>
+              <button
+                className={`scene-ctx-item${!tweaks.sceneListPopup ? ' active' : ''}`}
+                onClick={() => { setTweak('sceneListPopup', false); setHeaderMenuOpen(false) }}
+              >
+                Popup aus
+              </button>
+
               {/* Kategorie: Auswertung */}
               <CategoryDivider label="Auswertung" />
               {onOpenStatistik && (
@@ -778,12 +795,23 @@ export default function SceneList({
               </div>
               <div className="body">
                 <div className="sl-line">
-                  {scene.zusammenfassung ? (
-                    <Tooltip text={scene.zusammenfassung}>
-                      <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
-                    </Tooltip>
+                  {tweaks.sceneListPopup && (scene.zusammenfassung || scene.rollen_names) ? (
+                    <span
+                      className="sl-set"
+                      onMouseEnter={e => {
+                        if (hoverTimer.current) clearTimeout(hoverTimer.current)
+                        const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                        hoverTimer.current = setTimeout(() => setHoverPopup({ id: scene.id, x: r.left + r.width / 2, y: r.top - 8 }), 300)
+                      }}
+                      onMouseLeave={() => {
+                        if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null }
+                        setHoverPopup(null)
+                      }}
+                    >
+                      {scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}
+                    </span>
                   ) : (
-                    <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || '') : (scene.element_type || 'Notiz')}</span>
+                    <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
                   )}
                 </div>
               </div>
@@ -1028,6 +1056,38 @@ export default function SceneList({
           </div>
         </div>
       )}
+      {/* Hover-Popup: Oneliner + Rollen */}
+      {hoverPopup && (() => {
+        const ps = szenen.find(s => s.id === hoverPopup.id)
+        if (!ps) return null
+        return createPortal(
+          <div style={{
+            position: 'fixed',
+            left: hoverPopup.x,
+            top: hoverPopup.y,
+            transform: 'translate(-50%, -100%)',
+            background: '#111',
+            color: '#fff',
+            fontSize: 11,
+            lineHeight: 1.5,
+            padding: '6px 10px',
+            borderRadius: 6,
+            maxWidth: 260,
+            whiteSpace: 'pre-line',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            zIndex: 99999,
+            pointerEvents: 'none',
+          }}>
+            {ps.zusammenfassung && <div>{ps.zusammenfassung}</div>}
+            {ps.rollen_names && (
+              <div style={{ color: '#64B5F6', marginTop: ps.zusammenfassung ? 3 : 0 }}>
+                {ps.rollen_names}
+              </div>
+            )}
+          </div>,
+          document.body
+        )
+      })()}
     </div>
   )
 }

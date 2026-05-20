@@ -549,7 +549,13 @@ werkstufenSzenenRouter.get('/', async (req, res) => {
            AND ds2.geloescht = false
          ORDER BY w_l.version_nummer DESC LIMIT 1) AS flashback_referenz_scene_nummer,
         (SELECT f.folge_nummer FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
-         WHERE w.id = ds.flashback_referenz_werkstufe_id) AS flashback_referenz_folge_nummer
+         WHERE w.id = ds.flashback_referenz_werkstufe_id) AS flashback_referenz_folge_nummer,
+        (SELECT string_agg(c.name, ', ' ORDER BY c.name)
+         FROM scene_characters sc
+         JOIN characters c ON c.id = sc.character_id
+         LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+         WHERE sc.scene_identity_id = ds.scene_identity_id
+           AND (ck.typ = 'rolle' OR ck.typ IS NULL)) AS rollen_names
        FROM dokument_szenen ds
        LEFT JOIN scene_identities si ON si.id = ds.scene_identity_id
        WHERE ds.werkstufe_id = $1 AND ds.geloescht = false

@@ -96,6 +96,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   keyboardLayout: 'qwertz',  // German app default — QWERTZ
   spellcheckLang: 'de-DE',
   autoStimmungPropagation: true,
+  sceneListPopup: true,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -622,6 +623,7 @@ export default function AppShell({
           keyboardLayout:    s.keyboardLayout ?? 'qwertz',
           spellcheckLang:    s.spellcheckLang ?? 'de-DE',
           autoStimmungPropagation: typeof s.autoStimmungPropagation === 'boolean' ? s.autoStimmungPropagation : prev.autoStimmungPropagation,
+          sceneListPopup: typeof s.sceneListPopup === 'boolean' ? s.sceneListPopup : true,
         }))
       }
     }).catch(() => {}).finally(() => {
