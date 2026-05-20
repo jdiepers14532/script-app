@@ -1013,6 +1013,8 @@
   box-shadow:var(--shadow-md);
   font-family:var(--font-mono);
 }
+/* Notiz/Storyline/Treatment: kein Courier-Override — Vorlage-Schriften bleiben erhalten */
+.page.page-notiz { font-family: var(--font-sans); }
 [data-mode='focus'] .page { border-color:var(--border); box-shadow:var(--shadow-sm); max-width:660px; }
 
 /* ── Scene list drag handle + collapse button ── */

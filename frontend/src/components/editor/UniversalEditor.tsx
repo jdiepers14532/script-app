@@ -247,6 +247,8 @@ interface UniversalEditorProps {
   isLocked?: boolean
   changedBlocks?: Set<number>
   revisionColor?: string | null
+  /** Ref that is populated with the active Tiptap editor instance for external reads */
+  editorRef?: React.MutableRefObject<any>
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -276,6 +278,7 @@ export default function UniversalEditor({
   isLocked = false,
   changedBlocks,
   revisionColor = null,
+  editorRef,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
@@ -537,6 +540,13 @@ export default function UniversalEditor({
   useEffect(() => {
     editor?.setEditable(!readOnly)
   }, [editor, readOnly])
+
+  // Expose editor instance to parent via editorRef (for template apply, snapshot, etc.)
+  useEffect(() => {
+    if (!editorRef) return
+    editorRef.current = editor ?? null
+    return () => { editorRef.current = null }
+  }, [editor, editorRef])
 
   // Solo mode: track History state via editor transactions
   useEffect(() => {
@@ -1248,7 +1258,7 @@ export default function UniversalEditor({
           onMouseLeave={() => { if (focus) setHoverOpen(false) }}
           onTouchStart={() => { if (focus) setHoverOpen(v => !v) }}
         />
-        <PageWrapper className="page" seitenformat={seitenformat} showShadow={showShadow} pageMargins={pageMargins}>
+        <PageWrapper className={kategorie === 'drehbuch' ? 'page' : 'page page-notiz'} seitenformat={seitenformat} showShadow={showShadow} pageMargins={pageMargins}>
           <EditorContent
             editor={editor}
             style={{ outline: 'none', minHeight: '100%' }}

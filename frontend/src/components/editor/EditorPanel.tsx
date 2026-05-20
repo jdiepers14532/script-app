@@ -84,6 +84,7 @@ export default function EditorPanel({
   const snapshotTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSnapshotContentRef = useRef<string>('')   // JSON-string of last snapshotted content
   const pendingSnapshotContentRef = useRef<any>(null) // latest editor content awaiting snapshot
+  const editorRef = useRef<any>(null)                 // live Tiptap editor instance (for instant content read)
 
   useEffect(() => {
     if (!produktionId) return
@@ -526,8 +527,10 @@ export default function EditorPanel({
               setIsApplyingVorlage(true)
               try {
                 // Originaltext: pre_vorlage_content hat Priorität (falls Vorlage schon angewendet wurde)
-                // pendingSnapshotContentRef enthält den aktuellsten Editor-Inhalt (falls Nutzer seit dem Laden getippt hat)
-                const rawContent = pendingSnapshotContentRef.current ?? currentSzene?.content
+                // editorRef.current?.getJSON() liefert den AKTUELLEN Editor-Inhalt (kein Debounce-Lag)
+                // pendingSnapshotContentRef als Fallback, dann DB-Stand
+                const liveContent = editorRef.current?.getJSON() ?? null
+                const rawContent = liveContent ?? pendingSnapshotContentRef.current ?? currentSzene?.content
                 const preVorlage = currentSzene?.pre_vorlage_content
                 const sourceContent = preVorlage ?? rawContent
                 const sourceNodes: any[] = Array.isArray(sourceContent)
@@ -822,6 +825,7 @@ export default function EditorPanel({
               isLocked={!!isReadOnly}
               changedBlocks={changedBlocks}
               revisionColor={revisionColor}
+              editorRef={editorRef}
             />
           </Suspense>
         )}
