@@ -1369,7 +1369,9 @@ function DokumentTypenTab({
   const [renamingPreset, setRenamingPreset] = useState(false)
   const [renamingValue, setRenamingValue] = useState('')
   const [templateEdit, setTemplateEdit] = useState<string | null>(null)
-  const [isSuperadmin, setIsSuperadmin] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showOverwriteSystem, setShowOverwriteSystem] = useState(false)
+  const [overwritePresetId, setOverwritePresetId] = useState<string | null>(null)
 
   const load = async () => {
     if (!produktionId) return
@@ -1392,14 +1394,16 @@ function DokumentTypenTab({
 
   useEffect(() => { load() }, [produktionId])
   useEffect(() => {
-    api.getMe().then(me => setIsSuperadmin(me.roles?.includes('superadmin') ?? false)).catch(() => {})
+    api.getMe().then(me => setIsAdmin(
+      !!(me.roles?.includes('superadmin') || me.roles?.includes('admin'))
+    )).catch(() => {})
   }, [])
 
   const selectedPreset = presets.find(p => p.id === selectedPresetId) ?? null
   const templateValue = templateEdit !== null ? templateEdit : (selectedPreset?.szenen_kopf_template ?? '')
   const templateDirty = templateEdit !== null && templateEdit !== (selectedPreset?.szenen_kopf_template ?? '')
   // System-Presets: nur Superadmin darf speichern
-  const canEditTemplate = selectedPreset && (!selectedPreset.ist_system || isSuperadmin)
+  const canEditTemplate = selectedPreset && (!selectedPreset.ist_system || isAdmin)
 
   const handleSelectPreset = (id: string) => {
     setSelectedPresetId(id)
@@ -1551,6 +1555,28 @@ function DokumentTypenTab({
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
 
+  const handleOverwriteSystemPreset = async () => {
+    if (!overwritePresetId) return
+    const presetFormate = formate.map(f => ({
+      name: f.name, kuerzel: f.kuerzel, textbaustein: f.textbaustein,
+      font_family: f.font_family, font_size: f.font_size,
+      bold: f.bold, italic: f.italic, underline: f.underline,
+      uppercase: f.uppercase, text_align: f.text_align,
+      margin_left: f.margin_left, margin_right: f.margin_right,
+      space_before: f.space_before, space_after: f.space_after,
+      line_height: f.line_height, sort_order: f.sort_order,
+      ist_standard: f.ist_standard, kategorie: f.kategorie,
+      shortcut: f.shortcut ?? null,
+      enter_next: formate.find(x => x.id === f.enter_next_format)?.name ?? null,
+      tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
+    }))
+    try {
+      await api.patchAbsatzformatPreset(overwritePresetId, { formate: presetFormate, seitenformat, page_margins: margins })
+      setShowSavePreset(false); setShowOverwriteSystem(false); setOverwritePresetId(null); setPresetName('')
+      await load(); setSelectedPresetId(overwritePresetId); setMsg('System-Preset aktualisiert.')
+    } catch (e: any) { setMsg(e.message ?? 'Fehler') }
+  }
+
   const handleSetStandard = async (formatId: string) => {
     try {
       const updated = await api.setAbsatzformatStandard(produktionId, formatId)
@@ -1641,12 +1667,12 @@ function DokumentTypenTab({
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 600 }}>Szenenkopf-Vorlage</span>
-            {selectedPreset.ist_system && !isSuperadmin && (
+            {selectedPreset.ist_system && !isAdmin && (
               <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: 'var(--bg-subtle)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
                 System-Preset — nur lesbar
               </span>
             )}
-            {selectedPreset.ist_system && isSuperadmin && (
+            {selectedPreset.ist_system && isAdmin && (
               <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: '#007AFF22', color: '#007AFF', border: '1px solid #007AFF55' }}>
                 System-Preset — Superadmin
               </span>
@@ -1873,8 +1899,35 @@ function DokumentTypenTab({
               <div><strong>Seitenformat:</strong> {seitenformat.toUpperCase()}</div>
               <div><strong>Ränder:</strong> O {margins.oben} · U {margins.unten} · L {margins.links} · R {margins.rechts} mm</div>
             </div>
+            {isAdmin && presets.some(p => p.ist_system) && (
+              <div style={{ marginBottom: 14 }}>
+                {!showOverwriteSystem ? (
+                  <button
+                    onClick={() => { setShowOverwriteSystem(true); setOverwritePresetId(presets.find(p => p.ist_system)?.id ?? null) }}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 11, textDecoration: 'underline' }}
+                  >
+                    System-Preset überschreiben
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <select value={overwritePresetId ?? ''} onChange={e => setOverwritePresetId(e.target.value)}
+                      style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
+                      {presets.filter(p => p.ist_system).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    <button onClick={handleOverwriteSystemPreset} disabled={!overwritePresetId}
+                      style={{ padding: '3px 10px', borderRadius: 4, border: 'none', background: '#FF9500', color: '#fff', fontSize: 11, cursor: 'pointer', opacity: overwritePresetId ? 1 : 0.5 }}>
+                      Überschreiben
+                    </button>
+                    <button onClick={() => { setShowOverwriteSystem(false); setOverwritePresetId(null) }}
+                      style={{ background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1 }}>
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowSavePreset(false); setPresetName('') }}
+              <button onClick={() => { setShowSavePreset(false); setPresetName(''); setShowOverwriteSystem(false); setOverwritePresetId(null) }}
                 style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
                 Abbrechen
               </button>

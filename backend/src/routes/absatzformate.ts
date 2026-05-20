@@ -500,7 +500,8 @@ absatzformatPresetsRouter.post('/', async (req, res) => {
 absatzformatPresetsRouter.patch('/:id', async (req, res) => {
   try {
     const { name, beschreibung, szenen_kopf_template, seitenformat, page_margins, formate } = req.body
-    const isSuperadmin = (req as any).user?.roles?.includes('superadmin')
+    const userRoles: string[] = (req as any).user?.roles ?? []
+    const isSuperadmin = userRoles.includes('superadmin') || userRoles.includes('admin')
     const updates: string[] = []
     const params: any[] = []
     let n = 1
