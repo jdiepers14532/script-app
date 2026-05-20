@@ -86,8 +86,18 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   },
   {
     key: '{{firmen_adresse}}', label: 'Firmenadresse', zone: 'alle', color: '#5856D6',
-    beschreibung: 'Stra\u00dfe, PLZ und Stadt der Produktionsfirma.',
+    beschreibung: 'Stra\u00dfe, PLZ und Stadt der Produktionsfirma \u2013 einzeilig (kommagetrennt). F\u00fcr zweizeilige Darstellung: {{firmen_strasse}} und {{firmen_plz_ort}} verwenden.',
     quelle: 'auth.app \u00b7 company_info.company_address',
+  },
+  {
+    key: '{{firmen_strasse}}', label: 'Firmen-Stra\u00dfe', zone: 'alle', color: '#5856D6',
+    beschreibung: 'Stra\u00dfe und Hausnummer der Produktionsfirma (Zeile 1 der Firmenadresse).',
+    quelle: 'auth.app \u00b7 company_info.company_address.street',
+  },
+  {
+    key: '{{firmen_plz_ort}}', label: 'Firmen-PLZ/Ort', zone: 'alle', color: '#5856D6',
+    beschreibung: 'PLZ und Stadt der Produktionsfirma (Zeile 2 der Firmenadresse).',
+    quelle: 'auth.app \u00b7 company_info.company_address.zip + city',
   },
   {
     key: '{{rechtsform}}', label: 'Rechtsform', zone: 'alle', color: '#5856D6',
@@ -126,8 +136,18 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   },
   {
     key: '{{buero_adresse}}', label: 'Produktionsb\u00fcro', zone: 'alle', color: '#FF9500',
-    beschreibung: 'Adresse des Produktionsb\u00fcros.',
+    beschreibung: 'Adresse des Produktionsb\u00fcros \u2013 einzeilig. F\u00fcr zweizeilige Darstellung: {{buero_strasse}} und {{buero_plz_ort}} verwenden.',
     quelle: 'produktion.app \u00b7 productions.buero_adresse',
+  },
+  {
+    key: '{{buero_strasse}}', label: 'B\u00fcro-Stra\u00dfe', zone: 'alle', color: '#FF9500',
+    beschreibung: 'Stra\u00dfe des Produktionsb\u00fcros (Zeile 1, automatisch aus der B\u00fcro-Adresse per PLZ-Erkennung ermittelt).',
+    quelle: 'produktion.app \u00b7 productions.buero_adresse (vor PLZ)',
+  },
+  {
+    key: '{{buero_plz_ort}}', label: 'B\u00fcro-PLZ/Ort', zone: 'alle', color: '#FF9500',
+    beschreibung: 'PLZ und Ort des Produktionsb\u00fcros (Zeile 2, automatisch aus der B\u00fcro-Adresse per PLZ-Erkennung ermittelt).',
+    quelle: 'produktion.app \u00b7 productions.buero_adresse (PLZ + Rest)',
   },
   {
     key: '{{tel_produktion}}', label: 'Tel. Produktion', zone: 'alle', color: '#FF9500',

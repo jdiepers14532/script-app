@@ -581,6 +581,20 @@ export default function EditorPanel({
                   if (!a) return ''
                   return [a.street, [a.zip, a.city].filter(Boolean).join(' '), a.country].filter(Boolean).join(', ')
                 })()
+                const firmenStrasse  = companyData?.company_address?.street ?? ''
+                const firmenPlzOrt   = [companyData?.company_address?.zip, companyData?.company_address?.city].filter(Boolean).join(' ')
+
+                // PLZ-Split für buero_adresse (5-stellige deutsche PLZ als Trennpunkt)
+                const splitBueroAdresse = (() => {
+                  const addr = selectedProduction?.buero_adresse ?? ''
+                  const match = addr.match(/\b\d{5}\b.*/)
+                  if (!match) return { strasse: addr.trim(), plz_ort: '' }
+                  const idx = addr.indexOf(match[0])
+                  return {
+                    strasse:  addr.slice(0, idx).replace(/[,\s]+$/, '').trim(),
+                    plz_ort:  match[0].trim(),
+                  }
+                })()
                 const rechtsform = legalFormMap[companyData?.company_legal_form ?? ''] ?? companyData?.company_legal_form ?? ''
                 const handelsregister = [companyData?.company_register_court, companyData?.company_register_number].filter(Boolean).join(' ')
                 const ustId = companyData?.company_vat_id ?? ''
@@ -621,6 +635,8 @@ export default function EditorPanel({
                   '{{aktuelles_uhrzeit}}':   new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
                   '{{sendedatum}}':          sendedatumStr,
                   '{{buero_adresse}}':       selectedProduction?.buero_adresse ?? '',
+                  '{{buero_strasse}}':       splitBueroAdresse.strasse,
+                  '{{buero_plz_ort}}':       splitBueroAdresse.plz_ort,
                   '{{tel_produktion}}':      selectedProduction?.telefon ?? '',
                   '{{sender}}':              selectedProduction?.sender ?? '',
                   '{{produktionszeitraum}}': produktionszeitraumStr,
@@ -632,6 +648,8 @@ export default function EditorPanel({
                   '{{version}}':             selectedWerk?.version_nummer ? `V${selectedWerk.version_nummer}` : '',
                   '{{firmenname}}':          firmenname,
                   '{{firmen_adresse}}':      firmenadresse,
+                  '{{firmen_strasse}}':      firmenStrasse,
+                  '{{firmen_plz_ort}}':      firmenPlzOrt,
                   '{{rechtsform}}':          rechtsform,
                   '{{handelsregister}}':     handelsregister,
                   '{{ust_id}}':              ustId,

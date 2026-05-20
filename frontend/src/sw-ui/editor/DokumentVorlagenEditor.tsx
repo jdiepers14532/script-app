@@ -112,6 +112,8 @@ export interface PreviewContext {
   firmenname?:     string
   sender?:              string
   buero_adresse?:       string
+  buero_strasse?:       string
+  buero_plz_ort?:       string
   sendedatum?:          string
   produktionszeitraum?: string
   aktuelles_datum?:     string
@@ -119,6 +121,8 @@ export interface PreviewContext {
   aktuelles_jahr?:      string
   folge_laenge_netto?:  string
   firmen_adresse?:      string
+  firmen_strasse?:      string
+  firmen_plz_ort?:      string
   rechtsform?:          string
   handelsregister?:     string
   ust_id?:              string
@@ -637,9 +641,11 @@ export function ToolbarContent({
           </select>
         </BtnTooltip>
         {isChipSelected && (
-          <span style={{ fontSize: 9, color: '#007AFF', background: '#007AFF15', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>
-            Chip
-          </span>
+          <BtnTooltip text={"Chip ausgewählt — Formatierung (Schrift, Größe, B/I/U) wirkt direkt auf diesen Chip.\nHinweis: Soll ein Chip eine andere Schrift als der restliche Absatz haben, muss der Chip zuerst einzeln angeklickt werden."}>
+            <span style={{ fontSize: 9, color: '#007AFF', background: '#007AFF15', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap', cursor: 'default' }}>
+              Chip
+            </span>
+          </BtnTooltip>
         )}
         {!isChipSelected && hasSelection && (
           <span style={{ fontSize: 9, color: '#34C759', background: '#34C75915', border: '1px solid #34C75944', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>
@@ -1031,6 +1037,8 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{firmenname}}':    'firmenname',
   '{{sender}}':        'sender',
   '{{buero_adresse}}':       'buero_adresse',
+  '{{buero_strasse}}':       'buero_strasse',
+  '{{buero_plz_ort}}':       'buero_plz_ort',
   '{{sendedatum}}':          'sendedatum',
   '{{produktionszeitraum}}': 'produktionszeitraum',
   '{{aktuelles_datum}}':     'aktuelles_datum',
@@ -1038,6 +1046,8 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{aktuelles_jahr}}':      'aktuelles_jahr',
   '{{folge_laenge_netto}}':  'folge_laenge_netto',
   '{{firmen_adresse}}':      'firmen_adresse',
+  '{{firmen_strasse}}':      'firmen_strasse',
+  '{{firmen_plz_ort}}':      'firmen_plz_ort',
   '{{rechtsform}}':          'rechtsform',
   '{{handelsregister}}':     'handelsregister',
   '{{ust_id}}':              'ust_id',
