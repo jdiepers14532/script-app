@@ -244,14 +244,11 @@ function parseBboxHtml(html: string, crop?: PdftextCropOptions): BboxLayout | nu
 }
 
 /** Reconstruct plain text from bbox layout.
- *  Inserts blank lines where the gap to the previous line exceeds 2.0× median
- *  AND is at least 4pt larger than median — this avoids treating regular
- *  line-wrapped text as paragraph breaks in documents with uniform spacing. */
+ *  Inserts blank lines where the gap to the previous line exceeds 1.5× median.
+ *  Rote Rosen Drehbücher use ~1.5–2× spacing between elements; Treatments ~2×.
+ *  Using 1.5× catches both cases while still ignoring within-paragraph line-wrap gaps. */
 export function buildTextFromLayout(layout: BboxLayout): string {
-  // Paragraph gaps in Rote Rosen treatments are ~2× the line spacing.
-  // Using 1.8× (not 2.0×) gives a 10% margin so we don't miss gaps that are
-  // fractionally below the 2× mark due to floating-point rounding.
-  const threshold = Math.max(layout.medianLineSpacing * 1.8, layout.medianLineSpacing + 4)
+  const threshold = Math.max(layout.medianLineSpacing * 1.5, layout.medianLineSpacing + 3)
   const out: string[] = []
   for (const li of layout.lines) {
     if (li.gapBefore > threshold && out.length > 0 && out[out.length - 1] !== '') {

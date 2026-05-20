@@ -889,6 +889,31 @@ function parseSubSceneHeader(
 
 // ─── Content Parsers ────────────────────────────────────
 
+// Heuristic for standard (unnumbered) character cues in screenplay format.
+// Used as fallback when DIALOG_NUM_RE (numbered "1. DANIEL") does not match —
+// e.g. when PDFs use standard screenplay layout without dialog numbering,
+// or when dialog numbers are not reliably extracted from the PDF.
+function isUnnumberedCharacterCue(line: string, nextLine: string): boolean {
+  if (line.length < 2 || line.length > 35) return false
+  // Strip optional extension like "(O.S.)", "(O.T.)", "(OFF)", "(PHONE)" etc.
+  const cleaned = line.replace(/\s*\(.*?\)\s*$/, '').trim()
+  if (cleaned.length < 2) return false
+  // Must be ALL-CAPS: uppercase letters, spaces, hyphens, dots (e.g. "DR. MÜLLER")
+  if (!/^[A-ZÄÖÜ][A-ZÄÖÜ\s\-.]+$/.test(cleaned)) return false
+  // Exclude known non-character patterns
+  if (DURATION_RE.test(line)) return false
+  if (INT_EXT_SPIELTAG_RE.test(line)) return false
+  if (KOMPARSEN_RE.test(line)) return false
+  if (CROSSCUT_LOCATION_RE.test(line)) return false
+  if (WECHSELSCHNITT_RE.test(line)) return false
+  if (/^(ENDE\b|ABSPANN\b|ABBLENDE|EINBLENDE|SCHNITT\b|ÜBERBLENDE|PROLOG\b|EPILOG\b|RÜCKBLENDE|VORSPANN\b|NACHSPANN\b)/.test(cleaned)) return false
+  // Lookahead: next line must be dialog (≤ 50 chars) or a parenthetical.
+  // This prevents all-caps action lines (e.g. "ENDE DER FOLGE") from being
+  // misidentified as character cues when followed by long action text.
+  if (PAREN_RE.test(nextLine)) return true
+  return nextLine.length > 0 && nextLine.length <= 50
+}
+
 // Textbaustein keywords that should start a new paragraph if found mid-text.
 // Only split when preceded by sentence-end punctuation (. ! ?) to avoid false positives.
 const TEXTBAUSTEIN_SPLIT_RE = /[.!?]\s+(Anmerkung(?:en)?|Status\s+[Qq]uo\s*:)/
@@ -1069,6 +1094,8 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
       while (j < endIdx) {
         const next = lines[j].trim()
         if (!next || SCENE_NUM_RE.test(next) || DIALOG_NUM_RE.test(next)) break
+        const nextNext = lines[j + 1]?.trim() || ''
+        if (isUnnumberedCharacterCue(next, nextNext)) break
         anmParts.push(next)
         j++
       }
@@ -1076,6 +1103,21 @@ function parseDrehbuchContent(lines: string[], startIdx: number, endIdx: number)
       i = j - 1
       lastType = 'direction'; lastCharacter = ''
       continue
+    }
+
+    // Fallback: standard (unnumbered) character cue — all-caps short line followed
+    // by short dialog text. Only trigger when coming from action or after a blank.
+    if (lastType === '' || lastType === 'action') {
+      const nextLine = lines[i + 1]?.trim() || ''
+      if (isUnnumberedCharacterCue(t, nextLine)) {
+        flushAction()
+        const cleanName = t.replace(/\s*\(.*?\)\s*/g, '').trim()
+        chars.add(cleanName)
+        lastCharacter = t
+        elems.push({ id: nextId(), type: 'character', text: t, character: cleanName })
+        lastType = 'character'
+        continue
+      }
     }
 
     // Default: action
