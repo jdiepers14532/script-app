@@ -84,8 +84,8 @@ export async function runStoryConsultant(opts: {
   const response = await client.messages.create({
     model,
     max_tokens: 16000,
-    system:   prompt.system   as Anthropic.TextBlockParam[],
-    messages: prompt.messages as Anthropic.MessageParam[],
+    system:   prompt.system   as unknown as Anthropic.TextBlockParam[],
+    messages: prompt.messages as unknown as Anthropic.MessageParam[],
   })
   const duration_ms = Date.now() - startMs
 
