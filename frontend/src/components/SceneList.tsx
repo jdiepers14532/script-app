@@ -778,7 +778,13 @@ export default function SceneList({
               </div>
               <div className="body">
                 <div className="sl-line">
-                  <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
+                  {scene.zusammenfassung ? (
+                    <Tooltip text={scene.zusammenfassung}>
+                      <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
+                    </Tooltip>
+                  ) : (
+                    <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || '') : (scene.element_type || 'Notiz')}</span>
+                  )}
                 </div>
               </div>
               <div className="meta">
