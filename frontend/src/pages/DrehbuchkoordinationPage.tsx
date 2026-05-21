@@ -4181,7 +4181,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [editZeilennummerierungUnterbinden, setEditZeilennummerierungUnterbinden] = useState(false)
   const [editorKey, setEditorKey] = useState(0)
   const [saving, setSaving] = useState(false)
-  const [zoom, setZoom] = useState(0.9)
+  const [zoom, setZoom] = useState(1.0)
   const [activeEditor, setActiveEditor] = useState<any>(null)
   const [showPreview, setShowPreview] = useState(false)
   const sidebarFileRef = useRef<HTMLInputElement>(null)
