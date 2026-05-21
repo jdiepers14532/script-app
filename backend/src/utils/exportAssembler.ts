@@ -321,16 +321,26 @@ export function buildPdfHtml(params: {
   kzFz: KzFzConfig | null
   ctx: ExportContext
   watermarkMeta?: string
+  /** Body-text margins from global page_margin_mm (Dokumenten-Formatierung).
+   *  If provided, these are used for the text block — independent of header/footer. */
+  bodyMargins?: { oben: number; unten: number; links: number; rechts: number }
 }): string {
-  const { title, bodyHtml, kzFz, ctx, watermarkMeta } = params
+  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins } = params
 
+  // ── Header/footer position (from KZ/FZ seiten_layout) ──────────────────────
+  // These define WHERE the header/footer bands sit on the page.
   const layout = kzFz?.seiten_layout ?? {}
-  const mt = layout.margin_top    ?? 25
-  const mb = layout.margin_bottom ?? 25
-  const ml = layout.margin_left   ?? 30
-  const mr = layout.margin_right  ?? 25
+  const hmt = layout.margin_top    ?? 15   // header top offset from page edge (mm)
+  const hmb = layout.margin_bottom ?? 15   // footer bottom offset from page edge (mm)
+  const hml = layout.margin_left   ?? 20   // header/footer left edge (mm)
+  const hmr = layout.margin_right  ?? 20   // header/footer right edge (mm)
 
-  // Extra body margin to avoid overlap with fixed header/footer
+  // ── Body-text margins (from global page_margin_mm) ──────────────────────────
+  // Fall back to KZ/FZ layout values if no global margins are set.
+  const bml = bodyMargins?.links   ?? layout.margin_left   ?? 30
+  const bmr = bodyMargins?.rechts  ?? layout.margin_right  ?? 25
+
+  // ── Render header/footer HTML ───────────────────────────────────────────────
   const headerHtml = kzFz?.kopfzeile_aktiv && kzFz.kopfzeile_content
     ? renderZeilenContent(kzFz.kopfzeile_content, ctx)
     : ''
@@ -343,8 +353,12 @@ export function buildPdfHtml(params: {
   const headerHeight = hasHeader ? 18 : 0  // mm
   const footerHeight = hasFooter ? 14 : 0  // mm
 
-  const pageMarginTop    = mt + headerHeight
-  const pageMarginBottom = mb + footerHeight
+  // Body top/bottom must clear the header/footer bands.
+  // bodyMargins.oben/unten are used as the minimum; header clearance wins if larger.
+  const minTop    = bodyMargins?.oben   ?? (hmt + headerHeight + 4)
+  const minBottom = bodyMargins?.unten  ?? (hmb + footerHeight + 4)
+  const pageMarginTop    = hasHeader ? Math.max(minTop,    hmt + headerHeight) : minTop
+  const pageMarginBottom = hasFooter ? Math.max(minBottom, hmb + footerHeight) : minBottom
 
   const wm = watermarkMeta ? `<meta name="wm" content="${watermarkMeta}">` : ''
 
@@ -360,13 +374,13 @@ ${wm}
     font-family: "Courier New", monospace;
     font-size: 12pt;
     margin: 0;
-    padding: ${pageMarginTop}mm ${mr}mm ${pageMarginBottom}mm ${ml}mm;
+    padding: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
     line-height: 1.5;
     color: #000;
   }
   @page {
     size: A4;
-    margin: ${pageMarginTop}mm ${mr}mm ${pageMarginBottom}mm ${ml}mm;
+    margin: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
   }
   /* ── Scene styling ── */
   .scene-heading {
@@ -387,21 +401,23 @@ ${wm}
   .heading   { font-weight: bold; text-transform: uppercase; }
   h1 { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; margin-bottom: 24px; }
   /* ── Header/Footer ── */
+  /* Header/footer use their own left/right margins (from KZ/FZ seiten_layout),
+     independent from the body text block. */
   .page-header, .page-footer {
     position: fixed;
-    left: ${ml}mm;
-    right: ${mr}mm;
+    left: ${hml}mm;
+    right: ${hmr}mm;
     font-size: 9pt;
     color: #333;
     font-family: inherit;
   }
   .page-header {
-    top: ${mt}mm;
+    top: ${hmt}mm;
     border-bottom: 0.5pt solid #ccc;
     padding-bottom: 3pt;
   }
   .page-footer {
-    bottom: ${mb}mm;
+    bottom: ${hmb}mm;
     border-top: 0.5pt solid #ccc;
     padding-top: 3pt;
   }

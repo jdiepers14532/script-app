@@ -504,17 +504,14 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
       queryOne(`SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'page_margin_mm'`, [ws.produktion_id]),
     ])
 
-    // Global page margins (set in Dokumenten-Formatierung) are authoritative for the export
-    if (marginRow?.value && kzFz) {
+    // Body-text margins from global page_margin_mm (Dokumenten-Formatierung).
+    // These are passed separately to buildPdfHtml and only affect the text block,
+    // NOT the header/footer positioning (which uses kzFz.seiten_layout).
+    let bodyMargins: { oben: number; unten: number; links: number; rechts: number } | undefined
+    if (marginRow?.value) {
       try {
         const gm = typeof marginRow.value === 'string' ? JSON.parse(marginRow.value) : marginRow.value
-        kzFz.seiten_layout = {
-          format:        kzFz.seiten_layout?.format ?? 'a4',
-          margin_top:    gm.oben    ?? kzFz.seiten_layout?.margin_top    ?? 25,
-          margin_bottom: gm.unten   ?? kzFz.seiten_layout?.margin_bottom ?? 20,
-          margin_left:   gm.links   ?? kzFz.seiten_layout?.margin_left   ?? 30,
-          margin_right:  gm.rechts  ?? kzFz.seiten_layout?.margin_right  ?? 25,
-        }
+        bodyMargins = { oben: gm.oben ?? 25, unten: gm.unten ?? 20, links: gm.links ?? 30, rechts: gm.rechts ?? 25 }
       } catch {}
     }
 
@@ -569,7 +566,7 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
     // Optional line numbers
     if (req.query.lineNumbers === '1') {
       const lnMarginCm = Math.max(0.5, Math.min(5, parseFloat(req.query.lnMarginCm as string || '1') || 1))
-      const ml = kzFz?.seiten_layout?.margin_left ?? 30
+      const ml = bodyMargins?.links ?? kzFz?.seiten_layout?.margin_left ?? 30
       let fontFamily = "'Courier New', monospace"
       let fontSizePt = 10
       let color      = '#999999'
@@ -588,7 +585,7 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
       bodyHtml = injectLineNumbers(bodyHtml, { marginCm: lnMarginCm, ml, fontFamily, fontSizePt, color })
     }
 
-    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, watermarkMeta: wm })
+    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, watermarkMeta: wm, bodyMargins })
 
     const filename = buildExportFilename(ws,
       { folge_nummer: ws.folge_nummer, folgen_titel: ws.folgen_titel },
