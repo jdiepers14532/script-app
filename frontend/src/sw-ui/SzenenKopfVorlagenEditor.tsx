@@ -471,18 +471,22 @@ const ParagraphWithStops = Node.create({
   },
 })
 
-// ── Tab-Key Extension ─────────────────────────────────────────────────────────
+// ── Tab-Char Node (inline, atom) ──────────────────────────────────────────────
 
-const TabKeyExtension = Extension.create({
-  name: 'tab_key',
-  addKeyboardShortcuts() {
-    return {
-      Tab: () => {
-        this.editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
-        return true
-      },
-      'Shift-Tab': () => true,
-    }
+const TabCharNode = Node.create({
+  name: 'tab_char',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  addAttributes() {
+    return { widthPx: { default: 20 } }
+  },
+  parseHTML() { return [{ tag: 'span[data-tab-char]' }] },
+  renderHTML({ node }) {
+    return ['span', {
+      'data-tab-char': '',
+      style: `display:inline-block;width:${Math.max(4, node.attrs.widthPx)}px;vertical-align:baseline`,
+    }, '\u200B']
   },
 })
 
@@ -555,6 +559,7 @@ export function renderSKTemplate(
         continue
       }
       if (skipDepth > 0) continue
+      if (node.type === 'tab_char') { lineText += '\t'; continue }
       if (node.type === 'text') {
         lineText += node.text ?? ''
       } else if (node.type === 'sk_chip') {
@@ -1154,7 +1159,7 @@ export default function SzenenKopfVorlagenEditor({
       SKChipExtension,
       SKIfExtension,
       SKEndIfExtension,
-      TabKeyExtension,
+      TabCharNode,
     ],
     content: parseSKTemplate(value),
     onUpdate: ({ editor: ed }) => {
@@ -1186,6 +1191,38 @@ export default function SzenenKopfVorlagenEditor({
     return () => { editor.off('selectionUpdate', update); editor.off('update', update) }
   }, [editor])
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (readOnly || !editor || e.key !== 'Tab') return
+    e.preventDefault()
+    if (e.shiftKey) return
+    const { $anchor, from } = editor.state.selection
+    const tabStops: TabStop[] = ($anchor.parent.attrs.tabStops ?? []).slice().sort((a: TabStop, b: TabStop) => a.pos - b.pos)
+    const container = containerRef.current
+    if (!tabStops.length || !container) {
+      editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
+      return
+    }
+    const coords = editor.view.coordsAtPos(from)
+    const containerRect = container.getBoundingClientRect()
+    const containerWidthLive = container.clientWidth
+    const cursorPagePx = coords.left - containerRect.left
+    const cursorCm = (cursorPagePx / containerWidthLive) * rulerCm
+    const nextStop = tabStops.find((ts: TabStop) => ts.pos > cursorCm + 0.05)
+    if (!nextStop) {
+      editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
+      return
+    }
+    const targetPx = (nextStop.pos / rulerCm) * containerWidthLive
+    const widthPx = Math.max(4, Math.round(targetPx - cursorPagePx))
+    editor.commands.command(({ tr, dispatch }) => {
+      if (dispatch) {
+        const tabNode = editor.schema.nodes.tab_char?.create({ widthPx })
+        if (tabNode) { tr.replaceSelectionWith(tabNode); dispatch(tr) }
+      }
+      return true
+    })
+  }, [editor, readOnly, rulerCm])
+
   const handleToggleTabStop = useCallback((pos: number) => {
     if (!editor) return
     const { $anchor } = editor.state.selection
@@ -1212,6 +1249,7 @@ export default function SzenenKopfVorlagenEditor({
   return (
     <div
       ref={containerRef}
+      onKeyDown={handleKeyDown}
       style={{
         border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden',
         background: readOnly ? 'var(--bg-subtle)' : 'var(--bg-surface)',
@@ -1304,7 +1342,7 @@ export default function SzenenKopfVorlagenEditor({
         lineHeight: 1.4, display: 'flex', alignItems: 'center', gap: 8,
       }}>
         <span style={{ flex: 1 }}>
-          Enter = neue Zeile (leer = auto-ausgeblendet) · Tab = Einzug · Lineal: Klick = L-Tab → C-Tab → R-Tab → entfernen
+          Enter = neue Zeile (leer = auto-ausgeblendet) · Tab = springt zum nächsten Tab-Stop · Lineal: Klick = L-Tab → C-Tab → R-Tab → entfernen
         </span>
         <button
           onMouseDown={e => e.preventDefault()}
