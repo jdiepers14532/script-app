@@ -27,8 +27,63 @@ dokumentSzenenRouter.get('/resolve', async (req, res) => {
       'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND scene_identity_id = $2',
       [werkstufe_id, scene_identity_id]
     )
-    if (!row) return res.status(404).json({ error: 'Szene nicht in dieser Werkstufe gefunden' })
-    res.json(row)
+    if (row) return res.json(row)
+
+    // Auto-create: Szene existiert noch nicht in dieser Werkstufe.
+    // Metadaten aus einer anderen Werkstufe derselben Folge übernehmen.
+    const ws = await queryOne(
+      'SELECT id, folge_id, typ FROM werkstufen WHERE id = $1',
+      [werkstufe_id]
+    )
+    if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+
+    // Verify scene_identity belongs to the same folge
+    const si = await queryOne(
+      'SELECT id FROM scene_identities WHERE id = $1 AND folge_id = $2',
+      [scene_identity_id, ws.folge_id]
+    )
+    if (!si) return res.status(404).json({ error: 'Szene nicht in dieser Folge gefunden' })
+
+    // Sibling scene data from latest werkstufe of same folge
+    const sibling = await queryOne(
+      `SELECT ds.scene_nummer, ds.scene_nummer_suffix, ds.sort_order, ds.int_ext, ds.tageszeit,
+              ds.ort_name, ds.zusammenfassung, ds.spieltag, ds.spielzeit, ds.szeneninfo,
+              ds.seiten, ds.stoppzeit_sek, ds.format, ds.sondertyp
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       WHERE ds.scene_identity_id = $1
+         AND w.folge_id = $2
+         AND ds.geloescht = false
+       ORDER BY w.version_nummer DESC LIMIT 1`,
+      [scene_identity_id, ws.folge_id]
+    )
+
+    const sortOrder = sibling?.sort_order ?? (
+      (await queryOne(
+        'SELECT COALESCE(MAX(sort_order), 0) + 1 AS s FROM dokument_szenen WHERE werkstufe_id = $1',
+        [werkstufe_id]
+      ))?.s ?? 1
+    )
+
+    const format = sibling?.format ?? (ws.typ === 'drehbuch' ? 'drehbuch' : ws.typ === 'storyline' ? 'storyline' : null)
+
+    const created = await queryOne(
+      `INSERT INTO dokument_szenen
+         (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+          format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+          szeneninfo, seiten, stoppzeit_sek, sondertyp, geloescht)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, false)
+       ON CONFLICT (werkstufe_id, scene_identity_id) DO UPDATE SET geloescht = false
+       RETURNING *`,
+      [werkstufe_id, scene_identity_id, sortOrder,
+       sibling?.scene_nummer ?? null, sibling?.scene_nummer_suffix ?? null,
+       format, sibling?.ort_name ?? null, sibling?.int_ext ?? null, sibling?.tageszeit ?? null,
+       sibling?.spieltag ?? null, sibling?.zusammenfassung ?? null, sibling?.spielzeit ?? null,
+       sibling?.szeneninfo ?? null, sibling?.seiten ?? null, sibling?.stoppzeit_sek ?? null,
+       sibling?.sondertyp ?? null]
+    )
+
+    res.json(created)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
