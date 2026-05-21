@@ -1750,67 +1750,137 @@ function DokumentTypenTab({
         </tr></thead>
         <tbody>
           {filtered.map(f => editId === f.id ? (
-            <tr key={f.id} style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-              <td style={{ padding: '4px 2px' }} />
-              <td style={{ padding: '4px 2px', textAlign: 'center' }}>
-                <button onClick={() => handleSetStandard(f.id)} title={editData.ist_standard ? 'Ist Standard' : 'Als Standard setzen'}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: editData.ist_standard ? '#FFCC00' : 'var(--text-muted)', lineHeight: 1 }}>★</button>
-              </td>
-              <td style={{ padding: '4px 6px' }}><input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} style={inputStyle} /></td>
-              <td style={{ padding: '4px 4px' }}><input value={editData.textbaustein ?? ''} onChange={e => setEditData({ ...editData, textbaustein: e.target.value || null })} placeholder="—" style={{ ...inputStyle, width: 80 }} /></td>
-              <td style={{ padding: '4px 4px' }}><input value={editData.kuerzel ?? ''} onChange={e => setEditData({ ...editData, kuerzel: e.target.value })} style={{ ...inputStyle, width: 50 }} /></td>
-              <td style={{ padding: '4px 4px' }}>
-                <select value={editData.kategorie} onChange={e => setEditData({ ...editData, kategorie: e.target.value })} style={{ ...selectStyle, fontSize: 10 }}>
-                  <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="notiz">notiz</option>
-                </select>
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <select value={editData.font_family} onChange={e => setEditData({ ...editData, font_family: e.target.value })} style={{ ...selectStyle, fontSize: 10, minWidth: 110 }}>
-                  {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
-                </select>
-              </td>
-              <td style={{ padding: '4px 4px' }}><input type="number" className="no-spin" value={editData.font_size} onChange={e => setEditData({ ...editData, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} /></td>
-              <td style={{ padding: '4px 4px', textAlign: 'center' }}>
-                <label style={{ fontSize: 10, marginRight: 3 }}><input type="checkbox" checked={editData.bold} onChange={e => setEditData({ ...editData, bold: e.target.checked })} /> B</label>
-                <label style={{ fontSize: 10, marginRight: 3 }}><input type="checkbox" checked={editData.italic} onChange={e => setEditData({ ...editData, italic: e.target.checked })} /> I</label>
-                <label style={{ fontSize: 10, marginRight: 3 }}><input type="checkbox" checked={editData.underline ?? false} onChange={e => setEditData({ ...editData, underline: e.target.checked })} /> U</label>
-                <label style={{ fontSize: 10 }}><input type="checkbox" checked={editData.uppercase} onChange={e => setEditData({ ...editData, uppercase: e.target.checked })} /> UC</label>
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <select value={editData.text_align} onChange={e => setEditData({ ...editData, text_align: e.target.value })} style={{ ...selectStyle, fontSize: 10 }}>
-                  <option value="left">L</option><option value="center">C</option><option value="right">R</option>
-                </select>
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_left ?? 0} onChange={e => setEditData({ ...editData, margin_left: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, width: 50, textAlign: 'center' }} />
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <input type="number" className="no-spin" step="1" min="0" value={editData.space_before ?? 0} onChange={e => setEditData({ ...editData, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <input type="number" className="no-spin" step="1" min="0" value={editData.space_after ?? 0} onChange={e => setEditData({ ...editData, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <input type="number" className="no-spin" step="0.1" min="0.5" max="4" value={editData.line_height ?? 1.0} onChange={e => setEditData({ ...editData, line_height: parseFloat(e.target.value) || 1.0 })} style={{ ...inputStyle, width: 40, textAlign: 'center' }} />
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <select value={editData.enter_next_format ?? ''} onChange={e => setEditData({ ...editData, enter_next_format: e.target.value || null })} style={{ ...selectStyle, fontSize: 10 }}>
-                  <option value="">-</option>
-                  {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
-                </select>
-              </td>
-              <td style={{ padding: '4px 4px' }}>
-                <select value={editData.tab_next_format ?? ''} onChange={e => setEditData({ ...editData, tab_next_format: e.target.value || null })} style={{ ...selectStyle, fontSize: 10 }}>
-                  <option value="">-</option>
-                  {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
-                </select>
-              </td>
-              <td style={{ padding: '4px 4px', whiteSpace: 'nowrap' }}>
-                <button onClick={saveEdit} style={{ fontSize: 10, color: '#00C853', background: 'none', border: 'none', cursor: 'pointer', marginRight: 4 }}>OK</button>
-                <button onClick={cancelEdit} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>X</button>
+            <tr key={f.id} style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-subtle)' }}>
+              <td colSpan={18} style={{ padding: '12px 8px' }}>
+                <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+                  {/* ── Form ── */}
+                  <div style={{ flex: '0 0 auto', minWidth: 380 }}>
+                    {/* Row 1: Name / Prefix / Kürzel / Kategorie */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 60px 90px', gap: 6, marginBottom: 6 }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Name
+                        <input value={editData.name} onChange={e => setEditData({ ...editData, name: e.target.value })} style={{ ...inputStyle, marginTop: 2 }} />
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Prefix
+                        <input value={editData.textbaustein ?? ''} onChange={e => setEditData({ ...editData, textbaustein: e.target.value || null })} placeholder="—" style={{ ...inputStyle, marginTop: 2 }} />
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Kürzel
+                        <input value={editData.kuerzel ?? ''} onChange={e => setEditData({ ...editData, kuerzel: e.target.value })} style={{ ...inputStyle, marginTop: 2 }} />
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Kategorie
+                        <select value={editData.kategorie} onChange={e => setEditData({ ...editData, kategorie: e.target.value })} style={{ ...selectStyle, marginTop: 2, width: '100%' }}>
+                          <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="notiz">notiz</option>
+                        </select>
+                      </label>
+                    </div>
+                    {/* Row 2: Schrift / Größe / Stil */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px auto', gap: 6, marginBottom: 6 }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Schrift
+                        <select value={editData.font_family} onChange={e => setEditData({ ...editData, font_family: e.target.value })} style={{ ...selectStyle, marginTop: 2, width: '100%' }}>
+                          {FONT_FAMILIES.map(ff => <option key={ff} value={ff}>{ff}</option>)}
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Größe (pt)
+                        <input type="number" className="no-spin" value={editData.font_size} onChange={e => setEditData({ ...editData, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
+                      </label>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Stil
+                        <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+                          {[
+                            { key: 'bold', label: 'B', style: { fontWeight: 'bold' } },
+                            { key: 'italic', label: 'I', style: { fontStyle: 'italic' } },
+                            { key: 'underline', label: 'U', style: { textDecoration: 'underline' } },
+                            { key: 'uppercase', label: 'UC', style: {} },
+                          ].map(({ key, label, style }) => (
+                            <button key={key} onClick={() => setEditData({ ...editData, [key]: !editData[key] })}
+                              style={{ padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)', background: editData[key] ? 'var(--text-primary)' : 'transparent', color: editData[key] ? '#fff' : 'var(--text-secondary)', fontSize: 11, cursor: 'pointer', fontWeight: key === 'bold' ? 'bold' : 'normal', ...style }}>
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    {/* Row 3: Ausrichtung / Einzug L / Einzug R */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '90px 90px 90px', gap: 6, marginBottom: 6 }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Ausrichtung
+                        <select value={editData.text_align} onChange={e => setEditData({ ...editData, text_align: e.target.value })} style={{ ...selectStyle, marginTop: 2, width: '100%' }}>
+                          <option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option>
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Einzug L (cm)
+                        <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_left ?? 0} onChange={e => setEditData({ ...editData, margin_left: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Einzug R (cm)
+                        <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
+                      </label>
+                    </div>
+                    {/* Row 4: Abstände / Zeilenabstand */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '90px 90px 90px', gap: 6, marginBottom: 6 }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Abstand vor (pt)
+                        <input type="number" className="no-spin" step="1" min="0" value={editData.space_before ?? 0} onChange={e => setEditData({ ...editData, space_before: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Abstand nach (pt)
+                        <input type="number" className="no-spin" step="1" min="0" value={editData.space_after ?? 0} onChange={e => setEditData({ ...editData, space_after: parseInt(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Zeilenabstand
+                        <input type="number" className="no-spin" step="0.1" min="0.5" max="4" value={editData.line_height ?? 1.0} onChange={e => setEditData({ ...editData, line_height: parseFloat(e.target.value) || 1.0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
+                      </label>
+                    </div>
+                    {/* Row 5: Enter→ / Tab→ / Standard */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 6, marginBottom: 10 }}>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Enter →
+                        <select value={editData.enter_next_format ?? ''} onChange={e => setEditData({ ...editData, enter_next_format: e.target.value || null })} style={{ ...selectStyle, marginTop: 2, width: '100%' }}>
+                          <option value="">—</option>
+                          {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
+                        </select>
+                      </label>
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Tab →
+                        <select value={editData.tab_next_format ?? ''} onChange={e => setEditData({ ...editData, tab_next_format: e.target.value || null })} style={{ ...selectStyle, marginTop: 2, width: '100%' }}>
+                          <option value="">—</option>
+                          {formate.map(o => <option key={o.id} value={o.id}>{o.kuerzel || o.name}</option>)}
+                        </select>
+                      </label>
+                      <div style={{ paddingTop: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <button onClick={() => handleSetStandard(f.id)} title={editData.ist_standard ? 'Ist Standard' : 'Als Standard setzen'}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: editData.ist_standard ? '#FFCC00' : 'var(--text-muted)', lineHeight: 1, padding: 0 }}>★</button>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>Standard</span>
+                      </div>
+                    </div>
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={saveEdit} style={{ padding: '5px 14px', borderRadius: 5, border: 'none', background: '#00C853', color: '#fff', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}>Speichern</button>
+                      <button onClick={cancelEdit} style={{ padding: '5px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer' }}>Abbrechen</button>
+                    </div>
+                  </div>
+
+                  {/* ── Live-Vorschau ── */}
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 6, fontWeight: 600, letterSpacing: 0.5, textTransform: 'uppercase' }}>Vorschau</div>
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', padding: '16px 20px', minHeight: 80 }}>
+                      <div style={{
+                        fontFamily: editData.font_family || 'inherit',
+                        fontSize: `${editData.font_size || 12}pt`,
+                        fontWeight: editData.bold ? 'bold' : 'normal',
+                        fontStyle: editData.italic ? 'italic' : 'normal',
+                        textDecoration: editData.underline ? 'underline' : 'none',
+                        textTransform: editData.uppercase ? 'uppercase' : 'none',
+                        textAlign: (editData.text_align || 'left') as any,
+                        marginLeft: `${(editData.margin_left ?? 0) * 37.8}px`,
+                        marginRight: `${(editData.margin_right ?? 0) * 37.8}px`,
+                        paddingTop: `${editData.space_before ?? 0}px`,
+                        paddingBottom: `${editData.space_after ?? 0}px`,
+                        lineHeight: editData.line_height ?? 1.0,
+                        color: 'var(--text-primary)',
+                        wordBreak: 'break-word',
+                      }}>
+                        {editData.textbaustein || editData.name || 'Beispieltext'}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', marginTop: 5 }}>
+                      {editData.font_family} · {editData.font_size}pt
+                      {editData.bold ? ' · Fett' : ''}{editData.italic ? ' · Kursiv' : ''}{editData.underline ? ' · Unterstrichen' : ''}{editData.uppercase ? ' · Großbuchstaben' : ''}
+                      {editData.margin_left ? ` · Einzug L ${editData.margin_left}cm` : ''}{editData.margin_right ? ` · Einzug R ${editData.margin_right}cm` : ''}
+                    </div>
+                  </div>
+                </div>
               </td>
             </tr>
           ) : (
