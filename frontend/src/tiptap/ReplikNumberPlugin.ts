@@ -62,30 +62,26 @@ function buildDecorations(doc: any, opts: ReplikPluginState): DecorationSet {
     let label: string
 
     if (opts.isLocked && opts.baseline) {
-      // Locked mode: use baseline numbers, insert suffix for new repliken
       const baseCount = opts.baseline.reduce((sum, b) => sum + b.count, 0) > 0
         ? getBaselineNumber(opts, localIdx)
         : null
       if (baseCount !== null) {
         label = `${baseCount}.`
       } else {
-        // New replik inserted in locked mode — find nearest predecessor
         const { num, suffix } = getLockedInsertLabel(opts, localIdx)
         label = `${num}${suffix}.`
       }
     } else {
-      // Normal mode: sequential
       const globalNum = opts.offset + localIdx + 1
       label = `${globalNum}.`
     }
 
+    // Decorate the node itself — CSS ::before picks up the attribute and
+    // renders the number inline, inheriting all character paragraph styles.
     decos.push(
-      Decoration.widget(offset, () => {
-        const el = document.createElement('div')
-        el.className = 'replik-number'
-        el.textContent = label
-        return el
-      }, { side: -1, key: `rn-${localIdx}` })
+      Decoration.node(offset, offset + node.nodeSize, {
+        'data-replik-number': label,
+      }, { key: `rn-${localIdx}` })
     )
 
     localIdx++
@@ -147,13 +143,12 @@ function getLockedInsertLabel(opts: ReplikPluginState, localIdx: number): { num:
 }
 
 export const REPLIK_NUMBER_CSS = `
-.replik-number {
-  font-family: 'Courier Prime', 'Courier New', monospace;
-  font-size: 10px;
+/* Replik number rendered inline before the character name.
+   Uses ::before so it inherits font-family, font-size, bold etc.
+   from the character absatz — no hardcoded typography. */
+.ProseMirror [data-replik-number]::before {
+  content: attr(data-replik-number) "\\00A0";
   color: var(--text-muted, #999);
-  margin-left: 37%;
-  margin-bottom: -2px;
-  line-height: 1.2;
   pointer-events: none;
   user-select: none;
 }
