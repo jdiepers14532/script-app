@@ -34,9 +34,9 @@ registerRoute(
 const bc = new BroadcastChannel('sw-update')
 
 self.addEventListener('install', () => {
-  // Kein automatisches skipWaiting — neue SW wartet bis der User
-  // explizit zustimmt (SKIP_WAITING-Message), um Versions-Mismatch
-  // bei offenen Tabs zu vermeiden.
+  // Sofort aktivieren — kein Warten auf Benutzeraktion.
+  // Der Update-Banner bleibt als optionaler Hinweis, blockiert aber nicht.
+  self.skipWaiting()
   bc.postMessage({ type: 'SW_WAITING' })
 })
 
