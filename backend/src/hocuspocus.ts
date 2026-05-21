@@ -119,7 +119,8 @@ export function createHocuspocusServer() {
                 `UPDATE dokument_szenen SET page_length = $1 WHERE id = $2`,
                 [pl, parsed.id]
               )
-              updateReplikCount(parsed.id, ds.content).catch(() => {})
+              const contentForCount = Array.isArray(ds.content) ? { content: ds.content } : ds.content
+              updateReplikCount(parsed.id, contentForCount).catch(() => {})
             }
             if (ds?.werkstufe_id && ds?.scene_identity_id && ds?.content) {
               recalcSceneStats(ds.werkstufe_id, ds.scene_identity_id, ds.content).catch(() => {})
