@@ -33,7 +33,7 @@ import { useUserPrefs, useFocus, useAppSettings } from '../../contexts'
 // Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
 import { LineNumberOverlay } from './LineNumberOverlay'
-import { createReplikNumberPlugin, REPLIK_NUMBER_CSS } from '../../tiptap/ReplikNumberPlugin'
+import { createReplikNumberPlugin, REPLIK_NUMBER_CSS, setReplikNumberColor } from '../../tiptap/ReplikNumberPlugin'
 import { createRevisionMarginPlugin, REVISION_MARGIN_CSS } from '../../tiptap/RevisionMarginPlugin'
 import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS } from '../../sw-ui/editor/extensions/PlaceholderChipExtension'
 import { ParagraphStyleExtension } from '../../sw-ui/editor/extensions/ParagraphStyleExtension'
@@ -570,7 +570,7 @@ export default function UniversalEditor({
   }, [editor])
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
-  const { lnSettings, pageMargins } = useAppSettings()
+  const { lnSettings, pageMargins, replikSettings } = useAppSettings()
 
   // ── Replik number plugin ──────────────────────────────────────────────────
   useEffect(() => {
@@ -581,10 +581,12 @@ export default function UniversalEditor({
         offset: replikOffset,
         baseline: replikBaseline,
         isLocked,
+        color: replikSettings.color,
       })) } catch {}
     }
+    setReplikNumberColor(editor.view.dom as HTMLElement, replikSettings.color)
     return () => { try { editor.unregisterPlugin('replikNumbers') } catch {} }
-  }, [editor, showReplikNumbers, replikOffset, replikBaseline, isLocked])
+  }, [editor, showReplikNumbers, replikOffset, replikBaseline, isLocked, replikSettings.color])
 
   // ── Revision margin plugin ────────────────────────────────────────────────
   useEffect(() => {

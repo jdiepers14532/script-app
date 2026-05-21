@@ -7,6 +7,7 @@ interface ReplikPluginState {
   offset: number
   baseline: BaselineEntry[] | null
   isLocked: boolean
+  color?: string
 }
 
 interface BaselineEntry {
@@ -53,38 +54,36 @@ function isCharacterNode(node: any): boolean {
 }
 
 function buildDecorations(doc: any, opts: ReplikPluginState): DecorationSet {
-  const decos: Decoration[] = []
-  let localIdx = 0
-
+  // First pass: collect positions of all character nodes
+  const characterNodes: Array<{ offset: number; nodeSize: number }> = []
   doc.forEach((node: any, offset: number) => {
-    if (!isCharacterNode(node)) return
+    if (isCharacterNode(node)) characterNodes.push({ offset, nodeSize: node.nodeSize })
+  })
 
+  const allLocalIdxs = characterNodes.map((_, i) => i)
+  const decos: Decoration[] = []
+
+  characterNodes.forEach(({ offset, nodeSize }, localIdx) => {
     let label: string
 
     if (opts.isLocked && opts.baseline) {
-      const baseCount = opts.baseline.reduce((sum, b) => sum + b.count, 0) > 0
-        ? getBaselineNumber(opts, localIdx)
-        : null
-      if (baseCount !== null) {
-        label = `${baseCount}.`
+      const baseNum = getBaselineNumber(opts, localIdx)
+      if (baseNum !== null) {
+        label = `${baseNum}.`
       } else {
-        const { num, suffix } = getLockedInsertLabel(opts, localIdx)
-        label = `${num}${suffix}.`
+        const { anchor, decimal } = getLockedInsertLabel(opts, localIdx, allLocalIdxs)
+        label = `${anchor}.${decimal}`
       }
     } else {
       const globalNum = opts.offset + localIdx + 1
       label = `${globalNum}.`
     }
 
-    // Decorate the node itself — CSS ::before picks up the attribute and
-    // renders the number inline, inheriting all character paragraph styles.
     decos.push(
-      Decoration.node(offset, offset + node.nodeSize, {
+      Decoration.node(offset, offset + nodeSize, {
         'data-replik-number': label,
       }, { key: `rn-${localIdx}` })
     )
-
-    localIdx++
   })
 
   return DecorationSet.create(doc, decos)
@@ -92,15 +91,11 @@ function buildDecorations(doc: any, opts: ReplikPluginState): DecorationSet {
 
 /**
  * In locked mode, check if localIdx maps to a baseline replik.
+ * Returns the 1-based baseline number, or null if this is a new insertion.
  */
 function getBaselineNumber(opts: ReplikPluginState, localIdx: number): number | null {
   if (!opts.baseline) return null
-  // Find this scene's entry in the baseline
-  // The baseline contains entries for ALL scenes. We need the entry for the current scene.
-  // Since the plugin only knows the offset, we use it to find the right baseline segment.
-  const sceneStart = opts.offset
-  const globalIdx = sceneStart + localIdx
-  // Check if this globalIdx exists in the baseline
+  const globalIdx = opts.offset + localIdx
   let cumulative = 0
   for (const entry of opts.baseline) {
     if (globalIdx >= cumulative && globalIdx < cumulative + entry.count) {
@@ -112,44 +107,78 @@ function getBaselineNumber(opts: ReplikPluginState, localIdx: number): number | 
 }
 
 /**
- * For a newly inserted replik in locked mode, find the preceding baseline
- * number and append a/b/c suffix.
+ * Build the ordered list of baseline global-indices for fast lookup.
+ * Returns a sorted array of baseline positions (0-based global index).
  */
-function getLockedInsertLabel(opts: ReplikPluginState, localIdx: number): { num: number; suffix: string } {
-  const globalIdx = opts.offset + localIdx
-  // Find the last baseline replik before this position
-  let lastBaseNum = 0
+function buildBaselineSet(opts: ReplikPluginState): Set<number> {
+  const set = new Set<number>()
+  if (!opts.baseline) return set
   let cumulative = 0
-  if (opts.baseline) {
-    for (const entry of opts.baseline) {
-      for (let i = 0; i < entry.count; i++) {
-        if (cumulative + i < globalIdx) {
-          lastBaseNum = cumulative + i + 1
-        }
-      }
-      cumulative += entry.count
-    }
+  for (const entry of opts.baseline) {
+    for (let i = 0; i < entry.count; i++) set.add(cumulative + i)
+    cumulative += entry.count
   }
+  return set
+}
 
-  // Count how many non-baseline repliken have been inserted between lastBaseNum and this one
-  // For simplicity: suffix is based on how many inserts after the same base number
-  // This is an approximation — we count from the local perspective
-  const suffixIdx = globalIdx - lastBaseNum
-  const suffix = suffixIdx > 0 && suffixIdx <= 26
-    ? String.fromCharCode(96 + suffixIdx) // a=1, b=2, ...
-    : suffixIdx > 26 ? `${suffixIdx}` : 'a'
+/**
+ * For a newly inserted replik in locked mode:
+ * - Find the preceding baseline replik number (= "anchor")
+ * - Count how many new repliken have been inserted after the same anchor
+ *   to determine the decimal suffix (.1, .2, .3, ...)
+ *
+ * Uses the full document character list (all localIdxs) to count sibling inserts.
+ */
+function getLockedInsertLabel(
+  opts: ReplikPluginState,
+  localIdx: number,
+  allLocalIdxs: number[],
+): { anchor: number; decimal: number } {
+  const baselineSet = buildBaselineSet(opts)
 
-  return { num: lastBaseNum || 1, suffix }
+  // Find the last baseline replik BEFORE this globalIdx
+  const globalIdx = opts.offset + localIdx
+  let anchorGlobal = -1
+  for (const gIdx of baselineSet) {
+    if (gIdx < globalIdx) anchorGlobal = gIdx
+    else break
+  }
+  const anchor = anchorGlobal + 1 // 1-based (0 if before first baseline replik)
+
+  // Count how many inserted (non-baseline) repliken share the same anchor
+  // (i.e. come after the same last baseline replik and before the next one)
+  let decimal = 0
+  for (const li of allLocalIdxs) {
+    const gi = opts.offset + li
+    if (gi >= globalIdx) break // only count predecessors
+    if (baselineSet.has(gi)) continue // skip baseline repliken
+    // Is this insert's anchor the same as ours?
+    let itsAnchorGlobal = -1
+    for (const gIdx of baselineSet) {
+      if (gIdx < gi) itsAnchorGlobal = gIdx
+      else break
+    }
+    if (itsAnchorGlobal === anchorGlobal) decimal++
+  }
+  decimal++ // this one is next in sequence
+
+  return { anchor, decimal }
 }
 
 export const REPLIK_NUMBER_CSS = `
 /* Replik number rendered inline before the character name.
    Uses ::before so it inherits font-family, font-size, bold etc.
-   from the character absatz — no hardcoded typography. */
+   from the character absatz — no hardcoded typography.
+   Color is controlled via --replik-number-color CSS variable. */
 .ProseMirror [data-replik-number]::before {
   content: attr(data-replik-number) "\\00A0";
-  color: var(--text-muted, #999);
+  color: var(--replik-number-color, #999999);
   pointer-events: none;
   user-select: none;
 }
 `
+
+/** Sets the replik number color on the editor container element. */
+export function setReplikNumberColor(editorEl: HTMLElement | null, color: string) {
+  if (editorEl) editorEl.style.setProperty('--replik-number-color', color)
+}

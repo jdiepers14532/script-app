@@ -280,16 +280,48 @@ werkstufenRouter.get('/:id', async (req, res) => {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PUT /api/werkstufen/:id — update status/sichtbarkeit/label
+// When a label with is_produktionsfassung=true is set → auto-lock + auto-baseline.
+// When such a label is removed → auto-unlock.
 // ══════════════════════════════════════════════════════════════════════════════
 werkstufenRouter.put('/:id', async (req, res) => {
+  const client = await pool.connect()
   try {
+    await client.query('BEGIN')
+
     const { label, sichtbarkeit, abgegeben, bearbeitung_status, revision_color_id } = req.body
-    // label: undefined = don't change, '' = clear to NULL, 'X' = set to X
     const hasLabel = 'label' in req.body
     const labelVal = hasLabel ? (label || null) : null
     const hasRevColor = 'revision_color_id' in req.body
     const revColorVal = hasRevColor ? (revision_color_id ?? null) : null
-    const row = await queryOne(
+
+    // When label changes: check if new label is a Produktionsfassung label
+    let autoBearbeitungStatus: string | null = null
+    if (hasLabel) {
+      if (labelVal) {
+        // Look up the stage_label by name within the same produktion
+        const slRes = await client.query(
+          `SELECT sl.is_produktionsfassung FROM stage_labels sl
+           JOIN folgen f ON f.produktion_id = sl.produktion_id
+           JOIN werkstufen w ON w.folge_id = f.id
+           WHERE w.id = $1 AND sl.name = $2
+           LIMIT 1`,
+          [req.params.id, labelVal]
+        )
+        if (slRes.rows[0]?.is_produktionsfassung) {
+          autoBearbeitungStatus = 'gesperrt'
+        } else if (slRes.rows.length > 0) {
+          // Known label but not produktionsfassung — unlock if previously gesperrt
+          autoBearbeitungStatus = 'entwurf'
+        }
+      } else {
+        // Label cleared — unlock
+        autoBearbeitungStatus = 'entwurf'
+      }
+    }
+
+    const effectiveBearbeitungStatus = autoBearbeitungStatus ?? bearbeitung_status ?? null
+
+    const row = await client.query(
       `UPDATE werkstufen SET
         label = CASE WHEN $1 THEN $2 ELSE label END,
         sichtbarkeit = COALESCE($3, sichtbarkeit),
@@ -297,12 +329,39 @@ werkstufenRouter.put('/:id', async (req, res) => {
         bearbeitung_status = COALESCE($5, bearbeitung_status),
         revision_color_id = CASE WHEN $6 THEN $7 ELSE revision_color_id END
        WHERE id = $8 RETURNING *`,
-      [hasLabel, labelVal, sichtbarkeit, abgegeben, bearbeitung_status, hasRevColor, revColorVal, req.params.id]
+      [hasLabel, labelVal, sichtbarkeit, abgegeben, effectiveBearbeitungStatus, hasRevColor, revColorVal, req.params.id]
     )
-    if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
-    res.json(row)
+    if (row.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Werkstufe nicht gefunden' }) }
+
+    // Auto-create replik baseline when locking (only if not already set)
+    if (autoBearbeitungStatus === 'gesperrt' && !row.rows[0].replik_baseline) {
+      const scenes = await client.query(
+        `SELECT id, replik_count FROM dokument_szenen
+         WHERE werkstufe_id = $1 AND geloescht = false
+         ORDER BY sort_order, scene_nummer`,
+        [req.params.id]
+      )
+      const baseline: { scene_id: string; start: number; count: number }[] = []
+      let cumulative = 0
+      for (const s of scenes.rows) {
+        const count = s.replik_count ?? 0
+        baseline.push({ scene_id: s.id, start: cumulative, count })
+        cumulative += count
+      }
+      await client.query(
+        'UPDATE werkstufen SET replik_baseline = $1 WHERE id = $2',
+        [JSON.stringify(baseline), req.params.id]
+      )
+      row.rows[0].replik_baseline = baseline
+    }
+
+    await client.query('COMMIT')
+    res.json(row.rows[0])
   } catch (err) {
+    await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
   }
 })
 

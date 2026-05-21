@@ -164,6 +164,9 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [lnSize, setLnSize] = useState(10)
   const [lnColor, setLnColor] = useState('#999999')
   const [lnSaving, setLnSaving] = useState(false)
+  const [replikColor, setReplikColor] = useState('#999999')
+  const [replikMode, setReplikMode] = useState<'continuous' | 'per_scene'>('continuous')
+  const [replikSaving, setReplikSaving] = useState(false)
 
   useEffect(() => {
     fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' })
@@ -200,6 +203,13 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
             if (s.fontFamily) setLnFont(s.fontFamily)
             if (typeof s.fontSizePt === 'number') setLnSize(s.fontSizePt)
             if (s.color) setLnColor(s.color)
+          } catch {}
+        }
+        if (data?.replik_settings) {
+          try {
+            const s = JSON.parse(data.replik_settings)
+            if (s.color) setReplikColor(s.color)
+            if (s.mode === 'continuous' || s.mode === 'per_scene') setReplikMode(s.mode)
           } catch {}
         }
       })
@@ -294,6 +304,15 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     })).catch(() => {})
     window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId } }))
     setLnSaving(false)
+  }
+
+  const saveReplikSettings = async () => {
+    setReplikSaving(true)
+    await api.updateDkAppSetting(productionId, 'replik_settings', JSON.stringify({
+      color: replikColor, mode: replikMode,
+    })).catch(() => {})
+    window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId } }))
+    setReplikSaving(false)
   }
 
   return (
@@ -492,6 +511,62 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         <button onClick={saveLnSettings} disabled={lnSaving}
           style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
           {lnSaving ? 'Wird gespeichert…' : 'Speichern'}
+        </button>
+      </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Replikennummern</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
+          Einstellungen für die Repliknummerierung im Drehbuch-Editor.
+          Betrifft alle Nutzer dieser Produktion.
+        </p>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+          <label style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Farbe</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input type="color" value={replikColor} onChange={e => setReplikColor(e.target.value)}
+                style={{ width: 32, height: 28, border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', padding: 0, background: 'none' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{replikColor}</span>
+            </div>
+          </label>
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>Nummerierungsmodus</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+              <input type="radio" name="replikMode" value="continuous" checked={replikMode === 'continuous'}
+                onChange={() => setReplikMode('continuous')} style={{ marginTop: 2 }} />
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500 }}>Durchnummeriert</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Eine laufende Nummerierung über alle Szenen — Replik 1 bis n.
+                  Wird automatisch aktualisiert wenn Szenen umsortiert werden.
+                </div>
+              </div>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+              <input type="radio" name="replikMode" value="per_scene" checked={replikMode === 'per_scene'}
+                onChange={() => setReplikMode('per_scene')} style={{ marginTop: 2 }} />
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 500 }}>Pro Szene neu beginnen</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Jede Szene startet bei Replik 1.
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+        <div style={{ padding: 12, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Vorschau:</div>
+          <div style={{ display: 'flex', gap: 16 }}>
+            {(replikMode === 'per_scene' ? [1, 2, 3] : [14, 15, 16]).map(n => (
+              <span key={n} style={{ fontSize: 12, fontWeight: 700, color: replikColor }}>{n}. <span style={{ color: 'var(--text-primary)', fontWeight: 400 }}>FIGUR</span></span>
+            ))}
+          </div>
+        </div>
+        <button onClick={saveReplikSettings} disabled={replikSaving}
+          style={{ padding: '6px 16px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+          {replikSaving ? 'Wird gespeichert…' : 'Speichern'}
         </button>
       </section>
 

@@ -7,7 +7,7 @@ import SnapshotDrawer from './SnapshotDrawer'
 const UniversalEditor = lazy(() => import('./UniversalEditor'))
 import { api } from '../../api/client'
 import { useEditorPrefs } from '../../hooks/useEditorPrefs'
-import { useUserPrefs, useSelectedProduction } from '../../contexts'
+import { useUserPrefs, useSelectedProduction, useAppSettings } from '../../contexts'
 import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
@@ -45,6 +45,7 @@ export default function EditorPanel({
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
   const { tweaks } = useTweaks()
+  const { replikSettings } = useAppSettings()
   const { enqueue } = useOfflineQueueContext()
   const { selectedProduction } = useSelectedProduction()
 
@@ -412,7 +413,7 @@ export default function EditorPanel({
       .catch(() => { setReplikOffsets({}); setReplikBaseline(null) })
   }, [selectedWerkId, tweaks.showReplikNumbers, selectedSzeneId])
 
-  const currentReplikOffset = selectedSzeneId ? (replikOffsets[String(selectedSzeneId)] ?? 0) : 0
+  const currentReplikOffset = replikSettings.mode === 'per_scene' ? 0 : (selectedSzeneId ? (replikOffsets[String(selectedSzeneId)] ?? 0) : 0)
 
   // Live text statistics from current scene content
   const textStats = useMemo(() => {

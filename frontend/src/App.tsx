@@ -23,8 +23,10 @@ import {
   DEFAULT_KUERZEL,
   LN_SETTINGS_DEFAULTS,
   DEFAULT_PAGE_MARGINS,
+  REPLIK_SETTINGS_DEFAULTS,
   type LnSettings,
   type PageMargins,
+  type ReplikSettings,
 } from './contexts'
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 import { TerminologieProvider, TERM_DEFAULTS, OfflineQueueProvider } from './sw-ui'
@@ -40,6 +42,7 @@ export default function App() {
   const [terminologie, setTerminologie] = useState<TerminologieConfig>({ ...TERM_DEFAULTS })
   const [lnSettings, setLnSettings] = useState<LnSettings>(LN_SETTINGS_DEFAULTS)
   const [pageMargins, setPageMargins] = useState<PageMargins>(DEFAULT_PAGE_MARGINS)
+  const [replikSettings, setReplikSettings] = useState<ReplikSettings>(REPLIK_SETTINGS_DEFAULTS)
 
   useEffect(() => {
     const loadSettings = (e?: Event) => {
@@ -85,6 +88,12 @@ export default function App() {
               setPageMargins(prev => ({ ...DEFAULT_PAGE_MARGINS, ...prev, ...pm }))
             } catch {}
           }
+          if (data?.replik_settings) {
+            try {
+              const parsed = JSON.parse(data.replik_settings)
+              setReplikSettings({ ...REPLIK_SETTINGS_DEFAULTS, ...parsed })
+            } catch {}
+          }
           // PWA Admin-Steuerung (v67): einmalig ausführen, dann sofort zurücksetzen
           if (data?.pwa_update_action === 'update') {
             fetch('/api/admin/app-settings/pwa_update_action', {
@@ -117,7 +126,7 @@ export default function App() {
   return (
     <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>
