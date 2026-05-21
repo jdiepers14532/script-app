@@ -50,9 +50,9 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
       {pos && createPortal(
         <div style={{
           position: 'fixed',
-          left: Math.max(114, Math.min(pos.x, window.innerWidth - 114)),
+          left: Math.max(4, Math.min(pos.x - 110, window.innerWidth - 224)),
           top: pos.y,
-          transform: pos.isBottom ? 'translateX(-50%)' : 'translate(-50%, -100%)',
+          transform: pos.isBottom ? undefined : 'translateY(-100%)',
           background: '#111',
           color: '#fff',
           fontSize: 11,
