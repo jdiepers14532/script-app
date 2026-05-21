@@ -729,7 +729,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       placement="bottom"
                     >
                       <input
-                        key={`stopp-${szeneId}`}
+                        key={`stopp-${scene?.id}`}
                         className="spielzeit-inp stopp-inp"
                         defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
                         placeholder="0:00"
@@ -950,7 +950,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 <td colSpan={2} style={{ padding: 0 }} />
                 <td style={{ paddingRight: 8, paddingBottom: 2 }}>
                   <input
-                    key={`zf-${szeneId}`}
+                    key={`zf-${scene?.id}`}
                     className="sf-input"
                     style={{ width: '100%' }}
                     defaultValue={scene.zusammenfassung ?? ''}
@@ -1228,14 +1228,14 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               <tr style={{ verticalAlign: 'baseline' }}>
                 <td colSpan={2} style={{ padding: 0 }} />
                 <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
-                  <input key={`sinfo-${szeneId}`} className="sf-input sf-input-info" defaultValue={scene.szeneninfo ?? ''} placeholder={`${t('szene','c')}info…`} style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic', width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.szeneninfo ?? null)) saveScene({ szeneninfo: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                  <input key={`sinfo-${scene?.id}`} className="sf-input sf-input-info" defaultValue={scene.szeneninfo ?? ''} placeholder={`${t('szene','c')}info…`} style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic', width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.szeneninfo ?? null)) saveScene({ szeneninfo: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
                 </td>
               </tr>
               {/* Row: Notiz */}
               <tr style={{ verticalAlign: 'baseline' }}>
                 <td colSpan={2} style={{ padding: 0 }} />
                 <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
-                  <textarea key={`notiz-${szeneId}`} className="sf-input sf-notiz" defaultValue={scene.notiz ?? ''} placeholder="Notiz…" rows={2} style={{ width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.notiz ?? null)) saveScene({ notiz: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                  <textarea key={`notiz-${scene?.id}`} className="sf-input sf-notiz" defaultValue={scene.notiz ?? ''} placeholder="Notiz…" rows={2} style={{ width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.notiz ?? null)) saveScene({ notiz: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
                 </td>
               </tr>
               {/* Row: Revision badge */}
@@ -1263,7 +1263,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <div className="stopp-col">
               <Tooltip text="Stoppzeit (mm:ss)" placement="bottom">
                 <input
-                  key={`stopp-${szeneId}`}
+                  key={`stopp-${scene?.id}`}
                   className="spielzeit-inp stopp-inp"
                   defaultValue={scene.stoppzeit_sek != null ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : ''}
                   placeholder="0:00"
@@ -1381,7 +1381,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             </span>
             <span className="spielzeit-wrap" onMouseEnter={() => setShowSpielzeitInfo(true)} onMouseLeave={() => setShowSpielzeitInfo(false)} style={{ position: 'relative' }}>
               <span className="spiel-field-lbl">Sp</span>
-              <input key={`sz-${szeneId}`} className="spielzeit-inp" defaultValue={scene.spielzeit ?? ''} placeholder="00:00" onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.spielzeit ?? null)) saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+              <input key={`sz-${scene?.id}`} className="spielzeit-inp" defaultValue={scene.spielzeit ?? ''} placeholder="00:00" onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.spielzeit ?? null)) saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
               {showSpielzeitInfo && (<div className="spielzeit-info-pop"><strong>Spielzeit</strong><p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen.</p></div>)}
             </span>
             <span className="ie-group">
@@ -1396,7 +1396,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
                 <span className="ie-field-wrap">
                   <span className="ie-lbl">DT</span>
-                  <input key={`dt-${szeneId}`} className="ie-num-inp" defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''} placeholder="—" type="number" min={1} onBlur={e => { const raw = e.target.value.trim(); const val = raw ? parseInt(raw, 10) : null; if (val !== (scene.spieltag ?? null)) saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                  <input key={`dt-${scene?.id}`} className="ie-num-inp" defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''} placeholder="—" type="number" min={1} onBlur={e => { const raw = e.target.value.trim(); const val = raw ? parseInt(raw, 10) : null; if (val !== (scene.spieltag ?? null)) saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
                 </span>
               </Tooltip>
             </span>
