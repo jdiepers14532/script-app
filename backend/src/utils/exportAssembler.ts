@@ -34,6 +34,9 @@ export interface ExportContext {
   firmen_telefon:      string | null
   tel_produktion:      string | null
   notiz_inhalt:        string | null
+  persoenlicher_ausdruck: string | null
+  revision:               string | null
+  revisions_farbe_hex:    string | null
   episode_terminus:   string  // e.g. "Folge" or "Episode"
 }
 
@@ -70,6 +73,11 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{firmen_telefon}}':      return ctx.firmen_telefon ?? ''
     case '{{tel_produktion}}':      return ctx.tel_produktion ?? ''
     case '{{notiz_inhalt}}':        return ctx.notiz_inhalt ?? ''
+    case '{{persoenlicher_ausdruck}}': return ctx.persoenlicher_ausdruck ?? ''
+    case '{{revision}}':               return ctx.revision ?? ''
+    case '{{revisions_farbe}}':        return ctx.revisions_farbe_hex
+      ? `<span style="color:${ctx.revisions_farbe_hex}">&#9679;</span>`
+      : ''
     case '{{seite}}':         return '<span class="ph-seite"></span>'
     case '{{seiten_gesamt}}': return '<span class="ph-seiten-gesamt"></span>'
     default:                  return key

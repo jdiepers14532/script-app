@@ -71,6 +71,11 @@ function PlaceholderTable() {
       color: '#FF9F0A',
       keys: ['{{notiz_inhalt}}'],
     },
+    {
+      label: 'Export-Eingabe (beim Export befüllt — stille Chips)',
+      color: '#FF3B30',
+      keys: ['{{persoenlicher_ausdruck}}', '{{revision}}', '{{revisions_farbe}}'],
+    },
   ]
 
   return (

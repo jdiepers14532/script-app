@@ -31,6 +31,9 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   { key: '{{autor}}',          label: 'Autor',            zone: 'alle',      color: '#007AFF' },
   { key: '{{regie}}',          label: 'Regie',            zone: 'alle',      color: '#007AFF' },
   { key: '{{firmenname}}',     label: 'Firmenname',       zone: 'alle',      color: '#5856D6' },
+  { key: '{{persoenlicher_ausdruck}}', label: 'Pers. Ausdruck',  zone: 'alle',      color: '#FF3B30' },
+  { key: '{{revision}}',               label: 'Revision',         zone: 'alle',      color: '#FF9500' },
+  { key: '{{revisions_farbe}}',        label: 'Revisionsfarbe',   zone: 'alle',      color: '#FF9500' },
   { key: '{{seite}}',          label: 'Seitenzahl',       zone: 'fusszeile', color: '#FF9500' },
   { key: '{{seiten_gesamt}}',  label: 'Seiten gesamt',    zone: 'fusszeile', color: '#FF9500' },
 ]

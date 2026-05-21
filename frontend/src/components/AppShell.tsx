@@ -1805,41 +1805,23 @@ export default function AppShell({
 
             {offlineView === 'main' && (<>
 
-              {/* Export / Import Navigation */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <button
-                  onClick={() => setOfflineView('export')}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                    gap: 4, padding: '14px 14px', borderRadius: 8,
-                    border: '1px solid var(--border)', background: 'var(--bg-subtle)',
-                    cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
-                    <Download size={14} /> Exportieren
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                    Fountain, FDX oder PDF herunterladen
-                  </span>
-                </button>
-                <button
-                  onClick={openImportView}
-                  style={{
-                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
-                    gap: 4, padding: '14px 14px', borderRadius: 8,
-                    border: '1px solid var(--border)', background: 'var(--bg-subtle)',
-                    cursor: 'pointer', textAlign: 'left',
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
-                    <FileUp size={14} /> Importieren
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                    Fountain oder FDX als neue Fassung
-                  </span>
-                </button>
-              </div>
+              {/* Import Navigation */}
+              <button
+                onClick={openImportView}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  gap: 4, padding: '14px 14px', borderRadius: 8, width: '100%',
+                  border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600, fontSize: 13 }}>
+                  <FileUp size={14} /> Importieren
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  Fountain oder FDX als neue Fassung
+                </span>
+              </button>
 
               {/* Status */}
               <div>

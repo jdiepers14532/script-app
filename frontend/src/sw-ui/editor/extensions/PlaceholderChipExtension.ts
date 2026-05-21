@@ -190,6 +190,21 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'script_db \u00b7 dokument_szenen.content (Notiz-Format)',
   },
   {
+    key: '{{persoenlicher_ausdruck}}', label: 'Pers. Ausdruck', zone: 'alle', color: '#FF3B30',
+    beschreibung: 'Name des Empf\u00e4ngers dieses Ausdrucks \u2014 wird beim Export eingegeben. Leer = Chip unsichtbar.',
+    quelle: 'Export-Eingabe',
+  },
+  {
+    key: '{{revision}}', label: 'Revision', zone: 'alle', color: '#FF9500',
+    beschreibung: 'Bezeichnung der Revision, z.\u202fB. \u201eBlaue Seiten\u201c. Nur bei Replacement-Pages-Export bef\u00fcllt, sonst leer.',
+    quelle: 'Export-Eingabe \u00b7 Replacement-Pages-Modus',
+  },
+  {
+    key: '{{revisions_farbe}}', label: 'Revisionsfarbe', zone: 'alle', color: '#FF9500',
+    beschreibung: 'Farbiger Punkt \u25cf in der gew\u00e4hlten Revisions-Farbe. Nur bei Replacement-Pages-Export sichtbar, sonst leer.',
+    quelle: 'Export-Eingabe \u00b7 Replacement-Pages-Modus',
+  },
+  {
     key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#34C759',
     beschreibung: 'Aktuelle Seitenzahl. Nur in Fu\u00dfzeilen verf\u00fcgbar.',
     quelle: 'Berechnet beim PDF-Export',

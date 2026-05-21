@@ -118,6 +118,7 @@ export interface KZPreviewContext {
   firmen_adresse?: string; rechtsform?: string; handelsregister?: string
   ust_id?: string; geschaeftsfuehrung?: string; firmen_email?: string
   firmen_telefon?: string; notiz_inhalt?: string
+  persoenlicher_ausdruck?: string; revision?: string; revisions_farbe?: string
 }
 
 const DUMMY_CTX: KZPreviewContext = {
@@ -135,6 +136,7 @@ const DUMMY_CTX: KZPreviewContext = {
   ust_id: 'DE118621282', geschaeftsfuehrung: 'Jan Diepers',
   firmen_email: 'info@serienwerft.studio', firmen_telefon: '+49 4131 98765',
   notiz_inhalt: '(Notiz-Inhalt)',
+  persoenlicher_ausdruck: 'Maria Schulze', revision: 'Blaue Seiten', revisions_farbe: '●',
 }
 
 function buildCtxMap(ctx: KZPreviewContext): Record<string, string> {
@@ -169,6 +171,9 @@ function buildCtxMap(ctx: KZPreviewContext): Record<string, string> {
   map['{{aktuelles_jahr}}']     = String(ctx.aktuelles_jahr ?? '')
   map['{{folge_laenge_netto}}'] = String(ctx.folge_laenge_netto ?? '')
   map['{{notiz_inhalt}}']       = String(ctx.notiz_inhalt ?? '')
+  map['{{persoenlicher_ausdruck}}'] = String(ctx.persoenlicher_ausdruck ?? '')
+  map['{{revision}}']               = String(ctx.revision ?? '')
+  map['{{revisions_farbe}}']        = String(ctx.revisions_farbe ?? '')
   map['{{seite}}']              = '42'
   map['{{seiten_gesamt}}']      = '84'
   return map
