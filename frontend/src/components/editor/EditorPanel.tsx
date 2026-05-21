@@ -123,13 +123,16 @@ export default function EditorPanel({
   const initialApplied = useRef(false)
 
   // Auto-select preferred werkstufe type once on first load
+  // Prefer non-empty werkstufen (szenen_count > 0) among matching type, then highest version_nummer
   useEffect(() => {
     if (initialApplied.current || werkstufen.length === 0) return
     initialApplied.current = true
-    const preferred = defaultTyp
-      ? werkstufen.filter(w => w.typ === defaultTyp).sort((a, b) => b.version_nummer - a.version_nummer)[0]
-      : null
-    setSelectedWerkId(preferred?.id ?? werkstufen[0]?.id ?? null)
+    const candidates = (defaultTyp
+      ? werkstufen.filter(w => w.typ === defaultTyp)
+      : werkstufen
+    ).sort((a, b) => b.version_nummer - a.version_nummer)
+    const preferred = candidates.find(w => (w.szenen_count ?? 0) > 0) ?? candidates[0] ?? null
+    setSelectedWerkId(preferred?.id ?? null)
   }, [werkstufen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Force-select activateWerkId when it changes (dual-view activation from modal)
@@ -413,7 +416,10 @@ export default function EditorPanel({
       .catch(() => { setReplikOffsets({}); setReplikBaseline(null) })
   }, [selectedWerkId, tweaks.showReplikNumbers, selectedSzeneId])
 
-  const currentReplikOffset = replikSettings.mode === 'per_scene' ? 0 : (selectedSzeneId ? (replikOffsets[String(selectedSzeneId)] ?? 0) : 0)
+  // Use resolved currentSzene.id (panel's werkstufe) for offset lookup — not selectedSzeneId
+  // which comes from ScriptPage and may reference a different werkstufe's UUIDs
+  const resolvedSzeneIdForOffset = currentSzene?.id ?? (typeof selectedSzeneId === 'string' ? selectedSzeneId : null)
+  const currentReplikOffset = replikSettings.mode === 'per_scene' ? 0 : (resolvedSzeneIdForOffset ? (replikOffsets[resolvedSzeneIdForOffset] ?? 0) : 0)
 
   // Live text statistics from current scene content
   const textStats = useMemo(() => {
