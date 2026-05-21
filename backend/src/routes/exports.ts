@@ -496,12 +496,27 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const [szenen, formatMap, ctx, kzFz] = await Promise.all([
+    const [szenen, formatMap, ctx, kzFz, marginRow] = await Promise.all([
       query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
       loadFormatMap(ws.produktion_id),
       loadExportContext(ws, req.user!.user_id, req.user!.name),
       loadKzFzConfig(ws.produktion_id, ws.typ),
+      queryOne(`SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'page_margin_mm'`, [ws.produktion_id]),
     ])
+
+    // Global page margins (set in Dokumenten-Formatierung) are authoritative for the export
+    if (marginRow?.value && kzFz) {
+      try {
+        const gm = typeof marginRow.value === 'string' ? JSON.parse(marginRow.value) : marginRow.value
+        kzFz.seiten_layout = {
+          format:        kzFz.seiten_layout?.format ?? 'a4',
+          margin_top:    gm.oben    ?? kzFz.seiten_layout?.margin_top    ?? 25,
+          margin_bottom: gm.unten   ?? kzFz.seiten_layout?.margin_bottom ?? 20,
+          margin_left:   gm.links   ?? kzFz.seiten_layout?.margin_left   ?? 30,
+          margin_right:  gm.rechts  ?? kzFz.seiten_layout?.margin_right  ?? 25,
+        }
+      } catch {}
+    }
 
     const exportId = await logWerkstufenExport(req.user!.user_id, req.user!.name, ws.id, 'pdf')
     const payload = buildPayload(req.user!.user_id, exportId)

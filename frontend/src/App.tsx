@@ -82,9 +82,9 @@ export default function App() {
               setLnSettings({ ...LN_SETTINGS_DEFAULTS, ...parsed })
             } catch {}
           }
-          if (data?.page_margins) {
+          if (data?.page_margin_mm) {
             try {
-              const pm = typeof data.page_margins === 'string' ? JSON.parse(data.page_margins) : data.page_margins
+              const pm = typeof data.page_margin_mm === 'string' ? JSON.parse(data.page_margin_mm) : data.page_margin_mm
               setPageMargins(prev => ({ ...DEFAULT_PAGE_MARGINS, ...prev, ...pm }))
             } catch {}
           }

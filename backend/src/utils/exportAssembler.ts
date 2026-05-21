@@ -379,9 +379,9 @@ ${wm}
   }
   .stoppzeit { float: right; color: #666; font-weight: normal; }
   .action    { margin: 0 0 10px; }
-  .character { margin-left: 40%; font-weight: bold; margin-bottom: 0; }
-  .parenthetical { margin-left: 30%; margin-right: 30%; font-style: italic; }
-  .dialogue  { margin-left: 20%; margin-right: 20%; }
+  .character { margin-left: 40%; font-weight: bold; margin-bottom: 0; page-break-after: avoid; }
+  .parenthetical { margin-left: 30%; margin-right: 30%; font-style: italic; page-break-inside: avoid; page-break-after: avoid; }
+  .dialogue  { margin-left: 20%; margin-right: 20%; page-break-inside: avoid; }
   .transition{ text-align: right; font-weight: bold; }
   .shot      { font-weight: bold; }
   .heading   { font-weight: bold; text-transform: uppercase; }
