@@ -170,10 +170,6 @@ export const api = {
   updateSettings: (data: { selected_production_id?: string | null; ui_settings?: Record<string, any> }) =>
     request<any>('PUT', '/me/settings', data),
 
-  // Werkstufe-based exports
-  exportWerkstufePdf: (werkId: string) => fetch(`${BASE}/stages/werkstufe/${werkId}/export/pdf`, { credentials: 'include' }),
-  exportWerkstufeFountain: (werkId: string) => fetch(`${BASE}/stages/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
-  exportWerkstufeFdx: (werkId: string) => fetch(`${BASE}/stages/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
 
   // Import with metadata opt-in
   getOcrStatus: () => request<any>('GET', '/import/ocr-status'),
@@ -560,31 +556,6 @@ export const api = {
     request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`, data),
   deleteKopfFusszeilenTyp: (produktionId: string, typ: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/kopf-fusszeilen/${typ}`),
-  getExportFilename: (werkId: string) =>
-    request<{ filename: string; folge_id: string; typ: string; version_nummer: number }>('GET', `/werkstufe/${werkId}/export/filename`),
-  exportPdf: (werkId: string, opts?: { lineNumbers?: boolean; lnMarginCm?: number }) => {
-    const p = new URLSearchParams()
-    if (opts?.lineNumbers)         p.set('lineNumbers', '1')
-    if (opts?.lnMarginCm != null)  p.set('lnMarginCm', String(opts.lnMarginCm))
-    const qs = p.toString()
-    return fetch(`${BASE}/werkstufe/${werkId}/export/pdf${qs ? '?' + qs : ''}`, { credentials: 'include' })
-  },
-  exportFountain: (werkId: string) =>
-    fetch(`${BASE}/werkstufe/${werkId}/export/fountain`, { credentials: 'include' }),
-  exportFdx: (werkId: string) =>
-    fetch(`${BASE}/werkstufe/${werkId}/export/fdx`, { credentials: 'include' }),
-  exportReplacementPages: (werkId: string, opts: {
-    compareWerkId: string
-    threshold?: number
-    revisionColor?: string
-    revisionLabel?: string
-  }) => {
-    const p = new URLSearchParams({ compareWerkId: opts.compareWerkId })
-    if (opts.threshold != null)    p.set('threshold', String(opts.threshold))
-    if (opts.revisionColor)        p.set('revisionColor', opts.revisionColor)
-    if (opts.revisionLabel)        p.set('revisionLabel', opts.revisionLabel)
-    return fetch(`${BASE}/werkstufe/${werkId}/export/replacement-pages?${p}`, { credentials: 'include' })
-  },
   getFolgeWerkstufen: (folgeId: string) =>
     request<any[]>('GET', `/folgen/${encodeURIComponent(folgeId)}/werkstufen`),
 

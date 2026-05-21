@@ -257,7 +257,7 @@ export default function AppShell({
   }, [reconnect, reconnectStatus])
 
   const [offlineOpen, setOfflineOpen] = useState(false)
-  const [offlineView, setOfflineView] = useState<'main' | 'export' | 'import' | 'uninstall'>('main')
+  const [offlineView, setOfflineView] = useState<'main' | 'import' | 'uninstall'>('main')
   const [teamWorkOpen, setTeamWorkOpen] = useState(false)
 
   useEffect(() => {
@@ -291,10 +291,6 @@ export default function AppShell({
   const [installModalOpen, setInstallModalOpen] = useState(false)
   const [installStep, setInstallStep] = useState<'intro' | 'success' | 'declined'>('intro')
 
-  // Export sub-view
-  const [exportStageId, setExportStageId] = useState<number | null>(null)
-  const [exportFormat, setExportFormat]   = useState<'fountain' | 'fdx' | 'pdf'>('fountain')
-  const [exportLoading, setExportLoading] = useState(false)
 
   // Import sub-view
   const importFileRef = useRef<HTMLInputElement>(null)
@@ -373,27 +369,6 @@ export default function AppShell({
     } finally { setImportLoading(false) }
   }, [importFile, importProduktionId, importFolge, importStageType, importSaveMeta])
 
-  const handleExportDownload = useCallback(async () => {
-    const stageId = exportStageId ?? (stages.length > 0 ? stages[0].id : null)
-    if (!stageId) return
-    setExportLoading(true)
-    try {
-      let res: Response
-      if (exportFormat === 'fountain') res = await api.exportFountain(stageId)
-      else if (exportFormat === 'fdx')  res = await api.exportFdx(stageId)
-      else                              res = await api.exportPdf(stageId, { lineNumbers: tweaks.showLineNumbers, lnMarginCm: tweaks.lineNumberMarginCm })
-
-      const blob = await res.blob()
-      const url  = URL.createObjectURL(blob)
-      const a    = document.createElement('a')
-      const cd   = res.headers.get('Content-Disposition') || ''
-      const fnMatch = cd.match(/filename="([^"]+)"/)
-      a.download = fnMatch ? fnMatch[1] : `fassung.${exportFormat}`
-      a.href = url; a.click()
-      URL.revokeObjectURL(url)
-    } catch { /* ignore */ }
-    finally { setExportLoading(false) }
-  }, [exportStageId, exportFormat, stages])
 
   const loadCacheStats = async () => {
     if (!('caches' in window)) return
@@ -1582,7 +1557,7 @@ export default function AppShell({
                 {isOnline ? <Wifi size={15} /> : <WifiOff size={15} style={{ color: 'var(--sw-danger)' }} />}
                 {offlineView === 'main'     ? 'Offline-Modus'
                 : offlineView === 'uninstall' ? 'App deinstallieren'
-                : offlineView === 'export' ? 'Fassung exportieren'
+
                 : 'Fassung importieren'}
               </span>
               <button className="close" onClick={() => setOfflineOpen(false)}><X size={14} /></button>
@@ -1590,85 +1565,6 @@ export default function AppShell({
 
             <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-            {/* ── Export sub-view ── */}
-            {offlineView === 'export' && (() => {
-              const currentStage = stages.find(s => s.id === (exportStageId ?? selectedStageId)) || stages[0] || null
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                    Die exportierte Datei enthält ein unsichtbares Wasserzeichen, das dem Export-Vorgang zugeordnet ist.
-                    Beim Reimport wird das Wasserzeichen automatisch entfernt.
-                  </p>
-
-                  {/* Stage selector */}
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Fassung</div>
-                    {stages.length === 0 ? (
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '10px 12px', background: 'var(--bg-subtle)', borderRadius: 6 }}>
-                        Öffne zuerst eine {t('episode')} im Script-Bereich, dann steht der Export hier zur Verfügung.
-                      </div>
-                    ) : (
-                      <select
-                        value={exportStageId ?? stages[0]?.id ?? ''}
-                        onChange={e => setExportStageId(Number(e.target.value))}
-                        style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit' }}
-                      >
-                        {stages.map((s: any) => (
-                          <option key={s.id} value={s.id}>
-                            {s.version_label || s.stage_type} {s.folge_nummer ? `· ${t('episode')} ${s.folge_nummer}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-
-                  {/* Format selector */}
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>Format</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {([
-                        { id: 'fountain', label: 'Fountain (.fountain)', desc: 'Offenes Textformat — lesbar in jedem Editor, empfohlen' },
-                        { id: 'fdx',      label: 'Final Draft (.fdx)',   desc: 'Industriestandard D/A/CH TV-Produktion' },
-                        { id: 'pdf',      label: 'PDF (Druckansicht)',   desc: 'HTML-basiert, im Browser drucken / als PDF speichern' },
-                      ] as const).map(f => (
-                        <label key={f.id} style={{
-                          display: 'flex', alignItems: 'flex-start', gap: 10,
-                          padding: '9px 12px', borderRadius: 6, cursor: 'pointer',
-                          border: `1px solid ${exportFormat === f.id ? 'var(--text-primary)' : 'var(--border)'}`,
-                          background: exportFormat === f.id ? 'var(--bg-subtle)' : 'transparent',
-                        }}>
-                          <input type="radio" name="exportFormat" value={f.id}
-                            checked={exportFormat === f.id}
-                            onChange={() => setExportFormat(f.id)}
-                            style={{ marginTop: 2, flexShrink: 0 }}
-                          />
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 500 }}>{f.label}</div>
-                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{f.desc}</div>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleExportDownload}
-                    disabled={exportLoading || stages.length === 0}
-                    style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      padding: '11px 18px', borderRadius: 8,
-                      background: stages.length > 0 ? 'var(--text-primary)' : 'var(--bg-subtle)',
-                      color: stages.length > 0 ? 'var(--bg-page)' : 'var(--text-secondary)',
-                      border: 'none', cursor: stages.length > 0 ? 'pointer' : 'not-allowed',
-                      fontWeight: 700, fontSize: 13,
-                    }}
-                  >
-                    <Download size={14} />
-                    {exportLoading ? 'Wird erstellt…' : currentStage ? `„${currentStage.version_label || currentStage.stage_type}" exportieren` : 'Exportieren'}
-                  </button>
-                </div>
-              )
-            })()}
 
             {/* ── Import sub-view ── */}
             {offlineView === 'import' && (

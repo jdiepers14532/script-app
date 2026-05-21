@@ -7,7 +7,6 @@ import { useAppSettings, useTweaks, useToast } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
 import PlatzhalterSzenenDialog from './PlatzhalterSzenenDialog'
-import ExportDialog from './ExportDialog'
 
 interface SceneListProps {
   szenen: any[]
@@ -80,7 +79,6 @@ export default function SceneList({
   const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
   const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
-  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkStrangDropdown, setBulkStrangDropdown] = useState(false)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
@@ -673,13 +671,6 @@ export default function SceneList({
                   Stoppzeiten-Übersicht
                 </button>
               )}
-              <button
-                className="scene-ctx-item"
-                disabled={!werkstufId}
-                onClick={() => { setExportDialogOpen(true); setHeaderMenuOpen(false) }}
-              >
-                Exportieren…
-              </button>
             </div>
           )}
         </div>
@@ -1011,14 +1002,6 @@ export default function SceneList({
           onCreated={() => {
             if (stageId) api.getWerkstufenSzenen(String(stageId)).then(s => onSzenesReordered?.(s)).catch(() => {})
           }}
-        />
-      )}
-      {exportDialogOpen && werkstufId && (
-        <ExportDialog
-          werkstufId={werkstufId}
-          onClose={() => setExportDialogOpen(false)}
-          showLineNumbers={tweaks.showLineNumbers}
-          lineNumberMarginCm={tweaks.lineNumberMarginCm}
         />
       )}
 
