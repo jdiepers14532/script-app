@@ -721,6 +721,11 @@
 ::-webkit-scrollbar-thumb { background:var(--border); border-radius:999px; border:2px solid var(--bg-surface); }
 ::-webkit-scrollbar-thumb:hover { background:var(--text-muted); }
 
+/* PageWrapper-Außencontainer: overflow:auto für BFC + korrekte Seitenumbruch-Berechnung,
+   aber kein sichtbarer Scrollbalken — scrollContainerRef ist der einzige scrollende Container */
+.pw-outer { scrollbar-width: none; -ms-overflow-style: none; }
+.pw-outer::-webkit-scrollbar { display: none; }
+
 /* ── Icons ── */
 .i-svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; }
 .i-sm  { width:13px; height:13px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; }

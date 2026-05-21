@@ -38,7 +38,7 @@ export default function PageWrapper({
   if (showShadow) {
     // ── Blatt-Modus: weißes Blatt mit Schatten, subtile Trennlinie ────────
     return (
-      <div style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%' }}>
+      <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowY: 'auto' }}>
         <div
           className={className}
           style={{
@@ -74,7 +74,7 @@ export default function PageWrapper({
   const contentHeight = dim.height - ptTop - ptBottom
 
   return (
-    <div style={{ background: 'var(--bg-page)', padding: '0 32px', minHeight: '100%' }}>
+    <div className="pw-outer" style={{ background: 'var(--bg-page)', padding: '0 32px', minHeight: '100%', overflowY: 'auto' }}>
       <div
         className={className}
         style={{
