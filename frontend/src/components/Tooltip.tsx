@@ -50,7 +50,7 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
       {pos && createPortal(
         <div style={{
           position: 'fixed',
-          left: Math.max(4, Math.min(pos.x - 110, window.innerWidth - 224)),
+          left: `clamp(4px, calc(${pos.x}px - 110px), calc(100vw - 224px))` as any,
           top: pos.y,
           transform: pos.isBottom ? undefined : 'translateY(-100%)',
           background: '#111',
@@ -59,7 +59,7 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
           lineHeight: 1.5,
           padding: '6px 10px',
           borderRadius: 6,
-          maxWidth: 220,
+          width: 220,
           whiteSpace: 'pre-line',
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
           zIndex: 99999,
