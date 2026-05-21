@@ -1186,7 +1186,26 @@ function parseDrehbuchContent(
   }
 
   flushAction()
-  return { elems, chars: Array.from(chars) }
+
+  // Post-process: merge consecutive dialogue lines from the same character.
+  // PDF line wrapping splits one spoken sentence across multiple physical lines;
+  // each became a separate 'dialogue' element. Join them with a space so the
+  // editor sees one paragraph per speech block (before the next parenthetical).
+  const merged: Textelement[] = []
+  for (const elem of elems) {
+    const prev = merged[merged.length - 1]
+    if (
+      prev &&
+      prev.type === 'dialogue' && elem.type === 'dialogue' &&
+      prev.character === elem.character
+    ) {
+      prev.text = prev.text + ' ' + elem.text
+    } else {
+      merged.push({ ...elem })
+    }
+  }
+
+  return { elems: merged, chars: Array.from(chars) }
 }
 
 // ─── Main Parser ────────────────────────────────────────
