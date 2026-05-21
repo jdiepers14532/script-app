@@ -164,7 +164,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [lnSize, setLnSize] = useState(10)
   const [lnColor, setLnColor] = useState('#999999')
   const [lnSaving, setLnSaving] = useState(false)
-  const [replikColor, setReplikColor] = useState('#999999')
+  const [replikColor, setReplikColor] = useState('#000000')
   const [replikMode, setReplikMode] = useState<'continuous' | 'per_scene'>('continuous')
   const [replikSaving, setReplikSaving] = useState(false)
 

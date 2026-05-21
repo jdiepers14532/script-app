@@ -63,7 +63,7 @@ export const LN_SETTINGS_DEFAULTS: LnSettings = { fontFamily: "'Courier Prime', 
 export interface PageMargins { oben: number; unten: number; links: number; rechts: number }
 export const DEFAULT_PAGE_MARGINS: PageMargins = { oben: 25, unten: 20, links: 25, rechts: 20 }
 export interface ReplikSettings { color: string; mode: 'continuous' | 'per_scene' }
-export const REPLIK_SETTINGS_DEFAULTS: ReplikSettings = { color: '#999999', mode: 'continuous' }
+export const REPLIK_SETTINGS_DEFAULTS: ReplikSettings = { color: '#000000', mode: 'continuous' }
 interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings }
 export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS })
 export function useAppSettings() { return useContext(AppSettingsContext) }
