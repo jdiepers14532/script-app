@@ -396,6 +396,10 @@ ${wm}
   .character { margin-left: 40%; font-weight: bold; margin-bottom: 0; page-break-after: avoid; }
   .parenthetical { margin-left: 30%; margin-right: 30%; font-style: italic; page-break-inside: avoid; page-break-after: avoid; }
   .dialogue  { margin-left: 20%; margin-right: 20%; page-break-inside: avoid; }
+  /* Absatzformat-based nodes (data-kuerzel) — page-break rules */
+  [data-kuerzel="CHAR"] { page-break-after: avoid; }
+  [data-kuerzel="DIA"]  { page-break-inside: avoid; }
+  [data-kuerzel="PAR"]  { page-break-inside: avoid; page-break-after: avoid; }
   .transition{ text-align: right; font-weight: bold; }
   .shot      { font-weight: bold; }
   .heading   { font-weight: bold; text-transform: uppercase; }

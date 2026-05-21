@@ -21,6 +21,85 @@ function inlineToText(content: any[]): string {
   return content.map((n: any) => n.text ?? '').join('')
 }
 
+function esc(s: string): string {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** Renders inline content as HTML with bold/italic/underline marks */
+function inlineToHtml(content: any[]): string {
+  if (!Array.isArray(content)) return ''
+  return content.map((n: any) => {
+    let text = esc(n.text ?? '')
+    if (n.marks?.length) {
+      for (const mark of n.marks) {
+        if (mark.type === 'bold')      text = `<strong>${text}</strong>`
+        if (mark.type === 'italic')    text = `<em>${text}</em>`
+        if (mark.type === 'underline') text = `<u>${text}</u>`
+      }
+    }
+    return text
+  }).join('')
+}
+
+/** Convert absatzformat DB row → CSS inline style string */
+function fmtToStyle(f: any): string {
+  const p: string[] = []
+  if (f.font_family) p.push(`font-family: "${f.font_family}", monospace`)
+  if (f.font_size)   p.push(`font-size: ${f.font_size}pt`)
+  if (f.bold)        p.push('font-weight: bold')
+  if (f.italic)      p.push('font-style: italic')
+  if (f.underline)   p.push('text-decoration: underline')
+  if (f.uppercase)   p.push('text-transform: uppercase')
+  if (f.text_align && f.text_align !== 'left') p.push(`text-align: ${f.text_align}`)
+  if (f.margin_left)  p.push(`margin-left: ${f.margin_left}cm`)
+  if (f.margin_right) p.push(`margin-right: ${f.margin_right}cm`)
+  if (f.space_before) p.push(`margin-top: ${f.space_before}pt`)
+  if (f.space_after)  p.push(`margin-bottom: ${f.space_after}pt`)
+  if (f.line_height)  p.push(`line-height: ${f.line_height}`)
+  return p.join('; ')
+}
+
+/** Render scene body content as HTML using absatzformat properties (inline styles).
+ *  Falls back to legacy screenplay_element CSS classes for old content. */
+function renderSzeneBodyHtml(szene: any, formatMap: Map<string, any>): string {
+  let raw: any[]
+  if (Array.isArray(szene.content)) {
+    raw = szene.content
+  } else if (szene.content?.type === 'doc' && Array.isArray(szene.content.content)) {
+    raw = szene.content.content
+  } else {
+    return ''
+  }
+
+  let html = ''
+  for (const node of raw) {
+    if (node.type === 'absatz') {
+      const fmt = node.attrs?.format_id ? formatMap.get(node.attrs.format_id) : null
+      const text = inlineToHtml(node.content)
+      const prefix = fmt?.textbaustein ? `${esc(fmt.textbaustein)} ` : ''
+      const content = prefix + text
+      const style = fmt ? fmtToStyle(fmt) : ''
+      const kuerzel = fmt?.kuerzel ?? ''
+      html += `<div${style ? ` style="${style}"` : ' class="action"'}${kuerzel ? ` data-kuerzel="${esc(kuerzel)}"` : ''}>${content}</div>\n`
+    } else if (node.type === 'screenplay_element') {
+      const typeMap: Record<string, string> = {
+        action: 'action', character: 'character', dialogue: 'dialogue',
+        parenthetical: 'parenthetical', transition: 'transition', shot: 'shot',
+        heading: 'heading', scene_heading: 'heading',
+      }
+      const cls = typeMap[node.attrs?.element_type ?? node.attrs?.type] ?? 'action'
+      const text = inlineToHtml(node.content)
+      html += `<div class="${cls}">${text}</div>\n`
+    } else if (node.type === 'paragraph' || node.type === 'heading') {
+      const text = inlineToHtml(node.content)
+      if (text.trim()) html += `<div class="action">${text}</div>\n`
+    } else if (typeof node.text === 'string') {
+      html += `<div class="${node.type || 'action'}">${esc(node.text)}</div>\n`
+    }
+  }
+  return html
+}
+
 /** Resolve content blocks, prepending textbaustein for absatz nodes.
  *  Also handles ProseMirror 'paragraph', 'screenplay_element', 'doc' nodes. */
 function resolveBlocks(szene: any, formatMap: Map<string, any>): Block[] {
@@ -348,10 +427,12 @@ async function loadKzFzConfig(produktionId: string, werkstufeTyp: string) {
 
 // ── Werkstufe-based exports (v43 Werkstufen-Modell) ─────────────────────────
 
-/** Load absatzformate for a production as Map<id, {name, textbaustein}> */
+/** Load absatzformate for a production — all fields needed for CSS rendering */
 async function loadFormatMap(produktionId: string): Promise<Map<string, any>> {
   const rows = await query(
-    'SELECT id, name, textbaustein FROM absatzformate WHERE produktion_id = $1',
+    `SELECT id, name, kuerzel, textbaustein, font_family, font_size, bold, italic, underline,
+            uppercase, text_align, margin_left, margin_right, space_before, space_after, line_height
+     FROM absatzformate WHERE produktion_id = $1`,
     [produktionId]
   )
   return new Map(rows.map((r: any) => [r.id, r]))
@@ -555,12 +636,7 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
         ? `<span class="stoppzeit">${formatStoppzeit(szene.stoppzeit_sek)}</span>`
         : ''
       bodyHtml += `<div class="scene-heading">${szene.scene_nummer ? szene.scene_nummer + '. ' : ''}${intExt}. ${ort} - ${zeit}${stoppzeit}</div>`
-      const blocks = resolveBlocks(szene, formatMap)
-      for (const block of blocks) {
-        const cls = block.type === 'heading' ? 'heading' : block.type
-        const escaped = String(block.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        bodyHtml += `<div class="${cls}">${escaped}</div>`
-      }
+      bodyHtml += renderSzeneBodyHtml(szene, formatMap)
     }
 
     // Optional line numbers
