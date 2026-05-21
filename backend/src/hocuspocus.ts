@@ -2,7 +2,7 @@ import { Server } from '@hocuspocus/server'
 import { Database } from '@hocuspocus/extension-database'
 import { pool } from './db'
 import fetch from 'node-fetch'
-import { recalcSceneStats } from './utils/recalcRepliken'
+import { recalcSceneStats, updateReplikCount } from './utils/recalcRepliken'
 import { calcPageLength } from './utils/calcPageLength'
 
 /**
@@ -119,6 +119,7 @@ export function createHocuspocusServer() {
                 `UPDATE dokument_szenen SET page_length = $1 WHERE id = $2`,
                 [pl, parsed.id]
               )
+              updateReplikCount(parsed.id, ds.content).catch(() => {})
             }
             if (ds?.werkstufe_id && ds?.scene_identity_id && ds?.content) {
               recalcSceneStats(ds.werkstufe_id, ds.scene_identity_id, ds.content).catch(() => {})
