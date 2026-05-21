@@ -565,6 +565,48 @@ router.get('/werkstufe/:werkId/export/fdx', async (req, res) => {
   }
 })
 
+/** Renders a notiz-format dokument_szene to HTML */
+async function renderNotizSzeneHtml(szene: any, ctx: ExportContext): Promise<string> {
+  const sceneContent = szene.content
+    ? (typeof szene.content === 'string' ? JSON.parse(szene.content) : szene.content)
+    : null
+  if (szene.wysiwyg_merged) {
+    return sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
+  }
+  if (szene.vorlage_id) {
+    const vorlage = await queryOne('SELECT body_content FROM dokument_vorlagen WHERE id = $1', [szene.vorlage_id])
+    if (vorlage?.body_content) {
+      const vorlageContent = typeof vorlage.body_content === 'string' ? JSON.parse(vorlage.body_content) : vorlage.body_content
+      const sceneHtml = sceneContent ? renderPmJson(sceneContent, { ...ctx, notiz_inhalt: null }) : ''
+      return `<div class="notiz-szene">${renderPmJson(vorlageContent, { ...ctx, notiz_inhalt: sceneHtml })}</div>`
+    }
+  }
+  return sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
+}
+
+/** Generate a PDF buffer from HTML using Puppeteer (headless Chrome) */
+async function htmlToPdf(html: string): Promise<Buffer> {
+  // Dynamic import so TypeScript doesn't require puppeteer at compile time
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const puppeteer = require('puppeteer')
+  const browser = await puppeteer.launch({
+    args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
+    headless: true,
+  })
+  try {
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: 'networkidle0' })
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      printBackground: true,
+    })
+    return Buffer.from(pdfBuffer)
+  } finally {
+    await browser.close()
+  }
+}
+
 // GET /api/werkstufen/:id/export/pdf
 router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
   try {
@@ -577,17 +619,19 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
     )
     if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
 
-    const [szenen, formatMap, ctx, kzFz, marginRow] = await Promise.all([
-      query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer', [req.params.werkId]),
+    const [szenen, formatMap, ctx, kzFz, marginRow, notizWerkstufen] = await Promise.all([
+      query('SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order, scene_nummer NULLS LAST', [req.params.werkId]),
       loadFormatMap(ws.produktion_id),
       loadExportContext(ws, req.user!.user_id, req.user!.name),
       loadKzFzConfig(ws.produktion_id, ws.typ),
       queryOne(`SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'page_margin_mm'`, [ws.produktion_id]),
+      // Notiz-type Werkstufen für diese Folge — werden vorangestellt (Titelseite, Synopsis, etc.)
+      query(
+        `SELECT id FROM werkstufen WHERE folge_id = $1 AND typ = 'notiz' ORDER BY version_nummer, id`,
+        [ws.folge_id]
+      ),
     ])
 
-    // Body-text margins from global page_margin_mm (Dokumenten-Formatierung).
-    // These are passed separately to buildPdfHtml and only affect the text block,
-    // NOT the header/footer positioning (which uses kzFz.seiten_layout).
     let bodyMargins: { oben: number; unten: number; links: number; rechts: number } | undefined
     if (marginRow?.value) {
       try {
@@ -602,31 +646,22 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
 
     const title = ws.label || `${ctx.episode_terminus} ${ctx.folge} ${ws.typ === 'drehbuch' ? 'Drehbuch' : ws.typ} V${ws.version_nummer}`
 
-    // Build scene body HTML
+    // ── Notiz-Werkstufen voranstellen (Titelseite, Synopsis, Recap, …) ──────────
     let bodyHtml = ''
+    for (const nw of notizWerkstufen) {
+      const notizSzenen = await query(
+        'SELECT * FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false ORDER BY sort_order',
+        [nw.id]
+      )
+      for (const szene of notizSzenen) {
+        bodyHtml += await renderNotizSzeneHtml(szene, ctx)
+      }
+    }
+
+    // ── Hauptwerkstufe (Drehbuch / Storyline / Notiz) ───────────────────────────
     for (const szene of szenen) {
       if (szene.format === 'notiz') {
-        const sceneContent = szene.content
-          ? (typeof szene.content === 'string' ? JSON.parse(szene.content) : szene.content)
-          : null
-        if (szene.wysiwyg_merged) {
-          // WYSIWYG-Modus: body_content ist bereits in scene.content eingebettet.
-          // vorlage_id liefert nur noch KZ/FZ/Layout — Body direkt aus content rendern.
-          bodyHtml += sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
-        } else if (szene.vorlage_id) {
-          // Alter Export-Modus: body_content der Vorlage wrапpt den Notiz-Inhalt.
-          const vorlage = await queryOne('SELECT body_content FROM dokument_vorlagen WHERE id = $1', [szene.vorlage_id])
-          if (vorlage?.body_content) {
-            const vorlageContent = typeof vorlage.body_content === 'string' ? JSON.parse(vorlage.body_content) : vorlage.body_content
-            const sceneHtml = sceneContent ? renderPmJson(sceneContent, { ...ctx, notiz_inhalt: null }) : ''
-            const notizCtx: ExportContext = { ...ctx, notiz_inhalt: sceneHtml }
-            bodyHtml += `<div class="notiz-szene">${renderPmJson(vorlageContent, notizCtx)}</div>`
-          } else {
-            bodyHtml += sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
-          }
-        } else {
-          bodyHtml += sceneContent ? `<div class="notiz-szene">${renderPmJson(sceneContent, ctx)}</div>` : ''
-        }
+        bodyHtml += await renderNotizSzeneHtml(szene, ctx)
         continue
       }
       const intExt = szene.int_ext || 'INT'
@@ -665,12 +700,14 @@ router.get('/werkstufe/:werkId/export/pdf', async (req, res) => {
 
     const filename = buildExportFilename(ws,
       { folge_nummer: ws.folge_nummer, folgen_titel: ws.folgen_titel },
-      { titel: ws.prod_titel }, ctx.episode_terminus, 'html')
-    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      { titel: ws.prod_titel }, ctx.episode_terminus, 'pdf')
+
+    const pdfBuffer = await htmlToPdf(html)
+    res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-    res.setHeader('X-Export-Type', 'pdf-source')
-    res.send(html)
+    res.send(pdfBuffer)
   } catch (err) {
+    console.error('[PDF export error]', err)
     res.status(500).json({ error: String(err) })
   }
 })

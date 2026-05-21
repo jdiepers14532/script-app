@@ -380,7 +380,7 @@ ${wm}
   }
   @page {
     size: A4;
-    margin: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
+    margin: 0;
   }
   /* ── Scene styling ── */
   .scene-heading {
@@ -404,6 +404,10 @@ ${wm}
   .shot      { font-weight: bold; }
   .heading   { font-weight: bold; text-transform: uppercase; }
   h1 { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; margin-bottom: 24px; }
+  /* Notiz-Seiten: immer auf eigener Seite beginnen */
+  .notiz-szene { page-break-before: always; }
+  .notiz-szene:first-child { page-break-before: auto; }
+  .notiz-szene p { margin: 0 0 8pt; }
   /* ── Header/Footer ── */
   /* Header/footer use their own left/right margins (from KZ/FZ seiten_layout),
      independent from the body text block. */

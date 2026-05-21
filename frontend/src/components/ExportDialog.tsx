@@ -16,7 +16,7 @@ const TYP_LABELS: Record<string, string> = {
 }
 
 const FORMAT_OPTIONS: { id: Format; label: string; ext: string; icon: React.FC<any>; desc: string }[] = [
-  { id: 'pdf',         label: 'PDF / HTML',        ext: 'html',     icon: File,       desc: 'Druckfertig mit Kopf- und Fußzeile' },
+  { id: 'pdf',         label: 'PDF',                ext: 'pdf',      icon: File,       desc: 'Druckfertiges PDF mit Kopf- und Fußzeile (inkl. Notiz-Seiten)' },
   { id: 'fountain',   label: 'Fountain',           ext: 'fountain', icon: FileText,   desc: 'Portables Textformat für Drehbücher' },
   { id: 'fdx',        label: 'Final Draft',        ext: 'fdx',      icon: Code,       desc: 'Final Draft XML-Format' },
   { id: 'replacement', label: 'Replacement Pages', ext: 'html',     icon: GitCompare, desc: 'Nur geänderte Seiten — Vergleich gegen ältere Fassung' },
