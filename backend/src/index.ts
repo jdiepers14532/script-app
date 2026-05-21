@@ -339,6 +339,7 @@ async function runMigrations() {
     'v108_glossar_linear_nonlinear.sql',
     'v109_analysis_runs.sql',
     'v110_backfill_replik_count.sql',
+    'v111_dokument_szenen_unique.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

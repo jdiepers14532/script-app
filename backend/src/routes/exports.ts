@@ -44,7 +44,7 @@ function inlineToHtml(content: any[]): string {
 /** Convert absatzformat DB row → CSS inline style string */
 function fmtToStyle(f: any): string {
   const p: string[] = []
-  if (f.font_family) p.push(`font-family: "${f.font_family}", monospace`)
+  if (f.font_family) p.push(`font-family: '${f.font_family}', monospace`)
   if (f.font_size)   p.push(`font-size: ${f.font_size}pt`)
   if (f.bold)        p.push('font-weight: bold')
   if (f.italic)      p.push('font-style: italic')
