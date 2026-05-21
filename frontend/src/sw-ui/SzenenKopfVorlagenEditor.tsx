@@ -479,13 +479,18 @@ const TabCharNode = Node.create({
   inline: true,
   atom: true,
   addAttributes() {
-    return { widthPx: { default: 20 } }
+    return {
+      widthPx:    { default: 20 },
+      align:      { default: 'left' },
+      stopPosCm:  { default: 0 },  // Ziel-Tab-Stop in cm (für center/right Nachjustierung)
+    }
   },
   parseHTML() { return [{ tag: 'span[data-tab-char]' }] },
   renderHTML({ node }) {
+    const w = Math.max(4, node.attrs.widthPx)
     return ['span', {
-      'data-tab-char': '',
-      style: `display:inline-block;width:${Math.max(4, node.attrs.widthPx)}px;vertical-align:baseline`,
+      'data-tab-char': node.attrs.align,
+      style: `display:inline-block;width:${w}px;vertical-align:baseline`,
     }, '\u200B']
   },
 })
@@ -1063,15 +1068,16 @@ function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeftCm, mar
             key={`${ts.pos}-${ts.align}`}
             onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
             onClick={e => { e.stopPropagation(); onToggle(ts.pos) }}
-            style={{
-              position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1,
-              width: 14, height: H - 2, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: TAB_ALIGN_COLORS[ts.align],
-              fontSize: 10, fontWeight: 700, cursor: 'pointer', zIndex: 2,
-              lineHeight: 1, borderLeft: `2px solid ${TAB_ALIGN_COLORS[ts.align]}`,
-            }}
+            style={{ position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1, width: 14, height: H - 2, cursor: 'pointer', zIndex: 2 }}
           >
-            <span style={{ marginLeft: 3 }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
+            {/* Vertikale Linie an exakter Tab-Stop-Position (Mitte des 14px-Klickbereichs = 7px) */}
+            <div style={{ position: 'absolute', left: 6, top: 0, bottom: 0, width: 2, background: TAB_ALIGN_COLORS[ts.align] }} />
+            {/* Buchstabe zentriert unterhalb der Linie */}
+            <span style={{
+              position: 'absolute', bottom: 1, left: 0, right: 0,
+              textAlign: 'center', fontSize: 8, fontWeight: 700,
+              color: TAB_ALIGN_COLORS[ts.align], lineHeight: 1,
+            }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
           </div>
         ))}
       </div>
@@ -1191,6 +1197,77 @@ export default function SzenenKopfVorlagenEditor({
     return () => { editor.off('selectionUpdate', update); editor.off('update', update) }
   }, [editor])
 
+  // ── Center/Right Tab-Breiten dynamisch nachjustieren ──────────────────────────
+  // Nach jedem State-Update: Für jedes center/right tab_char messen wir die
+  // Textbreite des nachfolgenden Segments und korrigieren widthPx so dass
+  // der Text tatsächlich zentriert oder rechtsbündig am Tab-Stop sitzt.
+  const lastAdjustRef = useRef(0)
+  useEffect(() => {
+    if (!editor || !containerRef.current) return
+    // Kurze Entprellung: verhindert Endlosschleife (eigenes Dispatch → neuer State → Effekt)
+    if (Date.now() - lastAdjustRef.current < 50) return
+    const view = editor.view
+    const container = containerRef.current
+    const containerLeft = container.getBoundingClientRect().left
+    const containerWidth = container.clientWidth
+    const { state } = editor
+    const { doc } = state
+    const adjustments: Array<{ nodePos: number; newWidth: number; currentAttrs: any }> = []
+
+    doc.descendants((paraNode, paraPos) => {
+      if (paraNode.type.name !== 'paragraph') return
+      // Keine center/right Stops? Überspringen
+      const tabStops: TabStop[] = paraNode.attrs.tabStops ?? []
+      if (!tabStops.some((ts: TabStop) => ts.align !== 'left')) return false
+
+      // Kinder des Paragraphen als Array sammeln
+      const children: Array<{ node: any; offset: number }> = []
+      paraNode.forEach((child: any, offset: number) => { children.push({ node: child, offset }) })
+
+      children.forEach((item, i) => {
+        if (item.node.type.name !== 'tab_char') return
+        const { align, stopPosCm, widthPx } = item.node.attrs
+        if (align === 'left' || !stopPosCm) return
+
+        const tabNodePos = paraPos + 1 + item.offset
+        // Segment-Ende = nächstes tab_char oder Paragraph-Ende
+        const nextTab = children.slice(i + 1).find(c => c.node.type.name === 'tab_char')
+        const segEndPos = nextTab
+          ? paraPos + 1 + nextTab.offset
+          : paraPos + paraNode.nodeSize - 1
+
+        try {
+          const tabStartCoords = view.coordsAtPos(tabNodePos)
+          const tabEndCoords   = view.coordsAtPos(tabNodePos + 1)
+          const segEndCoords   = view.coordsAtPos(segEndPos)
+          const tabStart_px  = tabStartCoords.left - containerLeft
+          const textStart_px = tabEndCoords.left   - containerLeft
+          const textEnd_px   = segEndCoords.left   - containerLeft
+          const textWidth    = Math.max(0, textEnd_px - textStart_px)
+          const stopPx       = (stopPosCm / rulerCm) * containerWidth
+
+          const newWidth = align === 'right'
+            ? Math.max(4, Math.round(stopPx - tabStart_px - textWidth))
+            : Math.max(4, Math.round(stopPx - tabStart_px - textWidth / 2)) // center
+
+          if (Math.abs(newWidth - widthPx) > 1) {
+            adjustments.push({ nodePos: tabNodePos, newWidth, currentAttrs: item.node.attrs })
+          }
+        } catch { /* coordsAtPos nicht verfügbar */ }
+      })
+      return false // nicht in Paragraph-Kinder rekursieren (bereits manuell behandelt)
+    })
+
+    if (adjustments.length) {
+      lastAdjustRef.current = Date.now()
+      const tr = state.tr
+      adjustments.forEach(({ nodePos, newWidth, currentAttrs }) => {
+        tr.setNodeMarkup(nodePos, undefined, { ...currentAttrs, widthPx: newWidth })
+      })
+      view.dispatch(tr)
+    }
+  }, [editor?.state, rulerCm])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     if (readOnly || !editor || e.key !== 'Tab') return
     e.preventDefault()
@@ -1216,7 +1293,7 @@ export default function SzenenKopfVorlagenEditor({
     const widthPx = Math.max(4, Math.round(targetPx - cursorPagePx))
     editor.commands.command(({ tr, dispatch }) => {
       if (dispatch) {
-        const tabNode = editor.schema.nodes.tab_char?.create({ widthPx })
+        const tabNode = editor.schema.nodes.tab_char?.create({ widthPx, align: nextStop.align, stopPosCm: nextStop.pos })
         if (tabNode) { tr.replaceSelectionWith(tabNode); dispatch(tr) }
       }
       return true

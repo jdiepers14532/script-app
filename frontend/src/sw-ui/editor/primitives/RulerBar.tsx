@@ -231,15 +231,16 @@ export function RulerBar({ tabStops, onToggle, containerRef, rulerCm, marginLeft
             key={`${ts.pos}-${ts.align}`}
             onMouseDown={e => { e.stopPropagation(); e.preventDefault() }}
             onClick={e => { e.stopPropagation(); onToggle(ts.pos) }}
-            style={{
-              position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1,
-              width: 14, height: H - 2, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: TAB_ALIGN_COLORS[ts.align],
-              fontSize: 10, fontWeight: 700, cursor: 'pointer', zIndex: 2,
-              lineHeight: 1, borderLeft: `2px solid ${TAB_ALIGN_COLORS[ts.align]}`,
-            }}
+            style={{ position: 'absolute', left: cmToPx(ts.pos) - 7, bottom: 1, width: 14, height: H - 2, cursor: 'pointer', zIndex: 2 }}
           >
-            <span style={{ marginLeft: 3 }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
+            {/* Vertikale Linie an exakter Tab-Stop-Position (Mitte des 14px-Klickbereichs = 7px) */}
+            <div style={{ position: 'absolute', left: 6, top: 0, bottom: 0, width: 2, background: TAB_ALIGN_COLORS[ts.align] }} />
+            {/* Buchstabe zentriert unterhalb der Linie */}
+            <span style={{
+              position: 'absolute', bottom: 1, left: 0, right: 0,
+              textAlign: 'center', fontSize: 8, fontWeight: 700,
+              color: TAB_ALIGN_COLORS[ts.align], lineHeight: 1,
+            }}>{TAB_ALIGN_SYMBOL[ts.align]}</span>
           </div>
         ))}
       </div>
