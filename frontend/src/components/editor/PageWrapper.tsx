@@ -84,9 +84,10 @@ export default function PageWrapper({
           margin: '0 auto',
           background: 'transparent',
           paddingLeft: ptLeft, paddingRight: ptRight,
-          paddingTop: 0, paddingBottom: 0,
+          paddingTop: ptTop, paddingBottom: 0,
           position: 'relative',
-          // Trennlinie exakt an Druckseiten-Ende — jede contentHeight-px
+          // Trennlinie exakt an Druckseiten-Ende — Gradient relativ zum Content-Box-Rand,
+          // damit oberer Seitenrand (paddingTop) korrekt ausgespart bleibt
           backgroundImage: `repeating-linear-gradient(
             transparent 0,
             transparent ${contentHeight - 1}px,
@@ -94,6 +95,8 @@ export default function PageWrapper({
             var(--border) ${contentHeight}px
           )`,
           backgroundSize: `100% ${contentHeight}px`,
+          backgroundOrigin: 'content-box',
+          backgroundClip: 'content-box',
         } as React.CSSProperties}
       >
         {/* Seitennummer-Labels an jeder Trennlinie (max. 30 Seiten) */}
@@ -103,7 +106,7 @@ export default function PageWrapper({
             style={{
               position: 'absolute',
               left: 0,
-              top: contentHeight * (i + 1),
+              top: ptTop + contentHeight * (i + 1),
               width: '100%',
               display: 'flex',
               alignItems: 'center',

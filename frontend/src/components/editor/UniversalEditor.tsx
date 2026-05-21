@@ -611,7 +611,10 @@ export default function UniversalEditor({
   useEffect(() => () => { if (overscrollTimer.current) clearTimeout(overscrollTimer.current) }, [])
 
   const handleScrollWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
-    const el = e.currentTarget
+    const container = scrollContainerRef.current
+    if (!container) return
+    // pw-outer ist der tatsächliche Scroll-Container (overflow:auto mit verstecktem Scrollbalken)
+    const el = container.querySelector<HTMLElement>('.pw-outer') ?? container
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2
     const atTop = el.scrollTop <= 0
     if (e.deltaY > 0 && atBottom && onNavigateNext) {
@@ -1225,7 +1228,7 @@ export default function UniversalEditor({
       <div
         ref={scrollContainerRef}
         style={{ flex: 1, overflow: 'auto', position: 'relative' }}
-        onWheel={handleScrollWheel}
+        onWheelCapture={handleScrollWheel}
         onClick={e => {
           if (focus && e.altKey) {
             e.preventDefault()
