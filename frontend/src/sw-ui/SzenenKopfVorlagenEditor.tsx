@@ -6,7 +6,7 @@
  * - Farbige Chip-Nodes für Szenenkopf-Felder
  * - Lineal mit konfigurierbaren Tab-Stops (L/C/R) pro Paragraph
  * - Formatierungs-Toolbar: Schriftart, -größe, Zeilenabstand, B/I/U/UC
- * - Seitenformat: A4 (17 cm) oder US Letter (16.5 cm) beeinflusst Linealbreite
+ * - Seitenformat: A4 (21 cm) oder US Letter (21.59 cm) beeinflusst Linealbreite
  * - Vorschau-Modus mit Dummy-Daten
  * - Serialisierung als JSON-String; Legacy-Text ({{...}}) wird automatisch konvertiert
  */
@@ -646,10 +646,10 @@ function PreviewModal({
   onClose: () => void
 }) {
   const items = renderPreviewLines(stored)
-  const rulerCm = seitenformat === 'letter' ? 16.5 : 17
+  const rulerCm = seitenformat === 'letter' ? 21.59 : 21
   // 1cm = 37.795px bei 96dpi
   const CM_PX = 37.795
-  const contentWidthPx = Math.round(rulerCm * CM_PX)            // ~642px A4
+  const contentWidthPx = Math.round(rulerCm * CM_PX)            // ~794px A4
   const plPx = Math.round((marginLeft  / 10) / rulerCm * contentWidthPx)
   const prPx = Math.round((marginRight / 10) / rulerCm * contentWidthPx)
 
@@ -1121,7 +1121,7 @@ export default function SzenenKopfVorlagenEditor({
   const [showPreview, setShowPreview] = useState(false)
   const [containerWidth, setContainerWidth] = useState(600)
 
-  const rulerCm = seitenformat === 'letter' ? 16.5 : 17
+  const rulerCm = seitenformat === 'letter' ? 21.59 : 21
   const marginLeftCm  = marginLeft  / 10
   const marginRightCm = marginRight / 10
 
