@@ -16,6 +16,8 @@ import { Clock } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
+import ExportDrawer from './ExportDrawer'
+import { Download } from 'lucide-react'
 
 interface Props {
   produktionId: string
@@ -62,6 +64,9 @@ export default function EditorPanel({
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Export Drawer ─────────────────────────────────────────────────────────
+  const [exportOpen, setExportOpen] = useState(false)
 
   // ── Neue Werkstufe Modal ──────────────────────────────────────────────────
   const [neueFassungModal, setNeueFassungModal] = useState<'drehbuch' | 'storyline' | null>(null)
@@ -507,7 +512,24 @@ export default function EditorPanel({
             <CollaborationPresence status={collabStatus} users={collabUsers} />
           </div>
         ) : undefined}
-        rightSlot={canSnapshot ? (
+        rightSlot={(
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Tooltip text="Exportieren (PDF, DOCX, Fountain, FDX)">
+            <button
+              onClick={() => setExportOpen(v => !v)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 24, height: 24, borderRadius: 5,
+                border: `1px solid ${exportOpen ? '#007AFF' : 'var(--border)'}`,
+                background: exportOpen ? 'rgba(0,122,255,0.08)' : 'transparent',
+                color: exportOpen ? '#007AFF' : 'var(--text-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <Download size={12} />
+            </button>
+          </Tooltip>
+          {canSnapshot ? (
           <Tooltip text="Verlauf — Auto-Sicherungen">
             <button
               onClick={() => setSnapshotOpen(v => !v)}
@@ -523,7 +545,9 @@ export default function EditorPanel({
               <Clock size={12} />
             </button>
           </Tooltip>
-        ) : undefined}
+          ) : null}
+          </div>
+        )}
       />
 
       {/* ── Szenario 3: Andere User aktiv auf derselben Werkstufe ── */}
@@ -796,6 +820,14 @@ export default function EditorPanel({
           </div>
         </div>
       )}
+
+      {/* ── Export Drawer ── */}
+      <ExportDrawer
+        isOpen={exportOpen}
+        onClose={() => setExportOpen(false)}
+        selectedWerk={selectedWerk}
+        werkstufen={werkstufen}
+      />
 
       {/* ── Snapshot Drawer ── */}
       {snapshotOpen && canSnapshot && typeof selectedSzeneId === 'string' && (
