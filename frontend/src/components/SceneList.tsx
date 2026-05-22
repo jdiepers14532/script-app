@@ -225,7 +225,9 @@ export default function SceneList({
     (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
 
-  const filtered = sorted.filter(matchesSearch)
+  const filtered = sorted.filter(s =>
+    matchesSearch(s) && (!tweaks.sceneListNurSzenen || !s.is_non_scene)
+  )
 
   // Track pressed modifier keys for format shortcuts (D/S/T/N + click on +)
   useEffect(() => {
@@ -651,6 +653,12 @@ export default function SceneList({
               >
                 {tweaks.sceneListPopup ? 'Popup aus' : 'Popup an'}
               </button>
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setTweak('sceneListNurSzenen', !tweaks.sceneListNurSzenen); setHeaderMenuOpen(false) }}
+              >
+                {tweaks.sceneListNurSzenen ? 'Alle Seiten' : 'Nur Szenen'}
+              </button>
 
               {/* Kategorie: Auswertung */}
               <CategoryDivider label="Auswertung" />
@@ -811,7 +819,7 @@ export default function SceneList({
               </div>
               <div className="sl-info">
                 {scene.szeneninfo && (
-                  <Tooltip text={scene.szeneninfo}>
+                  <Tooltip text={scene.szeneninfo} placement="right">
                     <Info size={11} style={{ color: 'var(--text-muted)', display: 'block' }} />
                   </Tooltip>
                 )}
@@ -825,7 +833,7 @@ export default function SceneList({
                     </div>
                   )}
                   {stimmungWarnings[scene.id] && (
-                    <Tooltip text={stimmungWarnings[scene.id]}>
+                    <Tooltip text={stimmungWarnings[scene.id]} placement="right">
                       <span style={{ color: '#FF9500', fontSize: 11, cursor: 'default' }}>⚠</span>
                     </Tooltip>
                   )}

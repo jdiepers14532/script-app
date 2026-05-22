@@ -116,6 +116,8 @@ export interface TweakState {
   autoStimmungPropagation: boolean
   /** Hover-Popup in der Szenenübersicht (Oneliner + Rollen) */
   sceneListPopup: boolean
+  /** Nur echte Szenen anzeigen, Nicht-Szenen-Seiten ausblenden */
+  sceneListNurSzenen: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState

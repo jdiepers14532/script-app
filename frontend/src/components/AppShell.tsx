@@ -97,6 +97,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   spellcheckLang: 'de-DE',
   autoStimmungPropagation: true,
   sceneListPopup: true,
+  sceneListNurSzenen: false,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -599,6 +600,7 @@ export default function AppShell({
           spellcheckLang:    s.spellcheckLang ?? 'de-DE',
           autoStimmungPropagation: typeof s.autoStimmungPropagation === 'boolean' ? s.autoStimmungPropagation : prev.autoStimmungPropagation,
           sceneListPopup: typeof s.sceneListPopup === 'boolean' ? s.sceneListPopup : true,
+          sceneListNurSzenen: typeof s.sceneListNurSzenen === 'boolean' ? s.sceneListNurSzenen : false,
         }))
       }
     }).catch(() => {}).finally(() => {
