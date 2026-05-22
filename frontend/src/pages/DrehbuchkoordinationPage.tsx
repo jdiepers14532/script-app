@@ -1815,10 +1815,10 @@ function DokumentTypenTab({
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Größe</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Stil</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Ausr.</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Einzug links in cm, gemessen ab dem linken Textrand (nach dem globalen Seitenrand)">Einzug L</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Einzug rechts in cm, gemessen ab dem rechten Textrand (nach dem globalen Seitenrand)">Einzug R</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Abstand vor dem Absatz (pt)">Ab.v.</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Abstand nach dem Absatz (pt)">Ab.n.</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}><Tooltip text="Einzug links in cm, gemessen ab dem linken Textrand (nach dem globalen Seitenrand)">Einzug L</Tooltip></th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}><Tooltip text="Einzug rechts in cm, gemessen ab dem rechten Textrand (nach dem globalen Seitenrand)">Einzug R</Tooltip></th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}><Tooltip text="Abstand vor dem Absatz (pt)">Ab.v.</Tooltip></th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}><Tooltip text="Abstand nach dem Absatz (pt)">Ab.n.</Tooltip></th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Zeilenabstand (1.0 = einfach)">ZA</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Enter→</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Tab→</th>
@@ -1881,10 +1881,12 @@ function DokumentTypenTab({
                           <option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option>
                         </select>
                       </label>
-                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }} title="Einzug in cm, ab dem linken Textrand (nach dem globalen Seitenrand des Dokuments)">Einzug L (cm)
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                        <Tooltip text="Einzug in cm, ab dem linken Textrand (nach dem globalen Seitenrand des Dokuments)">Einzug L (cm)</Tooltip>
                         <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_left ?? 0} onChange={e => setEditData({ ...editData, margin_left: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
                       </label>
-                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }} title="Einzug in cm, ab dem rechten Textrand (nach dem globalen Seitenrand des Dokuments)">Einzug R (cm)
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+                        <Tooltip text="Einzug in cm, ab dem rechten Textrand (nach dem globalen Seitenrand des Dokuments)">Einzug R (cm)</Tooltip>
                         <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
                       </label>
                     </div>
