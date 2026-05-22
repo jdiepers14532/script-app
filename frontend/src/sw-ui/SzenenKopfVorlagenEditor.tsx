@@ -619,7 +619,11 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
 
   const result: PreviewItem[] = []
   for (const node of (doc.content ?? [])) {
-    if (node.type === 'horizontalRule' || node.type === 'horizontal_rule') { result.push({ type: 'hr' }); continue }
+    if (node.type === 'horizontalRule' || node.type === 'horizontal_rule') {
+      // Nur zwischen zwei Inhalt-Zeilen einfügen — nie als erstes/letztes Element
+      if (result.length > 0 && result[result.length - 1].type !== 'hr') result.push({ type: 'hr' })
+      continue
+    }
     if (node.type !== 'paragraph') continue
 
     let accText = ''
@@ -665,6 +669,8 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
     }
     result.push({ type: 'line', segments, rulerCm, style })
   }
+  // Trailing-HR entfernen (z.B. wenn letzte Inhalt-Zeile weggefiltert wurde)
+  while (result.length > 0 && result[result.length - 1].type === 'hr') result.pop()
   return result
 }
 
@@ -734,7 +740,6 @@ function PreviewModal({
                 return <div key={i} style={item.style}>{text}</div>
               }
               // Tab-Zeilen: jedes Text-Segment wird absolut am jeweiligen Tab-Stop positioniert
-              const lhPx = ((item.style.fontSize as number) ?? 12) * ((item.style.lineHeight as number) ?? 1.7)
               const positioned: JSX.Element[] = []
               let curText = ''
               let curTab: (PreviewSegment & { kind: 'tab' }) | null = null
@@ -760,7 +765,9 @@ function PreviewModal({
               }
               flush()
               return (
-                <div key={i} style={{ ...item.style, position: 'relative', height: lhPx, overflow: 'visible' }}>
+                <div key={i} style={{ ...item.style, position: 'relative' }}>
+                  {/* Phantom-Zeile gibt dem Container die richtige Höhe (1 Zeilenhöhe) */}
+                  <span style={{ visibility: 'hidden', display: 'block', pointerEvents: 'none' }}>&nbsp;</span>
                   {positioned}
                 </div>
               )
