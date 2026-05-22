@@ -10,7 +10,7 @@
  * - Vorschau-Modus mit Dummy-Daten
  * - Serialisierung als JSON-String; Legacy-Text ({{...}}) wird automatisch konvertiert
  */
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -1231,6 +1231,53 @@ export default function SzenenKopfVorlagenEditor({
   const editorPL = Math.round((marginLeftCm  / rulerCm) * containerWidth)
   const editorPR = Math.round((marginRightCm / rulerCm) * containerWidth)
 
+  // Stabile Refs für die Tab-Handler-Extension (Werte immer aktuell ohne Editor-Neustart)
+  const containerRefStable = useRef<HTMLDivElement | null>(null)
+  const rulerCmRef = useRef(rulerCm)
+  useEffect(() => { rulerCmRef.current = rulerCm }, [rulerCm])
+  useEffect(() => { containerRefStable.current = containerRef.current }, [containerRef])
+
+  // Tab-Handler als Tiptap-Extension (einmalig erstellt, liest Refs dynamisch)
+  const TabHandlerExtension = useMemo(() => Extension.create({
+    name: 'sk_tab_handler',
+    addKeyboardShortcuts() {
+      return {
+        Tab: () => {
+          const editor = this.editor
+          const container = containerRefStable.current
+          if (!container) return false
+          const { $anchor, from } = editor.state.selection
+          const rulerCm = rulerCmRef.current
+          const tabStops: TabStop[] = ($anchor.parent.attrs.tabStops ?? [])
+            .slice().sort((a: TabStop, b: TabStop) => a.pos - b.pos)
+          if (!tabStops.length) {
+            editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
+            return true
+          }
+          const coords = editor.view.coordsAtPos(from)
+          const containerRect = container.getBoundingClientRect()
+          const containerWidthLive = container.clientWidth
+          const cursorPagePx = coords.left - containerRect.left
+          const cursorCm = (cursorPagePx / containerWidthLive) * rulerCm
+          const nextStop = tabStops.find((ts: TabStop) => ts.pos > cursorCm + 0.05)
+          if (!nextStop) {
+            editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
+            return true
+          }
+          const targetPx = (nextStop.pos / rulerCm) * containerWidthLive
+          const widthPx = Math.max(4, Math.round(targetPx - cursorPagePx))
+          return editor.commands.command(({ tr, dispatch }) => {
+            if (dispatch) {
+              const tabNode = editor.schema.nodes.tab_char?.create({ widthPx, align: nextStop.align, stopPosCm: nextStop.pos })
+              if (tabNode) { tr.replaceSelectionWith(tabNode); dispatch(tr) }
+            }
+            return true
+          })
+        },
+      }
+    },
+  }), []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const editor = useEditor({
     editable: !readOnly,
     extensions: [
@@ -1248,6 +1295,7 @@ export default function SzenenKopfVorlagenEditor({
       SKIfExtension,
       SKEndIfExtension,
       TabCharNode,
+      TabHandlerExtension,
     ],
     content: parseSKTemplate(value),
     onUpdate: ({ editor: ed }) => {
@@ -1350,38 +1398,6 @@ export default function SzenenKopfVorlagenEditor({
     }
   }, [editor?.state, rulerCm])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (readOnly || !editor || e.key !== 'Tab') return
-    e.preventDefault()
-    if (e.shiftKey) return
-    const { $anchor, from } = editor.state.selection
-    const tabStops: TabStop[] = ($anchor.parent.attrs.tabStops ?? []).slice().sort((a: TabStop, b: TabStop) => a.pos - b.pos)
-    const container = containerRef.current
-    if (!tabStops.length || !container) {
-      editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
-      return
-    }
-    const coords = editor.view.coordsAtPos(from)
-    const containerRect = container.getBoundingClientRect()
-    const containerWidthLive = container.clientWidth
-    const cursorPagePx = coords.left - containerRect.left
-    const cursorCm = (cursorPagePx / containerWidthLive) * rulerCm
-    const nextStop = tabStops.find((ts: TabStop) => ts.pos > cursorCm + 0.05)
-    if (!nextStop) {
-      editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
-      return
-    }
-    const targetPx = (nextStop.pos / rulerCm) * containerWidthLive
-    const widthPx = Math.max(4, Math.round(targetPx - cursorPagePx))
-    editor.commands.command(({ tr, dispatch }) => {
-      if (dispatch) {
-        const tabNode = editor.schema.nodes.tab_char?.create({ widthPx, align: nextStop.align, stopPosCm: nextStop.pos })
-        if (tabNode) { tr.replaceSelectionWith(tabNode); dispatch(tr) }
-      }
-      return true
-    })
-  }, [editor, readOnly, rulerCm])
-
   const handleToggleTabStop = useCallback((pos: number) => {
     if (!editor) return
     const { $anchor } = editor.state.selection
@@ -1408,7 +1424,6 @@ export default function SzenenKopfVorlagenEditor({
   return (
     <div
       ref={containerRef}
-      onKeyDown={handleKeyDown}
       style={{
         border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden',
         background: readOnly ? 'var(--bg-subtle)' : 'var(--bg-surface)',
