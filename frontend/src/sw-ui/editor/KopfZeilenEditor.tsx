@@ -10,17 +10,18 @@
  *
  * Value-Format kompatibel mit DokumentVorlagenEditorValue (Subset).
  */
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
+import { Node, Extension } from '@tiptap/core'
+import { Plugin, PluginKey } from 'prosemirror-state'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
 import TextStyle from '@tiptap/extension-text-style'
 import FontFamily from '@tiptap/extension-font-family'
 import { RulerBar } from './primitives/RulerBar'
-import { TabKeyExtension } from './primitives/TabStopExtension'
 import type { TabStop } from './primitives/TabStopExtension'
 import { TAB_ALIGN_NEXT } from './primitives/TabStopExtension'
 import { FontSizeExtension } from './extensions/FontSizeExtension'
@@ -91,6 +92,30 @@ function normalizeZone(c: any): ZeilenContent {
   return { links: null, mitte: null, rechts: null }
 }
 
+// ── TabChar Node (inline-Atom für präzise Tab-Stop-Positionierung) ────────────
+
+const TabCharNode = Node.create({
+  name: 'tab_char',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  addAttributes() {
+    return {
+      widthPx:   { default: 20 },
+      align:     { default: 'left' },
+      stopPosCm: { default: 0 },
+    }
+  },
+  parseHTML() { return [{ tag: 'span[data-tab-char]' }] },
+  renderHTML({ node }) {
+    const w = Math.max(4, node.attrs.widthPx)
+    return ['span', {
+      'data-tab-char': node.attrs.align,
+      style: `display:inline-block;width:${w}px;vertical-align:baseline`,
+    }, '\u200B']
+  },
+})
+
 // ── Tiptap-Extensions ────────────────────────────────────────────────────────
 
 const KZ_EXTENSIONS = [
@@ -103,7 +128,7 @@ const KZ_EXTENSIONS = [
   ParagraphStyleExtension,
   ResizableImageExtension,
   PlaceholderChipExtension,
-  TabKeyExtension,
+  TabCharNode,
 ]
 
 // ── Preview ────────────────────────────────────────────────────────────────────
@@ -803,15 +828,18 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, de
           <>
             <div style={{ flex: 1, display: activeZone === 'links' ? 'block' : 'none', borderRight: '1px solid var(--border, #e0e0e0)' }}>
               <ZoneEditorWithRef content={kzContent.links} onChange={c => updateZone('kopfzeile', 'links', c)}
-                placeholder="Links…" onReady={setLinksEditorKZ} onFocus={() => { setActiveZone('links'); setActiveZeile('kopfzeile') }} />
+                placeholder="Links…" onReady={setLinksEditorKZ} onFocus={() => { setActiveZone('links'); setActiveZeile('kopfzeile') }}
+                tabStops={tabStops} containerRef={containerRef} rulerCm={rulerCm} />
             </div>
             <div style={{ flex: 1, display: activeZone === 'mitte' ? 'block' : 'none', borderRight: '1px solid var(--border, #e0e0e0)' }}>
               <ZoneEditorWithRef content={kzContent.mitte} onChange={c => updateZone('kopfzeile', 'mitte', c)}
-                placeholder="Mitte…" onReady={setMitteEditorKZ} onFocus={() => { setActiveZone('mitte'); setActiveZeile('kopfzeile') }} />
+                placeholder="Mitte…" onReady={setMitteEditorKZ} onFocus={() => { setActiveZone('mitte'); setActiveZeile('kopfzeile') }}
+                tabStops={tabStops} containerRef={containerRef} rulerCm={rulerCm} />
             </div>
             <div style={{ flex: 1, display: activeZone === 'rechts' ? 'block' : 'none' }}>
               <ZoneEditorWithRef content={kzContent.rechts} onChange={c => updateZone('kopfzeile', 'rechts', c)}
-                placeholder="Rechts…" onReady={setRechtsEditorKZ} onFocus={() => { setActiveZone('rechts'); setActiveZeile('kopfzeile') }} />
+                placeholder="Rechts…" onReady={setRechtsEditorKZ} onFocus={() => { setActiveZone('rechts'); setActiveZeile('kopfzeile') }}
+                tabStops={tabStops} containerRef={containerRef} rulerCm={rulerCm} />
             </div>
           </>
         )}
@@ -820,15 +848,18 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, de
           <>
             <div style={{ flex: 1, display: activeZone === 'links' ? 'block' : 'none', borderRight: '1px solid var(--border, #e0e0e0)' }}>
               <ZoneEditorWithRef content={fzContent.links} onChange={c => updateZone('fusszeile', 'links', c)}
-                placeholder="Links…" onReady={setLinksEditorFZ} onFocus={() => { setActiveZone('links'); setActiveZeile('fusszeile') }} />
+                placeholder="Links…" onReady={setLinksEditorFZ} onFocus={() => { setActiveZone('links'); setActiveZeile('fusszeile') }}
+                tabStops={tabStops} containerRef={containerRef} rulerCm={rulerCm} />
             </div>
             <div style={{ flex: 1, display: activeZone === 'mitte' ? 'block' : 'none', borderRight: '1px solid var(--border, #e0e0e0)' }}>
               <ZoneEditorWithRef content={fzContent.mitte} onChange={c => updateZone('fusszeile', 'mitte', c)}
-                placeholder="Mitte…" onReady={setMitteEditorFZ} onFocus={() => { setActiveZone('mitte'); setActiveZeile('fusszeile') }} />
+                placeholder="Mitte…" onReady={setMitteEditorFZ} onFocus={() => { setActiveZone('mitte'); setActiveZeile('fusszeile') }}
+                tabStops={tabStops} containerRef={containerRef} rulerCm={rulerCm} />
             </div>
             <div style={{ flex: 1, display: activeZone === 'rechts' ? 'block' : 'none' }}>
               <ZoneEditorWithRef content={fzContent.rechts} onChange={c => updateZone('fusszeile', 'rechts', c)}
-                placeholder="Rechts…" onReady={setRechtsEditorFZ} onFocus={() => { setActiveZone('rechts'); setActiveZeile('fusszeile') }} />
+                placeholder="Rechts…" onReady={setRechtsEditorFZ} onFocus={() => { setActiveZone('rechts'); setActiveZeile('fusszeile') }}
+                tabStops={tabStops} containerRef={containerRef} rulerCm={rulerCm} />
             </div>
           </>
         )}
@@ -869,14 +900,65 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, de
 // ── ZoneEditorWithRef ─────────────────────────────────────────────────────────
 
 function ZoneEditorWithRef({
-  content, onChange, placeholder, onReady, onFocus,
+  content, onChange, placeholder, onReady, onFocus, tabStops, containerRef, rulerCm,
 }: {
   content: any; onChange: (c: any) => void; placeholder?: string
   onReady: (e: Editor) => void; onFocus: () => void
+  tabStops: TabStop[]
+  containerRef: React.RefObject<HTMLDivElement | null>
+  rulerCm: number
 }) {
+  const tabStopsRef = useRef(tabStops)
+  const rulerCmRef  = useRef(rulerCm)
+  useEffect(() => { tabStopsRef.current = tabStops }, [tabStops])
+  useEffect(() => { rulerCmRef.current  = rulerCm  }, [rulerCm])
+
+  const tabExtension = useMemo(() => Extension.create({
+    name: 'kz_tab_handler',
+    addProseMirrorPlugins() {
+      return [new Plugin({
+        key: new PluginKey('kz_tab_handler'),
+        props: {
+          handleKeyDown(view, event) {
+            if (event.key !== 'Tab' || event.shiftKey) return false
+            event.preventDefault()
+            const container = containerRef.current
+            const rCm  = rulerCmRef.current
+            const stops = tabStopsRef.current.slice().sort((a, b) => a.pos - b.pos)
+            if (!stops.length || !container) {
+              view.dispatch(view.state.tr.insertText('\u00A0\u00A0\u00A0\u00A0'))
+              return true
+            }
+            const { state } = view
+            const { from }  = state.selection
+            const coords    = view.coordsAtPos(from)
+            const rect      = container.getBoundingClientRect()
+            const cW        = container.clientWidth
+            const cursorCm  = (coords.left - rect.left) / cW * rCm
+            const nextStop  = stops.find(ts => ts.pos > cursorCm + 0.05)
+            if (!nextStop) {
+              view.dispatch(state.tr.insertText('\u00A0\u00A0\u00A0\u00A0'))
+              return true
+            }
+            const targetPx = (nextStop.pos / rCm) * cW
+            const cursorPx = coords.left - rect.left
+            const widthPx  = Math.max(4, Math.round(targetPx - cursorPx))
+            const tabNode  = state.schema.nodes.tab_char?.create({
+              widthPx, align: nextStop.align, stopPosCm: nextStop.pos,
+            })
+            if (tabNode) view.dispatch(state.tr.replaceSelectionWith(tabNode))
+            return true
+          },
+        },
+      })]
+    },
+  }), []) // stabil — dynamische Werte über Refs
+
+  const extensions = useMemo(() => [...KZ_EXTENSIONS, tabExtension], [tabExtension])
+
   const lastEmit = useRef('')
   const editor = useEditor({
-    extensions: KZ_EXTENSIONS,
+    extensions,
     content: content || { type: 'doc', content: [{ type: 'paragraph' }] },
     onUpdate: ({ editor: e }) => {
       const json = JSON.stringify(e.getJSON())
