@@ -604,19 +604,33 @@ const DUMMY_FIELDS: Record<string, string> = {
   fb_ref:       'Sz. 7 (Ep. 8090)',
 }
 
-type PreviewItem = { type: 'text'; text: string; style: CSSProperties } | { type: 'hr' }
+// Ein Segment = entweder reiner Text oder ein Tab-Spacer
+type PreviewSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'tab'; posCm: number; align: TabAlign }
 
-function renderPreviewLines(stored: string): PreviewItem[] {
+type PreviewItem =
+  | { type: 'hr' }
+  | { type: 'line'; segments: PreviewSegment[]; rulerCm: number; style: CSSProperties }
+
+function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
   let doc: any
   try { doc = parseSKTemplate(stored) } catch { return [] }
 
   const result: PreviewItem[] = []
   for (const node of (doc.content ?? [])) {
-    if (node.type === 'horizontal_rule') { result.push({ type: 'hr' }); continue }
+    if (node.type === 'horizontalRule' || node.type === 'horizontal_rule') { result.push({ type: 'hr' }); continue }
     if (node.type !== 'paragraph') continue
-    let lineText = ''
+
+    let accText = ''
     let hasNonEmptyChip = false
     let skipDepth = 0
+    const segments: PreviewSegment[] = []
+
+    const flushText = () => {
+      if (accText) { segments.push({ kind: 'text', text: accText }); accText = '' }
+    }
+
     for (const child of (node.content ?? [])) {
       if (child.type === 'sk_if') {
         const val = DUMMY_FIELDS[child.attrs?.ref_key] ?? ''
@@ -625,23 +639,31 @@ function renderPreviewLines(stored: string): PreviewItem[] {
       }
       if (child.type === 'sk_endif') { if (skipDepth > 0) skipDepth--; continue }
       if (skipDepth > 0) continue
-      if (child.type === 'text') lineText += child.text ?? ''
-      else if (child.type === 'sk_chip') {
+      if (child.type === 'text') {
+        accText += child.text ?? ''
+      } else if (child.type === 'sk_chip') {
         const val = DUMMY_FIELDS[child.attrs?.key] ?? ''
-        lineText += val
+        accText += val
         if (val.trim()) hasNonEmptyChip = true
+      } else if (child.type === 'tab_char') {
+        flushText()
+        segments.push({ kind: 'tab', posCm: child.attrs?.stopPosCm ?? 0, align: child.attrs?.align ?? 'left' })
       }
     }
+    flushText()
+
+    const lineText = segments.map(s => s.kind === 'text' ? s.text : '').join('')
     const hasText = lineText.replace(/\s/g, '').length > 0
     if (!hasText || (!hasNonEmptyChip && lineText.match(/^\s*$/))) continue
+
     const { fontFamily, fontSize, lineHeight } = node.attrs ?? {}
     const style: CSSProperties = {
       fontFamily: fontFamily ?? "'Courier Prime','Courier New',monospace",
       fontSize: fontSize ?? 12,
       lineHeight: lineHeight ?? 1.7,
-      whiteSpace: 'pre-wrap',
+      whiteSpace: 'pre',
     }
-    result.push({ type: 'text', text: lineText, style })
+    result.push({ type: 'line', segments, rulerCm, style })
   }
   return result
 }
@@ -655,8 +677,8 @@ function PreviewModal({
   marginRight: number
   onClose: () => void
 }) {
-  const items = renderPreviewLines(stored)
   const rulerCm = seitenformat === 'letter' ? 21.59 : 21
+  const items = renderPreviewLines(stored, rulerCm)
   // 1cm = 37.795px bei 96dpi
   const CM_PX = 37.795
   const contentWidthPx = Math.round(rulerCm * CM_PX)            // ~794px A4
@@ -704,11 +726,45 @@ function PreviewModal({
             ? <span style={{ fontSize: 11, color: '#888', fontFamily: "'Courier Prime','Courier New',monospace" }}>
                 — Keine sichtbaren Zeilen —
               </span>
-            : items.map((item, i) => (
-              item.type === 'hr'
-                ? <hr key={i} style={{ border: 'none', borderTop: '1px solid #000', margin: '4px 0' }} />
-                : <div key={i} style={item.style}>{item.text}</div>
-            ))
+            : items.map((item, i) => {
+              if (item.type === 'hr') return <hr key={i} style={{ border: 'none', borderTop: '1px solid #000', margin: '4px 0' }} />
+              const hasTabs = item.segments.some(s => s.kind === 'tab')
+              if (!hasTabs) {
+                const text = item.segments.map(s => s.kind === 'text' ? s.text : '').join('')
+                return <div key={i} style={item.style}>{text}</div>
+              }
+              // Tab-Zeilen: jedes Text-Segment wird absolut am jeweiligen Tab-Stop positioniert
+              const lhPx = ((item.style.fontSize as number) ?? 12) * ((item.style.lineHeight as number) ?? 1.7)
+              const positioned: JSX.Element[] = []
+              let curText = ''
+              let curTab: (PreviewSegment & { kind: 'tab' }) | null = null
+              const flush = () => {
+                if (!curText) return
+                const spanStyle: CSSProperties = { position: 'absolute', whiteSpace: 'pre' }
+                if (!curTab) {
+                  spanStyle.left = 0
+                } else if (curTab.align === 'center') {
+                  spanStyle.left = `${(curTab.posCm / item.rulerCm * 100).toFixed(2)}%`
+                  spanStyle.transform = 'translateX(-50%)'
+                } else if (curTab.align === 'right') {
+                  spanStyle.right = `${((item.rulerCm - curTab.posCm) / item.rulerCm * 100).toFixed(2)}%`
+                } else {
+                  spanStyle.left = `${(curTab.posCm / item.rulerCm * 100).toFixed(2)}%`
+                }
+                positioned.push(<span key={positioned.length} style={spanStyle}>{curText}</span>)
+                curText = ''
+              }
+              for (const seg of item.segments) {
+                if (seg.kind === 'tab') { flush(); curTab = seg }
+                else curText += seg.text
+              }
+              flush()
+              return (
+                <div key={i} style={{ ...item.style, position: 'relative', height: lhPx, overflow: 'visible' }}>
+                  {positioned}
+                </div>
+              )
+            })
           }
         </div>
         <div style={{ marginTop: 8, fontSize: 9, color: 'var(--text-secondary)' }}>
