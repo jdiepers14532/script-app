@@ -1878,7 +1878,7 @@ function DokumentTypenTab({
                     <div style={{ display: 'grid', gridTemplateColumns: '90px 90px 90px', gap: 6, marginBottom: 6 }}>
                       <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Ausrichtung
                         <select value={editData.text_align} onChange={e => setEditData({ ...editData, text_align: e.target.value })} style={{ ...selectStyle, marginTop: 2, width: '100%' }}>
-                          <option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option>
+                          <option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option><option value="justify">Blocksatz</option>
                         </select>
                       </label>
                       <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
@@ -1997,7 +1997,7 @@ function DokumentTypenTab({
                 {f.bold && <b>B</b>}{f.italic && <i> I</i>}{f.underline && <u> U</u>}{f.uppercase && <span> UC</span>}
                 {!f.bold && !f.italic && !f.underline && !f.uppercase && '-'}
               </td>
-              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.text_align === 'left' ? 'L' : f.text_align === 'center' ? 'C' : 'R'}</td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.text_align === 'left' ? 'L' : f.text_align === 'center' ? 'C' : f.text_align === 'justify' ? 'B' : 'R'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_left ? f.margin_left + ' cm' : '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_right ? f.margin_right + ' cm' : '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.space_before || '-'}</td>
@@ -2154,7 +2154,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
           <input type="number" className="no-spin" value={data.font_size} onChange={e => setData({ ...data, font_size: parseFloat(e.target.value) })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Ausrichtung</label>
           <select value={data.text_align} onChange={e => setData({ ...data, text_align: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
-            <option value="left">Links</option><option value="center">Mitte</option><option value="right">Rechts</option>
+            <option value="left">Links</option><option value="center">Mitte</option><option value="right">Rechts</option><option value="justify">Blocksatz</option>
           </select></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Stil</label>
           <div style={{ display: 'flex', gap: 6, paddingTop: 4 }}>
