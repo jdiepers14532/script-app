@@ -332,10 +332,8 @@ export function buildPdfHtml(params: {
   /** Body-text margins from global page_margin_mm (Dokumenten-Formatierung).
    *  If provided, these are used for the text block — independent of header/footer. */
   bodyMargins?: { oben: number; unten: number; links: number; rechts: number }
-  /** Wenn true: kein automatischer <h1>-Titel, da eine Dokument-Vorlage (Titelblatt) vorhanden. */
-  hasPrefix?: boolean
 }): string {
-  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins, hasPrefix } = params
+  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins } = params
 
   // ── Header/footer position (from KZ/FZ seiten_layout) ──────────────────────
   // These define WHERE the header/footer bands sit on the page.
@@ -386,6 +384,7 @@ ${wm}
     font-family: 'Courier Prime';
     src: local('Courier Prime');
   }
+  /* Screen: body padding für Browser-Vorschau (1. Seite) */
   body {
     font-family: 'Courier Prime', 'Courier New', monospace;
     font-size: 12pt;
@@ -394,18 +393,21 @@ ${wm}
     line-height: 1.5;
     color: #000;
   }
+  /* Print (Puppeteer): @page margin für echte Seitenränder auf jeder Seite,
+     body padding entfernt damit kein doppelter Abstand */
   @page {
     size: A4;
-    margin: 0;
+    margin: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
+  }
+  @media print {
+    body { padding: 0 !important; margin: 0 !important; }
+    .no-print { display: none; }
   }
   /* Absatzformat page-break rules (data-kuerzel) */
   [data-kuerzel="CHAR"] { page-break-after: avoid; }
   [data-kuerzel="DIA"]  { page-break-inside: avoid; }
   [data-kuerzel="PAR"]  { page-break-inside: avoid; page-break-after: avoid; }
-  h1 { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; margin-bottom: 24px; }
   /* ── Header/Footer ── */
-  /* Header/footer use their own left/right margins (from KZ/FZ seiten_layout),
-     independent from the body text block. */
   .page-header, .page-footer {
     position: fixed;
     left: ${hml}mm;
@@ -428,26 +430,16 @@ ${wm}
     margin: 0;
     padding: 0;
   }
-  /* Page number counters via @page margin boxes */
-  @page {
-    @bottom-right {
-      content: "";
-    }
-  }
   .ph-seite::before         { content: counter(page); }
   .ph-seiten-gesamt::before { content: counter(pages); }
   /* First page: optionally hide header/footer */
   ${kzFz?.erste_seite_kein_header ? '.first-page .page-header { display: none !important; }' : ''}
   ${kzFz?.erste_seite_kein_footer ? '.first-page .page-footer { display: none !important; }' : ''}
-  @media print {
-    .no-print { display: none; }
-  }
 </style>
 </head>
 <body>
 ${hasHeader ? `<div class="page-header">${headerHtml}</div>` : ''}
 ${hasFooter ? `<div class="page-footer">${footerHtml}</div>` : ''}
-${hasPrefix ? '' : `<h1>${escapeHtml(title)}</h1>`}
 ${bodyHtml}
 </body>
 </html>`

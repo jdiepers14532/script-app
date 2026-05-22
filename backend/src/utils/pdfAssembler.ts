@@ -84,20 +84,41 @@ function renderInline(nodes: any[], ctx: ExportContext): string {
   return m ? m[1] : html
 }
 
-/** Rendert einen einzelnen `absatz`-Knoten zu HTML */
+// Mapping alter screenplay_element-Typen auf Absatzformat-Namen (Serienwerft Daily-Standard)
+const SCREENPLAY_ELEM_TO_FORMAT: Record<string, string> = {
+  scene_heading:  'Szenenueberschrift',
+  action:         'Action',
+  character:      'Character',
+  dialogue:       'Dialogue',
+  parenthetical:  'Parenthetical',
+  transition:     'Transition',
+  shot:           'Shot',
+}
+
+/** Rendert einen einzelnen `absatz`- oder `screenplay_element`-Knoten zu HTML */
 function renderAbsatzNode(
   node: any,
   fmtById: Map<string, AbsatzFormat>,
   fmtByName: Map<string, AbsatzFormat>,
   ctx: ExportContext
 ): string {
-  if (node.type !== 'absatz') {
-    // Fallback für paragraph/heading/table etc. aus Notiz-Seiten
+  // Fallback für paragraph/heading/table etc. aus Notiz-Seiten
+  if (node.type !== 'absatz' && node.type !== 'screenplay_element') {
     return renderPmJson({ type: 'doc', content: [node] }, ctx)
   }
 
-  const fmt = (node.attrs?.format_id ? fmtById.get(node.attrs.format_id) : null)
-    ?? (node.attrs?.format_name ? fmtByName.get(node.attrs.format_name) : null)
+  let fmt: AbsatzFormat | undefined
+
+  if (node.type === 'absatz') {
+    // Neueres Format: Lookup via UUID, dann via Name
+    fmt = (node.attrs?.format_id ? fmtById.get(node.attrs.format_id) : undefined)
+      ?? (node.attrs?.format_name ? fmtByName.get(node.attrs.format_name) : undefined)
+  } else {
+    // Älteres Format (vor AbsatzExtension-Migration): screenplay_element
+    const elementType = node.attrs?.element_type ?? 'action'
+    const formatName = SCREENPLAY_ELEM_TO_FORMAT[elementType] ?? 'Action'
+    fmt = fmtByName.get(formatName)
+  }
 
   const css    = fmt ? fmtToCss(fmt) : 'margin:0 0 8pt;line-height:1.5'
   const kz     = fmt?.kuerzel ? ` data-kuerzel="${esc(fmt.kuerzel)}"` : ''
@@ -614,7 +635,7 @@ async function assembleHtml(
       'pdf'
     ).replace(/\.pdf$/i, '')
 
-    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins, hasPrefix: prefixSections.length > 0 })
+    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins })
 
     return { html, title }
 
@@ -656,7 +677,7 @@ export async function assemblePdf(
       format: 'A4',
       printBackground: true,
       displayHeaderFooter: false,
-      margin: { top: '0', bottom: '0', left: '0', right: '0' },
+      // Kein margin-Parameter — CSS @page { margin } übernimmt die Seitenränder auf jeder Seite
     })
     setProgress(90)
   } finally {
