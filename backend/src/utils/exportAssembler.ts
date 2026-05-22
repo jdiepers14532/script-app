@@ -378,10 +378,16 @@ export function buildPdfHtml(params: {
 <meta charset="utf-8">
 ${wm}
 <title>${escapeHtml(title)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; }
+  @font-face {
+    font-family: 'Courier Prime';
+    src: local('Courier Prime');
+  }
   body {
-    font-family: "Courier New", monospace;
+    font-family: 'Courier Prime', 'Courier New', monospace;
     font-size: 12pt;
     margin: 0;
     padding: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
@@ -392,32 +398,11 @@ ${wm}
     size: A4;
     margin: 0;
   }
-  /* ── Scene styling ── */
-  .scene-heading {
-    font-weight: bold;
-    text-transform: uppercase;
-    background: #f0f0f0;
-    padding: 4px 6px;
-    margin: 20px 0 10px;
-    page-break-after: avoid;
-  }
-  .stoppzeit { float: right; color: #666; font-weight: normal; }
-  .action    { margin: 0 0 10px; }
-  .character { margin-left: 40%; font-weight: bold; margin-bottom: 0; page-break-after: avoid; }
-  .parenthetical { margin-left: 30%; margin-right: 30%; font-style: italic; page-break-inside: avoid; page-break-after: avoid; }
-  .dialogue  { margin-left: 20%; margin-right: 20%; page-break-inside: avoid; }
-  /* Absatzformat-based nodes (data-kuerzel) — page-break rules */
+  /* Absatzformat page-break rules (data-kuerzel) */
   [data-kuerzel="CHAR"] { page-break-after: avoid; }
   [data-kuerzel="DIA"]  { page-break-inside: avoid; }
   [data-kuerzel="PAR"]  { page-break-inside: avoid; page-break-after: avoid; }
-  .transition{ text-align: right; font-weight: bold; }
-  .shot      { font-weight: bold; }
-  .heading   { font-weight: bold; text-transform: uppercase; }
   h1 { text-align: center; border-bottom: 1px solid #000; padding-bottom: 10px; margin-bottom: 24px; }
-  /* Notiz-Seiten: immer auf eigener Seite beginnen */
-  .notiz-szene { page-break-before: always; }
-  .notiz-szene:first-child { page-break-before: auto; }
-  .notiz-szene p { margin: 0 0 8pt; }
   /* ── Header/Footer ── */
   /* Header/footer use their own left/right margins (from KZ/FZ seiten_layout),
      independent from the body text block. */

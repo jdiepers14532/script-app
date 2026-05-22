@@ -152,38 +152,161 @@ interface SceneRow {
   sondertyp:           string | null
 }
 
-/** Rendert den Szenenkopf (aus DB-Metadaten) nach Drehbuch-Konvention */
-function renderSceneHeading(
+// ── Szenenkopf-Template-Renderer ──────────────────────────────────────────────
+
+/** Wert eines sk_chip-Keys aus den Szenendaten */
+function skChipValue(key: string, scene: SceneRow, folgeNummer: number): string {
+  switch (key) {
+    case 'episode':      return String(folgeNummer)
+    case 'szene_nr':     return scene.scene_nummer != null
+      ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
+    case 'motiv':        return esc(scene.ort_name ?? '')
+    case 'innen_aussen': return esc(scene.int_ext ?? '')
+    case 'dt':           return esc(scene.tageszeit ?? '')
+    case 'stoppzeit':    return esc(formatStoppzeit(scene.stoppzeit_sek))
+    case 'oneliner':     return esc(scene.zusammenfassung ?? '')
+    case 'sondertyp':    return esc(scene.sondertyp ?? '')
+    default:             return ''
+  }
+}
+
+/**
+ * Rendert die Inline-Nodes einer Paragraph-Zeile im Szenenkopf-Template.
+ * Gibt HTML und ein Array von "Spalten" zurück — aufgeteilt an tab_char-Nodes.
+ * sk_if/sk_endif-Blöcke werden ausgewertet.
+ */
+function renderSKInlineSegments(
+  nodes: any[],
   scene: SceneRow,
-  fmtByName: Map<string, AbsatzFormat>
+  folgeNummer: number
+): string[] {
+  const segments: string[] = ['']
+  let skipDepth = 0
+
+  for (const node of nodes) {
+    if (node.type === 'sk_if') {
+      const val = skChipValue(node.attrs?.ref_key ?? '', scene, folgeNummer)
+      if (!val.trim()) skipDepth++
+      continue
+    }
+    if (node.type === 'sk_endif') {
+      if (skipDepth > 0) skipDepth--
+      continue
+    }
+    if (skipDepth > 0) continue
+
+    if (node.type === 'tab_char') {
+      segments.push('')
+      continue
+    }
+
+    const marks: any[] = node.marks ?? []
+    const bold      = marks.some((m: any) => m.type === 'bold')
+    const italic    = marks.some((m: any) => m.type === 'italic')
+    const underline = marks.some((m: any) => m.type === 'underline')
+
+    let content = ''
+    if (node.type === 'sk_chip') {
+      content = skChipValue(node.attrs?.key ?? '', scene, folgeNummer)
+    } else if (node.type === 'text') {
+      content = esc(node.text ?? '')
+    }
+
+    if (!content) continue
+    if (bold)      content = `<strong>${content}</strong>`
+    if (italic)    content = `<em>${content}</em>`
+    if (underline) content = `<u>${content}</u>`
+    segments[segments.length - 1] += content
+  }
+
+  return segments
+}
+
+/**
+ * Rendert eine Paragraph-Zeile des Szenenkopf-Templates.
+ * Tab-Stops werden als Flex-Spalten realisiert.
+ * Gibt '' zurück wenn die Zeile leer ist (wird dann übersprungen).
+ */
+function renderSKParagraph(
+  node: any,
+  scene: SceneRow,
+  folgeNummer: number
 ): string {
-  const num  = scene.scene_nummer != null ? String(scene.scene_nummer) : '?'
-  const suf  = scene.scene_nummer_suffix ?? ''
-  const motiv = esc(scene.ort_name ?? '')
-  const ie    = esc(scene.int_ext ?? '')
-  const dt    = esc(scene.tageszeit ?? '')
-  const stop  = formatStoppzeit(scene.stoppzeit_sek)
+  const attrs      = node.attrs ?? {}
+  const ff         = attrs.fontFamily ?? "'Courier Prime','Courier New',monospace"
+  const fs         = attrs.fontSize   ?? '11pt'
+  const lh         = attrs.lineHeight ?? '1.2'
+  const tabStops: { pos: number; align: string }[] = attrs.tabStops ?? []
 
-  const headParts = [`SZ\u00a0${num}${suf}`]
-  if (motiv) headParts.push(motiv)
-  if (ie)    headParts.push(ie)
-  if (dt)    headParts.push(dt)
+  const segments = renderSKInlineSegments(node.content ?? [], scene, folgeNummer)
+  const allEmpty  = segments.every(s => !s.trim())
+  if (allEmpty) return ''
 
-  const shFmt  = fmtByName.get('Szenenueberschrift') ?? fmtByName.get('Scene Heading') ?? fmtByName.get('SH')
-  const shCss  = shFmt
-    ? fmtToCss({ ...shFmt, space_before: Math.max(shFmt.space_before, 18) })
-    : 'font-weight:bold;text-transform:uppercase;margin-top:18pt;margin-bottom:6pt;line-height:1;page-break-after:avoid'
+  const baseStyle = `font-family:${ff};font-size:${fs};line-height:${lh};margin:0;padding:0`
 
-  const stopHtml   = stop ? `<span style="float:right;font-weight:normal;color:#555">${esc(stop)}</span>` : ''
-  const sonderHtml = scene.sondertyp === 'stockshot'
-    ? `<span style="font-weight:normal;font-size:9pt;opacity:0.65"> [STOCKSHOT]</span>`
-    : scene.sondertyp === 'flashback'
-    ? `<span style="font-weight:normal;font-size:9pt;opacity:0.65"> [FLASHBACK]</span>`
-    : scene.sondertyp === 'wechselschnitt'
-    ? `<span style="font-weight:normal;font-size:9pt;opacity:0.65"> [WECHSELSCHNITT]</span>`
-    : ''
+  if (segments.length === 1 || tabStops.length === 0) {
+    return `<p style="${baseStyle}">${segments[0] || '&nbsp;'}</p>`
+  }
 
-  return `<p style="${shCss};page-break-after:avoid" class="scene-heading">${stopHtml}${esc(headParts.join(' \u2014 '))}${sonderHtml}</p>`
+  // Flex-Row für Tab-Stop-Spalten
+  const cells = segments.map((content, i) => {
+    const stop  = tabStops[i - 1]  // stop BEFORE this segment (i=0 → no preceding stop)
+    const prevStop = tabStops[i]    // stop AT the end of this segment
+    let cellStyle = ''
+    if (i === 0) {
+      // Erste Spalte: feste Breite bis zum ersten Tab-Stop
+      const w = tabStops[0]?.pos ?? 4
+      cellStyle = `width:${w}cm;flex-shrink:0`
+    } else if (prevStop?.align === 'right') {
+      cellStyle = `flex:1;text-align:right`
+    } else if (prevStop?.align === 'center') {
+      cellStyle = `flex:1;text-align:center`
+    } else {
+      cellStyle = `flex:1;text-align:left`
+    }
+    return `<span style="${cellStyle}">${content || ''}</span>`
+  }).join('')
+
+  return `<div style="display:flex;align-items:baseline;${baseStyle}">${cells}</div>`
+}
+
+/**
+ * Rendert das konfigurierte Szenenkopf-Template (Tiptap-JSON aus absatzformat_presets)
+ * für eine Szene. Gibt ein HTML-Div mit page-break-after:avoid zurück.
+ * Fallback wenn kein Template: klassischer Einzeiler.
+ */
+function renderSzenenkopf(
+  templateJson: any,
+  scene: SceneRow,
+  folgeNummer: number
+): string {
+  // Fallback wenn kein Template konfiguriert
+  if (!templateJson) {
+    const num  = scene.scene_nummer != null ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
+    const parts = [`SZ\u00a0${num}`]
+    if (scene.ort_name)  parts.push(esc(scene.ort_name))
+    if (scene.int_ext)   parts.push(esc(scene.int_ext))
+    if (scene.tageszeit) parts.push(esc(scene.tageszeit))
+    return `<p style="font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</p>`
+  }
+
+  const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
+  const nodes: any[] = Array.isArray(doc) ? doc
+    : doc.type === 'doc' ? (doc.content ?? [])
+    : [doc]
+
+  const parts: string[] = []
+  for (const node of nodes) {
+    if (node.type === 'horizontalRule') {
+      parts.push('<hr style="border:none;border-top:0.5pt solid #888;margin:2pt 0;width:100%">')
+    } else if (node.type === 'paragraph') {
+      const rendered = renderSKParagraph(node, scene, folgeNummer)
+      if (rendered) parts.push(rendered)
+    }
+  }
+
+  if (parts.length === 0) return ''
+  return `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -191,10 +314,12 @@ function renderMainScenes(
   scenes: SceneRow[],
   fmtById: Map<string, AbsatzFormat>,
   fmtByName: Map<string, AbsatzFormat>,
-  ctx: ExportContext
+  ctx: ExportContext,
+  szenenkopfTemplate: any,
+  folgeNummer: number
 ): string {
   return scenes.map(scene => {
-    const headHtml = renderSceneHeading(scene, fmtByName)
+    const headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer)
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
   }).join('\n')
@@ -310,7 +435,30 @@ async function assembleHtml(
       } catch { /* defaults beibehalten */ }
     }
 
-    // ── 5. Terminologie (episode_terminus) ────────────────────────────────────
+    // ── 5. Szenenkopf-Template aus aktivem Absatzformat-Preset ───────────────
+    let szenenkopfTemplate: any = null
+    const presetIdRes = await client.query(
+      `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'absatzformat_preset_id'`,
+      [w.produktion_id]
+    )
+    if (presetIdRes.rows.length > 0) {
+      const rawPresetId = presetIdRes.rows[0].value
+      // value ist TEXT — ggf. JSON-String mit Anführungszeichen
+      const presetId = typeof rawPresetId === 'string'
+        ? rawPresetId.replace(/^"|"$/g, '').trim()
+        : String(rawPresetId)
+      if (presetId) {
+        const tmplRes = await client.query(
+          `SELECT szenen_kopf_template FROM absatzformat_presets WHERE id = $1`,
+          [presetId]
+        )
+        if (tmplRes.rows.length > 0) {
+          szenenkopfTemplate = tmplRes.rows[0].szenen_kopf_template ?? null
+        }
+      }
+    }
+
+    // ── 7. Terminologie (episode_terminus) ────────────────────────────────────
     const termRes = await client.query(
       `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'terminologie'`,
       [w.produktion_id]
@@ -414,7 +562,7 @@ async function assembleHtml(
     const isNotizDoc = w.typ === 'notiz'
     const mainHtml = isNotizDoc
       ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-      : renderMainScenes(szRes.rows, fmtById, fmtByName, ctx)
+      : renderMainScenes(szRes.rows, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer)
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
     const wmPayload = buildPayload(userId, werkstufId)
