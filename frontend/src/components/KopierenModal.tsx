@@ -168,9 +168,15 @@ const SECTION_GROUPS: GroupDef[] = [
         label: 'Statistik-Panel',
         tooltip: 'Konfiguration des Statistik-Panels in der Drehbuch-Ansicht.\nLegt fest, welche Auswertungen angezeigt werden und in welcher Reihenfolge:\nSzenen-Übersicht, Charakter-Repliken, Motiv-Auslastung, Komparsen-Bedarf usw.',
       },
+    ],
+  },
+  {
+    id: 'autorenplan',
+    label: 'Autorenplan',
+    sections: [
       {
         id: 'autorenplan_kategorien',
-        label: 'Autorenplan Job-Kategorien',
+        label: 'Job-Kategorien',
         isList: true,
         tooltip: 'Job-Kategorien für den Autorenplan.\nJede Kategorie definiert: Bezeichnung, Gagen-Vorgabe, Abrechnungstyp (LSt/RG), Dauer, Präsenz-Wochen, Farbe.\nBeispiele: Storyeditor, Autor, Supervising Scripteditor, Drehbuchautor.\nVerknüpfung mit Vertragsdatenbank-Tätigkeiten bleibt erhalten.\nErsetzen: alle vorhandenen Kategorien werden gelöscht.\nDazufügen: Kategorien mit gleichem Label werden übersprungen.',
       },
