@@ -18,7 +18,7 @@ import {
   ExportJobParams,
   ExportFormat,
 } from '../utils/exportJobQueue'
-import { assemblePdf, assemblePreviewHtml } from '../utils/pdfAssembler'
+import { assemblePdf, assemblePreviewHtml, PdfAssemblerInput } from '../utils/pdfAssembler'
 
 const router = Router()
 router.use(authMiddleware)
@@ -128,23 +128,15 @@ router.get('/export/job/:id/download', (req, res) => {
   res.send(buffer)
 })
 
-// ── GET /api/export/preview ───────────────────────────────────────────────────
-// Gibt das vollständige HTML als text/html zurück (kein Puppeteer).
-// Für Browser-Vorschau: im neuen Tab öffnen, DevTools nutzen.
+// ── Hilfsfunktion: Query-Params → PdfAssemblerInput ──────────────────────────
 
-router.get('/export/preview', async (req, res) => {
-  const werkstufId = req.query.werkstufId as string | undefined
-  if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
-
-  const user = req.user!
-
-  // Query-Params optional (Komma-getrennte IDs)
+function previewParamsFromQuery(req: any): PdfAssemblerInput {
+  const werkstufId = req.query.werkstufId as string
   const rawDv = req.query.dokumentVorlagenIds as string | undefined
   const rawNz = req.query.notizWerkstufIds    as string | undefined
-
-  const params = {
+  const user  = req.user!
+  return {
     werkstufId,
-    format: 'pdf' as const,
     userId:   user.user_id,
     userName: user.name,
     options: {
@@ -152,14 +144,41 @@ router.get('/export/preview', async (req, res) => {
       notizWerkstufIds:    rawNz ? rawNz.split(',').filter(Boolean) : undefined,
     },
   }
+}
+
+// ── GET /api/export/preview ───────────────────────────────────────────────────
+// Gibt das vollständige HTML als text/html zurück (kein Puppeteer).
+
+router.get('/export/preview', async (req, res) => {
+  const werkstufId = req.query.werkstufId as string | undefined
+  if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
 
   try {
-    const html = await assemblePreviewHtml(params, () => { /* kein Fortschritt nötig */ })
+    const html = await assemblePreviewHtml(previewParamsFromQuery(req), () => {})
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.setHeader('Cache-Control', 'no-store')
     res.send(html)
   } catch (err: any) {
     res.status(500).send(`<pre style="color:red">Vorschau-Fehler: ${err?.message ?? err}</pre>`)
+  }
+})
+
+// ── GET /api/export/pdf-preview ───────────────────────────────────────────────
+// Echter PDF-Vorschau: läuft synchron durch Puppeteer, liefert das PDF inline
+// im Browser-PDF-Viewer — identisch mit dem späteren Download.
+
+router.get('/export/pdf-preview', async (req, res) => {
+  const werkstufId = req.query.werkstufId as string | undefined
+  if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
+
+  try {
+    const result = await assemblePdf(previewParamsFromQuery(req), () => {})
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'inline')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(result.buffer)
+  } catch (err: any) {
+    res.status(500).send(`<pre style="color:red">PDF-Vorschau-Fehler: ${err?.message ?? err}</pre>`)
   }
 })
 

@@ -156,14 +156,20 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     document.body.removeChild(a)
   }
 
-  function openPreview() {
-    if (!selectedWerk) return
+  function buildPreviewParams(): string {
+    if (!selectedWerk) return ''
     const params = new URLSearchParams({ werkstufId: selectedWerk.id })
     if (selectedVorlagenIds.size > 0)
       params.set('dokumentVorlagenIds', Array.from(selectedVorlagenIds).join(','))
     if (selectedNotizIds.size > 0)
       params.set('notizWerkstufIds', Array.from(selectedNotizIds).join(','))
-    window.open(`/api/export/preview?${params.toString()}`, '_blank')
+    return params.toString()
+  }
+
+  function openPreview() {
+    if (!selectedWerk) return
+    // Echter PDF-Vorschau: Puppeteer rendert das PDF, Browser zeigt es inline
+    window.open(`/api/export/pdf-preview?${buildPreviewParams()}`, '_blank')
   }
 
   function toggleNotiz(id: string) {
@@ -390,7 +396,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       {selectedWerk && (
         <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {/* Vorschau-Button */}
-          <Tooltip text="HTML-Vorschau im Browser öffnen (zur Layoutkontrolle)">
+          <Tooltip text="Echte PDF-Vorschau im Browser öffnen (identisch mit Export)">
             <button
               onClick={openPreview}
               disabled={isRunning}

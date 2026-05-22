@@ -150,6 +150,8 @@ interface SceneRow {
   sort_order:          number
   format:              string | null
   sondertyp:           string | null
+  scene_identity_id:   string | null
+  rollen:              string[]
 }
 
 // ── Szenenkopf-Template-Renderer ──────────────────────────────────────────────
@@ -166,6 +168,7 @@ function skChipValue(key: string, scene: SceneRow, folgeNummer: number): string 
     case 'stoppzeit':    return esc(formatStoppzeit(scene.stoppzeit_sek))
     case 'oneliner':     return esc(scene.zusammenfassung ?? '')
     case 'sondertyp':    return esc(scene.sondertyp ?? '')
+    case 'rollen':       return esc((scene.rollen ?? []).join(', '))
     default:             return ''
   }
 }
@@ -319,7 +322,10 @@ function renderMainScenes(
   folgeNummer: number
 ): string {
   return scenes.map(scene => {
-    const headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer)
+    // Notiz-Format-Szenen bekommen keinen strukturierten Szenenkopf
+    const headHtml = scene.format !== 'notiz'
+      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer)
+      : ''
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
   }).join('\n')
@@ -551,18 +557,38 @@ async function assembleHtml(
     setProgress(40)
     const szRes = await client.query<SceneRow>(
       `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit,
-              stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp
+              stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp,
+              scene_identity_id
        FROM dokument_szenen
        WHERE werkstufe_id = $1 AND geloescht = false
        ORDER BY sort_order`,
       [werkstufId]
     )
+
+    // Charakternamen (Rollen) pro Szene für den rollen-Chip im Szenenkopf
+    const charRes = await client.query<{ scene_identity_id: string; rollen: string[] }>(
+      `SELECT sc.scene_identity_id,
+              array_agg(c.name ORDER BY c.name) AS rollen
+       FROM scene_characters sc
+       JOIN characters c ON c.id = sc.character_id
+       WHERE sc.werkstufe_id = $1 AND COALESCE(sc.ist_gruppe, false) = false
+       GROUP BY sc.scene_identity_id`,
+      [werkstufId]
+    )
+    const charMap = new Map<string, string[]>(
+      charRes.rows.map(r => [r.scene_identity_id, r.rollen])
+    )
+    const mainScenes = szRes.rows.map(s => ({
+      ...s,
+      rollen: s.scene_identity_id ? (charMap.get(s.scene_identity_id) ?? []) : [],
+    }))
+
     setProgress(50)
 
     const isNotizDoc = w.typ === 'notiz'
     const mainHtml = isNotizDoc
       ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-      : renderMainScenes(szRes.rows, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer)
+      : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer)
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
     const wmPayload = buildPayload(userId, werkstufId)
