@@ -688,8 +688,11 @@ function PreviewModal({
   // 1cm = 37.795px bei 96dpi
   const CM_PX = 37.795
   const contentWidthPx = Math.round(rulerCm * CM_PX)            // ~794px A4
-  const plPx = Math.round((marginLeft  / 10) / rulerCm * contentWidthPx)
-  const prPx = Math.round((marginRight / 10) / rulerCm * contentWidthPx)
+  const mLcm = marginLeft / 10     // mm → cm
+  const mRcm = marginRight / 10
+  const textAreaCm = rulerCm - mLcm - mRcm
+  const plPx = Math.round(mLcm / rulerCm * contentWidthPx)
+  const prPx = Math.round(mRcm / rulerCm * contentWidthPx)
 
   return createPortal(
     <div
@@ -737,36 +740,66 @@ function PreviewModal({
               const hasTabs = item.segments.some(s => s.kind === 'tab')
               if (!hasTabs) {
                 const text = item.segments.map(s => s.kind === 'text' ? s.text : '').join('')
-                return <div key={i} style={item.style}>{text}</div>
+                return <div key={i} style={{ ...item.style, whiteSpace: 'normal', wordBreak: 'break-word' }}>{text}</div>
               }
-              // Tab-Zeilen: jedes Text-Segment wird absolut am jeweiligen Tab-Stop positioniert
+              // Tab-Zeilen: jedes Segment absolut am Tab-Stop, korrekte Koordinaten im Textbereich
+              // Tab-Stop-Positionen als Anteil des Textbereichs (0–1) vorberechnen
+              const stops = item.segments
+                .filter(s => s.kind === 'tab')
+                .map(s => {
+                  const ts = s as PreviewSegment & { kind: 'tab' }
+                  return {
+                    frac: Math.max(0, Math.min(1, (ts.posCm - mLcm) / textAreaCm)),
+                    align: ts.align,
+                  }
+                })
+
               const positioned: JSX.Element[] = []
               let curText = ''
-              let curTab: (PreviewSegment & { kind: 'tab' }) | null = null
+              let stopIdx = -1   // -1 = vor erstem Tab-Stop
+
               const flush = () => {
                 if (!curText) return
-                const spanStyle: CSSProperties = { position: 'absolute', whiteSpace: 'pre' }
-                if (!curTab) {
-                  spanStyle.left = 0
-                } else if (curTab.align === 'center') {
-                  spanStyle.left = `${(curTab.posCm / item.rulerCm * 100).toFixed(2)}%`
-                  spanStyle.transform = 'translateX(-50%)'
-                } else if (curTab.align === 'right') {
-                  spanStyle.right = `${((item.rulerCm - curTab.posCm) / item.rulerCm * 100).toFixed(2)}%`
-                } else {
-                  spanStyle.left = `${(curTab.posCm / item.rulerCm * 100).toFixed(2)}%`
+                const isFirst = stopIdx < 0
+                const curFrac = isFirst ? 0 : stops[stopIdx].frac
+                const nextFrac = stops[stopIdx + 1]?.frac ?? 1
+                const align = isFirst ? 'left' : stops[stopIdx].align
+
+                const spanStyle: CSSProperties = {
+                  position: 'absolute',
+                  top: 0,                          // immer ab Oberkante des Containers
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
                 }
+
+                if (align === 'center') {
+                  spanStyle.left = `${(curFrac * 100).toFixed(2)}%`
+                  spanStyle.transform = 'translateX(-50%)'
+                  // maxWidth: bis zum nächsten Stop
+                  spanStyle.maxWidth = `${((nextFrac - curFrac) * 100).toFixed(2)}%`
+                } else if (align === 'right') {
+                  spanStyle.right = `${((1 - curFrac) * 100).toFixed(2)}%`
+                  const prevFrac = isFirst ? 0 : (stops[stopIdx - 1]?.frac ?? 0)
+                  spanStyle.maxWidth = `${((curFrac - prevFrac) * 100).toFixed(2)}%`
+                } else {
+                  // links (auch: Text vor erstem Tab)
+                  spanStyle.left = `${(curFrac * 100).toFixed(2)}%`
+                  spanStyle.maxWidth = `${((nextFrac - curFrac) * 100).toFixed(2)}%`
+                }
+
                 positioned.push(<span key={positioned.length} style={spanStyle}>{curText}</span>)
                 curText = ''
               }
+
               for (const seg of item.segments) {
-                if (seg.kind === 'tab') { flush(); curTab = seg }
+                if (seg.kind === 'tab') { flush(); stopIdx++ }
                 else curText += seg.text
               }
               flush()
+
               return (
-                <div key={i} style={{ ...item.style, position: 'relative' }}>
-                  {/* Phantom-Zeile gibt dem Container die richtige Höhe (1 Zeilenhöhe) */}
+                <div key={i} style={{ ...item.style, position: 'relative', whiteSpace: 'normal' }}>
+                  {/* Phantom-Span setzt Container-Höhe = 1 Zeilenhöhe (abs. Kinder tragen nicht bei) */}
                   <span style={{ visibility: 'hidden', display: 'block', pointerEvents: 'none' }}>&nbsp;</span>
                   {positioned}
                 </div>
