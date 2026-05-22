@@ -152,7 +152,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
             folgeNummer={folgeNummer}
             folgeId={folgeId}
             werkstufen={werkstufen}
-            defaultTyp="storyline"
+            defaultTyp={showBoth ? "storyline" : undefined}
             selectedSzeneId={selectedSzeneId}
             sceneIdentityId={sceneIdentityId}
             useDokumentSzenen={useDokumentSzenen}

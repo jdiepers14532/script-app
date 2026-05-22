@@ -124,13 +124,24 @@ export default function EditorPanel({
 
   // Auto-select preferred werkstufe type once on first load
   // Prefer non-empty werkstufen (szenen_count > 0) among matching type, then highest version_nummer
+  // Without defaultTyp: apply drehbuch > storyline > notiz priority (same as ScriptPage)
   useEffect(() => {
     if (initialApplied.current || werkstufen.length === 0) return
     initialApplied.current = true
-    const candidates = (defaultTyp
-      ? werkstufen.filter(w => w.typ === defaultTyp)
-      : werkstufen
-    ).sort((a, b) => b.version_nummer - a.version_nummer)
+    let pool: typeof werkstufen
+    if (defaultTyp) {
+      pool = werkstufen.filter(w => w.typ === defaultTyp)
+      if (pool.length === 0) pool = werkstufen // fallback: any type
+    } else {
+      const prio = ['drehbuch', 'storyline', 'notiz']
+      pool = []
+      for (const typ of prio) {
+        pool = werkstufen.filter(w => w.typ === typ)
+        if (pool.length > 0) break
+      }
+      if (pool.length === 0) pool = werkstufen
+    }
+    const candidates = pool.sort((a, b) => b.version_nummer - a.version_nummer)
     const preferred = candidates.find(w => (w.szenen_count ?? 0) > 0) ?? candidates[0] ?? null
     setSelectedWerkId(preferred?.id ?? null)
   }, [werkstufen]) // eslint-disable-line react-hooks/exhaustive-deps
