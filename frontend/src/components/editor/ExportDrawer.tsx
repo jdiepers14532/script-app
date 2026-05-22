@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
+import { X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle, Eye } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
 import Tooltip from '../Tooltip'
@@ -154,6 +154,16 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
+  }
+
+  function openPreview() {
+    if (!selectedWerk) return
+    const params = new URLSearchParams({ werkstufId: selectedWerk.id })
+    if (selectedVorlagenIds.size > 0)
+      params.set('dokumentVorlagenIds', Array.from(selectedVorlagenIds).join(','))
+    if (selectedNotizIds.size > 0)
+      params.set('notizWerkstufIds', Array.from(selectedNotizIds).join(','))
+    window.open(`/api/export/preview?${params.toString()}`, '_blank')
   }
 
   function toggleNotiz(id: string) {
@@ -374,9 +384,31 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         )}
       </div>
 
-      {/* Footer — Export-Button */}
+      {/* Footer — Vorschau + Export */}
       {selectedWerk && (
-        <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Vorschau-Button */}
+          <Tooltip text="HTML-Vorschau im Browser öffnen (zur Layoutkontrolle)">
+            <button
+              onClick={openPreview}
+              disabled={isRunning}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                width: '100%', padding: '7px 14px',
+                borderRadius: 7, fontSize: 12, fontWeight: 500,
+                fontFamily: 'inherit', cursor: isRunning ? 'not-allowed' : 'pointer',
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                transition: 'background 0.15s',
+              }}
+            >
+              <Eye size={13} />
+              Vorschau
+            </button>
+          </Tooltip>
+
+          {/* Export-Button */}
           <button
             onClick={startExport}
             disabled={isRunning || isDisabledFormat(FORMAT_DEFS.find(f => f.value === format)!)}

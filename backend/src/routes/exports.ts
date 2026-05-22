@@ -18,7 +18,7 @@ import {
   ExportJobParams,
   ExportFormat,
 } from '../utils/exportJobQueue'
-import { assemblePdf } from '../utils/pdfAssembler'
+import { assemblePdf, assemblePreviewHtml } from '../utils/pdfAssembler'
 
 const router = Router()
 router.use(authMiddleware)
@@ -126,6 +126,41 @@ router.get('/export/job/:id/download', (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`)
   res.setHeader('Content-Length', String(buffer.length))
   res.send(buffer)
+})
+
+// ── GET /api/export/preview ───────────────────────────────────────────────────
+// Gibt das vollständige HTML als text/html zurück (kein Puppeteer).
+// Für Browser-Vorschau: im neuen Tab öffnen, DevTools nutzen.
+
+router.get('/export/preview', async (req, res) => {
+  const werkstufId = req.query.werkstufId as string | undefined
+  if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
+
+  const user = req.user!
+
+  // Query-Params optional (Komma-getrennte IDs)
+  const rawDv = req.query.dokumentVorlagenIds as string | undefined
+  const rawNz = req.query.notizWerkstufIds    as string | undefined
+
+  const params = {
+    werkstufId,
+    format: 'pdf' as const,
+    userId:   user.user_id,
+    userName: user.name,
+    options: {
+      dokumentVorlagenIds: rawDv ? rawDv.split(',').filter(Boolean) : undefined,
+      notizWerkstufIds:    rawNz ? rawNz.split(',').filter(Boolean) : undefined,
+    },
+  }
+
+  try {
+    const html = await assemblePreviewHtml(params, () => { /* kein Fortschritt nötig */ })
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(html)
+  } catch (err: any) {
+    res.status(500).send(`<pre style="color:red">Vorschau-Fehler: ${err?.message ?? err}</pre>`)
+  }
 })
 
 export default router

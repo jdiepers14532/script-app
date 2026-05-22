@@ -229,10 +229,14 @@ export interface PdfAssemblerInput {
   options:    ExportJobOptions
 }
 
-export async function assemblePdf(
+/**
+ * Baut das vollständige HTML für den PDF-Export auf (ohne Puppeteer).
+ * Wird von assemblePdf() und assemblePreviewHtml() gemeinsam genutzt.
+ */
+async function assembleHtml(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void
-): Promise<JobResult> {
+): Promise<{ html: string; title: string }> {
   const { werkstufId, userId, userName, options } = input
   const client = await pool.connect()
 
@@ -359,24 +363,18 @@ export async function assemblePdf(
       episode_terminus:       episodeTerminus,
     }
 
-    // ── 7a. Dokument-Vorlagen (Titelseite, Synopsis …) laden + rendern ────────
+    // ── 7. Dokument-Vorlagen (Titelseite, Synopsis …) laden + rendern ─────────
     setProgress(30)
     const prefixSections: string[] = []
 
-    // Erst Dokument-Vorlagen (WYSIWYG-Templates) in der gewählten Reihenfolge
     const dvIds = options.dokumentVorlagenIds ?? []
     if (dvIds.length > 0) {
-      // Sortierung nach Übergabe-Reihenfolge beibehalten (ORDER BY ARRAY POSITION)
       const dvRes = await client.query(
-        `SELECT id, name, typ, body_content,
-                kopfzeile_content, fusszeile_content,
-                kopfzeile_aktiv, fusszeile_aktiv,
-                erste_seite_kein_header, seiten_layout
+        `SELECT id, name, typ, body_content
          FROM dokument_vorlagen
          WHERE id = ANY($1) AND is_aktiv = true`,
         [dvIds]
       )
-      // Sortierung nach dvIds-Reihenfolge
       const dvMap = new Map(dvRes.rows.map((r: any) => [r.id, r]))
       for (const id of dvIds) {
         const dv = dvMap.get(id)
@@ -385,7 +383,7 @@ export async function assemblePdf(
       }
     }
 
-    // Dann Notiz-Werkstufen (falls vorhanden)
+    // Notiz-Werkstufen
     const notizIds = options.notizWerkstufIds ?? []
     for (const nid of notizIds) {
       const nszRes = await client.query<SceneRow>(
@@ -425,11 +423,9 @@ export async function assemblePdf(
     let bodyHtml = wmHidden + '\n'
 
     if (prefixSections.length > 0) {
-      // Erste Prefix-Seite ohne page-break, alle folgenden mit
       bodyHtml += prefixSections.map((s, i) =>
         i === 0 ? s : `<div style="page-break-before:always">\n${s}\n</div>`
       ).join('\n')
-      // Hauptdokument auf neuer Seite
       bodyHtml += `\n<div style="page-break-before:always">\n${mainHtml}\n</div>`
     } else {
       bodyHtml += mainHtml
@@ -444,48 +440,62 @@ export async function assemblePdf(
       'pdf'
     ).replace(/\.pdf$/i, '')
 
-    const fullHtml = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins })
+    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins })
 
-    // ── 11. Puppeteer → PDF ───────────────────────────────────────────────────
-    setProgress(55)
-    const browser = await puppeteer.launch({
-      executablePath: puppeteer.executablePath(),
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-      headless: true,
-    })
-    setProgress(60)
-
-    let pdfBytes: Uint8Array
-    try {
-      const page = await browser.newPage()
-      await page.setContent(fullHtml, { waitUntil: 'networkidle0', timeout: 60_000 })
-      setProgress(75)
-      pdfBytes = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        displayHeaderFooter: false,
-        margin: { top: '0', bottom: '0', left: '0', right: '0' },
-      })
-      setProgress(90)
-    } finally {
-      await browser.close()
-    }
-
-    const filename = buildExportFilename(
-      { typ: w.typ, version_nummer: w.version_nummer, label: w.label, stand_datum: w.stand_datum },
-      { folge_nummer: w.folge_nummer, folgen_titel: w.folgen_titel },
-      { titel: w.produktion_titel },
-      episodeTerminus,
-      'pdf'
-    )
-
-    return {
-      buffer:   Buffer.from(pdfBytes),
-      mimeType: 'application/pdf',
-      filename,
-    }
+    return { html, title }
 
   } finally {
     client.release()
+  }
+}
+
+/** Gibt das vollständige HTML für die Browser-Vorschau zurück (kein Puppeteer). */
+export async function assemblePreviewHtml(
+  input: PdfAssemblerInput,
+  setProgress: (p: number) => void
+): Promise<string> {
+  const { html } = await assembleHtml(input, setProgress)
+  return html
+}
+
+export async function assemblePdf(
+  input: PdfAssemblerInput,
+  setProgress: (p: number) => void
+): Promise<JobResult> {
+  const { html, title } = await assembleHtml(input, setProgress)
+
+  // ── 11. Puppeteer → PDF ───────────────────────────────────────────────────
+  setProgress(55)
+  const browser = await puppeteer.launch({
+    executablePath: puppeteer.executablePath(),
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless: true,
+  })
+  setProgress(60)
+
+  let pdfBytes: Uint8Array
+  try {
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60_000 })
+    setProgress(75)
+    pdfBytes = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      displayHeaderFooter: false,
+      margin: { top: '0', bottom: '0', left: '0', right: '0' },
+    })
+    setProgress(90)
+  } finally {
+    await browser.close()
+  }
+
+  // Werkstufe-Metadaten für Dateiname erneut aus DB (bereits im assembleHtml geholt,
+  // hier nochmal kompakt via title)
+  const filename = title.replace(/\s*[-–]\s*$/, '') + '.pdf'
+
+  return {
+    buffer:   Buffer.from(pdfBytes),
+    mimeType: 'application/pdf',
+    filename,
   }
 }
