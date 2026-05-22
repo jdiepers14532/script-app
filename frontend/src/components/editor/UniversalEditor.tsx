@@ -610,25 +610,27 @@ export default function UniversalEditor({
   const overscrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => () => { if (overscrollTimer.current) clearTimeout(overscrollTimer.current) }, [])
 
+  const { scrollNavDelay } = useUserPrefs()
+
   const handleScrollWheel = useCallback((e: WheelEvent<HTMLDivElement>) => {
     const container = scrollContainerRef.current
     if (!container) return
-    // pw-outer ist der tatsächliche Scroll-Container (overflow:auto mit verstecktem Scrollbalken)
-    const el = container.querySelector<HTMLElement>('.pw-outer') ?? container
-    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2
-    const atTop = el.scrollTop <= 0
+    // scrollContainerRef ist der eigentliche Scroll-Container (overflow:auto)
+    // .pw-outer wächst mit dem Content und hat immer scrollTop=0 — NICHT verwenden
+    const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 2
+    const atTop = container.scrollTop <= 0
     if (e.deltaY > 0 && atBottom && onNavigateNext) {
       if (!overscrollTimer.current) {
-        overscrollTimer.current = setTimeout(() => { overscrollTimer.current = null; onNavigateNext() }, 300)
+        overscrollTimer.current = setTimeout(() => { overscrollTimer.current = null; onNavigateNext() }, scrollNavDelay)
       }
     } else if (e.deltaY < 0 && atTop && onNavigatePrev) {
       if (!overscrollTimer.current) {
-        overscrollTimer.current = setTimeout(() => { overscrollTimer.current = null; onNavigatePrev() }, 300)
+        overscrollTimer.current = setTimeout(() => { overscrollTimer.current = null; onNavigatePrev() }, scrollNavDelay)
       }
     } else if (overscrollTimer.current) {
       clearTimeout(overscrollTimer.current); overscrollTimer.current = null
     }
-  }, [onNavigateNext, onNavigatePrev])
+  }, [onNavigateNext, onNavigatePrev, scrollNavDelay])
 
   // Get current format for toolbar highlight
   const getCurrentFormat = useCallback((): AbsatzFormat | null => {
