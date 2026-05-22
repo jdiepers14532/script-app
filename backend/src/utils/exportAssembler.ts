@@ -335,16 +335,22 @@ export function buildPdfHtml(params: {
 }): string {
   const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins } = params
 
-  // ── Header/footer position (from KZ/FZ seiten_layout) ──────────────────────
-  // These define WHERE the header/footer bands sit on the page.
+  // ── KZ/FZ-Positionierung ────────────────────────────────────────────────────
+  // Best Practice: KZ/FZ sitzen nahe am physischen Papierrand (10 mm),
+  // unabhängig von den Inhalts-Seitenrändern. Der Abstand von page_margin_mm
+  // bestimmt wo der Textbereich beginnt/endet und muss groß genug sein um
+  // KZ/FZ nicht zu überlappen.
   const layout = kzFz?.seiten_layout ?? {}
-  const hmt = layout.margin_top    ?? 15   // header top offset from page edge (mm)
-  const hmb = layout.margin_bottom ?? 15   // footer bottom offset from page edge (mm)
-  const hml = layout.margin_left   ?? 20   // header/footer left edge (mm)
-  const hmr = layout.margin_right  ?? 20   // header/footer right edge (mm)
+
+  // Fester Abstand vom physischen Papierrand (unabhängig von Inhaltsrändern)
+  const hmt = 10   // mm: Kopfzeile startet 10 mm vom oberen Papierrand
+  const hmb = 10   // mm: Fußzeile endet   10 mm vom unteren Papierrand
+
+  // Horizontale Ausdehnung der KZ/FZ — aus seiten_layout konfigurierbar
+  const hml = layout.margin_left  ?? 20
+  const hmr = layout.margin_right ?? 20
 
   // ── Body-text margins (from global page_margin_mm) ──────────────────────────
-  // Fall back to KZ/FZ layout values if no global margins are set.
   const bml = bodyMargins?.links   ?? layout.margin_left   ?? 30
   const bmr = bodyMargins?.rechts  ?? layout.margin_right  ?? 25
 
@@ -358,15 +364,15 @@ export function buildPdfHtml(params: {
 
   const hasHeader = headerHtml.trim().length > 0
   const hasFooter = footerHtml.trim().length > 0
-  const headerHeight = hasHeader ? 18 : 0  // mm
-  const footerHeight = hasFooter ? 14 : 0  // mm
+  const headerHeight = hasHeader ? 14 : 0  // mm (ohne Trennlinie: 14mm reichen)
+  const footerHeight = hasFooter ? 10 : 0  // mm
 
-  // Body top/bottom must clear the header/footer bands.
-  // bodyMargins.oben/unten are used as the minimum; header clearance wins if larger.
-  const minTop    = bodyMargins?.oben   ?? (hmt + headerHeight + 4)
-  const minBottom = bodyMargins?.unten  ?? (hmb + footerHeight + 4)
-  const pageMarginTop    = hasHeader ? Math.max(minTop,    hmt + headerHeight) : minTop
-  const pageMarginBottom = hasFooter ? Math.max(minBottom, hmb + footerHeight) : minBottom
+  // Textbereich-Ränder: mindestens page_margin_mm; mindestens so groß dass KZ/FZ
+  // nicht in den Textbereich ragen (+ 4 mm Puffer zwischen KZ/FZ und Text).
+  const minTop    = bodyMargins?.oben   ?? 25
+  const minBottom = bodyMargins?.unten  ?? 20
+  const pageMarginTop    = hasHeader ? Math.max(minTop,    hmt + headerHeight + 4) : minTop
+  const pageMarginBottom = hasFooter ? Math.max(minBottom, hmb + footerHeight + 4) : minBottom
 
   const wm = watermarkMeta ? `<meta name="wm" content="${watermarkMeta}">` : ''
 

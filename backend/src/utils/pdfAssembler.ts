@@ -51,10 +51,13 @@ function formatStoppzeit(sek: number | null): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-/** Absatzformat → CSS-String (inline style) */
+/** Absatzformat → CSS-String (inline style)
+ *  WICHTIG: Einfache Anführungszeichen für font-family, da dieser String als
+ *  HTML-Attributwert in style="..." gesetzt wird. Doppelte Anführungszeichen
+ *  würden das Attribut vorzeitig beenden und alle folgenden CSS-Regeln ignorieren. */
 function fmtToCss(f: AbsatzFormat): string {
   const p: string[] = [
-    `font-family:"${f.font_family}","Courier New",monospace`,
+    `font-family:'${f.font_family}','Courier New',monospace`,
     `font-size:${f.font_size}pt`,
     `font-weight:${f.bold ? 'bold' : 'normal'}`,
     `font-style:${f.italic ? 'italic' : 'normal'}`,
