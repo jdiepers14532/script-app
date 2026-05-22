@@ -340,6 +340,7 @@ async function runMigrations() {
     'v109_analysis_runs.sql',
     'v110_backfill_replik_count.sql',
     'v111_dokument_szenen_unique.sql',
+    'v112_export_log.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
