@@ -18,6 +18,7 @@ import {
   ExportJobParams,
   ExportFormat,
 } from '../utils/exportJobQueue'
+import { assemblePdf } from '../utils/pdfAssembler'
 
 const router = Router()
 router.use(authMiddleware)
@@ -57,11 +58,16 @@ router.post('/export/job', async (req, res) => {
   // Job asynchron starten — Response ist bereits gesendet
   runJob(jobId, async (setProgress) => {
     // ── Dispatcher: ruft je nach Format den passenden Exporter auf ──
-    // Phase 3: PDF     → pdfAssembler
     // Phase 5: DOCX    → docxAssembler
     // Phase 6: Fountain / FDX → textAssembler
+    if (format === 'pdf') {
+      return assemblePdf(
+        { werkstufId, userId: params.userId, userName: params.userName, options: params.options },
+        setProgress
+      )
+    }
     setProgress(10)
-    throw new Error(`Format "${format}" noch nicht implementiert — Export-Engine wird in Phase 3–6 eingehängt.`)
+    throw new Error(`Format "${format}" noch nicht implementiert — wird in Phase 5–6 eingehängt.`)
   }).then(() => {
     // Export-Log bei Erfolg schreiben
     const job = getJob(jobId)
