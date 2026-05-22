@@ -96,8 +96,8 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
     await createWerkstufe(typ)
   }
 
-  // Single SceneEditor uses the left panel's werkstufId (or right if only right visible)
-  const singleWerkId = showLeft ? leftWerkId : rightWerkId
+  // Single SceneEditor: prefer RIGHT panel (drehbuch) when visible; left only when right is hidden
+  const singleWerkId = showRight ? (rightWerkId ?? leftWerkId) : leftWerkId
   const singleWerkTyp = werkstufen.find((w: any) => w.id === singleWerkId)?.typ ?? null
   const leftWerkTyp   = werkstufen.find((w: any) => w.id === leftWerkId)?.typ ?? null
   const rightWerkTyp  = werkstufen.find((w: any) => w.id === rightWerkId)?.typ ?? null
