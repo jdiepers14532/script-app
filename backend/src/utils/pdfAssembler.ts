@@ -114,7 +114,8 @@ function renderAbsatzNode(
   return `<p style="${fullCss}"${kz}>${inner || '&nbsp;'}</p>`
 }
 
-/** Rendert ein vollständiges ProseMirror-Dokument mit Absatz-Support */
+/** Rendert ein vollständiges ProseMirror-Dokument mit Absatz-Support.
+ *  content kann als {type:"doc",content:[...]} ODER als flaches Array [...] gespeichert sein. */
 function renderDoc(
   doc: any,
   fmtById: Map<string, AbsatzFormat>,
@@ -123,7 +124,15 @@ function renderDoc(
 ): string {
   if (!doc) return ''
   const docObj = typeof doc === 'string' ? JSON.parse(doc) : doc
-  const nodes: any[] = docObj.type === 'doc' ? (docObj.content ?? []) : [docObj]
+  // dokument_szenen.content kann ein flaches Array sein (ohne doc-Wrapper)
+  let nodes: any[]
+  if (Array.isArray(docObj)) {
+    nodes = docObj
+  } else if (docObj.type === 'doc') {
+    nodes = docObj.content ?? []
+  } else {
+    nodes = [docObj]
+  }
   return nodes.map(n => renderAbsatzNode(n, fmtById, fmtByName, ctx)).join('\n')
 }
 
@@ -350,9 +359,33 @@ export async function assemblePdf(
       episode_terminus:       episodeTerminus,
     }
 
-    // ── 7. Notiz-Vorseiten laden + rendern ────────────────────────────────────
+    // ── 7a. Dokument-Vorlagen (Titelseite, Synopsis …) laden + rendern ────────
     setProgress(30)
-    const notizSections: string[] = []
+    const prefixSections: string[] = []
+
+    // Erst Dokument-Vorlagen (WYSIWYG-Templates) in der gewählten Reihenfolge
+    const dvIds = options.dokumentVorlagenIds ?? []
+    if (dvIds.length > 0) {
+      // Sortierung nach Übergabe-Reihenfolge beibehalten (ORDER BY ARRAY POSITION)
+      const dvRes = await client.query(
+        `SELECT id, name, typ, body_content,
+                kopfzeile_content, fusszeile_content,
+                kopfzeile_aktiv, fusszeile_aktiv,
+                erste_seite_kein_header, seiten_layout
+         FROM dokument_vorlagen
+         WHERE id = ANY($1) AND is_aktiv = true`,
+        [dvIds]
+      )
+      // Sortierung nach dvIds-Reihenfolge
+      const dvMap = new Map(dvRes.rows.map((r: any) => [r.id, r]))
+      for (const id of dvIds) {
+        const dv = dvMap.get(id)
+        if (!dv?.body_content) continue
+        prefixSections.push(renderDoc(dv.body_content, fmtById, fmtByName, ctx))
+      }
+    }
+
+    // Dann Notiz-Werkstufen (falls vorhanden)
     const notizIds = options.notizWerkstufIds ?? []
     for (const nid of notizIds) {
       const nszRes = await client.query<SceneRow>(
@@ -364,7 +397,7 @@ export async function assemblePdf(
         [nid]
       )
       if (nszRes.rows.length > 0) {
-        notizSections.push(renderNotizWerkstufe(nszRes.rows, fmtById, fmtByName, ctx))
+        prefixSections.push(renderNotizWerkstufe(nszRes.rows, fmtById, fmtByName, ctx))
       }
     }
 
@@ -391,9 +424,9 @@ export async function assemblePdf(
 
     let bodyHtml = wmHidden + '\n'
 
-    if (notizSections.length > 0) {
-      // Erste Notiz-Seite ohne page-break, alle folgenden mit
-      bodyHtml += notizSections.map((s, i) =>
+    if (prefixSections.length > 0) {
+      // Erste Prefix-Seite ohne page-break, alle folgenden mit
+      bodyHtml += prefixSections.map((s, i) =>
         i === 0 ? s : `<div style="page-break-before:always">\n${s}\n</div>`
       ).join('\n')
       // Hauptdokument auf neuer Seite

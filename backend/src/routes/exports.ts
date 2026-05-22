@@ -44,7 +44,8 @@ router.post('/export/job', async (req, res) => {
     userId: user.user_id,
     userName: user.name,
     options: {
-      notizWerkstufIds:       Array.isArray(options.notizWerkstufIds)  ? options.notizWerkstufIds  : undefined,
+      notizWerkstufIds:       Array.isArray(options.notizWerkstufIds)       ? options.notizWerkstufIds       : undefined,
+      dokumentVorlagenIds:    Array.isArray(options.dokumentVorlagenIds)   ? options.dokumentVorlagenIds   : undefined,
       persoenlicher_ausdruck: options.persoenlicher_ausdruck           ? String(options.persoenlicher_ausdruck) : undefined,
       revision:               options.revision                         ? String(options.revision)               : undefined,
       revisions_farbe_hex:    options.revisions_farbe_hex              ? String(options.revisions_farbe_hex)    : undefined,

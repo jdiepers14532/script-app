@@ -13,6 +13,8 @@ export type JobStatus = 'pending' | 'running' | 'done' | 'error'
 export interface ExportJobOptions {
   /** IDs der Notiz-Werkstufen die vor dem Hauptdokument eingefügt werden */
   notizWerkstufIds?: string[]
+  /** IDs der Dokument-Vorlagen (Titelseite, Synopsis, …) die vorangestellt werden */
+  dokumentVorlagenIds?: string[]
   /** Name des Empfängers für {{persoenlicher_ausdruck}}-Chip */
   persoenlicher_ausdruck?: string
   /** Revisionsbezeichnung für {{revision}}-Chip, z.B. "Blaue Seiten" */

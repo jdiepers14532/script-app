@@ -827,6 +827,7 @@ export default function EditorPanel({
         onClose={() => setExportOpen(false)}
         selectedWerk={selectedWerk}
         werkstufen={werkstufen}
+        produktionId={produktionId}
       />
 
       {/* ── Snapshot Drawer ── */}

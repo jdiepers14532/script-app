@@ -14,11 +14,19 @@ import Tooltip from '../Tooltip'
 type ExportFormat = 'pdf' | 'docx' | 'fountain' | 'fdx'
 type JobStatus = 'idle' | 'pending' | 'running' | 'done' | 'error'
 
+interface DokumentVorlage {
+  id: string
+  name: string
+  typ: string
+  is_aktiv: boolean
+}
+
 interface Props {
   isOpen: boolean
   onClose: () => void
   selectedWerk: WerkstufeMeta | null
   werkstufen: WerkstufeMeta[]   // alle Werkstufen dieser Folge (für Notiz-Auswahl)
+  produktionId: string
 }
 
 const FORMAT_DEFS: { value: ExportFormat; label: string; ext: string; available: boolean; icon: React.ReactNode }[] = [
@@ -28,10 +36,12 @@ const FORMAT_DEFS: { value: ExportFormat; label: string; ext: string; available:
   { value: 'fdx',      label: 'FDX',      ext: '.fdx',      available: false, icon: <FileCode size={14} /> },
 ]
 
-export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen }: Props) {
+export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen, produktionId }: Props) {
   const [format, setFormat]                     = useState<ExportFormat>('pdf')
   const [persAusdruck, setPersAusdruck]         = useState('')
   const [selectedNotizIds, setSelectedNotizIds] = useState<Set<string>>(new Set())
+  const [selectedVorlagenIds, setSelectedVorlagenIds] = useState<Set<string>>(new Set())
+  const [vorlagen, setVorlagen]                 = useState<DokumentVorlage[]>([])
   const [jobStatus, setJobStatus]               = useState<JobStatus>('idle')
   const [progress, setProgress]                 = useState(0)
   const [errorMsg, setErrorMsg]                 = useState<string | null>(null)
@@ -40,6 +50,18 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
   // Notiz-Werkstufen dieser Folge
   const notizWerkstufen = werkstufen.filter(w => w.typ === 'notiz')
+
+  // Dokument-Vorlagen laden (Titelseite, Synopsis …)
+  useEffect(() => {
+    if (!isOpen || !produktionId) return
+    api.getDokumentVorlagen(produktionId)
+      .then((list: any[]) => {
+        const active = list.filter((v: any) => v.is_aktiv) as DokumentVorlage[]
+        setVorlagen(active)
+        setSelectedVorlagenIds(new Set(active.map(v => v.id)))
+      })
+      .catch(() => { setVorlagen([]); setSelectedVorlagenIds(new Set()) })
+  }, [isOpen, produktionId])
 
   // Beim Öffnen alle Notiz-Werkstufen vorauswählen
   useEffect(() => {
@@ -86,7 +108,8 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         werkstufId: selectedWerk.id,
         format,
         options: {
-          notizWerkstufIds: selectedNotizIds.size > 0 ? Array.from(selectedNotizIds) : undefined,
+          dokumentVorlagenIds:    selectedVorlagenIds.size > 0 ? Array.from(selectedVorlagenIds) : undefined,
+          notizWerkstufIds:       selectedNotizIds.size > 0 ? Array.from(selectedNotizIds) : undefined,
           persoenlicher_ausdruck: persAusdruck.trim() || undefined,
         },
       }
@@ -139,6 +162,22 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
+  }
+
+  function toggleVorlage(id: string) {
+    setSelectedVorlagenIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  const TYP_LABEL: Record<string, string> = {
+    titelseite: 'Titelblatt',
+    synopsis:   'Synopsis',
+    recap:      'Recap',
+    precap:     'Pre-Cap',
+    custom:     'Seite',
   }
 
   const isRunning = jobStatus === 'pending' || jobStatus === 'running'
@@ -210,6 +249,32 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                 })}
               </div>
             </div>
+
+            {/* Dokument-Vorlagen (Titelblatt, Synopsis …) */}
+            {vorlagen.length > 0 && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
+                  Vorgelagerte Seiten
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {vorlagen.map(v => (
+                    <label
+                      key={v.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedVorlagenIds.has(v.id)}
+                        onChange={() => toggleVorlage(v.id)}
+                        style={{ cursor: 'pointer', accentColor: '#007AFF', width: 14, height: 14 }}
+                      />
+                      <span>{v.name}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{TYP_LABEL[v.typ] ?? v.typ}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Notiz-Vorseiten */}
             {notizWerkstufen.length > 0 && (
