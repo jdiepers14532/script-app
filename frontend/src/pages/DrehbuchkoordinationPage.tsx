@@ -1548,8 +1548,8 @@ function DokumentTypenTab({
       tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
     }))
     try {
-      await api.patchAbsatzformatPreset(selectedPresetId, { formate: presetFormate, seitenformat, page_margins: margins })
-      setShowUpdatePreset(false)
+      await api.patchAbsatzformatPreset(selectedPresetId, { formate: presetFormate, seitenformat, page_margins: margins, szenen_kopf_template: templateValue })
+      setShowUpdatePreset(false); setTemplateEdit(null)
       await load(); setMsg(`Preset „${selectedPreset.name}" aktualisiert.`)
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
@@ -1624,8 +1624,9 @@ function DokumentTypenTab({
         formate: presetFormate,
         seitenformat,
         page_margins: margins,
+        szenen_kopf_template: templateValue,
       })
-      setShowSavePreset(false); setPresetName('')
+      setShowSavePreset(false); setPresetName(''); setTemplateEdit(null)
       await load(); setSelectedPresetId(saved.id); setMsg('Preset gespeichert.')
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
@@ -1646,8 +1647,8 @@ function DokumentTypenTab({
       tab_next: formate.find(x => x.id === f.tab_next_format)?.name ?? null,
     }))
     try {
-      await api.patchAbsatzformatPreset(overwritePresetId, { formate: presetFormate, seitenformat, page_margins: margins })
-      setShowSavePreset(false); setShowOverwriteSystem(false); setOverwritePresetId(null); setPresetName('')
+      await api.patchAbsatzformatPreset(overwritePresetId, { formate: presetFormate, seitenformat, page_margins: margins, szenen_kopf_template: templateValue })
+      setShowSavePreset(false); setShowOverwriteSystem(false); setOverwritePresetId(null); setPresetName(''); setTemplateEdit(null)
       await load(); setSelectedPresetId(overwritePresetId); setMsg('System-Preset aktualisiert.')
     } catch (e: any) { setMsg(e.message ?? 'Fehler') }
   }
@@ -2043,6 +2044,7 @@ function DokumentTypenTab({
               <div><strong>Formate:</strong> {formate.length} Absatzformate</div>
               <div><strong>Seitenformat:</strong> {seitenformat.toUpperCase()}</div>
               <div><strong>Ränder:</strong> O {margins.oben} · U {margins.unten} · L {margins.links} · R {margins.rechts} mm</div>
+              <div><strong>Szenenkopf-Vorlage:</strong> {templateValue ? 'wird gespeichert' : 'leer'}</div>
             </div>
             {isAdmin && presets.some(p => p.ist_system) && (
               <div style={{ marginBottom: 14 }}>
@@ -2097,7 +2099,7 @@ function DokumentTypenTab({
               <div><strong>Formate:</strong> {formate.length} Absatzformate</div>
               <div><strong>Seitenformat:</strong> {seitenformat.toUpperCase()}</div>
               <div><strong>Ränder:</strong> O {margins.oben} · U {margins.unten} · L {margins.links} · R {margins.rechts} mm</div>
-              <div style={{ marginTop: 4, color: 'var(--text-muted)' }}>Szenenkopf-Vorlage wird nicht verändert.</div>
+              <div><strong>Szenenkopf-Vorlage:</strong> {templateValue ? 'wird gespeichert' : 'leer'}</div>
             </div>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowUpdatePreset(false)}
