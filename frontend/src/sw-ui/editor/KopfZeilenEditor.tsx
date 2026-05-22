@@ -221,7 +221,11 @@ function pmInlineToReact(node: any, ctxMap: Record<string, string>, key: string)
   if (node.type === 'placeholder_chip') {
     const chipKey = node.attrs?.key ?? ''
     const val = ctxMap[chipKey] ?? chipKey
-    return <span key={key} style={{ color: getPlaceholderColor(chipKey) }}>{val}</span>
+    return <span key={key}>{val}</span>
+  }
+  if (node.type === 'tab_char') {
+    const w = Math.max(4, node.attrs?.widthPx ?? 20)
+    return <span key={key} style={{ display: 'inline-block', width: w, verticalAlign: 'baseline' }}>{'\u200B'}</span>
   }
   if (node.type === 'hard_break') return <br key={key} />
   return null
