@@ -38,7 +38,7 @@ export default function PageWrapper({
   if (showShadow) {
     // ── Blatt-Modus: weißes Blatt mit Schatten, subtile Trennlinie ────────
     return (
-      <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowY: 'auto' }}>
+      <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%' }}>
         <div
           className={className}
           style={{
@@ -74,7 +74,7 @@ export default function PageWrapper({
   const contentHeight = dim.height - ptTop - ptBottom
 
   return (
-    <div className="pw-outer" style={{ background: 'var(--bg-page)', padding: '0 32px', minHeight: '100%', overflowY: 'auto' }}>
+    <div className="pw-outer" style={{ background: 'var(--bg-page)', padding: '0 32px', minHeight: '100%' }}>
       <div
         className={className}
         style={{
@@ -99,29 +99,30 @@ export default function PageWrapper({
           backgroundClip: 'content-box',
         } as React.CSSProperties}
       >
-        {/* Seitennummer-Labels an jeder Trennlinie (max. 30 Seiten) */}
-        {Array.from({ length: 30 }, (_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: 0,
-              top: ptTop + contentHeight * (i + 1),
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              pointerEvents: 'none',
-              zIndex: 1,
-            }}
-          >
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', whiteSpace: 'nowrap', padding: '2px 6px', background: 'var(--bg-page)', borderRadius: 4 }}>
-              S.{i + 2} · {seitenformat.toUpperCase()}
-            </span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-          </div>
-        ))}
+        {/* Seitennummer-Labels — in overflow:hidden Container, damit sie nicht über den
+            tatsächlichen Inhalt hinaus ragen und scrollHeight aufblähen */}
+        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 1 }}>
+          {Array.from({ length: 30 }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: ptTop + contentHeight * (i + 1),
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', whiteSpace: 'nowrap', padding: '2px 6px', background: 'var(--bg-page)', borderRadius: 4 }}>
+                S.{i + 2} · {seitenformat.toUpperCase()}
+              </span>
+              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+            </div>
+          ))}
+        </div>
         {children}
       </div>
     </div>

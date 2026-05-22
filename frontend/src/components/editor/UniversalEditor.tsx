@@ -628,7 +628,10 @@ export default function UniversalEditor({
         overscrollTimer.current = setTimeout(() => { overscrollTimer.current = null; onNavigatePrev() }, scrollNavDelay)
       }
     } else if (overscrollTimer.current) {
-      clearTimeout(overscrollTimer.current); overscrollTimer.current = null
+      // Timer nur löschen wenn User aktiv von der Grenze weg scrollt (nicht bei deltaY=0)
+      if ((e.deltaY > 0 && !atBottom) || (e.deltaY < 0 && !atTop)) {
+        clearTimeout(overscrollTimer.current); overscrollTimer.current = null
+      }
     }
   }, [onNavigateNext, onNavigatePrev, scrollNavDelay])
 
