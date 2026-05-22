@@ -226,7 +226,10 @@ export default function SceneList({
     (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
 
   const filtered = sorted.filter(s =>
-    matchesSearch(s) && (!tweaks.sceneListNurSzenen || !s.is_non_scene)
+    matchesSearch(s) && (
+      !tweaks.sceneListNurSzenen ||
+      (s.format !== 'notiz' && s.scene_nummer != null && s.scene_nummer !== 0)
+    )
   )
 
   // Track pressed modifier keys for format shortcuts (D/S/T/N + click on +)
@@ -794,7 +797,7 @@ export default function SceneList({
                       onMouseEnter={e => {
                         if (hoverTimer.current) clearTimeout(hoverTimer.current)
                         const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                        hoverTimer.current = setTimeout(() => setHoverPopup({ id: scene.id, x: r.left + r.width / 2, y: r.top - 8 }), 300)
+                        hoverTimer.current = setTimeout(() => setHoverPopup({ id: scene.id, x: r.right + 8, y: r.top + r.height / 2 }), 300)
                       }}
                       onMouseLeave={() => {
                         if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null }
@@ -1050,7 +1053,7 @@ export default function SceneList({
             position: 'fixed',
             left: hoverPopup.x,
             top: hoverPopup.y,
-            transform: 'translate(-50%, -100%)',
+            transform: 'translateY(-50%)',
             background: '#111',
             color: '#fff',
             fontSize: 11,
