@@ -332,8 +332,10 @@ export function buildPdfHtml(params: {
   /** Body-text margins from global page_margin_mm (Dokumenten-Formatierung).
    *  If provided, these are used for the text block — independent of header/footer. */
   bodyMargins?: { oben: number; unten: number; links: number; rechts: number }
+  /** Wenn true: kein automatischer <h1>-Titel, da eine Dokument-Vorlage (Titelblatt) vorhanden. */
+  hasPrefix?: boolean
 }): string {
-  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins } = params
+  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins, hasPrefix } = params
 
   // ── Header/footer position (from KZ/FZ seiten_layout) ──────────────────────
   // These define WHERE the header/footer bands sit on the page.
@@ -453,7 +455,6 @@ ${wm}
   ${kzFz?.erste_seite_kein_header ? '.first-page .page-header { display: none !important; }' : ''}
   ${kzFz?.erste_seite_kein_footer ? '.first-page .page-footer { display: none !important; }' : ''}
   @media print {
-    body { padding-top: 0; padding-bottom: 0; }
     .no-print { display: none; }
   }
 </style>
@@ -461,7 +462,7 @@ ${wm}
 <body>
 ${hasHeader ? `<div class="page-header">${headerHtml}</div>` : ''}
 ${hasFooter ? `<div class="page-footer">${footerHtml}</div>` : ''}
-<h1>${escapeHtml(title)}</h1>
+${hasPrefix ? '' : `<h1>${escapeHtml(title)}</h1>`}
 ${bodyHtml}
 </body>
 </html>`

@@ -63,10 +63,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       .catch(() => { setVorlagen([]); setSelectedVorlagenIds(new Set()) })
   }, [isOpen, produktionId])
 
-  // Beim Öffnen alle Notiz-Werkstufen vorauswählen
+  // Beim Öffnen Reset — Notizen werden NICHT vorausgewählt (Nutzer wählt bewusst)
   useEffect(() => {
     if (isOpen) {
-      setSelectedNotizIds(new Set(notizWerkstufen.map(w => w.id)))
+      setSelectedNotizIds(new Set())
       setJobStatus('idle')
       setProgress(0)
       setErrorMsg(null)
@@ -304,8 +304,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                         onChange={() => toggleNotiz(w.id)}
                         style={{ cursor: 'pointer', accentColor: '#007AFF', width: 14, height: 14 }}
                       />
-                      <span>{w.label || `Notiz V${w.version_nummer}`}</span>
-                      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)' }}>{w.szenen_count} Sz.</span>
+                      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {w.label || `Notiz V${w.version_nummer}`}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{w.szenen_count} Sz.</span>
                     </label>
                   ))}
                 </div>

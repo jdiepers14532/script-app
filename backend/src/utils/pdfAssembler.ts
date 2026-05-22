@@ -440,7 +440,7 @@ async function assembleHtml(
       'pdf'
     ).replace(/\.pdf$/i, '')
 
-    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins })
+    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins, hasPrefix: prefixSections.length > 0 })
 
     return { html, title }
 
