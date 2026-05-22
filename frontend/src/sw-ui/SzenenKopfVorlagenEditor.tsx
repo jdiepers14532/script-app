@@ -620,8 +620,8 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
   const result: PreviewItem[] = []
   for (const node of (doc.content ?? [])) {
     if (node.type === 'horizontalRule' || node.type === 'horizontal_rule') {
-      // Nur zwischen zwei Inhalt-Zeilen einfügen — nie als erstes/letztes Element
-      if (result.length > 0 && result[result.length - 1].type !== 'hr') result.push({ type: 'hr' })
+      // HR immer einfügen (außer doppelt)
+      if (result.length === 0 || result[result.length - 1].type !== 'hr') result.push({ type: 'hr' })
       continue
     }
     if (node.type !== 'paragraph') continue
@@ -669,8 +669,10 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
     }
     result.push({ type: 'line', segments, rulerCm, style })
   }
-  // Trailing-HR entfernen (z.B. wenn letzte Inhalt-Zeile weggefiltert wurde)
+  // Trailing-HR entfernen
   while (result.length > 0 && result[result.length - 1].type === 'hr') result.pop()
+  // Leading-HR entfernen (wenn die erste Inhalt-Zeile vor dem HR gefiltert wurde)
+  while (result.length > 0 && result[0].type === 'hr') result.shift()
   return result
 }
 
@@ -742,66 +744,50 @@ function PreviewModal({
                 const text = item.segments.map(s => s.kind === 'text' ? s.text : '').join('')
                 return <div key={i} style={{ ...item.style, whiteSpace: 'normal', wordBreak: 'break-word' }}>{text}</div>
               }
-              // Tab-Zeilen: jedes Segment absolut am Tab-Stop, korrekte Koordinaten im Textbereich
-              // Tab-Stop-Positionen als Anteil des Textbereichs (0–1) vorberechnen
-              const stops = item.segments
-                .filter(s => s.kind === 'tab')
-                .map(s => {
-                  const ts = s as PreviewSegment & { kind: 'tab' }
-                  return {
-                    frac: Math.max(0, Math.min(1, (ts.posCm - mLcm) / textAreaCm)),
-                    align: ts.align,
-                  }
-                })
+              // Tab-Zeilen als Flex-Spalten — Spaltenbreite proportional zu Tab-Stop-Abständen.
+              // Im Gegensatz zu absoluter Positionierung tragen Flex-Kinder zur Container-Höhe bei,
+              // sodass der Container wächst und der Text umbricht.
+              interface FlexCol { startFrac: number; endFrac: number; text: string; align: TabAlign }
+              const cols: FlexCol[] = []
+              let colText = ''
+              let colAlign: TabAlign = 'left'
+              let colStart = 0
 
-              const positioned: JSX.Element[] = []
-              let curText = ''
-              let stopIdx = -1   // -1 = vor erstem Tab-Stop
-
-              const flush = () => {
-                if (!curText) return
-                const isFirst = stopIdx < 0
-                const curFrac = isFirst ? 0 : stops[stopIdx].frac
-                const nextFrac = stops[stopIdx + 1]?.frac ?? 1
-                const align = isFirst ? 'left' : stops[stopIdx].align
-
-                const spanStyle: CSSProperties = {
-                  position: 'absolute',
-                  top: 0,                          // immer ab Oberkante des Containers
-                  whiteSpace: 'normal',
-                  wordBreak: 'break-word',
-                }
-
-                if (align === 'center') {
-                  spanStyle.left = `${(curFrac * 100).toFixed(2)}%`
-                  spanStyle.transform = 'translateX(-50%)'
-                  // maxWidth: bis zum nächsten Stop
-                  spanStyle.maxWidth = `${((nextFrac - curFrac) * 100).toFixed(2)}%`
-                } else if (align === 'right') {
-                  spanStyle.right = `${((1 - curFrac) * 100).toFixed(2)}%`
-                  const prevFrac = isFirst ? 0 : (stops[stopIdx - 1]?.frac ?? 0)
-                  spanStyle.maxWidth = `${((curFrac - prevFrac) * 100).toFixed(2)}%`
-                } else {
-                  // links (auch: Text vor erstem Tab)
-                  spanStyle.left = `${(curFrac * 100).toFixed(2)}%`
-                  spanStyle.maxWidth = `${((nextFrac - curFrac) * 100).toFixed(2)}%`
-                }
-
-                positioned.push(<span key={positioned.length} style={spanStyle}>{curText}</span>)
-                curText = ''
+              const pushCol = (endFrac: number) => {
+                cols.push({ startFrac: colStart, endFrac, text: colText, align: colAlign })
+                colText = ''
+                colStart = endFrac
               }
 
               for (const seg of item.segments) {
-                if (seg.kind === 'tab') { flush(); stopIdx++ }
-                else curText += seg.text
+                if (seg.kind === 'tab') {
+                  const ts = seg as PreviewSegment & { kind: 'tab' }
+                  const frac = Math.max(colStart, Math.min(1, (ts.posCm - mLcm) / textAreaCm))
+                  pushCol(frac)
+                  colAlign = ts.align
+                } else {
+                  colText += seg.text
+                }
               }
-              flush()
+              pushCol(1)  // letzte Spalte bis rechter Rand
 
               return (
-                <div key={i} style={{ ...item.style, position: 'relative', whiteSpace: 'normal' }}>
-                  {/* Phantom-Span setzt Container-Höhe = 1 Zeilenhöhe (abs. Kinder tragen nicht bei) */}
-                  <span style={{ visibility: 'hidden', display: 'block', pointerEvents: 'none' }}>&nbsp;</span>
-                  {positioned}
+                <div key={i} style={{ ...item.style, display: 'flex', whiteSpace: 'normal' }}>
+                  {cols.map((col, ci) => {
+                    const widthPct = (col.endFrac - col.startFrac) * 100
+                    const isLast = ci === cols.length - 1
+                    return (
+                      <span key={ci} style={{
+                        flex: isLast ? '1 1 0' : `0 0 ${widthPct.toFixed(2)}%`,
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        wordBreak: 'break-word',
+                        textAlign: col.align === 'right' ? 'right' : col.align === 'center' ? 'center' : 'left',
+                      }}>
+                        {col.text || '\u200B'}
+                      </span>
+                    )
+                  })}
                 </div>
               )
             })
