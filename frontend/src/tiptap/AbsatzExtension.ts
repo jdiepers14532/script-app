@@ -183,8 +183,8 @@ export function generateAbsatzCSS(formate: AbsatzFormat[]): string {
     if (fmt.italic) rules.push('font-style: italic')
     if (fmt.underline) rules.push('text-decoration: underline')
     if (fmt.uppercase) rules.push('text-transform: uppercase')
-    if (fmt.margin_left > 0) rules.push(`margin-left: ${fmt.margin_left}in`)
-    if (fmt.margin_right > 0) rules.push(`margin-right: ${fmt.margin_right}in`)
+    if (fmt.margin_left > 0) rules.push(`margin-left: ${fmt.margin_left}cm`)
+    if (fmt.margin_right > 0) rules.push(`margin-right: ${fmt.margin_right}cm`)
     if (fmt.space_before > 0) rules.push(`margin-top: ${fmt.space_before / 12}em`)
     if (fmt.space_after > 0) rules.push(`margin-bottom: ${fmt.space_after / 12}em`)
 

@@ -1815,8 +1815,8 @@ function DokumentTypenTab({
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Größe</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Stil</th>
           <th style={{ textAlign: 'left', padding: '6px 4px', fontWeight: 600 }}>Ausr.</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug L</th>
-          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }}>Einzug R</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Einzug links in cm, gemessen ab dem linken Textrand (nach dem globalen Seitenrand)">Einzug L</th>
+          <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Einzug rechts in cm, gemessen ab dem rechten Textrand (nach dem globalen Seitenrand)">Einzug R</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Abstand vor dem Absatz (pt)">Ab.v.</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Abstand nach dem Absatz (pt)">Ab.n.</th>
           <th style={{ textAlign: 'center', padding: '6px 4px', fontWeight: 600 }} title="Zeilenabstand (1.0 = einfach)">ZA</th>
@@ -1881,10 +1881,10 @@ function DokumentTypenTab({
                           <option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option>
                         </select>
                       </label>
-                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Einzug L (cm)
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }} title="Einzug in cm, ab dem linken Textrand (nach dem globalen Seitenrand des Dokuments)">Einzug L (cm)
                         <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_left ?? 0} onChange={e => setEditData({ ...editData, margin_left: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
                       </label>
-                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Einzug R (cm)
+                      <label style={{ fontSize: 10, color: 'var(--text-secondary)' }} title="Einzug in cm, ab dem rechten Textrand (nach dem globalen Seitenrand des Dokuments)">Einzug R (cm)
                         <input type="number" className="no-spin" step="0.1" min="0" value={editData.margin_right ?? 0} onChange={e => setEditData({ ...editData, margin_right: parseFloat(e.target.value) || 0 })} style={{ ...inputStyle, marginTop: 2, textAlign: 'center' }} />
                       </label>
                     </div>
@@ -1996,8 +1996,8 @@ function DokumentTypenTab({
                 {!f.bold && !f.italic && !f.underline && !f.uppercase && '-'}
               </td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.text_align === 'left' ? 'L' : f.text_align === 'center' ? 'C' : 'R'}</td>
-              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_left ? f.margin_left + '"' : '-'}</td>
-              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_right ? f.margin_right + '"' : '-'}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_left ? f.margin_left + ' cm' : '-'}</td>
+              <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.margin_right ? f.margin_right + ' cm' : '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.space_before || '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.space_after || '-'}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 10 }}>{f.line_height ?? 1.0}</td>
