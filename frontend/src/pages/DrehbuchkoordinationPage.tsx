@@ -13,6 +13,7 @@ import DokumentVorlagenEditor, { ToolbarContent, emptyVorlagenEditorValue, rende
 import { SzenenKopfVorlagenEditor, KopfZeilenEditor, emptyKopfZeilenEditorValue } from '../sw-ui'
 import type { KopfZeilenEditorValue, SeitenLayout } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
+import KopierenModal from '../components/KopierenModal'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -69,14 +70,6 @@ const FONT_FAMILIES = [
   'Georgia',
 ]
 
-const COPY_SECTIONS = [
-  { id: 'kategorien', label: 'Charakter-Kategorien' },
-  { id: 'labels',     label: 'Fassungs-Labels' },
-  { id: 'colors',     label: 'Revisions-Farben' },
-  { id: 'einstellungen', label: 'Revisions-Export' },
-  { id: 'absatzformate', label: 'Absatzformate' },
-  { id: 'vorlagen',   label: 'Dokument-Vorlagen' },
-]
 
 // ── Drag-sortable list helper ────────────────────────────────────────────────────
 function SortableList({
@@ -2924,7 +2917,7 @@ export default function DrehbuchkoordinationPage() {
   const [activeTab, setActiveTab] = useState('allgemein')
   const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
-  const [copyOpen, setCopyOpen] = useState(false)
+  const [kopierenModalOpen, setKopierenModalOpen] = useState(false)
   const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
   const [seitenformatSaving, setSeitenformatSaving] = useState(false)
   const [margins, setMargins] = useState({ oben: 25, unten: 20, links: 25, rechts: 20 })
@@ -3093,6 +3086,7 @@ export default function DrehbuchkoordinationPage() {
   }
 
   return (
+    <>
     <AppShell>
       <div style={{
         display: 'flex',
@@ -3214,40 +3208,26 @@ export default function DrehbuchkoordinationPage() {
               ))}
             </nav>
 
-            {/* Divider + Copy section at bottom */}
-            <div style={{
-              borderTop: '1px solid var(--border)',
-              marginTop: 8,
-            }}>
+            {/* Divider + Copy button at bottom */}
+            <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, padding: '10px 16px' }}>
               <button
-                onClick={() => setCopyOpen(v => !v)}
+                onClick={() => produktionId && setKopierenModalOpen(true)}
+                disabled={!produktionId}
                 style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  display: 'flex', alignItems: 'center', gap: 6,
                   width: '100%', textAlign: 'left',
-                  padding: '10px 16px',
+                  padding: '7px 10px',
                   fontSize: 12, fontWeight: 500,
-                  color: 'var(--text-secondary)',
-                  background: 'transparent',
-                  border: 'none', cursor: 'pointer',
+                  color: produktionId ? 'var(--text-secondary)' : 'var(--text-muted)',
+                  background: 'var(--bg-subtle)',
+                  border: '1px solid var(--border)', borderRadius: 7,
+                  cursor: produktionId ? 'pointer' : 'not-allowed',
                   fontFamily: 'var(--font-sans)',
                 }}
               >
-                <span>&#8595; Von Produktion kopieren</span>
-                <span style={{ fontSize: 10 }}>{copyOpen ? '&#9650;' : '&#9660;'}</span>
+                <span style={{ fontSize: 14 }}>↓</span>
+                <span>Von Produktion kopieren</span>
               </button>
-              {copyOpen && produktionId && (
-                <CopySection produktionId={produktionId} onCopied={() => {
-                  // Force re-render of active tab by toggling
-                  const cur = activeTab
-                  setActiveTab('')
-                  setTimeout(() => setActiveTab(cur), 0)
-                }} />
-              )}
-              {copyOpen && !produktionId && (
-                <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
-                  Keine Produktion ausgewählt.
-                </div>
-              )}
             </div>
           </div>
 
@@ -3277,6 +3257,20 @@ export default function DrehbuchkoordinationPage() {
       </div>
 
     </AppShell>
+
+    {kopierenModalOpen && produktionId && (
+      <KopierenModal
+        produktionId={produktionId}
+        onClose={() => setKopierenModalOpen(false)}
+        onCopied={() => {
+          setKopierenModalOpen(false)
+          const cur = activeTab
+          setActiveTab('')
+          setTimeout(() => setActiveTab(cur), 0)
+        }}
+      />
+    )}
+    </>
   )
 }
 

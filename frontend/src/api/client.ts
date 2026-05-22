@@ -284,8 +284,11 @@ export const api = {
     request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/vorstopp-einstellungen`, data),
 
   // Copy settings between produktionen
-  copySettings: (produktionId: string, data: { source_produktion_id: string; sections: string[] }) =>
+  copySettings: (produktionId: string, data: { source_produktion_id: string; sections: string[]; merge_mode?: boolean }) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/copy-settings`, data),
+
+  copySettingsPreview: (produktionId: string, sourceId: string) =>
+    request<any>('GET', `/produktionen/${encodeURIComponent(produktionId)}/copy-preview?source=${encodeURIComponent(sourceId)}`),
 
   // ── Dokument-Editor System ────────────────────────────────────────────────
 
