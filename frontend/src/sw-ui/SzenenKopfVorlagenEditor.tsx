@@ -16,6 +16,7 @@ import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { Node, Extension, Mark, mergeAttributes } from '@tiptap/core'
+import { Plugin, PluginKey } from 'prosemirror-state'
 import { StarterKit } from '@tiptap/starter-kit'
 import { Underline } from '@tiptap/extension-underline'
 
@@ -1231,52 +1232,65 @@ export default function SzenenKopfVorlagenEditor({
   const editorPL = Math.round((marginLeftCm  / rulerCm) * containerWidth)
   const editorPR = Math.round((marginRightCm / rulerCm) * containerWidth)
 
-  // Stabile Refs für die Tab-Handler-Extension (Werte immer aktuell ohne Editor-Neustart)
-  const containerRefStable = useRef<HTMLDivElement | null>(null)
+  // Stabile Refs für den Tab-Plugin (lesen immer aktuelle Werte)
   const rulerCmRef = useRef(rulerCm)
   useEffect(() => { rulerCmRef.current = rulerCm }, [rulerCm])
-  useEffect(() => { containerRefStable.current = containerRef.current }, [containerRef])
 
-  // Tab-Handler als Tiptap-Extension (einmalig erstellt, liest Refs dynamisch)
-  const TabHandlerExtension = useMemo(() => Extension.create({
-    name: 'sk_tab_handler',
-    addKeyboardShortcuts() {
-      return {
-        Tab: () => {
-          const editor = this.editor
-          const container = containerRefStable.current
-          if (!container) return false
-          const { $anchor, from } = editor.state.selection
-          const rulerCm = rulerCmRef.current
-          const tabStops: TabStop[] = ($anchor.parent.attrs.tabStops ?? [])
-            .slice().sort((a: TabStop, b: TabStop) => a.pos - b.pos)
-          if (!tabStops.length) {
-            editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
-            return true
-          }
-          const coords = editor.view.coordsAtPos(from)
-          const containerRect = container.getBoundingClientRect()
-          const containerWidthLive = container.clientWidth
-          const cursorPagePx = coords.left - containerRect.left
-          const cursorCm = (cursorPagePx / containerWidthLive) * rulerCm
-          const nextStop = tabStops.find((ts: TabStop) => ts.pos > cursorCm + 0.05)
-          if (!nextStop) {
-            editor.commands.insertContent('\u00A0\u00A0\u00A0\u00A0')
-            return true
-          }
-          const targetPx = (nextStop.pos / rulerCm) * containerWidthLive
-          const widthPx = Math.max(4, Math.round(targetPx - cursorPagePx))
-          return editor.commands.command(({ tr, dispatch }) => {
-            if (dispatch) {
-              const tabNode = editor.schema.nodes.tab_char?.create({ widthPx, align: nextStop.align, stopPosCm: nextStop.pos })
-              if (tabNode) { tr.replaceSelectionWith(tabNode); dispatch(tr) }
-            }
-            return true
-          })
-        },
-      }
-    },
-  }), []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Tab-Handler via addProseMirrorPlugins — zuverlässiger als addKeyboardShortcuts,
+  // da handleKeyDown direkt am ProseMirror-View-Level sitzt, vor Tiptap-Keymap-Verarbeitung.
+  const TabHandlerExtension = useMemo(() => {
+    // Refs werden in der Closure gecaptured (stabile Identität)
+    const _containerRef = containerRef
+    const _rulerCmRef   = rulerCmRef
+    return Extension.create({
+      name: 'sk_tab_handler',
+      addProseMirrorPlugins() {
+        return [
+          new Plugin({
+            key: new PluginKey('sk_tab_handler'),
+            props: {
+              handleKeyDown(view, event) {
+                if (event.key !== 'Tab' || event.shiftKey) return false
+                event.preventDefault()
+
+                const container = _containerRef.current
+                const rCm = _rulerCmRef.current
+                const { state } = view
+                const { $anchor, from } = state.selection
+                const tabStops: TabStop[] = ($anchor.parent.attrs.tabStops ?? [])
+                  .slice().sort((a: TabStop, b: TabStop) => a.pos - b.pos)
+
+                if (!tabStops.length || !container) {
+                  view.dispatch(state.tr.insertText('\u00A0\u00A0\u00A0\u00A0'))
+                  return true
+                }
+
+                const coords    = view.coordsAtPos(from)
+                const rect      = container.getBoundingClientRect()
+                const cW        = container.clientWidth
+                const cursorPx  = coords.left - rect.left
+                const cursorCm  = (cursorPx / cW) * rCm
+                const nextStop  = tabStops.find((ts: TabStop) => ts.pos > cursorCm + 0.05)
+
+                if (!nextStop) {
+                  view.dispatch(state.tr.insertText('\u00A0\u00A0\u00A0\u00A0'))
+                  return true
+                }
+
+                const targetPx = (nextStop.pos / rCm) * cW
+                const widthPx  = Math.max(4, Math.round(targetPx - cursorPx))
+                const tabNode  = state.schema.nodes.tab_char?.create({
+                  widthPx, align: nextStop.align, stopPosCm: nextStop.pos,
+                })
+                if (tabNode) view.dispatch(state.tr.replaceSelectionWith(tabNode))
+                return true
+              },
+            },
+          }),
+        ]
+      },
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const editor = useEditor({
     editable: !readOnly,
