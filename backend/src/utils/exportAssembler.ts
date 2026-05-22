@@ -423,12 +423,12 @@ ${wm}
     font-family: inherit;
   }
   .page-header {
-    top: ${hmt}mm;
+    top: ${hmt - pageMarginTop}mm;
     border-bottom: 0.5pt solid #ccc;
     padding-bottom: 3pt;
   }
   .page-footer {
-    bottom: ${hmb}mm;
+    bottom: ${hmb - pageMarginBottom}mm;
     border-top: 0.5pt solid #ccc;
     padding-top: 3pt;
   }

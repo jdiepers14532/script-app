@@ -265,28 +265,35 @@ function renderSKParagraph(
   const lh         = attrs.lineHeight ?? '1.2'
   const tabStops: { pos: number; align: string }[] = attrs.tabStops ?? []
 
+  const fst = attrs.fontStyle  ?? ''  // 'italic' / ''
+  const fw  = attrs.fontWeight ?? ''  // 'bold'   / ''
+
   const segments = renderSKInlineSegments(node.content ?? [], scene, folgeNummer)
   const allEmpty  = segments.every(s => !s.trim())
   if (allEmpty) return ''
 
-  const baseStyle = `font-family:${ff};font-size:${fs};line-height:${lh};margin:0;padding:0`
+  let baseStyle = `font-family:${ff};font-size:${fs};line-height:${lh};margin:0;padding:0`
+  if (fst) baseStyle += `;font-style:${fst}`
+  if (fw)  baseStyle += `;font-weight:${fw}`
 
   if (segments.length === 1 || tabStops.length === 0) {
     return `<p style="${baseStyle}">${segments[0] || '&nbsp;'}</p>`
   }
 
-  // Flex-Row für Tab-Stop-Spalten
+  // Flex-Row für Tab-Stop-Spalten.
+  // stop = Tab-Stop BEFORE segment i — bestimmt Ausrichtung des Segments.
+  // (tabStops[0] ist der Stop, der Segment 0 von Segment 1 trennt,
+  //  also: Segment i wird durch tabStops[i-1] ausgerichtet.)
   const cells = segments.map((content, i) => {
-    const stop  = tabStops[i - 1]  // stop BEFORE this segment (i=0 → no preceding stop)
-    const prevStop = tabStops[i]    // stop AT the end of this segment
+    const stop = tabStops[i - 1]  // Tab-Stop vor diesem Segment
     let cellStyle = ''
     if (i === 0) {
       // Erste Spalte: feste Breite bis zum ersten Tab-Stop
       const w = tabStops[0]?.pos ?? 4
       cellStyle = `width:${w}cm;flex-shrink:0`
-    } else if (prevStop?.align === 'right') {
+    } else if (stop?.align === 'right') {
       cellStyle = `flex:1;text-align:right`
-    } else if (prevStop?.align === 'center') {
+    } else if (stop?.align === 'center') {
       cellStyle = `flex:1;text-align:center`
     } else {
       cellStyle = `flex:1;text-align:left`
