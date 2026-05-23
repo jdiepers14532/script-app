@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditor, EditorContent, type Editor } from '@tiptap/react'
-import { Extension, Node as TiptapNode, mergeAttributes as mergeAttrs } from '@tiptap/core'
+import { Extension, Node as TiptapNode, Mark as TiptapMark, mergeAttributes as mergeAttrs } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
 import TextAlign from '@tiptap/extension-text-align'
@@ -14,7 +14,7 @@ import TableHeader from '@tiptap/extension-table-header'
 import { ResizableImageExtension } from './extensions/ResizableImageExtension'
 import { FontSizeExtension } from './extensions/FontSizeExtension'
 import { ParagraphStyleExtension } from './extensions/ParagraphStyleExtension'
-import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel, getPlaceholderColor } from './extensions/PlaceholderChipExtension'
+import { PlaceholderChipExtension, PlaceholderIfExtension, PlaceholderEndIfExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderLabel, getPlaceholderColor } from './extensions/PlaceholderChipExtension'
 import type { PlaceholderZone } from './extensions/PlaceholderChipExtension'
 import { RulerBar } from './primitives/RulerBar'
 import { TabKeyExtension, TAB_ALIGN_NEXT } from './primitives/TabStopExtension'
@@ -316,9 +316,29 @@ const CustomHrExtension = TiptapNode.create({
   },
 })
 
+// ── Uppercase Mark (Blockschrift) ──────────────────────────────────────────────
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    dv_uppercase: { toggleDvUppercase: () => ReturnType }
+  }
+}
+const UppercaseMark = TiptapMark.create({
+  name: 'dv_uppercase',
+  parseHTML() { return [{ tag: 'span[data-uc]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttrs(HTMLAttributes, { 'data-uc': 'true', style: 'text-transform:uppercase' }), 0]
+  },
+  addCommands() {
+    return {
+      toggleDvUppercase: () => ({ commands }: any) => commands.toggleMark('dv_uppercase'),
+    }
+  },
+})
+
 const TIPTAP_EXTENSIONS = [
   StarterKit.configure({ horizontalRule: false }),
   UnderlineExt,
+  UppercaseMark,
   TextAlign.configure({ types: ['paragraph', 'heading'] }),
   TextStyle,
   FontFamily,
@@ -327,6 +347,8 @@ const TIPTAP_EXTENSIONS = [
   ResizableImageExtension,
   CustomHrExtension,
   PlaceholderChipExtension,
+  PlaceholderIfExtension,
+  PlaceholderEndIfExtension,
   Table.configure({ resizable: true }),
   TableRow,
   TableCell,
@@ -523,6 +545,7 @@ export function ToolbarContent({
   const isUnderline = isChipSelected
     ? chipAttrs.textDecoration === 'underline'
     : (editor?.isActive('underline') ?? false)
+  const isUppercase = editor?.isActive('dv_uppercase') ?? false
 
   const toggleBold = () => {
     if (liveChipSelected()) {
@@ -582,6 +605,7 @@ export function ToolbarContent({
         {fmtBtn('B', isBold,      toggleBold,      'Fett',          { fontWeight: 700 })}
         {fmtBtn('I', isItalic,    toggleItalic,    'Kursiv',        { fontStyle: 'italic' })}
         {fmtBtn('U', isUnderline, toggleUnderline, 'Unterstrichen', { textDecoration: 'underline' })}
+        {fmtBtn('UC', isUppercase, () => editor?.chain().focus().toggleDvUppercase().run(), 'Blockschrift (Großbuchstaben)', { fontSize: 10, textTransform: 'uppercase' })}
         {sep('sep-align')}
         {fmtBtn('≡L', editor?.isActive({ textAlign: 'left' })   ?? false, () => editor?.chain().focus().setTextAlign('left').run(),   'Linksbündig')}
         {fmtBtn('≡M', editor?.isActive({ textAlign: 'center' }) ?? false, () => editor?.chain().focus().setTextAlign('center').run(), 'Zentriert')}
@@ -793,7 +817,7 @@ export function ToolbarContent({
         </div>
       )}
 
-      {/* ── Row 3: Placeholder chips ── */}
+      {/* ── Row 3: Placeholder chips + IF/ENDIF ── */}
       {chips.length > 0 && (
         <div style={{
           display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 3,
@@ -815,6 +839,21 @@ export function ToolbarContent({
               >{p.label}</button>
             </ChipTooltip>
           ))}
+          <div style={{ width: 1, height: 14, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+          <BtnTooltip text="IF-Block einfügen — Inhalt wird nur angezeigt wenn gewählter Chip nicht leer ist">
+            <button
+              disabled={!editor}
+              onMouseDown={e => { e.preventDefault(); editor?.chain().focus().insertPlaceholderIf().run() }}
+              style={{ padding: '2px 6px', height: 20, borderRadius: 4, border: '1px dashed #5856D688', background: '#5856D618', color: '#5856D6', fontSize: 10, fontWeight: 600, cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >▶ IF</button>
+          </BtnTooltip>
+          <BtnTooltip text="Ende des IF-Blocks">
+            <button
+              disabled={!editor}
+              onMouseDown={e => { e.preventDefault(); editor?.chain().focus().insertPlaceholderEndIf().run() }}
+              style={{ padding: '2px 6px', height: 20, borderRadius: 4, border: '1px dashed #8E8E9388', background: '#8E8E9318', color: '#8E8E93', fontSize: 10, fontWeight: 600, cursor: editor ? 'pointer' : 'default', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
+            >◀ ENDIF</button>
+          </BtnTooltip>
         </div>
       )}
     </>
@@ -1068,6 +1107,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
         else if (mark.type === 'italic')    t = `<em>${t}</em>`
         else if (mark.type === 'underline') t = `<u>${t}</u>`
         else if (mark.type === 'strike')    t = `<s>${t}</s>`
+        else if (mark.type === 'dv_uppercase') t = `<span style="text-transform:uppercase">${t}</span>`
         else if (mark.type === 'textStyle') {
           if (mark.attrs?.fontFamily) inlineStyles.push(`font-family:${mark.attrs.fontFamily}`)
           if (mark.attrs?.fontSize)   inlineStyles.push(`font-size:${mark.attrs.fontSize}`)
@@ -1104,6 +1144,9 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
 
     if (node.type === 'hardBreak') return '<br>'
 
+    // IF/ENDIF handled at paragraph level via renderInlineSeq
+    if (node.type === 'placeholder_if' || node.type === 'placeholder_endif') return ''
+
     if (node.type === 'resizable_image') {
       const src = node.attrs?.src ?? ''
       const w   = Number(node.attrs?.width) || 60
@@ -1116,6 +1159,27 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
     }
 
     return (node.content ?? []).map((n: any) => renderInline(n, paraFont)).join('')
+  }
+
+  // Processes inline nodes with IF/ENDIF conditional logic
+  function renderInlineSeq(nodes: any[], paraFont?: ParaFont): string {
+    let result = ''
+    let skipping = false
+    for (const node of nodes) {
+      if (node.type === 'placeholder_if') {
+        const refKey = node.attrs?.ref_key as string | null
+        const ctxKey = refKey ? PREVIEW_CONTEXT_MAP[refKey] : null
+        const val = ctxKey ? String(ctx?.[ctxKey] ?? '') : ''
+        skipping = !val
+        continue
+      }
+      if (node.type === 'placeholder_endif') {
+        skipping = false
+        continue
+      }
+      if (!skipping) result += renderInline(node, paraFont)
+    }
+    return result
   }
 
   function renderBlock(node: any): string {
@@ -1198,7 +1262,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       if (sa)  styles.push(`margin-bottom:${sa}`)
       if (!node.content?.length) styles.push('min-height:1.2em')
       const style = styles.length ? ` style="${styles.join(';')}"` : ''
-      const inner = (node.content ?? []).map((n: any) => renderInline(n, { ff, fs, fw, fst, td, lh })).join('')
+      const inner = renderInlineSeq(node.content ?? [], { ff, fs, fw, fst, td, lh })
       return `<div${style}>${inner || '&nbsp;'}</div>`
     }
     return (node.content ?? []).map(renderBlock).join('')

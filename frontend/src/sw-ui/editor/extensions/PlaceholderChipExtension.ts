@@ -7,6 +7,12 @@ declare module '@tiptap/core' {
     placeholder_chip: {
       insertPlaceholderChip: (key: string) => ReturnType
     }
+    placeholder_if: {
+      insertPlaceholderIf: () => ReturnType
+    }
+    placeholder_endif: {
+      insertPlaceholderEndIf: () => ReturnType
+    }
   }
 }
 
@@ -218,6 +224,11 @@ export const PlaceholderChipExtension = Node.create({
       fontWeight:      { default: null, parseHTML: el => el.getAttribute('data-fw')  || null, renderHTML: attrs => attrs.fontWeight      ? { 'data-fw':  attrs.fontWeight }      : {} },
       fontStyle:       { default: null, parseHTML: el => el.getAttribute('data-fst') || null, renderHTML: attrs => attrs.fontStyle       ? { 'data-fst': attrs.fontStyle }       : {} },
       textDecoration:  { default: null, parseHTML: el => el.getAttribute('data-td')  || null, renderHTML: attrs => attrs.textDecoration  ? { 'data-td':  attrs.textDecoration }  : {} },
+      collapsed: {
+        default: false,
+        parseHTML: el => el.getAttribute('data-collapsed') === 'true',
+        renderHTML: attrs => attrs.collapsed ? { 'data-collapsed': 'true' } : {},
+      },
     }
   },
 
@@ -228,15 +239,17 @@ export const PlaceholderChipExtension = Node.create({
   renderHTML({ node, HTMLAttributes }) {
     const key   = node.attrs.key as string
     const color = getPlaceholderColor(key)
-    const label = getPlaceholderLabel(key)
+    const label = node.attrs.collapsed
+      ? getPlaceholderLabel(key).slice(0, 2)
+      : getPlaceholderLabel(key)
     const a = node.attrs
+    const padding = node.attrs.collapsed ? '1px 3px' : '2px 7px'
     const styleArr = [
       'display:inline-flex', 'align-items:center', 'gap:3px',
       `background:${color}1A`, `color:${color}`, `border:1px solid ${color}55`,
       'border-radius:4px', 'line-height:1',
-      'padding:2px 7px', 'white-space:nowrap', 'user-select:none',
-      'cursor:default', 'vertical-align:middle',
-      // Font: use chip's own attrs when set, otherwise inherit from paragraph
+      `padding:${padding}`, 'white-space:nowrap', 'user-select:none',
+      'cursor:pointer', 'vertical-align:middle',
       `font-family:${a.fontFamily   || 'inherit'}`,
       `font-size:${a.fontSize       || 'inherit'}`,
       `font-weight:${a.fontWeight   || 'inherit'}`,
@@ -244,6 +257,80 @@ export const PlaceholderChipExtension = Node.create({
       a.textDecoration ? `text-decoration:${a.textDecoration}` : 'text-decoration:inherit',
     ]
     return ['span', mergeAttributes(HTMLAttributes, { class: 'placeholder-chip', contenteditable: 'false', style: styleArr.join(';') }), label]
+  },
+
+  addNodeView() {
+    return ({ node: initialNode, getPos, editor }: any) => {
+      let currentAttrs = { ...initialNode.attrs }
+
+      const tooltipEl = document.createElement('div')
+      tooltipEl.style.cssText = 'position:fixed;background:#111;color:#fff;font-size:11px;line-height:1.5;padding:4px 9px;border-radius:5px;pointer-events:none;z-index:99999;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.35);display:none;max-width:220px;'
+      document.body.appendChild(tooltipEl)
+
+      const span = document.createElement('span')
+      span.className = 'placeholder-chip'
+      ;(span as any).contentEditable = 'false'
+
+      const updateDom = (attrs: any) => {
+        currentAttrs = attrs
+        const key   = attrs.key as string
+        const def   = PLACEHOLDER_DEFS.find(p => p.key === key)
+        const color = def?.color ?? '#757575'
+        const label = attrs.collapsed
+          ? (def?.label ?? key).slice(0, 2)
+          : (def?.label ?? key)
+        const padding = attrs.collapsed ? '1px 3px' : '2px 7px'
+        span.setAttribute('data-placeholder-key', key)
+        if (attrs.collapsed) span.setAttribute('data-collapsed', 'true')
+        else span.removeAttribute('data-collapsed')
+        span.style.cssText = [
+          'display:inline-flex', 'align-items:center',
+          `background:${color}1A`, `color:${color}`, `border:1px solid ${color}55`,
+          'border-radius:4px', `padding:${padding}`, 'line-height:1',
+          'white-space:nowrap', 'user-select:none',
+          'cursor:pointer', 'vertical-align:middle',
+          `font-family:${attrs.fontFamily || 'inherit'}`,
+          `font-size:${attrs.fontSize || 'inherit'}`,
+          `font-weight:${attrs.fontWeight || 'inherit'}`,
+          `font-style:${attrs.fontStyle || 'inherit'}`,
+          attrs.textDecoration ? `text-decoration:${attrs.textDecoration}` : 'text-decoration:inherit',
+        ].join(';')
+        span.textContent = label
+        if (def) tooltipEl.textContent = attrs.collapsed
+          ? `${def.label} — Klick zum Aufklappen`
+          : `${def.beschreibung} — Klick zum Verkleinern`
+      }
+
+      span.addEventListener('mousedown', (e) => { e.preventDefault() })
+      span.addEventListener('click', (e) => {
+        e.stopPropagation()
+        if (typeof getPos === 'function') {
+          const pos = getPos()
+          const newAttrs = { ...currentAttrs, collapsed: !currentAttrs.collapsed }
+          editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, newAttrs))
+        }
+      })
+      span.addEventListener('mouseenter', () => {
+        const rect = span.getBoundingClientRect()
+        tooltipEl.style.left = `${rect.left + rect.width / 2}px`
+        tooltipEl.style.top  = `${rect.top - 30}px`
+        tooltipEl.style.transform = 'translateX(-50%)'
+        tooltipEl.style.display = 'block'
+      })
+      span.addEventListener('mouseleave', () => { tooltipEl.style.display = 'none' })
+
+      updateDom(initialNode.attrs)
+
+      return {
+        dom: span,
+        update(updatedNode: any) {
+          if (updatedNode.type.name !== 'placeholder_chip') return false
+          updateDom(updatedNode.attrs)
+          return true
+        },
+        destroy() { tooltipEl.remove() },
+      }
+    }
   },
 
   addCommands() {
@@ -275,6 +362,188 @@ export const PlaceholderChipExtension = Node.create({
         },
       }),
     ]
+  },
+})
+
+// ── IF / ENDIF Node Extensions ────────────────────────────────────────────────
+
+const IF_COLOR   = '#5856D6'
+const ENDIF_COLOR = '#8E8E93'
+
+export const PlaceholderIfExtension = Node.create({
+  name: 'placeholder_if',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: false,
+
+  addAttributes() {
+    return {
+      ref_key: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-if-ref') || null,
+        renderHTML: attrs => attrs.ref_key ? { 'data-if-ref': attrs.ref_key } : {},
+      },
+    }
+  },
+
+  parseHTML() { return [{ tag: 'span[data-placeholder-if]' }] },
+
+  renderHTML({ node }) {
+    const def   = PLACEHOLDER_DEFS.find(p => p.key === node.attrs.ref_key)
+    const label = def ? `▶ ${def.label}` : '▶ ?'
+    const color = def?.color ?? IF_COLOR
+    return ['span', mergeAttributes(
+      { 'data-placeholder-if': 'true', contenteditable: 'false' },
+      { style: `display:inline-flex;align-items:center;background:${color}18;color:${color};border:1px dashed ${color}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:pointer;vertical-align:middle;font-weight:500;` }
+    ), label]
+  },
+
+  addNodeView() {
+    return ({ node: initialNode, getPos, editor }: any) => {
+      let currentRef = initialNode.attrs.ref_key
+
+      const tooltipEl = document.createElement('div')
+      tooltipEl.style.cssText = 'position:fixed;background:#111;color:#fff;font-size:11px;line-height:1.5;padding:4px 9px;border-radius:5px;pointer-events:none;z-index:99999;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.35);display:none;max-width:240px;'
+      document.body.appendChild(tooltipEl)
+
+      // Selector dropdown
+      const selector = document.createElement('div')
+      selector.style.cssText = 'position:fixed;background:var(--bg-surface,#fff);border:1px solid #E0E0E0;border-radius:6px;padding:4px;z-index:99999;box-shadow:0 4px 16px rgba(0,0,0,0.15);display:none;max-height:200px;overflow-y:auto;min-width:160px;'
+      PLACEHOLDER_DEFS.filter(p => p.zone !== 'fusszeile').forEach(def => {
+        const btn = document.createElement('button')
+        btn.textContent = def.label
+        btn.style.cssText = `display:block;width:100%;text-align:left;padding:3px 8px;border:none;background:none;cursor:pointer;font-size:11px;color:${def.color};border-radius:3px;`
+        btn.addEventListener('mouseenter', () => { btn.style.background = '#F5F5F5' })
+        btn.addEventListener('mouseleave', () => { btn.style.background = 'none' })
+        btn.addEventListener('mousedown', (e) => { e.preventDefault() })
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          if (typeof getPos === 'function') {
+            editor.view.dispatch(editor.state.tr.setNodeMarkup(getPos(), undefined, { ref_key: def.key }))
+          }
+          selector.style.display = 'none'
+        })
+        selector.appendChild(btn)
+      })
+      document.body.appendChild(selector)
+
+      const closeSelector = (e: MouseEvent) => {
+        if (!selector.contains(e.target as unknown as globalThis.Node)) selector.style.display = 'none'
+      }
+      document.addEventListener('click', closeSelector)
+
+      const span = document.createElement('span')
+      ;(span as any).contentEditable = 'false'
+
+      const updateDom = (ref_key: string | null) => {
+        currentRef = ref_key
+        const def   = PLACEHOLDER_DEFS.find(p => p.key === ref_key)
+        const label = def ? `▶ ${def.label}` : '▶ ?'
+        const color = def?.color ?? IF_COLOR
+        span.setAttribute('data-placeholder-if', 'true')
+        if (ref_key) span.setAttribute('data-if-ref', ref_key)
+        else span.removeAttribute('data-if-ref')
+        span.style.cssText = `display:inline-flex;align-items:center;background:${color}18;color:${color};border:1px dashed ${color}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:pointer;vertical-align:middle;font-weight:500;`
+        span.textContent = label
+        tooltipEl.textContent = def
+          ? `Inhalt anzeigen wenn „${def.label}" nicht leer. Klick = Chip wählen.`
+          : 'Kein Chip gewählt — klicken zum Zuweisen.'
+      }
+
+      span.addEventListener('mousedown', (e) => { e.preventDefault() })
+      span.addEventListener('click', (e) => {
+        e.stopPropagation()
+        const rect = span.getBoundingClientRect()
+        selector.style.left = `${rect.left}px`
+        selector.style.top  = `${rect.bottom + 4}px`
+        selector.style.display = selector.style.display === 'none' ? 'block' : 'none'
+      })
+      span.addEventListener('mouseenter', () => {
+        const rect = span.getBoundingClientRect()
+        tooltipEl.style.left = `${rect.left + rect.width / 2}px`
+        tooltipEl.style.top  = `${rect.top - 30}px`
+        tooltipEl.style.transform = 'translateX(-50%)'
+        tooltipEl.style.display = 'block'
+      })
+      span.addEventListener('mouseleave', () => { tooltipEl.style.display = 'none' })
+
+      updateDom(initialNode.attrs.ref_key)
+
+      return {
+        dom: span,
+        update(updatedNode: any) {
+          if (updatedNode.type.name !== 'placeholder_if') return false
+          updateDom(updatedNode.attrs.ref_key)
+          return true
+        },
+        destroy() {
+          tooltipEl.remove()
+          selector.remove()
+          document.removeEventListener('click', closeSelector)
+        },
+      }
+    }
+  },
+
+  addCommands() {
+    return {
+      insertPlaceholderIf: () => ({ chain }: any) =>
+        chain().insertContent({ type: 'placeholder_if', attrs: { ref_key: null } }).run(),
+    }
+  },
+})
+
+export const PlaceholderEndIfExtension = Node.create({
+  name: 'placeholder_endif',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  selectable: true,
+  draggable: false,
+
+  addAttributes() { return {} },
+  parseHTML() { return [{ tag: 'span[data-placeholder-endif]' }] },
+  renderHTML() {
+    return ['span', {
+      'data-placeholder-endif': 'true', contenteditable: 'false',
+      style: `display:inline-flex;align-items:center;background:${ENDIF_COLOR}18;color:${ENDIF_COLOR};border:1px dashed ${ENDIF_COLOR}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:default;vertical-align:middle;font-weight:500;`,
+    }, '◀']
+  },
+
+  addNodeView() {
+    return () => {
+      const tooltipEl = document.createElement('div')
+      tooltipEl.style.cssText = 'position:fixed;background:#111;color:#fff;font-size:11px;padding:4px 9px;border-radius:5px;pointer-events:none;z-index:99999;white-space:nowrap;box-shadow:0 2px 10px rgba(0,0,0,0.35);display:none;'
+      tooltipEl.textContent = 'Ende des IF-Blocks.'
+      document.body.appendChild(tooltipEl)
+      const span = document.createElement('span')
+      ;(span as any).contentEditable = 'false'
+      span.setAttribute('data-placeholder-endif', 'true')
+      span.style.cssText = `display:inline-flex;align-items:center;background:${ENDIF_COLOR}18;color:${ENDIF_COLOR};border:1px dashed ${ENDIF_COLOR}88;border-radius:4px;padding:1px 6px;font-size:inherit;line-height:1.5;white-space:nowrap;user-select:none;cursor:default;vertical-align:middle;font-weight:500;`
+      span.textContent = '◀'
+      span.addEventListener('mouseenter', () => {
+        const rect = span.getBoundingClientRect()
+        tooltipEl.style.left = `${rect.left + rect.width / 2}px`
+        tooltipEl.style.top  = `${rect.top - 30}px`
+        tooltipEl.style.transform = 'translateX(-50%)'
+        tooltipEl.style.display = 'block'
+      })
+      span.addEventListener('mouseleave', () => { tooltipEl.style.display = 'none' })
+      return {
+        dom: span,
+        update: (n: any) => n.type.name === 'placeholder_endif',
+        destroy() { tooltipEl.remove() },
+      }
+    }
+  },
+
+  addCommands() {
+    return {
+      insertPlaceholderEndIf: () => ({ chain }: any) =>
+        chain().insertContent({ type: 'placeholder_endif', attrs: {} }).run(),
+    }
   },
 })
 

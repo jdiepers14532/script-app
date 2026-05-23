@@ -27,7 +27,7 @@ import { TAB_ALIGN_NEXT } from './primitives/TabStopExtension'
 import { FontSizeExtension } from './extensions/FontSizeExtension'
 import { ParagraphStyleExtension } from './extensions/ParagraphStyleExtension'
 import { ResizableImageExtension } from './extensions/ResizableImageExtension'
-import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderColor, getPlaceholderLabel, PLACEHOLDER_DEFS } from './extensions/PlaceholderChipExtension'
+import { PlaceholderChipExtension, PlaceholderIfExtension, PlaceholderEndIfExtension, PLACEHOLDER_CHIP_CSS, getPlaceholdersForZone, getPlaceholderColor, getPlaceholderLabel, PLACEHOLDER_DEFS } from './extensions/PlaceholderChipExtension'
 import type { PlaceholderZone } from './extensions/PlaceholderChipExtension'
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
@@ -128,6 +128,8 @@ const KZ_EXTENSIONS = [
   ParagraphStyleExtension,
   ResizableImageExtension,
   PlaceholderChipExtension,
+  PlaceholderIfExtension,
+  PlaceholderEndIfExtension,
   TabCharNode,
 ]
 
@@ -541,6 +543,19 @@ function KZToolbar({ editor, zone, onInsertImage }: KZToolbarProps) {
               </button>
             ))}
           </div>
+          <Sep />
+          <button
+            onMouseDown={e => { e.preventDefault(); editor.chain().focus().insertPlaceholderIf().run() }}
+            style={{ padding: '0 6px', height: 20, borderRadius: 4, border: '1px dashed #5856D688', background: '#5856D618', color: '#5856D6', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+            title="IF-Block einfügen — Inhalt wird nur angezeigt wenn gewählter Chip nicht leer ist">
+            ▶ IF
+          </button>
+          <button
+            onMouseDown={e => { e.preventDefault(); editor.chain().focus().insertPlaceholderEndIf().run() }}
+            style={{ padding: '0 6px', height: 20, borderRadius: 4, border: '1px dashed #8E8E9388', background: '#8E8E9318', color: '#8E8E93', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+            title="Ende des IF-Blocks">
+            ◀ ENDIF
+          </button>
         </>
       )}
     </div>
