@@ -7,6 +7,14 @@ function NetzplanDiagram() {
   const [dragging, setDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [hovered, setHovered] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
+  const dragMovedRef = useRef(false)
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {})
+    setCopied(text)
+    setTimeout(() => setCopied(null), 1500)
+  }
 
   const TW = 330, FH = 16, HH = 24, GAP = 22
   type F = [string, string, string, string?] // [name, type, desc, fk_target?]
@@ -168,10 +176,19 @@ function NetzplanDiagram() {
   }, [])
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) { setDragging(true); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }) }
+    if (e.button === 0) {
+      setDragging(true)
+      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
+      dragMovedRef.current = false
+    }
   }
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragging) setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
+    if (dragging) {
+      const dx = e.clientX - (dragStart.x + pan.x)
+      const dy = e.clientY - (dragStart.y + pan.y)
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMovedRef.current = true
+      setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
+    }
   }
   const handleMouseUp = () => setDragging(false)
 
@@ -243,7 +260,9 @@ function NetzplanDiagram() {
                 {/* Header */}
                 <rect x={p.x} y={p.y} width={TW} height={HH} rx={5} fill={color} />
                 <rect x={p.x} y={p.y + HH - 5} width={TW} height={5} fill={color} />
-                <text x={p.x + 8} y={p.y + 16} fontSize={10} fontWeight={700} fontFamily="monospace" fill="#fff">
+                <text x={p.x + 8} y={p.y + 16} fontSize={10} fontWeight={700} fontFamily="monospace" fill="#fff"
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => { if (!dragMovedRef.current) { e.stopPropagation(); copyToClipboard(t.id) } }}>
                   {t.id}
                 </text>
                 <text x={p.x + TW - 8} y={p.y + 16} fontSize={8} fontWeight={500} fill="#ffffff99" textAnchor="end">
@@ -263,7 +282,13 @@ function NetzplanDiagram() {
                       {/* Field name */}
                       <text x={p.x + 22} y={fy + 12} fontSize={8.5} fontWeight={isFK || isPK ? 600 : 400}
                         fontFamily="monospace" fill={isFK ? '#555' : '#333'}
-                        clipPath={`inset(0 ${TW - 115}px 0 0)`}>
+                        clipPath={`inset(0 ${TW - 115}px 0 0)`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={(e) => {
+                          if (dragMovedRef.current) return
+                          e.stopPropagation()
+                          copyToClipboard(e.ctrlKey ? f[0] : `${t.id}.${f[0]}`)
+                        }}>
                         {f[0].length > 14 ? f[0].slice(0, 13) + '..' : f[0]}
                       </text>
                       {/* Type */}
@@ -284,7 +309,7 @@ function NetzplanDiagram() {
           })}
         </svg>
         {/* Hover tooltip */}
-        {hovered && (
+        {hovered && !copied && (
           <div style={{
             position: 'absolute', top: 8, right: 8, background: '#111', color: '#fff',
             fontSize: 11, padding: '6px 10px', borderRadius: 6, pointerEvents: 'none', maxWidth: 260,
@@ -297,8 +322,18 @@ function NetzplanDiagram() {
             </div>
           </div>
         )}
+        {/* Copied toast */}
+        {copied && (
+          <div style={{
+            position: 'absolute', top: 8, right: 8, background: '#00C853', color: '#fff',
+            fontSize: 11, padding: '6px 10px', borderRadius: 6, pointerEvents: 'none',
+            fontFamily: 'monospace', fontWeight: 600,
+          }}>
+            ✓ {copied}
+          </div>
+        )}
         <div style={{ position: 'absolute', bottom: 8, left: 8, fontSize: 9, color: C.muted, background: '#fdfdfdcc', padding: '2px 6px', borderRadius: 4 }}>
-          Scrollen = Zoom · Ziehen = Verschieben · Hover = Beziehungen hervorheben
+          Scrollen = Zoom · Ziehen = Verschieben · Hover = Beziehungen · Klick Tabellenname = kopieren · Klick Feldname = tabelle.feld · Strg+Klick = nur Feld
         </div>
       </div>
       {/* Legend */}
