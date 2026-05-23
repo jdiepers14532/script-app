@@ -135,16 +135,14 @@ router.get('/export/job/:id/download', (req, res) => {
 
 function previewParamsFromQuery(req: any): PdfAssemblerInput {
   const werkstufId = req.query.werkstufId as string
-  const rawDv = req.query.dokumentVorlagenIds as string | undefined
-  const rawNz = req.query.notizWerkstufIds    as string | undefined
+  const rawNz = req.query.notizWerkstufIds as string | undefined
   const user  = req.user!
   return {
     werkstufId,
     userId:   user.user_id,
     userName: user.name,
     options: {
-      dokumentVorlagenIds: rawDv ? rawDv.split(',').filter(Boolean) : undefined,
-      notizWerkstufIds:    rawNz ? rawNz.split(',').filter(Boolean) : undefined,
+      notizWerkstufIds: rawNz ? rawNz.split(',').filter(Boolean) : undefined,
     },
   }
 }
