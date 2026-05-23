@@ -312,8 +312,11 @@ function renderSKParagraph(
 function renderSzenenkopf(
   templateJson: any,
   scene: SceneRow,
-  folgeNummer: number
+  folgeNummer: number,
+  pageBreakBefore = false
 ): string {
+  const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
+
   // Fallback wenn kein Template konfiguriert
   if (!templateJson) {
     const num  = scene.scene_nummer != null ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
@@ -321,7 +324,7 @@ function renderSzenenkopf(
     if (scene.ort_name)  parts.push(esc(scene.ort_name))
     if (scene.int_ext)   parts.push(esc(scene.int_ext))
     if (scene.tageszeit) parts.push(esc(scene.tageszeit))
-    return `<p style="font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</p>`
+    return `<p style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</p>`
   }
 
   const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
@@ -340,7 +343,7 @@ function renderSzenenkopf(
   }
 
   if (parts.length === 0) return ''
-  return `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
+  return `<div style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -352,11 +355,11 @@ function renderMainScenes(
   szenenkopfTemplate: any,
   folgeNummer: number
 ): string {
-  return scenes.map(scene => {
+  return scenes.map((scene, index) => {
     // Notiz-Format-Szenen bekommen keinen strukturierten Szenenkopf
     const headHtml = scene.format !== 'notiz'
-      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer)
-      : ''
+      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0)
+      : (index > 0 ? '<div style="page-break-before:always"></div>' : '')
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
   }).join('\n')
