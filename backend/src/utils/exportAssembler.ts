@@ -21,9 +21,12 @@ export interface ExportContext {
   buero_adresse:      string | null
   sendedatum:         string | null
   produktionszeitraum: string | null
-  aktuelles_datum:     string
-  aktuelles_jahr:      string
-  aktuelles_uhrzeit:   string
+  aktuelles_datum:         string
+  aktuelles_jahr:          string
+  /** Produktions-Timezone (Kette: ProdDB.land → userTZ → UTC) */
+  aktuelles_uhrzeit:       string
+  /** Immer UTC, z.B. "14:32 (UTC)" — UTC ist das kanonische Speicherformat */
+  aktuelles_uhrzeit_utc:   string
   folge_laenge_netto:  string | null
   firmen_adresse:      string | null
   rechtsform:          string | null
@@ -61,9 +64,10 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{buero_adresse}}':       return ctx.buero_adresse ?? ''
     case '{{sendedatum}}':          return ctx.sendedatum ?? ''
     case '{{produktionszeitraum}}': return ctx.produktionszeitraum ?? ''
-    case '{{aktuelles_datum}}':     return ctx.aktuelles_datum
-    case '{{aktuelles_jahr}}':      return ctx.aktuelles_jahr
-    case '{{aktuelles_uhrzeit}}':   return ctx.aktuelles_uhrzeit
+    case '{{aktuelles_datum}}':       return ctx.aktuelles_datum
+    case '{{aktuelles_jahr}}':        return ctx.aktuelles_jahr
+    case '{{aktuelles_uhrzeit}}':     return ctx.aktuelles_uhrzeit
+    case '{{aktuelles_uhrzeit_utc}}': return ctx.aktuelles_uhrzeit_utc
     case '{{folge_laenge_netto}}':  return ctx.folge_laenge_netto ?? ''
     case '{{firmen_adresse}}':      return ctx.firmen_adresse ?? ''
     case '{{rechtsform}}':          return ctx.rechtsform ?? ''

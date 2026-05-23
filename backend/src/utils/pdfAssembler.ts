@@ -138,7 +138,8 @@ const LAND_TO_TIMEZONE: Record<string, string> = {
 }
 
 /** Gibt die IANA-Timezone für einen Ländercode zurück.
- *  Fallback-Reihenfolge: land → userTimezone → 'Europe/Berlin' */
+ *  Speicherformat: UTC — Anzeige nach Konvertierung.
+ *  Fallback-Reihenfolge: ProdDB.land → userTimezone (Browser) → UTC */
 function resolveTimezone(land: string | null, userTimezone?: string): string {
   if (land) {
     const tz = LAND_TO_TIMEZONE[land.toUpperCase()]
@@ -148,7 +149,7 @@ function resolveTimezone(land: string | null, userTimezone?: string): string {
     // Validierung: Intl wirft wenn unbekannt
     try { Intl.DateTimeFormat(undefined, { timeZone: userTimezone }); return userTimezone } catch { /* noop */ }
   }
-  return 'Europe/Berlin'
+  return 'UTC'   // Neutral-Fallback — kein Timezone-Raten
 }
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
@@ -756,6 +757,7 @@ async function assembleHtml(
       aktuelles_datum:      now.toLocaleDateString('de-DE', { ...tzOpts, day: '2-digit', month: '2-digit', year: 'numeric' }),
       aktuelles_jahr:       new Intl.DateTimeFormat('de-DE', { ...tzOpts, year: 'numeric' }).format(now),
       aktuelles_uhrzeit:    now.toLocaleTimeString('de-DE', { ...tzOpts, hour: '2-digit', minute: '2-digit' }),
+      aktuelles_uhrzeit_utc: now.toLocaleTimeString('de-DE', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit' }) + '\u202f(UTC)',
       folge_laenge_netto:   null,
       firmen_adresse:       null,
       rechtsform:           null,
