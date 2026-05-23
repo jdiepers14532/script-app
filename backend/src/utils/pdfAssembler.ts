@@ -11,7 +11,7 @@ import puppeteer from 'puppeteer'
 import * as fs from 'fs'
 import * as path from 'path'
 import { pool } from '../db'
-import type { ExportJobOptions, JobResult } from './exportJobQueue'
+import type { ExportJobOptions, OrderedExportItem, JobResult } from './exportJobQueue'
 import {
   buildPdfHtml,
   buildExportFilename,
@@ -20,6 +20,39 @@ import {
   ExportContext,
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
+import { renderStatistikHtml } from './statistikHtmlRenderer'
+
+// ── Admin Wasserzeichen-Einstellungen ─────────────────────────────────────────
+
+interface WatermarkSettings {
+  aktiv: boolean
+  text: string
+  opazitaet: number  // 1–30 (%)
+}
+
+let _wmSettingsCache: WatermarkSettings | null = null
+let _wmSettingsCacheAt = 0
+const WM_CACHE_TTL_MS = 60_000  // 1 Min — Admin ändert selten
+
+async function loadWatermarkSettings(): Promise<WatermarkSettings> {
+  const now = Date.now()
+  if (_wmSettingsCache && now - _wmSettingsCacheAt < WM_CACHE_TTL_MS) return _wmSettingsCache
+
+  try {
+    const res = await pool.query('SELECT key, value FROM export_admin_settings ORDER BY key')
+    const m: Record<string, string> = {}
+    for (const r of res.rows) m[r.key] = r.value
+    _wmSettingsCache = {
+      aktiv: m['wm_sichtbar_aktiv'] === 'true',
+      text: m['wm_sichtbar_text'] ?? 'VERTRAULICH',
+      opazitaet: Math.min(30, Math.max(1, parseInt(m['wm_sichtbar_opazitaet'] ?? '8', 10) || 8)),
+    }
+    _wmSettingsCacheAt = now
+    return _wmSettingsCache
+  } catch {
+    return { aktiv: false, text: 'VERTRAULICH', opazitaet: 8 }
+  }
+}
 
 // ── Warm-Browser-Pool ─────────────────────────────────────────────────────────
 // Chromium-Instanz wird warm gehalten — spart ~1–3 Sek. Kaltstart pro Export-Job.
@@ -739,23 +772,49 @@ async function assembleHtml(
       episode_terminus:       episodeTerminus,
     }
 
-    // ── 7. Notiz-Werkstufen voranstellen ──────────────────────────────────────
+    // ── 7. Geordnete Pre-/Post-Sektionen aufbauen ─────────────────────────────
     setProgress(30)
-    const prefixSections: string[] = []
 
-    const notizIds = options.notizWerkstufIds ?? []
-    for (const nid of notizIds) {
-      const nszRes = await client.query<SceneRow>(
-        `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit,
-                stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp
-         FROM dokument_szenen
-         WHERE werkstufe_id = $1 AND geloescht = false
-         ORDER BY sort_order`,
-        [nid]
-      )
-      if (nszRes.rows.length > 0) {
-        prefixSections.push(renderNotizWerkstufe(nszRes.rows, fmtById, fmtByName, ctx))
+    /** Rendert ein einzelnes OrderedExportItem zu HTML */
+    async function renderOrderedItem(item: OrderedExportItem): Promise<string | null> {
+      if (!item.enabled) return null
+      if (item.type === 'notiz' && item.id) {
+        const nszRes = await client.query<SceneRow>(
+          `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit,
+                  stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp
+           FROM dokument_szenen
+           WHERE werkstufe_id = $1 AND geloescht = false
+           ORDER BY sort_order`,
+          [item.id]
+        )
+        if (!nszRes.rows.length) return null
+        const label = item.label ?? ''
+        const heading = label
+          ? `<h2 style="font-size:12pt;font-weight:bold;margin:0 0 8pt;letter-spacing:0.02em">${label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</h2>`
+          : ''
+        return `${heading}${renderNotizWerkstufe(nszRes.rows, fmtById, fmtByName, ctx)}`
       }
+      if (item.type === 'statistik' && item.statistikConfig) {
+        return renderStatistikHtml(item.statistikConfig)
+      }
+      return null
+    }
+
+    // Backward compat: Legacy notizWerkstufIds → in preItems umwandeln wenn kein preItems gesetzt
+    const resolvedPreItems: OrderedExportItem[] = options.preItems ?? (options.notizWerkstufIds ?? []).map(id => ({
+      type: 'notiz' as const, id, enabled: true
+    }))
+    const resolvedPostItems: OrderedExportItem[] = options.postItems ?? []
+
+    const preSections: string[] = []
+    for (const item of resolvedPreItems) {
+      const html = await renderOrderedItem(item)
+      if (html) preSections.push(html)
+    }
+    const postSections: string[] = []
+    for (const item of resolvedPostItems) {
+      const html = await renderOrderedItem(item)
+      if (html) postSections.push(html)
     }
 
     // ── 8. Hauptszenen laden ──────────────────────────────────────────────────
@@ -829,23 +888,34 @@ async function assembleHtml(
     setProgress(50)
 
     const isNotizDoc = w.typ === 'notiz'
-    const mainHtml = isNotizDoc
-      ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-      : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
+    const hauptinhaltAktiv = options.hauptinhaltAktiv !== false  // default: true
+
+    let mainHtml = ''
+    if (hauptinhaltAktiv) {
+      mainHtml = isNotizDoc
+        ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
+        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
+    }
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
     const wmPayload = buildPayload(userId, werkstufId)
     const wmHidden  = `<span aria-hidden="true" style="position:absolute;left:-9999px;font-size:0;line-height:0">${encodeWatermark(wmPayload)}</span>`
 
-    let bodyHtml = wmHidden + '\n'
+    // Alle Sektionen in Reihenfolge: preSections → Hauptinhalt → postSections
+    // Jede Sektion bekommt einen page-break-before (außer der allerersten)
+    const allSections: string[] = [
+      ...preSections,
+      ...(mainHtml ? [mainHtml] : []),
+      ...postSections,
+    ]
 
-    if (prefixSections.length > 0) {
-      bodyHtml += prefixSections.map((s, i) =>
+    let bodyHtml = wmHidden + '\n'
+    if (allSections.length === 0) {
+      bodyHtml += '<div style="color:#888;font-size:10pt">Kein Inhalt für diesen Export ausgewählt.</div>'
+    } else {
+      bodyHtml += allSections.map((s, i) =>
         i === 0 ? s : `<div style="page-break-before:always">\n${s}\n</div>`
       ).join('\n')
-      bodyHtml += `\n<div style="page-break-before:always">\n${mainHtml}\n</div>`
-    } else {
-      bodyHtml += mainHtml
     }
 
     // ── 10. Titel + vollständige HTML-Seite ───────────────────────────────────
@@ -908,6 +978,10 @@ export async function assemblePdf(
 
   // ── 11. Puppeteer → PDF ───────────────────────────────────────────────────
   setProgress(55)
+
+  // Admin-Wasserzeichen-Einstellungen laden
+  const wmSettings = await loadWatermarkSettings()
+
   // Warm-Pool: bestehende Browser-Instanz wiederverwenden (kein Kaltstart)
   const browser = await getWarmBrowser()
   setProgress(60)
@@ -921,13 +995,26 @@ export async function assemblePdf(
   // Minimaler CSS-Reset für das Puppeteer-Template-Rendering
   const tplReset = '<style>*{margin:0;padding:0;box-sizing:border-box}p{line-height:1.3}</style>'
 
-  const headerTemplate = headerHtml.trim()
-    ? `${tplReset}<div style="width:100%;height:${pageMarginTop}mm;display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(headerHtml)}</div>`
+  // Sichtbares Diagonal-Wasserzeichen (per-Seite overlay via headerTemplate)
+  // position:absolute + overflow:visible → überlagert den gesamten Seitenbereich ohne Platz zu belegen
+  const wmOverlay = wmSettings.aktiv
+    ? `<div style="position:absolute;top:0;left:0;width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;opacity:${wmSettings.opazitaet / 100};pointer-events:none;overflow:hidden;z-index:9999">` +
+      `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">` +
+      wmSettings.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+      `</span></div>`
+    : ''
+
+  // headerTemplate: KZ (falls vorhanden) + Wasserzeichen-Overlay
+  // Das Overlay ist position:absolute → nimmt keinen Platz ein, überlagert nur
+  const headerTemplate = (headerHtml.trim() || wmOverlay)
+    ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wmOverlay}${headerHtml.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(headerHtml)}</div>` : ''}</div>`
     : '<div style="font-size:0"></div>'
 
   const footerTemplate = footerHtml.trim()
     ? `${tplReset}<div style="width:100%;height:${pageMarginBottom}mm;display:flex;flex-direction:column;justify-content:flex-end;padding:0 ${hmr}mm ${hmb}mm ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(footerHtml)}</div>`
     : '<div style="font-size:0"></div>'
+
+  const pdfBookmarks = input.options.pdfBookmarks === true
 
   let pdfBytes: Uint8Array
   // Kein try/finally mit browser.close() — Warm-Pool behält die Instanz
@@ -942,6 +1029,9 @@ export async function assemblePdf(
       displayHeaderFooter: true,
       headerTemplate,
       footerTemplate,
+      // PDF-Lesezeichen/Inhaltsverzeichnis — erfordert H-Tag-Hierarchie im HTML
+      outline: pdfBookmarks,
+      tagged: pdfBookmarks,
       // margin übernimmt Seitenränder — kein @page-margin im HTML nötig
       margin: {
         top:    `${pageMarginTop}mm`,

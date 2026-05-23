@@ -21,6 +21,14 @@ export const DEFAULT_SECTIONS: StatModalSection[] = [
   { id: 'drehorte',         label: 'Drehorte',           visible: true },
 ]
 
+export interface StatistikExportConfig {
+  folge_ids: number[]
+  folge_nummer: number
+  mode: 'folge' | 'block'
+  sections: string[]
+  includedSceneNumbers?: number[] | null
+}
+
 interface StatistikModalProps {
   onClose: () => void
   folgen: any[]
@@ -29,6 +37,8 @@ interface StatistikModalProps {
   initialFolgeNummer?: number | null
   onNavigateToScene?: (sceneNummer: number) => void
   szenen?: any[]
+  /** Wenn gesetzt: "Diese Statistik in Dokument übernehmen"-Button einblenden */
+  onExportUebernehmen?: (config: StatistikExportConfig) => void
 }
 
 type ViewMode = 'folge' | 'block'
@@ -49,7 +59,7 @@ function formatDrehdauer(sek: number): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function StatistikModal({ onClose, folgen, bloecke, sections, initialFolgeNummer, onNavigateToScene, szenen }: StatistikModalProps) {
+export default function StatistikModal({ onClose, folgen, bloecke, sections, initialFolgeNummer, onNavigateToScene, szenen, onExportUebernehmen }: StatistikModalProps) {
   const { selectedProduction } = useSelectedProduction()
   const produktionId = selectedProduction?.id ?? null
   const { t } = useTerminologie()
@@ -314,6 +324,36 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
           <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>Keine Bloecke</span>
         )}
       </div>
+
+      {/* Export-Übernahme-Button */}
+      {onExportUebernehmen && (
+        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border, #e0e0e0)', flexShrink: 0 }}>
+          <button
+            disabled={!report || loading}
+            onClick={() => {
+              if (!report) return
+              const folgeNummer = mode === 'folge' && selectedFolgeId
+                ? (folgen.find((f: any) => f.id === selectedFolgeId)?.folge_nummer ?? 0)
+                : (bloecke[selectedBlockIdx]?.folge_von ?? 0)
+              onExportUebernehmen({
+                folge_ids: selectedFolgeIds,
+                folge_nummer: folgeNummer,
+                mode,
+                sections: visibleSections.map(s => s.id),
+                includedSceneNumbers: null,
+              })
+            }}
+            style={{
+              width: '100%', padding: '7px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: report && !loading ? '#00C853' : '#e0e0e0',
+              color: report && !loading ? '#fff' : '#999',
+              fontSize: 12, fontWeight: 600, transition: 'background 0.15s',
+            }}
+          >
+            Diese Statistik in Dokument übernehmen
+          </button>
+        </div>
+      )}
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '12px 16px' }}>

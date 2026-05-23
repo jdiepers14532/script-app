@@ -37,6 +37,30 @@ router.post('/export/job', async (req, res) => {
     return res.status(400).json({ error: `format muss einer von ${VALID_FORMATS.join(', ')} sein` })
   }
 
+  // Validierung: OrderedExportItems
+  function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedExportItem[] | undefined {
+    if (!Array.isArray(raw)) return undefined
+    return raw
+      .filter((x: any) => x && typeof x === 'object')
+      .map((x: any) => ({
+        type: x.type === 'statistik' ? 'statistik' as const : 'notiz' as const,
+        id: x.id ? String(x.id) : undefined,
+        label: x.label ? String(x.label) : undefined,
+        enabled: x.enabled !== false,
+        statistikConfig: x.statistikConfig && typeof x.statistikConfig === 'object'
+          ? {
+              folge_ids: Array.isArray(x.statistikConfig.folge_ids) ? x.statistikConfig.folge_ids.map(Number) : [],
+              folge_nummer: Number(x.statistikConfig.folge_nummer),
+              mode: x.statistikConfig.mode === 'block' ? 'block' as const : 'folge' as const,
+              sections: Array.isArray(x.statistikConfig.sections) ? x.statistikConfig.sections.map(String) : ['uebersicht', 'rollen', 'motive'],
+              includedSceneNumbers: Array.isArray(x.statistikConfig.includedSceneNumbers)
+                ? x.statistikConfig.includedSceneNumbers.map(Number)
+                : null,
+            }
+          : undefined,
+      }))
+  }
+
   const user = req.user!
   const params: ExportJobParams = {
     werkstufId,
@@ -45,6 +69,10 @@ router.post('/export/job', async (req, res) => {
     userName: user.name,
     options: {
       notizWerkstufIds:         Array.isArray(options.notizWerkstufIds) ? options.notizWerkstufIds : undefined,
+      preItems:                 parseOrderedItems(options.preItems),
+      postItems:                parseOrderedItems(options.postItems),
+      hauptinhaltAktiv:         typeof options.hauptinhaltAktiv === 'boolean' ? options.hauptinhaltAktiv : undefined,
+      pdfBookmarks:             options.pdfBookmarks === true,
       persoenlicher_ausdruck:   options.persoenlicher_ausdruck   ? String(options.persoenlicher_ausdruck)  : undefined,
       revision:                 options.revision                  ? String(options.revision)                : undefined,
       revisions_farbe_hex:      options.revisions_farbe_hex       ? String(options.revisions_farbe_hex)     : undefined,

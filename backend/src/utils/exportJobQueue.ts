@@ -10,9 +10,39 @@ import { randomUUID } from 'crypto'
 export type ExportFormat = 'pdf' | 'docx' | 'fountain' | 'fdx'
 export type JobStatus = 'pending' | 'running' | 'done' | 'error'
 
+/** Ein geordnetes Element VOR oder NACH dem Hauptinhalt im PDF */
+export interface OrderedExportItem {
+  /** 'notiz' = Notiz-Werkstufe, 'statistik' = Statistik-Seite */
+  type: 'notiz' | 'statistik'
+  /** Werkstufe-UUID (nur bei type='notiz') */
+  id?: string
+  /** Anzeige-Label für UI */
+  label?: string
+  /** false = Element wird im Export übersprungen */
+  enabled: boolean
+  /** Nur bei type='statistik': Konfiguration der Statistik-Seite */
+  statistikConfig?: {
+    /** Liste aller Folge-IDs (eine für Folge-Modus, mehrere für Block-Modus) */
+    folge_ids: number[]
+    /** Repräsentative Folgen-Nummer für den Anzeige-Titel */
+    folge_nummer: number
+    mode: 'folge' | 'block'
+    sections: string[]
+    includedSceneNumbers?: number[] | null
+  }
+}
+
 export interface ExportJobOptions {
-  /** IDs der Notiz-Werkstufen die vor dem Hauptdokument eingefügt werden */
+  /** IDs der Notiz-Werkstufen die vor dem Hauptdokument eingefügt werden (Legacy, wird durch preItems ersetzt) */
   notizWerkstufIds?: string[]
+  /** Elemente VOR dem Hauptinhalt (DnD-Reihenfolge) — ersetzt notizWerkstufIds */
+  preItems?: OrderedExportItem[]
+  /** Elemente NACH dem Hauptinhalt (DnD-Reihenfolge) */
+  postItems?: OrderedExportItem[]
+  /** false = Hauptinhalt (Drehbuch/Szenen) wird nicht exportiert */
+  hauptinhaltAktiv?: boolean
+  /** true = PDF-Lesezeichen / Inhaltsverzeichnis einbetten (Puppeteer outline+tagged) */
+  pdfBookmarks?: boolean
   /** Name des Empfängers für {{persoenlicher_ausdruck}}-Chip */
   persoenlicher_ausdruck?: string
   /** Revisionsbezeichnung für {{revision}}-Chip, z.B. "Blaue Seiten" */
