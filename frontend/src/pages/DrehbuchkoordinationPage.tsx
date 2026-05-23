@@ -651,13 +651,13 @@ function GlossarSection({ productionId }: { productionId: string }) {
   }
 
   return (
-    <section>
-      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Glossar</h3>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+    <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', flexShrink: 0 }}>Glossar</h3>
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6, flexShrink: 0 }}>
         Abkürzungsverzeichnis für diese Produktion — Kürzel, vollständiger Name und Erklärung.
       </p>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexShrink: 0 }}>
         <input
           type="text"
           placeholder="Suchen…"
@@ -680,6 +680,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
         </button>
       </div>
 
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
       {loading ? (
         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt…</span>
       ) : (
@@ -692,7 +693,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
 
           {filtered.length > 0 && (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-              <thead>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--bg-surface)' }}>
                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 80 }}>Kürzel</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 160 }}>Name</th>
@@ -809,6 +810,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
           )}
         </>
       )}
+      </div>
     </section>
   )
 }
@@ -2896,8 +2898,8 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
           style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={e => { if (e.target === e.currentTarget) setGlossarOpen(false) }}
         >
-          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.25)', padding: 24, maxWidth: 720, width: '90%', maxHeight: '80vh', overflow: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.25)', padding: 24, maxWidth: 720, width: '90%', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Glossar</h2>
               <button
                 onClick={() => setGlossarOpen(false)}
