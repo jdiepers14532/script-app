@@ -3155,8 +3155,8 @@ export default function DrehbuchkoordinationPage() {
           {FORMAT_TEMPLATE_TABS.filter(t => t !== 'stockshot-templates').includes(activeTab) && produktionId ? (
             <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               {/* Label links */}
-              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, paddingTop: 3, whiteSpace: 'nowrap' }}>
-                Standard-Einstellungen für<br />das gesamte Dokument:
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, whiteSpace: 'nowrap', background: 'var(--bg-subtle)', borderRadius: 5, padding: '3px 8px' }}>
+                Standard-Einstellungen<br />für das gesamte Dokument:
               </span>
               {/* Format + Preset übereinander, linksbündig */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
