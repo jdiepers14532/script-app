@@ -1432,7 +1432,7 @@ export default function DokumentVorlagenEditor({
                 <input ref={bodyFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleBodyFileChange} />
               )}
               <div style={{
-                padding: '8px 12px',
+                padding: sidebarMode ? '0' : '8px 12px',
                 minHeight: sidebarMode ? pageDims.hPx - 200 : 200,
                 maxHeight: sidebarMode ? undefined : 500,
                 overflowY: sidebarMode ? undefined : 'auto',
