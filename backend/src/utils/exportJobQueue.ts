@@ -13,8 +13,6 @@ export type JobStatus = 'pending' | 'running' | 'done' | 'error'
 export interface ExportJobOptions {
   /** IDs der Notiz-Werkstufen die vor dem Hauptdokument eingefügt werden */
   notizWerkstufIds?: string[]
-  /** IDs der Dokument-Vorlagen (Titelseite, Synopsis, …) die vorangestellt werden */
-  dokumentVorlagenIds?: string[]
   /** Name des Empfängers für {{persoenlicher_ausdruck}}-Chip */
   persoenlicher_ausdruck?: string
   /** Revisionsbezeichnung für {{revision}}-Chip, z.B. "Blaue Seiten" */
@@ -25,6 +23,14 @@ export interface ExportJobOptions {
   compareWerkstufId?: string
   /** true = nur geänderte Seiten, false = alle Seiten mit Markierungen */
   revisionNurGeaendert?: boolean
+  /** Rohtext-Eingabe für Szenen-Auswahl, z.B. "1,3,5-10,42A" */
+  szenenAuswahl?: string
+  /** Nur Szenen mit diesen Rollen-Namen (OR-Verknüpfung) */
+  filterRollen?: string[]
+  /** Nur Szenen mit diesen Motiv-Namen (OR-Verknüpfung) */
+  filterMotive?: string[]
+  /** Nur Szenen mit Komparsen (ist_gruppe=true) */
+  filterKomparsenMitSpiel?: boolean
 }
 
 export interface ExportJobParams {

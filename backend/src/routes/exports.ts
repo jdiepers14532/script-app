@@ -44,13 +44,16 @@ router.post('/export/job', async (req, res) => {
     userId: user.user_id,
     userName: user.name,
     options: {
-      notizWerkstufIds:       Array.isArray(options.notizWerkstufIds)       ? options.notizWerkstufIds       : undefined,
-      dokumentVorlagenIds:    Array.isArray(options.dokumentVorlagenIds)   ? options.dokumentVorlagenIds   : undefined,
-      persoenlicher_ausdruck: options.persoenlicher_ausdruck           ? String(options.persoenlicher_ausdruck) : undefined,
-      revision:               options.revision                         ? String(options.revision)               : undefined,
-      revisions_farbe_hex:    options.revisions_farbe_hex              ? String(options.revisions_farbe_hex)    : undefined,
-      compareWerkstufId:      options.compareWerkstufId                ? String(options.compareWerkstufId)      : undefined,
-      revisionNurGeaendert:   typeof options.revisionNurGeaendert === 'boolean' ? options.revisionNurGeaendert : true,
+      notizWerkstufIds:         Array.isArray(options.notizWerkstufIds) ? options.notizWerkstufIds : undefined,
+      persoenlicher_ausdruck:   options.persoenlicher_ausdruck   ? String(options.persoenlicher_ausdruck)  : undefined,
+      revision:                 options.revision                  ? String(options.revision)                : undefined,
+      revisions_farbe_hex:      options.revisions_farbe_hex       ? String(options.revisions_farbe_hex)     : undefined,
+      compareWerkstufId:        options.compareWerkstufId         ? String(options.compareWerkstufId)       : undefined,
+      revisionNurGeaendert:     typeof options.revisionNurGeaendert === 'boolean' ? options.revisionNurGeaendert : true,
+      szenenAuswahl:            options.szenenAuswahl             ? String(options.szenenAuswahl)           : undefined,
+      filterRollen:             Array.isArray(options.filterRollen)   ? options.filterRollen.map(String)   : undefined,
+      filterMotive:             Array.isArray(options.filterMotive)   ? options.filterMotive.map(String)   : undefined,
+      filterKomparsenMitSpiel:  options.filterKomparsenMitSpiel === true,
     },
   }
 
@@ -179,6 +182,45 @@ router.get('/export/pdf-preview', async (req, res) => {
     res.send(result.buffer)
   } catch (err: any) {
     res.status(500).send(`<pre style="color:red">PDF-Vorschau-Fehler: ${err?.message ?? err}</pre>`)
+  }
+})
+
+// ── GET /api/export/filter-options ───────────────────────────────────────────
+// Liefert verfügbare Rollen und Motive einer Werkstufe für die Export-Filter-UI.
+
+router.get('/export/filter-options', async (req, res) => {
+  const werkstufId = req.query.werkstufId as string | undefined
+  if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
+
+  try {
+    const client = await pool.connect()
+    try {
+      const [rollenRes, motiveRes] = await Promise.all([
+        client.query<{ name: string }>(
+          `SELECT DISTINCT c.name
+           FROM scene_characters sc
+           JOIN characters c ON c.id = sc.character_id
+           WHERE sc.werkstufe_id = $1 AND COALESCE(sc.ist_gruppe, false) = false
+           ORDER BY c.name`,
+          [werkstufId]
+        ),
+        client.query<{ ort_name: string }>(
+          `SELECT DISTINCT ort_name
+           FROM dokument_szenen
+           WHERE werkstufe_id = $1 AND geloescht = false AND ort_name IS NOT NULL AND ort_name <> ''
+           ORDER BY ort_name`,
+          [werkstufId]
+        ),
+      ])
+      res.json({
+        rollen: rollenRes.rows.map(r => r.name),
+        motive: motiveRes.rows.map(r => r.ort_name),
+      })
+    } finally {
+      client.release()
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? 'Fehler beim Laden der Filter-Optionen' })
   }
 })
 

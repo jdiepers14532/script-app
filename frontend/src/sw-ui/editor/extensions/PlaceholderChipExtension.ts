@@ -172,6 +172,11 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'script_db \u00b7 dokument_szenen.content (Notiz-Format)',
   },
   {
+    key: '{{druckauswahl}}', label: 'Druckauswahl', zone: 'alle', color: '#FF6B35',
+    beschreibung: 'Zeigt aktive Exportfilter an, z.\u202fB. \u201eAuswahl: Szenen 1\u20135\u201c oder \u201eNur Szenen mit Rolle X\u201c. Leer wenn kein Filter aktiv.',
+    quelle: 'Export-Optionen \u00b7 szenenAuswahl + filterRollen + filterMotive + filterKomparsen',
+  },
+  {
     key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#34C759',
     beschreibung: 'Aktuelle Seitenzahl. Nur in Fu\u00dfzeilen verf\u00fcgbar.',
     quelle: 'Berechnet beim PDF-Export',

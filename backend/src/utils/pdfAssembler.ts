@@ -469,6 +469,51 @@ interface AssembleHtmlResult {
   bmr: number
 }
 
+// ── Szenen-Auswahl parsen ─────────────────────────────────────────────────────
+
+interface SzeneSpec { nr: number; suffix: string }
+
+/** Parst "1,3,5-10,42A" → [{nr:1,suffix:''}, {nr:3,suffix:''}, ...] oder null wenn leer. */
+function parseSzenenAuswahl(raw: string | undefined): SzeneSpec[] | null {
+  if (!raw?.trim()) return null
+  const specs: SzeneSpec[] = []
+  for (const tok of raw.split(',').map(t => t.trim()).filter(Boolean)) {
+    const range = tok.match(/^(\d+)-(\d+)$/)
+    if (range) {
+      const from = parseInt(range[1], 10)
+      const to   = parseInt(range[2], 10)
+      for (let i = Math.min(from, to); i <= Math.max(from, to); i++) {
+        specs.push({ nr: i, suffix: '' })
+      }
+      continue
+    }
+    const withSuffix = tok.match(/^(\d+)([A-Za-z]+)$/)
+    if (withSuffix) {
+      specs.push({ nr: parseInt(withSuffix[1], 10), suffix: withSuffix[2].toUpperCase() })
+      continue
+    }
+    if (/^\d+$/.test(tok)) {
+      specs.push({ nr: parseInt(tok, 10), suffix: '' })
+    }
+  }
+  return specs.length ? specs : null
+}
+
+// ── Druckauswahl-Text bauen ───────────────────────────────────────────────────
+
+function buildDruckauswahl(options: import('./exportJobQueue').ExportJobOptions): string | null {
+  const auswahl = options.szenenAuswahl?.trim()
+    ? `Auswahl: Szenen ${options.szenenAuswahl.trim()}`
+    : null
+  const filterParts: string[] = []
+  if (options.filterRollen?.length)   filterParts.push(options.filterRollen.join(', '))
+  if (options.filterMotive?.length)   filterParts.push(options.filterMotive.join(', '))
+  if (options.filterKomparsenMitSpiel) filterParts.push('Komparsen m.\u202fSp.')
+  const filter = filterParts.length ? `Nur Szenen mit ${filterParts.join(' \u0026 ')}` : null
+  const parts = [auswahl, filter].filter(Boolean) as string[]
+  return parts.length ? parts.join(' \u0026 ') : null
+}
+
 async function assembleHtml(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void,
@@ -586,6 +631,7 @@ async function assembleHtml(
 
     // ── 6. ExportContext aufbauen ─────────────────────────────────────────────
     setProgress(25)
+    const druckauswahl = buildDruckauswahl(options)
     const now = new Date()
     const ctx: ExportContext = {
       produktion:           w.produktion_titel,
@@ -620,30 +666,14 @@ async function assembleHtml(
       persoenlicher_ausdruck: options.persoenlicher_ausdruck ?? null,
       revision:               options.revision ?? null,
       revisions_farbe_hex:    options.revisions_farbe_hex ?? null,
+      druckauswahl:           druckauswahl,
       episode_terminus:       episodeTerminus,
     }
 
-    // ── 7. Dokument-Vorlagen (Titelseite, Synopsis …) laden + rendern ─────────
+    // ── 7. Notiz-Werkstufen voranstellen ──────────────────────────────────────
     setProgress(30)
     const prefixSections: string[] = []
 
-    const dvIds = options.dokumentVorlagenIds ?? []
-    if (dvIds.length > 0) {
-      const dvRes = await client.query(
-        `SELECT id, name, typ, body_content
-         FROM dokument_vorlagen
-         WHERE id = ANY($1) AND is_aktiv = true`,
-        [dvIds]
-      )
-      const dvMap = new Map(dvRes.rows.map((r: any) => [r.id, r]))
-      for (const id of dvIds) {
-        const dv = dvMap.get(id)
-        if (!dv?.body_content) continue
-        prefixSections.push(renderDoc(dv.body_content, fmtById, fmtByName, ctx))
-      }
-    }
-
-    // Notiz-Werkstufen
     const notizIds = options.notizWerkstufIds ?? []
     for (const nid of notizIds) {
       const nszRes = await client.query<SceneRow>(
@@ -659,7 +689,7 @@ async function assembleHtml(
       }
     }
 
-    // ── 8. Hauptszenen laden + rendern ────────────────────────────────────────
+    // ── 8. Hauptszenen laden ──────────────────────────────────────────────────
     setProgress(40)
     const szRes = await client.query<SceneRow>(
       `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit,
@@ -671,7 +701,7 @@ async function assembleHtml(
       [werkstufId]
     )
 
-    // Charakternamen (Rollen) pro Szene für den rollen-Chip im Szenenkopf
+    // Rollen pro Szene (für rollen-Chip + filterRollen)
     const charRes = await client.query<{ scene_identity_id: string; rollen: string[] }>(
       `SELECT sc.scene_identity_id,
               array_agg(c.name ORDER BY c.name) AS rollen
@@ -684,10 +714,46 @@ async function assembleHtml(
     const charMap = new Map<string, string[]>(
       charRes.rows.map(r => [r.scene_identity_id, r.rollen])
     )
-    const mainScenes = szRes.rows.map(s => ({
+
+    // Komparsen pro Szene (für filterKomparsenMitSpiel)
+    let komparsenIds = new Set<string>()
+    if (options.filterKomparsenMitSpiel) {
+      const kompRes = await client.query<{ scene_identity_id: string }>(
+        `SELECT DISTINCT sc.scene_identity_id
+         FROM scene_characters sc
+         WHERE sc.werkstufe_id = $1 AND COALESCE(sc.ist_gruppe, false) = true
+           AND sc.scene_identity_id IS NOT NULL`,
+        [werkstufId]
+      )
+      komparsenIds = new Set(kompRes.rows.map(r => r.scene_identity_id))
+    }
+
+    let mainScenes = szRes.rows.map(s => ({
       ...s,
       rollen: s.scene_identity_id ? (charMap.get(s.scene_identity_id) ?? []) : [],
     }))
+
+    // ── Szenen-Filter anwenden ────────────────────────────────────────────────
+    const szSpecs = parseSzenenAuswahl(options.szenenAuswahl)
+    if (szSpecs) {
+      mainScenes = mainScenes.filter(s =>
+        szSpecs.some(sp =>
+          s.scene_nummer === sp.nr &&
+          (s.scene_nummer_suffix ?? '').toUpperCase() === sp.suffix
+        )
+      )
+    }
+    if (options.filterRollen?.length) {
+      const rollenSet = new Set(options.filterRollen)
+      mainScenes = mainScenes.filter(s => s.rollen.some(r => rollenSet.has(r)))
+    }
+    if (options.filterMotive?.length) {
+      const motivSet = new Set(options.filterMotive.map(m => m.toLowerCase()))
+      mainScenes = mainScenes.filter(s => s.ort_name && motivSet.has(s.ort_name.toLowerCase()))
+    }
+    if (options.filterKomparsenMitSpiel) {
+      mainScenes = mainScenes.filter(s => s.scene_identity_id && komparsenIds.has(s.scene_identity_id))
+    }
 
     setProgress(50)
 

@@ -35,6 +35,7 @@ export interface ExportContext {
   tel_produktion:      string | null
   notiz_inhalt:        string | null
   persoenlicher_ausdruck: string | null
+  druckauswahl:           string | null
   revision:               string | null
   revisions_farbe_hex:    string | null
   episode_terminus:   string  // e.g. "Folge" or "Episode"
@@ -74,6 +75,7 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{tel_produktion}}':      return ctx.tel_produktion ?? ''
     case '{{notiz_inhalt}}':        return ctx.notiz_inhalt ?? ''
     case '{{persoenlicher_ausdruck}}': return ctx.persoenlicher_ausdruck ?? ''
+    case '{{druckauswahl}}':           return ctx.druckauswahl ?? ''
     case '{{revision}}':               return ctx.revision ?? ''
     case '{{revisions_farbe}}':        return ctx.revisions_farbe_hex
       ? `<span style="color:${ctx.revisions_farbe_hex}">&#9679;</span>`
