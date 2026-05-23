@@ -650,6 +650,67 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     ...(focusWidth ? { width: focusWidth } : {}),
   } : undefined
 
+  // Fokus-Modus Zeile 1b: Spielzeit + I/A+SP als wiederverwendbare JSX-Variablen
+  // (werden in Zeile 1 normal ODER in Zeile 1b Fokus-Modus gerendert — nie beides gleichzeitig)
+  const spielzeitCell = (
+    <span
+      className="spielzeit-wrap"
+      onMouseEnter={() => setShowSpielzeitInfo(true)}
+      onMouseLeave={() => setShowSpielzeitInfo(false)}
+      style={{ position: 'relative' }}
+    >
+      <span className="spiel-field-lbl">Sp</span>
+      <input
+        key={`sz-${szeneId}`}
+        className="spielzeit-inp"
+        defaultValue={scene.spielzeit ?? ''}
+        placeholder="00:00"
+        onBlur={e => {
+          const val = e.target.value.trim() || null
+          if (val !== (scene.spielzeit ?? null))
+            saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+        }}
+      />
+      {showSpielzeitInfo && (
+        <div className="spielzeit-info-pop">
+          <strong>Spielzeit</strong>
+          <p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen.</p>
+        </div>
+      )}
+    </span>
+  )
+  const iaSpCell = (
+    <span className="ie-group">
+      <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
+        <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
+      </Tooltip>
+      <span className="ie-sep">/</span>
+      <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
+        <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
+      </Tooltip>
+      <span className="ie-sep">·</span>
+      <Tooltip text={`Spieltag (SP) / Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung${tweaks.autoStimmungPropagation ? '\nBei NACHT→TAG: alle folgenden Szenen werden automatisch aktualisiert' : ''}\nManuell überschreibbar`} placement="bottom">
+        <span className="ie-field-wrap">
+          <span className="ie-lbl">SP</span>
+          <input
+            key={`dt-${szeneId}`}
+            className="ie-num-inp"
+            defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''}
+            placeholder="—"
+            type="number"
+            min={1}
+            onBlur={e => {
+              const raw = e.target.value.trim()
+              const val = raw ? parseInt(raw, 10) : null
+              if (val !== (scene.spieltag ?? null))
+                saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+            }}
+          />
+        </span>
+      </Tooltip>
+    </span>
+  )
+
   return (
     <div
       ref={detailRef}
@@ -769,8 +830,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     )}
                   </div>
                 </td>
-                {/* Col 3: Motiv — auto (fills remaining after fixed cols) */}
-                <td style={{ paddingRight: 8, paddingBottom: 4, overflow: 'hidden', minWidth: 0 }}>
+                {/* Col 3: Motiv — im Fokus-Modus colSpan=3 (cols 3-5), sonst nur col 3 */}
+                <td colSpan={focus ? 3 : 1} style={{ paddingRight: 8, paddingBottom: 4, overflow: 'hidden', minWidth: 0 }}>
                   <div className="sf-motiv-group" style={{ display: 'flex', gap: 4, minWidth: 0, alignItems: 'center' }}>
                     <div className="sf-motiv-wrap" ref={motivDropdownRef}>
                       <input
@@ -858,66 +919,18 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                     )}
                   </div>
                 </td>
-                {/* Col 4: Spielzeit */}
-                <td style={{ width: 198, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
-                  <span
-                    className="spielzeit-wrap"
-                    onMouseEnter={() => setShowSpielzeitInfo(true)}
-                    onMouseLeave={() => setShowSpielzeitInfo(false)}
-                    style={{ position: 'relative' }}
-                  >
-                    <span className="spiel-field-lbl">Sp</span>
-                    <input
-                      key={`sz-${szeneId}`}
-                      className="spielzeit-inp"
-                      defaultValue={scene.spielzeit ?? ''}
-                      placeholder="00:00"
-                      onBlur={e => {
-                        const val = e.target.value.trim() || null
-                        if (val !== (scene.spielzeit ?? null))
-                          saveScene({ spielzeit: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                      }}
-                    />
-                    {showSpielzeitInfo && (
-                      <div className="spielzeit-info-pop">
-                        <strong>Spielzeit</strong>
-                        <p>Wahrscheinliche Uhrzeit der Handlung — z.B. „08:30" für frühen Morgen.</p>
-                      </div>
-                    )}
-                  </span>
-                </td>
-                {/* Col 5: I/A + SP */}
-                <td style={{ width: 100, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
-                  <span className="ie-group">
-                    <Tooltip text={scene.int_ext === 'int' ? 'Innen — klicken für Außen' : 'Außen — klicken für Innen'} placement="bottom">
-                      <span className="ie-toggle" onClick={cycleIntExt}>{ieAbbr(scene.int_ext ?? 'int')}</span>
-                    </Tooltip>
-                    <span className="ie-sep">/</span>
-                    <Tooltip text={`Tageszeit: ${scene.tageszeit ?? 'TAG'} — klicken zum Wechseln`} placement="bottom">
-                      <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
-                    </Tooltip>
-                    <span className="ie-sep">·</span>
-                    <Tooltip text={`Spieltag (SP) / Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung${tweaks.autoStimmungPropagation ? '\nBei NACHT→TAG: alle folgenden Szenen werden automatisch aktualisiert' : ''}\nManuell überschreibbar`} placement="bottom">
-                      <span className="ie-field-wrap">
-                        <span className="ie-lbl">SP</span>
-                        <input
-                          key={`dt-${szeneId}`}
-                          className="ie-num-inp"
-                          defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''}
-                          placeholder="—"
-                          type="number"
-                          min={1}
-                          onBlur={e => {
-                            const raw = e.target.value.trim()
-                            const val = raw ? parseInt(raw, 10) : null
-                            if (val !== (scene.spieltag ?? null))
-                              saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                          }}
-                        />
-                      </span>
-                    </Tooltip>
-                  </span>
-                </td>
+                {/* Col 4: Spielzeit — nur im Normalmodus; im Fokus-Modus → Zeile 1b */}
+                {!focus && (
+                  <td style={{ width: 198, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4 }}>
+                    {spielzeitCell}
+                  </td>
+                )}
+                {/* Col 5: I/A + SP — nur im Normalmodus; im Fokus-Modus → Zeile 1b */}
+                {!focus && (
+                  <td style={{ width: 100, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
+                    {iaSpCell}
+                  </td>
+                )}
                 {/* Col 6: Save indicator + Annotations */}
                 <td style={{ width: 50, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
@@ -942,6 +955,21 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   </span>
                 </td>
               </tr>
+              {/* Zeile 1b — nur im Fokus-Modus: Spielzeit + I/A+SP unter dem Motiv */}
+              {focus && (
+                <tr style={{ verticalAlign: 'baseline' }}>
+                  <td colSpan={2} style={{ padding: 0 }} />
+                  {/* Spielzeit — unter Col 3 (Motiv) */}
+                  <td style={{ paddingRight: 8, paddingBottom: 4 }}>
+                    {spielzeitCell}
+                  </td>
+                  {/* I/A + SP — unter Cols 4-5 */}
+                  <td colSpan={2} style={{ paddingRight: 8, paddingBottom: 4 }}>
+                    {iaSpCell}
+                  </td>
+                  <td style={{ padding: 0 }} />
+                </tr>
+              )}
             </tbody>
             {/* Field rows — key resets uncontrolled inputs on scene change */}
             <tbody key={szeneId}>

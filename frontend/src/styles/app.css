@@ -263,6 +263,7 @@
   top: 8px;
   left: var(--sw-focus-page-vp-left, 50%);
   width: var(--sw-focus-page-w, min(660px, 92vw));
+  min-width: 300px;
   max-height: 85vh;
   overflow-y: auto;
   background: var(--bg-surface);
