@@ -384,19 +384,6 @@ export default function SceneList({
     doCreateSzene(format, afterSzeneId)
   }
 
-  const handleSaveTemplate = async () => {
-    if (!stageId || !produktionId) return
-    setHeaderMenuOpen(false)
-    const name = prompt('Template-Name:')
-    if (!name?.trim()) return
-    try {
-      await api.createDokumentVorlage(produktionId, { name: name.trim(), werkstufe_id: String(stageId) })
-      showToast('Template gespeichert.', 'success')
-    } catch (err: any) {
-      showToast('Fehler: ' + err.message, 'error')
-    }
-  }
-
   const handleRenumber = async () => {
     if (!stageId || renumbering) return
     setHeaderMenuOpen(false)
@@ -641,13 +628,6 @@ export default function SceneList({
               >
                 {renumbering ? 'Lädt…' : 'Neu nummerieren'}
               </button>
-              <button
-                className="scene-ctx-item"
-                onClick={handleSaveTemplate}
-              >
-                Als Template speichern
-              </button>
-
               {/* Kategorie: Ansicht */}
               <CategoryDivider label="Ansicht" />
               <button
