@@ -587,7 +587,9 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                 {/* Persönlicher Ausdruck */}
                 {currentFormatDef.supportsPersAusdruck && (
                   <div>
-                    <span style={SEC}>Pers. Ausdruck <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 3, fontSize: 9 }}>(optional)</span></span>
+                    <Tooltip placement="right" text={'Erscheint im Textfeld "pers. Ausdruck" wenn in Dokumentenvorlage so angelegt.'}>
+                      <span style={SEC}>Pers. Ausdruck <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 3, fontSize: 9 }}>(optional)</span></span>
+                    </Tooltip>
                     <input
                       type="text" value={persAusdruck}
                       onChange={e => setPersAusdruck(e.target.value)}
