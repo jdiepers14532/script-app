@@ -311,24 +311,37 @@ interface SceneRow {
   sondertyp:           string | null
   scene_identity_id:   string | null
   rollen:              string[]
+  spielzeit:           string | null
 }
 
 // ── Szenenkopf-Template-Renderer ──────────────────────────────────────────────
 
+const DEFAULT_SCENE_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
+
 /** Wert eines sk_chip-Keys aus den Szenendaten */
-function skChipValue(key: string, scene: SceneRow, folgeNummer: number): string {
+function skChipValue(key: string, scene: SceneRow, folgeNummer: number, kuerzel: Record<string, string> = {}): string {
   switch (key) {
-    case 'episode':      return String(folgeNummer)
-    case 'szene_nr':     return scene.scene_nummer != null
+    case 'episode':           return String(folgeNummer)
+    case 'szene_nr':          return scene.scene_nummer != null
       ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
-    case 'motiv':        return esc(scene.ort_name ?? '')
-    case 'innen_aussen': return esc(scene.int_ext ?? '')
-    case 'dt':           return scene.spieltag != null ? String(scene.spieltag) : ''
-    case 'stoppzeit':    return esc(formatStoppzeit(scene.stoppzeit_sek))
-    case 'oneliner':     return esc(scene.zusammenfassung ?? '')
-    case 'sondertyp':    return esc(scene.sondertyp ?? '')
-    case 'rollen':       return esc((scene.rollen ?? []).join(', '))
-    default:             return ''
+    case 'motiv':             return esc(scene.ort_name ?? '')
+    case 'innen_aussen':      return esc(scene.int_ext ?? '')
+    case 'innen_aussen_kurz': {
+      const ie = (scene.int_ext ?? '').toLowerCase()
+      return esc(kuerzel[ie] ?? DEFAULT_SCENE_KUERZEL[ie] ?? scene.int_ext?.charAt(0) ?? '')
+    }
+    case 'tageszeit_lang':    return esc(scene.tageszeit ?? '')
+    case 'tageszeit_kurz': {
+      const tzKey = (scene.tageszeit ?? '').toLowerCase()
+      return esc(kuerzel[tzKey] ?? DEFAULT_SCENE_KUERZEL[tzKey] ?? (scene.tageszeit ? scene.tageszeit.charAt(0) : ''))
+    }
+    case 'spielzeit':         return esc(scene.spielzeit ?? '')
+    case 'dt':                return scene.spieltag != null ? String(scene.spieltag) : ''
+    case 'stoppzeit':         return esc(formatStoppzeit(scene.stoppzeit_sek))
+    case 'oneliner':          return esc(scene.zusammenfassung ?? '')
+    case 'sondertyp':         return esc(scene.sondertyp ?? '')
+    case 'rollen':            return esc((scene.rollen ?? []).join(', '))
+    default:                  return ''
   }
 }
 
@@ -340,14 +353,15 @@ function skChipValue(key: string, scene: SceneRow, folgeNummer: number): string 
 function renderSKInlineSegments(
   nodes: any[],
   scene: SceneRow,
-  folgeNummer: number
+  folgeNummer: number,
+  kuerzel: Record<string, string> = {}
 ): string[] {
   const segments: string[] = ['']
   let skipDepth = 0
 
   for (const node of nodes) {
     if (node.type === 'sk_if') {
-      const val = skChipValue(node.attrs?.ref_key ?? '', scene, folgeNummer)
+      const val = skChipValue(node.attrs?.ref_key ?? '', scene, folgeNummer, kuerzel)
       if (!val.trim()) skipDepth++
       continue
     }
@@ -369,7 +383,7 @@ function renderSKInlineSegments(
 
     let content = ''
     if (node.type === 'sk_chip') {
-      content = skChipValue(node.attrs?.key ?? '', scene, folgeNummer)
+      content = skChipValue(node.attrs?.key ?? '', scene, folgeNummer, kuerzel)
     } else if (node.type === 'text') {
       content = esc(node.text ?? '')
     }
@@ -393,7 +407,8 @@ function renderSKParagraph(
   node: any,
   scene: SceneRow,
   folgeNummer: number,
-  bodyMarginLeftCm: number
+  bodyMarginLeftCm: number,
+  kuerzel: Record<string, string> = {}
 ): string {
   const attrs      = node.attrs ?? {}
   const ff         = attrs.fontFamily ?? "'Courier Prime','Courier New',monospace"
@@ -404,7 +419,7 @@ function renderSKParagraph(
   const fst = attrs.fontStyle  ?? ''  // 'italic' / ''
   const fw  = attrs.fontWeight ?? ''  // 'bold'   / ''
 
-  const segments = renderSKInlineSegments(node.content ?? [], scene, folgeNummer)
+  const segments = renderSKInlineSegments(node.content ?? [], scene, folgeNummer, kuerzel)
   const allEmpty  = segments.every(s => !s.trim())
   if (allEmpty) return ''
 
@@ -453,7 +468,8 @@ function renderSzenenkopf(
   scene: SceneRow,
   folgeNummer: number,
   pageBreakBefore = false,
-  bodyMarginLeftCm = 0
+  bodyMarginLeftCm = 0,
+  kuerzel: Record<string, string> = {}
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
 
@@ -477,7 +493,7 @@ function renderSzenenkopf(
     if (node.type === 'horizontalRule') {
       parts.push('<hr style="border:none;border-top:0.5pt solid #888;margin:2pt 0;width:100%">')
     } else if (node.type === 'paragraph') {
-      const rendered = renderSKParagraph(node, scene, folgeNummer, bodyMarginLeftCm)
+      const rendered = renderSKParagraph(node, scene, folgeNummer, bodyMarginLeftCm, kuerzel)
       if (rendered) parts.push(rendered)
     }
   }
@@ -492,6 +508,7 @@ function renderMainScenes(
   fmtById: Map<string, AbsatzFormat>,
   fmtByName: Map<string, AbsatzFormat>,
   ctx: ExportContext,
+  kuerzel: Record<string, string>,
   szenenkopfTemplate: any,
   folgeNummer: number,
   bodyMarginLeftCm = 0
@@ -499,7 +516,7 @@ function renderMainScenes(
   return scenes.map((scene, index) => {
     // Notiz-Format-Szenen bekommen keinen strukturierten Szenenkopf
     const headHtml = scene.format !== 'notiz'
-      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm)
+      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel)
       : (index > 0 ? '<div style="page-break-before:always"></div>' : '')
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
@@ -694,6 +711,20 @@ async function assembleHtml(
       } catch { /* defaults beibehalten */ }
     }
 
+    // ── 4b. Szenen-Kürzel aus production_app_settings ─────────────────────────
+    const kuerzelRes = await client.query(
+      `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'scene_kuerzel'`,
+      [w.produktion_id]
+    )
+    let sceneKuerzel: Record<string, string> = { ...DEFAULT_SCENE_KUERZEL }
+    if (kuerzelRes.rows.length > 0) {
+      try {
+        const v = kuerzelRes.rows[0].value
+        const parsed = typeof v === 'string' ? JSON.parse(v) : v
+        sceneKuerzel = { ...DEFAULT_SCENE_KUERZEL, ...parsed }
+      } catch { /* defaults */ }
+    }
+
     // ── 5. Szenenkopf-Template aus aktivem Absatzformat-Preset ───────────────
     let szenenkopfTemplate: any = null
     const presetIdRes = await client.query(
@@ -825,7 +856,7 @@ async function assembleHtml(
     const szRes = await client.query<SceneRow>(
       `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
               stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp,
-              scene_identity_id
+              scene_identity_id, spielzeit
        FROM dokument_szenen
        WHERE werkstufe_id = $1 AND geloescht = false
        ORDER BY sort_order`,
@@ -899,7 +930,7 @@ async function assembleHtml(
     if (hauptinhaltAktiv) {
       mainHtml = isNotizDoc
         ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
+        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
     }
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
