@@ -342,6 +342,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
               onClick={() => saveDatumsformat(opt.val)}
               disabled={datumsformatSaving}
               title={opt.example}
+              style={{ padding: '5px 10px', whiteSpace: 'nowrap' }}
             >
               {opt.label}
             </button>
