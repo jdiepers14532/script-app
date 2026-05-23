@@ -36,7 +36,7 @@ const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', '
 const FORMAT_SUB_NAV = [
   { id: 'dokument-typen',      label: 'Drehbuch-Formatierung' },
   { id: 'kopf-fusszeilen',     label: 'Kopf-/Fußzeile' },
-  { id: 'vorlagen',            label: 'Notiz-Vorlagen' },
+  { id: 'vorlagen',            label: 'Dokumenten-Vorlagen' },
   { id: 'stockshot-templates', label: 'Stockshot-Templates' },
 ]
 
@@ -4295,6 +4295,18 @@ function VorlagenTab({ productionId }: { productionId: string }) {
     }
   }
 
+  const unsetAktiv = async (id: string) => {
+    setSettingAktiv(id)
+    try {
+      await api.unsetVorlageAktiv(productionId, id)
+      load()
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setSettingAktiv(null)
+    }
+  }
+
   const inputStyle: React.CSSProperties = { fontSize: 13, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', width: '100%', boxSizing: 'border-box' }
   const btnStyle:   React.CSSProperties = { fontSize: 11, padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }
 
@@ -4519,7 +4531,12 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                     <VorlagenThumbnail content={v.body_content} ctx={previewContext} />
                   </div>
                   {isAktiv && (
-                    <div style={{ position: 'absolute', top: 8, right: 8, background: '#007AFF', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>Standard</div>
+                    <button
+                      onClick={() => unsetAktiv(v.id)}
+                      disabled={settingAktiv === v.id}
+                      title="Standard entfernen"
+                      style={{ position: 'absolute', top: 8, right: 8, background: '#007AFF', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: 0.5, border: 'none', cursor: 'pointer' }}
+                    >{settingAktiv === v.id ? '…' : 'Standard ✕'}</button>
                   )}
                 </div>
                 {/* Info + actions */}
@@ -4559,7 +4576,14 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{v.name}</span>
-                    {isAktiv && <span style={{ fontSize: 9, fontWeight: 700, background: '#007AFF', color: '#fff', padding: '1px 5px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>Standard</span>}
+                    {isAktiv && (
+                      <button
+                        onClick={() => unsetAktiv(v.id)}
+                        disabled={settingAktiv === v.id}
+                        title="Standard entfernen"
+                        style={{ fontSize: 9, fontWeight: 700, background: '#007AFF', color: '#fff', padding: '1px 6px', borderRadius: 3, textTransform: 'uppercase', letterSpacing: 0.5, border: 'none', cursor: 'pointer' }}
+                      >{settingAktiv === v.id ? '…' : 'Standard ✕'}</button>
+                    )}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{typLabel}</div>
                 </div>
@@ -4583,7 +4607,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
 
       {/* Help text */}
       <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-        Pro Kategorie wird die als <strong>Standard</strong> markierte Vorlage beim Export verwendet. Mehrere Vorlagen pro Kategorie möglich.
+        Pro Kategorie wird die als <strong>Standard</strong> markierte Vorlage beim Export verwendet. Mehrere Vorlagen pro Kategorie möglich. Standard-Markierung kann per Klick auf den Badge wieder entfernt werden.
       </p>
     </div>
   )
@@ -4595,7 +4619,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
 const KF_TYPEN = [
   { id: 'drehbuch',  label: 'Drehbuch',  color: '#007AFF' },
   { id: 'storyline', label: 'Storyline', color: '#FF9500' },
-  { id: 'notiz',     label: 'Notiz',     color: '#757575' },
+  { id: 'notiz',     label: 'Dokument',  color: '#757575' },
 ] as const
 
 function formatDatum(iso: string, fmt: 'de' | 'en'): string {

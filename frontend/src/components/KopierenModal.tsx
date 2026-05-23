@@ -142,9 +142,9 @@ const SECTION_GROUPS: GroupDef[] = [
       },
       {
         id: 'vorlagen',
-        label: 'Notiz-Vorlagen',
+        label: 'Dokumenten-Vorlagen',
         isList: true,
-        tooltip: 'Dokument-Vorlagen für Titelseiten, Synopsis, Recap, Precap und benutzerdefinierte Typen.\nJede Vorlage enthält Platzhalter-Chips, Tabellen, Formatierungen und Seitenlayout.\nErsetzen: alle vorhandenen Vorlagen werden gelöscht.\nDazufügen: Vorlagen mit gleichem Name+Typ werden übersprungen.',
+        tooltip: 'Dokumenten-Vorlagen für Titelseiten, Synopsis, Recap, Precap und benutzerdefinierte Typen.\nJede Vorlage enthält Platzhalter-Chips, Tabellen, Formatierungen und Seitenlayout.\nErsetzen: alle vorhandenen Vorlagen werden gelöscht.\nDazufügen: Vorlagen mit gleichem Name+Typ werden übersprungen.',
       },
       {
         id: 'stockshot_templates',

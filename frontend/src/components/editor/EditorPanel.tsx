@@ -596,7 +596,7 @@ export default function EditorPanel({
                 // Chip-Werte für die Auflösung zusammenbauen
                 const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
                 const werkTypLabel = (typ: string) =>
-                  ({ storyline: 'Storyline', drehbuch: 'Drehbuch', notiz: 'Notiz', treatment: 'Treatment' }[typ] ?? typ)
+                  ({ storyline: 'Storyline', drehbuch: 'Drehbuch', notiz: 'Dokument', Notiz: 'Dokument', treatment: 'Treatment' }[typ] ?? typ)
 
                 // Async: Folge-Metadaten, Sendedatum, Blöcke, Folgelänge, Firmendaten parallel laden
                 const [folgeData, sendedatumData, blöckeData, laengeData, companyData] = await Promise.all([

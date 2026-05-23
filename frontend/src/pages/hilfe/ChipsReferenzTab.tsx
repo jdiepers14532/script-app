@@ -67,7 +67,7 @@ function PlaceholderTable() {
       keys: ['{{seite}}', '{{seiten_gesamt}}'],
     },
     {
-      label: 'Notiz-Vorlage (Sonderfall)',
+      label: 'Dokument-Vorlage (Sonderfall)',
       color: '#FF9F0A',
       keys: ['{{notiz_inhalt}}'],
     },

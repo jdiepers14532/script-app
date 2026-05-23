@@ -8,7 +8,7 @@ function DokumentEditorHilfeTab() {
       <Section title="1. Dokument-System (Folgen-Dokumente)">
         <div style={{ fontSize: 12, lineHeight: 1.7, color: C.muted }}>
           <p style={{ marginBottom: 8 }}>
-            Jede Folge kann mehrere <strong>Absatzformat-Vorlagen</strong> haben: Drehbuch, Storyline, Notiz, Abstrakt sowie
+            Jede Folge kann mehrere <strong>Absatzformat-Vorlagen</strong> haben: Drehbuch, Storyline, Dokument, Abstrakt sowie
             admin-definierte Custom-Typen. Jeder Typ hat exakt ein Dokument pro Folge.
           </p>
           <p style={{ marginBottom: 8 }}>
@@ -19,7 +19,7 @@ function DokumentEditorHilfeTab() {
             {[
               { label: 'Drehbuch', color: C.blue, note: 'Drehbuch-Format (Final Draft)' },
               { label: 'Storyline', color: C.orange, note: 'Rich Text' },
-              { label: 'Notiz', color: C.gray, note: 'Rich Text' },
+              { label: 'Dokument', color: C.gray, note: 'Rich Text' },
               { label: 'Custom-Typ', color: C.purple, note: 'Admin-konfigurierbar' },
             ].map(t => (
               <div key={t.label} style={{ border: `1px solid ${t.color}44`, borderLeft: `3px solid ${t.color}`, borderRadius: 6, padding: '6px 12px', background: t.color + '08', fontSize: 11 }}>

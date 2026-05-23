@@ -178,7 +178,7 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'script_db \u00b7 dokument_szenen.stoppzeit_sek (summiert)',
   },
   {
-    key: '{{notiz_inhalt}}', label: 'Notiz-Inhalt', zone: 'alle', color: '#FF9F0A',
+    key: '{{notiz_inhalt}}', label: 'Dokument-Inhalt', zone: 'alle', color: '#FF9F0A',
     beschreibung: 'Slot f\u00fcr den Freitext-Inhalt einer Notiz-Szene. Wird beim Export durch den tats\u00e4chlichen Szenen-Inhalt ersetzt. Diesen Chip genau einmal pro Vorlage platzieren.',
     quelle: 'script_db \u00b7 dokument_szenen.content (Notiz-Format)',
   },

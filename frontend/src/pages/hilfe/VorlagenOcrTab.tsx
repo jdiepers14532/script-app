@@ -13,11 +13,14 @@ function VorlagenOcrTab() {
       <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>Dokument-Vorlagen & PDF-OCR</h1>
 
       <div style={card}>
-        <h2 style={h2}>Dokument-Vorlagen (Notiz-Templates)</h2>
+        <h2 style={h2}>Dokumenten-Vorlagen</h2>
         <p style={p}>
           Vorlagen definieren das Layout und den Inhalt von Nicht-Szenen-Elementen wie Titelseite, Synopsis, Recap und Precap.
-          Sie werden in der Drehbuchkoordination unter dem Tab <strong>Vorlagen</strong> verwaltet.
+          Sie werden in der Drehbuchkoordination unter dem Tab <strong>Dokumenten-Vorlagen</strong> verwaltet.
         </p>
+        <div style={{ background: '#FFF9E6', border: '1px solid #FFCC0066', borderRadius: 6, padding: '8px 12px', fontSize: 11, color: '#7A6000', marginBottom: 8 }}>
+          <strong>Hinweis Datenbankbegriff:</strong> Dokumenten-Werkstufen werden intern in der Datenbank (Werkstufen-Tabelle) noch als Typ <code>notiz</code> geführt. Das ist ein technischer Bezeichner und hat keine Auswirkung auf die Nutzung.
+        </div>
         <h3 style={h3}>Vorlagen-Typen</h3>
         <ul style={{ ...p, paddingLeft: 20 }}>
           <li><strong>Titelseite</strong> — Deckblatt mit Produktions-Metadaten (Staffel, Block, Autor, Regie)</li>

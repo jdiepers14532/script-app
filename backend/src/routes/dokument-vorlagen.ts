@@ -176,6 +176,22 @@ dokumentVorlagenRouter.post('/:id/set-aktiv', async (req, res) => {
   }
 })
 
+// POST /api/produktionen/:produktionId/dokument-vorlagen/:id/unset-aktiv
+// Removes the active/standard mark from this vorlage (no other vorlage becomes active)
+dokumentVorlagenRouter.post('/:id/unset-aktiv', async (req, res) => {
+  try {
+    const produktionId = (req.params as any).produktionId
+    const row = await queryOne(
+      'UPDATE dokument_vorlagen SET is_aktiv = false, updated_at = NOW() WHERE id = $1 AND produktion_id = $2 RETURNING *',
+      [req.params.id, produktionId]
+    )
+    if (!row) return res.status(404).json({ error: 'Vorlage nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // DELETE /api/produktionen/:produktionId/dokument-vorlagen/:id
 dokumentVorlagenRouter.delete('/:id', async (req, res) => {
   try {
