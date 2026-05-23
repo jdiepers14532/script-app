@@ -28,8 +28,11 @@ function injectChipCss() {
   const style = document.createElement('style')
   style.id = 'placeholder-chip-css'
   style.textContent = PLACEHOLDER_CHIP_CSS + `
+/* Text selection highlight */
+.ProseMirror ::selection { background: rgba(0, 122, 255, 0.18); }
+
 /* Prevent editor content from expanding its container horizontally */
-.ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; }
+.ProseMirror { overflow-x: hidden !important; max-width: 100%; box-sizing: border-box; font-family: "Courier New", monospace; }
 .ProseMirror img { max-width: 100% !important; }
 
 /* Reset browser-default paragraph margins so line-height is the sole spacing control */
@@ -112,8 +115,6 @@ export interface PreviewContext {
   firmenname?:     string
   sender?:              string
   buero_adresse?:       string
-  buero_strasse?:       string
-  buero_plz_ort?:       string
   sendedatum?:          string
   produktionszeitraum?: string
   aktuelles_datum?:     string
@@ -121,8 +122,6 @@ export interface PreviewContext {
   aktuelles_jahr?:      string
   folge_laenge_netto?:  string
   firmen_adresse?:      string
-  firmen_strasse?:      string
-  firmen_plz_ort?:      string
   rechtsform?:          string
   handelsregister?:     string
   ust_id?:              string
@@ -600,13 +599,8 @@ export function ToolbarContent({
               const v = e.target.value || null
               if (selSnap.current === 'chip') editor?.chain().focus().updateAttributes('placeholder_chip', { fontFamily: v }).run()
               else if (selSnap.current === 'selection') {
-                if (v) {
-                  editor?.chain().focus().setFontFamily(v).run()
-                  editor?.chain().setParagraphFont(v).run()
-                } else {
-                  editor?.chain().focus().unsetFontFamily().run()
-                  editor?.chain().setParagraphFont(null).run()
-                }
+                if (v) editor?.chain().focus().setFontFamily(v).run()
+                else editor?.chain().focus().unsetFontFamily().run()
               } else editor?.chain().setParagraphFont(v).run()
             }}
             disabled={!editor}
@@ -641,14 +635,12 @@ export function ToolbarContent({
           </select>
         </BtnTooltip>
         {isChipSelected && (
-          <BtnTooltip text={"Chip ausgewählt — Formatierung (Schrift, Größe, B/I/U) wirkt direkt auf diesen Chip.\nHinweis: Soll ein Chip eine andere Schrift als der restliche Absatz haben, muss der Chip zuerst einzeln angeklickt werden."}>
-            <span style={{ fontSize: 9, color: '#007AFF', background: '#007AFF15', border: '1px solid #007AFF44', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap', cursor: 'default' }}>
-              Chip
-            </span>
-          </BtnTooltip>
+          <span style={{ fontSize: 10, fontWeight: 600, color: '#007AFF', background: '#007AFF18', border: '1.5px solid #007AFF66', borderRadius: 4, padding: '2px 6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            ⬡ Chip
+          </span>
         )}
         {!isChipSelected && hasSelection && (
-          <span style={{ fontSize: 9, color: '#34C759', background: '#34C75915', border: '1px solid #34C75944', borderRadius: 4, padding: '1px 5px', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 10, color: '#34C759', background: '#34C75915', border: '1px solid #34C75944', borderRadius: 4, padding: '2px 6px', flexShrink: 0, whiteSpace: 'nowrap' }}>
             Auswahl
           </span>
         )}
@@ -1037,8 +1029,6 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{firmenname}}':    'firmenname',
   '{{sender}}':        'sender',
   '{{buero_adresse}}':       'buero_adresse',
-  '{{buero_strasse}}':       'buero_strasse',
-  '{{buero_plz_ort}}':       'buero_plz_ort',
   '{{sendedatum}}':          'sendedatum',
   '{{produktionszeitraum}}': 'produktionszeitraum',
   '{{aktuelles_datum}}':     'aktuelles_datum',
@@ -1046,8 +1036,6 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{aktuelles_jahr}}':      'aktuelles_jahr',
   '{{folge_laenge_netto}}':  'folge_laenge_netto',
   '{{firmen_adresse}}':      'firmen_adresse',
-  '{{firmen_strasse}}':      'firmen_strasse',
-  '{{firmen_plz_ort}}':      'firmen_plz_ort',
   '{{rechtsform}}':          'rechtsform',
   '{{handelsregister}}':     'handelsregister',
   '{{ust_id}}':              'ust_id',

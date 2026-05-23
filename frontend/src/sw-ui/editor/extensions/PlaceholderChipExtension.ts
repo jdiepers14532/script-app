@@ -1,4 +1,6 @@
 import { Node, mergeAttributes } from '@tiptap/core'
+import { Plugin, PluginKey, NodeSelection } from 'prosemirror-state'
+import { DecorationSet, Decoration } from 'prosemirror-view'
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -86,18 +88,8 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   },
   {
     key: '{{firmen_adresse}}', label: 'Firmenadresse', zone: 'alle', color: '#5856D6',
-    beschreibung: 'Stra\u00dfe, PLZ und Stadt der Produktionsfirma \u2013 einzeilig (kommagetrennt). F\u00fcr zweizeilige Darstellung: {{firmen_strasse}} und {{firmen_plz_ort}} verwenden.',
+    beschreibung: 'Stra\u00dfe, PLZ und Stadt der Produktionsfirma.',
     quelle: 'auth.app \u00b7 company_info.company_address',
-  },
-  {
-    key: '{{firmen_strasse}}', label: 'Firmen-Stra\u00dfe', zone: 'alle', color: '#5856D6',
-    beschreibung: 'Stra\u00dfe und Hausnummer der Produktionsfirma (Zeile 1 der Firmenadresse).',
-    quelle: 'auth.app \u00b7 company_info.company_address.street',
-  },
-  {
-    key: '{{firmen_plz_ort}}', label: 'Firmen-PLZ/Ort', zone: 'alle', color: '#5856D6',
-    beschreibung: 'PLZ und Stadt der Produktionsfirma (Zeile 2 der Firmenadresse).',
-    quelle: 'auth.app \u00b7 company_info.company_address.zip + city',
   },
   {
     key: '{{rechtsform}}', label: 'Rechtsform', zone: 'alle', color: '#5856D6',
@@ -136,18 +128,8 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
   },
   {
     key: '{{buero_adresse}}', label: 'Produktionsb\u00fcro', zone: 'alle', color: '#FF9500',
-    beschreibung: 'Adresse des Produktionsb\u00fcros \u2013 einzeilig. F\u00fcr zweizeilige Darstellung: {{buero_strasse}} und {{buero_plz_ort}} verwenden.',
+    beschreibung: 'Adresse des Produktionsb\u00fcros.',
     quelle: 'produktion.app \u00b7 productions.buero_adresse',
-  },
-  {
-    key: '{{buero_strasse}}', label: 'B\u00fcro-Stra\u00dfe', zone: 'alle', color: '#FF9500',
-    beschreibung: 'Stra\u00dfe des Produktionsb\u00fcros (Zeile 1, automatisch aus der B\u00fcro-Adresse per PLZ-Erkennung ermittelt).',
-    quelle: 'produktion.app \u00b7 productions.buero_adresse (vor PLZ)',
-  },
-  {
-    key: '{{buero_plz_ort}}', label: 'B\u00fcro-PLZ/Ort', zone: 'alle', color: '#FF9500',
-    beschreibung: 'PLZ und Ort des Produktionsb\u00fcros (Zeile 2, automatisch aus der B\u00fcro-Adresse per PLZ-Erkennung ermittelt).',
-    quelle: 'produktion.app \u00b7 productions.buero_adresse (PLZ + Rest)',
   },
   {
     key: '{{tel_produktion}}', label: 'Tel. Produktion', zone: 'alle', color: '#FF9500',
@@ -188,21 +170,6 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     key: '{{notiz_inhalt}}', label: 'Notiz-Inhalt', zone: 'alle', color: '#FF9F0A',
     beschreibung: 'Slot f\u00fcr den Freitext-Inhalt einer Notiz-Szene. Wird beim Export durch den tats\u00e4chlichen Szenen-Inhalt ersetzt. Diesen Chip genau einmal pro Vorlage platzieren.',
     quelle: 'script_db \u00b7 dokument_szenen.content (Notiz-Format)',
-  },
-  {
-    key: '{{persoenlicher_ausdruck}}', label: 'Pers. Ausdruck', zone: 'alle', color: '#FF3B30',
-    beschreibung: 'Name des Empf\u00e4ngers dieses Ausdrucks \u2014 wird beim Export eingegeben. Leer = Chip unsichtbar.',
-    quelle: 'Export-Eingabe',
-  },
-  {
-    key: '{{revision}}', label: 'Revision', zone: 'alle', color: '#FF9500',
-    beschreibung: 'Bezeichnung der Revision, z.\u202fB. \u201eBlaue Seiten\u201c. Nur bei Replacement-Pages-Export bef\u00fcllt, sonst leer.',
-    quelle: 'Export-Eingabe \u00b7 Replacement-Pages-Modus',
-  },
-  {
-    key: '{{revisions_farbe}}', label: 'Revisionsfarbe', zone: 'alle', color: '#FF9500',
-    beschreibung: 'Farbiger Punkt \u25cf in der gew\u00e4hlten Revisions-Farbe. Nur bei Replacement-Pages-Export sichtbar, sonst leer.',
-    quelle: 'Export-Eingabe \u00b7 Replacement-Pages-Modus',
   },
   {
     key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#34C759',
@@ -282,6 +249,28 @@ export const PlaceholderChipExtension = Node.create({
           chain().insertContent({ type: this.name, attrs: { key } }).run(),
     }
   },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('chip-range-highlight'),
+        props: {
+          decorations(state) {
+            const { selection } = state
+            // NodeSelection (chip atom-selected) → handled via ProseMirror-selectednode CSS
+            if (selection instanceof NodeSelection || selection.empty) return DecorationSet.empty
+            const decos: Decoration[] = []
+            state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+              if (node.type.name === 'placeholder_chip') {
+                decos.push(Decoration.node(pos, pos + node.nodeSize, { class: 'chip-in-range' }))
+              }
+            })
+            return DecorationSet.create(state.doc, decos)
+          },
+        },
+      }),
+    ]
+  },
 })
 
 // ── CSS to inject once ────────────────────────────────────────────────────────
@@ -296,7 +285,14 @@ export const PLACEHOLDER_CHIP_CSS = `
 }
 .ProseMirror .placeholder-chip.ProseMirror-selectednode {
   outline: 2px solid #007AFF;
+  outline-offset: 2px;
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.12);
+}
+.ProseMirror .placeholder-chip.chip-in-range {
+  outline: 1.5px solid rgba(0, 122, 255, 0.55);
   outline-offset: 1px;
   border-radius: 4px;
+  background-color: rgba(0, 122, 255, 0.08) !important;
 }
 `
