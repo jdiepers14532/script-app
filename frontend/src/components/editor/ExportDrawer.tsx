@@ -1,20 +1,19 @@
 /**
- * ExportDrawer — Phase A8: Überarbeitung zu zentriertem Modal
+ * ExportDrawer — zentriertes Export-Modal
  *
- * - Zentriertes Modal (~640px) statt Schubladen-Drawer
- * - Dokumentstruktur: DnD-Reihenfolge mit VOR/NACH Hauptinhalt
+ * - Dokumentstruktur: DnD-Reihenfolge mit VOR/NACH Szenen
  * - Statistik-Element: konfigurierbar via StatistikModal
- * - Filter als Akkordeon (Rollen/Komparsen/Motive)
+ * - Filter: Picker-Modal (Rollen / Komparsen / Motive)
  * - PDF-Lesezeichen opt-in
- * - Hauptinhalt deaktivierbar
+ * - Szenen deaktivierbar
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle,
-  Eye, WifiOff, GripVertical, BarChart2, ChevronDown, ChevronRight,
-  BookOpen, Settings,
+  Eye, WifiOff, GripVertical, BarChart2, Settings, BookOpen, Filter,
+  ChevronDown,
 } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
@@ -93,15 +92,13 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [selectedMotive, setSelectedMotive]       = useState<Set<string>>(new Set())
   const [rolleAlsVermerk, setRolleAlsVermerk]     = useState(false)
 
-  // Filter-Akkordeon
-  const [rollenOpen, setRollenOpen]               = useState(false)
-  const [komparsenOpen, setKomparsenOpen]         = useState(false)
-  const [motiveOpen, setMotiveOpen]               = useState(false)
+  // Filter-Picker Modal
+  const [filterPickerOpen, setFilterPickerOpen]   = useState<'rollen' | 'komparsen' | 'motive' | null>(null)
 
-  // Neue A8-Features
+  // Dokumentstruktur
   const [preItems, setPreItems]                   = useState<ExportItem[]>([])
   const [postItems, setPostItems]                 = useState<ExportItem[]>([])
-  const [hauptinhaltAktiv, setHauptinhaltAktiv]   = useState(true)
+  const [szenenAktiv, setSzenenAktiv]             = useState(true)
   const [pdfBookmarks, setPdfBookmarks]           = useState(false)
 
   // Statistik-Modal
@@ -126,13 +123,13 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setJobStatus('idle'); setProgress(0); setErrorMsg(null)
     setSelectionMode('alle'); setSzenenAuswahl('')
     setSelectedRollen(new Set()); setSelectedKomparsen(new Set()); setSelectedMotive(new Set())
-    setRolleAlsVermerk(false); setRollenOpen(false); setKomparsenOpen(false); setMotiveOpen(false)
-    setHauptinhaltAktiv(true); setPdfBookmarks(false)
+    setRolleAlsVermerk(false)
+    setSzenenAktiv(true); setPdfBookmarks(false)
 
-    // Pre-Items aus Notiz-Werkstufen aufbauen + einen Statistik-Platzhalter
+    // Pre-Items aus Notiz-Werkstufen + Statistik-Platzhalter
     const notizItems: ExportItem[] = notizWerkstufen.map(w => ({
       id: genId(), type: 'notiz', werkstufId: w.id,
-      label: w.label || `Notiz V${w.version_nummer}`, enabled: true,
+      label: w.label || `${w.typ === 'notiz' ? 'Notiz' : 'Dokument'} V${w.version_nummer}`, enabled: true,
     }))
     setPreItems([...notizItems, {
       id: genId(), type: 'statistik',
@@ -181,7 +178,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setStatConfigItemId(itemId)
   }, [folgenForStat.length, produktionId])
 
-  // StatistikModal: Konfiguration übernehmen
   const handleStatistikUebernehmen = useCallback((config: StatistikExportConfig) => {
     if (!statConfigItemId) return
     const updateItems = (items: ExportItem[]) =>
@@ -204,14 +200,9 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     const src = dragItemRef.current
     if (!src) return
     setDragOverZone(null)
-
     const srcList = src.zone === 'pre' ? preItems : postItems
     const item = srcList.find(i => i.id === src.id)
-    if (!item) return
-
-    if (src.zone === targetZone) return  // gleiche Zone → keine Änderung
-
-    // Aus Quell-Zone entfernen, in Ziel-Zone hinzufügen
+    if (!item || src.zone === targetZone) return
     if (src.zone === 'pre') {
       setPreItems(prev => prev.filter(i => i.id !== src.id))
       setPostItems(prev => [...prev, item])
@@ -256,23 +247,19 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setJobStatus('pending'); setProgress(0); setErrorMsg(null)
 
     try {
-      // Active items in order
-      const activePreItems = preItems.filter(i => i.enabled)
-      const activePostItems = postItems.filter(i => i.enabled)
-
       const body: any = {
         werkstufId: selectedWerk.id,
         format,
         options: {
-          preItems:  activePreItems.map(it => ({
+          preItems:  preItems.filter(i => i.enabled).map(it => ({
             type: it.type, id: it.werkstufId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
-          postItems: activePostItems.map(it => ({
+          postItems: postItems.filter(i => i.enabled).map(it => ({
             type: it.type, id: it.werkstufId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
-          hauptinhaltAktiv,
+          hauptinhaltAktiv: szenenAktiv,
           pdfBookmarks,
           persoenlicher_ausdruck: currentFormatDef.supportsPersAusdruck ? buildPersAusdruck() : undefined,
           szenenAuswahl:   selectionMode === 'auswahl' && szenenAuswahl.trim() ? szenenAuswahl.trim() : undefined,
@@ -314,10 +301,49 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     document.body.appendChild(a); a.click(); document.body.removeChild(a)
   }
 
-  function openPreview() {
+  async function openPreview() {
     if (!selectedWerk) return
-    const params = new URLSearchParams({ werkstufId: selectedWerk.id })
-    window.open(`/api/export/pdf-preview?${params.toString()}`, '_blank')
+    try {
+      const body = {
+        werkstufId: selectedWerk.id,
+        options: {
+          preItems:  preItems.filter(i => i.enabled).map(it => ({
+            type: it.type, id: it.werkstufId, label: it.label, enabled: true,
+            statistikConfig: it.statistikConfig,
+          })),
+          postItems: postItems.filter(i => i.enabled).map(it => ({
+            type: it.type, id: it.werkstufId, label: it.label, enabled: true,
+            statistikConfig: it.statistikConfig,
+          })),
+          hauptinhaltAktiv: szenenAktiv,
+        },
+      }
+      const res = await fetch('/api/export/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+      const html = await res.text()
+      const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const win = window.open(url, '_blank')
+      if (win) setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch {
+      window.open(`/api/export/preview?werkstufId=${selectedWerk.id}`, '_blank')
+    }
+  }
+
+  // ── Header-Label-Aufbau ───────────────────────────────────────────────────
+
+  function buildHeaderSub(): string {
+    if (!selectedWerk) return ''
+    const typ = selectedWerk.typ === 'drehbuch' ? 'Drehbuch'
+      : selectedWerk.typ === 'storyline' ? 'Storyline'
+      : selectedWerk.typ === 'notiz' ? 'Notiz' : selectedWerk.typ
+    const ver = `V${selectedWerk.version_nummer}`
+    const lbl = selectedWerk.label ? ` · ${selectedWerk.label}` : ''
+    return `${typ} ${ver}${lbl}`
   }
 
   const isRunning = jobStatus === 'pending' || jobStatus === 'running'
@@ -343,7 +369,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         position: 'fixed',
         top: '50%', left: '50%',
         transform: 'translate(-50%,-50%)',
-        width: 'min(640px, 95vw)',
+        width: 'min(680px, 95vw)',
         maxHeight: '90vh',
         zIndex: 10000,
         background: 'var(--bg, #fff)',
@@ -359,14 +385,14 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           padding: '12px 16px', borderBottom: '1px solid var(--border)',
           background: '#111', color: '#fff', borderRadius: '12px 12px 0 0', flexShrink: 0,
         }}>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>
-            Export
+          <div>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Export</span>
             {selectedWerk && (
-              <span style={{ fontWeight: 400, opacity: 0.6, marginLeft: 8, fontSize: 12 }}>
-                {selectedWerk.label || `${selectedWerk.typ} V${selectedWerk.version_nummer}`}
+              <span style={{ fontWeight: 400, opacity: 0.55, marginLeft: 8, fontSize: 11 }}>
+                {buildHeaderSub()}
               </span>
             )}
-          </span>
+          </div>
           <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: 'none', background: 'rgba(255,255,255,0.12)', cursor: 'pointer', color: '#fff', borderRadius: 6 }}>
             <X size={14} />
           </button>
@@ -391,7 +417,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
               <div>
                 <span style={SEC}>Dokumentstruktur</span>
 
-                {/* VOR HAUPTINHALT Zone */}
+                {/* VOR SZENEN Zone */}
                 <div
                   onDragOver={e => { e.preventDefault(); setDragOverZone('pre') }}
                   onDragLeave={() => setDragOverZone(null)}
@@ -404,7 +430,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                   }}
                 >
                   <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, padding: '2px 8px 4px', opacity: 0.7 }}>
-                    VOR Hauptinhalt
+                    VOR Szenen
                   </div>
                   {preItems.map(item => (
                     <ItemRow
@@ -423,28 +449,28 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                   )}
                 </div>
 
-                {/* HAUPTINHALT */}
+                {/* SZENEN-BLOCK */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '8px 10px', borderRadius: 8, marginBottom: 6,
-                  background: hauptinhaltAktiv ? 'rgba(0,122,255,0.06)' : 'var(--bg-subtle)',
-                  border: `1px solid ${hauptinhaltAktiv ? 'rgba(0,122,255,0.3)' : 'var(--border)'}`,
+                  background: szenenAktiv ? 'rgba(0,122,255,0.06)' : 'var(--bg-subtle)',
+                  border: `1px solid ${szenenAktiv ? 'rgba(0,122,255,0.3)' : 'var(--border)'}`,
                 }}>
                   <input
-                    type="checkbox" checked={hauptinhaltAktiv}
-                    onChange={e => setHauptinhaltAktiv(e.target.checked)}
+                    type="checkbox" checked={szenenAktiv}
+                    onChange={e => setSzenenAktiv(e.target.checked)}
                     style={{ cursor: 'pointer', accentColor: '#007AFF', width: 14, height: 14, flexShrink: 0 }}
                   />
-                  <FileText size={13} style={{ color: hauptinhaltAktiv ? '#007AFF' : 'var(--text-muted)', flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: hauptinhaltAktiv ? 'var(--text-primary)' : 'var(--text-muted)', flex: 1 }}>
-                    Hauptinhalt
+                  <FileText size={13} style={{ color: szenenAktiv ? '#007AFF' : 'var(--text-muted)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: szenenAktiv ? 'var(--text-primary)' : 'var(--text-muted)', flex: 1 }}>
+                    Szenen
                   </span>
                   <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
                     {selectedWerk.label || selectedWerk.typ}
                   </span>
                 </div>
 
-                {/* NACH HAUPTINHALT Zone */}
+                {/* NACH SZENEN Zone */}
                 <div
                   onDragOver={e => { e.preventDefault(); setDragOverZone('post') }}
                   onDragLeave={() => setDragOverZone(null)}
@@ -457,7 +483,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                   }}
                 >
                   <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, padding: '2px 8px 4px', opacity: 0.7 }}>
-                    NACH Hauptinhalt
+                    NACH Szenen
                   </div>
                   {postItems.map(item => (
                     <ItemRow
@@ -492,7 +518,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                       const disabled = isDisabledFormat(f)
                       const active   = format === f.value && !disabled
                       return (
-                        <Tooltip key={f.value} text={!f.available ? 'Kommt bald' : disabled ? 'Nur für Drehbuch' : ''}>
+                        <Tooltip key={f.value} placement="bottom" text={!f.available ? 'Kommt bald' : disabled ? 'Nur für Drehbuch' : ''}>
                           <button
                             disabled={disabled}
                             onClick={() => !disabled && setFormat(f.value)}
@@ -517,7 +543,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
                 {/* Szenen-Auswahl */}
                 <div>
-                  <span style={SEC}>Szenen</span>
+                  <span style={SEC}>Szenen-Auswahl</span>
                   <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: selectionMode === 'auswahl' ? 10 : 0 }}>
                     {(['alle', 'auswahl'] as const).map(mode => (
                       <button
@@ -544,40 +570,34 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                         style={{ width: '100%', padding: '5px 8px', fontSize: 11, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                       />
 
-                      {/* Rollen-Akkordeon */}
-                      {filterOptions && filterOptions.rollen.length > 0 && (
-                        <FilterAccordion
-                          label="Rollen" count={selectedRollen.size}
-                          open={rollenOpen} onToggle={() => setRollenOpen(v => !v)}
-                        >
-                          <CheckList items={filterOptions.rollen} selected={selectedRollen} onToggle={v => setSelectedRollen(prev => toggle(prev, v))} />
-                          {selectedRollen.size > 0 && currentFormatDef.supportsPersAusdruck && (
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 10, color: '#007AFF', userSelect: 'none', marginTop: 4 }}>
-                              <input type="checkbox" checked={rolleAlsVermerk} onChange={e => setRolleAlsVermerk(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#007AFF', width: 11, height: 11 }} />
-                              Rolle als Vermerk im pers. Ausdruck
-                            </label>
-                          )}
-                        </FilterAccordion>
-                      )}
-
-                      {/* Komparsen-Akkordeon */}
-                      {filterOptions && filterOptions.komparsen.length > 0 && (
-                        <FilterAccordion
-                          label="Komparsen m. Sp." count={selectedKomparsen.size}
-                          open={komparsenOpen} onToggle={() => setKomparsenOpen(v => !v)}
-                        >
-                          <CheckList items={filterOptions.komparsen} selected={selectedKomparsen} onToggle={v => setSelectedKomparsen(prev => toggle(prev, v))} />
-                        </FilterAccordion>
-                      )}
-
-                      {/* Motive-Akkordeon */}
-                      {filterOptions && filterOptions.motive.length > 0 && (
-                        <FilterAccordion
-                          label="Motive" count={selectedMotive.size}
-                          open={motiveOpen} onToggle={() => setMotiveOpen(v => !v)}
-                        >
-                          <CheckList items={filterOptions.motive} selected={selectedMotive} onToggle={v => setSelectedMotive(prev => toggle(prev, v))} />
-                        </FilterAccordion>
+                      {/* Filter-Picker Buttons */}
+                      {filterOptions && (
+                        <div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 5 }}>Filter</div>
+                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                            {filterOptions.rollen.length > 0 && (
+                              <FilterPickerButton
+                                label="Rollen"
+                                count={selectedRollen.size}
+                                onClick={() => setFilterPickerOpen('rollen')}
+                              />
+                            )}
+                            {filterOptions.komparsen.length > 0 && (
+                              <FilterPickerButton
+                                label="Komparsen"
+                                count={selectedKomparsen.size}
+                                onClick={() => setFilterPickerOpen('komparsen')}
+                              />
+                            )}
+                            {filterOptions.motive.length > 0 && (
+                              <FilterPickerButton
+                                label="Motive"
+                                count={selectedMotive.size}
+                                onClick={() => setFilterPickerOpen('motive')}
+                              />
+                            )}
+                          </div>
+                        </div>
                       )}
 
                       {hasAnyFilter && (
@@ -599,8 +619,14 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                       placeholder="z. B. Maria Schulze"
                       style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                     />
-                    {rolleAlsVermerk && selectedRollen.size > 0 && (
+                    {selectionMode === 'auswahl' && rolleAlsVermerk && selectedRollen.size > 0 && (
                       <div style={{ fontSize: 10, color: '#007AFF', marginTop: 3 }}>Chip: {buildPersAusdruck() || '–'}</div>
+                    )}
+                    {selectionMode === 'auswahl' && selectedRollen.size > 0 && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 10, color: '#007AFF', userSelect: 'none', marginTop: 5 }}>
+                        <input type="checkbox" checked={rolleAlsVermerk} onChange={e => setRolleAlsVermerk(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#007AFF', width: 11, height: 11 }} />
+                        Rolle als Vermerk einfügen
+                      </label>
                     )}
                   </div>
                 )}
@@ -660,7 +686,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         {selectedWerk && (
           <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: 8 }}>
             {format === 'pdf' && (
-              <Tooltip text={!isOnline ? 'Vorschau erfordert Internetverbindung' : 'Echte PDF-Vorschau im Browser öffnen'}>
+              <Tooltip placement="top" text={!isOnline ? 'Vorschau erfordert Internetverbindung' : 'HTML-Vorschau im Browser öffnen (inkl. Dokumentstruktur)'}>
                 <button
                   onClick={openPreview}
                   disabled={isRunning || !isOnline}
@@ -670,7 +696,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                 </button>
               </Tooltip>
             )}
-            <Tooltip text={blockedByOffline ? 'PDF-Export erfordert Internetverbindung' : ''}>
+            <Tooltip placement="top" text={blockedByOffline ? 'PDF-Export erfordert Internetverbindung' : ''}>
               <button
                 onClick={startExport}
                 disabled={isRunning || isDisabledFormat(currentFormatDef) || blockedByOffline}
@@ -708,6 +734,32 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           onExportUebernehmen={handleStatistikUebernehmen}
         />
       )}
+
+      {/* Filter-Picker Modal */}
+      {filterPickerOpen && filterOptions && (
+        <FilterPickerModal
+          title={filterPickerOpen === 'rollen' ? 'Rollen' : filterPickerOpen === 'komparsen' ? 'Komparsen m. Sprechertext' : 'Motive'}
+          items={filterPickerOpen === 'rollen' ? filterOptions.rollen : filterPickerOpen === 'komparsen' ? filterOptions.komparsen : filterOptions.motive}
+          selected={filterPickerOpen === 'rollen' ? selectedRollen : filterPickerOpen === 'komparsen' ? selectedKomparsen : selectedMotive}
+          onToggle={val => {
+            if (filterPickerOpen === 'rollen')    setSelectedRollen(prev => toggle(prev, val))
+            if (filterPickerOpen === 'komparsen') setSelectedKomparsen(prev => toggle(prev, val))
+            if (filterPickerOpen === 'motive')    setSelectedMotive(prev => toggle(prev, val))
+          }}
+          onSelectAll={() => {
+            const items = filterPickerOpen === 'rollen' ? filterOptions.rollen : filterPickerOpen === 'komparsen' ? filterOptions.komparsen : filterOptions.motive
+            if (filterPickerOpen === 'rollen')    setSelectedRollen(new Set(items))
+            if (filterPickerOpen === 'komparsen') setSelectedKomparsen(new Set(items))
+            if (filterPickerOpen === 'motive')    setSelectedMotive(new Set(items))
+          }}
+          onClear={() => {
+            if (filterPickerOpen === 'rollen')    setSelectedRollen(new Set())
+            if (filterPickerOpen === 'komparsen') setSelectedKomparsen(new Set())
+            if (filterPickerOpen === 'motive')    setSelectedMotive(new Set())
+          }}
+          onClose={() => setFilterPickerOpen(null)}
+        />
+      )}
     </>
   )
 
@@ -725,7 +777,7 @@ function ItemRow({
   onDragStart: () => void
   onConfigureStat: () => void
 }) {
-  const isStatistik = item.type === 'statistik'
+  const isStatistik  = item.type === 'statistik'
   const isConfigured = isStatistik && !!item.statistikConfig
 
   return (
@@ -746,7 +798,7 @@ function ItemRow({
       />
       {isStatistik
         ? <BarChart2 size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
-        : <FileText size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+        : <FileText  size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
       }
       <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>
         {item.label}
@@ -770,47 +822,121 @@ function ItemRow({
   )
 }
 
-function FilterAccordion({
-  label, count, open, onToggle, children,
-}: {
-  label: string; count: number; open: boolean; onToggle: () => void; children: React.ReactNode
-}) {
+function FilterPickerButton({ label, count, onClick }: { label: string; count: number; onClick: () => void }) {
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden' }}>
-      <button
-        onClick={onToggle}
-        style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 8px', border: 'none', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}
-      >
-        {open ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
-        <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: 'var(--text-primary)' }}>{label}</span>
-        {count > 0 && (
-          <span style={{ fontSize: 10, background: '#007AFF', color: '#fff', borderRadius: 10, padding: '0 5px', lineHeight: '16px', fontWeight: 600 }}>{count}</span>
-        )}
-      </button>
-      {open && (
-        <div style={{ padding: '8px 10px', borderTop: '1px solid var(--border)' }}>
-          {children}
-        </div>
+    <button
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '4px 9px', borderRadius: 6, fontSize: 11,
+        border: `1px solid ${count > 0 ? '#007AFF' : 'var(--border)'}`,
+        background: count > 0 ? 'rgba(0,122,255,0.07)' : 'transparent',
+        color: count > 0 ? '#007AFF' : 'var(--text-secondary)',
+        cursor: 'pointer', fontFamily: 'inherit',
+      }}
+    >
+      <Filter size={10} />
+      {label}
+      {count > 0 && (
+        <span style={{ background: '#007AFF', color: '#fff', borderRadius: 8, padding: '0 4px', fontSize: 10, fontWeight: 700, lineHeight: '15px' }}>
+          {count}
+        </span>
       )}
-    </div>
+      <ChevronDown size={9} style={{ opacity: 0.5 }} />
+    </button>
   )
 }
 
-function CheckList({ items, selected, onToggle }: {
-  items: string[]; selected: Set<string>; onToggle: (v: string) => void
+function FilterPickerModal({
+  title, items, selected, onToggle, onSelectAll, onClear, onClose,
+}: {
+  title: string
+  items: string[]
+  selected: Set<string>
+  onToggle: (v: string) => void
+  onSelectAll: () => void
+  onClear: () => void
+  onClose: () => void
 }) {
-  if (!items.length) return null
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {items.map(item => (
-        <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)', userSelect: 'none', padding: '1px 0' }}>
+  const [search, setSearch] = useState('')
+  const filtered = search.trim()
+    ? items.filter(i => i.toLowerCase().includes(search.trim().toLowerCase()))
+    : items
+
+  return createPortal(
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 10100 }} />
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%,-50%)',
+        width: 'min(380px, 90vw)',
+        maxHeight: '70vh',
+        zIndex: 10101,
+        background: 'var(--bg, #fff)',
+        borderRadius: 10,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+        border: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{title} filtern</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={onSelectAll} style={{ fontSize: 10, color: '#007AFF', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>Alle</button>
+            <span style={{ color: 'var(--border)', fontSize: 12 }}>|</span>
+            <button onClick={onClear} style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>Keine</button>
+            <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, border: 'none', background: 'var(--bg-subtle)', cursor: 'pointer', color: 'var(--text-muted)', borderRadius: 5 }}>
+              <X size={12} />
+            </button>
+          </div>
+        </div>
+
+        {/* Suche */}
+        <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <input
-            type="checkbox" checked={selected.has(item)} onChange={() => onToggle(item)}
-            style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }}
+            autoFocus
+            type="text" value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={`${title} suchen…`}
+            style={{ width: '100%', padding: '5px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
           />
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item}</span>
-        </label>
-      ))}
-    </div>
+        </div>
+
+        {/* Liste */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '6px 8px' }}>
+          {filtered.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '12px', textAlign: 'center' }}>Keine Treffer</div>
+          ) : filtered.map(item => (
+            <label key={item} style={{
+              display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+              fontSize: 12, color: 'var(--text-primary)', userSelect: 'none',
+              padding: '5px 6px', borderRadius: 5,
+              background: selected.has(item) ? 'rgba(0,122,255,0.06)' : 'transparent',
+            }}>
+              <input
+                type="checkbox" checked={selected.has(item)} onChange={() => onToggle(item)}
+                style={{ cursor: 'pointer', accentColor: '#007AFF', width: 13, height: 13, flexShrink: 0 }}
+              />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item}</span>
+            </label>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '10px 14px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            {selected.size > 0 ? `${selected.size} ausgewählt` : 'Keine Auswahl — alle Szenen'}
+          </span>
+          <button
+            onClick={onClose}
+            style={{ padding: '6px 16px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: 'none', background: '#007AFF', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            Fertig
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body
   )
 }

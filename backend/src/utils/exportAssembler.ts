@@ -92,9 +92,28 @@ function escapeHtml(s: string): string {
 
 // ── ProseMirror JSON → HTML ────────────────────────────────────────────────────
 
+// Chips, deren Wert bereits valides HTML ist — dürfen nicht escaped werden
+const HTML_VALUE_CHIPS = new Set(['{{seite}}', '{{seiten_gesamt}}', '{{revisions_farbe}}'])
+
 function renderInlineNodes(nodes: any[], ctx: ExportContext): string {
   if (!Array.isArray(nodes)) return ''
-  return nodes.map(n => renderInlineNode(n, ctx)).join('')
+  const parts: string[] = []
+  let skipDepth = 0
+  for (const node of nodes) {
+    // IF-Chip: Bedingung prüfen — leer → folgenden Inhalt bis ENDIF überspringen
+    if (node.type === 'placeholder_if') {
+      const val = resolvePlaceholder(node.attrs?.ref_key ?? '', ctx)
+      if (!val.trim()) skipDepth++
+      continue
+    }
+    if (node.type === 'placeholder_endif') {
+      if (skipDepth > 0) skipDepth--
+      continue
+    }
+    if (skipDepth > 0) continue
+    parts.push(renderInlineNode(node, ctx))
+  }
+  return parts.join('')
 }
 
 function renderInlineNode(node: any, ctx: ExportContext): string {
@@ -102,7 +121,7 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
 
   if (node.type === 'placeholder_chip') {
     const key  = node.attrs?.key ?? ''
-    const text = resolvePlaceholder(key, ctx)
+    const raw  = resolvePlaceholder(key, ctx)
     // Chip-eigene Formatierung anwenden (fontFamily, fontWeight etc. aus PlaceholderChipExtension)
     const chipStyles: string[] = []
     if (node.attrs?.fontFamily)    chipStyles.push(`font-family:${node.attrs.fontFamily}`)
@@ -111,10 +130,11 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
     if (node.attrs?.fontStyle)     chipStyles.push(`font-style:${node.attrs.fontStyle}`)
     if (node.attrs?.textDecoration) chipStyles.push(`text-decoration:${node.attrs.textDecoration}`)
     if (node.attrs?.lineHeight)    chipStyles.push(`line-height:${node.attrs.lineHeight}`)
-    const escaped = escapeHtml(text)
+    // HTML-Chips ({{seite}}, {{seiten_gesamt}}, {{revisions_farbe}}) nicht escapen
+    const content = HTML_VALUE_CHIPS.has(key) ? raw : escapeHtml(raw)
     return chipStyles.length
-      ? `<span style="${chipStyles.join(';')}">${escaped}</span>`
-      : escaped
+      ? `<span style="${chipStyles.join(';')}">${content}</span>`
+      : content
   }
 
   if (node.type === 'hardBreak') return '<br>'

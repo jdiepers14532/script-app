@@ -514,7 +514,7 @@ export default function EditorPanel({
         ) : undefined}
         rightSlot={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Tooltip text="Exportieren (PDF, DOCX, Fountain, FDX)">
+          <Tooltip text="Exportieren (PDF, DOCX, Fountain, FDX)" placement="bottom">
             <button
               onClick={() => setExportOpen(v => !v)}
               style={{

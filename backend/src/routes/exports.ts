@@ -25,6 +25,31 @@ router.use(authMiddleware)
 
 const VALID_FORMATS: ExportFormat[] = ['pdf', 'docx', 'fountain', 'fdx']
 
+// ── Validierung: OrderedExportItems (Modul-Level für Wiederverwendung) ────────
+
+function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedExportItem[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  return raw
+    .filter((x: any) => x && typeof x === 'object')
+    .map((x: any) => ({
+      type: x.type === 'statistik' ? 'statistik' as const : 'notiz' as const,
+      id: x.id ? String(x.id) : undefined,
+      label: x.label ? String(x.label) : undefined,
+      enabled: x.enabled !== false,
+      statistikConfig: x.statistikConfig && typeof x.statistikConfig === 'object'
+        ? {
+            folge_ids: Array.isArray(x.statistikConfig.folge_ids) ? x.statistikConfig.folge_ids.map(Number) : [],
+            folge_nummer: Number(x.statistikConfig.folge_nummer),
+            mode: x.statistikConfig.mode === 'block' ? 'block' as const : 'folge' as const,
+            sections: Array.isArray(x.statistikConfig.sections) ? x.statistikConfig.sections.map(String) : ['uebersicht', 'rollen', 'motive'],
+            includedSceneNumbers: Array.isArray(x.statistikConfig.includedSceneNumbers)
+              ? x.statistikConfig.includedSceneNumbers.map(Number)
+              : null,
+          }
+        : undefined,
+    }))
+}
+
 // ── POST /api/export/job ──────────────────────────────────────────────────────
 
 router.post('/export/job', async (req, res) => {
@@ -35,30 +60,6 @@ router.post('/export/job', async (req, res) => {
   }
   if (!VALID_FORMATS.includes(format)) {
     return res.status(400).json({ error: `format muss einer von ${VALID_FORMATS.join(', ')} sein` })
-  }
-
-  // Validierung: OrderedExportItems
-  function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedExportItem[] | undefined {
-    if (!Array.isArray(raw)) return undefined
-    return raw
-      .filter((x: any) => x && typeof x === 'object')
-      .map((x: any) => ({
-        type: x.type === 'statistik' ? 'statistik' as const : 'notiz' as const,
-        id: x.id ? String(x.id) : undefined,
-        label: x.label ? String(x.label) : undefined,
-        enabled: x.enabled !== false,
-        statistikConfig: x.statistikConfig && typeof x.statistikConfig === 'object'
-          ? {
-              folge_ids: Array.isArray(x.statistikConfig.folge_ids) ? x.statistikConfig.folge_ids.map(Number) : [],
-              folge_nummer: Number(x.statistikConfig.folge_nummer),
-              mode: x.statistikConfig.mode === 'block' ? 'block' as const : 'folge' as const,
-              sections: Array.isArray(x.statistikConfig.sections) ? x.statistikConfig.sections.map(String) : ['uebersicht', 'rollen', 'motive'],
-              includedSceneNumbers: Array.isArray(x.statistikConfig.includedSceneNumbers)
-                ? x.statistikConfig.includedSceneNumbers.map(Number)
-                : null,
-            }
-          : undefined,
-      }))
   }
 
   const user = req.user!
@@ -185,6 +186,36 @@ router.get('/export/preview', async (req, res) => {
 
   try {
     const html = await assemblePreviewHtml(previewParamsFromQuery(req), () => {})
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(html)
+  } catch (err: any) {
+    res.status(500).send(`<pre style="color:red">Vorschau-Fehler: ${err?.message ?? err}</pre>`)
+  }
+})
+
+// ── POST /api/export/preview ──────────────────────────────────────────────────
+// Wie GET /preview, aber akzeptiert die vollständige Export-Konfiguration im Body
+// (preItems, postItems, hauptinhaltAktiv). Gibt HTML zurück.
+
+router.post('/export/preview', async (req, res) => {
+  const { werkstufId, options = {} } = req.body
+  if (!werkstufId || typeof werkstufId !== 'string') {
+    return res.status(400).json({ error: 'werkstufId erforderlich' })
+  }
+
+  try {
+    const user = req.user!
+    const html = await assemblePreviewHtml({
+      werkstufId,
+      userId:   user.user_id,
+      userName: user.name,
+      options: {
+        preItems:         parseOrderedItems(options.preItems),
+        postItems:        parseOrderedItems(options.postItems),
+        hauptinhaltAktiv: typeof options.hauptinhaltAktiv === 'boolean' ? options.hauptinhaltAktiv : undefined,
+      },
+    }, () => {})
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.setHeader('Cache-Control', 'no-store')
     res.send(html)
