@@ -8,7 +8,6 @@ function NetzplanDiagram() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [hovered, setHovered] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
-  const dragMovedRef = useRef(false)
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).catch(() => {})
@@ -176,19 +175,10 @@ function NetzplanDiagram() {
   }, [])
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      setDragging(true)
-      setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y })
-      dragMovedRef.current = false
-    }
+    if (e.button === 0) { setDragging(true); setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y }) }
   }
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragging) {
-      const dx = e.clientX - (dragStart.x + pan.x)
-      const dy = e.clientY - (dragStart.y + pan.y)
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragMovedRef.current = true
-      setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
-    }
+    if (dragging) setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y })
   }
   const handleMouseUp = () => setDragging(false)
 
@@ -260,11 +250,13 @@ function NetzplanDiagram() {
                 {/* Header */}
                 <rect x={p.x} y={p.y} width={TW} height={HH} rx={5} fill={color} />
                 <rect x={p.x} y={p.y + HH - 5} width={TW} height={5} fill={color} />
-                <text x={p.x + 8} y={p.y + 16} fontSize={10} fontWeight={700} fontFamily="monospace" fill="#fff"
-                  style={{ cursor: 'pointer' }}
-                  onClick={(e) => { if (!dragMovedRef.current) { e.stopPropagation(); copyToClipboard(t.id) } }}>
+                <text x={p.x + 8} y={p.y + 16} fontSize={10} fontWeight={700} fontFamily="monospace" fill="#fff">
                   {t.id}
                 </text>
+                {/* Transparent click overlay for table name */}
+                <rect x={p.x} y={p.y} width={TW} height={HH} fill="transparent" style={{ cursor: 'copy' }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); copyToClipboard(t.id) }} />
                 <text x={p.x + TW - 8} y={p.y + 16} fontSize={8} fontWeight={500} fill="#ffffff99" textAnchor="end">
                   {t.f.length}
                 </text>
@@ -282,15 +274,13 @@ function NetzplanDiagram() {
                       {/* Field name */}
                       <text x={p.x + 22} y={fy + 12} fontSize={8.5} fontWeight={isFK || isPK ? 600 : 400}
                         fontFamily="monospace" fill={isFK ? '#555' : '#333'}
-                        clipPath={`inset(0 ${TW - 115}px 0 0)`}
-                        style={{ cursor: 'pointer' }}
-                        onClick={(e) => {
-                          if (dragMovedRef.current) return
-                          e.stopPropagation()
-                          copyToClipboard(e.ctrlKey ? f[0] : `${t.id}.${f[0]}`)
-                        }}>
+                        clipPath={`inset(0 ${TW - 115}px 0 0)`}>
                         {f[0].length > 14 ? f[0].slice(0, 13) + '..' : f[0]}
                       </text>
+                      {/* Transparent click overlay for field name */}
+                      <rect x={p.x + 18} y={fy} width={165} height={FH} fill="transparent" style={{ cursor: 'copy' }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); copyToClipboard(e.ctrlKey ? f[0] : `${t.id}.${f[0]}`) }} />
                       {/* Type */}
                       <text x={p.x + 120} y={fy + 12} fontSize={7.5} fontFamily="monospace" fill="#999">
                         {f[1].replace(' NOT NULL', '!').length > 12 ? f[1].slice(0, 11) + '..' : f[1].replace(' NOT NULL', '!')}
