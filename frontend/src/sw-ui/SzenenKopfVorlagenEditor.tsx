@@ -627,9 +627,10 @@ const DUMMY_FIELDS: Record<string, string> = {
   fb_ref:       'Sz. 7 (Ep. 8090)',
 }
 
-// Ein Segment = entweder reiner Text oder ein Tab-Spacer
+// Ein Segment = entweder formatierter Text oder ein Tab-Spacer
+type TextSeg = { kind: 'text'; text: string; bold?: boolean; italic?: boolean; underline?: boolean; uppercase?: boolean }
 type PreviewSegment =
-  | { kind: 'text'; text: string }
+  | TextSeg
   | { kind: 'tab'; posCm: number; align: TabAlign }
 
 type PreviewItem =
@@ -649,13 +650,17 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
     }
     if (node.type !== 'paragraph') continue
 
-    let accText = ''
-    let hasNonEmptyChip = false
     let skipDepth = 0
     const segments: PreviewSegment[] = []
 
-    const flushText = () => {
-      if (accText) { segments.push({ kind: 'text', text: accText }); accText = '' }
+    const appendText = (text: string, bold?: boolean, italic?: boolean, underline?: boolean, uppercase?: boolean) => {
+      const last = segments[segments.length - 1]
+      if (last?.kind === 'text' && last.bold === bold && last.italic === italic &&
+          last.underline === underline && last.uppercase === uppercase) {
+        (last as TextSeg).text += text
+      } else {
+        segments.push({ kind: 'text', text, bold, italic, underline, uppercase })
+      }
     }
 
     for (const child of (node.content ?? [])) {
@@ -667,21 +672,24 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
       if (child.type === 'sk_endif') { if (skipDepth > 0) skipDepth--; continue }
       if (skipDepth > 0) continue
       if (child.type === 'text') {
-        accText += child.text ?? ''
+        const marks = child.marks ?? []
+        appendText(
+          child.text ?? '',
+          marks.some((m: any) => m.type === 'bold'),
+          marks.some((m: any) => m.type === 'italic'),
+          marks.some((m: any) => m.type === 'underline'),
+          marks.some((m: any) => m.type === 'uppercase'),
+        )
       } else if (child.type === 'sk_chip') {
         const val = DUMMY_FIELDS[child.attrs?.key] ?? ''
-        accText += val
-        if (val.trim()) hasNonEmptyChip = true
+        appendText(val)  // Chips haben keine Marks
       } else if (child.type === 'tab_char') {
-        flushText()
         segments.push({ kind: 'tab', posCm: child.attrs?.stopPosCm ?? 0, align: child.attrs?.align ?? 'left' })
       }
     }
-    flushText()
 
-    const lineText = segments.map(s => s.kind === 'text' ? s.text : '').join('')
-    const hasText = lineText.replace(/\s/g, '').length > 0
-    if (!hasText || (!hasNonEmptyChip && lineText.match(/^\s*$/))) continue
+    const allText = segments.filter(s => s.kind === 'text').map(s => (s as TextSeg).text).join('')
+    if (!allText.replace(/\s/g, '')) continue
 
     const { fontFamily, fontSize, lineHeight } = node.attrs ?? {}
     const style: CSSProperties = {
@@ -763,22 +771,30 @@ function PreviewModal({
             : items.map((item, i) => {
               if (item.type === 'hr') return <hr key={i} style={{ border: 'none', borderTop: '1px solid #000', margin: '4px 0' }} />
               const hasTabs = item.segments.some(s => s.kind === 'tab')
+              const renderTextSeg = (s: TextSeg, key: number) => (
+                <span key={key} style={{
+                  fontWeight:      s.bold      ? 'bold'      : undefined,
+                  fontStyle:       s.italic    ? 'italic'    : undefined,
+                  textDecoration:  s.underline ? 'underline' : undefined,
+                  textTransform:   s.uppercase ? 'uppercase' : undefined,
+                }}>{s.text}</span>
+              )
               if (!hasTabs) {
-                const text = item.segments.map(s => s.kind === 'text' ? s.text : '').join('')
-                return <div key={i} style={{ ...item.style, whiteSpace: 'normal', wordBreak: 'break-word' }}>{text}</div>
+                const textSegs = item.segments.filter(s => s.kind === 'text') as TextSeg[]
+                return <div key={i} style={{ ...item.style, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                  {textSegs.map(renderTextSeg)}
+                </div>
               }
               // Tab-Zeilen als Flex-Spalten — Spaltenbreite proportional zu Tab-Stop-Abständen.
-              // Im Gegensatz zu absoluter Positionierung tragen Flex-Kinder zur Container-Höhe bei,
-              // sodass der Container wächst und der Text umbricht.
-              interface FlexCol { startFrac: number; endFrac: number; text: string; align: TabAlign }
+              interface FlexCol { startFrac: number; endFrac: number; segs: TextSeg[]; align: TabAlign }
               const cols: FlexCol[] = []
-              let colText = ''
+              let colSegs: TextSeg[] = []
               let colAlign: TabAlign = 'left'
               let colStart = 0
 
               const pushCol = (endFrac: number) => {
-                cols.push({ startFrac: colStart, endFrac, text: colText, align: colAlign })
-                colText = ''
+                cols.push({ startFrac: colStart, endFrac, segs: colSegs, align: colAlign })
+                colSegs = []
                 colStart = endFrac
               }
 
@@ -789,7 +805,7 @@ function PreviewModal({
                   pushCol(frac)
                   colAlign = ts.align
                 } else {
-                  colText += seg.text
+                  colSegs.push(seg as TextSeg)
                 }
               }
               pushCol(1)  // letzte Spalte bis rechter Rand
@@ -807,7 +823,7 @@ function PreviewModal({
                         wordBreak: 'break-word',
                         textAlign: col.align === 'right' ? 'right' : col.align === 'center' ? 'center' : 'left',
                       }}>
-                        {col.text || '\u200B'}
+                        {col.segs.length > 0 ? col.segs.map(renderTextSeg) : '\u200B'}
                       </span>
                     )
                   })}
@@ -1527,9 +1543,12 @@ export default function SzenenKopfVorlagenEditor({
       <style>{`
         .sk-vorlage-editor .ProseMirror {
           outline: none; min-height: 42px; tab-size: 4; -moz-tab-size: 4; white-space: pre-wrap;
+          caret-color: #333;
         }
         .sk-vorlage-editor .ProseMirror p { margin: 0 0 3px 0; padding: 0; }
         .sk-vorlage-editor .ProseMirror p:last-child { margin-bottom: 0; }
+        /* Leerer Pflicht-Paragraph nach HR: dezenter anzeigen */
+        .sk-vorlage-editor .ProseMirror hr + p:not(:has(*)):not(:focus-within) { opacity: 0.35; }
         .sk-vorlage-editor .ProseMirror ::selection { background: rgba(0, 122, 255, 0.18); }
         .sk-vorlage-editor .sk-chip.ProseMirror-selectednode {
           outline: 2px solid #007AFF; outline-offset: 2px; border-radius: 4px;
