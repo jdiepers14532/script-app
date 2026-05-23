@@ -101,8 +101,20 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
   if (!node) return ''
 
   if (node.type === 'placeholder_chip') {
-    const key = node.attrs?.key ?? ''
-    return resolvePlaceholder(key, ctx)
+    const key  = node.attrs?.key ?? ''
+    const text = resolvePlaceholder(key, ctx)
+    // Chip-eigene Formatierung anwenden (fontFamily, fontWeight etc. aus PlaceholderChipExtension)
+    const chipStyles: string[] = []
+    if (node.attrs?.fontFamily)    chipStyles.push(`font-family:${node.attrs.fontFamily}`)
+    if (node.attrs?.fontSize)      chipStyles.push(`font-size:${node.attrs.fontSize}`)
+    if (node.attrs?.fontWeight)    chipStyles.push(`font-weight:${node.attrs.fontWeight}`)
+    if (node.attrs?.fontStyle)     chipStyles.push(`font-style:${node.attrs.fontStyle}`)
+    if (node.attrs?.textDecoration) chipStyles.push(`text-decoration:${node.attrs.textDecoration}`)
+    if (node.attrs?.lineHeight)    chipStyles.push(`line-height:${node.attrs.lineHeight}`)
+    const escaped = escapeHtml(text)
+    return chipStyles.length
+      ? `<span style="${chipStyles.join(';')}">${escaped}</span>`
+      : escaped
   }
 
   if (node.type === 'hardBreak') return '<br>'
@@ -412,6 +424,24 @@ ${wm}
 <title>${escapeHtml(title)}</title>
 ${fontResource}
 <style>
+  /* Font-Aliasing: Windows-Fonts → metrisch-kompatible Liberation-Fonts auf Linux.
+     Verhindert synthetisches Bold (→ zu schwer/Arial-Black-Optik) und falsche Fallbacks. */
+  @font-face { font-family: 'Arial'; src: local('Liberation Sans Regular'), local('LiberationSans-Regular'); font-weight: normal; font-style: normal; }
+  @font-face { font-family: 'Arial'; src: local('Liberation Sans Bold'), local('LiberationSans-Bold'); font-weight: bold; font-style: normal; }
+  @font-face { font-family: 'Arial'; src: local('Liberation Sans Italic'), local('LiberationSans-Italic'); font-weight: normal; font-style: italic; }
+  @font-face { font-family: 'Arial'; src: local('Liberation Sans Bold Italic'), local('LiberationSans-BoldItalic'); font-weight: bold; font-style: italic; }
+  @font-face { font-family: 'Helvetica Neue'; src: local('Liberation Sans Regular'), local('LiberationSans-Regular'); font-weight: normal; font-style: normal; }
+  @font-face { font-family: 'Helvetica Neue'; src: local('Liberation Sans Bold'), local('LiberationSans-Bold'); font-weight: bold; font-style: normal; }
+  @font-face { font-family: 'Helvetica Neue'; src: local('Liberation Sans Italic'), local('LiberationSans-Italic'); font-weight: normal; font-style: italic; }
+  @font-face { font-family: 'Helvetica Neue'; src: local('Liberation Sans Bold Italic'), local('LiberationSans-BoldItalic'); font-weight: bold; font-style: italic; }
+  @font-face { font-family: 'Helvetica'; src: local('Liberation Sans Regular'), local('LiberationSans-Regular'); font-weight: normal; font-style: normal; }
+  @font-face { font-family: 'Helvetica'; src: local('Liberation Sans Bold'), local('LiberationSans-Bold'); font-weight: bold; font-style: normal; }
+  @font-face { font-family: 'Times New Roman'; src: local('Liberation Serif Regular'), local('LiberationSerif-Regular'); font-weight: normal; font-style: normal; }
+  @font-face { font-family: 'Times New Roman'; src: local('Liberation Serif Bold'), local('LiberationSerif-Bold'); font-weight: bold; font-style: normal; }
+  @font-face { font-family: 'Times New Roman'; src: local('Liberation Serif Italic'), local('LiberationSerif-Italic'); font-weight: normal; font-style: italic; }
+  @font-face { font-family: 'Times New Roman'; src: local('Liberation Serif Bold Italic'), local('LiberationSerif-BoldItalic'); font-weight: bold; font-style: italic; }
+  @font-face { font-family: 'Georgia'; src: local('Liberation Serif Regular'), local('LiberationSerif-Regular'); font-weight: normal; font-style: normal; }
+  @font-face { font-family: 'Georgia'; src: local('Liberation Serif Bold'), local('LiberationSerif-Bold'); font-weight: bold; font-style: normal; }
   * { box-sizing: border-box; }
   body {
     font-family: 'Courier Prime', 'Courier New', monospace;
