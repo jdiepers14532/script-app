@@ -74,6 +74,50 @@ function loadLocalFontCss(): string {
   return _localFontCss
 }
 
+// ── Timezone-Auflösung ────────────────────────────────────────────────────────
+// Mappt ISO 3166-1 alpha-2 Ländercodes auf primäre IANA-Timezone.
+
+const LAND_TO_TIMEZONE: Record<string, string> = {
+  DE: 'Europe/Berlin',   AT: 'Europe/Vienna',    CH: 'Europe/Zurich',
+  FR: 'Europe/Paris',    IT: 'Europe/Rome',       ES: 'Europe/Madrid',
+  PT: 'Europe/Lisbon',   GB: 'Europe/London',     IE: 'Europe/Dublin',
+  NL: 'Europe/Amsterdam', BE: 'Europe/Brussels',  LU: 'Europe/Luxembourg',
+  DK: 'Europe/Copenhagen', SE: 'Europe/Stockholm', NO: 'Europe/Oslo',
+  FI: 'Europe/Helsinki', IS: 'Atlantic/Reykjavik',
+  PL: 'Europe/Warsaw',   CZ: 'Europe/Prague',     SK: 'Europe/Bratislava',
+  HU: 'Europe/Budapest', RO: 'Europe/Bucharest',  BG: 'Europe/Sofia',
+  GR: 'Europe/Athens',   HR: 'Europe/Zagreb',     SI: 'Europe/Ljubljana',
+  RS: 'Europe/Belgrade', BA: 'Europe/Sarajevo',   ME: 'Europe/Podgorica',
+  AL: 'Europe/Tirane',   MK: 'Europe/Skopje',     MD: 'Europe/Chisinau',
+  UA: 'Europe/Kyiv',     BY: 'Europe/Minsk',      RU: 'Europe/Moscow',
+  TR: 'Europe/Istanbul', CY: 'Asia/Nicosia',
+  IL: 'Asia/Jerusalem',  AE: 'Asia/Dubai',         SA: 'Asia/Riyadh',
+  IN: 'Asia/Kolkata',    CN: 'Asia/Shanghai',      JP: 'Asia/Tokyo',
+  KR: 'Asia/Seoul',      SG: 'Asia/Singapore',     TH: 'Asia/Bangkok',
+  ID: 'Asia/Jakarta',    MY: 'Asia/Kuala_Lumpur',  VN: 'Asia/Ho_Chi_Minh',
+  PK: 'Asia/Karachi',    KZ: 'Asia/Almaty',
+  US: 'America/New_York', CA: 'America/Toronto',  MX: 'America/Mexico_City',
+  BR: 'America/Sao_Paulo', AR: 'America/Argentina/Buenos_Aires',
+  CL: 'America/Santiago', CO: 'America/Bogota',   PE: 'America/Lima',
+  AU: 'Australia/Sydney', NZ: 'Pacific/Auckland',
+  ZA: 'Africa/Johannesburg', NG: 'Africa/Lagos', EG: 'Africa/Cairo',
+  MA: 'Africa/Casablanca', KE: 'Africa/Nairobi', ET: 'Africa/Addis_Ababa',
+}
+
+/** Gibt die IANA-Timezone für einen Ländercode zurück.
+ *  Fallback-Reihenfolge: land → userTimezone → 'Europe/Berlin' */
+function resolveTimezone(land: string | null, userTimezone?: string): string {
+  if (land) {
+    const tz = LAND_TO_TIMEZONE[land.toUpperCase()]
+    if (tz) return tz
+  }
+  if (userTimezone) {
+    // Validierung: Intl wirft wenn unbekannt
+    try { Intl.DateTimeFormat(undefined, { timeZone: userTimezone }); return userTimezone } catch { /* noop */ }
+  }
+  return 'Europe/Berlin'
+}
+
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
 interface AbsatzFormat {
@@ -535,11 +579,11 @@ async function assembleHtml(
       id: string; typ: string; version_nummer: number; label: string | null;
       stand_datum: string | null; folge_id: string;
       folge_nummer: number; folgen_titel: string | null;
-      produktion_id: string; produktion_titel: string;
+      produktion_id: string; produktion_titel: string; produktion_db_id: string | null;
     }>(
       `SELECT w.id, w.typ, w.version_nummer, w.label, w.stand_datum,
               f.id AS folge_id, f.folge_nummer, f.folgen_titel,
-              p.id AS produktion_id, p.titel AS produktion_titel
+              p.id AS produktion_id, p.titel AS produktion_titel, p.produktion_db_id
        FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id
        JOIN produktionen p ON p.id = f.produktion_id
@@ -548,6 +592,23 @@ async function assembleHtml(
     )
     if (wsRes.rows.length === 0) throw new Error('Werkstufe nicht gefunden')
     const w = wsRes.rows[0]
+
+    // ── 1b. Land aus Produktionsdatenbank (für Timezone) ──────────────────────
+    let produktionLand: string | null = null
+    if (w.produktion_db_id) {
+      try {
+        const PROD_DB_URL  = process.env.PROD_DB_URL  ?? 'http://127.0.0.1:3005'
+        const INTERNAL_KEY = process.env.PRODUKTION_INTERNAL_SECRET ?? 'prod-internal-2026'
+        const r = await fetch(
+          `${PROD_DB_URL}/api/internal/productions/${w.produktion_db_id}/script-context`,
+          { headers: { 'x-internal-key': INTERNAL_KEY } }
+        )
+        if (r.ok) {
+          const data = await r.json() as { land?: string | null }
+          produktionLand = data.land ?? null
+        }
+      } catch { /* Fehler nicht kritisch — Timezone-Fallback greift */ }
+    }
 
     // ── 2. Absatzformate ──────────────────────────────────────────────────────
     setProgress(15)
@@ -639,6 +700,8 @@ async function assembleHtml(
     setProgress(25)
     const druckauswahl = buildDruckauswahl(options)
     const now = new Date()
+    const tz = resolveTimezone(produktionLand, options.userTimezone)
+    const tzOpts = { timeZone: tz } as const
     const ctx: ExportContext = {
       produktion:           w.produktion_titel,
       staffel:              null,
@@ -656,9 +719,9 @@ async function assembleHtml(
       buero_adresse:        null,
       sendedatum:           null,
       produktionszeitraum:  null,
-      aktuelles_datum:      now.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-      aktuelles_jahr:       String(now.getFullYear()),
-      aktuelles_uhrzeit:    now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+      aktuelles_datum:      now.toLocaleDateString('de-DE', { ...tzOpts, day: '2-digit', month: '2-digit', year: 'numeric' }),
+      aktuelles_jahr:       new Intl.DateTimeFormat('de-DE', { ...tzOpts, year: 'numeric' }).format(now),
+      aktuelles_uhrzeit:    now.toLocaleTimeString('de-DE', { ...tzOpts, hour: '2-digit', minute: '2-digit' }),
       folge_laenge_netto:   null,
       firmen_adresse:       null,
       rechtsform:           null,

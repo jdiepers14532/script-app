@@ -54,6 +54,7 @@ router.post('/export/job', async (req, res) => {
       filterRollen:             Array.isArray(options.filterRollen)   ? options.filterRollen.map(String)   : undefined,
       filterMotive:             Array.isArray(options.filterMotive)   ? options.filterMotive.map(String)   : undefined,
       filterKomparsen:          Array.isArray(options.filterKomparsen) ? options.filterKomparsen.map(String) : undefined,
+      userTimezone:             options.userTimezone                ? String(options.userTimezone)          : undefined,
     },
   }
 

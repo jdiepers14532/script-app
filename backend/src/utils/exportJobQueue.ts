@@ -31,6 +31,8 @@ export interface ExportJobOptions {
   filterMotive?: string[]
   /** Nur Szenen mit diesen Komparsen-Namen (ist_gruppe=true, OR-Verknüpfung) */
   filterKomparsen?: string[]
+  /** IANA-Timezone des Users (Browser), z.B. "Europe/Berlin" — Fallback wenn kein Land in ProdDB */
+  userTimezone?: string
 }
 
 export interface ExportJobParams {

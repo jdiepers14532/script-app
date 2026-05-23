@@ -176,6 +176,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
             ? Array.from(selectedKomparsen) : undefined,
           filterMotive:         selectionMode === 'auswahl' && selectedMotive.size > 0
             ? Array.from(selectedMotive) : undefined,
+          userTimezone:         Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
       }
       const res = await api.post('/export/job', body)
