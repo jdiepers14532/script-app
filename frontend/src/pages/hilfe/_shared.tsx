@@ -50,6 +50,14 @@ export function TableCard({ title, color, fields, note }: {
   note?: string
   fields: { name: string; type: string; desc: string; ok?: boolean }[]
 }) {
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text).catch(() => {})
+    setCopied(text)
+    setTimeout(() => setCopied(null), 1200)
+  }
+
   return (
     <div style={{
       border: `2px solid ${color}`,
@@ -57,18 +65,26 @@ export function TableCard({ title, color, fields, note }: {
       overflow: 'hidden',
       background: C.surface,
       fontSize: 12,
+      position: 'relative',
     }}>
-      <div style={{
-        background: color,
-        color: '#fff',
-        fontWeight: 700,
-        fontSize: 12,
-        padding: '7px 12px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 6,
-        letterSpacing: 0.3,
-      }}>
+      {copied && (
+        <div style={{
+          position: 'absolute', top: 4, right: 8, background: '#00C853', color: '#fff',
+          fontSize: 10, padding: '2px 8px', borderRadius: 4, pointerEvents: 'none',
+          fontFamily: 'monospace', fontWeight: 600, zIndex: 10,
+        }}>
+          ✓ {copied}
+        </div>
+      )}
+      <div
+        title={`Klick: "${title}" kopieren`}
+        onClick={() => copy(title)}
+        style={{
+          background: color, color: '#fff', fontWeight: 700, fontSize: 12,
+          padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 6,
+          letterSpacing: 0.3, cursor: 'copy',
+        }}
+      >
         <span style={{ fontFamily: 'monospace', opacity: 0.8 }}>TABLE</span>
         <span>{title}</span>
       </div>
@@ -87,7 +103,11 @@ export function TableCard({ title, color, fields, note }: {
             borderBottom: i < fields.length - 1 ? `1px solid ${C.border}` : undefined,
             alignItems: 'center',
           }}>
-            <code style={{ fontSize: 11, color: color, fontWeight: 600 }}>{f.name}</code>
+            <code
+              title={`Klick: "${title}.${f.name}" · Strg+Klick: nur "${f.name}"`}
+              onClick={(e) => copy(e.ctrlKey ? f.name : `${title}.${f.name}`)}
+              style={{ fontSize: 11, color: color, fontWeight: 600, cursor: 'copy' }}
+            >{f.name}</code>
             <span style={{ fontSize: 10, color: C.muted, fontFamily: 'monospace' }}>{f.type}</span>
             <span style={{ fontSize: 11, color: C.text }}>{f.desc}</span>
             {f.ok !== undefined && <Tag ok={f.ok} />}
