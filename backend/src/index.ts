@@ -344,6 +344,7 @@ async function runMigrations() {
     'v113_titelseite_felder.sql',
     'v114_export_admin_settings.sql',
     'v115_glossar_kategorie.sql',
+    'v116_timestamp_tz_fix.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
