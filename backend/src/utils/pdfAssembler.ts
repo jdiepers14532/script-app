@@ -935,10 +935,12 @@ async function assembleHtml(
     })
 
     // ── KZ/FZ für Puppeteer displayHeaderFooter vorberechnen ──────────────────
-    const _kzLayout = kzFz?.seiten_layout ?? {}
     const hmt = 10, hmb = 10
-    const hml = (_kzLayout.margin_left  ?? 20) as number
-    const hmr = (_kzLayout.margin_right ?? 20) as number
+    const bml = bodyMargins.links
+    const bmr = bodyMargins.rechts
+    // Header-Padding immer mit Body-Rändern ausrichten — nicht aus KZ/FZ seiten_layout (könnte veraltet sein)
+    const hml = bml
+    const hmr = bmr
     const headerHtml = kzFz?.kopfzeile_aktiv && kzFz.kopfzeile_content
       ? renderZeilenContent(kzFz.kopfzeile_content, ctx)
       : ''
@@ -949,8 +951,6 @@ async function assembleHtml(
     const hasFtr = footerHtml.trim().length > 0
     const pageMarginTop    = hasHdr ? Math.max(bodyMargins.oben,  hmt + 14 + 4) : bodyMargins.oben
     const pageMarginBottom = hasFtr ? Math.max(bodyMargins.unten, hmb + 10 + 4) : bodyMargins.unten
-    const bml = bodyMargins.links
-    const bmr = bodyMargins.rechts
 
     return { html, title, headerHtml, footerHtml, hmt, hmb, hml, hmr, pageMarginTop, pageMarginBottom, bml, bmr }
 

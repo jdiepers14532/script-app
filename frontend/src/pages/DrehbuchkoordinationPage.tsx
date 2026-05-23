@@ -3107,7 +3107,7 @@ export default function DrehbuchkoordinationPage() {
       case 'stockshot-templates':
         return produktionId ? <StockshotTemplatesTab productionId={produktionId} /> : <NoProduction />
       case 'vorlagen':
-        return produktionId ? <VorlagenTab productionId={produktionId} /> : <NoProduction />
+        return produktionId ? <VorlagenTab productionId={produktionId} seitenformat={seitenformat} margins={margins} /> : <NoProduction />
       case 'kopf-fusszeilen':
         return produktionId ? <KopfFusszeileTab productionId={produktionId} seitenformat={seitenformat} margins={margins} /> : <NoProduction />
       case 'autorenplan':
@@ -3151,32 +3151,45 @@ export default function DrehbuchkoordinationPage() {
               &#8592; Zurück
             </button>
           </div>
-          {/* Format+Ränder (alle Template-Tabs) + Preset-Slot (nur Drehbuch-Formatierung) */}
-          {FORMAT_TEMPLATE_TABS.includes(activeTab) && produktionId ? (
+          {/* Format+Ränder (Formatierung/KZ-FZ/Vorlagen) + Preset-Slot (nur Drehbuch-Formatierung) */}
+          {FORMAT_TEMPLATE_TABS.filter(t => t !== 'stockshot-templates').includes(activeTab) && produktionId ? (
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Standard-Einstellung für gesamtes Dokument:</span>
                 <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
-                <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
-                  {(['a4', 'letter'] as const).map(opt => (
-                    <button key={opt} className={seitenformat === opt ? 'on' : ''}
-                      onClick={() => saveSeitenformat(opt)} disabled={seitenformatSaving}
-                      title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
-                      style={{ fontSize: 10, padding: '1px 7px' }}>
-                      {opt === 'a4' ? 'A4' : 'Letter'}
-                    </button>
-                  ))}
-                </div>
+                {activeTab === 'dokument-typen' ? (
+                  <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
+                    {(['a4', 'letter'] as const).map(opt => (
+                      <button key={opt} className={seitenformat === opt ? 'on' : ''}
+                        onClick={() => saveSeitenformat(opt)} disabled={seitenformatSaving}
+                        title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
+                        style={{ fontSize: 10, padding: '1px 7px' }}>
+                        {opt === 'a4' ? 'A4' : 'Letter'}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-primary)', flexShrink: 0 }}>
+                    {seitenformat === 'a4' ? 'A4' : 'Letter'}
+                  </span>
+                )}
                 <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
                 <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
-                {(['oben', 'unten', 'links', 'rechts'] as const).map(side => (
-                  <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
-                    <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
-                    <input type="number" min={0} max={60} value={margins[side]}
-                      onChange={e => { const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)); setMargins(m => ({ ...m, [side]: v })) }}
-                      onBlur={() => saveMargins(margins)}
-                      style={{ width: 36, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border)', fontSize: 10, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }} />
-                  </label>
-                ))}
+                {activeTab === 'dokument-typen' ? (
+                  (['oben', 'unten', 'links', 'rechts'] as const).map(side => (
+                    <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                      <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
+                      <input type="number" min={0} max={60} value={margins[side]}
+                        onChange={e => { const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)); setMargins(m => ({ ...m, [side]: v })) }}
+                        onBlur={() => saveMargins(margins)}
+                        style={{ width: 36, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border)', fontSize: 10, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }} />
+                    </label>
+                  ))
+                ) : (
+                  <span style={{ fontSize: 10, color: 'var(--text-primary)', flexShrink: 0 }}>
+                    O:{margins.oben} U:{margins.unten} L:{margins.links} R:{margins.rechts}
+                  </span>
+                )}
               </div>
               {/* Preset-Slot: nur DokumentTypenTab portalt hierhin */}
               <div ref={setHeaderSlot} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }} />
@@ -4159,7 +4172,7 @@ function VorlagenThumbnail({ content, ctx }: { content: any; ctx: PreviewContext
   )
 }
 
-function VorlagenTab({ productionId }: { productionId: string }) {
+function VorlagenTab({ productionId, seitenformat, margins }: { productionId: string; seitenformat: 'a4' | 'letter'; margins: { oben: number; unten: number; links: number; rechts: number } }) {
   const { selectedProduction } = useSelectedProduction()
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
@@ -4245,7 +4258,14 @@ function VorlagenTab({ productionId }: { productionId: string }) {
       kopfzeile_aktiv:         v.kopfzeile_aktiv ?? false,
       fusszeile_aktiv:         v.fusszeile_aktiv ?? false,
       erste_seite_kein_header: v.erste_seite_kein_header ?? true,
-      seiten_layout:           v.seiten_layout ?? emptyVorlagenEditorValue().seiten_layout,
+      // Immer globale Ränder/Format übernehmen — nicht per-Vorlage konfigurierbar
+      seiten_layout: {
+        format:        seitenformat,
+        margin_top:    margins.oben,
+        margin_bottom: margins.unten,
+        margin_left:   margins.links,
+        margin_right:  margins.rechts,
+      },
     })
     setEditZeilennummerierungUnterbinden(v.zeilennummerierung_unterbinden ?? false)
     setEditorKey(k => k + 1)
@@ -4405,43 +4425,31 @@ function VorlagenTab({ productionId }: { productionId: string }) {
             </div>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Seitenformat</label>
-              <div style={{ display: 'flex', gap: 12 }}>
-                {(['a4', 'letter'] as const).map(f => (
-                  <label key={f} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'pointer' }}>
-                    <input type="radio" name="pf" checked={(editEditorValue.seiten_layout?.format ?? 'a4') === f}
-                      onChange={() => setEditEditorValue(v => ({ ...v, seiten_layout: { ...(v.seiten_layout ?? { format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 30, margin_right: 25 }), format: f } }))} />
-                    {f === 'a4' ? 'A4' : 'Letter'}
-                  </label>
-                ))}
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0' }}>
+                {seitenformat === 'a4' ? 'A4 (210 × 297 mm)' : 'Letter (215,9 × 279,4 mm)'}
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 2 }}>
+                  Standard-Einstellung aus Drehbuch-Formatierung
+                </span>
               </div>
             </div>
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Seitenränder (mm)</label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4 }}>
                 {([
-                  ['margin_top',    'Oben',   25],
-                  ['margin_bottom', 'Unten',  25],
-                  ['margin_left',   'Links',  30],
-                  ['margin_right',  'Rechts', 25],
-                ] as [string, string, number][]).map(([field, label, def]) => (
-                  <label key={field} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)', textAlign: 'center' }}>{label}</span>
-                    <input
-                      type="number" min={5} max={80} step={1}
-                      value={(editEditorValue.seiten_layout as any)?.[field] ?? def}
-                      onChange={e => setEditEditorValue(v => ({
-                        ...v,
-                        seiten_layout: {
-                          format: 'a4', margin_top: 25, margin_bottom: 25, margin_left: 30, margin_right: 25,
-                          ...(v.seiten_layout ?? {}),
-                          [field]: Number(e.target.value),
-                        },
-                      }))}
-                      style={{ fontSize: 11, padding: '3px 4px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontFamily: 'inherit', width: '100%', textAlign: 'center' }}
-                    />
-                  </label>
+                  ['Oben',   margins.oben],
+                  ['Unten',  margins.unten],
+                  ['Links',  margins.links],
+                  ['Rechts', margins.rechts],
+                ] as [string, number][]).map(([label, val]) => (
+                  <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{label}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-primary)', padding: '3px 4px', borderRadius: 4, border: '1px solid var(--border)', background: 'var(--bg-page)', width: '100%', textAlign: 'center' }}>{val}</span>
+                  </div>
                 ))}
               </div>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
+                Standard-Einstellung aus Drehbuch-Formatierung
+              </span>
             </div>
           </div>
 
