@@ -223,6 +223,8 @@ function renderNode(node: any, ctx: ExportContext): string {
     const rows = (node.content ?? []).map((row: any) => {
       const rowHeight = row.attrs?.rowHeight
       const rowStyle  = rowHeight ? ` style="height:${rowHeight}px"` : ''
+      // rowHeight auf <td> setzen: Chromium erzwingt Zeilenhöhe nur wenn td sie auch kennt
+      const cellHeightStr = rowHeight ? `height:${rowHeight}px;max-height:${rowHeight}px;` : ''
       const cellPad   = rowHeight ? 'padding:0 4px;overflow:hidden;' : 'padding:5px 10px;'
       const cells = (row.content ?? []).map((cell: any) => {
         const isHeader = cell.type === 'tableHeader'
@@ -233,7 +235,7 @@ function renderNode(node: any, ctx: ExportContext): string {
         const colspan  = cell.attrs?.colspan  && cell.attrs.colspan  > 1 ? ` colspan="${cell.attrs.colspan}"`  : ''
         const rowspan  = cell.attrs?.rowspan  && cell.attrs.rowspan  > 1 ? ` rowspan="${cell.attrs.rowspan}"`  : ''
         const inner    = (cell.content ?? []).map((n: any) => renderNode(n, ctx)).join('')
-        return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};${cellPad}vertical-align:top;${extra}">${inner}</${tag}>`
+        return `<${tag}${colspan}${rowspan} style="${widthStr}${cellBorder};${cellHeightStr}${cellPad}vertical-align:top;${extra}">${inner}</${tag}>`
       }).join('')
       return `<tr${rowStyle}>${cells}</tr>`
     }).join('')
@@ -427,6 +429,9 @@ ${fontResource}
   [data-kuerzel="CHAR"] { page-break-after: avoid; }
   [data-kuerzel="DIA"]  { page-break-inside: avoid; }
   [data-kuerzel="PAR"]  { page-break-inside: avoid; page-break-after: avoid; }
+  /* Tabellen: p-Margins in Zellen reset, sonst verdoppelter Abstand in Puppeteer */
+  td p, th p { margin: 0; padding: 0; }
+  td p + p, th p + p { margin-top: 0.25em; }
   ${fixedKzFzCss}
 </style>
 </head>
