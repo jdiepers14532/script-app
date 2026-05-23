@@ -88,6 +88,11 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: '\u2013 (in Planung)',
   },
   {
+    key: '{{persoenlicher_ausdruck}}', label: 'Pers. Ausdruck', zone: 'alle', color: '#FF3B30',
+    beschreibung: 'Freitextfeld, das beim Export bef\u00fcllt wird \u2013 z.\u202fB. Name des Empf\u00e4ngers. Bleibt leer, wenn beim Export nichts eingegeben wird.',
+    quelle: 'Export-Dialog \u00b7 Eingabe zur Export-Zeit',
+  },
+  {
     key: '{{firmenname}}', label: 'Firmenname', zone: 'alle', color: '#5856D6',
     beschreibung: 'Name der Produktionsfirma aus den globalen Unternehmenseinstellungen.',
     quelle: 'auth.app \u00b7 company_info.company_name',
