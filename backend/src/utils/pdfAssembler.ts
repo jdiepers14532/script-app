@@ -14,6 +14,7 @@ import {
   buildPdfHtml,
   buildExportFilename,
   renderPmJson,
+  renderZeilenContent,
   ExportContext,
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
@@ -398,10 +399,25 @@ export interface PdfAssemblerInput {
  * Baut das vollständige HTML für den PDF-Export auf (ohne Puppeteer).
  * Wird von assemblePdf() und assemblePreviewHtml() gemeinsam genutzt.
  */
+interface AssembleHtmlResult {
+  html: string
+  title: string
+  headerHtml: string
+  footerHtml: string
+  hmt: number
+  hmb: number
+  hml: number
+  hmr: number
+  pageMarginTop: number
+  pageMarginBottom: number
+  bml: number
+  bmr: number
+}
+
 async function assembleHtml(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void
-): Promise<{ html: string; title: string }> {
+): Promise<AssembleHtmlResult> {
   const { werkstufId, userId, userName, options } = input
   const client = await pool.connect()
 
@@ -650,7 +666,25 @@ async function assembleHtml(
 
     const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins })
 
-    return { html, title }
+    // ── KZ/FZ für Puppeteer displayHeaderFooter vorberechnen ──────────────────
+    const _kzLayout = kzFz?.seiten_layout ?? {}
+    const hmt = 10, hmb = 10
+    const hml = (_kzLayout.margin_left  ?? 20) as number
+    const hmr = (_kzLayout.margin_right ?? 20) as number
+    const headerHtml = kzFz?.kopfzeile_aktiv && kzFz.kopfzeile_content
+      ? renderZeilenContent(kzFz.kopfzeile_content, ctx)
+      : ''
+    const footerHtml = kzFz?.fusszeile_aktiv && kzFz.fusszeile_content
+      ? renderZeilenContent(kzFz.fusszeile_content, ctx)
+      : ''
+    const hasHdr = headerHtml.trim().length > 0
+    const hasFtr = footerHtml.trim().length > 0
+    const pageMarginTop    = hasHdr ? Math.max(bodyMargins.oben,  hmt + 14 + 4) : bodyMargins.oben
+    const pageMarginBottom = hasFtr ? Math.max(bodyMargins.unten, hmb + 10 + 4) : bodyMargins.unten
+    const bml = bodyMargins.links
+    const bmr = bodyMargins.rechts
+
+    return { html, title, headerHtml, footerHtml, hmt, hmb, hml, hmr, pageMarginTop, pageMarginBottom, bml, bmr }
 
   } finally {
     client.release()
@@ -670,7 +704,8 @@ export async function assemblePdf(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void
 ): Promise<JobResult> {
-  const { html, title } = await assembleHtml(input, setProgress)
+  const { html, title, headerHtml, footerHtml, hmt, hmb, hml, hmr, pageMarginTop, pageMarginBottom, bml, bmr } =
+    await assembleHtml(input, setProgress)
 
   // ── 11. Puppeteer → PDF ───────────────────────────────────────────────────
   setProgress(55)
@@ -681,6 +716,23 @@ export async function assemblePdf(
   })
   setProgress(60)
 
+  // ph-seite / ph-seiten-gesamt → Puppeteer-eigene pageNumber/totalPages-Klassen
+  const toPuppeteerTpl = (raw: string) =>
+    raw
+      .replace(/<span class="ph-seite"><\/span>/g, '<span class="pageNumber"></span>')
+      .replace(/<span class="ph-seiten-gesamt"><\/span>/g, '<span class="totalPages"></span>')
+
+  // Minimaler CSS-Reset für das Puppeteer-Template-Rendering
+  const tplReset = '<style>*{margin:0;padding:0;box-sizing:border-box}p{line-height:1.3}</style>'
+
+  const headerTemplate = headerHtml.trim()
+    ? `${tplReset}<div style="width:100%;height:${pageMarginTop}mm;display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(headerHtml)}</div>`
+    : '<div style="font-size:0"></div>'
+
+  const footerTemplate = footerHtml.trim()
+    ? `${tplReset}<div style="width:100%;height:${pageMarginBottom}mm;display:flex;flex-direction:column;justify-content:flex-end;padding:0 ${hmr}mm ${hmb}mm ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(footerHtml)}</div>`
+    : '<div style="font-size:0"></div>'
+
   let pdfBytes: Uint8Array
   try {
     const page = await browser.newPage()
@@ -689,8 +741,16 @@ export async function assemblePdf(
     pdfBytes = await page.pdf({
       format: 'A4',
       printBackground: true,
-      displayHeaderFooter: false,
-      // Kein margin-Parameter — CSS @page { margin } übernimmt die Seitenränder auf jeder Seite
+      displayHeaderFooter: true,
+      headerTemplate,
+      footerTemplate,
+      // margin überschreibt CSS @page { margin } für das PDF
+      margin: {
+        top:    `${pageMarginTop}mm`,
+        bottom: `${pageMarginBottom}mm`,
+        left:   `${bml}mm`,
+        right:  `${bmr}mm`,
+      },
     })
     setProgress(90)
   } finally {

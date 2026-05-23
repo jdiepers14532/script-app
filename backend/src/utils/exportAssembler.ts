@@ -408,6 +408,8 @@ ${wm}
   @media print {
     body { padding: 0 !important; margin: 0 !important; }
     .no-print { display: none; }
+    /* Im PDF übernimmt Puppeteer displayHeaderFooter — position:fixed-Elemente ausblenden */
+    .page-header, .page-footer { display: none !important; }
   }
   /* Absatzformat page-break rules (data-kuerzel) */
   [data-kuerzel="CHAR"] { page-break-after: avoid; }
@@ -424,13 +426,9 @@ ${wm}
   }
   .page-header {
     top: ${hmt}mm;
-    border-bottom: 0.5pt solid #ccc;
-    padding-bottom: 3pt;
   }
   .page-footer {
     bottom: ${hmb}mm;
-    border-top: 0.5pt solid #ccc;
-    padding-top: 3pt;
   }
   .page-header p, .page-footer p {
     margin: 0;
