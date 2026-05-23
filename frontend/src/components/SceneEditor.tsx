@@ -742,11 +742,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           </Tooltip>
         </div>
       )}
-      {/* Focus mode right-edge resize handle */}
+      {/* Focus mode right-edge resize handle — z-index über allem Inhalt damit volle Höhe anklickbar */}
       {focus && (
         <div
           onMouseDown={handleFocusResizeStart}
-          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 6, cursor: 'ew-resize' }}
+          style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 6, cursor: 'ew-resize', zIndex: 20 }}
         />
       )}
       {/* Lean header — alles inline, kein Kasten */}
