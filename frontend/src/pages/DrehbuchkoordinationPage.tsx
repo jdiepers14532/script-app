@@ -3153,46 +3153,53 @@ export default function DrehbuchkoordinationPage() {
           </div>
           {/* Format+Ränder (Formatierung/KZ-FZ/Vorlagen) + Preset-Slot (nur Drehbuch-Formatierung) */}
           {FORMAT_TEMPLATE_TABS.filter(t => t !== 'stockshot-templates').includes(activeTab) && produktionId ? (
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Standard-Einstellung für gesamtes Dokument:</span>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
-                {activeTab === 'dokument-typen' ? (
-                  <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
-                    {(['a4', 'letter'] as const).map(opt => (
-                      <button key={opt} className={seitenformat === opt ? 'on' : ''}
-                        onClick={() => saveSeitenformat(opt)} disabled={seitenformatSaving}
-                        title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
-                        style={{ fontSize: 10, padding: '1px 7px' }}>
-                        {opt === 'a4' ? 'A4' : 'Letter'}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-primary)', flexShrink: 0 }}>
-                    {seitenformat === 'a4' ? 'A4' : 'Letter'}
-                  </span>
-                )}
-                <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
-                {activeTab === 'dokument-typen' ? (
-                  (['oben', 'unten', 'links', 'rechts'] as const).map(side => (
-                    <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
-                      <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
-                      <input type="number" min={0} max={60} value={margins[side]}
-                        onChange={e => { const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)); setMargins(m => ({ ...m, [side]: v })) }}
-                        onBlur={() => saveMargins(margins)}
-                        style={{ width: 36, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border)', fontSize: 10, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }} />
-                    </label>
-                  ))
-                ) : (
-                  <span style={{ fontSize: 10, color: 'var(--text-primary)', flexShrink: 0 }}>
-                    O:{margins.oben} U:{margins.unten} L:{margins.links} R:{margins.rechts}
-                  </span>
-                )}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+              {/* Label links */}
+              <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, paddingTop: 3, whiteSpace: 'nowrap' }}>
+                Standard-Einstellungen für<br />das gesamte Dokument:
+              </span>
+              {/* Format + Preset übereinander, linksbündig */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+                {/* Zeile 1: Format + Ränder */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Format:</span>
+                  {activeTab === 'dokument-typen' ? (
+                    <div className="seg" style={{ display: 'inline-flex', flexShrink: 0 }}>
+                      {(['a4', 'letter'] as const).map(opt => (
+                        <button key={opt} className={seitenformat === opt ? 'on' : ''}
+                          onClick={() => saveSeitenformat(opt)} disabled={seitenformatSaving}
+                          title={opt === 'a4' ? 'A4 — 210 × 297 mm' : 'Letter — 215,9 × 279,4 mm'}
+                          style={{ fontSize: 10, padding: '1px 7px' }}>
+                          {opt === 'a4' ? 'A4' : 'Letter'}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 10, fontWeight: 500, color: 'var(--text-primary)', flexShrink: 0 }}>
+                      {seitenformat === 'a4' ? 'A4' : 'Letter'}
+                    </span>
+                  )}
+                  <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Ränder mm:</span>
+                  {activeTab === 'dokument-typen' ? (
+                    (['oben', 'unten', 'links', 'rechts'] as const).map(side => (
+                      <label key={side} style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10, color: 'var(--text-secondary)', flexShrink: 0 }}>
+                        <span>{side.charAt(0).toUpperCase() + side.slice(1)}</span>
+                        <input type="number" min={0} max={60} value={margins[side]}
+                          onChange={e => { const v = Math.max(0, Math.min(60, parseInt(e.target.value, 10) || 0)); setMargins(m => ({ ...m, [side]: v })) }}
+                          onBlur={() => saveMargins(margins)}
+                          style={{ width: 36, padding: '1px 3px', borderRadius: 3, border: '1px solid var(--border)', fontSize: 10, background: 'var(--bg-surface)', color: 'var(--text-primary)', textAlign: 'center' }} />
+                      </label>
+                    ))
+                  ) : (
+                    <span style={{ fontSize: 10, color: 'var(--text-primary)', flexShrink: 0 }}>
+                      O:{margins.oben} U:{margins.unten} L:{margins.links} R:{margins.rechts}
+                    </span>
+                  )}
+                </div>
+                {/* Zeile 2: Preset-Slot (nur DokumentTypenTab portalt hierhin) */}
+                <div ref={setHeaderSlot} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }} />
               </div>
-              {/* Preset-Slot: nur DokumentTypenTab portalt hierhin */}
-              <div ref={setHeaderSlot} style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }} />
             </div>
           ) : (
             <div ref={setHeaderSlot} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'stretch' }} />
