@@ -57,6 +57,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const { focus, setHoverOpen } = useFocus()
   const { showToast } = useToast()
   const { t } = useTerminologie()
+  const spieltagAbbr = t('spieltag') === 'Spieltag' ? 'SP' : 'DT'
   const compact = compactProp ?? tweaks.sceneHeaderCompact
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(navigator.platform)
   const layout = tweaks.keyboardLayout ?? 'qwertz'
@@ -689,9 +690,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
       </Tooltip>
       <span className="ie-sep">·</span>
-      <Tooltip text={`Spieltag (SP) / Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung${tweaks.autoStimmungPropagation ? '\nBei NACHT→TAG: alle folgenden Szenen werden automatisch aktualisiert' : ''}\nManuell überschreibbar`} placement="bottom">
+      <Tooltip text={`${t('spieltag')} (${spieltagAbbr}): Erzähltag der Geschichte\n1 = erster Tag der Handlung${tweaks.autoStimmungPropagation ? '\nBei NACHT→TAG: alle folgenden Szenen werden automatisch aktualisiert' : ''}\nManuell überschreibbar`} placement="bottom">
         <span className="ie-field-wrap">
-          <span className="ie-lbl">SP</span>
+          <span className="ie-lbl">{spieltagAbbr}</span>
           <input
             key={`dt-${szeneId}`}
             className="ie-num-inp"
@@ -1421,9 +1422,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 <span className="ie-toggle" onClick={cycleTageszeit}>{tzAbbr(scene.tageszeit ?? 'TAG')}</span>
               </Tooltip>
               <span className="ie-sep">·</span>
-              <Tooltip text={"Dramaturgischer Tag: Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar"} placement="bottom">
+              <Tooltip text={`${t('spieltag')} (${spieltagAbbr}): Erzähltag der Geschichte\n1 = erster Tag der Handlung\nAutomatisch hochgezählt bei NACHT→TAG-Übergang\nManuell überschreibbar`} placement="bottom">
                 <span className="ie-field-wrap">
-                  <span className="ie-lbl">DT</span>
+                  <span className="ie-lbl">{spieltagAbbr}</span>
                   <input key={`dt-${scene?.id}`} className="ie-num-inp" defaultValue={scene.spieltag != null ? String(scene.spieltag) : ''} placeholder="—" type="number" min={1} onBlur={e => { const raw = e.target.value.trim(); const val = raw ? parseInt(raw, 10) : null; if (val !== (scene.spieltag ?? null)) saveScene({ spieltag: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
                 </span>
               </Tooltip>

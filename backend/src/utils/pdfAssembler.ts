@@ -301,6 +301,7 @@ interface SceneRow {
   ort_name:            string | null
   int_ext:             string | null
   tageszeit:           string | null
+  spieltag:            number | null
   stoppzeit_sek:       number | null
   content:             any
   zusammenfassung:     string | null
@@ -321,7 +322,7 @@ function skChipValue(key: string, scene: SceneRow, folgeNummer: number): string 
       ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
     case 'motiv':        return esc(scene.ort_name ?? '')
     case 'innen_aussen': return esc(scene.int_ext ?? '')
-    case 'dt':           return esc(scene.tageszeit ?? '')
+    case 'dt':           return scene.spieltag != null ? String(scene.spieltag) : ''
     case 'stoppzeit':    return esc(formatStoppzeit(scene.stoppzeit_sek))
     case 'oneliner':     return esc(scene.zusammenfassung ?? '')
     case 'sondertyp':    return esc(scene.sondertyp ?? '')
@@ -780,7 +781,7 @@ async function assembleHtml(
       if (!item.enabled) return null
       if (item.type === 'notiz' && item.id) {
         const nszRes = await client.query<SceneRow>(
-          `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit,
+          `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
                   stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp
            FROM dokument_szenen
            WHERE werkstufe_id = $1 AND geloescht = false
@@ -820,7 +821,7 @@ async function assembleHtml(
     // ── 8. Hauptszenen laden ──────────────────────────────────────────────────
     setProgress(40)
     const szRes = await client.query<SceneRow>(
-      `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit,
+      `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
               stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp,
               scene_identity_id
        FROM dokument_szenen

@@ -11,6 +11,7 @@
  * - Serialisierung als JSON-String; Legacy-Text ({{...}}) wird automatisch konvertiert
  */
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
+import { useTerminologie } from './TerminologieContext'
 import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -36,7 +37,7 @@ export const SK_CHIPS: SKChipDef[] = [
   { key: 'stoppzeit',    label: 'Stopp',     shortLabel: '⏱',  color: '#007AFF', beschreibung: 'Stoppzeit (mm:ss)' },
   { key: 'motiv',        label: 'Motiv',     shortLabel: 'M',   color: '#FF9500', beschreibung: 'Motiv-Bezeichnung' },
   { key: 'innen_aussen', label: 'I/A',       shortLabel: 'I/A', color: '#FF9500', beschreibung: 'Innen/Außen (I/A)' },
-  { key: 'dt',           label: 'DT',        shortLabel: 'DT',  color: '#5856D6', beschreibung: 'Dramaturgischer Tag' },
+  { key: 'dt',           label: 'SP',        shortLabel: 'SP',  color: '#5856D6', beschreibung: 'Spieltag / Dramaturgischer Tag' },
   { key: 'oneliner',     label: 'Oneliner',  shortLabel: '1L',  color: '#AF52DE', beschreibung: 'Einzeiler / Zusammenfassung' },
   { key: 'rollen',       label: 'Rollen',    shortLabel: 'R',   color: '#34C759', beschreibung: 'Beteiligte Rollen' },
   { key: 'komparsen',    label: 'Komp.',     shortLabel: 'K',   color: '#00C7BE', beschreibung: 'Komparsen' },
@@ -1388,6 +1389,8 @@ export default function SzenenKopfVorlagenEditor({
   const [activeTabStops, setActiveTabStops] = useState<TabStop[]>([])
   const [showPreview, setShowPreview] = useState(false)
   const [containerWidth, setContainerWidth] = useState(600)
+  const { t } = useTerminologie()
+  const spieltagLabel = t('spieltag')
 
   const rulerCm = seitenformat === 'letter' ? 21.59 : 21
   const marginLeftCm  = marginLeft  / 10
@@ -1637,7 +1640,7 @@ export default function SzenenKopfVorlagenEditor({
           {SK_CHIPS.map(chip => (
             <button
               key={chip.key}
-              title={chip.beschreibung}
+              title={chip.key === 'dt' ? spieltagLabel : chip.beschreibung}
               onMouseDown={e => { e.preventDefault(); editor?.commands.insertSKChip(chip.key) }}
               style={{
                 padding: '1px 6px', borderRadius: 4, fontSize: 10, cursor: 'pointer',
