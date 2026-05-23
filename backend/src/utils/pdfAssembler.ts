@@ -838,7 +838,8 @@ async function assembleHtml(
               array_agg(c.name ORDER BY c.name) AS rollen
        FROM scene_characters sc
        JOIN characters c ON c.id = sc.character_id
-       WHERE sc.werkstufe_id = $1 AND COALESCE(sc.ist_gruppe, false) = false
+       LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+       WHERE sc.werkstufe_id = $1 AND COALESCE(ck.typ, 'rolle') <> 'komparse'
        GROUP BY sc.scene_identity_id`,
       [werkstufId]
     )
@@ -853,7 +854,8 @@ async function assembleHtml(
         `SELECT DISTINCT sc.scene_identity_id
          FROM scene_characters sc
          JOIN characters c ON c.id = sc.character_id
-         WHERE sc.werkstufe_id = $1 AND sc.ist_gruppe = true
+         LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+         WHERE sc.werkstufe_id = $1 AND ck.typ = 'komparse'
            AND sc.scene_identity_id IS NOT NULL
            AND c.name = ANY($2)`,
         [werkstufId, options.filterKomparsen]

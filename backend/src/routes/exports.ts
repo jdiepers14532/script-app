@@ -289,7 +289,8 @@ router.get('/export/filter-options', async (req, res) => {
           `SELECT DISTINCT c.name
            FROM scene_characters sc
            JOIN characters c ON c.id = sc.character_id
-           WHERE sc.werkstufe_id = $1 AND COALESCE(sc.ist_gruppe, false) = false
+           LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+           WHERE sc.werkstufe_id = $1 AND COALESCE(ck.typ, 'rolle') <> 'komparse'
            ORDER BY c.name`,
           [werkstufId]
         ),
@@ -297,7 +298,8 @@ router.get('/export/filter-options', async (req, res) => {
           `SELECT DISTINCT c.name
            FROM scene_characters sc
            JOIN characters c ON c.id = sc.character_id
-           WHERE sc.werkstufe_id = $1 AND sc.ist_gruppe = true
+           LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+           WHERE sc.werkstufe_id = $1 AND ck.typ = 'komparse'
            ORDER BY c.name`,
           [werkstufId]
         ),
