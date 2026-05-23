@@ -1452,10 +1452,13 @@ export default function SzenenKopfVorlagenEditor({
     } else {
       newStops = [...current, { pos, align: 'left' as const }].sort((a, b) => a.pos - b.pos)
     }
-    editor.chain().focus().updateAttributes('paragraph', { tabStops: newStops }).run()
+    // Kein .focus() nötig — e.preventDefault() im onMouseDown hält den Focus im Editor.
+    // prevValue sofort setzen, damit der setContent-Effect keinen Unterschied erkennt
+    // und den Cursor nicht resettet. onUpdate → onChange wird ohnehin gefeuert.
+    editor.chain().updateAttributes('paragraph', { tabStops: newStops }).run()
+    prevValue.current = serializeSKTemplate(editor.getJSON())
     setActiveTabStops(newStops)
-    onChange(serializeSKTemplate(editor.getJSON()))
-  }, [editor, onChange])
+  }, [editor])
 
   return (
     <div
