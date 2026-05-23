@@ -10,7 +10,7 @@ dokumentVorlagenRouter.use(authMiddleware)
 dokumentVorlagenRouter.get('/', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, name, typ, is_aktiv, sektionen, meta_fields,
+      `SELECT id, name, typ, is_aktiv, ist_titelseite, sektionen, meta_fields,
               body_content, kopfzeile_content, fusszeile_content,
               kopfzeile_aktiv, fusszeile_aktiv, erste_seite_kein_header, seiten_layout,
               zeilennummerierung_unterbinden,
@@ -99,6 +99,14 @@ dokumentVorlagenRouter.put('/:id', async (req, res) => {
     if (erste_seite_kein_header !== undefined) { sets.push(`erste_seite_kein_header = $${idx++}`); params.push(erste_seite_kein_header) }
     if (seiten_layout !== undefined) { sets.push(`seiten_layout = $${idx++}`); params.push(JSON.stringify(seiten_layout)) }
     if (req.body.zeilennummerierung_unterbinden !== undefined) { sets.push(`zeilennummerierung_unterbinden = $${idx++}`); params.push(req.body.zeilennummerierung_unterbinden) }
+    if (req.body.ist_titelseite !== undefined) {
+      if (req.body.ist_titelseite === true) {
+        // Uniqueness: alle anderen Vorlagen dieser Produktion zurücksetzen
+        await query('UPDATE dokument_vorlagen SET ist_titelseite = false WHERE produktion_id = $1', [(req.params as any).produktionId])
+      }
+      sets.push(`ist_titelseite = $${idx++}`)
+      params.push(req.body.ist_titelseite)
+    }
     if (sets.length === 0) return res.status(400).json({ error: 'Keine Felder zum Aktualisieren' })
     sets.push(`updated_at = NOW()`)
     params.push(req.params.id, (req.params as any).produktionId)
@@ -176,6 +184,42 @@ dokumentVorlagenRouter.post('/:id/set-aktiv', async (req, res) => {
   }
 })
 
+// POST /api/produktionen/:produktionId/dokument-vorlagen/:id/set-titelseite
+// Markiert diese Vorlage als Titelseite (max. 1 pro Produktion)
+dokumentVorlagenRouter.post('/:id/set-titelseite', async (req, res) => {
+  try {
+    const produktionId = (req.params as any).produktionId
+    const vorlage = await queryOne(
+      'SELECT id FROM dokument_vorlagen WHERE id = $1 AND produktion_id = $2',
+      [req.params.id, produktionId]
+    )
+    if (!vorlage) return res.status(404).json({ error: 'Vorlage nicht gefunden' })
+    await query('UPDATE dokument_vorlagen SET ist_titelseite = false WHERE produktion_id = $1', [produktionId])
+    const row = await queryOne(
+      'UPDATE dokument_vorlagen SET ist_titelseite = true, updated_at = NOW() WHERE id = $1 RETURNING *',
+      [req.params.id]
+    )
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/produktionen/:produktionId/dokument-vorlagen/:id/unset-titelseite
+dokumentVorlagenRouter.post('/:id/unset-titelseite', async (req, res) => {
+  try {
+    const produktionId = (req.params as any).produktionId
+    const row = await queryOne(
+      'UPDATE dokument_vorlagen SET ist_titelseite = false, updated_at = NOW() WHERE id = $1 AND produktion_id = $2 RETURNING *',
+      [req.params.id, produktionId]
+    )
+    if (!row) return res.status(404).json({ error: 'Vorlage nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // POST /api/produktionen/:produktionId/dokument-vorlagen/:id/unset-aktiv
 // Removes the active/standard mark from this vorlage (no other vorlage becomes active)
 dokumentVorlagenRouter.post('/:id/unset-aktiv', async (req, res) => {
@@ -223,6 +267,12 @@ export async function applyVorlage(werkId: string, vorlagenId: string, userName:
        VALUES ($1, NULL, $2, NULL, $3, 'notiz', $4, false, $5, $6, $7)`,
       [werkId, -(sektionen.length - i), JSON.stringify(s.content), s.element_type, userName, s.label, pl]
     )
+  }
+
+  // Titelseite-Flag propagieren: wenn die Vorlage als Titelseite markiert ist,
+  // wird das Flag auf die Werkstufe übertragen
+  if (vorlage.ist_titelseite) {
+    await query('UPDATE werkstufen SET ist_titelseite = true WHERE id = $1', [werkId])
   }
 
   return sektionen.length
