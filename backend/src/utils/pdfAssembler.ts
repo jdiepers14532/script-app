@@ -508,7 +508,7 @@ function buildDruckauswahl(options: import('./exportJobQueue').ExportJobOptions)
   const filterParts: string[] = []
   if (options.filterRollen?.length)   filterParts.push(options.filterRollen.join(', '))
   if (options.filterMotive?.length)   filterParts.push(options.filterMotive.join(', '))
-  if (options.filterKomparsenMitSpiel) filterParts.push('Komparsen m.\u202fSp.')
+  if (options.filterKomparsen?.length) filterParts.push(`Komp.\u202fm.\u202fSp.: ${options.filterKomparsen.join(', ')}`)
   const filter = filterParts.length ? `Nur Szenen mit ${filterParts.join(' \u0026 ')}` : null
   const parts = [auswahl, filter].filter(Boolean) as string[]
   return parts.length ? parts.join(' \u0026 ') : null
@@ -715,15 +715,17 @@ async function assembleHtml(
       charRes.rows.map(r => [r.scene_identity_id, r.rollen])
     )
 
-    // Komparsen pro Szene (für filterKomparsenMitSpiel)
+    // Komparsen pro Szene (für filterKomparsen)
     let komparsenIds = new Set<string>()
-    if (options.filterKomparsenMitSpiel) {
+    if (options.filterKomparsen?.length) {
       const kompRes = await client.query<{ scene_identity_id: string }>(
         `SELECT DISTINCT sc.scene_identity_id
          FROM scene_characters sc
-         WHERE sc.werkstufe_id = $1 AND COALESCE(sc.ist_gruppe, false) = true
-           AND sc.scene_identity_id IS NOT NULL`,
-        [werkstufId]
+         JOIN characters c ON c.id = sc.character_id
+         WHERE sc.werkstufe_id = $1 AND sc.ist_gruppe = true
+           AND sc.scene_identity_id IS NOT NULL
+           AND c.name = ANY($2)`,
+        [werkstufId, options.filterKomparsen]
       )
       komparsenIds = new Set(kompRes.rows.map(r => r.scene_identity_id))
     }
@@ -751,7 +753,7 @@ async function assembleHtml(
       const motivSet = new Set(options.filterMotive.map(m => m.toLowerCase()))
       mainScenes = mainScenes.filter(s => s.ort_name && motivSet.has(s.ort_name.toLowerCase()))
     }
-    if (options.filterKomparsenMitSpiel) {
+    if (options.filterKomparsen?.length) {
       mainScenes = mainScenes.filter(s => s.scene_identity_id && komparsenIds.has(s.scene_identity_id))
     }
 

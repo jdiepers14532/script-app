@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle, Eye, WifiOff, ChevronDown, ChevronRight } from 'lucide-react'
+import { X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle, Eye, WifiOff } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
 import Tooltip from '../Tooltip'
@@ -15,8 +15,9 @@ type ExportFormat = 'pdf' | 'docx' | 'fountain' | 'fdx'
 type JobStatus = 'idle' | 'pending' | 'running' | 'done' | 'error'
 
 interface FilterOptions {
-  rollen: string[]
-  motive: string[]
+  rollen:    string[]
+  komparsen: string[]
+  motive:    string[]
 }
 
 interface Props {
@@ -38,30 +39,53 @@ const FORMAT_DEFS: {
   { value: 'fdx',      label: 'FDX',      ext: '.fdx',      available: false, icon: <FileCode size={14} />, offlineOk: true,                             supportsNotizen: false, supportsPersAusdruck: false },
 ]
 
-const SECTION_LABEL: React.CSSProperties = {
+const SEC: React.CSSProperties = {
   fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
   textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
   display: 'block',
 }
 
+function CheckList({
+  items, selected, onToggle, maxHeight = 130,
+}: {
+  items: string[]; selected: Set<string>; onToggle: (v: string) => void; maxHeight?: number
+}) {
+  if (!items.length) return null
+  return (
+    <div style={{ maxHeight, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {items.map(item => (
+        <label key={item} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)', userSelect: 'none', padding: '1px 0' }}>
+          <input
+            type="checkbox"
+            checked={selected.has(item)}
+            onChange={() => onToggle(item)}
+            style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }}
+          />
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item}</span>
+        </label>
+      ))}
+    </div>
+  )
+}
+
 export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen, produktionId }: Props) {
-  const [format, setFormat]                     = useState<ExportFormat>('pdf')
-  const [isOnline, setIsOnline]                 = useState(navigator.onLine)
-  const [persAusdruck, setPersAusdruck]         = useState('')
-  const [selectedNotizIds, setSelectedNotizIds] = useState<Set<string>>(new Set())
-  const [jobStatus, setJobStatus]               = useState<JobStatus>('idle')
-  const [progress, setProgress]                 = useState(0)
-  const [errorMsg, setErrorMsg]                 = useState<string | null>(null)
+  const [format, setFormat]                       = useState<ExportFormat>('pdf')
+  const [isOnline, setIsOnline]                   = useState(navigator.onLine)
+  const [persAusdruck, setPersAusdruck]           = useState('')
+  const [selectedNotizIds, setSelectedNotizIds]   = useState<Set<string>>(new Set())
+  const [jobStatus, setJobStatus]                 = useState<JobStatus>('idle')
+  const [progress, setProgress]                   = useState(0)
+  const [errorMsg, setErrorMsg]                   = useState<string | null>(null)
 
   // Szenen-Filter
-  const [selectionMode, setSelectionMode]       = useState<'alle' | 'auswahl'>('alle')
-  const [szenenAuswahl, setSzenenAuswahl]       = useState('')
-  const [filterOptions, setFilterOptions]       = useState<FilterOptions | null>(null)
-  const [selectedRollen, setSelectedRollen]     = useState<Set<string>>(new Set())
-  const [selectedMotive, setSelectedMotive]     = useState<Set<string>>(new Set())
-  const [filterKomparsen, setFilterKomparsen]   = useState(false)
-  const [rollenOpen, setRollenOpen]             = useState(false)
-  const [motiveOpen, setMotiveOpen]             = useState(false)
+  const [selectionMode, setSelectionMode]         = useState<'alle' | 'auswahl'>('alle')
+  const [szenenAuswahl, setSzenenAuswahl]         = useState('')
+  const [filterOptions, setFilterOptions]         = useState<FilterOptions | null>(null)
+  const [selectedRollen, setSelectedRollen]       = useState<Set<string>>(new Set())
+  const [selectedKomparsen, setSelectedKomparsen] = useState<Set<string>>(new Set())
+  const [selectedMotive, setSelectedMotive]       = useState<Set<string>>(new Set())
+  // "Rolle als Vermerk im pers. Ausdruck" — erscheint wenn mind. eine Rolle gewählt
+  const [rolleAlsVermerk, setRolleAlsVermerk]     = useState(false)
 
   const pollRef  = useRef<ReturnType<typeof setInterval> | null>(null)
   const jobIdRef = useRef<string | null>(null)
@@ -77,17 +101,18 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setSelectionMode('alle')
     setSzenenAuswahl('')
     setSelectedRollen(new Set())
+    setSelectedKomparsen(new Set())
     setSelectedMotive(new Set())
-    setFilterKomparsen(false)
-    setRollenOpen(false)
-    setMotiveOpen(false)
-    // Notizen default: alle ausgewählt
+    setRolleAlsVermerk(false)
     setSelectedNotizIds(new Set(notizWerkstufen.map(w => w.id)))
-    // Filter-Optionen (Rollen, Motive) für diese Werkstufe laden
     setFilterOptions(null)
     api.get(`/export/filter-options?werkstufId=${selectedWerk.id}`)
-      .then((data: any) => setFilterOptions({ rollen: data.rollen ?? [], motive: data.motive ?? [] }))
-      .catch(() => setFilterOptions({ rollen: [], motive: [] }))
+      .then((data: any) => setFilterOptions({
+        rollen:    data.rollen    ?? [],
+        komparsen: data.komparsen ?? [],
+        motive:    data.motive    ?? [],
+      }))
+      .catch(() => setFilterOptions({ rollen: [], komparsen: [], motive: [] }))
   }, [isOpen, selectedWerk?.id])
 
   useEffect(() => { if (!isOpen) stopPolling() }, [isOpen])
@@ -120,6 +145,14 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     return false
   }
 
+  /** Baut den persoenlicher_ausdruck-Wert zusammen (inkl. optionalem Rollen-Vermerk) */
+  function buildPersAusdruck(): string | undefined {
+    const base = persAusdruck.trim()
+    if (!rolleAlsVermerk || selectedRollen.size === 0) return base || undefined
+    const rollenStr = Array.from(selectedRollen).join(', ')
+    return base ? `${base} · ${rollenStr}` : rollenStr
+  }
+
   async function startExport() {
     if (!selectedWerk || jobStatus === 'running' || jobStatus === 'pending') return
     setJobStatus('pending')
@@ -131,17 +164,18 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         werkstufId: selectedWerk.id,
         format,
         options: {
-          notizWerkstufIds:        currentFormatDef.supportsNotizen && selectedNotizIds.size > 0
+          notizWerkstufIds:     currentFormatDef.supportsNotizen && selectedNotizIds.size > 0
             ? Array.from(selectedNotizIds) : undefined,
-          persoenlicher_ausdruck:  currentFormatDef.supportsPersAusdruck && persAusdruck.trim()
-            ? persAusdruck.trim() : undefined,
-          szenenAuswahl:           selectionMode === 'auswahl' && szenenAuswahl.trim()
+          persoenlicher_ausdruck: currentFormatDef.supportsPersAusdruck
+            ? buildPersAusdruck() : undefined,
+          szenenAuswahl:        selectionMode === 'auswahl' && szenenAuswahl.trim()
             ? szenenAuswahl.trim() : undefined,
-          filterRollen:            selectionMode === 'auswahl' && selectedRollen.size > 0
+          filterRollen:         selectionMode === 'auswahl' && selectedRollen.size > 0
             ? Array.from(selectedRollen) : undefined,
-          filterMotive:            selectionMode === 'auswahl' && selectedMotive.size > 0
+          filterKomparsen:      selectionMode === 'auswahl' && selectedKomparsen.size > 0
+            ? Array.from(selectedKomparsen) : undefined,
+          filterMotive:         selectionMode === 'auswahl' && selectedMotive.size > 0
             ? Array.from(selectedMotive) : undefined,
-          filterKomparsenMitSpiel: selectionMode === 'auswahl' && filterKomparsen ? true : undefined,
         },
       }
       const res = await api.post('/export/job', body)
@@ -185,21 +219,16 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     window.open(`/api/export/pdf-preview?${params.toString()}`, '_blank')
   }
 
-  function toggleNotiz(id: string) {
-    setSelectedNotizIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
-  function toggleRolle(name: string) {
-    setSelectedRollen(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n })
-  }
-  function toggleMotiv(name: string) {
-    setSelectedMotive(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n })
+  function toggle<T>(set: Set<T>, val: T): Set<T> {
+    const n = new Set(set); n.has(val) ? n.delete(val) : n.add(val); return n
   }
 
   const isRunning = jobStatus === 'pending' || jobStatus === 'running'
   const blockedByOffline = !isOnline && !currentFormatDef.offlineOk
 
   const hasAnyFilter = selectionMode === 'auswahl' && (
-    szenenAuswahl.trim() || selectedRollen.size > 0 || selectedMotive.size > 0 || filterKomparsen
+    szenenAuswahl.trim() || selectedRollen.size > 0 ||
+    selectedKomparsen.size > 0 || selectedMotive.size > 0
   )
 
   if (!isOpen) return null
@@ -239,34 +268,22 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
             {/* ── Format ── */}
             <div style={{ marginBottom: 14 }}>
-              <span style={SECTION_LABEL}>Format</span>
+              <span style={SEC}>Format</span>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                 {availableFormats.map(f => {
                   const disabled = isDisabledFormat(f)
                   const active   = format === f.value && !disabled
                   const offlineBlocked = !isOnline && !f.offlineOk && f.available
-                  const tooltipText = !f.available
-                    ? 'Kommt in Phase 5/6'
-                    : disabled
-                    ? 'Nur für Drehbuch verfügbar'
-                    : offlineBlocked
-                    ? 'Erfordert Internetverbindung'
-                    : f.offlineOk && f.available
-                    ? 'Funktioniert auch offline'
-                    : ''
+                  const tooltipText = !f.available ? 'Kommt in Phase 5/6'
+                    : disabled ? 'Nur für Drehbuch verfügbar'
+                    : offlineBlocked ? 'Erfordert Internetverbindung'
+                    : f.offlineOk && f.available ? 'Funktioniert auch offline' : ''
                   return (
                     <Tooltip key={f.value} text={tooltipText}>
                       <button
                         disabled={disabled}
                         onClick={() => !disabled && setFormat(f.value)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 6, fontSize: 12,
-                          border: `1px solid ${active ? '#007AFF' : 'var(--border)'}`,
-                          background: active ? 'rgba(0,122,255,0.08)' : 'transparent',
-                          color: disabled ? 'var(--text-muted)' : active ? '#007AFF' : 'var(--text-primary)',
-                          cursor: disabled ? 'not-allowed' : 'pointer',
-                          fontFamily: 'inherit', fontWeight: active ? 600 : 400, opacity: disabled ? 0.45 : 1,
-                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 10px', borderRadius: 6, fontSize: 12, border: `1px solid ${active ? '#007AFF' : 'var(--border)'}`, background: active ? 'rgba(0,122,255,0.08)' : 'transparent', color: disabled ? 'var(--text-muted)' : active ? '#007AFF' : 'var(--text-primary)', cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontWeight: active ? 600 : 400, opacity: disabled ? 0.45 : 1 }}
                       >
                         {f.icon}{f.label}
                         {!f.available && <span style={{ fontSize: 9, marginLeft: 'auto', opacity: 0.6 }}>bald</span>}
@@ -281,7 +298,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
             {/* ── Szenen-Auswahl ── */}
             <div style={{ marginBottom: 14 }}>
-              <span style={SECTION_LABEL}>Szenen</span>
+              <span style={SEC}>Szenen</span>
               <div className="seg" style={{ display: 'flex', marginBottom: selectionMode === 'auswahl' ? 10 : 0 }}>
                 {(['alle', 'auswahl'] as const).map(mode => (
                   <button
@@ -296,8 +313,9 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
               </div>
 
               {selectionMode === 'auswahl' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {/* Szenen-Nummern-Eingabe */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                  {/* Szenen-Nummern */}
                   <div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>
                       Szenen-Nr. (z.\u202fB. 1,3,5\u201310,42A)
@@ -311,78 +329,59 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     />
                   </div>
 
-                  {/* Rollen-Filter */}
+                  {/* Rollen */}
                   {filterOptions && filterOptions.rollen.length > 0 && (
                     <div>
-                      <button
-                        onClick={() => setRollenOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', background: 'none', border: 'none', padding: '3px 0', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'inherit' }}
-                      >
-                        {rollenOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                         Rollen
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 2 }}>({filterOptions.rollen.length})</span>
-                        {selectedRollen.size > 0 && (
-                          <span style={{ marginLeft: 'auto', fontSize: 10, background: '#007AFF', color: '#fff', borderRadius: 10, padding: '0 5px', lineHeight: '16px', fontWeight: 600 }}>
-                            {selectedRollen.size}
-                          </span>
-                        )}
-                      </button>
-                      {rollenOpen && (
-                        <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 4, marginTop: 2 }}>
-                          {filterOptions.rollen.map(r => (
-                            <label key={r} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)', userSelect: 'none', padding: '1px 0' }}>
-                              <input type="checkbox" checked={selectedRollen.has(r)} onChange={() => toggleRolle(r)} style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }} />
-                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r}</span>
-                            </label>
-                          ))}
-                        </div>
+                        {selectedRollen.size > 0 && <span style={{ fontSize: 10, background: '#007AFF', color: '#fff', borderRadius: 10, padding: '0 5px', lineHeight: '16px', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>{selectedRollen.size}</span>}
+                      </div>
+                      <CheckList items={filterOptions.rollen} selected={selectedRollen} onToggle={v => setSelectedRollen(prev => toggle(prev, v))} />
+                      {/* Rolle als Vermerk im pers. Ausdruck */}
+                      {selectedRollen.size > 0 && currentFormatDef.supportsPersAusdruck && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 10, color: '#007AFF', userSelect: 'none', marginTop: 5, padding: '3px 0' }}>
+                          <input
+                            type="checkbox"
+                            checked={rolleAlsVermerk}
+                            onChange={e => setRolleAlsVermerk(e.target.checked)}
+                            style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }}
+                          />
+                          Rolle als Vermerk im pers. Ausdruck
+                        </label>
                       )}
                     </div>
                   )}
 
-                  {/* Motive-Filter */}
+                  {/* Komparsen mit Spiel */}
+                  {filterOptions && filterOptions.komparsen.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Komparsen m.\u202fSp.
+                        {selectedKomparsen.size > 0 && <span style={{ fontSize: 10, background: '#007AFF', color: '#fff', borderRadius: 10, padding: '0 5px', lineHeight: '16px', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>{selectedKomparsen.size}</span>}
+                      </div>
+                      <CheckList items={filterOptions.komparsen} selected={selectedKomparsen} onToggle={v => setSelectedKomparsen(prev => toggle(prev, v))} />
+                    </div>
+                  )}
+
+                  {/* Motive */}
                   {filterOptions && filterOptions.motive.length > 0 && (
                     <div>
-                      <button
-                        onClick={() => setMotiveOpen(v => !v)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, width: '100%', background: 'none', border: 'none', padding: '3px 0', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'inherit' }}
-                      >
-                        {motiveOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                         Motive
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 2 }}>({filterOptions.motive.length})</span>
-                        {selectedMotive.size > 0 && (
-                          <span style={{ marginLeft: 'auto', fontSize: 10, background: '#007AFF', color: '#fff', borderRadius: 10, padding: '0 5px', lineHeight: '16px', fontWeight: 600 }}>
-                            {selectedMotive.size}
-                          </span>
-                        )}
-                      </button>
-                      {motiveOpen && (
-                        <div style={{ maxHeight: 120, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 4, marginTop: 2 }}>
-                          {filterOptions.motive.map(m => (
-                            <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)', userSelect: 'none', padding: '1px 0' }}>
-                              <input type="checkbox" checked={selectedMotive.has(m)} onChange={() => toggleMotiv(m)} style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }} />
-                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
+                        {selectedMotive.size > 0 && <span style={{ fontSize: 10, background: '#007AFF', color: '#fff', borderRadius: 10, padding: '0 5px', lineHeight: '16px', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>{selectedMotive.size}</span>}
+                      </div>
+                      <CheckList items={filterOptions.motive} selected={selectedMotive} onToggle={v => setSelectedMotive(prev => toggle(prev, v))} />
                     </div>
                   )}
 
-                  {/* Komparsen */}
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 11, color: 'var(--text-primary)', userSelect: 'none' }}>
-                    <input type="checkbox" checked={filterKomparsen} onChange={e => setFilterKomparsen(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }} />
-                    Nur Szenen mit Komparsen
-                  </label>
-
-                  {/* Aktive-Filter-Zusammenfassung */}
+                  {/* Aktive Filter — Zusammenfassung */}
                   {hasAnyFilter && (
                     <div style={{ fontSize: 10, color: '#FF6B35', lineHeight: 1.4, padding: '4px 7px', background: 'rgba(255,107,53,0.08)', borderRadius: 5, border: '1px solid rgba(255,107,53,0.2)' }}>
                       {[
                         szenenAuswahl.trim() ? `Sz.\u202f${szenenAuswahl.trim()}` : null,
                         selectedRollen.size ? `${selectedRollen.size}\u202fRolle(n)` : null,
+                        selectedKomparsen.size ? `${selectedKomparsen.size}\u202fKomp.` : null,
                         selectedMotive.size ? `${selectedMotive.size}\u202fMotiv(e)` : null,
-                        filterKomparsen ? 'Komparsen' : null,
                       ].filter(Boolean).join(' · ')}
                     </div>
                   )}
@@ -393,14 +392,14 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
             {/* ── Notiz-Seiten (nur wenn Format es unterstützt) ── */}
             {currentFormatDef.supportsNotizen && notizWerkstufen.length > 0 && (
               <div style={{ marginBottom: 14 }}>
-                <span style={SECTION_LABEL}>Notiz-Seiten</span>
+                <span style={SEC}>Notiz-Seiten</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {notizWerkstufen.map(w => (
                     <label key={w.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none' }}>
                       <input
                         type="checkbox"
                         checked={selectedNotizIds.has(w.id)}
-                        onChange={() => toggleNotiz(w.id)}
+                        onChange={() => setSelectedNotizIds(prev => toggle(prev, w.id))}
                         style={{ cursor: 'pointer', accentColor: '#007AFF', width: 14, height: 14, flexShrink: 0 }}
                       />
                       <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -416,7 +415,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
             {/* ── Persönlicher Ausdruck (nur wenn Format es unterstützt) ── */}
             {currentFormatDef.supportsPersAusdruck && (
               <div style={{ marginBottom: 16 }}>
-                <span style={SECTION_LABEL}>
+                <span style={SEC}>
                   Persönlicher Ausdruck
                   <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 4, color: 'var(--text-muted)', fontSize: 10 }}>(optional)</span>
                 </span>
@@ -427,9 +426,17 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                   placeholder="z.B. Maria Schulze"
                   style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                 />
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-                  Erscheint im {'{'}{'{'} persoenlicher_ausdruck {'}'}{'}'}‑Chip des Headers
-                </div>
+                {/* Vorschau des kombinierten Werts wenn Rollen-Vermerk aktiv */}
+                {rolleAlsVermerk && selectedRollen.size > 0 && (
+                  <div style={{ fontSize: 10, color: '#007AFF', marginTop: 3 }}>
+                    Chip: {buildPersAusdruck() || <em style={{ color: 'var(--text-muted)' }}>leer</em>}
+                  </div>
+                )}
+                {(!rolleAlsVermerk || selectedRollen.size === 0) && (
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                    Erscheint im {'{'}{'{'} persoenlicher_ausdruck {'}'}{'}'}‑Chip
+                  </div>
+                )}
               </div>
             )}
 
@@ -453,7 +460,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
               </div>
             )}
 
-            {/* Erneut herunterladen */}
             {jobStatus === 'done' && jobIdRef.current && (
               <button
                 onClick={() => triggerDownload(jobIdRef.current!)}

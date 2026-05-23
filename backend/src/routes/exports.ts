@@ -53,7 +53,7 @@ router.post('/export/job', async (req, res) => {
       szenenAuswahl:            options.szenenAuswahl             ? String(options.szenenAuswahl)           : undefined,
       filterRollen:             Array.isArray(options.filterRollen)   ? options.filterRollen.map(String)   : undefined,
       filterMotive:             Array.isArray(options.filterMotive)   ? options.filterMotive.map(String)   : undefined,
-      filterKomparsenMitSpiel:  options.filterKomparsenMitSpiel === true,
+      filterKomparsen:          Array.isArray(options.filterKomparsen) ? options.filterKomparsen.map(String) : undefined,
     },
   }
 
@@ -193,12 +193,20 @@ router.get('/export/filter-options', async (req, res) => {
   try {
     const client = await pool.connect()
     try {
-      const [rollenRes, motiveRes] = await Promise.all([
+      const [rollenRes, komparsenRes, motiveRes] = await Promise.all([
         client.query<{ name: string }>(
           `SELECT DISTINCT c.name
            FROM scene_characters sc
            JOIN characters c ON c.id = sc.character_id
            WHERE sc.werkstufe_id = $1 AND COALESCE(sc.ist_gruppe, false) = false
+           ORDER BY c.name`,
+          [werkstufId]
+        ),
+        client.query<{ name: string }>(
+          `SELECT DISTINCT c.name
+           FROM scene_characters sc
+           JOIN characters c ON c.id = sc.character_id
+           WHERE sc.werkstufe_id = $1 AND sc.ist_gruppe = true
            ORDER BY c.name`,
           [werkstufId]
         ),
@@ -211,8 +219,9 @@ router.get('/export/filter-options', async (req, res) => {
         ),
       ])
       res.json({
-        rollen: rollenRes.rows.map(r => r.name),
-        motive: motiveRes.rows.map(r => r.ort_name),
+        rollen:    rollenRes.rows.map(r => r.name),
+        komparsen: komparsenRes.rows.map(r => r.name),
+        motive:    motiveRes.rows.map(r => r.ort_name),
       })
     } finally {
       client.release()

@@ -29,8 +29,8 @@ export interface ExportJobOptions {
   filterRollen?: string[]
   /** Nur Szenen mit diesen Motiv-Namen (OR-Verknüpfung) */
   filterMotive?: string[]
-  /** Nur Szenen mit Komparsen (ist_gruppe=true) */
-  filterKomparsenMitSpiel?: boolean
+  /** Nur Szenen mit diesen Komparsen-Namen (ist_gruppe=true, OR-Verknüpfung) */
+  filterKomparsen?: string[]
 }
 
 export interface ExportJobParams {
