@@ -473,13 +473,33 @@ const ParagraphWithStops = Node.create({
         parseHTML: el => el.getAttribute('data-lh') || null,
         renderHTML: () => ({}),
       },
+      fontWeight: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-fw') || null,
+        renderHTML: () => ({}),
+      },
+      fontStyle: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-fst') || null,
+        renderHTML: () => ({}),
+      },
+      textDecoration: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-td') || null,
+        renderHTML: () => ({}),
+      },
+      textTransform: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-tt') || null,
+        renderHTML: () => ({}),
+      },
     }
   },
 
   parseHTML() { return [{ tag: 'p' }] },
 
   renderHTML({ node, HTMLAttributes }) {
-    const { fontFamily, fontSize, lineHeight, tabStops } = node.attrs
+    const { fontFamily, fontSize, lineHeight, tabStops, fontWeight, fontStyle, textDecoration, textTransform } = node.attrs
     const extra: Record<string, any> = {}
     if (tabStops?.length) extra['data-tab-stops'] = JSON.stringify(tabStops)
     if (fontFamily) extra['data-ff'] = fontFamily
@@ -489,6 +509,10 @@ const ParagraphWithStops = Node.create({
     if (fontFamily) styleArr.push(`font-family:${fontFamily}`)
     if (fontSize) styleArr.push(`font-size:${fontSize}`)
     if (lineHeight) styleArr.push(`line-height:${lineHeight}`)
+    if (fontWeight) styleArr.push(`font-weight:${fontWeight}`)
+    if (fontStyle) styleArr.push(`font-style:${fontStyle}`)
+    if (textDecoration) styleArr.push(`text-decoration:${textDecoration}`)
+    if (textTransform) styleArr.push(`text-transform:${textTransform}`)
     if (styleArr.length) extra.style = styleArr.join(';')
     return ['p', mergeAttributes(HTMLAttributes, extra), 0]
   },
@@ -598,7 +622,8 @@ export function renderSKTemplate(
     }
     const hasText = lineText.replace(/\s/g, '').length > 0
     if (hasText && (hasNonEmptyChip || !lineText.match(/^\s*$/))) {
-      lines.push(lineText.trim())
+      const trimmed = lineText.trim()
+      lines.push(para.attrs?.textTransform === 'uppercase' ? trimmed.toUpperCase() : trimmed)
     }
   }
   return lines
@@ -691,11 +716,15 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
     const allText = segments.filter(s => s.kind === 'text').map(s => (s as TextSeg).text).join('')
     if (!allText.replace(/\s/g, '')) continue
 
-    const { fontFamily, fontSize, lineHeight } = node.attrs ?? {}
+    const { fontFamily, fontSize, lineHeight, fontWeight, fontStyle, textDecoration, textTransform } = node.attrs ?? {}
     const style: CSSProperties = {
       fontFamily: fontFamily ?? "'Courier Prime','Courier New',monospace",
       fontSize: fontSize ?? 12,
       lineHeight: lineHeight ?? 1.7,
+      fontWeight: fontWeight ?? undefined,
+      fontStyle: fontStyle ?? undefined,
+      textDecoration: textDecoration ?? undefined,
+      textTransform: (textTransform as any) ?? undefined,
       whiteSpace: 'pre',
     }
     result.push({ type: 'line', segments, rulerCm, style })
@@ -891,6 +920,10 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
   const curFont = para.fontFamily ?? ''
   const curSize = para.fontSize ?? ''
   const curLH   = para.lineHeight ?? ''
+  const isBold      = para.fontWeight === 'bold'
+  const isItalic    = para.fontStyle === 'italic'
+  const isUnderline = para.textDecoration === 'underline'
+  const isUppercase = para.textTransform === 'uppercase'
 
   const setParaAttr = (key: string, val: string | null) =>
     editor.chain().focus().updateAttributes('paragraph', { [key]: val || null }).run()
@@ -918,14 +951,14 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
 
       <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
 
-      <button onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleBold().run() }}
-        style={fmtBtn(editor.isActive('bold'))}>B</button>
-      <button onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleItalic().run() }}
-        style={fmtBtn(editor.isActive('italic'), { fontStyle: 'italic' })}>I</button>
-      <button onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleUnderline().run() }}
-        style={fmtBtn(editor.isActive('underline'), { textDecoration: 'underline' })}>U</button>
-      <button onMouseDown={e => { e.preventDefault(); editor.commands.toggleUppercase() }}
-        style={fmtBtn(editor.isActive('uppercase'))}>UC</button>
+      <button onMouseDown={e => { e.preventDefault(); setParaAttr('fontWeight', isBold ? null : 'bold') }}
+        style={fmtBtn(isBold)}>B</button>
+      <button onMouseDown={e => { e.preventDefault(); setParaAttr('fontStyle', isItalic ? null : 'italic') }}
+        style={fmtBtn(isItalic, { fontStyle: 'italic' })}>I</button>
+      <button onMouseDown={e => { e.preventDefault(); setParaAttr('textDecoration', isUnderline ? null : 'underline') }}
+        style={fmtBtn(isUnderline, { textDecoration: 'underline' })}>U</button>
+      <button onMouseDown={e => { e.preventDefault(); setParaAttr('textTransform', isUppercase ? null : 'uppercase') }}
+        style={fmtBtn(isUppercase)}>UC</button>
 
       <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
 
