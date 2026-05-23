@@ -97,7 +97,7 @@ export function TableCard({ title, color, fields, note }: {
         {fields.map((f, i) => (
           <div key={f.name} style={{
             display: 'grid',
-            gridTemplateColumns: '160px 100px 1fr 18px',
+            gridTemplateColumns: 'minmax(110px, 160px) minmax(80px, 100px) 1fr 18px',
             gap: 6,
             padding: '5px 12px',
             borderBottom: i < fields.length - 1 ? `1px solid ${C.border}` : undefined,

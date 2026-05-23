@@ -101,7 +101,15 @@ function HilfePage() {
   const [activeSection, setActiveSection] = useState<string>('erste-schritte')
   const [isAdmin, setIsAdmin] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const [navOpen, setNavOpen] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
 
   useEffect(() => {
     fetch('/api/me/whoami', { credentials: 'include' })
@@ -169,136 +177,142 @@ function HilfePage() {
     }
   }
 
+  const navContent = (
+    <>
+      <div style={{ padding: '20px 16px 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            onClick={() => { if ((window.history.state?.idx ?? 0) > 0) navigate(-1); else navigate('/') }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: 12, padding: '0 0 12px 0' }}
+          >← Zurück</button>
+          {isMobile && (
+            <button onClick={() => setNavOpen(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: 20, padding: '0 0 12px 0', lineHeight: 1 }}>×</button>
+          )}
+        </div>
+        <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>Handbuch</h1>
+        <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 10px' }}>Script-App Dokumentation</p>
+        <div style={{ position: 'relative' }}>
+          <span style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: C.muted, fontSize: 12, pointerEvents: 'none' }}>🔍</span>
+          <input
+            type="text" placeholder="Handbuch durchsuchen…" value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%', boxSizing: 'border-box', padding: '7px 26px 7px 28px',
+              border: `1px solid ${isSearching ? C.blue + '66' : C.border}`,
+              borderRadius: 7, fontSize: 11, background: 'var(--bg-main)', color: C.text,
+              outline: 'none', transition: 'border-color 0.15s',
+            }}
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')}
+              style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.muted, fontSize: 14, padding: '0 2px', lineHeight: 1 }}>×</button>
+          )}
+        </div>
+      </div>
+      <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {NAV_ITEMS.filter(item => !('adminOnly' in item && item.adminOnly) || isAdmin).map((item, idx, arr) => {
+          const prevItem = arr[idx - 1]
+          const showSeparator = 'adminOnly' in item && item.adminOnly && prevItem && !('adminOnly' in prevItem && prevItem.adminOnly)
+          const matchesSearch = isSearching && (item.label + ' ' + item.keywords).toLowerCase().includes(sq)
+          const dimmed = isSearching && !matchesSearch
+          return (
+            <div key={item.id}>
+              {showSeparator && (
+                <div style={{ margin: '8px 12px 6px', borderTop: `1px solid ${C.border}` }}>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>Admin</span>
+                </div>
+              )}
+              <button
+                onClick={() => { setActiveSection(item.id); setSearchQuery(''); if (isMobile) setNavOpen(false) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                  border: 'none', borderRadius: 8,
+                  background: !isSearching && activeSection === item.id ? C.blue + '15' : matchesSearch ? C.blue + '0d' : 'transparent',
+                  cursor: 'pointer', fontSize: 12,
+                  fontWeight: !isSearching && activeSection === item.id ? 700 : matchesSearch ? 600 : 400,
+                  color: dimmed ? C.muted : !isSearching && activeSection === item.id ? C.text : C.muted,
+                  textAlign: 'left', width: '100%', transition: 'background 0.15s, color 0.15s, opacity 0.15s',
+                  borderLeft: !isSearching && activeSection === item.id ? `3px solid ${C.blue}` : matchesSearch ? `3px solid ${C.blue}55` : '3px solid transparent',
+                  opacity: dimmed ? 0.4 : 1,
+                }}
+              >
+                <span style={{ fontSize: 14, flexShrink: 0, width: 20, textAlign: 'center' }}>{item.icon}</span>
+                {item.label}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+
   return (
     <AppShell hideProductionSelector>
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
 
-        {/* ── Side Navigation ── */}
-        <nav style={{
-          width: 230, flexShrink: 0,
-          borderRight: `1px solid ${C.border}`,
-          background: C.surface,
-          overflowY: 'auto',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          <div style={{ padding: '20px 16px 10px' }}>
-            <button
-              onClick={() => {
-                if ((window.history.state?.idx ?? 0) > 0) {
-                  navigate(-1)
-                } else {
-                  navigate('/')
-                }
-              }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: C.muted, fontSize: 12, padding: '0 0 12px 0',
-              }}
-            >
-              ← Zurück
-            </button>
-            <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>Handbuch</h1>
-            <p style={{ color: C.muted, fontSize: 11, margin: '4px 0 10px' }}>Script-App Dokumentation</p>
+        {/* ── Side Navigation — Desktop ── */}
+        {!isMobile && (
+          <nav style={{
+            width: 230, flexShrink: 0,
+            borderRight: `1px solid ${C.border}`,
+            background: C.surface,
+            overflowY: 'auto',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            {navContent}
+          </nav>
+        )}
 
-            {/* ── Volltext-Suche ── */}
-            <div style={{ position: 'relative' }}>
-              <span style={{
-                position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)',
-                color: C.muted, fontSize: 12, pointerEvents: 'none',
-              }}>🔍</span>
-              <input
-                type="text"
-                placeholder="Handbuch durchsuchen…"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  padding: '7px 26px 7px 28px',
-                  border: `1px solid ${isSearching ? C.blue + '66' : C.border}`,
-                  borderRadius: 7, fontSize: 11,
-                  background: 'var(--bg-main)', color: C.text,
-                  outline: 'none', transition: 'border-color 0.15s',
-                }}
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  style={{
-                    position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: C.muted, fontSize: 14, padding: '0 2px', lineHeight: 1,
-                  }}
-                >×</button>
-              )}
-            </div>
-          </div>
-
-          <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {NAV_ITEMS.filter(item => !('adminOnly' in item && item.adminOnly) || isAdmin).map((item, idx, arr) => {
-              const prevItem = arr[idx - 1]
-              const showSeparator = 'adminOnly' in item && item.adminOnly && prevItem && !('adminOnly' in prevItem && prevItem.adminOnly)
-              const matchesSearch = isSearching && (item.label + ' ' + item.keywords).toLowerCase().includes(sq)
-              const dimmed = isSearching && !matchesSearch
-              return (
-                <div key={item.id}>
-                  {showSeparator && (
-                    <div style={{ margin: '8px 12px 6px', borderTop: `1px solid ${C.border}` }}>
-                      <span style={{ fontSize: 9, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Admin
-                      </span>
-                    </div>
-                  )}
-                  <button
-                    onClick={() => { setActiveSection(item.id); setSearchQuery('') }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '9px 12px',
-                      border: 'none', borderRadius: 8,
-                      background: !isSearching && activeSection === item.id
-                        ? C.blue + '15'
-                        : matchesSearch ? C.blue + '0d' : 'transparent',
-                      cursor: 'pointer',
-                      fontSize: 12,
-                      fontWeight: !isSearching && activeSection === item.id ? 700 : matchesSearch ? 600 : 400,
-                      color: dimmed ? C.muted : !isSearching && activeSection === item.id ? C.text : C.muted,
-                      textAlign: 'left',
-                      width: '100%',
-                      transition: 'background 0.15s, color 0.15s, opacity 0.15s',
-                      borderLeft: !isSearching && activeSection === item.id
-                        ? `3px solid ${C.blue}`
-                        : matchesSearch ? `3px solid ${C.blue}55` : '3px solid transparent',
-                      opacity: dimmed ? 0.4 : 1,
-                    }}
-                  >
-                    <span style={{ fontSize: 14, flexShrink: 0, width: 20, textAlign: 'center' }}>{item.icon}</span>
-                    {item.label}
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </nav>
+        {/* ── Side Navigation — Mobile Overlay ── */}
+        {isMobile && navOpen && (
+          <>
+            <div
+              onClick={() => setNavOpen(false)}
+              style={{ position: 'absolute', inset: 0, background: '#00000040', zIndex: 10 }}
+            />
+            <nav style={{
+              position: 'absolute', left: 0, top: 0, bottom: 0, width: 260, zIndex: 11,
+              background: 'var(--bg-main)', borderRight: `1px solid ${C.border}`,
+              overflowY: 'auto', display: 'flex', flexDirection: 'column',
+              boxShadow: '4px 0 16px rgba(0,0,0,0.12)',
+            }}>
+              {navContent}
+            </nav>
+          </>
+        )}
 
         {/* ── Content Area ── */}
-        <div style={{
-          flex: 1,
-          overflowY: 'auto',
-          padding: '32px 40px',
-          maxWidth: 880,
-          boxSizing: 'border-box',
-        }}>
-          <Suspense fallback={<TabSpinner />}>
-            {isSearching ? (
-              <SearchResultsView
-                query={sq}
-                results={searchResults}
-                onNavigate={(id) => { setActiveSection(id); setSearchQuery('') }}
-              />
-            ) : (
-              renderTab()
-            )}
-          </Suspense>
+        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
+          {/* Mobile top-bar */}
+          {isMobile && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '12px 16px', borderBottom: `1px solid ${C.border}`,
+              background: C.surface, position: 'sticky', top: 0, zIndex: 5,
+            }}>
+              <button onClick={() => setNavOpen(true)}
+                style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 6, cursor: 'pointer', padding: '6px 10px', fontSize: 14, color: C.text, display: 'flex', gap: 6, alignItems: 'center' }}>
+                ☰ <span style={{ fontSize: 11 }}>Kapitel</span>
+              </button>
+              <span style={{ fontSize: 12, color: C.muted, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {NAV_ITEMS.find(i => i.id === activeSection)?.label ?? ''}
+              </span>
+            </div>
+          )}
+          <div style={{ padding: isMobile ? '20px 16px' : '32px 40px', boxSizing: 'border-box' }}>
+            <Suspense fallback={<TabSpinner />}>
+              {isSearching ? (
+                <SearchResultsView
+                  query={sq}
+                  results={searchResults}
+                  onNavigate={(id) => { setActiveSection(id); setSearchQuery('') }}
+                />
+              ) : (
+                renderTab()
+              )}
+            </Suspense>
+          </div>
         </div>
 
       </div>
