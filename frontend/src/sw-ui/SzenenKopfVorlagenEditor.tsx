@@ -1511,6 +1511,11 @@ export default function SzenenKopfVorlagenEditor({
   useEffect(() => {
     if (!editor || value === prevValue.current) return
     prevValue.current = value
+    // Wenn der Editor den Wert selbst erzeugt hat (via onUpdate → onChange → prop-Update),
+    // hat er den Inhalt bereits — setContent würde den Cursor ans Ende springen lassen.
+    try {
+      if (serializeSKTemplate(editor.getJSON()) === value) return
+    } catch { /* parse-Fehler → setContent ausführen */ }
     editor.commands.setContent(parseSKTemplate(value), false)
   }, [value, editor])
 
