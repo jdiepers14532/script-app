@@ -16,7 +16,8 @@ import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { Node, Extension, Mark, mergeAttributes } from '@tiptap/core'
-import { Plugin, PluginKey } from 'prosemirror-state'
+import { Plugin, PluginKey, NodeSelection } from 'prosemirror-state'
+import { DecorationSet, Decoration } from 'prosemirror-view'
 import { StarterKit } from '@tiptap/starter-kit'
 import { Underline } from '@tiptap/extension-underline'
 
@@ -220,6 +221,27 @@ const SKChipExtension = Node.create({
       insertSKChip: (key: string) => ({ chain }: any) =>
         chain().insertContent({ type: 'sk_chip', attrs: { key, collapsed: false } }).run(),
     }
+  },
+
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey('sk-chip-range-highlight'),
+        props: {
+          decorations(state) {
+            const { selection } = state
+            if (selection instanceof NodeSelection || selection.empty) return DecorationSet.empty
+            const decos: Decoration[] = []
+            state.doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+              if (node.type.name === 'sk_chip') {
+                decos.push(Decoration.node(pos, pos + node.nodeSize, { class: 'chip-in-range' }))
+              }
+            })
+            return DecorationSet.create(state.doc, decos)
+          },
+        },
+      }),
+    ]
   },
 })
 
@@ -1505,8 +1527,15 @@ export default function SzenenKopfVorlagenEditor({
         }
         .sk-vorlage-editor .ProseMirror p { margin: 0 0 3px 0; padding: 0; }
         .sk-vorlage-editor .ProseMirror p:last-child { margin-bottom: 0; }
+        .sk-vorlage-editor .ProseMirror ::selection { background: rgba(0, 122, 255, 0.18); }
         .sk-vorlage-editor .sk-chip.ProseMirror-selectednode {
-          outline: 2px solid #007AFF; outline-offset: 1px; border-radius: 4px;
+          outline: 2px solid #007AFF; outline-offset: 2px; border-radius: 4px;
+          box-shadow: 0 0 0 4px rgba(0, 122, 255, 0.12);
+        }
+        .sk-vorlage-editor .sk-chip.chip-in-range {
+          outline: 1.5px solid rgba(0, 122, 255, 0.55);
+          outline-offset: 1px; border-radius: 4px;
+          background-color: rgba(0, 122, 255, 0.08) !important;
         }
       `}</style>
       <div
