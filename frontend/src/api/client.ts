@@ -551,6 +551,10 @@ export const api = {
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}/set-aktiv`, {}),
   unsetVorlageAktiv: (produktionId: string, id: string) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}/unset-aktiv`, {}),
+  setVorlageTitelseite: (produktionId: string, id: string) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}/set-titelseite`, {}),
+  unsetVorlageTitelseite: (produktionId: string, id: string) =>
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}/unset-titelseite`, {}),
 
   // ── Kopf-/Fußzeilen-Defaults ──────────────────────────────────────────────
   getKopfFusszeilen: (produktionId: string) =>

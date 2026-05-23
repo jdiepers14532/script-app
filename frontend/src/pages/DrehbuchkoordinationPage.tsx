@@ -4171,6 +4171,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
   const [viewMode, setViewMode] = useState<'list' | 'tiles'>('tiles')
   const [filterTyp, setFilterTyp] = useState('alle')
   const [settingAktiv, setSettingAktiv] = useState<string | null>(null)
+  const [settingTitelseite, setSettingTitelseite] = useState<string | null>(null)
 
   // Edit mode state
   const [editId, setEditId] = useState<string | null>(null)
@@ -4304,6 +4305,30 @@ function VorlagenTab({ productionId }: { productionId: string }) {
       alert('Fehler: ' + err.message)
     } finally {
       setSettingAktiv(null)
+    }
+  }
+
+  const setTitelseite = async (id: string) => {
+    setSettingTitelseite(id)
+    try {
+      await api.setVorlageTitelseite(productionId, id)
+      load()
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setSettingTitelseite(null)
+    }
+  }
+
+  const unsetTitelseite = async (id: string) => {
+    setSettingTitelseite(id)
+    try {
+      await api.unsetVorlageTitelseite(productionId, id)
+      load()
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setSettingTitelseite(null)
     }
   }
 
@@ -4521,15 +4546,24 @@ function VorlagenTab({ productionId }: { productionId: string }) {
         // ── Tile / Card grid ────────────────────────────────────────────────
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16 }}>
           {filtered.map(v => {
-            const typLabel = VORLAGE_TYPES.find(t => t.id === v.typ)?.label ?? v.typ ?? 'custom'
-            const isAktiv  = !!v.is_aktiv
+            const typLabel      = VORLAGE_TYPES.find(t => t.id === v.typ)?.label ?? v.typ ?? 'custom'
+            const isAktiv       = !!v.is_aktiv
+            const isTitelseite  = !!v.ist_titelseite
             return (
-              <div key={v.id} style={{ border: `2px solid ${isAktiv ? '#007AFF' : 'var(--border)'}`, borderRadius: 10, background: 'var(--bg-surface)', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: isAktiv ? '0 0 0 1px #007AFF33' : undefined }}>
+              <div key={v.id} style={{ border: `2px solid ${isTitelseite ? '#FF3B30' : isAktiv ? '#007AFF' : 'var(--border)'}`, borderRadius: 10, background: 'var(--bg-surface)', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: isTitelseite ? '0 0 0 1px #FF3B3033' : isAktiv ? '0 0 0 1px #007AFF33' : undefined }}>
                 {/* Thumbnail */}
                 <div style={{ background: '#d8d8d8', display: 'flex', justifyContent: 'center', padding: '12px 12px 8px', position: 'relative' }}>
                   <div style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)', borderRadius: 2, overflow: 'hidden' }}>
                     <VorlagenThumbnail content={v.body_content} ctx={previewContext} />
                   </div>
+                  {isTitelseite && (
+                    <button
+                      onClick={() => unsetTitelseite(v.id)}
+                      disabled={settingTitelseite === v.id}
+                      title="Titelseite-Markierung entfernen"
+                      style={{ position: 'absolute', top: 8, left: 8, background: '#FF3B30', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, border: 'none', cursor: 'pointer' }}
+                    >{settingTitelseite === v.id ? '…' : 'Titelseite ✕'}</button>
+                  )}
                   {isAktiv && (
                     <button
                       onClick={() => unsetAktiv(v.id)}
@@ -4553,6 +4587,14 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                         style={{ ...btnStyle, color: '#007AFF', borderColor: '#007AFF55' }}
                       >{settingAktiv === v.id ? '…' : 'Als Standard'}</button>
                     )}
+                    {!isTitelseite && (
+                      <button
+                        onClick={() => setTitelseite(v.id)}
+                        disabled={settingTitelseite === v.id}
+                        title="Diese Vorlage als Titelseite für den Export markieren"
+                        style={{ ...btnStyle, color: '#FF3B30', borderColor: '#FF3B3033' }}
+                      >{settingTitelseite === v.id ? '…' : 'Als Titelseite'}</button>
+                    )}
                     <button onClick={() => deleteVorlage(v.id)} style={{ ...btnStyle, color: 'var(--sw-danger, #FF3B30)', borderColor: '#FF3B3033', marginLeft: 'auto' }}>✕</button>
                   </div>
                 </div>
@@ -4564,10 +4606,11 @@ function VorlagenTab({ productionId }: { productionId: string }) {
         // ── List view ───────────────────────────────────────────────────────
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {filtered.map(v => {
-            const typLabel = VORLAGE_TYPES.find(t => t.id === v.typ)?.label ?? v.typ ?? 'custom'
-            const isAktiv  = !!v.is_aktiv
+            const typLabel     = VORLAGE_TYPES.find(t => t.id === v.typ)?.label ?? v.typ ?? 'custom'
+            const isAktiv      = !!v.is_aktiv
+            const isTitelseite = !!v.ist_titelseite
             return (
-              <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8, border: `1px solid ${isAktiv ? '#007AFF55' : 'var(--border)'}` }}>
+              <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-subtle)', borderRadius: 8, border: `1px solid ${isTitelseite ? '#FF3B3055' : isAktiv ? '#007AFF55' : 'var(--border)'}` }}>
                 {/* Small thumbnail */}
                 <div style={{ background: '#d8d8d8', borderRadius: 3, padding: '4px', flexShrink: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}>
                   <VorlagenThumbnail content={v.body_content} ctx={previewContext} />
@@ -4576,6 +4619,14 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontSize: 13, fontWeight: 500 }}>{v.name}</span>
+                    {isTitelseite && (
+                      <button
+                        onClick={() => unsetTitelseite(v.id)}
+                        disabled={settingTitelseite === v.id}
+                        title="Titelseite-Markierung entfernen"
+                        style={{ fontSize: 9, fontWeight: 700, background: '#FF3B30', color: '#fff', padding: '1px 6px', borderRadius: 3, border: 'none', cursor: 'pointer' }}
+                      >{settingTitelseite === v.id ? '…' : 'Titelseite ✕'}</button>
+                    )}
                     {isAktiv && (
                       <button
                         onClick={() => unsetAktiv(v.id)}
@@ -4597,6 +4648,13 @@ function VorlagenTab({ productionId }: { productionId: string }) {
                       {settingAktiv === v.id ? '…' : 'Als Standard'}
                     </button>
                   )}
+                  {!isTitelseite && (
+                    <button onClick={() => setTitelseite(v.id)} disabled={settingTitelseite === v.id}
+                      title="Diese Vorlage als Titelseite für den Export markieren"
+                      style={{ ...btnStyle, color: '#FF3B30', borderColor: '#FF3B3033' }}>
+                      {settingTitelseite === v.id ? '…' : 'Als Titelseite'}
+                    </button>
+                  )}
                   <button onClick={() => deleteVorlage(v.id)} style={{ ...btnStyle, color: 'var(--sw-danger, #FF3B30)', borderColor: '#FF3B3033' }}>✕ Löschen</button>
                 </div>
               </div>
@@ -4607,7 +4665,7 @@ function VorlagenTab({ productionId }: { productionId: string }) {
 
       {/* Help text */}
       <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
-        Pro Kategorie wird die als <strong>Standard</strong> markierte Vorlage beim Export verwendet. Mehrere Vorlagen pro Kategorie möglich. Standard-Markierung kann per Klick auf den Badge wieder entfernt werden.
+        Pro Kategorie wird die als <strong>Standard</strong> markierte Vorlage beim Export verwendet. Eine Vorlage kann als <strong style={{ color: '#FF3B30' }}>Titelseite</strong> markiert werden — sie erscheint beim Export automatisch als erstes Dokument und ermöglicht die Titelseiten-Erkennung im Export-Modal.
       </p>
     </div>
   )
