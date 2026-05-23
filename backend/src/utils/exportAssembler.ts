@@ -332,25 +332,21 @@ export function buildPdfHtml(params: {
   /** Body-text margins from global page_margin_mm (Dokumenten-Formatierung).
    *  If provided, these are used for the text block — independent of header/footer. */
   bodyMargins?: { oben: number; unten: number; links: number; rechts: number }
+  /** Inline @font-face CSS für lokale Fonts (ersetzt den Google-Fonts-Link). */
+  localFontCss?: string
+  /** true = KZ/FZ-Divs und @page-margin weglassen — Puppeteer übernimmt das nativ. */
+  puppeteerHeaderFooter?: boolean
 }): string {
-  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins } = params
+  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins, localFontCss, puppeteerHeaderFooter } = params
 
   // ── KZ/FZ-Positionierung ────────────────────────────────────────────────────
-  // Best Practice: KZ/FZ sitzen nahe am physischen Papierrand (10 mm),
-  // unabhängig von den Inhalts-Seitenrändern. Der Abstand von page_margin_mm
-  // bestimmt wo der Textbereich beginnt/endet und muss groß genug sein um
-  // KZ/FZ nicht zu überlappen.
   const layout = kzFz?.seiten_layout ?? {}
 
-  // Fester Abstand vom physischen Papierrand (unabhängig von Inhaltsrändern)
   const hmt = 10   // mm: Kopfzeile startet 10 mm vom oberen Papierrand
   const hmb = 10   // mm: Fußzeile endet   10 mm vom unteren Papierrand
-
-  // Horizontale Ausdehnung der KZ/FZ — aus seiten_layout konfigurierbar
   const hml = layout.margin_left  ?? 20
   const hmr = layout.margin_right ?? 20
 
-  // ── Body-text margins (from global page_margin_mm) ──────────────────────────
   const bml = bodyMargins?.links   ?? layout.margin_left   ?? 30
   const bmr = bodyMargins?.rechts  ?? layout.margin_right  ?? 25
 
@@ -364,11 +360,9 @@ export function buildPdfHtml(params: {
 
   const hasHeader = headerHtml.trim().length > 0
   const hasFooter = footerHtml.trim().length > 0
-  const headerHeight = hasHeader ? 14 : 0  // mm (ohne Trennlinie: 14mm reichen)
+  const headerHeight = hasHeader ? 14 : 0  // mm
   const footerHeight = hasFooter ? 10 : 0  // mm
 
-  // Textbereich-Ränder: mindestens page_margin_mm; mindestens so groß dass KZ/FZ
-  // nicht in den Textbereich ragen (+ 4 mm Puffer zwischen KZ/FZ und Text).
   const minTop    = bodyMargins?.oben   ?? 25
   const minBottom = bodyMargins?.unten  ?? 20
   const pageMarginTop    = hasHeader ? Math.max(minTop,    hmt + headerHeight + 4) : minTop
@@ -376,46 +370,21 @@ export function buildPdfHtml(params: {
 
   const wm = watermarkMeta ? `<meta name="wm" content="${watermarkMeta}">` : ''
 
-  return `<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="utf-8">
-${wm}
-<title>${escapeHtml(title)}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
-<style>
-  * { box-sizing: border-box; }
-  @font-face {
-    font-family: 'Courier Prime';
-    src: local('Courier Prime');
-  }
-  /* Screen: body padding für Browser-Vorschau (1. Seite) */
-  body {
-    font-family: 'Courier Prime', 'Courier New', monospace;
-    font-size: 12pt;
-    margin: 0;
-    padding: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
-    line-height: 1.5;
-    color: #000;
-  }
-  /* Print (Puppeteer): @page margin für echte Seitenränder auf jeder Seite,
-     body padding entfernt damit kein doppelter Abstand */
-  @page {
-    size: A4;
-    margin: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
-  }
-  @media print {
-    body { padding: 0 !important; margin: 0 !important; }
-    .no-print { display: none; }
-    /* Im PDF übernimmt Puppeteer displayHeaderFooter — position:fixed-Elemente ausblenden */
-    .page-header, .page-footer { display: none !important; }
-  }
-  /* Absatzformat page-break rules (data-kuerzel) */
-  [data-kuerzel="CHAR"] { page-break-after: avoid; }
-  [data-kuerzel="DIA"]  { page-break-inside: avoid; }
-  [data-kuerzel="PAR"]  { page-break-inside: avoid; page-break-after: avoid; }
-  /* ── Header/Footer ── */
+  // ── Font-Ressource ───────────────────────────────────────────────────────────
+  // Lokal (base64 WOFF2, kein Netzwerk) oder Google Fonts als Fallback
+  const fontResource = localFontCss
+    ? `<style>\n${localFontCss}\n</style>`
+    : `<link rel="preconnect" href="https://fonts.googleapis.com">\n<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">`
+
+  // ── @page-Regel ──────────────────────────────────────────────────────────────
+  // Im Puppeteer-Modus übernimmt page.pdf({ margin }) die Seitenränder —
+  // kein @page margin im CSS (würde zu doppeltem Abstand führen).
+  const pageRule = puppeteerHeaderFooter
+    ? `@page { size: A4; }`
+    : `@page { size: A4; margin: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm; }`
+
+  // ── KZ/FZ: position:fixed nur im Browser-Preview, nicht im Puppeteer-PDF ────
+  const fixedKzFzCss = puppeteerHeaderFooter ? '' : `
   .page-header, .page-footer {
     position: fixed;
     left: ${hml}mm;
@@ -424,27 +393,98 @@ ${wm}
     color: #333;
     font-family: inherit;
   }
-  .page-header {
-    top: ${hmt}mm;
-  }
-  .page-footer {
-    bottom: ${hmb}mm;
-  }
-  .page-header p, .page-footer p {
+  .page-header { top: ${hmt}mm; border-bottom: 0.5pt solid #ccc; padding-bottom: 3pt; }
+  .page-footer { bottom: ${hmb}mm; border-top: 0.5pt solid #ccc; padding-top: 3pt; }
+  .page-header p, .page-footer p { margin: 0; padding: 0; }`
+
+  const headerDiv = (!puppeteerHeaderFooter && hasHeader) ? `<div class="page-header">${headerHtml}</div>` : ''
+  const footerDiv = (!puppeteerHeaderFooter && hasFooter) ? `<div class="page-footer">${footerHtml}</div>` : ''
+
+  return `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+${wm}
+<title>${escapeHtml(title)}</title>
+${fontResource}
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Courier Prime', 'Courier New', monospace;
+    font-size: 12pt;
     margin: 0;
-    padding: 0;
+    padding: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
+    line-height: 1.5;
+    color: #000;
   }
-  .ph-seite::before         { content: counter(page); }
-  .ph-seiten-gesamt::before { content: counter(pages); }
-  /* First page: optionally hide header/footer */
-  ${kzFz?.erste_seite_kein_header ? '.first-page .page-header { display: none !important; }' : ''}
-  ${kzFz?.erste_seite_kein_footer ? '.first-page .page-footer { display: none !important; }' : ''}
+  ${pageRule}
+  @media print {
+    body { padding: 0 !important; margin: 0 !important; }
+    .no-print { display: none; }
+  }
+  [data-kuerzel="CHAR"] { page-break-after: avoid; }
+  [data-kuerzel="DIA"]  { page-break-inside: avoid; }
+  [data-kuerzel="PAR"]  { page-break-inside: avoid; page-break-after: avoid; }
+  ${fixedKzFzCss}
 </style>
 </head>
 <body>
-${hasHeader ? `<div class="page-header">${headerHtml}</div>` : ''}
-${hasFooter ? `<div class="page-footer">${footerHtml}</div>` : ''}
+${headerDiv}
+${footerDiv}
 ${bodyHtml}
 </body>
 </html>`
+}
+
+/** Liefert die berechneten PDF-Seitenränder und die gerenderten KZ/FZ-HTML-Strings.
+ *  Wird von pdfAssembler.ts für die Puppeteer-displayHeaderFooter-Integration verwendet. */
+export function buildKzFzForPuppeteer(kzFz: KzFzConfig | null, ctx: ExportContext, bodyMargins?: { oben: number; unten: number; links: number; rechts: number }) {
+  const layout = kzFz?.seiten_layout ?? {}
+  const hml = layout.margin_left  ?? 20
+  const hmr = layout.margin_right ?? 20
+  const bml = bodyMargins?.links  ?? layout.margin_left  ?? 30
+  const bmr = bodyMargins?.rechts ?? layout.margin_right ?? 25
+
+  const headerHtml = kzFz?.kopfzeile_aktiv && kzFz.kopfzeile_content
+    ? renderZeilenContent(kzFz.kopfzeile_content, ctx) : ''
+  const footerHtml = kzFz?.fusszeile_aktiv && kzFz.fusszeile_content
+    ? renderZeilenContent(kzFz.fusszeile_content, ctx) : ''
+
+  const hasHeader = headerHtml.trim().length > 0
+  const hasFooter = footerHtml.trim().length > 0
+  const headerHeight = hasHeader ? 14 : 0
+  const footerHeight = hasFooter ? 10 : 0
+  const hmt = 10
+  const hmb = 10
+  const minTop    = bodyMargins?.oben  ?? 25
+  const minBottom = bodyMargins?.unten ?? 20
+  const pageMarginTop    = hasHeader ? Math.max(minTop,    hmt + headerHeight + 4) : minTop
+  const pageMarginBottom = hasFooter ? Math.max(minBottom, hmb + footerHeight + 4) : minBottom
+
+  /** Ersetzt ph-seite/ph-seiten-gesamt durch Puppeteers native Substitutions-Spans. */
+  function toPuppeteerTemplate(html: string, border: 'bottom' | 'top', padH: number): string {
+    if (!html.trim()) return '<div style="font-size:0;line-height:0;margin:0;padding:0"></div>'
+    const inner = html
+      .replace(/<span class="ph-seite"><\/span>/g,
+        '<span class="pageNumber" style="font-size:9pt"></span>')
+      .replace(/<span class="ph-seiten-gesamt"><\/span>/g,
+        '<span class="totalPages" style="font-size:9pt"></span>')
+    const borderCss = border === 'bottom'
+      ? 'border-bottom:0.5pt solid #ccc;padding-bottom:3pt;'
+      : 'border-top:0.5pt solid #ccc;padding-top:3pt;'
+    return `<div style="font-size:9pt;font-family:'Courier New',monospace;color:#333;width:100%;padding:2pt ${padH}mm 2pt ${padH}mm;${borderCss}box-sizing:border-box;">${inner}</div>`
+  }
+
+  return {
+    headerTemplate: toPuppeteerTemplate(headerHtml, 'bottom', hml),
+    footerTemplate: toPuppeteerTemplate(footerHtml, 'top',    hmr),
+    hasHeader,
+    hasFooter,
+    pdfMargins: {
+      top:    `${pageMarginTop}mm`,
+      bottom: `${pageMarginBottom}mm`,
+      left:   `${bml}mm`,
+      right:  `${bmr}mm`,
+    },
+  }
 }

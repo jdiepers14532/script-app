@@ -8,6 +8,8 @@
  */
 
 import puppeteer from 'puppeteer'
+import * as fs from 'fs'
+import * as path from 'path'
 import { pool } from '../db'
 import type { ExportJobOptions, JobResult } from './exportJobQueue'
 import {
@@ -18,6 +20,59 @@ import {
   ExportContext,
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
+
+// ── Warm-Browser-Pool ─────────────────────────────────────────────────────────
+// Chromium-Instanz wird warm gehalten — spart ~1–3 Sek. Kaltstart pro Export-Job.
+
+let _warmBrowser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null
+
+async function getWarmBrowser() {
+  if (_warmBrowser) {
+    try {
+      await _warmBrowser.pages()  // Health-Check: wirft wenn Browser abgestürzt
+      return _warmBrowser
+    } catch {
+      _warmBrowser = null
+    }
+  }
+  _warmBrowser = await puppeteer.launch({
+    executablePath: puppeteer.executablePath(),
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    headless: true,
+  })
+  return _warmBrowser
+}
+
+// ── Lokale Font-CSS ───────────────────────────────────────────────────────────
+// Courier Prime WOFF2 aus backend/assets/fonts/ als base64 einbetten —
+// kein Netzwerkzugriff auf fonts.googleapis.com nötig.
+
+let _localFontCss: string | null = null
+
+function loadLocalFontCss(): string {
+  if (_localFontCss !== null) return _localFontCss
+
+  const fontsDir = path.resolve(__dirname, '../../assets/fonts')
+  const variants = [
+    { file: 'CourierPrime-Regular.woff2',    weight: 400, style: 'normal' },
+    { file: 'CourierPrime-Bold.woff2',       weight: 700, style: 'normal' },
+    { file: 'CourierPrime-Italic.woff2',     weight: 400, style: 'italic' },
+    { file: 'CourierPrime-BoldItalic.woff2', weight: 700, style: 'italic' },
+  ]
+
+  const faces = variants.map(v => {
+    const filePath = path.join(fontsDir, v.file)
+    if (!fs.existsSync(filePath)) {
+      console.warn(`[pdfAssembler] Font fehlt: ${filePath} — falle auf Courier New zurück`)
+      return ''
+    }
+    const b64 = fs.readFileSync(filePath).toString('base64')
+    return `@font-face{font-family:'Courier Prime';src:url('data:font/woff2;base64,${b64}') format('woff2');font-weight:${v.weight};font-style:${v.style};font-display:block;}`
+  }).filter(Boolean)
+
+  _localFontCss = faces.join('\n')
+  return _localFontCss
+}
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
@@ -416,7 +471,8 @@ interface AssembleHtmlResult {
 
 async function assembleHtml(
   input: PdfAssemblerInput,
-  setProgress: (p: number) => void
+  setProgress: (p: number) => void,
+  previewMode = false
 ): Promise<AssembleHtmlResult> {
   const { werkstufId, userId, userName, options } = input
   const client = await pool.connect()
@@ -664,7 +720,12 @@ async function assembleHtml(
       'pdf'
     ).replace(/\.pdf$/i, '')
 
-    const html = buildPdfHtml({ title, bodyHtml, kzFz, ctx, bodyMargins })
+    const html = buildPdfHtml({
+      title, bodyHtml, kzFz, ctx, bodyMargins,
+      localFontCss: loadLocalFontCss(),
+      // Preview: KZ/FZ als position:fixed im Browser sichtbar; PDF: Puppeteer übernimmt
+      puppeteerHeaderFooter: !previewMode,
+    })
 
     // ── KZ/FZ für Puppeteer displayHeaderFooter vorberechnen ──────────────────
     const _kzLayout = kzFz?.seiten_layout ?? {}
@@ -691,12 +752,13 @@ async function assembleHtml(
   }
 }
 
-/** Gibt das vollständige HTML für die Browser-Vorschau zurück (kein Puppeteer). */
+/** Gibt das vollständige HTML für die Browser-Vorschau zurück (kein Puppeteer).
+ *  KZ/FZ werden als position:fixed gerendert (sichtbar im Browser). */
 export async function assemblePreviewHtml(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void
 ): Promise<string> {
-  const { html } = await assembleHtml(input, setProgress)
+  const { html } = await assembleHtml(input, setProgress, true)
   return html
 }
 
@@ -709,18 +771,15 @@ export async function assemblePdf(
 
   // ── 11. Puppeteer → PDF ───────────────────────────────────────────────────
   setProgress(55)
-  const browser = await puppeteer.launch({
-    executablePath: puppeteer.executablePath(),
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
-    headless: true,
-  })
+  // Warm-Pool: bestehende Browser-Instanz wiederverwenden (kein Kaltstart)
+  const browser = await getWarmBrowser()
   setProgress(60)
 
   // ph-seite / ph-seiten-gesamt → Puppeteer-eigene pageNumber/totalPages-Klassen
   const toPuppeteerTpl = (raw: string) =>
     raw
-      .replace(/<span class="ph-seite"><\/span>/g, '<span class="pageNumber"></span>')
-      .replace(/<span class="ph-seiten-gesamt"><\/span>/g, '<span class="totalPages"></span>')
+      .replace(/<span class="ph-seite"><\/span>/g, '<span class="pageNumber" style="font-size:9pt"></span>')
+      .replace(/<span class="ph-seiten-gesamt"><\/span>/g, '<span class="totalPages" style="font-size:9pt"></span>')
 
   // Minimaler CSS-Reset für das Puppeteer-Template-Rendering
   const tplReset = '<style>*{margin:0;padding:0;box-sizing:border-box}p{line-height:1.3}</style>'
@@ -734,9 +793,11 @@ export async function assemblePdf(
     : '<div style="font-size:0"></div>'
 
   let pdfBytes: Uint8Array
+  // Kein try/finally mit browser.close() — Warm-Pool behält die Instanz
+  const page = await browser.newPage()
   try {
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 60_000 })
+    // 'load' statt 'networkidle0': lokale Fonts brauchen kein Netzwerk-Idle
+    await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
     setProgress(75)
     pdfBytes = await page.pdf({
       format: 'A4',
@@ -744,7 +805,7 @@ export async function assemblePdf(
       displayHeaderFooter: true,
       headerTemplate,
       footerTemplate,
-      // margin überschreibt CSS @page { margin } für das PDF
+      // margin übernimmt Seitenränder — kein @page-margin im HTML nötig
       margin: {
         top:    `${pageMarginTop}mm`,
         bottom: `${pageMarginBottom}mm`,
@@ -754,7 +815,7 @@ export async function assemblePdf(
     })
     setProgress(90)
   } finally {
-    await browser.close()
+    await page.close()  // Nur den Tab schließen, Browser bleibt warm
   }
 
   // Werkstufe-Metadaten für Dateiname erneut aus DB (bereits im assembleHtml geholt,
