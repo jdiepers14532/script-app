@@ -98,6 +98,31 @@ const SKChipExtension = Node.create({
         parseHTML: el => el.getAttribute('data-collapsed') === 'true',
         renderHTML: attrs => attrs.collapsed ? { 'data-collapsed': 'true' } : {},
       },
+      fontFamily: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-chip-ff') || null,
+        renderHTML: () => ({}),
+      },
+      fontSize: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-chip-fs') || null,
+        renderHTML: () => ({}),
+      },
+      fontWeight: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-chip-fw') || null,
+        renderHTML: () => ({}),
+      },
+      fontStyle: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-chip-fst') || null,
+        renderHTML: () => ({}),
+      },
+      textDecoration: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-chip-td') || null,
+        renderHTML: () => ({}),
+      },
     }
   },
 
@@ -111,6 +136,19 @@ const SKChipExtension = Node.create({
     const label = node.attrs.collapsed
       ? (chip?.shortLabel ?? node.attrs.key)
       : (chip?.label ?? node.attrs.key)
+    const chipStyleParts = [
+      'display:inline-flex', 'align-items:center',
+      `background:${color}22`, `color:${color}`,
+      `border:1px solid ${color}66`,
+      'border-radius:4px', 'padding:1px 7px',
+      `font-size:${node.attrs.fontSize ?? 'inherit'}`, 'line-height:1.5',
+      'white-space:nowrap', 'user-select:none',
+      'cursor:pointer', 'vertical-align:middle',
+      `font-weight:${node.attrs.fontWeight ?? '500'}`,
+    ]
+    if (node.attrs.fontFamily) chipStyleParts.push(`font-family:${node.attrs.fontFamily}`)
+    if (node.attrs.fontStyle) chipStyleParts.push(`font-style:${node.attrs.fontStyle}`)
+    if (node.attrs.textDecoration) chipStyleParts.push(`text-decoration:${node.attrs.textDecoration}`)
     return [
       'span',
       mergeAttributes(
@@ -120,17 +158,7 @@ const SKChipExtension = Node.create({
           contenteditable: 'false',
           ...(node.attrs.collapsed ? { 'data-collapsed': 'true' } : {}),
         },
-        {
-          style: [
-            'display:inline-flex', 'align-items:center',
-            `background:${color}22`, `color:${color}`,
-            `border:1px solid ${color}66`,
-            'border-radius:4px', 'padding:1px 7px',
-            'font-size:inherit', 'line-height:1.5',
-            'white-space:nowrap', 'user-select:none',
-            'cursor:pointer', 'vertical-align:middle', 'font-weight:500',
-          ].join(';'),
-        }
+        { style: chipStyleParts.join(';') }
       ),
       label,
     ]
@@ -162,15 +190,20 @@ const SKChipExtension = Node.create({
           : (chip?.label ?? attrs.key)
         const padding = attrs.collapsed ? '0 2px' : '1px 7px'
         span.setAttribute('data-sk-key', attrs.key)
-        span.style.cssText = [
+        const domStyleParts = [
           'display:inline-flex', 'align-items:center',
           `background:${color}22`, `color:${color}`,
           `border:1px solid ${color}66`,
           'border-radius:4px', `padding:${padding}`,
-          'font-size:inherit', 'line-height:1.5',
+          `font-size:${attrs.fontSize ?? 'inherit'}`, 'line-height:1.5',
           'white-space:nowrap', 'user-select:none',
-          'cursor:pointer', 'vertical-align:middle', 'font-weight:500',
-        ].join(';')
+          'cursor:pointer', 'vertical-align:middle',
+          `font-weight:${attrs.fontWeight ?? '500'}`,
+        ]
+        if (attrs.fontFamily) domStyleParts.push(`font-family:${attrs.fontFamily}`)
+        if (attrs.fontStyle) domStyleParts.push(`font-style:${attrs.fontStyle}`)
+        if (attrs.textDecoration) domStyleParts.push(`text-decoration:${attrs.textDecoration}`)
+        span.style.cssText = domStyleParts.join(';')
         span.textContent = label
         if (chip) tooltipEl.textContent = chip.beschreibung
       }
@@ -493,13 +526,18 @@ const ParagraphWithStops = Node.create({
         parseHTML: el => el.getAttribute('data-tt') || null,
         renderHTML: () => ({}),
       },
+      spaceAfter: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-sa') || null,
+        renderHTML: () => ({}),
+      },
     }
   },
 
   parseHTML() { return [{ tag: 'p' }] },
 
   renderHTML({ node, HTMLAttributes }) {
-    const { fontFamily, fontSize, lineHeight, tabStops, fontWeight, fontStyle, textDecoration, textTransform } = node.attrs
+    const { fontFamily, fontSize, lineHeight, tabStops, fontWeight, fontStyle, textDecoration, textTransform, spaceAfter } = node.attrs
     const extra: Record<string, any> = {}
     if (tabStops?.length) extra['data-tab-stops'] = JSON.stringify(tabStops)
     if (fontFamily) extra['data-ff'] = fontFamily
@@ -513,6 +551,7 @@ const ParagraphWithStops = Node.create({
     if (fontStyle) styleArr.push(`font-style:${fontStyle}`)
     if (textDecoration) styleArr.push(`text-decoration:${textDecoration}`)
     if (textTransform) styleArr.push(`text-transform:${textTransform}`)
+    if (spaceAfter) styleArr.push(`margin-bottom:${spaceAfter}`)
     if (styleArr.length) extra.style = styleArr.join(';')
     return ['p', mergeAttributes(HTMLAttributes, extra), 0]
   },
@@ -653,7 +692,7 @@ const DUMMY_FIELDS: Record<string, string> = {
 }
 
 // Ein Segment = entweder formatierter Text oder ein Tab-Spacer
-type TextSeg = { kind: 'text'; text: string; bold?: boolean; italic?: boolean; underline?: boolean; uppercase?: boolean }
+type TextSeg = { kind: 'text'; text: string; bold?: boolean; italic?: boolean; underline?: boolean; uppercase?: boolean; fontFamily?: string; fontSize?: string }
 type PreviewSegment =
   | TextSeg
   | { kind: 'tab'; posCm: number; align: TabAlign }
@@ -678,13 +717,14 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
     let skipDepth = 0
     const segments: PreviewSegment[] = []
 
-    const appendText = (text: string, bold?: boolean, italic?: boolean, underline?: boolean, uppercase?: boolean) => {
+    const appendText = (text: string, bold?: boolean, italic?: boolean, underline?: boolean, uppercase?: boolean, fontFamily?: string, fontSize?: string) => {
       const last = segments[segments.length - 1]
       if (last?.kind === 'text' && last.bold === bold && last.italic === italic &&
-          last.underline === underline && last.uppercase === uppercase) {
+          last.underline === underline && last.uppercase === uppercase &&
+          last.fontFamily === fontFamily && last.fontSize === fontSize) {
         (last as TextSeg).text += text
       } else {
-        segments.push({ kind: 'text', text, bold, italic, underline, uppercase })
+        segments.push({ kind: 'text', text, bold, italic, underline, uppercase, fontFamily, fontSize })
       }
     }
 
@@ -707,7 +747,16 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
         )
       } else if (child.type === 'sk_chip') {
         const val = DUMMY_FIELDS[child.attrs?.key] ?? ''
-        appendText(val)  // Chips haben keine Marks
+        const ca = child.attrs ?? {}
+        appendText(
+          val,
+          ca.fontWeight === 'bold',
+          ca.fontStyle === 'italic',
+          ca.textDecoration === 'underline',
+          false,
+          ca.fontFamily || undefined,
+          ca.fontSize || undefined,
+        )
       } else if (child.type === 'tab_char') {
         segments.push({ kind: 'tab', posCm: child.attrs?.stopPosCm ?? 0, align: child.attrs?.align ?? 'left' })
       }
@@ -716,7 +765,7 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
     const allText = segments.filter(s => s.kind === 'text').map(s => (s as TextSeg).text).join('')
     if (!allText.replace(/\s/g, '')) continue
 
-    const { fontFamily, fontSize, lineHeight, fontWeight, fontStyle, textDecoration, textTransform } = node.attrs ?? {}
+    const { fontFamily, fontSize, lineHeight, fontWeight, fontStyle, textDecoration, textTransform, spaceAfter } = node.attrs ?? {}
     const style: CSSProperties = {
       fontFamily: fontFamily ?? "'Courier Prime','Courier New',monospace",
       fontSize: fontSize ?? 12,
@@ -725,6 +774,7 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
       fontStyle: fontStyle ?? undefined,
       textDecoration: textDecoration ?? undefined,
       textTransform: (textTransform as any) ?? undefined,
+      marginBottom: spaceAfter ?? undefined,
       whiteSpace: 'pre',
     }
     result.push({ type: 'line', segments, rulerCm, style })
@@ -806,6 +856,8 @@ function PreviewModal({
                   fontStyle:       s.italic    ? 'italic'    : undefined,
                   textDecoration:  s.underline ? 'underline' : undefined,
                   textTransform:   s.uppercase ? 'uppercase' : undefined,
+                  fontFamily:      s.fontFamily ?? undefined,
+                  fontSize:        s.fontSize   ?? undefined,
                 }}>{s.text}</span>
               )
               if (!hasTabs) {
@@ -885,6 +937,14 @@ const LH_OPTIONS = [
   { value: '1.5', label: '1.5×' },
   { value: '2',   label: '2×' },
 ]
+const SPACE_AFTER_OPTIONS = [
+  { value: '0pt',  label: '0 pt' },
+  { value: '4pt',  label: '4 pt' },
+  { value: '6pt',  label: '6 pt' },
+  { value: '8pt',  label: '8 pt' },
+  { value: '12pt', label: '12 pt' },
+  { value: '18pt', label: '18 pt' },
+]
 
 const selStyle: CSSProperties = {
   fontSize: 10, padding: '1px 4px', borderRadius: 3,
@@ -916,17 +976,39 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
 
   if (!editor) return null
 
+  const { selection } = editor.state
+  const chipSelected = selection instanceof NodeSelection && selection.node.type.name === 'sk_chip'
+  const chipAttrs = chipSelected ? (selection as NodeSelection).node.attrs : null
+
   const para = editor.getAttributes('paragraph')
-  const curFont = para.fontFamily ?? ''
-  const curSize = para.fontSize ?? ''
-  const curLH   = para.lineHeight ?? ''
-  const isBold      = para.fontWeight === 'bold'
-  const isItalic    = para.fontStyle === 'italic'
-  const isUnderline = para.textDecoration === 'underline'
+  const curLH  = para.lineHeight ?? ''
+  const curSA  = para.spaceAfter ?? ''
   const isUppercase = para.textTransform === 'uppercase'
+
+  // Font/size/B/I/U: chip-level when chip selected, else para-level
+  const curFont     = chipAttrs ? (chipAttrs.fontFamily ?? '') : (para.fontFamily ?? '')
+  const curSize     = chipAttrs ? (chipAttrs.fontSize ?? '')   : (para.fontSize ?? '')
+  const isBold      = chipAttrs ? chipAttrs.fontWeight === 'bold'          : para.fontWeight === 'bold'
+  const isItalic    = chipAttrs ? chipAttrs.fontStyle === 'italic'         : para.fontStyle === 'italic'
+  const isUnderline = chipAttrs ? chipAttrs.textDecoration === 'underline' : para.textDecoration === 'underline'
 
   const setParaAttr = (key: string, val: string | null) =>
     editor.chain().focus().updateAttributes('paragraph', { [key]: val || null }).run()
+
+  const setChipAttr = (key: string, val: string | null) => {
+    if (!chipSelected) return
+    const sel = editor.state.selection as NodeSelection
+    editor.view.dispatch(
+      editor.state.tr.setNodeMarkup(sel.from, undefined, { ...sel.node.attrs, [key]: val || null })
+    )
+  }
+
+  const setFontAttr   = (key: string, val: string | null) => chipSelected ? setChipAttr(key, val) : setParaAttr(key, val)
+  const toggleBold      = () => setFontAttr('fontWeight',    isBold      ? null : 'bold')
+  const toggleItalic    = () => setFontAttr('fontStyle',     isItalic    ? null : 'italic')
+  const toggleUnderline = () => setFontAttr('textDecoration', isUnderline ? null : 'underline')
+
+  const Sep = () => <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
 
   return (
     <div style={{
@@ -934,39 +1016,60 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
       borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)',
       flexWrap: 'wrap', alignItems: 'center',
     }}>
-      <select value={curFont} onChange={e => setParaAttr('fontFamily', e.target.value)} style={selStyle}>
+      {/* Schrift + Größe (chip oder para) */}
+      <select value={curFont} onChange={e => setFontAttr('fontFamily', e.target.value)} style={selStyle}
+        title={chipSelected ? 'Chip-Schrift' : 'Absatz-Schrift'}>
         <option value="">Schrift…</option>
         {FONT_OPTIONS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
       </select>
 
-      <select value={curSize} onChange={e => setParaAttr('fontSize', e.target.value)} style={selStyle}>
+      <select value={curSize} onChange={e => setFontAttr('fontSize', e.target.value)} style={selStyle}
+        title={chipSelected ? 'Chip-Größe' : 'Absatz-Größe'}>
         <option value="">Größe…</option>
         {SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
       </select>
 
+      {/* ZA + Abstand: immer para-level */}
       <select value={curLH} onChange={e => setParaAttr('lineHeight', e.target.value)} style={selStyle}>
         <option value="">ZA…</option>
         {LH_OPTIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
       </select>
+      <select value={curSA} onChange={e => setParaAttr('spaceAfter', e.target.value || null)} style={selStyle}
+        title="Abstand nach Absatz">
+        <option value="">Ab…</option>
+        {SPACE_AFTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
 
-      <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+      <Sep />
 
-      <button onMouseDown={e => { e.preventDefault(); setParaAttr('fontWeight', isBold ? null : 'bold') }}
-        style={fmtBtn(isBold)}>B</button>
-      <button onMouseDown={e => { e.preventDefault(); setParaAttr('fontStyle', isItalic ? null : 'italic') }}
-        style={fmtBtn(isItalic, { fontStyle: 'italic' })}>I</button>
-      <button onMouseDown={e => { e.preventDefault(); setParaAttr('textDecoration', isUnderline ? null : 'underline') }}
-        style={fmtBtn(isUnderline, { textDecoration: 'underline' })}>U</button>
+      {/* B/I/U: chip-level wenn Chip selektiert, sonst para-level */}
+      <button onMouseDown={e => { e.preventDefault(); toggleBold() }}
+        style={fmtBtn(isBold)}
+        title={chipSelected ? 'Chip: Fett' : 'Absatz: Fett'}>B</button>
+      <button onMouseDown={e => { e.preventDefault(); toggleItalic() }}
+        style={fmtBtn(isItalic, { fontStyle: 'italic' })}
+        title={chipSelected ? 'Chip: Kursiv' : 'Absatz: Kursiv'}>I</button>
+      <button onMouseDown={e => { e.preventDefault(); toggleUnderline() }}
+        style={fmtBtn(isUnderline, { textDecoration: 'underline' })}
+        title={chipSelected ? 'Chip: Unterstrichen' : 'Absatz: Unterstrichen'}>U</button>
+
+      {/* UC: immer para-level */}
       <button onMouseDown={e => { e.preventDefault(); setParaAttr('textTransform', isUppercase ? null : 'uppercase') }}
-        style={fmtBtn(isUppercase)}>UC</button>
+        style={fmtBtn(isUppercase)} title="Absatz: Blockschrift (Uppercase)">UC</button>
 
-      <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
+      <Sep />
 
       <button
         title="Horizontale Trennlinie einfügen"
         onMouseDown={e => { e.preventDefault(); editor.chain().focus().setHorizontalRule().run() }}
         style={{ ...fmtBtn(false), fontWeight: 400, letterSpacing: 1, fontSize: 10 }}
       >─ HR</button>
+
+      {chipSelected && (
+        <span style={{ fontSize: 9, color: 'var(--text-muted, #888)', marginLeft: 4, fontStyle: 'italic' }}>
+          Chip selektiert
+        </span>
+      )}
     </div>
   )
 }

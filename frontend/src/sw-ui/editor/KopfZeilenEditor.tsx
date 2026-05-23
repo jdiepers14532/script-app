@@ -14,7 +14,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
-import { Node, Extension } from '@tiptap/core'
+import { Node, Extension, Mark as TiptapMark, mergeAttributes } from '@tiptap/core'
 import { Plugin, PluginKey } from 'prosemirror-state'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExt from '@tiptap/extension-underline'
@@ -116,6 +116,19 @@ const TabCharNode = Node.create({
   },
 })
 
+// ── Uppercase Mark ────────────────────────────────────────────────────────────
+
+const UppercaseMark = TiptapMark.create({
+  name: 'kz_uppercase',
+  parseHTML() { return [{ tag: 'span[data-kz-uc]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, { 'data-kz-uc': 'true', style: 'text-transform:uppercase' }), 0]
+  },
+  addCommands() {
+    return { toggleKzUppercase: () => ({ commands }: any) => commands.toggleMark('kz_uppercase') } as any
+  },
+})
+
 // ── Tiptap-Extensions ────────────────────────────────────────────────────────
 
 const KZ_EXTENSIONS = [
@@ -131,6 +144,7 @@ const KZ_EXTENSIONS = [
   PlaceholderIfExtension,
   PlaceholderEndIfExtension,
   TabCharNode,
+  UppercaseMark,
 ]
 
 // ── Preview ────────────────────────────────────────────────────────────────────
@@ -215,9 +229,10 @@ function pmInlineToReact(node: any, ctxMap: Record<string, string>, key: string)
     if (tsAttr.fontFamily) style.fontFamily = tsAttr.fontFamily
     if (tsAttr.fontSize)   style.fontSize   = tsAttr.fontSize
     if (Object.keys(style).length) el = <span style={style}>{el}</span>
-    if (marks.find((m: any) => m.type === 'bold'))      el = <strong>{el}</strong>
-    if (marks.find((m: any) => m.type === 'italic'))    el = <em>{el}</em>
-    if (marks.find((m: any) => m.type === 'underline')) el = <u>{el}</u>
+    if (marks.find((m: any) => m.type === 'bold'))        el = <strong>{el}</strong>
+    if (marks.find((m: any) => m.type === 'italic'))      el = <em>{el}</em>
+    if (marks.find((m: any) => m.type === 'underline'))   el = <u>{el}</u>
+    if (marks.find((m: any) => m.type === 'kz_uppercase')) el = <span style={{ textTransform: 'uppercase' }}>{el}</span>
     return <span key={key}>{el}</span>
   }
   if (node.type === 'placeholder_chip') {
@@ -230,7 +245,23 @@ function pmInlineToReact(node: any, ctxMap: Record<string, string>, key: string)
     return <span key={key} style={{ display: 'inline-block', width: w, verticalAlign: 'baseline' }}>{'\u200B'}</span>
   }
   if (node.type === 'hard_break') return <br key={key} />
+  if (node.type === 'placeholder_if' || node.type === 'placeholder_endif') return null
   return null
+}
+
+function pmInlineSeqToReact(nodes: any[], ctxMap: Record<string, string>, pi: number): React.ReactNode[] {
+  const result: React.ReactNode[] = []
+  let skipping = false
+  nodes.forEach((child, ci) => {
+    if (child.type === 'placeholder_if') {
+      const chipKey = child.attrs?.ref_key ?? ''
+      skipping = !(ctxMap[chipKey] ?? '')
+      return
+    }
+    if (child.type === 'placeholder_endif') { skipping = false; return }
+    if (!skipping) result.push(pmInlineToReact(child, ctxMap, `${pi}-${ci}`))
+  })
+  return result
 }
 
 function pmDocToReact(json: any, ctxMap: Record<string, string>): React.ReactNode {
@@ -241,14 +272,13 @@ function pmDocToReact(json: any, ctxMap: Record<string, string>): React.ReactNod
     const pa = node.attrs ?? {}
     const style: React.CSSProperties = {
       margin: 0,
-      fontFamily: pa.fontFamily ?? undefined,
-      fontSize:   pa.fontSize   ?? 10,
-      lineHeight: pa.lineHeight ?? 1.4,
-      textAlign:  pa.textAlign  ?? undefined,
+      fontFamily:   pa.fontFamily ?? undefined,
+      fontSize:     pa.fontSize   ?? 10,
+      lineHeight:   pa.lineHeight ?? 1.4,
+      textAlign:    pa.textAlign  ?? undefined,
+      marginBottom: pa.spaceAfter ?? undefined,
     }
-    const children = (node.content ?? []).map((child: any, ci: number) =>
-      pmInlineToReact(child, ctxMap, `${pi}-${ci}`)
-    )
+    const children = pmInlineSeqToReact(node.content ?? [], ctxMap, pi)
     return <p key={pi} style={style}>{children.length ? children : <br />}</p>
   })
 }
@@ -393,6 +423,14 @@ const SPECIAL_CHARS = [
   { char: '®', title: 'Registered Trademark' },
   { char: '™', title: 'Trademark' },
 ]
+const SPACE_AFTER_OPTIONS = [
+  { value: '0pt',  label: '0 pt' },
+  { value: '4pt',  label: '4 pt' },
+  { value: '6pt',  label: '6 pt' },
+  { value: '8pt',  label: '8 pt' },
+  { value: '12pt', label: '12 pt' },
+  { value: '18pt', label: '18 pt' },
+]
 
 // ── Toolbar ───────────────────────────────────────────────────────────────────
 
@@ -437,9 +475,11 @@ function KZToolbar({ editor, zone, onInsertImage }: KZToolbarProps) {
   const para = editor.getAttributes('paragraph')
   const ts   = editor.getAttributes('textStyle')
 
-  const curFont = ts.fontFamily ?? para.fontFamily ?? ''
-  const curSize = ts.fontSize   ?? para.fontSize   ?? ''
-  const curLH   = para.lineHeight ?? ''
+  const curFont      = ts.fontFamily ?? para.fontFamily ?? ''
+  const curSize      = ts.fontSize   ?? para.fontSize   ?? ''
+  const curLH        = para.lineHeight ?? ''
+  const curSA        = para.spaceAfter ?? ''
+  const isUppercase  = editor.isActive('kz_uppercase')
 
   const setParaAttr = (k: string, v: string | null) =>
     editor.chain().focus().updateAttributes('paragraph', { [k]: v || null }).run()
@@ -478,6 +518,10 @@ function KZToolbar({ editor, zone, onInsertImage }: KZToolbarProps) {
         <option value="">ZA…</option>
         {LH_OPTIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
       </select>
+      <select value={curSA} onChange={e => (editor as any).chain().focus().setParagraphSpaceAfter(e.target.value || null).run()} style={selStyle({ width: 60 })} title="Abstand nach Absatz">
+        <option value="">Ab…</option>
+        {SPACE_AFTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
 
       <Sep />
 
@@ -488,6 +532,8 @@ function KZToolbar({ editor, zone, onInsertImage }: KZToolbarProps) {
         style={btnStyle(editor.isActive('italic'), { fontStyle: 'italic' })}>I</button>
       <button onMouseDown={e => { e.preventDefault(); editor.chain().focus().toggleUnderline().run() }}
         style={btnStyle(editor.isActive('underline'), { textDecoration: 'underline' })}>U</button>
+      <button onMouseDown={e => { e.preventDefault(); (editor as any).chain().focus().toggleKzUppercase().run() }}
+        style={btnStyle(isUppercase, { letterSpacing: '0.5px' })} title="Blockschrift (Uppercase)">UC</button>
 
       <Sep />
 
