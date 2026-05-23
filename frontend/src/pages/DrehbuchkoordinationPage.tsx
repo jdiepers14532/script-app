@@ -570,15 +570,24 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 
 // ── Glossar-Sektion ───────────────────────────────────────────────────────────
 
-type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; sort_order: number }
-type GlossarDraft = { kuerzel: string; name: string; erklaerung: string }
+type GlossarKategorie = 'transition' | 'shot' | 'kuerzel' | 'fachbegriff' | 'sonstige'
+type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; kategorie: GlossarKategorie; sort_order: number }
+type GlossarDraft = { kuerzel: string; name: string; erklaerung: string; kategorie: GlossarKategorie }
+
+const GLOSSAR_KATEGORIEN: { value: GlossarKategorie; label: string; importFilter: boolean }[] = [
+  { value: 'transition', label: 'Übergang / Transition', importFilter: true },
+  { value: 'shot',       label: 'Shot-Bezeichnung',      importFilter: true },
+  { value: 'kuerzel',    label: 'Abkürzung',             importFilter: true },
+  { value: 'fachbegriff', label: 'Produktionsbegriff',   importFilter: false },
+  { value: 'sonstige',   label: 'Sonstige',              importFilter: false },
+]
 
 function GlossarSection({ productionId }: { productionId: string }) {
   const [entries, setEntries] = useState<GlossarEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [editId, setEditId] = useState<number | null>(null)
-  const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '' })
+  const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '', kategorie: 'kuerzel' })
   const [newDraft, setNewDraft] = useState<GlossarDraft | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -600,7 +609,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
 
   const startEdit = (e: GlossarEntry) => {
     setEditId(e.id)
-    setEditDraft({ kuerzel: e.kuerzel, name: e.name, erklaerung: e.erklaerung })
+    setEditDraft({ kuerzel: e.kuerzel, name: e.name, erklaerung: e.erklaerung, kategorie: e.kategorie ?? 'kuerzel' })
     setNewDraft(null)
   }
 
@@ -673,7 +682,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
         )}
         <div style={{ flex: 1 }} />
         <button
-          onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '' }); setEditId(null) }}
+          onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '', kategorie: 'kuerzel' }); setEditId(null) }}
           disabled={!!newDraft}
           style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
           + Eintrag
@@ -716,7 +725,17 @@ function GlossarSection({ productionId }: { productionId: string }) {
                         </td>
                         <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                           <textarea value={editDraft.erklaerung} onChange={e => setEditDraft(d => ({ ...d, erklaerung: e.target.value }))}
-                            rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
+                            rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical', marginBottom: 6 }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>KATEGORIE</span>
+                            <select value={editDraft.kategorie}
+                              onChange={e => setEditDraft(d => ({ ...d, kategorie: e.target.value as GlossarKategorie }))}
+                              style={{ ...inputSt, fontSize: 11, padding: '2px 6px' }}>
+                              {GLOSSAR_KATEGORIEN.map(k => (
+                                <option key={k.value} value={k.value}>{k.label}{k.importFilter ? '' : ' (kein Import-Filter)'}</option>
+                              ))}
+                            </select>
+                          </div>
                         </td>
                         <td style={{ padding: '6px 8px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
                           <button onClick={saveEdit} disabled={saving}
@@ -795,6 +814,16 @@ function GlossarSection({ productionId }: { productionId: string }) {
                 <textarea value={newDraft.erklaerung} onChange={e => setNewDraft(d => d ? { ...d, erklaerung: e.target.value } : d)}
                   placeholder="Bedeutung und Verwendung…"
                   rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KATEGORIE</span>
+                <select value={newDraft.kategorie}
+                  onChange={e => setNewDraft(d => d ? { ...d, kategorie: e.target.value as GlossarKategorie } : d)}
+                  style={{ ...inputSt, fontSize: 12 }}>
+                  {GLOSSAR_KATEGORIEN.map(k => (
+                    <option key={k.value} value={k.value}>{k.label}{k.importFilter ? '' : ' (kein Import-Filter)'}</option>
+                  ))}
+                </select>
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={saveNew} disabled={saving || !newDraft.kuerzel.trim() || !newDraft.name.trim()}

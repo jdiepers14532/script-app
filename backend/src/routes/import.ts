@@ -616,16 +616,21 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
     const useAbsatzNodes = elementTypeToFormatId.size > 0
 
-    // ── Load Glossar terms — used to exclude transitions/abbreviations from character import ──
+    // ── Load Glossar terms — Transitions/Abkürzungen aus Character-Import filtern ──
+    // Nur Kategorien 'transition', 'shot', 'kuerzel' werden als Non-Rolle behandelt.
+    // 'fachbegriff' und 'sonstige' sind reine Referenzeinträge und werden nicht gefiltert.
+    const GLOSSAR_IMPORT_FILTER = new Set(['transition', 'shot', 'kuerzel'])
     const glossarRows = await query(
-      `SELECT kuerzel, name FROM dk_glossar WHERE production_id = $1`,
+      `SELECT kuerzel, name, kategorie FROM dk_glossar WHERE production_id = $1`,
       [produktion_id]
     )
     const glossarTerms = new Set<string>(
-      glossarRows.flatMap((r: any) => [
-        r.kuerzel?.trim().toUpperCase(),
-        r.name?.trim().toUpperCase(),
-      ].filter(Boolean))
+      glossarRows
+        .filter((r: any) => GLOSSAR_IMPORT_FILTER.has(r.kategorie ?? 'kuerzel'))
+        .flatMap((r: any) => [
+          r.kuerzel?.trim().toUpperCase(),
+          r.name?.trim().toUpperCase(),
+        ].filter(Boolean))
     )
 
     // ── Parse frontend scene overrides ──
