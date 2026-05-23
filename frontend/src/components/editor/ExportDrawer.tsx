@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle, Eye } from 'lucide-react'
+import { X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle, Eye, WifiOff } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
 import Tooltip from '../Tooltip'
@@ -29,15 +29,19 @@ interface Props {
   produktionId: string
 }
 
-const FORMAT_DEFS: { value: ExportFormat; label: string; ext: string; available: boolean; icon: React.ReactNode }[] = [
-  { value: 'pdf',      label: 'PDF',      ext: '.pdf',      available: true,  icon: <FileText size={14} /> },
-  { value: 'docx',     label: 'Word',     ext: '.docx',     available: false, icon: <FileText size={14} /> },
-  { value: 'fountain', label: 'Fountain', ext: '.fountain', available: false, icon: <FileCode size={14} /> },
-  { value: 'fdx',      label: 'FDX',      ext: '.fdx',      available: false, icon: <FileCode size={14} /> },
+const FORMAT_DEFS: {
+  value: ExportFormat; label: string; ext: string; available: boolean
+  icon: React.ReactNode; offlineOk: boolean; offlineNote?: string
+}[] = [
+  { value: 'pdf',      label: 'PDF',      ext: '.pdf',      available: true,  icon: <FileText size={14} />, offlineOk: false },
+  { value: 'docx',     label: 'Word',     ext: '.docx',     available: false, icon: <FileText size={14} />, offlineOk: true, offlineNote: 'Ggf. mit anderer Schrift' },
+  { value: 'fountain', label: 'Fountain', ext: '.fountain', available: false, icon: <FileCode size={14} />, offlineOk: true },
+  { value: 'fdx',      label: 'FDX',      ext: '.fdx',      available: false, icon: <FileCode size={14} />, offlineOk: true },
 ]
 
 export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen, produktionId }: Props) {
   const [format, setFormat]                     = useState<ExportFormat>('pdf')
+  const [isOnline, setIsOnline]                 = useState(navigator.onLine)
   const [persAusdruck, setPersAusdruck]         = useState('')
   const [selectedNotizIds, setSelectedNotizIds] = useState<Set<string>>(new Set())
   const [selectedVorlagenIds, setSelectedVorlagenIds] = useState<Set<string>>(new Set())
@@ -77,6 +81,15 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   useEffect(() => {
     if (!isOpen) stopPolling()
   }, [isOpen])
+
+  // Online/Offline-Status verfolgen
+  useEffect(() => {
+    const on  = () => setIsOnline(true)
+    const off = () => setIsOnline(false)
+    window.addEventListener('online',  on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
 
   function stopPolling() {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -197,6 +210,8 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   }
 
   const isRunning = jobStatus === 'pending' || jobStatus === 'running'
+  const currentFormatDef = FORMAT_DEFS.find(f => f.value === format)!
+  const blockedByOffline = !isOnline && !currentFormatDef.offlineOk
 
   if (!isOpen) return null
 
@@ -233,6 +248,25 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Keine Werkstufe ausgewählt.</p>
         ) : (
           <>
+            {/* Offline-Banner */}
+            {!isOnline && (
+              <div style={{
+                marginBottom: 14, padding: '10px 12px', borderRadius: 8,
+                background: 'rgba(255,204,0,0.12)', border: '1px solid rgba(255,204,0,0.4)',
+                display: 'flex', flexDirection: 'column', gap: 6,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 600, fontSize: 12, color: '#b8860b' }}>
+                  <WifiOff size={13} />
+                  Sie sind offline
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                  <strong>PDF-Export</strong> und <strong>Vorschau</strong> erfordern eine Internetverbindung — der Server rendert das Dokument.<br />
+                  <strong>.fountain</strong>- und <strong>.fdx</strong>-Export sowie <strong>Word</strong> funktionieren offline.<br />
+                  Ihre Dokumente werden offline gespeichert.
+                </div>
+              </div>
+            )}
+
             {/* Format-Auswahl */}
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>Format</div>
@@ -240,8 +274,18 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                 {availableFormats.map(f => {
                   const disabled = isDisabledFormat(f)
                   const active   = format === f.value && !disabled
+                  const offlineBlocked = !isOnline && !f.offlineOk && f.available
+                  const tooltipText = !f.available
+                    ? 'Kommt in Phase 5/6'
+                    : disabled
+                    ? 'Nur für Drehbuch verfügbar'
+                    : offlineBlocked
+                    ? 'Erfordert Internetverbindung'
+                    : f.offlineOk && f.available
+                    ? 'Funktioniert auch offline'
+                    : ''
                   return (
-                    <Tooltip key={f.value} text={!f.available ? 'Kommt in Phase 5/6' : disabled ? `Nur für Drehbuch verfügbar` : ''}>
+                    <Tooltip key={f.value} text={tooltipText}>
                       <button
                         disabled={disabled}
                         onClick={() => !disabled && setFormat(f.value)}
@@ -259,11 +303,23 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                         {f.icon}
                         {f.label}
                         {!f.available && <span style={{ fontSize: 9, marginLeft: 'auto', opacity: 0.6 }}>bald</span>}
+                        {f.available && f.offlineOk && !disabled && (
+                          <span style={{ fontSize: 9, marginLeft: 'auto', color: '#00C853', opacity: 0.8 }}>✓ offline</span>
+                        )}
+                        {offlineBlocked && (
+                          <WifiOff size={9} style={{ marginLeft: 'auto', color: '#FFCC00' }} />
+                        )}
                       </button>
                     </Tooltip>
                   )
                 })}
               </div>
+              {/* Hinweis bei Word-Export offline */}
+              {!isOnline && format === 'docx' && (
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                  Der Word-Export erfolgt offline — ggf. mit einer anderen Schrift als im fertigen PDF.
+                </div>
+              )}
             </div>
 
             {/* Dokument-Vorlagen (Titelblatt, Synopsis …) */}
@@ -395,47 +451,54 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       {/* Footer — Vorschau + Export */}
       {selectedWerk && (
         <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {/* Vorschau-Button */}
-          <Tooltip text="Echte PDF-Vorschau im Browser öffnen (identisch mit Export)">
+          {/* Vorschau-Button (nur wenn PDF und online) */}
+          {format === 'pdf' && (
+            <Tooltip text={!isOnline ? 'Vorschau erfordert Internetverbindung' : 'Echte PDF-Vorschau im Browser öffnen (identisch mit Export)'}>
+              <button
+                onClick={openPreview}
+                disabled={isRunning || !isOnline}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  width: '100%', padding: '7px 14px',
+                  borderRadius: 7, fontSize: 12, fontWeight: 500,
+                  fontFamily: 'inherit', cursor: (isRunning || !isOnline) ? 'not-allowed' : 'pointer',
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: !isOnline ? 'var(--text-muted)' : 'var(--text-secondary)',
+                  opacity: !isOnline ? 0.5 : 1,
+                  transition: 'background 0.15s',
+                }}
+              >
+                {!isOnline ? <WifiOff size={13} /> : <Eye size={13} />}
+                Vorschau
+              </button>
+            </Tooltip>
+          )}
+
+          {/* Export-Button */}
+          <Tooltip text={blockedByOffline ? 'PDF-Export erfordert Internetverbindung. Bitte gehen Sie online.' : ''}>
             <button
-              onClick={openPreview}
-              disabled={isRunning}
+              onClick={startExport}
+              disabled={isRunning || isDisabledFormat(currentFormatDef) || blockedByOffline}
               style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                width: '100%', padding: '7px 14px',
-                borderRadius: 7, fontSize: 12, fontWeight: 500,
-                fontFamily: 'inherit', cursor: isRunning ? 'not-allowed' : 'pointer',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: 'var(--text-secondary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                width: '100%', padding: '9px 14px',
+                borderRadius: 7, fontSize: 13, fontWeight: 600,
+                fontFamily: 'inherit', cursor: (isRunning || blockedByOffline) ? 'not-allowed' : 'pointer',
+                border: 'none',
+                background: blockedByOffline ? 'var(--bg-subtle)' : isRunning ? 'var(--bg-subtle)' : '#007AFF',
+                color: (isRunning || blockedByOffline) ? 'var(--text-muted)' : '#fff',
                 transition: 'background 0.15s',
               }}
             >
-              <Eye size={13} />
-              Vorschau
+              {isRunning
+                ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Exportiert…</>
+                : blockedByOffline
+                ? <><WifiOff size={14} /> Offline — kein PDF möglich</>
+                : <><Download size={14} /> Exportieren ({format.toUpperCase()})</>
+              }
             </button>
           </Tooltip>
-
-          {/* Export-Button */}
-          <button
-            onClick={startExport}
-            disabled={isRunning || isDisabledFormat(FORMAT_DEFS.find(f => f.value === format)!)}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              width: '100%', padding: '9px 14px',
-              borderRadius: 7, fontSize: 13, fontWeight: 600,
-              fontFamily: 'inherit', cursor: isRunning ? 'not-allowed' : 'pointer',
-              border: 'none',
-              background: isRunning ? 'var(--bg-subtle)' : '#007AFF',
-              color: isRunning ? 'var(--text-muted)' : '#fff',
-              transition: 'background 0.15s',
-            }}
-          >
-            {isRunning
-              ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Exportiert…</>
-              : <><Download size={14} /> Exportieren ({format.toUpperCase()})</>
-            }
-          </button>
         </div>
       )}
 
