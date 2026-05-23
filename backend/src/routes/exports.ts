@@ -224,6 +224,37 @@ router.post('/export/preview', async (req, res) => {
   }
 })
 
+// ── POST /api/export/pdf-preview ──────────────────────────────────────────────
+// Echter PDF-Vorschau mit vollständiger Export-Konfiguration (preItems, postItems,
+// hauptinhaltAktiv). Liefert das PDF inline — identisch mit dem späteren Download.
+
+router.post('/export/pdf-preview', async (req, res) => {
+  const { werkstufId, options = {} } = req.body
+  if (!werkstufId || typeof werkstufId !== 'string') {
+    return res.status(400).json({ error: 'werkstufId erforderlich' })
+  }
+
+  try {
+    const user = req.user!
+    const result = await assemblePdf({
+      werkstufId,
+      userId:   user.user_id,
+      userName: user.name,
+      options: {
+        preItems:         parseOrderedItems(options.preItems),
+        postItems:        parseOrderedItems(options.postItems),
+        hauptinhaltAktiv: typeof options.hauptinhaltAktiv === 'boolean' ? options.hauptinhaltAktiv : undefined,
+      },
+    }, () => {})
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'inline')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(result.buffer)
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? 'PDF-Vorschau fehlgeschlagen' })
+  }
+})
+
 // ── GET /api/export/pdf-preview ───────────────────────────────────────────────
 // Echter PDF-Vorschau: läuft synchron durch Puppeteer, liefert das PDF inline
 // im Browser-PDF-Viewer — identisch mit dem späteren Download.

@@ -44,7 +44,7 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
     setPos(null)
   }, [])
 
-  if (!showTooltips) return <>{children}</>
+  if (!showTooltips || !text) return <>{children}</>
 
   return (
     <>

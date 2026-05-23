@@ -84,7 +84,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [errorMsg, setErrorMsg]                   = useState<string | null>(null)
 
   // Szenen-Filter
-  const [selectionMode, setSelectionMode]         = useState<'alle' | 'auswahl'>('alle')
   const [szenenAuswahl, setSzenenAuswahl]         = useState('')
   const [filterOptions, setFilterOptions]         = useState<FilterOptions | null>(null)
   const [selectedRollen, setSelectedRollen]       = useState<Set<string>>(new Set())
@@ -121,7 +120,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   useEffect(() => {
     if (!isOpen || !selectedWerk) return
     setJobStatus('idle'); setProgress(0); setErrorMsg(null)
-    setSelectionMode('alle'); setSzenenAuswahl('')
+    setSzenenAuswahl('')
     setSelectedRollen(new Set()); setSelectedKomparsen(new Set()); setSelectedMotive(new Set())
     setRolleAlsVermerk(false)
     setSzenenAktiv(true); setPdfBookmarks(false)
@@ -262,10 +261,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           hauptinhaltAktiv: szenenAktiv,
           pdfBookmarks,
           persoenlicher_ausdruck: currentFormatDef.supportsPersAusdruck ? buildPersAusdruck() : undefined,
-          szenenAuswahl:   selectionMode === 'auswahl' && szenenAuswahl.trim() ? szenenAuswahl.trim() : undefined,
-          filterRollen:    selectionMode === 'auswahl' && selectedRollen.size > 0 ? Array.from(selectedRollen) : undefined,
-          filterKomparsen: selectionMode === 'auswahl' && selectedKomparsen.size > 0 ? Array.from(selectedKomparsen) : undefined,
-          filterMotive:    selectionMode === 'auswahl' && selectedMotive.size > 0 ? Array.from(selectedMotive) : undefined,
+          szenenAuswahl:   szenenAuswahl.trim() || undefined,
+          filterRollen:    selectedRollen.size > 0 ? Array.from(selectedRollen) : undefined,
+          filterKomparsen: selectedKomparsen.size > 0 ? Array.from(selectedKomparsen) : undefined,
+          filterMotive:    selectedMotive.size > 0 ? Array.from(selectedMotive) : undefined,
           userTimezone:    Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
       }
@@ -318,17 +317,17 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           hauptinhaltAktiv: szenenAktiv,
         },
       }
-      const res = await fetch('/api/export/preview', {
+      const res = await fetch('/api/export/pdf-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(body),
       })
-      const html = await res.text()
-      const blob = new Blob([html], { type: 'text/html; charset=utf-8' })
-      const url = URL.createObjectURL(blob)
-      const win = window.open(url, '_blank')
-      if (win) setTimeout(() => URL.revokeObjectURL(url), 60_000)
+      if (!res.ok) throw new Error('PDF-Vorschau fehlgeschlagen')
+      const pdfBlob = await res.blob()
+      const url = URL.createObjectURL(pdfBlob)
+      window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 120_000)
     } catch {
       window.open(`/api/export/preview?werkstufId=${selectedWerk.id}`, '_blank')
     }
@@ -348,9 +347,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
   const isRunning = jobStatus === 'pending' || jobStatus === 'running'
   const blockedByOffline = !isOnline && !currentFormatDef.offlineOk
-  const hasAnyFilter = selectionMode === 'auswahl' && (
-    szenenAuswahl.trim() || selectedRollen.size > 0 || selectedKomparsen.size > 0 || selectedMotive.size > 0
-  )
+  const hasAnyFilter = !!(szenenAuswahl.trim() || selectedRollen.size > 0 || selectedKomparsen.size > 0 || selectedMotive.size > 0)
 
   if (!isOpen) return null
 
@@ -541,72 +538,50 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                   </div>
                 </div>
 
-                {/* Szenen-Auswahl */}
+                {/* Szenen-Filter */}
                 <div>
-                  <span style={SEC}>Szenen-Auswahl</span>
-                  <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', marginBottom: selectionMode === 'auswahl' ? 10 : 0 }}>
-                    {(['alle', 'auswahl'] as const).map(mode => (
-                      <button
-                        key={mode}
-                        onClick={() => setSelectionMode(mode)}
-                        style={{
-                          flex: 1, padding: '5px 0', fontSize: 11, border: 'none',
-                          background: selectionMode === mode ? '#111' : 'transparent',
-                          color: selectionMode === mode ? '#fff' : 'var(--text-secondary)',
-                          cursor: 'pointer', fontFamily: 'inherit', fontWeight: selectionMode === mode ? 600 : 400,
-                        }}
-                      >
-                        {mode === 'alle' ? 'Alle' : 'Auswahl'}
-                      </button>
-                    ))}
+                  <span style={SEC}>Szenen-Filter <span style={{ fontWeight: 400, textTransform: 'none', marginLeft: 3, fontSize: 9 }}>(optional)</span></span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <input
+                      type="text" value={szenenAuswahl}
+                      onChange={e => setSzenenAuswahl(e.target.value)}
+                      placeholder="Szenen-Nr. z. B. 1,3,5–10,42A"
+                      style={{ width: '100%', padding: '5px 8px', fontSize: 11, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    />
+
+                    {/* Filter-Picker Buttons */}
+                    {filterOptions && (filterOptions.rollen.length > 0 || filterOptions.komparsen.length > 0 || filterOptions.motive.length > 0) && (
+                      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                        {filterOptions.rollen.length > 0 && (
+                          <FilterPickerButton
+                            label="Rollen"
+                            count={selectedRollen.size}
+                            onClick={() => setFilterPickerOpen('rollen')}
+                          />
+                        )}
+                        {filterOptions.komparsen.length > 0 && (
+                          <FilterPickerButton
+                            label="Komparsen"
+                            count={selectedKomparsen.size}
+                            onClick={() => setFilterPickerOpen('komparsen')}
+                          />
+                        )}
+                        {filterOptions.motive.length > 0 && (
+                          <FilterPickerButton
+                            label="Motive"
+                            count={selectedMotive.size}
+                            onClick={() => setFilterPickerOpen('motive')}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {hasAnyFilter && (
+                      <div style={{ fontSize: 10, color: '#FF6B35', padding: '4px 7px', background: 'rgba(255,107,53,0.08)', borderRadius: 5, border: '1px solid rgba(255,107,53,0.2)' }}>
+                        {[szenenAuswahl.trim() ? `Sz.\u202f${szenenAuswahl.trim()}` : null, selectedRollen.size ? `${selectedRollen.size}\u202fRolle(n)` : null, selectedKomparsen.size ? `${selectedKomparsen.size}\u202fKomp.` : null, selectedMotive.size ? `${selectedMotive.size}\u202fMotiv(e)` : null].filter(Boolean).join(' · ')}
+                      </div>
+                    )}
                   </div>
-
-                  {selectionMode === 'auswahl' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <input
-                        type="text" value={szenenAuswahl}
-                        onChange={e => setSzenenAuswahl(e.target.value)}
-                        placeholder="Szenen-Nr. z. B. 1,3,5–10,42A"
-                        style={{ width: '100%', padding: '5px 8px', fontSize: 11, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-                      />
-
-                      {/* Filter-Picker Buttons */}
-                      {filterOptions && (
-                        <div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 5 }}>Filter</div>
-                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                            {filterOptions.rollen.length > 0 && (
-                              <FilterPickerButton
-                                label="Rollen"
-                                count={selectedRollen.size}
-                                onClick={() => setFilterPickerOpen('rollen')}
-                              />
-                            )}
-                            {filterOptions.komparsen.length > 0 && (
-                              <FilterPickerButton
-                                label="Komparsen"
-                                count={selectedKomparsen.size}
-                                onClick={() => setFilterPickerOpen('komparsen')}
-                              />
-                            )}
-                            {filterOptions.motive.length > 0 && (
-                              <FilterPickerButton
-                                label="Motive"
-                                count={selectedMotive.size}
-                                onClick={() => setFilterPickerOpen('motive')}
-                              />
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {hasAnyFilter && (
-                        <div style={{ fontSize: 10, color: '#FF6B35', padding: '4px 7px', background: 'rgba(255,107,53,0.08)', borderRadius: 5, border: '1px solid rgba(255,107,53,0.2)' }}>
-                          {[szenenAuswahl.trim() ? `Sz.\u202f${szenenAuswahl.trim()}` : null, selectedRollen.size ? `${selectedRollen.size}\u202fRolle(n)` : null, selectedKomparsen.size ? `${selectedKomparsen.size}\u202fKomp.` : null, selectedMotive.size ? `${selectedMotive.size}\u202fMotiv(e)` : null].filter(Boolean).join(' · ')}
-                        </div>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* Persönlicher Ausdruck */}
@@ -619,10 +594,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                       placeholder="z. B. Maria Schulze"
                       style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                     />
-                    {selectionMode === 'auswahl' && rolleAlsVermerk && selectedRollen.size > 0 && (
+                    {rolleAlsVermerk && selectedRollen.size > 0 && (
                       <div style={{ fontSize: 10, color: '#007AFF', marginTop: 3 }}>Chip: {buildPersAusdruck() || '–'}</div>
                     )}
-                    {selectionMode === 'auswahl' && selectedRollen.size > 0 && (
+                    {selectedRollen.size > 0 && (
                       <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 10, color: '#007AFF', userSelect: 'none', marginTop: 5 }}>
                         <input type="checkbox" checked={rolleAlsVermerk} onChange={e => setRolleAlsVermerk(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#007AFF', width: 11, height: 11 }} />
                         Rolle als Vermerk einfügen
@@ -686,7 +661,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         {selectedWerk && (
           <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: 8 }}>
             {format === 'pdf' && (
-              <Tooltip placement="top" text={!isOnline ? 'Vorschau erfordert Internetverbindung' : 'HTML-Vorschau im Browser öffnen (inkl. Dokumentstruktur)'}>
+              <Tooltip placement="top" text={!isOnline ? 'Vorschau erfordert Internetverbindung' : 'PDF-Vorschau im Browser öffnen (inkl. Dokumentstruktur)'}>
                 <button
                   onClick={openPreview}
                   disabled={isRunning || !isOnline}
