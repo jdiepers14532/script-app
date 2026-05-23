@@ -59,7 +59,7 @@ function PlaceholderTable() {
     {
       label: 'Berechnet beim Export',
       color: C.green,
-      keys: ['{{aktuelles_datum}}', '{{aktuelles_uhrzeit}}', '{{aktuelles_jahr}}'],
+      keys: ['{{aktuelles_datum}}', '{{aktuelles_uhrzeit}}', '{{aktuelles_uhrzeit_utc}}', '{{aktuelles_jahr}}'],
     },
     {
       label: 'Nur Fußzeile — Berechnet beim PDF-Export',

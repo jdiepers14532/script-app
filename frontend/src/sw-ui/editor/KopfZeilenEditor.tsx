@@ -155,7 +155,7 @@ export interface KZPreviewContext {
   stand_datum?: string; autor?: string; regie?: string; firmenname?: string
   sender?: string; buero_adresse?: string; tel_produktion?: string
   sendedatum?: string; produktionszeitraum?: string; aktuelles_datum?: string
-  aktuelles_uhrzeit?: string; aktuelles_jahr?: string; folge_laenge_netto?: string
+  aktuelles_uhrzeit?: string; aktuelles_uhrzeit_utc?: string; aktuelles_jahr?: string; folge_laenge_netto?: string
   firmen_adresse?: string; rechtsform?: string; handelsregister?: string
   ust_id?: string; geschaeftsfuehrung?: string; firmen_email?: string
   firmen_telefon?: string; notiz_inhalt?: string
@@ -171,6 +171,7 @@ const DUMMY_CTX: KZPreviewContext = {
   sendedatum: 'Mo. 16.06.2026', produktionszeitraum: '01.02.2026 – 31.07.2026',
   aktuelles_datum: new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
   aktuelles_uhrzeit: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+  aktuelles_uhrzeit_utc: new Date().toLocaleTimeString('de-DE', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false }) + '\u202f(UTC)',
   aktuelles_jahr: String(new Date().getFullYear()),
   folge_laenge_netto: '42:18', firmen_adresse: 'Hansestraße 1, 21335 Lüneburg',
   rechtsform: 'GmbH', handelsregister: 'Amtsgericht Lüneburg HRB 205045',
@@ -208,8 +209,9 @@ function buildCtxMap(ctx: KZPreviewContext): Record<string, string> {
   map['{{sendedatum}}']         = String(ctx.sendedatum ?? '')
   map['{{produktionszeitraum}}'] = String(ctx.produktionszeitraum ?? '')
   map['{{aktuelles_datum}}']    = String(ctx.aktuelles_datum ?? '')
-  map['{{aktuelles_uhrzeit}}']  = String(ctx.aktuelles_uhrzeit ?? '')
-  map['{{aktuelles_jahr}}']     = String(ctx.aktuelles_jahr ?? '')
+  map['{{aktuelles_uhrzeit}}']     = String(ctx.aktuelles_uhrzeit ?? '')
+  map['{{aktuelles_uhrzeit_utc}}'] = String(ctx.aktuelles_uhrzeit_utc ?? '')
+  map['{{aktuelles_jahr}}']        = String(ctx.aktuelles_jahr ?? '')
   map['{{folge_laenge_netto}}'] = String(ctx.folge_laenge_netto ?? '')
   map['{{notiz_inhalt}}']       = String(ctx.notiz_inhalt ?? '')
   map['{{persoenlicher_ausdruck}}'] = String(ctx.persoenlicher_ausdruck ?? '')

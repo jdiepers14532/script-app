@@ -163,9 +163,14 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'Berechnet beim Export \u00b7 new Date() \u2192 TT.MM.JJJJ',
   },
   {
-    key: '{{aktuelles_uhrzeit}}', label: 'Aktuelle Uhrzeit', zone: 'alle', color: '#34C759',
-    beschreibung: 'Die aktuelle Uhrzeit zum Zeitpunkt des Exports, z.\u202fB. \u201e14:32\u201c.',
-    quelle: 'Berechnet beim Export \u00b7 new Date() \u2192 HH:MM',
+    key: '{{aktuelles_uhrzeit}}', label: 'Aktuelle Uhrzeit (Prod.)', zone: 'alle', color: '#34C759',
+    beschreibung: 'Die aktuelle Uhrzeit zum Zeitpunkt des Exports in der Zeitzone des Produktionslandes, z.\u202fB. \u201e14:32\u201c.\nFallback-Kette: Produktionsland (ProdDB) \u2192 Browser-Zeitzone \u2192 UTC.',
+    quelle: 'Berechnet beim Export \u00b7 new Date() \u2192 HH:MM (Prod.-Zeitzone)',
+  },
+  {
+    key: '{{aktuelles_uhrzeit_utc}}', label: 'Aktuelle Uhrzeit (UTC)', zone: 'alle', color: '#34C759',
+    beschreibung: 'Die aktuelle Uhrzeit in koordinierter Weltzeit (UTC), z.\u202fB. \u201e12:32\u202f(UTC)\u201c.\nUTC ist das kanonische Speicherformat \u2014 f\u00fcr ortsunabh\u00e4ngige Zeitangaben.',
+    quelle: 'Berechnet beim Export \u00b7 new Date() \u2192 UTC',
   },
   {
     key: '{{aktuelles_jahr}}', label: 'Aktuelles Jahr', zone: 'alle', color: '#34C759',
