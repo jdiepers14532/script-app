@@ -616,6 +616,18 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
     const useAbsatzNodes = elementTypeToFormatId.size > 0
 
+    // ── Load Glossar terms — used to exclude transitions/abbreviations from character import ──
+    const glossarRows = await query(
+      `SELECT kuerzel, name FROM dk_glossar WHERE production_id = $1`,
+      [produktion_id]
+    )
+    const glossarTerms = new Set<string>(
+      glossarRows.flatMap((r: any) => [
+        r.kuerzel?.trim().toUpperCase(),
+        r.name?.trim().toUpperCase(),
+      ].filter(Boolean))
+    )
+
     // ── Parse frontend scene overrides ──
     let sceneOverrides: Record<number, Record<string, any>> = {}
     if (req.body.scene_overrides) {
@@ -856,14 +868,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
       const charNameToId = new Map<string, string>()
       const allRollenNames = [...new Set(
-        (result.meta.charaktere as string[]).filter((n: string) => n.trim())
+        (result.meta.charaktere as string[]).filter((n: string) => n.trim() && !glossarTerms.has(n.trim().toUpperCase()))
       )]
       const allKomparsenSet = new Set<string>()
       for (const szene of result.szenen) {
         if (szene.komparsen) {
           for (const k of szene.komparsen) {
             const { name } = parseKomparseEntry(k)
-            if (name) allKomparsenSet.add(name)
+            if (name && !glossarTerms.has(name.trim().toUpperCase())) allKomparsenSet.add(name)
           }
         }
       }

@@ -16,6 +16,7 @@ function ImportKomparsenTab() {
     { num: 5, title: 'Komparsen-Erkennung',          text: 'Der Parser erkennt im Szenenkopf Einträge wie „2x Krankenpflegerin o.T., 4x PatientInnen o.T." und extrahiert Anzahl, Name und Header-o.T.-Flag.' },
     { num: 6, title: 'Content-Analyse (Spiel-Typ)',  text: 'Nach dem Parsen analysiert der Import den Szeneninhalt. Wird ein Komparse in Regieanweisungen erwähnt → Spiel (orange Tag). Hat er Dialog → Text:N (lila Tag). Sonst → o.T. (grau).' },
     { num: 7, title: 'Header-Flag bleibt erhalten', text: 'Wenn der Szenenkopf „o.T." sagt, aber die Content-Analyse Dialog findet, wird der Spiel-Typ auf „Hat Text" gesetzt — das header_o_t-Flag bleibt aber bestehen.' },
+    { num: 8, title: 'Glossar-Filter (Transitions & Abkürzungen)', text: 'Bevor Rollen und Komparsen angelegt werden, prüft der Import jeden Namen gegen das Glossar der Produktion (Drehbuchkoordination → Glossar). Kürzel und Bezeichnungen aus dem Glossar werden als Übergangsanweisungen erkannt (z.B. „PEN" für Penerationswechsel) und übersprungen — sie landen nicht als Character in der Datenbank.' },
   ]
 
   const examples = [
@@ -202,6 +203,14 @@ function ImportKomparsenTab() {
           Eine Ausnahme: Reine Erwaehnung in Regieanweisungen ueberschreibt ein explizites „o.T." im Szenenkopf <strong>nicht</strong> —
           nur gefundener Dialog stuft hoch. Atmosphaerische Beschreibungen wie „PATIENTEN warten auf dem Flur" aendern nichts
           am o.T.-Status, wenn der Szenenkopf dies so vorsieht.
+        </InfoBox>
+        <InfoBox title="Glossar-Filter: Transitions werden nicht als Rollen importiert" color={C.green}>
+          Bevor Rollen und Komparsen als Characters angelegt werden, prüft der Import jeden Namen
+          gegen das <strong>Glossar</strong> der Produktion (Drehbuchkoordination → Glossar-Tab).
+          Kürzel und Bezeichnungen die dort eingetragen sind — z.B. <code style={{ fontSize: 11 }}>PEN</code> für Peneration,{' '}
+          <code style={{ fontSize: 11 }}>SFX</code> für Sound-Effekte — werden als Übergangsanweisungen erkannt
+          und beim Import <strong>übersprungen</strong>. Dadurch landen keine Transitions oder Produktionsbegriffe
+          als Character in der Datenbank. Das Glossar kann unter Drehbuchkoordination gepflegt werden.
         </InfoBox>
       </Section>
 
