@@ -313,7 +313,8 @@ function renderSKInlineSegments(
 function renderSKParagraph(
   node: any,
   scene: SceneRow,
-  folgeNummer: number
+  folgeNummer: number,
+  bodyMarginLeftCm: number
 ): string {
   const attrs      = node.attrs ?? {}
   const ff         = attrs.fontFamily ?? "'Courier Prime','Courier New',monospace"
@@ -344,8 +345,11 @@ function renderSKParagraph(
     const stop = tabStops[i - 1]  // Tab-Stop vor diesem Segment
     let cellStyle = ''
     if (i === 0) {
-      // Erste Spalte: feste Breite bis zum ersten Tab-Stop
-      const w = tabStops[0]?.pos ?? 4
+      // Erste Spalte: feste Breite bis zum ersten Tab-Stop.
+      // Tab-Stop-Positionen sind cm ab physischem Papierrand gespeichert —
+      // Flex-Container startet aber am Body-Content-Bereich (nach bml).
+      // → bodyMarginLeftCm abziehen, damit der Stop relativ zum Content stimmt.
+      const w = Math.max(0, (tabStops[0]?.pos ?? 4) - bodyMarginLeftCm)
       cellStyle = `width:${w}cm;flex-shrink:0`
     } else if (stop?.align === 'right') {
       cellStyle = `flex:1;text-align:right`
@@ -369,7 +373,8 @@ function renderSzenenkopf(
   templateJson: any,
   scene: SceneRow,
   folgeNummer: number,
-  pageBreakBefore = false
+  pageBreakBefore = false,
+  bodyMarginLeftCm = 0
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
 
@@ -393,7 +398,7 @@ function renderSzenenkopf(
     if (node.type === 'horizontalRule') {
       parts.push('<hr style="border:none;border-top:0.5pt solid #888;margin:2pt 0;width:100%">')
     } else if (node.type === 'paragraph') {
-      const rendered = renderSKParagraph(node, scene, folgeNummer)
+      const rendered = renderSKParagraph(node, scene, folgeNummer, bodyMarginLeftCm)
       if (rendered) parts.push(rendered)
     }
   }
@@ -409,12 +414,13 @@ function renderMainScenes(
   fmtByName: Map<string, AbsatzFormat>,
   ctx: ExportContext,
   szenenkopfTemplate: any,
-  folgeNummer: number
+  folgeNummer: number,
+  bodyMarginLeftCm = 0
 ): string {
   return scenes.map((scene, index) => {
     // Notiz-Format-Szenen bekommen keinen strukturierten Szenenkopf
     const headHtml = scene.format !== 'notiz'
-      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0)
+      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm)
       : (index > 0 ? '<div style="page-break-before:always"></div>' : '')
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
@@ -762,7 +768,7 @@ async function assembleHtml(
     const isNotizDoc = w.typ === 'notiz'
     const mainHtml = isNotizDoc
       ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-      : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer)
+      : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
     const wmPayload = buildPayload(userId, werkstufId)
