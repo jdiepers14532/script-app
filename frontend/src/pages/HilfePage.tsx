@@ -78,7 +78,7 @@ const NAV_ITEMS = [
   { id: 'vorlagen-ocr',         label: 'Vorlagen & OCR',            icon: '📄',
     keywords: 'vorlage template ocr mistral erkennen scan pdf einscannen' },
   { id: 'export-kopfzeilen',    label: 'Export & Kopf-/Fußzeilen',  icon: '📤',
-    keywords: 'export pdf fountain fdx kopfzeile fusszeile wasserzeichen drucken herunterladen' },
+    keywords: 'export pdf fountain fdx kopfzeile fusszeile wasserzeichen drucken herunterladen dokumentstruktur statistik lesezeichen filter rollen motive drag drop job fortschritt persönlicher ausdruck revision' },
   { id: 'datensicherheit-user', label: 'Datensicherheit',           icon: '🛡️',
     keywords: 'datensicherheit backup autosave sync sicherheit verlust daten' },
   { id: 'team-work',            label: 'Team-Work',                 icon: '👥',
