@@ -1160,12 +1160,12 @@ export async function assemblePdf(
 
   // headerTemplate: KZ (falls vorhanden) + Wasserzeichen-Overlay
   // Das Overlay ist position:absolute → nimmt keinen Platz ein, überlagert nur
-  const headerTemplate = (headerHtml.trim() || wmOverlay)
-    ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wmOverlay}${headerHtml.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(headerHtml)}</div>` : ''}</div>`
+  const headerTemplate = (inlinedHeader.trim() || wmOverlay)
+    ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wmOverlay}${inlinedHeader.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(inlinedHeader)}</div>` : ''}</div>`
     : '<div style="font-size:0"></div>'
 
-  const footerTemplate = footerHtml.trim()
-    ? `${tplReset}<div style="width:100%;height:${pageMarginBottom}mm;display:flex;flex-direction:column;justify-content:flex-end;padding:0 ${hmr}mm ${hmb}mm ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(footerHtml)}</div>`
+  const footerTemplate = inlinedFooter.trim()
+    ? `${tplReset}<div style="width:100%;height:${pageMarginBottom}mm;display:flex;flex-direction:column;justify-content:flex-end;padding:0 ${hmr}mm ${hmb}mm ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(inlinedFooter)}</div>`
     : '<div style="font-size:0"></div>'
 
   const pdfBookmarks = input.options.pdfBookmarks === true

@@ -48,7 +48,7 @@ export interface ExportContext {
 
 function resolvePlaceholder(key: string, ctx: ExportContext): string {
   switch (key) {
-    case '{{produktion}}':    return ctx.produktion
+    case '{{produktion}}':    return ctx.produktion ?? ''
     case '{{staffel}}':       return ctx.staffel ?? ''
     case '{{block}}':         return ctx.block ?? ''
     case '{{folge}}':         return ctx.folge != null ? String(ctx.folge) : ''
@@ -56,18 +56,18 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{werkstufe}}':     return ctx.werkstufe ?? ''
     case '{{fassung}}':       return ctx.fassung ?? ''
     case '{{version}}':       return ctx.version != null ? `V${ctx.version}` : ''
-    case '{{stand_datum}}':   return ctx.stand_datum
-    case '{{autor}}':         return ctx.autor
+    case '{{stand_datum}}':   return ctx.stand_datum ?? ''
+    case '{{autor}}':         return ctx.autor ?? ''
     case '{{regie}}':         return ctx.regie ?? ''
     case '{{firmenname}}':    return ctx.firmenname ?? ''
     case '{{sender}}':        return ctx.sender ?? ''
     case '{{buero_adresse}}':       return ctx.buero_adresse ?? ''
     case '{{sendedatum}}':          return ctx.sendedatum ?? ''
     case '{{produktionszeitraum}}': return ctx.produktionszeitraum ?? ''
-    case '{{aktuelles_datum}}':       return ctx.aktuelles_datum
-    case '{{aktuelles_jahr}}':        return ctx.aktuelles_jahr
-    case '{{aktuelles_uhrzeit}}':     return ctx.aktuelles_uhrzeit
-    case '{{aktuelles_uhrzeit_utc}}': return ctx.aktuelles_uhrzeit_utc
+    case '{{aktuelles_datum}}':       return ctx.aktuelles_datum ?? ''
+    case '{{aktuelles_jahr}}':        return ctx.aktuelles_jahr ?? ''
+    case '{{aktuelles_uhrzeit}}':     return ctx.aktuelles_uhrzeit ?? ''
+    case '{{aktuelles_uhrzeit_utc}}': return ctx.aktuelles_uhrzeit_utc ?? ''
     case '{{folge_laenge_netto}}':  return ctx.folge_laenge_netto ?? ''
     case '{{firmen_adresse}}':      return ctx.firmen_adresse ?? ''
     case '{{rechtsform}}':          return ctx.rechtsform ?? ''
