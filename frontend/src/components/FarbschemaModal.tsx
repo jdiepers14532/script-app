@@ -53,7 +53,7 @@ export default function FarbschemaModal({ onClose }: { onClose: () => void }) {
 
   const [pos, setPos] = useState(() => ({
     left: Math.max(0, Math.round((window.innerWidth - 480) / 2)),
-    top: Math.max(0, Math.round(window.innerHeight * 0.1)),
+    top: Math.max(0, Math.round(window.innerHeight * 0.04)),
   }))
   const dragStart = useRef<{ mouseX: number; mouseY: number; posX: number; posY: number } | null>(null)
 
