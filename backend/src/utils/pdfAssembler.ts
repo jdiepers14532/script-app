@@ -10,6 +10,8 @@
 import puppeteer from 'puppeteer'
 import * as fs from 'fs'
 import * as path from 'path'
+import { request as httpsRequest } from 'https'
+import { request as httpRequest } from 'http'
 import { pool } from '../db'
 import type { ExportJobOptions, OrderedExportItem, JobResult } from './exportJobQueue'
 import {
@@ -74,6 +76,36 @@ async function getWarmBrowser() {
     headless: true,
   })
   return _warmBrowser
+}
+
+// ── Externe Bilder → Base64 inlinen (für Puppeteer header/footer template) ───
+// Puppeteer lädt keine externen URLs in headerTemplate/footerTemplate.
+// Diese Funktion ersetzt http(s)://... src-Attribute durch data URIs.
+
+async function inlineExternalImages(html: string): Promise<string> {
+  const regex = /<img([^>]*)\ssrc="(https?:\/\/[^"]+)"([^>]*\/?>)/gi
+  const matches = [...html.matchAll(regex)]
+  for (const match of matches) {
+    try {
+      const b64 = await fetchAsBase64(match[2])
+      if (b64) html = html.replace(match[0], `<img${match[1]} src="${b64}"${match[3]}`)
+    } catch { /* keep original URL on error */ }
+  }
+  return html
+}
+
+function fetchAsBase64(url: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const req = url.startsWith('https') ? httpsRequest : httpRequest
+    req(url, (res) => {
+      if (!res.statusCode || res.statusCode >= 400) { resolve(null); return }
+      const ct = res.headers['content-type'] ?? 'image/png'
+      const chunks: Buffer[] = []
+      res.on('data', (c: Buffer) => chunks.push(c))
+      res.on('end', () => resolve(`data:${ct};base64,${Buffer.concat(chunks).toString('base64')}`))
+      res.on('error', () => resolve(null))
+    }).on('error', () => resolve(null)).setTimeout(5000, function(this: any) { this.destroy(); resolve(null) }).end()
+  })
 }
 
 // ── Lokale Font-CSS ───────────────────────────────────────────────────────────
@@ -787,12 +819,14 @@ async function assembleHtml(
       storyline: 'Storyline',
       notiz:     'Notiz',
     }
-    const toGermanShortDate = (isoStr: string): string => {
-      const [year, month, day] = isoStr.slice(0, 10).split('-')
+    const toGermanShortDate = (d: Date | string): string => {
+      // normalize: Date object or string → YYYY-MM-DD ISO
+      const iso = (d instanceof Date ? d : new Date(d as string)).toISOString().slice(0, 10)
+      const [year, month, day] = iso.split('-')
       return `${day}.${month}.${year.slice(2)}`
     }
     const ctx: ExportContext = {
-      produktion:           w.produktion_titel,
+      produktion:           w.produktion_titel ?? '',
       staffel:              null,
       block:                null,
       folge:                w.folge_nummer,
@@ -801,8 +835,8 @@ async function assembleHtml(
       fassung:              w.label,
       version:              w.version_nummer,
       stand_datum:          w.stand_datum
-        ? toGermanShortDate(String(w.stand_datum))
-        : toGermanShortDate(now.toISOString()),
+        ? toGermanShortDate(w.stand_datum)
+        : toGermanShortDate(now),
       autor:                userName,
       regie:                null,
       firmenname:           null,
@@ -1046,7 +1080,10 @@ async function assembleHtml(
     })
 
     // ── KZ/FZ für Puppeteer displayHeaderFooter vorberechnen ──────────────────
-    const hmt = 10, hmb = 10
+    // Abstand vom physischen Papierrand aus seiten_layout der Vorlage; Default 10mm
+    const kzSl = kzFz?.seiten_layout ?? {}
+    const hmt = kzSl.header_abstand_rand ?? 10
+    const hmb = kzSl.footer_abstand_rand ?? 10
     const bml = bodyMargins.links
     const bmr = bodyMargins.rechts
     // Header-Padding immer mit Body-Rändern ausrichten — nicht aus KZ/FZ seiten_layout (könnte veraltet sein)
@@ -1096,6 +1133,12 @@ export async function assemblePdf(
   // Warm-Pool: bestehende Browser-Instanz wiederverwenden (kein Kaltstart)
   const browser = await getWarmBrowser()
   setProgress(60)
+
+  // Externe Bilder in header/footer HTML inlinen (Puppeteer-Einschränkung)
+  const [inlinedHeader, inlinedFooter] = await Promise.all([
+    headerHtml.trim() ? inlineExternalImages(headerHtml) : Promise.resolve(headerHtml),
+    footerHtml.trim() ? inlineExternalImages(footerHtml) : Promise.resolve(footerHtml),
+  ])
 
   // ph-seite / ph-seiten-gesamt → Puppeteer-eigene pageNumber/totalPages-Klassen
   const toPuppeteerTpl = (raw: string) =>

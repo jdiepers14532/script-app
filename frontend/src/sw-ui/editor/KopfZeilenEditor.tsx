@@ -52,6 +52,10 @@ export interface SeitenLayout {
   margin_bottom: number
   margin_left: number
   margin_right: number
+  /** Abstand der Kopfzeile vom physischen oberen Papierrand (mm). Default: 10 */
+  header_abstand_rand?: number
+  /** Abstand der Fußzeile vom physischen unteren Papierrand (mm). Default: 10 */
+  footer_abstand_rand?: number
 }
 
 export interface ZeilenContent {
@@ -241,6 +245,19 @@ function pmInlineToReact(node: any, ctxMap: Record<string, string>, key: string)
     const chipKey = node.attrs?.key ?? ''
     const val = ctxMap[chipKey] ?? chipKey
     return <span key={key}>{val}</span>
+  }
+  if (node.type === 'resizable_image' || node.type === 'image') {
+    const src = node.attrs?.src ?? ''
+    const w   = node.attrs?.width ? `${node.attrs.width}px` : '80px'
+    const flt = node.attrs?.float
+    const style: React.CSSProperties = {
+      width: w, maxWidth: '100%', verticalAlign: 'middle',
+      ...(flt === 'center' ? { display: 'block', margin: '0 auto' }
+        : flt === 'right'  ? { float: 'right' as const, marginLeft: 4 }
+        : flt === 'left'   ? { float: 'left' as const, marginRight: 4 }
+        : {}),
+    }
+    return <img key={key} src={src} style={style} alt="" />
   }
   if (node.type === 'tab_char') {
     const w = Math.max(4, node.attrs?.widthPx ?? 20)
@@ -812,6 +829,23 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, de
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary, #666)', padding: '0 2px', lineHeight: 1 }}
               >↺</button>
             )}
+          </>
+        )}
+        <div style={{ width: 1, height: 14, background: 'var(--border, #e0e0e0)', margin: '0 2px', flexShrink: 0 }} />
+        {value.kopfzeile_aktiv && (
+          <>
+            <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)', whiteSpace: 'nowrap' }} title="Abstand der Kopfzeile vom physischen oberen Papierrand (mm)">KZ↑</label>
+            <input type="number" min={3} max={50} value={sl.header_abstand_rand ?? 10}
+              onChange={e => onChange({ ...value, seiten_layout: { ...sl, header_abstand_rand: Math.max(3, Math.min(50, Number(e.target.value) || 10)) } })}
+              style={selStyle({ width: 42, textAlign: 'right' })} />
+          </>
+        )}
+        {value.fusszeile_aktiv && (
+          <>
+            <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)', whiteSpace: 'nowrap' }} title="Abstand der Fußzeile vom physischen unteren Papierrand (mm)">FZ↓</label>
+            <input type="number" min={3} max={50} value={sl.footer_abstand_rand ?? 10}
+              onChange={e => onChange({ ...value, seiten_layout: { ...sl, footer_abstand_rand: Math.max(3, Math.min(50, Number(e.target.value) || 10)) } })}
+              style={selStyle({ width: 42, textAlign: 'right' })} />
           </>
         )}
       </div>

@@ -79,6 +79,10 @@ export interface SeitenLayout {
   margin_bottom: number
   margin_left: number
   margin_right: number
+  /** Abstand der Kopfzeile vom physischen oberen Papierrand (mm). Default: 10 */
+  header_abstand_rand?: number
+  /** Abstand der Fußzeile vom physischen unteren Papierrand (mm). Default: 10 */
+  footer_abstand_rand?: number
 }
 
 /** 3-column content for header / footer */
