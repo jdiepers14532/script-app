@@ -18,8 +18,10 @@ import { CompanyInfoModal, useTerminologie } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
+import FarbschemaModal from './FarbschemaModal'
 import type { BgPalette, FontOption } from './appShellConstants'
-import { LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS, FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX } from './appShellConstants'
+import { LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS, FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX, resolveColorScheme } from './appShellConstants'
+import { matchesShortcut } from '../shortcuts'
 import ConflictDialog from './ConflictDialog'
 import TeamWorkModal from './TeamWorkModal'
 
@@ -98,6 +100,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   autoStimmungPropagation: true,
   sceneListPopup: true,
   sceneListNurSzenen: false,
+  activeColorSchemeId: 'default',
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -223,6 +226,7 @@ export default function AppShell({
   const [isAdmin, setIsAdmin] = useState(false)
   const [hasDkAccess, setHasDkAccess] = useState(false)
   const [ansichtsModalOpen, setAnsichtsModalOpen] = useState(false)
+  const [farbschemaOpen, setFarbschemaOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string; user_id?: string } | null>(null)
   const [sendedatum, setSendedatum] = useState<{ datum: string; ist_ki_prognose: boolean } | null>(null)
   const [sunWeather, setSunWeather] = useState<{
@@ -601,6 +605,7 @@ export default function AppShell({
           autoStimmungPropagation: typeof s.autoStimmungPropagation === 'boolean' ? s.autoStimmungPropagation : prev.autoStimmungPropagation,
           sceneListPopup: typeof s.sceneListPopup === 'boolean' ? s.sceneListPopup : true,
           sceneListNurSzenen: typeof s.sceneListNurSzenen === 'boolean' ? s.sceneListNurSzenen : false,
+          activeColorSchemeId: typeof s.activeColorSchemeId === 'string' ? s.activeColorSchemeId : 'default',
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -631,10 +636,35 @@ export default function AppShell({
     return () => window.removeEventListener('ln-default-changed', handler)
   }, [])
 
+  // ── Alt+A → Ansichts-Modal öffnen ────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (matchesShortcut('viewSettings', e)) {
+        e.preventDefault()
+        setAnsichtsModalOpen(v => !v)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   // ── CSS-Variablen bei Änderung sofort anwenden ────────────────────────────
   useEffect(() => {
     applyViewSettings(tweaks)
   }, [tweaks.lightBgIndex, tweaks.darkBgIndex, tweaks.lightCustomBg, tweaks.darkCustomBg, tweaks.interfaceFont, tweaks.interfaceFontSize, tweaks.scriptFont, tweaks.fontSize])
+
+  // ── Farbschema: Akzentfarben als CSS-Custom-Properties auf :root setzen ──
+  // Inline-Styles auf documentElement haben höhere Spezifität als CSS-Regeln →
+  // kein !important nötig; sofort wirksam ohne Reload.
+  useEffect(() => {
+    const scheme = resolveColorScheme(tweaks.activeColorSchemeId)
+    const el = document.documentElement
+    el.style.setProperty('--sw-green',       scheme.colors.green)
+    el.style.setProperty('--sw-info',        scheme.colors.info)
+    el.style.setProperty('--sw-danger',      scheme.colors.danger)
+    el.style.setProperty('--sw-warning',     scheme.colors.warning)
+    el.style.setProperty('--sw-warning-alt', scheme.colors.warningAlt)
+  }, [tweaks.activeColorSchemeId])
 
   // ── Sendedatum live aus ProdDB ────────────────────────────────────────────
   useEffect(() => {
@@ -1056,7 +1086,13 @@ export default function AppShell({
               {children}
             </PanelModeContext.Provider>
             {ansichtsModalOpen && (
-              <AnsichtsModal onClose={() => setAnsichtsModalOpen(false)} />
+              <AnsichtsModal
+                onClose={() => setAnsichtsModalOpen(false)}
+                onFarbschemaClick={() => setFarbschemaOpen(true)}
+              />
+            )}
+            {farbschemaOpen && (
+              <FarbschemaModal onClose={() => setFarbschemaOpen(false)} />
             )}
           </UserPrefsContext.Provider>
         </TweaksContext.Provider>
@@ -1468,7 +1504,8 @@ export default function AppShell({
               onClick={() => { setUserMenuOpen(false); setAnsichtsModalOpen(true) }}
             >
               <Eye size={14} />
-              Ansicht
+              <span style={{ flex: 1 }}>Ansicht</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{sc('viewSettings')}</span>
             </button>
             <button className="um-item" onClick={() => { setUserMenuOpen(false); openOfflineModal() }}>
               {isOnline ? <Wifi size={14} /> : <WifiOff size={14} style={{ color: 'var(--sw-danger)' }} />}

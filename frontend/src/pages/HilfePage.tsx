@@ -31,6 +31,7 @@ const DatenmodellTab       = lazy(() => import('./hilfe/DatenmodellTab'))
 const DatensicherheitTab   = lazy(() => import('./hilfe/DatensicherheitTab'))
 const PotenzielleFehldrTab = lazy(() => import('./hilfe/PotenzielleFehldrTab'))
 const ChipsReferenzTab     = lazy(() => import('./hilfe/ChipsReferenzTab'))
+const DesignSystemTab      = lazy(() => import('./hilfe/DesignSystemTab'))
 
 // ── Lade-Platzhalter ──────────────────────────────────────────────────────────
 function TabSpinner() {
@@ -97,6 +98,8 @@ const NAV_ITEMS = [
     keywords: 'fehler error problem bug service worker sw session login 401 cache offline loop backend server 502 503 devtools update reload cookie auth' },
   { id: 'chips-referenz',       label: 'Chips-Referenz',            icon: '🏷️', adminOnly: true,
     keywords: 'chip chips placeholder rollen komparsen strang wechselschnitt flashback editor datenquelle api tabelle vorlage kopfzeile fusszeile' },
+  { id: 'design-system',        label: 'Design-System',             icon: '🎨', adminOnly: true,
+    keywords: 'design farbe farbschema css tokens brand akzent theme farbtöne tokens.css variables custom color scheme ui' },
 ]
 
 // ── Haupt-Komponente ──────────────────────────────────────────────────────────
@@ -177,6 +180,7 @@ function HilfePage() {
       case 'datensicherheit':    return <DatensicherheitTab />
       case 'potenzielle-fehler': return <PotenzielleFehldrTab />
       case 'chips-referenz':     return <ChipsReferenzTab />
+      case 'design-system':      return <DesignSystemTab />
       default:                   return null
     }
   }

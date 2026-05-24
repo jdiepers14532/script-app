@@ -74,6 +74,15 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Klick`,
   },
 
+  // ── Ansichts-Einstellungen öffnen ────────────────────────────────────────
+  // Alt+A → "A" für Ansicht; nicht von Browsern belegt; KeyA ist auf QWERTY und
+  // QWERTZ immer dieselbe physische Position — kein Layout-Mapping nötig.
+  viewSettings: {
+    codes: ['KeyA'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+A`,
+  },
+
 }
 
 // ── Hilfsfunktionen (pure, kein React) ────────────────────────────────────────

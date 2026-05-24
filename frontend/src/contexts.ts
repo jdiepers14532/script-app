@@ -118,6 +118,8 @@ export interface TweakState {
   sceneListPopup: boolean
   /** Nur echte Szenen anzeigen, Nicht-Szenen-Seiten ausblenden */
   sceneListNurSzenen: boolean
+  /** Aktives Farbschema — ID aus BUILTIN_COLOR_SCHEMES oder benutzerdefiniert */
+  activeColorSchemeId: string
 }
 interface TweaksContextType {
   tweaks: TweakState

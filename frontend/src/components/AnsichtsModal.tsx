@@ -11,7 +11,7 @@ import { useTweaks, useAppSettings } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
 
-export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
+export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose: () => void; onFarbschemaClick?: () => void }) {
   const { tweaks, set, reset } = useTweaks()
   const { treatmentLabel } = useAppSettings()
   const { t } = useTerminologie()
@@ -225,6 +225,21 @@ export default function AnsichtsModal({ onClose }: { onClose: () => void }) {
                 <button className={tweaks.theme === 'light' ? 'on' : ''} onClick={() => set('theme', 'light')}>Hell</button>
                 <button className={tweaks.theme === 'dark' ? 'on' : ''} onClick={() => set('theme', 'dark')}>Dunkel</button>
               </div>
+            </div>
+
+            <div style={rowStyle}>
+              <span style={labelStyle}>Farbschema</span>
+              <button
+                onClick={onFarbschemaClick}
+                style={{
+                  fontSize: 12, padding: '5px 12px', borderRadius: 6,
+                  border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                  color: 'var(--text-primary)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                Farbschema ändern
+              </button>
             </div>
 
             <div style={{ ...rowStyle, flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>

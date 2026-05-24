@@ -58,3 +58,70 @@ export const SCRIPT_FONTS: FontOption[] = [
 export const FONT_SIZES = [11, 12, 13, 14, 15, 16]
 export const INTERFACE_FONT_SIZES = [11, 12, 13, 14, 15, 16]
 export const CUSTOM_IDX = 99  // sentinel: eigene Farbe gewählt
+
+// ── Farbschemata ─────────────────────────────────────────────────────────────
+// Steuern nur die 5 Brand-Akzentfarben (--sw-*).
+// Unabhängig von Theme (hell/dunkel) und Hintergrundfarbe.
+
+export interface ColorScheme {
+  id: string
+  name: string
+  colors: {
+    green: string      // --sw-green  (Aktion / Erfolg)
+    info: string       // --sw-info   (Info / Link)
+    danger: string     // --sw-danger (Fehler)
+    warning: string    // --sw-warning (Warnung)
+    warningAlt: string // --sw-warning-alt (Orange)
+  }
+  isBuiltin?: true
+}
+
+export const BUILTIN_COLOR_SCHEMES: ColorScheme[] = [
+  {
+    id: 'default',
+    name: 'Serienwerft Standard',
+    isBuiltin: true,
+    colors: { green: '#00C853', info: '#007AFF', danger: '#FF3B30', warning: '#FFCC00', warningAlt: '#FF9500' },
+  },
+  {
+    id: 'ozean',
+    name: 'Ozean',
+    isBuiltin: true,
+    colors: { green: '#00BCD4', info: '#1565C0', danger: '#E53935', warning: '#FFA726', warningAlt: '#FF7043' },
+  },
+  {
+    id: 'violett',
+    name: 'Violett & Türkis',
+    isBuiltin: true,
+    colors: { green: '#00E5CC', info: '#7C4DFF', danger: '#FF1744', warning: '#FFD740', warningAlt: '#FF6D00' },
+  },
+  {
+    id: 'bernstein',
+    name: 'Bernstein',
+    isBuiltin: true,
+    colors: { green: '#FFB300', info: '#546E7A', danger: '#D32F2F', warning: '#FFF176', warningAlt: '#FF6F00' },
+  },
+  {
+    id: 'nacht',
+    name: 'Nacht-Grün',
+    isBuiltin: true,
+    colors: { green: '#69F0AE', info: '#82B1FF', danger: '#FF5252', warning: '#FFD740', warningAlt: '#FF6D00' },
+  },
+]
+
+/** localStorage-Key für benutzerdefinierte Farbschemata */
+export const CUSTOM_SCHEMES_KEY = 'script-color-schemes-v1'
+
+export function loadCustomSchemes(): ColorScheme[] {
+  try { return JSON.parse(localStorage.getItem(CUSTOM_SCHEMES_KEY) || '[]') }
+  catch { return [] }
+}
+
+export function saveCustomSchemes(schemes: ColorScheme[]): void {
+  localStorage.setItem(CUSTOM_SCHEMES_KEY, JSON.stringify(schemes))
+}
+
+export function resolveColorScheme(id: string): ColorScheme {
+  const all = [...BUILTIN_COLOR_SCHEMES, ...loadCustomSchemes()]
+  return all.find(s => s.id === id) ?? BUILTIN_COLOR_SCHEMES[0]
+}
