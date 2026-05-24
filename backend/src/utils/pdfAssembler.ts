@@ -512,7 +512,8 @@ function renderSzenenkopf(
   folgeNummer: number,
   pageBreakBefore = false,
   bodyMarginLeftCm = 0,
-  kuerzel: Record<string, string> = {}
+  kuerzel: Record<string, string> = {},
+  pdfBookmarks = false
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
 
@@ -523,7 +524,8 @@ function renderSzenenkopf(
     if (scene.ort_name)  parts.push(esc(scene.ort_name))
     if (scene.int_ext)   parts.push(esc(scene.int_ext))
     if (scene.tageszeit) parts.push(esc(scene.tageszeit))
-    return `<p style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</p>`
+    const tag = pdfBookmarks ? 'h2' : 'p'
+    return `<${tag} style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</${tag}>`
   }
 
   const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
@@ -542,7 +544,8 @@ function renderSzenenkopf(
   }
 
   if (parts.length === 0) return ''
-  return `<div style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
+  const tag = pdfBookmarks ? 'h2' : 'div'
+  return `<${tag} style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</${tag}>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -554,12 +557,13 @@ function renderMainScenes(
   kuerzel: Record<string, string>,
   szenenkopfTemplate: any,
   folgeNummer: number,
-  bodyMarginLeftCm = 0
+  bodyMarginLeftCm = 0,
+  pdfBookmarks = false
 ): string {
   return scenes.map((scene, index) => {
     // Notiz-Format-Szenen bekommen keinen strukturierten Szenenkopf
     const headHtml = scene.format !== 'notiz'
-      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel)
+      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel, pdfBookmarks)
       : (index > 0 ? '<div style="page-break-before:always"></div>' : '')
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
@@ -1039,7 +1043,7 @@ async function assembleHtml(
     if (hauptinhaltAktiv) {
       mainHtml = isNotizDoc
         ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
+        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10, input.options.pdfBookmarks === true)
     }
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
