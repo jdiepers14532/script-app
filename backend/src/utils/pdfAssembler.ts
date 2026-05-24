@@ -12,6 +12,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
+import { PDFDocument, PDFName, PDFNumber, PDFString, PDFNull } from 'pdf-lib'
 import { pool } from '../db'
 import type { ExportJobOptions, OrderedExportItem, JobResult } from './exportJobQueue'
 import {
@@ -208,6 +209,73 @@ interface AbsatzFormat {
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/** HTML-Attribut-Wert escapen (zusätzlich: " → &quot;) */
+function escAttr(s: string): string {
+  return esc(s).replace(/"/g, '&quot;')
+}
+
+/**
+ * Fügt einer bereits generierten PDF-Datei (als Uint8Array) ein Inhaltsverzeichnis
+ * (PDF-Outline/Bookmarks) hinzu. Verwendet pdf-lib für die Post-Processing-Schicht,
+ * da Chromes outline:true + h2-Tags in der Praxis nicht zuverlässig funktioniert.
+ *
+ * bookmarks: Array von { label, pageIndex } — pageIndex 0-basiert.
+ * Gibt die modifizierten PDF-Bytes zurück.
+ */
+async function addPdfOutline(
+  inputBytes: Uint8Array,
+  bookmarks: { label: string; pageIndex: number }[]
+): Promise<Uint8Array> {
+  if (bookmarks.length === 0) return inputBytes
+
+  const pdfDoc = await PDFDocument.load(inputBytes)
+  const ctx    = pdfDoc.context
+  const pageCount = pdfDoc.getPageCount()
+  const pageRefs  = pdfDoc.getPages().map(p => p.ref)
+
+  // Outline-Root-Ref vorab reservieren, damit Items darauf zeigen können
+  const outlineRootRef = ctx.nextRef()
+
+  // Bookmark-Items erstellen (als indirekte Objekte)
+  const itemRefs = bookmarks.map(bm => {
+    const pi = Math.max(0, Math.min(bm.pageIndex, pageCount - 1))
+    const ref = ctx.nextRef()
+    // Ziel: Seitenanfang (XYZ mit null = aktuelle Position beibehalten)
+    const destArray = ctx.obj([pageRefs[pi], PDFName.of('XYZ'), PDFNull, PDFNull, PDFNumber.of(0)])
+    ctx.assign(ref, ctx.obj({
+      Title:  PDFString.of(bm.label),
+      Parent: outlineRootRef,
+      Dest:   destArray,
+    }))
+    return ref
+  })
+
+  // /Prev + /Next-Verlinkung zwischen Items setzen
+  for (let i = 0; i < itemRefs.length; i++) {
+    const dict = ctx.lookup(itemRefs[i])
+    if (dict && 'set' in dict) {
+      const d = dict as import('pdf-lib').PDFDict
+      if (i > 0) d.set(PDFName.of('Prev'), itemRefs[i - 1])
+      if (i < itemRefs.length - 1) d.set(PDFName.of('Next'), itemRefs[i + 1])
+    }
+  }
+
+  // Outline-Root anlegen
+  ctx.assign(outlineRootRef, ctx.obj({
+    Type:  PDFName.of('Outlines'),
+    Count: PDFNumber.of(bookmarks.length),
+    First: itemRefs[0],
+    Last:  itemRefs[itemRefs.length - 1],
+  }))
+
+  // /Outlines im PDF-Katalog registrieren + "Bookmarks-Panel beim Öffnen" aktivieren
+  pdfDoc.catalog.set(PDFName.of('Outlines'),     outlineRootRef)
+  pdfDoc.catalog.set(PDFName.of('PageMode'),     PDFName.of('UseOutlines'))
+
+  const saved = await pdfDoc.save()
+  return saved
 }
 
 function formatStoppzeit(sek: number | null): string {
@@ -446,8 +514,7 @@ function renderSKParagraph(
   scene: SceneRow,
   folgeNummer: number,
   bodyMarginLeftCm: number,
-  kuerzel: Record<string, string> = {},
-  useSpan = false  // true wenn innerhalb <h2> (PDF-Lesezeichen) — <p>/<div> schließt h2 vorzeitig
+  kuerzel: Record<string, string> = {}
 ): string {
   const attrs      = node.attrs ?? {}
   const ff         = attrs.fontFamily ?? "'Courier Prime','Courier New',monospace"
@@ -473,11 +540,6 @@ function renderSKParagraph(
   if (sa)  baseStyle += `;margin-bottom:${sa}`
 
   if (segments.length === 1 || tabStops.length === 0) {
-    // Im h2-Kontext: <span style="display:block"> statt <p> — <p> ist kein valides Phrasing-Content
-    // und würde das <h2> durch Chromes HTML-Parser vorzeitig schließen → kein Lesezeichen
-    if (useSpan) {
-      return `<span style="display:block;${baseStyle}">${segments[0] || '&nbsp;'}</span>`
-    }
     return `<p style="${baseStyle}">${segments[0] || '&nbsp;'}</p>`
   }
 
@@ -505,9 +567,7 @@ function renderSKParagraph(
     return `<span style="${cellStyle}">${content || ''}</span>`
   }).join('')
 
-  // Im h2-Kontext: <span style="display:flex"> statt <div> (kein Block-Element innerhalb h2)
-  const rowTag = useSpan ? 'span' : 'div'
-  return `<${rowTag} style="display:flex;align-items:baseline;${baseStyle}">${cells}</${rowTag}>`
+  return `<div style="display:flex;align-items:baseline;${baseStyle}">${cells}</div>`
 }
 
 /**
@@ -541,6 +601,11 @@ function renderSzenenkopf(
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
 
+  // data-bm-label-Attribut für pdf-lib Post-Processing (kein h2 mehr nötig)
+  const bmAttr = pdfBookmarks
+    ? ` data-bm-label="${escAttr(buildBookmarkLabel(scene, folgeNummer, kuerzel))}"`
+    : ''
+
   // Fallback wenn kein Template konfiguriert
   if (!templateJson) {
     const num  = scene.scene_nummer != null ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
@@ -548,8 +613,7 @@ function renderSzenenkopf(
     if (scene.ort_name)  parts.push(esc(scene.ort_name))
     if (scene.int_ext)   parts.push(esc(scene.int_ext))
     if (scene.tageszeit) parts.push(esc(scene.tageszeit))
-    const tag = pdfBookmarks ? 'h2' : 'p'
-    return `<${tag} style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</${tag}>`
+    return `<p style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid"${bmAttr}>${parts.join(' \u2014 ')}</p>`
   }
 
   const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
@@ -562,17 +626,13 @@ function renderSzenenkopf(
     if (node.type === 'horizontalRule') {
       parts.push('<hr style="border:none;border-top:0.5pt solid #888;margin:2pt 0;width:100%">')
     } else if (node.type === 'paragraph') {
-      // pdfBookmarks=true → useSpan=true: Paragraphen als <span style="display:block"> rendern,
-      // damit das umgebende <h2> gültige Phrasing-Content-Kinder enthält und nicht vorzeitig
-      // durch Chrome geschlossen wird. Lesezeichen-Text = Szenenkopf-Inhalt (innerText des h2).
-      const rendered = renderSKParagraph(node, scene, folgeNummer, bodyMarginLeftCm, kuerzel, pdfBookmarks)
+      const rendered = renderSKParagraph(node, scene, folgeNummer, bodyMarginLeftCm, kuerzel)
       if (rendered) parts.push(rendered)
     }
   }
 
   if (parts.length === 0) return ''
-  const tag = pdfBookmarks ? 'h2' : 'div'
-  return `<${tag} style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</${tag}>`
+  return `<div style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid"${bmAttr}>${parts.join('\n')}</div>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -594,11 +654,13 @@ function renderMainScenes(
       headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel, pdfBookmarks)
     } else {
       const pb = index > 0 ? '<div style="page-break-before:always"></div>' : ''
-      // Vorlage-Titel als sichtbare h2-Überschrift — Chrome PDF Outline braucht echten Content
-      const bm = pdfBookmarks && scene.vorlage_name
-        ? `<h2 style="font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em">${esc(scene.vorlage_name)}</h2>`
+      const bmAttr = pdfBookmarks && scene.vorlage_name
+        ? ` data-bm-label="${escAttr(scene.vorlage_name)}"`
         : ''
-      headHtml = pb + bm
+      const titleDiv = scene.vorlage_name
+        ? `<div style="font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em"${bmAttr}>${esc(scene.vorlage_name)}</div>`
+        : ''
+      headHtml = pb + titleDiv
     }
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
@@ -1228,18 +1290,41 @@ export async function assemblePdf(
   // Kein try/finally mit browser.close() — Warm-Pool behält die Instanz
   const page = await browser.newPage()
   try {
+    // Print-Modus aktivieren, damit evaluate() und PDF-Rendering denselben Layout-Kontext nutzen
+    if (pdfBookmarks) {
+      await page.emulateMediaType('print')
+    }
     // 'load' statt 'networkidle0': lokale Fonts brauchen kein Netzwerk-Idle
     await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
     setProgress(75)
+
+    // Bookmark-Positionen per DOM-Auswertung einsammeln (nur wenn Lesezeichen gewünscht)
+    // A4 bei 96 DPI = 297 / 25.4 * 96 ≈ 1122.52 CSS-Pixel pro Seite
+    type BmEntry = { label: string; pageIndex: number }
+    let bmEntries: BmEntry[] = []
+    if (pdfBookmarks) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      bmEntries = await page.evaluate((): any => {
+        const A4_H = 297 / 25.4 * 96  // ≈ 1122.52
+        // @ts-ignore — läuft im Browser-Kontext
+        return Array.from((document as any).querySelectorAll('[data-bm-label]')).map((el: any) => {
+          const rect = el.getBoundingClientRect()
+          // @ts-ignore
+          const top  = rect.top + ((window as any).scrollY ?? 0)
+          return {
+            label:     el.dataset?.bmLabel ?? '',
+            pageIndex: Math.max(0, Math.floor(top / A4_H)),
+          }
+        })
+      }) as BmEntry[]
+    }
+
     pdfBytes = await page.pdf({
       format: 'A4',
       printBackground: true,
       displayHeaderFooter: true,
       headerTemplate,
       footerTemplate,
-      // PDF-Lesezeichen/Inhaltsverzeichnis — erfordert H-Tag-Hierarchie im HTML
-      outline: pdfBookmarks,
-      tagged: pdfBookmarks,
       // margin übernimmt Seitenränder — kein @page-margin im HTML nötig
       margin: {
         top:    `${pageMarginTop}mm`,
@@ -1248,6 +1333,13 @@ export async function assemblePdf(
         right:  `${bmr}mm`,
       },
     })
+    setProgress(88)
+
+    // Zweiter Durchgang: PDF-Lesezeichen per pdf-lib einschreiben
+    if (pdfBookmarks && bmEntries.length > 0) {
+      pdfBytes = await addPdfOutline(pdfBytes, bmEntries)
+    }
+
     setProgress(90)
   } finally {
     await page.close()  // Nur den Tab schließen, Browser bleibt warm
