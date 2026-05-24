@@ -377,13 +377,18 @@ function renderSKInlineSegments(
     }
 
     const marks: any[] = node.marks ?? []
-    const bold      = marks.some((m: any) => m.type === 'bold')
-    const italic    = marks.some((m: any) => m.type === 'italic')
-    const underline = marks.some((m: any) => m.type === 'underline')
+    const marksBold      = marks.some((m: any) => m.type === 'bold')
+    const marksItalic    = marks.some((m: any) => m.type === 'italic')
+    const marksUnderline = marks.some((m: any) => m.type === 'underline')
 
     let content = ''
+    let bold = marksBold, italic = marksItalic, underline = marksUnderline
     if (node.type === 'sk_chip') {
       content = skChipValue(node.attrs?.key ?? '', scene, folgeNummer, kuerzel)
+      // Chip-Formatierung kann via Editor-Toolbar als attrs ODER via marks (DB-Update) gesetzt sein
+      bold      = bold      || node.attrs?.fontWeight === 'bold'
+      italic    = italic    || node.attrs?.fontStyle === 'italic'
+      underline = underline || node.attrs?.textDecoration === 'underline'
     } else if (node.type === 'text') {
       content = esc(node.text ?? '')
     }
@@ -416,8 +421,11 @@ function renderSKParagraph(
   const lh         = attrs.lineHeight ?? '1.2'
   const tabStops: { pos: number; align: string }[] = attrs.tabStops ?? []
 
-  const fst = attrs.fontStyle  ?? ''  // 'italic' / ''
-  const fw  = attrs.fontWeight ?? ''  // 'bold'   / ''
+  const fst = attrs.fontStyle      ?? ''  // 'italic' / ''
+  const fw  = attrs.fontWeight     ?? ''  // 'bold'   / ''
+  const td  = attrs.textDecoration ?? ''  // 'underline' / ''
+  const tt  = attrs.textTransform  ?? ''  // 'uppercase' / ''
+  const sa  = attrs.spaceAfter     ?? ''  // e.g. '8pt' / ''
 
   const segments = renderSKInlineSegments(node.content ?? [], scene, folgeNummer, kuerzel)
   const allEmpty  = segments.every(s => !s.trim())
@@ -426,6 +434,9 @@ function renderSKParagraph(
   let baseStyle = `font-family:${ff};font-size:${fs};line-height:${lh};margin:0;padding:0`
   if (fst) baseStyle += `;font-style:${fst}`
   if (fw)  baseStyle += `;font-weight:${fw}`
+  if (td)  baseStyle += `;text-decoration:${td}`
+  if (tt)  baseStyle += `;text-transform:${tt}`
+  if (sa)  baseStyle += `;margin-bottom:${sa}`
 
   if (segments.length === 1 || tabStops.length === 0) {
     return `<p style="${baseStyle}">${segments[0] || '&nbsp;'}</p>`

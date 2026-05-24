@@ -757,11 +757,12 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
       } else if (child.type === 'sk_chip') {
         const val = DUMMY_FIELDS[child.attrs?.key] ?? ''
         const ca = child.attrs ?? {}
+        const chipMarks = child.marks ?? []
         appendText(
           val,
-          ca.fontWeight === 'bold',
-          ca.fontStyle === 'italic',
-          ca.textDecoration === 'underline',
+          ca.fontWeight === 'bold'          || chipMarks.some((m: any) => m.type === 'bold'),
+          ca.fontStyle === 'italic'         || chipMarks.some((m: any) => m.type === 'italic'),
+          ca.textDecoration === 'underline' || chipMarks.some((m: any) => m.type === 'underline'),
           false,
           ca.fontFamily || undefined,
           ca.fontSize || undefined,
