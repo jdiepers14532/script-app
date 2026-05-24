@@ -894,31 +894,72 @@ async function assembleHtml(
       komparsenIds = new Set(kompRes.rows.map(r => r.scene_identity_id))
     }
 
-    let mainScenes = szRes.rows.map(s => ({
+    const allRows = szRes.rows.map(s => ({
       ...s,
       rollen: s.scene_identity_id ? (charMap.get(s.scene_identity_id) ?? []) : [],
     }))
 
-    // ── Szenen-Filter anwenden ────────────────────────────────────────────────
+    // ── Partitionierung: VOR-Elemente / Szenenblock / NACH-Elemente ──────────
+    // Echte Szenen = format !== 'notiz' mit scene_nummer != null
     const szSpecs = parseSzenenAuswahl(options.szenenAuswahl)
-    if (szSpecs) {
-      mainScenes = mainScenes.filter(s =>
-        szSpecs.some(sp =>
-          s.scene_nummer === sp.nr &&
-          (s.scene_nummer_suffix ?? '').toUpperCase() === sp.suffix
-        )
+    const realScenesAll = allRows.filter(s => s.format !== 'notiz' && s.scene_nummer != null)
+
+    let mainScenes: typeof allRows
+
+    if (realScenesAll.length === 0) {
+      // Keine echten Szenen → alle Rows direkt übernehmen
+      mainScenes = allRows
+    } else {
+      const minSort = Math.min(...realScenesAll.map(s => s.sort_order))
+      const maxSort = Math.max(...realScenesAll.map(s => s.sort_order))
+
+      // VOR: format='notiz', scene_nummer=null, sort_order < minSort
+      const vorElements = allRows.filter(
+        s => s.format === 'notiz' && s.scene_nummer == null && s.sort_order < minSort
       )
-    }
-    if (options.filterRollen?.length) {
-      const rollenSet = new Set(options.filterRollen)
-      mainScenes = mainScenes.filter(s => s.rollen.some(r => rollenSet.has(r)))
-    }
-    if (options.filterMotive?.length) {
-      const motivSet = new Set(options.filterMotive.map(m => m.toLowerCase()))
-      mainScenes = mainScenes.filter(s => s.ort_name && motivSet.has(s.ort_name.toLowerCase()))
-    }
-    if (options.filterKomparsen?.length) {
-      mainScenes = mainScenes.filter(s => s.scene_identity_id && komparsenIds.has(s.scene_identity_id))
+      // NACH: format='notiz', sort_order > maxSort
+      const nachElements = allRows.filter(
+        s => s.format === 'notiz' && s.sort_order > maxSort
+      )
+      // Szenenblock: alle Rows mit sort_order in [minSort, maxSort]
+      const sceneBlockRows = allRows.filter(s => s.sort_order >= minSort && s.sort_order <= maxSort)
+
+      // Filter auf echte Szenen im Block anwenden
+      let filteredReal = sceneBlockRows.filter(s => s.format !== 'notiz' && s.scene_nummer != null)
+      if (szSpecs) {
+        filteredReal = filteredReal.filter(s =>
+          szSpecs.some(sp =>
+            s.scene_nummer === sp.nr &&
+            (s.scene_nummer_suffix ?? '').toUpperCase() === sp.suffix
+          )
+        )
+      }
+      if (options.filterRollen?.length) {
+        const rollenSet = new Set(options.filterRollen)
+        filteredReal = filteredReal.filter(s => s.rollen.some(r => rollenSet.has(r)))
+      }
+      if (options.filterMotive?.length) {
+        const motivSet = new Set(options.filterMotive.map(m => m.toLowerCase()))
+        filteredReal = filteredReal.filter(s => s.ort_name && motivSet.has(s.ort_name.toLowerCase()))
+      }
+      if (options.filterKomparsen?.length) {
+        filteredReal = filteredReal.filter(s => s.scene_identity_id && komparsenIds.has(s.scene_identity_id))
+      }
+
+      // Notiz-Elemente im Block: behalten wenn ihr scene_nummer zu einer gefilterten Szene gehört
+      const hasActiveFilter = !!(szSpecs || options.filterRollen?.length || options.filterMotive?.length || options.filterKomparsen?.length)
+      const keptSceneNummern = new Set(filteredReal.map(s => s.scene_nummer))
+      const filteredNotizInBlock = sceneBlockRows.filter(s => {
+        if (s.format !== 'notiz') return false
+        if (!hasActiveFilter) return true
+        return s.scene_nummer != null && keptSceneNummern.has(s.scene_nummer)
+      })
+
+      // Block sortiert nach sort_order zusammensetzen
+      const filteredBlock = [...filteredReal, ...filteredNotizInBlock]
+        .sort((a, b) => a.sort_order - b.sort_order)
+
+      mainScenes = [...vorElements, ...filteredBlock, ...nachElements]
     }
 
     setProgress(50)

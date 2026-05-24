@@ -117,6 +117,13 @@ export default function SceneList({
   // Drag & drop state
   const [dragId, setDragId] = useState<number | string | null>(null)
   const [dragOverId, setDragOverId] = useState<number | string | null>(null)
+  const [dropEndOver, setDropEndOver] = useState(false)
+  const [pendingAnchorDialog, setPendingAnchorDialog] = useState<{
+    ids: (number | string)[]
+    notizIds: (number | string)[]
+    lastRealSceneNummer: number
+    lastRealSceneLabel: string
+  } | null>(null)
 
   useEffect(() => {
     if (!produktionId || folgeNummer == null) { setLock(null); return }
@@ -413,6 +420,45 @@ export default function SceneList({
     setDragOverId(sceneId)
   }
 
+  // Shared reorder logic: optimistic update + anchor-dialog check + API call
+  const doReorder = async (newIds: (number | string)[], movedSet: Set<string>) => {
+    const newOrder = newIds.map(id => szenen.find(s => s.id === id)!).filter(Boolean)
+    newOrder.forEach((s, i) => { s.sort_order = i + 1 })
+    onSzenesReordered?.([...newOrder])
+    setDragId(null)
+    setDragOverId(null)
+
+    // Check if any moved notiz element lands after the last real scene
+    let lastRealIdx = -1
+    for (let i = newOrder.length - 1; i >= 0; i--) {
+      if (newOrder[i].format !== 'notiz' && newOrder[i].scene_nummer != null) { lastRealIdx = i; break }
+    }
+    const movedNotizAfterLast: (number | string)[] = []
+    if (lastRealIdx !== -1) {
+      for (let i = lastRealIdx + 1; i < newOrder.length; i++) {
+        const s = newOrder[i]
+        if (s?.format === 'notiz' && movedSet.has(String(s.id))) movedNotizAfterLast.push(s.id)
+      }
+    }
+    if (movedNotizAfterLast.length > 0) {
+      const lastReal = newOrder[lastRealIdx]
+      setPendingAnchorDialog({
+        ids: newIds,
+        notizIds: movedNotizAfterLast,
+        lastRealSceneNummer: lastReal.scene_nummer,
+        lastRealSceneLabel: `${lastReal.scene_nummer}${lastReal.scene_nummer_suffix || ''}`,
+      })
+      return
+    }
+
+    try {
+      const updated = await api.reorderWerkstufeSzenen(String(stageId), newIds)
+      onSzenesReordered?.(updated)
+    } catch (e) {
+      console.error('Fehler beim Sortieren', e)
+    }
+  }
+
   const handleDrop = async (e: React.DragEvent, targetId: number) => {
     e.preventDefault()
     if (!dragId || dragId === targetId || !stageId) {
@@ -424,56 +470,35 @@ export default function SceneList({
     const isMulti = selectedIds.has(String(dragId)) && selectedIds.size > 1
 
     if (isMulti) {
-      // Don't allow dropping on a scene that's part of the selection
       if (selectedIds.has(String(targetId))) { setDragId(null); setDragOverId(null); return }
-
       const allIds = sorted.map(s => s.id)
-
-      // Extract only selected scenes (in their current sorted order) — non-selected stay in place
       const selectedInOrder = allIds.filter(id => selectedIds.has(String(id)))
       const remaining = allIds.filter(id => !selectedIds.has(String(id)))
-
-      // Insert selected block before the target scene
       const insertIdx = remaining.indexOf(targetId)
       if (insertIdx === -1) { setDragId(null); setDragOverId(null); return }
-
       const newIds = [...remaining.slice(0, insertIdx), ...selectedInOrder, ...remaining.slice(insertIdx)]
-
-      const newOrder = newIds.map(id => szenen.find(s => s.id === id)!).filter(Boolean)
-      newOrder.forEach((s, i) => { s.sort_order = i + 1 })
-      onSzenesReordered?.([...newOrder])
-      setDragId(null)
-      setDragOverId(null)
-
-      try {
-        const updated = await api.reorderWerkstufeSzenen(String(stageId), newIds)
-        onSzenesReordered?.(updated)
-      } catch (e) {
-        console.error('Fehler beim Sortieren', e)
-      }
+      await doReorder(newIds, selectedIds)
     } else {
-      // Single drag: move dragId to position of targetId
       const ids = sorted.map(s => s.id)
       const fromIdx = ids.indexOf(dragId)
       const toIdx = ids.indexOf(targetId)
       if (fromIdx === -1 || toIdx === -1) { setDragId(null); setDragOverId(null); return }
-
       ids.splice(fromIdx, 1)
       ids.splice(toIdx, 0, dragId)
-
-      const newOrder = ids.map(id => szenen.find(s => s.id === id)!).filter(Boolean)
-      newOrder.forEach((s, i) => { s.sort_order = i + 1 })
-      onSzenesReordered?.([...newOrder])
-      setDragId(null)
-      setDragOverId(null)
-
-      try {
-        const updated = await api.reorderWerkstufeSzenen(String(stageId), ids)
-        onSzenesReordered?.(updated)
-      } catch (e) {
-        console.error('Fehler beim Sortieren', e)
-      }
+      await doReorder(ids, new Set([String(dragId)]))
     }
+  }
+
+  const handleDropToEnd = async (e: React.DragEvent) => {
+    e.preventDefault()
+    setDropEndOver(false)
+    if (!dragId || !stageId) { setDragId(null); return }
+    const isMulti = selectedIds.has(String(dragId)) && selectedIds.size > 1
+    const allIds = sorted.map(s => s.id)
+    const newIds = isMulti
+      ? [...allIds.filter(id => !selectedIds.has(String(id))), ...allIds.filter(id => selectedIds.has(String(id)))]
+      : [...allIds.filter(id => id !== dragId), dragId]
+    await doReorder(newIds, isMulti ? selectedIds : new Set([String(dragId)]))
   }
 
   const handleDragEnd = () => {
@@ -850,6 +875,29 @@ export default function SceneList({
           )
         })}
 
+        {/* Drop zone: Notiz-Element nach allen Szenen ablegen */}
+        {isDragActive && dragId != null && szenen.find(s => s.id === dragId)?.format === 'notiz' && (
+          <div
+            onDragOver={e => { e.preventDefault(); setDropEndOver(true) }}
+            onDragLeave={() => setDropEndOver(false)}
+            onDrop={handleDropToEnd}
+            style={{
+              margin: '4px 8px 8px',
+              borderRadius: 6,
+              border: `2px dashed ${dropEndOver ? 'var(--accent, #007AFF)' : 'var(--border)'}`,
+              background: dropEndOver ? 'var(--bg-elevated)' : 'transparent',
+              color: dropEndOver ? 'var(--text-primary)' : 'var(--text-muted)',
+              fontSize: 11,
+              textAlign: 'center',
+              padding: '6px 10px',
+              transition: 'all 0.15s',
+              cursor: 'copy',
+            }}
+          >
+            Nach allen Szenen ablegen
+          </div>
+        )}
+
       </div>
 
       {/* Floating bulk action panel — rendered via portal next to the sidebar */}
@@ -1024,6 +1072,45 @@ export default function SceneList({
           </div>
         </div>
       )}
+      {/* ── Notiz-Anker-Dialog ── */}
+      {pendingAnchorDialog && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, padding: '24px 28px', maxWidth: 380, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', border: '1px solid var(--border)' }}>
+            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>Notiz positionieren</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+              Dieses Notiz-Element liegt nach der letzten Szene (<strong>{pendingAnchorDialog.lastRealSceneLabel}</strong>).
+              Soll es an diese Szene gebunden oder als freies Dokument-Element ohne Szenen-Anker gespeichert werden?
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                onClick={async () => {
+                  const anchors: Record<string, number | null> = {}
+                  for (const id of pendingAnchorDialog.notizIds) anchors[String(id)] = pendingAnchorDialog.lastRealSceneNummer
+                  const d = pendingAnchorDialog
+                  setPendingAnchorDialog(null)
+                  try { const u = await api.reorderWerkstufeSzenen(String(stageId), d.ids, anchors); onSzenesReordered?.(u) } catch (e) { console.error(e) }
+                }}
+                style={{ padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-elevated)', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)', fontFamily: 'inherit', fontWeight: 500 }}
+              >
+                Ankern an Szene {pendingAnchorDialog.lastRealSceneLabel}
+              </button>
+              <button
+                onClick={async () => {
+                  const anchors: Record<string, number | null> = {}
+                  for (const id of pendingAnchorDialog.notizIds) anchors[String(id)] = null
+                  const d = pendingAnchorDialog
+                  setPendingAnchorDialog(null)
+                  try { const u = await api.reorderWerkstufeSzenen(String(stageId), d.ids, anchors); onSzenesReordered?.(u) } catch (e) { console.error(e) }
+                }}
+                style={{ padding: '10px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', fontSize: 13, cursor: 'pointer', textAlign: 'left', color: 'var(--text-muted)', fontFamily: 'inherit' }}
+              >
+                Ohne Anker (Dokumentebene)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hover-Popup: Oneliner + Rollen */}
       {hoverPopup && (() => {
         const ps = szenen.find(s => s.id === hoverPopup.id)

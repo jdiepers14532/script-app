@@ -720,19 +720,55 @@ werkstufenSzenenRouter.post('/', async (req, res) => {
 })
 
 // PATCH /api/werkstufen/:werkId/szenen/reorder — reorder scenes
+// Akzeptiert optional nonSceneAnchors: { [id]: scene_nummer | null } für format='notiz'-Elemente
+// die nach der letzten echten Szene liegen (Dialog-Ergebnis aus der Szenenübersicht).
+// Für alle anderen format='notiz'-Elemente wird scene_nummer automatisch aus der Position berechnet
+// (= scene_nummer der letzten echten Szene davor, oder null wenn vor allen echten Szenen).
 werkstufenSzenenRouter.patch('/reorder', async (req, res) => {
-  const { order } = req.body
+  const { order, nonSceneAnchors = {} } = req.body
   if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be array of scene ids' })
 
   const werkId = (req.params as any).werkId
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
+
+    // Format + scene_nummer aller Rows laden um format='notiz' zu erkennen
+    const { rows: meta } = await client.query(
+      'SELECT id, format, scene_nummer FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = false',
+      [werkId]
+    )
+    const metaMap = new Map<string, { format: string; scene_nummer: number | null }>(
+      meta.map(r => [String(r.id), { format: r.format, scene_nummer: r.scene_nummer }])
+    )
+
+    let lastRealSceneNummer: number | null = null
     for (let i = 0; i < order.length; i++) {
-      await client.query(
-        'UPDATE dokument_szenen SET sort_order = $1, updated_at = NOW() WHERE id = $2 AND werkstufe_id = $3',
-        [i + 1, order[i], werkId]
-      )
+      const id = String(order[i])
+      const row = metaMap.get(id)
+      if (!row) continue
+
+      if (row.format !== 'notiz') {
+        // Echte Szene: nur sort_order aktualisieren, scene_nummer tracken
+        await client.query(
+          'UPDATE dokument_szenen SET sort_order = $1, updated_at = NOW() WHERE id = $2 AND werkstufe_id = $3',
+          [i + 1, order[i], werkId]
+        )
+        lastRealSceneNummer = row.scene_nummer
+      } else {
+        // format='notiz': sort_order + scene_nummer aktualisieren
+        // nonSceneAnchors überschreibt die automatische Berechnung (Dialog-Ergebnis)
+        let newAnchor: number | null
+        if (Object.prototype.hasOwnProperty.call(nonSceneAnchors, id)) {
+          newAnchor = nonSceneAnchors[id] ?? null
+        } else {
+          newAnchor = lastRealSceneNummer
+        }
+        await client.query(
+          'UPDATE dokument_szenen SET sort_order = $1, scene_nummer = $2, updated_at = NOW() WHERE id = $3 AND werkstufe_id = $4',
+          [i + 1, newAnchor, order[i], werkId]
+        )
+      }
     }
     await client.query('COMMIT')
     const { rows } = await client.query(
