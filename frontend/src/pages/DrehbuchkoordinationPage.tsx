@@ -1873,7 +1873,7 @@ function DokumentTypenTab({
   ) : null
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div style={{ width: '100%', minWidth: 0 }}>
       {headerBarContent}
 
       {/* Szenenkopf-Vorlage (kein Border) */}
@@ -1941,6 +1941,7 @@ function DokumentTypenTab({
       {loading && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Lädt...</p>}
 
       {/* Absatzformate-Tabelle */}
+      <div style={{ overflowX: 'auto', width: '100%' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
         <thead><tr style={{ borderBottom: '2px solid var(--border)', background: 'var(--bg-subtle)' }}>
           <th style={{ padding: '6px 2px', width: 16 }} />
@@ -2160,6 +2161,7 @@ function DokumentTypenTab({
           )}
         </tbody>
       </table>
+      </div>
 
       {/* Add button */}
       <div style={{ marginTop: 12 }}>

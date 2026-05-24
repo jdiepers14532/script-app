@@ -780,8 +780,8 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
       fontFamily: fontFamily ?? "'Courier Prime','Courier New',monospace",
       fontSize: fontSize ?? 12,
       lineHeight: lineHeight ?? 1.7,
-      fontWeight: fontWeight ?? undefined,
-      fontStyle: fontStyle ?? undefined,
+      fontWeight: fontWeight ?? 'normal',
+      fontStyle: fontStyle ?? 'normal',
       textDecoration: textDecoration ?? undefined,
       textTransform: (textTransform as any) ?? undefined,
       marginBottom: spaceAfter ?? undefined,
@@ -789,8 +789,6 @@ function renderPreviewLines(stored: string, rulerCm: number): PreviewItem[] {
     }
     result.push({ type: 'line', segments, rulerCm, style })
   }
-  // Trailing-HR entfernen
-  while (result.length > 0 && result[result.length - 1].type === 'hr') result.pop()
   // Leading-HR entfernen (wenn die erste Inhalt-Zeile vor dem HR gefiltert wurde)
   while (result.length > 0 && result[0].type === 'hr') result.shift()
   return result
