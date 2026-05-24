@@ -14,6 +14,7 @@ import StatistikPage from './pages/StatistikPage'
 import BesetzungPage from './pages/BesetzungPage'
 import PrivatModeTokenPage from './pages/PrivatModeTokenPage'
 import AnalysisPage from './pages/AnalysisPage'
+import FreieDokumentePage from './pages/FreieDokumentePage'
 import { useFocusMode } from './hooks/useFocusMode'
 import { useProduction } from './hooks/useProduction'
 import {
@@ -144,6 +145,7 @@ export default function App() {
               <Route path="/besetzung" element={<BesetzungPage />} />
               <Route path="/drehbuchkoordination" element={<DrehbuchkoordinationPage />} />
               <Route path="/analysis" element={<AnalysisPage />} />
+              <Route path="/freie-dokumente" element={<FreieDokumentePage />} />
               <Route path="/privat-mode-token/:token" element={<PrivatModeTokenPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

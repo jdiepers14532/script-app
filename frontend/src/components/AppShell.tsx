@@ -6,7 +6,7 @@ import {
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone, Trash2, Zap,
   Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
-  Clapperboard, Tv,
+  Clapperboard, Tv, FolderOpen,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext, ToastContext } from '../contexts'
 import type { TweakState, ToastType } from '../contexts'
@@ -35,6 +35,7 @@ interface AppShellProps {
   onSelectStage?: (id: number) => void
   folgenMitDaten?: number[]
   hideProductionSelector?: boolean
+  freiDokTitel?: string | null  // wenn gesetzt: freies Dokument aktiv, Block/Folge-Selektor ausblenden
 }
 
 // TweakState type imported from ../contexts
@@ -193,6 +194,7 @@ export default function AppShell({
   onSelectStage,
   folgenMitDaten = [],
   hideProductionSelector = false,
+  freiDokTitel = null,
 }: AppShellProps) {
   const location = useLocation()
   const { focus, toggle, toolbarOpen, setToolbarOpen, setToolbarPos, setToolbarOpenedVia } = useFocus()
@@ -854,7 +856,16 @@ export default function AppShell({
             <span>{crumbProduktion}</span>
           )}
 
-          {bloecke.length > 0 && onSelectBlock && (
+          {freiDokTitel && (
+            <>
+              <span>·</span>
+              <span style={{ fontSize: 13, fontWeight: 500, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {freiDokTitel}
+              </span>
+            </>
+          )}
+
+          {!freiDokTitel && bloecke.length > 0 && onSelectBlock && (
             <>
               <span>·</span>
               <HeaderSelect
@@ -869,7 +880,7 @@ export default function AppShell({
             </>
           )}
 
-          {allFolgen.length > 0 && onSelectFolge && (
+          {!freiDokTitel && allFolgen.length > 0 && onSelectFolge && (
             <>
               <span>·</span>
               <HeaderSelect
@@ -1315,7 +1326,8 @@ export default function AppShell({
               { to: '/motive',    label: t('motiv', 'p'),     icon: <MapPin size={14} /> },
               { to: '/statistik',  label: 'Statistik',  icon: <BarChart3 size={14} /> },
               { to: '/besetzung', label: 'Besetzung',  icon: <Grid3x3 size={14} /> },
-              { to: '/import',    label: 'Import',     icon: <FileUp size={14} /> },
+              { to: '/import',              label: 'Import',              icon: <FileUp size={14} /> },
+              { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} /> },
               ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} /> }] : []),
             ].map(item => (
               <Link

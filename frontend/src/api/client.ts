@@ -489,11 +489,19 @@ export const api = {
   // Folgen v2 (merged table)
   getFolgenV2: (produktionId: string) =>
     request<any[]>('GET', `/v2/folgen?produktion_id=${encodeURIComponent(produktionId)}`),
+  getFreieDokumente: (produktionId: string) =>
+    request<any[]>('GET', `/v2/folgen?produktion_id=${encodeURIComponent(produktionId)}&nur_frei=true`),
   getFolgeV2: (id: number) => request<any>('GET', `/v2/folgen/${id}`),
   createFolgeV2: (data: { produktion_id: string; folge_nummer: number; folgen_titel?: string }) =>
     request<any>('POST', '/v2/folgen', data),
-  updateFolgeV2: (id: number, data: { folgen_titel?: string }) =>
+  createFreiesDokument: (data: { produktion_id: string; folgen_titel: string; dokument_label?: string; sichtbarkeit_frei?: string }) =>
+    request<any>('POST', '/v2/folgen', { ...data, ist_frei: true }),
+  updateFolgeV2: (id: string | number, data: { folgen_titel?: string; synopsis?: string; dokument_label?: string; sichtbarkeit_frei?: string }) =>
     request<any>('PUT', `/v2/folgen/${id}`, data),
+  deleteFreiesDokument: (id: string) =>
+    request<any>('DELETE', `/v2/folgen/${id}`),
+  verknuepfeMitFolge: (freiDokId: string, data: { ziel_folge_id: string; label_folge_sendung?: boolean }) =>
+    request<any>('POST', `/v2/folgen/${freiDokId}/verknuepfe-mit-folge`, data),
 
   // Werkstufen
   getWerkstufen: (folgeId: number) =>

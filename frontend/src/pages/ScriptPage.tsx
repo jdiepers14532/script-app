@@ -19,8 +19,10 @@ import StoppzeitenModal from '../components/StoppzeitenModal'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
-function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead }: {
-  produktionId: string; folgeNummer: number | null; selectedSzeneId: number | string | null; useDokumentSzenen: boolean
+function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead }: {
+  produktionId: string; folgeNummer: number | null
+  freiDokFolgeId?: number | null  // freies Dokument: direkte folge_id statt Auflösung via folgeNummer
+  selectedSzeneId: number | string | null; useDokumentSzenen: boolean
   stageId: number | null; sceneIdentityId: string | null
   onNavigateNext?: () => void; onNavigatePrev?: () => void
   onSzeneUpdated?: (updated: any) => void; onMarkCommentsRead?: (szeneId: number) => void
@@ -29,8 +31,9 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
   const { tweaks } = useTweaks()
   const sceneEditorMode = tweaks.sceneEditorMode ?? 'single'
   const [folgeId, setFolgeId] = useState<number | null>(null)
-  // Resolve produktionId + folgeNummer → folge_id
+  // Freies Dokument: folge_id direkt, kein folgeNummer-Lookup nötig
   useEffect(() => {
+    if (freiDokFolgeId != null) { setFolgeId(freiDokFolgeId); return }
     if (!produktionId || !folgeNummer) { setFolgeId(null); return }
     api.getFolgenV2(produktionId)
       .then(folgen => {
@@ -38,7 +41,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
         setFolgeId(match?.id ?? null)
       })
       .catch(() => setFolgeId(null))
-  }, [produktionId, folgeNummer])
+  }, [produktionId, folgeNummer, freiDokFolgeId])
 
   // Load werkstufen for this folge
   const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
@@ -86,7 +89,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, selectedSzeneId, useDok
     window.addEventListener('touchend', onUp)
   }, [])
 
-  if (!produktionId || !folgeNummer) return null
+  if (!produktionId || (!folgeNummer && !freiDokFolgeId)) return null
 
   const showLeft = panelMode !== 'script'
   const showRight = panelMode !== 'treatment'
@@ -253,8 +256,7 @@ export default function ScriptPage() {
     const handler = () => {
       clearCacheByPrefix('/v2/folgen/')
       clearCacheByPrefix('/werkstufen/')
-      reloadWerkstufen()
-      setRefreshKey(Date.now())
+      setRefreshKey(Date.now())  // refreshKey-Änderung triggert alle Data-useEffects neu
     }
     window.addEventListener('script-import-complete', handler)
     // If navigated from import with ?imported= param, clean URL
@@ -281,6 +283,16 @@ export default function ScriptPage() {
     return { szeneId: parseInt(scene) }
   })
 
+  // Freies Dokument: aus URL-Param ?freidok_id=<id> laden
+  const [freiDokId, setFreiDokId] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    const id = params.get('freidok_id')
+    if (!id) return null
+    window.history.replaceState({}, '', window.location.pathname)
+    return parseInt(id) || null
+  })
+  const [freiDokTitel, setFreiDokTitel] = useState<string | null>(null)
+
   const [selectedProduktionId, setSelectedProduktionId] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
@@ -300,6 +312,46 @@ export default function ScriptPage() {
     if (!selectedStageId) { setCommentCounts({}); return }
     api.getSceneCommentCounts(selectedStageId).then(setCommentCounts).catch(() => {})
   }, [selectedStageId])
+
+  // Freies Dokument laden wenn freiDokId gesetzt
+  useEffect(() => {
+    if (!freiDokId) return
+    setSzenen([])
+    setSelectedSzeneId(null)
+    setUseDokumentSzenen(false)
+    setSelectedWerkstufeTyp(null)
+    api.getFolgeV2(freiDokId)
+      .then(folge => {
+        setFreiDokTitel(folge.folgen_titel ?? 'Freies Dokument')
+        // ProduktionId aus dem Dokument setzen
+        if (folge.produktion_id) setSelectedProduktionId(folge.produktion_id)
+        return api.getWerkstufen(freiDokId)
+      })
+      .then(werkstufen => {
+        if (!werkstufen || werkstufen.length === 0) { setUseDokumentSzenen(true); return }
+        const prio = ['drehbuch', 'storyline', 'notiz']
+        let matching: any[] = []
+        for (const typ of prio) {
+          matching = werkstufen.filter((w: any) => w.typ === typ)
+          if (matching.length > 0) break
+        }
+        if (matching.length === 0) matching = werkstufen
+        matching.sort((a: any, b: any) => b.version_nummer - a.version_nummer)
+        const werk = matching.find((w: any) => (w.szenen_count ?? 0) > 0) ?? matching[0]
+        if (!werk) { setUseDokumentSzenen(true); return }
+        setSelectedStageId(werk.id)
+        setSelectedWerkstufeTyp(werk.typ)
+        api.getWerkstufenSzenen(werk.id).then(szenen => {
+          if (szenen.length > 0) {
+            setSzenen(szenen)
+            setSelectedSzeneId(szenen[0].id)
+            preloadAllScenes(szenen)
+          }
+          setUseDokumentSzenen(true)
+        }).catch(() => setUseDokumentSzenen(true))
+      })
+      .catch(() => {})
+  }, [freiDokId, refreshKey])
 
   const [showSearchReplace, setShowSearchReplace] = useState(false)
   const searchReplace = useSearchReplace()
@@ -576,6 +628,7 @@ export default function ScriptPage() {
 
   // Load Szenen via werkstufen (only model since v51)
   useEffect(() => {
+    if (freiDokId) return  // freies Dokument hat eigenen Load-Pfad
     if (!selectedProduktionId || selectedFolgeNummer == null) return
     setSzenen([])
     setSelectedSzeneId(null)
@@ -666,18 +719,19 @@ export default function ScriptPage() {
   return (
     <AppShell
       selectedProduktionId={selectedProduktionId}
-      bloecke={bloecke}
-      selectedBlock={selectedBlock}
-      onSelectBlock={b => { pendingNav.current = {}; navRestored.current = true; setSelectedBlock(b) }}
-      selectedFolgeNummer={selectedFolgeNummer}
-      onSelectFolge={nr => {
+      bloecke={freiDokId ? [] : bloecke}
+      selectedBlock={freiDokId ? null : selectedBlock}
+      onSelectBlock={freiDokId ? undefined : (b => { pendingNav.current = {}; navRestored.current = true; setSelectedBlock(b) })}
+      selectedFolgeNummer={freiDokId ? null : selectedFolgeNummer}
+      onSelectFolge={freiDokId ? undefined : (nr => {
         pendingNav.current = {}; navRestored.current = true; setSelectedFolgeNummer(nr)
         if (selectedProduktionId)
           api.updateSettings({ ui_settings: { last_produktion_id: selectedProduktionId, last_folge_nummer: nr, last_stage_id: null, last_szene_id: null } }).catch(() => {})
-      }}
+      })}
       selectedStageId={selectedStageId}
       onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
-      folgenMitDaten={folgenMitDaten}
+      folgenMitDaten={freiDokId ? [] : folgenMitDaten}
+      freiDokTitel={freiDokTitel}
     >
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
 
@@ -756,7 +810,8 @@ export default function ScriptPage() {
               )}
               <DockedEditorPanels
                 produktionId={selectedProduktionId}
-                folgeNummer={selectedFolgeNummer}
+                folgeNummer={freiDokId ? null : selectedFolgeNummer}
+                freiDokFolgeId={freiDokId ?? undefined}
                 selectedSzeneId={selectedSzeneId}
                 useDokumentSzenen={useDokumentSzenen}
                 stageId={selectedStageId}
