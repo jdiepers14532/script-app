@@ -835,11 +835,7 @@ async function assembleHtml(
           )
           if (!szRes.rows.length) return null
           const row = szRes.rows[0]
-          const heading = item.label
-            ? `<h2 style="font-size:12pt;font-weight:bold;margin:0 0 8pt;letter-spacing:0.02em">${esc(item.label)}</h2>`
-            : ''
-          const content = row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : ''
-          return `${heading}${content}`
+          return row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : null
         }
         // Gesamte Notiz-Werkstufe (id = werkstufe_id)
         if (item.id) {

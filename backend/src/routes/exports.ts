@@ -245,6 +245,10 @@ router.post('/export/pdf-preview', async (req, res) => {
         preItems:         parseOrderedItems(options.preItems),
         postItems:        parseOrderedItems(options.postItems),
         hauptinhaltAktiv: typeof options.hauptinhaltAktiv === 'boolean' ? options.hauptinhaltAktiv : undefined,
+        szenenAuswahl:    options.szenenAuswahl    ? String(options.szenenAuswahl)    : undefined,
+        filterRollen:     Array.isArray(options.filterRollen)    ? options.filterRollen.map(String)    : undefined,
+        filterKomparsen:  Array.isArray(options.filterKomparsen) ? options.filterKomparsen.map(String) : undefined,
+        filterMotive:     Array.isArray(options.filterMotive)    ? options.filterMotive.map(String)    : undefined,
       },
     }, () => {})
     res.setHeader('Content-Type', 'application/pdf')

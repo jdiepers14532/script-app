@@ -340,6 +340,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
             statistikConfig: it.statistikConfig,
           })),
           hauptinhaltAktiv: szenenAktiv,
+          szenenAuswahl:   szenenAuswahl.trim() || undefined,
+          filterRollen:    selectedRollen.size > 0    ? Array.from(selectedRollen)    : undefined,
+          filterKomparsen: selectedKomparsen.size > 0 ? Array.from(selectedKomparsen) : undefined,
+          filterMotive:    selectedMotive.size > 0    ? Array.from(selectedMotive)    : undefined,
         },
       }
       const res = await fetch('/api/export/pdf-preview', {
