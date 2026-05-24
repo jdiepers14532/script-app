@@ -520,6 +520,8 @@ export const api = {
     request<any>('POST', `/werkstufen/${werkId}/szenen`, data),
   reorderWerkstufeSzenen: (werkId: string, order: (number | string)[], nonSceneAnchors?: Record<string, number | null>) =>
     request<any[]>('PATCH', `/werkstufen/${werkId}/szenen/reorder`, { order, ...(nonSceneAnchors ? { nonSceneAnchors } : {}) }),
+  getExportNotizSzenen: (werkstufId: string) =>
+    request<{ items: { id: string; label: string; sort_order: number }[]; blockSortOrderMin: number | null; blockSortOrderMax: number | null }>('GET', `/export/notiz-szenen?werkstufId=${werkstufId}`),
   renumberWerkstufeSzenen: (werkId: string) =>
     request<{ scenes: any[]; renumbered: boolean }>('POST', `/werkstufen/${werkId}/szenen/renumber`),
   diffWerkstufen: (leftId: string, rightId: string) =>

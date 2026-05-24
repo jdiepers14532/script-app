@@ -823,21 +823,42 @@ async function assembleHtml(
     /** Rendert ein einzelnes OrderedExportItem zu HTML */
     async function renderOrderedItem(item: OrderedExportItem): Promise<string | null> {
       if (!item.enabled) return null
-      if (item.type === 'notiz' && item.id) {
-        const nszRes = await client.query<SceneRow>(
-          `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
-                  stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp
-           FROM dokument_szenen
-           WHERE werkstufe_id = $1 AND geloescht = false
-           ORDER BY sort_order`,
-          [item.id]
-        )
-        if (!nszRes.rows.length) return null
-        const label = item.label ?? ''
-        const heading = label
-          ? `<h2 style="font-size:12pt;font-weight:bold;margin:0 0 8pt;letter-spacing:0.02em">${label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</h2>`
-          : ''
-        return `${heading}${renderNotizWerkstufe(nszRes.rows, fmtById, fmtByName, ctx)}`
+      if (item.type === 'notiz') {
+        // Einzelne Notiz-Zeile aus dem aktuellen Drehbuch (szeneId = dokument_szenen.id)
+        if (item.szeneId) {
+          const szRes = await client.query<SceneRow>(
+            `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
+                    stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp,
+                    scene_identity_id, spielzeit
+             FROM dokument_szenen WHERE id = $1 AND geloescht = false`,
+            [item.szeneId]
+          )
+          if (!szRes.rows.length) return null
+          const row = szRes.rows[0]
+          const heading = item.label
+            ? `<h2 style="font-size:12pt;font-weight:bold;margin:0 0 8pt;letter-spacing:0.02em">${esc(item.label)}</h2>`
+            : ''
+          const content = row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : ''
+          return `${heading}${content}`
+        }
+        // Gesamte Notiz-Werkstufe (id = werkstufe_id)
+        if (item.id) {
+          const nszRes = await client.query<SceneRow>(
+            `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
+                    stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp,
+                    scene_identity_id, spielzeit
+             FROM dokument_szenen
+             WHERE werkstufe_id = $1 AND geloescht = false
+             ORDER BY sort_order`,
+            [item.id]
+          )
+          if (!nszRes.rows.length) return null
+          const label = item.label ?? ''
+          const heading = label
+            ? `<h2 style="font-size:12pt;font-weight:bold;margin:0 0 8pt;letter-spacing:0.02em">${esc(label)}</h2>`
+            : ''
+          return `${heading}${renderNotizWerkstufe(nszRes.rows, fmtById, fmtByName, ctx)}`
+        }
       }
       if (item.type === 'statistik' && item.statistikConfig) {
         return renderStatistikHtml(item.statistikConfig)
@@ -910,32 +931,25 @@ async function assembleHtml(
       rollen: s.scene_identity_id ? (charMap.get(s.scene_identity_id) ?? []) : [],
     }))
 
-    // ── Partitionierung: VOR-Elemente / Szenenblock / NACH-Elemente ──────────
-    // Echte Szenen = format !== 'notiz' mit scene_nummer != null
+    // ── Szenenblock + Filter ──────────────────────────────────────────────────
+    // Block-Grenze: ALLE Rows mit scene_nummer != null (unabhängig vom Format)
+    // format='notiz' + scene_nummer=null → werden nur über preItems/postItems eingebunden
     const szSpecs = parseSzenenAuswahl(options.szenenAuswahl)
-    const realScenesAll = allRows.filter(s => s.format !== 'notiz' && s.scene_nummer != null)
+    const blockDefiningRows = allRows.filter(s => s.scene_nummer != null)
 
     let mainScenes: typeof allRows
 
-    if (realScenesAll.length === 0) {
-      // Keine echten Szenen → alle Rows direkt übernehmen
+    if (blockDefiningRows.length === 0) {
+      // Keine Szenen → alle Rows direkt übernehmen
       mainScenes = allRows
     } else {
-      const minSort = Math.min(...realScenesAll.map(s => s.sort_order))
-      const maxSort = Math.max(...realScenesAll.map(s => s.sort_order))
+      const minSort = Math.min(...blockDefiningRows.map(s => s.sort_order))
+      const maxSort = Math.max(...blockDefiningRows.map(s => s.sort_order))
 
-      // VOR: format='notiz', scene_nummer=null, sort_order < minSort
-      const vorElements = allRows.filter(
-        s => s.format === 'notiz' && s.scene_nummer == null && s.sort_order < minSort
-      )
-      // NACH: format='notiz', sort_order > maxSort
-      const nachElements = allRows.filter(
-        s => s.format === 'notiz' && s.sort_order > maxSort
-      )
       // Szenenblock: alle Rows mit sort_order in [minSort, maxSort]
       const sceneBlockRows = allRows.filter(s => s.sort_order >= minSort && s.sort_order <= maxSort)
 
-      // Filter auf echte Szenen im Block anwenden
+      // Filter nur auf echte Szenen anwenden (format !== 'notiz', scene_nummer != null)
       let filteredReal = sceneBlockRows.filter(s => s.format !== 'notiz' && s.scene_nummer != null)
       if (szSpecs) {
         filteredReal = filteredReal.filter(s =>
@@ -957,20 +971,19 @@ async function assembleHtml(
         filteredReal = filteredReal.filter(s => s.scene_identity_id && komparsenIds.has(s.scene_identity_id))
       }
 
-      // Notiz-Elemente im Block: behalten wenn ihr scene_nummer zu einer gefilterten Szene gehört
+      // Verankerte Notiz-Elemente im Block (format='notiz', scene_nummer != null):
+      // behalten wenn ihre scene_nummer in der gefilterten Menge liegt
       const hasActiveFilter = !!(szSpecs || options.filterRollen?.length || options.filterMotive?.length || options.filterKomparsen?.length)
       const keptSceneNummern = new Set(filteredReal.map(s => s.scene_nummer))
       const filteredNotizInBlock = sceneBlockRows.filter(s => {
-        if (s.format !== 'notiz') return false
+        if (s.format !== 'notiz' || s.scene_nummer == null) return false
         if (!hasActiveFilter) return true
-        return s.scene_nummer != null && keptSceneNummern.has(s.scene_nummer)
+        return keptSceneNummern.has(s.scene_nummer)
       })
 
-      // Block sortiert nach sort_order zusammensetzen
-      const filteredBlock = [...filteredReal, ...filteredNotizInBlock]
+      // Block sortiert zusammensetzen — freie Notiz-Elemente (scene_nummer=null) NICHT enthalten
+      mainScenes = [...filteredReal, ...filteredNotizInBlock]
         .sort((a, b) => a.sort_order - b.sort_order)
-
-      mainScenes = [...vorElements, ...filteredBlock, ...nachElements]
     }
 
     setProgress(50)

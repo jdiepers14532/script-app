@@ -38,7 +38,8 @@ interface FilterOptions {
 interface ExportItem {
   id: string
   type: 'notiz' | 'statistik'
-  werkstufId?: string
+  werkstufId?: string   // Notiz-Werkstufe UUID (gesamtes Notiz-Dokument)
+  szeneId?: string      // dokument_szenen.id (einzelne Notiz-Zeile aus aktueller Werkstufe)
   label: string
   enabled: boolean
   statistikConfig?: StatistikExportConfig
@@ -125,16 +126,40 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setRolleAlsVermerk(false)
     setSzenenAktiv(true); setPdfBookmarks(false)
 
-    // Pre-Items aus Notiz-Werkstufen + Statistik-Platzhalter
-    const notizItems: ExportItem[] = notizWerkstufen.map(w => ({
+    // Notiz-Werkstufen als Pre-Items (gesamte Notiz-Dokumente)
+    const notizWerkItems: ExportItem[] = notizWerkstufen.map(w => ({
       id: genId(), type: 'notiz', werkstufId: w.id,
       label: w.label || `${w.typ === 'notiz' ? 'Notiz' : 'Dokument'} V${w.version_nummer}`, enabled: true,
     }))
-    setPreItems([...notizItems, {
+    setPreItems([...notizWerkItems, {
       id: genId(), type: 'statistik',
       label: 'Statistik (Konfiguration nötig)', enabled: false,
     }])
     setPostItems([])
+
+    // Freie Notiz-Elemente der aktuellen Werkstufe laden + VOR/NACH einordnen
+    if (selectedWerk.typ !== 'notiz') {
+      api.getExportNotizSzenen(selectedWerk.id)
+        .then(({ items, blockSortOrderMin, blockSortOrderMax }) => {
+          if (!items.length) return
+          const preAdd: ExportItem[] = []
+          const postAdd: ExportItem[] = []
+          for (const it of items) {
+            const item: ExportItem = {
+              id: genId(), type: 'notiz',
+              szeneId: it.id, label: it.label, enabled: true,
+            }
+            if (blockSortOrderMin == null || it.sort_order < blockSortOrderMin) {
+              preAdd.push(item)
+            } else {
+              postAdd.push(item)
+            }
+          }
+          if (preAdd.length) setPreItems(prev => [...preAdd, ...prev])
+          if (postAdd.length) setPostItems(prev => [...prev, ...postAdd])
+        })
+        .catch(() => {/* kein Fehler — Notiz-Elemente einfach weglassen */})
+    }
 
     // Filter-Optionen laden
     setFilterOptions(null)
@@ -251,11 +276,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         format,
         options: {
           preItems:  preItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           postItems: postItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           hauptinhaltAktiv: szenenAktiv,
@@ -307,11 +332,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         werkstufId: selectedWerk.id,
         options: {
           preItems:  preItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           postItems: postItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           hauptinhaltAktiv: szenenAktiv,

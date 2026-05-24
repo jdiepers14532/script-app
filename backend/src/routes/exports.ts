@@ -34,6 +34,7 @@ function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedE
     .map((x: any) => ({
       type: x.type === 'statistik' ? 'statistik' as const : 'notiz' as const,
       id: x.id ? String(x.id) : undefined,
+      szeneId: x.szeneId ? String(x.szeneId) : undefined,
       label: x.label ? String(x.label) : undefined,
       enabled: x.enabled !== false,
       statistikConfig: x.statistikConfig && typeof x.statistikConfig === 'object'
@@ -321,6 +322,47 @@ router.get('/export/filter-options', async (req, res) => {
     }
   } catch (err: any) {
     res.status(500).json({ error: err?.message ?? 'Fehler beim Laden der Filter-Optionen' })
+  }
+})
+
+// ── GET /api/export/notiz-szenen ─────────────────────────────────────────────
+// Liefert format='notiz' + scene_nummer=null Rows der Werkstufe (freie Dokument-Elemente)
+// sowie die Block-Grenzen (min/max sort_order aller Rows mit scene_nummer != null).
+// Wird vom ExportDrawer genutzt um Notiz-Elemente automatisch in VOR/NACH einzusortieren.
+
+router.get('/export/notiz-szenen', async (req, res) => {
+  const werkstufId = req.query.werkstufId as string | undefined
+  if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
+
+  const client = await pool.connect()
+  try {
+    const { rows } = await client.query(
+      `SELECT id, format, scene_nummer, zusammenfassung, sort_order
+       FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht = false
+       ORDER BY sort_order`,
+      [werkstufId]
+    )
+
+    // Block-Grenzen: alle Rows mit scene_nummer != null (unabhängig vom Format)
+    const blockRows = rows.filter((r: any) => r.scene_nummer != null)
+    const blockSortOrderMin = blockRows.length > 0 ? Math.min(...blockRows.map((r: any) => r.sort_order)) : null
+    const blockSortOrderMax = blockRows.length > 0 ? Math.max(...blockRows.map((r: any) => r.sort_order)) : null
+
+    // Freie Notiz-Elemente: format='notiz', scene_nummer=null
+    const items = rows
+      .filter((r: any) => r.format === 'notiz' && r.scene_nummer == null)
+      .map((r: any) => ({
+        id: String(r.id),
+        label: r.zusammenfassung || 'Notiz-Element',
+        sort_order: r.sort_order,
+      }))
+
+    res.json({ items, blockSortOrderMin, blockSortOrderMax })
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? 'Fehler beim Laden der Notiz-Elemente' })
+  } finally {
+    client.release()
   }
 })
 
