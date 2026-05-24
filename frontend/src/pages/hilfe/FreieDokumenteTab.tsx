@@ -53,9 +53,9 @@ const LABELS = [
 ]
 
 const SICHTBARKEIT = [
-  { value: 'dauerhaft_privat', label: 'Dauerhaft privat', icon: '🔒', color: '#FF3B30', desc: 'Nur du und Superadmins können dieses Dokument sehen und bearbeiten. Diese Einstellung ist permanent und kann nicht zurückgenommen werden.' },
-  { value: 'team',             label: 'Team',              icon: '👥', color: '#007AFF', desc: 'Sichtbar für alle Nutzer mit Drehbuchkoordinations-Zugang (Standard).' },
-  { value: 'alle',             label: 'Alle Autoren',      icon: '🌐', color: '#00C853', desc: 'Sichtbar für alle Autoren dieser Produktion.' },
+  { value: 'dauerhaft_privat', label: 'Privat',        icon: '🔒', color: '#FF3B30', desc: 'Nur du und Superadmins können dieses Dokument sehen und bearbeiten. Automatisches Aufheben des Privat-Modus ist deaktiviert.' },
+  { value: 'team',             label: 'Team',           icon: '👥', color: '#007AFF', desc: 'Sichtbar für alle Nutzer mit Drehbuchkoordinations-Zugang (Standard).' },
+  { value: 'alle',             label: 'Alle Autoren',   icon: '🌐', color: '#00C853', desc: 'Sichtbar für alle Autoren dieser Produktion.' },
 ]
 
 export default function FreieDokumenteTab() {
@@ -136,11 +136,10 @@ export default function FreieDokumenteTab() {
           </div>
         ))}
       </div>
-      <Warn>
-        <strong>„Dauerhaft privat" ist endgültig.</strong> Einmal gesetzt, kann die Sichtbarkeit nicht mehr auf
-        „Team" oder „Alle" geändert werden. Nur du und Superadmins können das Dokument sehen.
-        Wähle diese Einstellung bewusst für sensible Konzeptentwürfe.
-      </Warn>
+      <Hint>
+        Die Sichtbarkeit kann jederzeit manuell geändert werden. „Privat" bei freien Dokumenten bedeutet nur,
+        dass kein automatischer Ablauf-Timer aktiv ist — anders als bei Werkstufen (siehe unten).
+      </Hint>
 
       <H2>Mit einer Folge verknüpfen</H2>
       <P>
@@ -265,6 +264,14 @@ export default function FreieDokumenteTab() {
           ))}
         </div>
 
+        <H2>Sichtbarkeits-Enforcement (Korrektur: kein Auto-Ablauf)</H2>
+        <P>
+          Bei freien Dokumenten gibt es <strong>keinen automatischen Privat-Modus-Ablauf</strong>.
+          Der Worker (siehe unten) greift ausschließlich auf <code>werkstufen.sichtbarkeit</code> zu —
+          nicht auf <code>folgen.sichtbarkeit_frei</code>. Deshalb wird <code>dauerhaft_privat</code> im UI
+          als „Privat" angezeigt: es gibt nur eine Art von Privat, und die hat per Design keinen Timer.
+        </P>
+
         <H2>DK Glossar Defaults (v117)</H2>
         <P>
           In Migration v117 wurden drei neue Einträge in <code>dk_glossar_defaults</code> eingefügt:
@@ -283,6 +290,82 @@ export default function FreieDokumenteTab() {
             <li><strong>DockedEditorPanels</strong>: <code>freiDokFolgeId</code>-Prop verwendet folge_id direkt statt Auflösung via folgeNummer</li>
           </ul>
         </div>
+      </div>
+
+      {/* ── Privat-Modus Worker ──────────────────────────────────────────── */}
+      <div style={{ marginTop: 48, paddingTop: 32, borderTop: `2px solid ${C.border}` }}>
+        <div style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          padding: '4px 12px', background: '#007AFF22', color: '#007AFF',
+          borderRadius: 99, fontSize: 11, fontWeight: 700, marginBottom: 16,
+        }}>
+          ⚙️ SYSTEM-DOKUMENTATION
+        </div>
+        <H1>Wie der automatische Privat-Modus-Ablauf bei Werkstufen funktioniert</H1>
+        <P muted>
+          Dieser Mechanismus gilt <strong>nur für Werkstufen</strong> — nicht für freie Dokumente
+          und nicht für <code>folgen.sichtbarkeit_frei</code>.
+        </P>
+
+        <H2>Bedingung</H2>
+        <P>
+          Der Worker prüft alle 15 Minuten, ob alle drei Kriterien gleichzeitig erfüllt sind:
+        </P>
+        <div style={{ fontFamily: 'monospace', fontSize: 12, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 16px', marginBottom: 16, lineHeight: 1.8 }}>
+          WHERE w.sichtbarkeit = 'privat'<br />
+          {'  '}AND w.privat_permanent = false<br />
+          {'  '}AND (keine aktive Session<br />
+          {'  '}{'  '}OR last_active_at &lt; now() - X hours)
+        </div>
+
+        <H2>Ablauf</H2>
+        <Step n={1}>
+          <strong>Schwellwert lesen</strong> — <code>app_settings.privat_modus_ablauf_stunden</code> (default: 4 h).
+          Konfigurierbar im Admin-Bereich.
+        </Step>
+        <Step n={2}>
+          <strong>Inaktivitäts-Check</strong> — Wenn der Autor, der Privat aktiviert hat
+          (<code>privat_gesetzt_von</code>), keinen aktiven Heartbeat in der
+          <code> werkstufen_sessions</code>-Tabelle hat (oder überhaupt keine Session),
+          gilt die Werkstufe als „abgelaufen".
+        </Step>
+        <Step n={3}>
+          <strong>Tokens generieren</strong> — Zwei One-Click-Tokens (48 h gültig, kein Login nötig):
+          <em> verlaengern</em> verlängert den Privat-Modus;
+          <em> freigeben</em> setzt Sichtbarkeit auf den vorherigen Wert zurück (<code>previous_sichtbarkeit</code>).
+        </Step>
+        <Step n={4}>
+          <strong>E-Mail an den Autor</strong> — Via auth.app-API wird die E-Mail-Adresse geholt, dann
+          geht eine Mail mit zwei Buttons raus. Wenn bereits 2 unbenutzte Tokens existieren → Mail wurde
+          schon gesendet, kein Doppelversand.
+        </Step>
+        <Step n={5}>
+          <strong>Fallback (kein E-Mail-Empfänger)</strong> — Wenn die E-Mail-Adresse nicht ermittelbar ist,
+          wird die Werkstufe sofort freigegeben
+          (Sichtbarkeit → <code>previous_sichtbarkeit || 'autoren'</code>).
+        </Step>
+
+        <Hint>
+          <strong>Bei freien Dokumenten</strong>: <code>folgen.sichtbarkeit_frei</code> wird vom Worker
+          nie angefasst. Es gibt keine Session-Tabelle für freie Dokumente, keinen Heartbeat, keine Tokens.
+          Deshalb gibt es dort kein <em>privat</em> vs. <em>dauerhaft_privat</em> — es gibt nur eine Art
+          von „Privat", die per Design permanent ist.
+        </Hint>
+
+        <H2>Technische Details</H2>
+        <TableCard
+          title="Relevante Tabellen"
+          color={C.blue}
+          fields={[
+            { name: 'werkstufen.sichtbarkeit',      type: "TEXT", desc: "'privat' = aktiv, 'autoren'/'team'/... = freigegeben" },
+            { name: 'werkstufen.privat_permanent',  type: 'BOOLEAN', desc: 'false = Worker aktiv; true = Worker überspringt diese Werkstufe' },
+            { name: 'werkstufen.privat_gesetzt_von',type: 'TEXT',    desc: 'user_id des Autors, der Privat aktiviert hat' },
+            { name: 'werkstufen.previous_sichtbarkeit', type: 'TEXT', desc: 'Sichtbarkeit vor dem Privat-Modus (für Wiederherstellung)' },
+            { name: 'werkstufen_sessions.last_active_at', type: 'TIMESTAMPTZ', desc: 'Letzter Heartbeat des Autors' },
+            { name: 'privat_mode_tokens',           type: 'TABLE',   desc: 'One-Click-Tokens (verlaengern / freigeben), 48h gültig' },
+            { name: 'app_settings.privat_modus_ablauf_stunden', type: 'TEXT', desc: 'Konfigurierter Ablauf-Schwellwert (default: 4)' },
+          ]}
+        />
       </div>
     </div>
   )

@@ -146,14 +146,16 @@ function DokumentDialog({
   initial,
   onSave,
   onClose,
+  produktionLabels = [],
 }: {
   initial?: { folgen_titel?: string; dokument_label?: string; sichtbarkeit_frei?: string }
   onSave: (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string }) => Promise<void>
   onClose: () => void
+  produktionLabels?: string[]
 }) {
   const [titel, setTitel] = useState(initial?.folgen_titel ?? '')
   const [label, setLabel] = useState(displayLabel(initial?.dokument_label ?? 'sonstiges'))
-  const [sichtbarkeit, setSichtbarkeit] = useState(initial?.sichtbarkeit_frei ?? 'team')
+  const [sichtbarkeit, setSichtbarkeit] = useState(initial?.sichtbarkeit_frei ?? 'dauerhaft_privat')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -211,7 +213,9 @@ function DokumentDialog({
               style={inputStyle}
             />
             <datalist id="label-datalist">
-              {LABEL_DEFAULTS.map(l => <option key={l} value={l} />)}
+              {[...LABEL_DEFAULTS, ...produktionLabels.filter(l => !LABEL_DEFAULTS.includes(l))].map(l => (
+                <option key={l} value={l} />
+              ))}
             </datalist>
           </div>
 
@@ -420,6 +424,7 @@ export default function FreieDokumentePage() {
   const [dokumente, setDokumente] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [prodLabels, setProdLabels] = useState<string[]>([])
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editDok, setEditDok] = useState<any>(null)
@@ -441,6 +446,13 @@ export default function FreieDokumentePage() {
   }, [selectedProduktionId])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (!selectedProduktionId) return
+    api.getFreieDokLabels(selectedProduktionId)
+      .then(rows => setProdLabels(rows.map((r: any) => r.label_name)))
+      .catch(() => {})
+  }, [selectedProduktionId])
 
   const handleCreate = async (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string }) => {
     if (!selectedProduktionId) throw new Error('Keine Produktion ausgewählt')
@@ -536,13 +548,14 @@ export default function FreieDokumentePage() {
 
       {/* Modals */}
       {createOpen && (
-        <DokumentDialog onSave={handleCreate} onClose={() => setCreateOpen(false)} />
+        <DokumentDialog onSave={handleCreate} onClose={() => setCreateOpen(false)} produktionLabels={prodLabels} />
       )}
       {editDok && (
         <DokumentDialog
           initial={{ folgen_titel: editDok.folgen_titel, dokument_label: editDok.dokument_label, sichtbarkeit_frei: editDok.sichtbarkeit_frei }}
           onSave={handleEdit}
           onClose={() => { setEditDok(null); load() }}
+          produktionLabels={prodLabels}
         />
       )}
       {deleteDok && (

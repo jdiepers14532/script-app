@@ -346,6 +346,7 @@ async function runMigrations() {
     'v115_glossar_kategorie.sql',
     'v116_timestamp_tz_fix.sql',
     'v117_freie_dokumente.sql',
+    'v118_freie_dokument_labels.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

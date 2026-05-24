@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
@@ -32,12 +32,13 @@ const DK_TABS = [
   { id: 'autorenplan',            label: 'Autorenplan' },
 ]
 
-const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates']
+const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates', 'freie-dok-labels']
 const FORMAT_SUB_NAV = [
   { id: 'dokument-typen',      label: 'Drehbuch-Formatierung' },
   { id: 'kopf-fusszeilen',     label: 'Kopf-/Fußzeile' },
   { id: 'vorlagen',            label: 'Dokumenten-Vorlagen' },
   { id: 'stockshot-templates', label: 'Stockshot-Templates' },
+  { id: 'freie-dok-labels',    label: 'Freie Dokumente' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -3110,6 +3111,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <VorlagenTab productionId={produktionId} seitenformat={seitenformat} margins={margins} /> : <NoProduction />
       case 'kopf-fusszeilen':
         return produktionId ? <KopfFusszeileTab productionId={produktionId} seitenformat={seitenformat} margins={margins} /> : <NoProduction />
+      case 'freie-dok-labels':
+        return produktionId ? <FreieDokLabelsTab produktionId={produktionId} /> : <NoProduction />
       case 'autorenplan':
         return produktionId ? <AutorenplanTab produktionDbId={produktionId} /> : <NoProduction />
       default:
@@ -3152,7 +3155,7 @@ export default function DrehbuchkoordinationPage() {
             </button>
           </div>
           {/* Format+Ränder (Formatierung/KZ-FZ/Vorlagen) + Preset-Slot (nur Drehbuch-Formatierung) */}
-          {FORMAT_TEMPLATE_TABS.filter(t => t !== 'stockshot-templates').includes(activeTab) && produktionId ? (
+          {FORMAT_TEMPLATE_TABS.filter(t => t !== 'stockshot-templates' && t !== 'freie-dok-labels').includes(activeTab) && produktionId ? (
             <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'flex-start', gap: 12 }}>
               {/* Label links */}
               <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0, whiteSpace: 'nowrap', background: 'var(--bg-subtle)', borderRadius: 5, padding: '3px 8px' }}>
@@ -5042,6 +5045,89 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
           defaultLayout={forcedLayout}
           previewContext={previewContext}
         />
+      </div>
+    </div>
+  )
+}
+
+// ── Freie Dokumente Labels Tab ────────────────────────────────────────────────
+function FreieDokLabelsTab({ produktionId }: { produktionId: string }) {
+  const [labels, setLabels] = useState<any[]>([])
+  const [newLabel, setNewLabel] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    const rows = await api.getFreieDokLabels(produktionId)
+    setLabels(rows)
+  }, [produktionId])
+
+  useEffect(() => { load() }, [load])
+
+  const handleAdd = async () => {
+    if (!newLabel.trim() || saving) return
+    setSaving(true)
+    try {
+      await api.createFreieDokLabel({ produktion_id: produktionId, label_name: newLabel.trim() })
+      setNewLabel('')
+      await load()
+    } catch {}
+    setSaving(false)
+  }
+
+  const handleDelete = async (id: number) => {
+    await api.deleteFreieDokLabel(id)
+    await load()
+  }
+
+  const inputSt: React.CSSProperties = {
+    flex: 1, padding: '8px 12px', fontSize: 13,
+    border: '1.5px solid var(--border)', borderRadius: 8,
+    background: 'var(--bg-surface)', color: 'var(--text-primary)',
+    fontFamily: 'inherit', outline: 'none',
+  }
+
+  return (
+    <div style={{ padding: 24, maxWidth: 560 }}>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Labels für Freie Dokumente</div>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20, margin: '0 0 20px' }}>
+        Diese Labels erscheinen als Vorschläge beim Anlegen eines freien Dokuments (Autovervollständigung).
+        Neben diesen produktionsspezifischen Labels stehen immer die Standard-Labels
+        <em> Schattenbuch, Casting-Szene, Spin-Off, Sonstiges</em> zur Verfügung.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+        {labels.length === 0 && (
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '8px 0' }}>
+            Noch keine produktionsspezifischen Labels.
+          </div>
+        )}
+        {labels.map((l: any) => (
+          <div key={l.id} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 12px', background: 'var(--bg-surface)',
+            border: '1.5px solid var(--border)', borderRadius: 8,
+          }}>
+            <span style={{ fontSize: 13 }}>{l.label_name}</span>
+            <button
+              onClick={() => handleDelete(l.id)}
+              style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#FF3B30', padding: '2px 8px', fontSize: 18, lineHeight: 1 }}
+            >×</button>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          type="text"
+          placeholder="Neues Label, z.B. Pilotfilm…"
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          style={inputSt}
+        />
+        <button className="btn primary" onClick={handleAdd} disabled={saving || !newLabel.trim()}>
+          Hinzufügen
+        </button>
       </div>
     </div>
   )
