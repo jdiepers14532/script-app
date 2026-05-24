@@ -446,7 +446,8 @@ function renderSKParagraph(
   scene: SceneRow,
   folgeNummer: number,
   bodyMarginLeftCm: number,
-  kuerzel: Record<string, string> = {}
+  kuerzel: Record<string, string> = {},
+  useSpan = false  // true wenn innerhalb <h2> (PDF-Lesezeichen) — <p>/<div> schließt h2 vorzeitig
 ): string {
   const attrs      = node.attrs ?? {}
   const ff         = attrs.fontFamily ?? "'Courier Prime','Courier New',monospace"
@@ -472,6 +473,11 @@ function renderSKParagraph(
   if (sa)  baseStyle += `;margin-bottom:${sa}`
 
   if (segments.length === 1 || tabStops.length === 0) {
+    // Im h2-Kontext: <span style="display:block"> statt <p> — <p> ist kein valides Phrasing-Content
+    // und würde das <h2> durch Chromes HTML-Parser vorzeitig schließen → kein Lesezeichen
+    if (useSpan) {
+      return `<span style="display:block;${baseStyle}">${segments[0] || '&nbsp;'}</span>`
+    }
     return `<p style="${baseStyle}">${segments[0] || '&nbsp;'}</p>`
   }
 
@@ -499,7 +505,9 @@ function renderSKParagraph(
     return `<span style="${cellStyle}">${content || ''}</span>`
   }).join('')
 
-  return `<div style="display:flex;align-items:baseline;${baseStyle}">${cells}</div>`
+  // Im h2-Kontext: <span style="display:flex"> statt <div> (kein Block-Element innerhalb h2)
+  const rowTag = useSpan ? 'span' : 'div'
+  return `<${rowTag} style="display:flex;align-items:baseline;${baseStyle}">${cells}</${rowTag}>`
 }
 
 /**
@@ -540,10 +548,8 @@ function renderSzenenkopf(
     if (scene.ort_name)  parts.push(esc(scene.ort_name))
     if (scene.int_ext)   parts.push(esc(scene.int_ext))
     if (scene.tageszeit) parts.push(esc(scene.tageszeit))
-    // aria-label steuert den Bookmark-Text; h2 stellt sicher dass Chrome die Überschrift erkennt
-    const tag   = pdfBookmarks ? 'h2' : 'p'
-    const label = pdfBookmarks ? ` aria-label="${buildBookmarkLabel(scene, folgeNummer, kuerzel)}"` : ''
-    return `<${tag}${label} style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</${tag}>`
+    const tag = pdfBookmarks ? 'h2' : 'p'
+    return `<${tag} style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</${tag}>`
   }
 
   const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
@@ -556,15 +562,17 @@ function renderSzenenkopf(
     if (node.type === 'horizontalRule') {
       parts.push('<hr style="border:none;border-top:0.5pt solid #888;margin:2pt 0;width:100%">')
     } else if (node.type === 'paragraph') {
-      const rendered = renderSKParagraph(node, scene, folgeNummer, bodyMarginLeftCm, kuerzel)
+      // pdfBookmarks=true → useSpan=true: Paragraphen als <span style="display:block"> rendern,
+      // damit das umgebende <h2> gültige Phrasing-Content-Kinder enthält und nicht vorzeitig
+      // durch Chrome geschlossen wird. Lesezeichen-Text = Szenenkopf-Inhalt (innerText des h2).
+      const rendered = renderSKParagraph(node, scene, folgeNummer, bodyMarginLeftCm, kuerzel, pdfBookmarks)
       if (rendered) parts.push(rendered)
     }
   }
 
   if (parts.length === 0) return ''
-  const tag   = pdfBookmarks ? 'h2' : 'div'
-  const label = pdfBookmarks ? ` aria-label="${buildBookmarkLabel(scene, folgeNummer, kuerzel)}"` : ''
-  return `<${tag}${label} style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</${tag}>`
+  const tag = pdfBookmarks ? 'h2' : 'div'
+  return `<${tag} style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</${tag}>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
