@@ -10,7 +10,7 @@ import { getShortcutLabel } from '../shortcuts'
 
 interface SceneEditorProps {
   szeneId: number | string
-  stageId: number | null
+  stageId: number | null // naming legacy: enthält tatsächlich die werkstufe_id (UUID) aus dem neuen Modell
   produktionId?: string | null
   folgeNummer?: number | null
   panelMode?: 'both' | 'treatment' | 'script'

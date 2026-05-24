@@ -240,8 +240,8 @@ export default function ScriptPage() {
   const location = useLocation()
   const { selectedProduction, productions, loading } = useSelectedProduction()
   const [bloecke, setBloecke] = useState<any[]>([])
-  const [stages, setStages] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
+  const [selectedWerkstufeTyp, setSelectedWerkstufeTyp] = useState<string | null>(null)
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
   const [folgenMitDaten, setFolgenMitDaten] = useState<number[]>([])
   // refreshKey: increment to force all data re-fetches
@@ -580,6 +580,7 @@ export default function ScriptPage() {
     setSzenen([])
     setSelectedSzeneId(null)
     setUseDokumentSzenen(false)
+    setSelectedWerkstufeTyp(null)
 
     async function loadWerkstufen() {
       try {
@@ -592,6 +593,7 @@ export default function ScriptPage() {
           folge = await api.createFolgeV2({ produktion_id: selectedProduktionId, folge_nummer: selectedFolgeNummer! })
           const newWerkstufe = await api.createWerkstufe(folge.id, { typ: 'drehbuch' })
           setSelectedStageId(newWerkstufe.id)
+          setSelectedWerkstufeTyp('drehbuch')
           setSzenen([])
           setUseDokumentSzenen(true)
           return
@@ -611,6 +613,7 @@ export default function ScriptPage() {
         const werk = matching.find((w: any) => (w.szenen_count ?? 0) > 0) ?? matching[0]
         if (!werk) { console.warn('[ScriptPage] No matching werkstufe'); return }
         setSelectedStageId(werk.id)
+        setSelectedWerkstufeTyp(werk.typ)
         const werkSzenen = await api.getWerkstufenSzenen(werk.id)
         if (werkSzenen.length > 0) {
           setSzenen(werkSzenen)
@@ -672,7 +675,6 @@ export default function ScriptPage() {
         if (selectedProduktionId)
           api.updateSettings({ ui_settings: { last_produktion_id: selectedProduktionId, last_folge_nummer: nr, last_stage_id: null, last_szene_id: null } }).catch(() => {})
       }}
-      stages={stages}
       selectedStageId={selectedStageId}
       onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
       folgenMitDaten={folgenMitDaten}
@@ -721,7 +723,7 @@ export default function ScriptPage() {
               onOpenStrangPanel={() => setShowStrangPanel(v => !v)}
               onOpenStoppzeiten={() => setShowStoppzeiten(true)}
               werkstufId={selectedStageId ? String(selectedStageId) : null}
-              werkstufTyp={stages.find((s: any) => s.id === selectedStageId)?.typ ?? null}
+              werkstufTyp={selectedWerkstufeTyp}
             />
           </div>
         )}

@@ -14,7 +14,7 @@ interface SceneListProps {
   onSelectSzene: (id: number | string) => void
   produktionId: string | null
   folgeNummer: number | null
-  stageId: number | null
+  stageId: number | null // naming legacy: enthält tatsächlich die werkstufe_id (UUID) aus dem neuen Modell
   colorMode?: 'full' | 'subtle' | 'off'
   onSzeneCreated?: (szene: any) => void
   onSzeneDeleted?: (id: number | string) => void

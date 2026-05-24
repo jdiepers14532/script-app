@@ -31,7 +31,6 @@ interface AppShellProps {
   onSelectBlock?: (block: any) => void
   selectedFolgeNummer?: number | null
   onSelectFolge?: (nr: number) => void
-  stages?: any[]
   selectedStageId?: number | null
   onSelectStage?: (id: number) => void
   folgenMitDaten?: number[]
@@ -190,7 +189,6 @@ export default function AppShell({
   onSelectBlock,
   selectedFolgeNummer = null,
   onSelectFolge,
-  stages = [],
   selectedStageId = null,
   onSelectStage,
   folgenMitDaten = [],
@@ -786,11 +784,9 @@ export default function AppShell({
   }
 
   const selectedProduktion = productions.find(p => p.id === selectedProduktionId)
-  const selectedStage = stages.find(s => s.id === selectedStageId)
   const crumbProduktion = selectedProduktion
     ? (selectedProduktion.staffelnummer ? `${selectedProduktion.title} ${t('staffel')} ${selectedProduktion.staffelnummer}` : selectedProduktion.title)
     : selectedProduktionId ?? 'Script'
-  const crumbStage = selectedStage ? selectedStage.stage_type : null
 
   // Print-only nav (screen: hidden, print: visible)
   const navSections = [

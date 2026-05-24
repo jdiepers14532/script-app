@@ -11,65 +11,8 @@ vorstoppEinstellungenRouter.use(authMiddleware)
 const VALID_STAGES = ['drehbuch', 'vorbereitung', 'dreh', 'schnitt'] as const
 
 // ── Vorstopp pro Szene ────────────────────────────────────────────────────────
-
-// GET /api/szenen/:szeneId/vorstopp
-// Returns all entries, plus latest_per_stage summary
-szenenVorstoppRouter.get('/', async (req, res) => {
-  const { szeneId } = req.params as any
-  try {
-    const all = await query(
-      `SELECT * FROM szenen_vorstopp WHERE szene_id = $1 ORDER BY stage, created_at DESC`,
-      [szeneId]
-    )
-    // Build latest_per_stage map
-    const latest: Record<string, any> = {}
-    for (const row of all) {
-      if (!latest[row.stage]) latest[row.stage] = row
-    }
-    res.json({ all, latest_per_stage: latest })
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
-
-// POST /api/szenen/:szeneId/vorstopp
-szenenVorstoppRouter.post('/', async (req, res) => {
-  const { szeneId } = req.params as any
-  const { stage, dauer_sekunden, methode, user_name } = req.body
-  const user = (req as any).user
-  if (!stage || !VALID_STAGES.includes(stage)) {
-    return res.status(400).json({ error: `stage muss einer von ${VALID_STAGES.join(', ')} sein` })
-  }
-  if (typeof dauer_sekunden !== 'number' || dauer_sekunden < 0) {
-    return res.status(400).json({ error: 'dauer_sekunden muss eine nicht-negative Zahl sein' })
-  }
-  try {
-    const row = await queryOne(
-      `INSERT INTO szenen_vorstopp (szene_id, stage, user_id, user_name, dauer_sekunden, methode)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [szeneId, stage, user?.id ?? 'unknown', user_name ?? user?.name ?? null,
-       dauer_sekunden, methode ?? 'manuell']
-    )
-    res.status(201).json(row)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
-
-// DELETE /api/szenen/:szeneId/vorstopp/:id
-szenenVorstoppRouter.delete('/:id', async (req, res) => {
-  const { szeneId } = req.params as any
-  try {
-    const row = await queryOne(
-      `DELETE FROM szenen_vorstopp WHERE id = $1 AND szene_id = $2 RETURNING id`,
-      [req.params.id, szeneId]
-    )
-    if (!row) return res.status(404).json({ error: 'Eintrag nicht gefunden' })
-    res.json({ ok: true })
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
+// Legacy GET/POST/DELETE routes removed (v51: szene_id dropped from szenen_vorstopp).
+// Current vorstopp routes use scene_identity_id via /api/dokument-szenen/:id/vorstopp.
 
 // ── Einstellungen (pro Produktion) ───────────────────────────────────────────────
 
@@ -122,13 +65,16 @@ vorstoppEinstellungenRouter.put('/', async (req, res) => {
 
 // POST /api/szenen/:szeneId/vorstopp/auto
 // Berechnet Vorstopp automatisch aus seiten/content und Produktions-Einstellungen
+// szeneId = dokument_szenen.id (UUID)
 szenenVorstoppRouter.post('/auto', async (req, res) => {
   const { szeneId } = req.params as any
   try {
     const szene = await queryOne(
-      `SELECT sz.seiten, sz.content, sz.stage_id, st.produktion_id
-       FROM szenen sz JOIN stages st ON st.id = sz.stage_id
-       WHERE sz.id = $1`,
+      `SELECT ds.seiten, ds.content, f.produktion_id
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.id = $1`,
       [szeneId]
     )
     if (!szene) return res.status(404).json({ error: 'Szene nicht gefunden' })

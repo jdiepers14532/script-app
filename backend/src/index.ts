@@ -23,10 +23,10 @@ import watermarkAdminRouter from './routes/watermark-admin'
 import appSettingsRouter from './routes/app-settings'
 import { folgenRouter } from './routes/folgen'
 import {
-  charactersRouter, sceneCharactersRouter, charKategorienRouter,
+  charactersRouter, charKategorienRouter,
 } from './routes/characters'
 import {
-  szenenVorstoppRouter, vorstoppEinstellungenRouter,
+  vorstoppEinstellungenRouter,
 } from './routes/vorstopp'
 import {
   stageLabelsRouter, revisionColorsRouter,

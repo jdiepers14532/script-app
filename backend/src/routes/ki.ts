@@ -194,7 +194,7 @@ router.post('/scene-summary', async (req, res) => {
     if (!setting?.enabled) return res.json({ summary: 'KI-Funktion nicht aktiviert', disabled: true })
     if (setting.provider !== 'ollama') return res.json({ summary: 'Nur Ollama wird unterstützt', disabled: true })
 
-    const szene = await queryOne('SELECT * FROM szenen WHERE id = $1', [scene_id])
+    const szene = await queryOne('SELECT * FROM dokument_szenen WHERE id = $1', [scene_id])
     if (!szene) return res.status(404).json({ error: 'Szene nicht gefunden' })
 
     const contentText = Array.isArray(szene.content)

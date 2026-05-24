@@ -62,36 +62,6 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-// GET /api/stages/:id/entities — Extract entities from content JSONB
-router.get('/stages/:stageId/entities', async (req, res) => {
-  try {
-    const szenen = await query(
-      'SELECT content FROM szenen WHERE stage_id = $1',
-      [req.params.stageId]
-    )
-
-    const entityIds = new Set<number>()
-    for (const szene of szenen) {
-      const content = Array.isArray(szene.content) ? szene.content : []
-      for (const block of content) {
-        if (block.type === 'entity_link' && block.entity_id) {
-          entityIds.add(block.entity_id)
-        }
-      }
-    }
-
-    if (entityIds.size === 0) return res.json([])
-
-    const ids = Array.from(entityIds)
-    const placeholders = ids.map((_: any, i: number) => `$${i + 1}`).join(',')
-    const entities = await query(
-      `SELECT * FROM entities WHERE id IN (${placeholders})`,
-      ids
-    )
-    res.json(entities)
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
+// GET /api/stages/:id/entities — removed (v51: szenen/stages tables dropped; entity extraction now via dokument-szenen)
 
 export default router

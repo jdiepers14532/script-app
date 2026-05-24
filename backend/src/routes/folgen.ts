@@ -73,21 +73,18 @@ folgenRouter.get('/:produktionId/:folgeNummer/sendedatum', async (req, res) => {
 folgenRouter.get('/:produktionId/:folgeNummer/besetzung', async (req, res) => {
   try {
     const { produktionId, folgeNummer } = req.params
-    const szenen = await query(
-      `SELECT s.content FROM stages st
-       JOIN szenen s ON s.stage_id = st.id
-       WHERE st.produktion_id = $1 AND st.folge_nummer = $2
-       ORDER BY s.sort_order`,
+    const rows = await query(
+      `SELECT DISTINCT c.name
+       FROM scene_characters sc
+       JOIN characters c ON c.id = sc.character_id
+       JOIN scene_identities si ON si.id = sc.scene_identity_id
+       JOIN folgen f ON f.id = si.folge_id
+       WHERE f.produktion_id = $1 AND f.folge_nummer = $2
+       ORDER BY c.name`,
       [produktionId, parseInt(folgeNummer)]
     )
-    const charaktere: Set<string> = new Set()
-    for (const szene of szenen) {
-      const content = Array.isArray(szene.content) ? szene.content : []
-      for (const te of content) {
-        if (te.type === 'character' && te.text) charaktere.add(te.text)
-      }
-    }
-    res.json({ produktion_id: produktionId, folge_nummer: parseInt(folgeNummer), charaktere: Array.from(charaktere) })
+    const charaktere = rows.map((r: any) => r.name)
+    res.json({ produktion_id: produktionId, folge_nummer: parseInt(folgeNummer), charaktere })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

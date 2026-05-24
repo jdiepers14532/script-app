@@ -29,9 +29,11 @@ router.post('/decode',
       }
 
       const log = await queryOne(
-        `SELECT el.*, s.stage_type, s.version_label, s.folge_nummer, st.titel AS staffel_titel
+        `SELECT el.*, w.typ AS werkstufe_typ, w.version_nummer, w.label AS werkstufe_label,
+                f.folge_nummer, st.titel AS staffel_titel
          FROM export_logs el
-         LEFT JOIN stages s ON s.id = el.stage_id
+         LEFT JOIN werkstufen w ON w.id = el.werkstufe_id
+         LEFT JOIN folgen f ON f.id = w.folge_id
          LEFT JOIN produktionen st ON st.id = el.produktion_id
          WHERE el.id = $1`,
         [parsed.exportId]
@@ -95,9 +97,11 @@ router.get('/logs',
       const limit  = Math.min(parseInt(req.query.limit  as string || '100'), 500)
       const offset = parseInt(req.query.offset as string || '0')
       const logs = await query(
-        `SELECT el.*, s.stage_type, s.version_label, s.folge_nummer, st.titel AS staffel_titel
+        `SELECT el.*, w.typ AS werkstufe_typ, w.version_nummer, w.label AS werkstufe_label,
+                f.folge_nummer, st.titel AS staffel_titel
          FROM export_logs el
-         LEFT JOIN stages s  ON s.id  = el.stage_id
+         LEFT JOIN werkstufen w ON w.id = el.werkstufe_id
+         LEFT JOIN folgen f ON f.id = w.folge_id
          LEFT JOIN produktionen st ON st.id = el.produktion_id
          ORDER BY el.exported_at DESC
          LIMIT $1 OFFSET $2`,
