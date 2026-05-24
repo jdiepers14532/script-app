@@ -23,6 +23,7 @@ const ExportKopfzeilen     = lazy(() => import('./hilfe/ExportKopfzeilen'))
 const DatensicherheitUserTab = lazy(() => import('./hilfe/DatensicherheitUserTab'))
 const TeamWorkTab          = lazy(() => import('./hilfe/TeamWorkTab'))
 const AutorenplanHilfeTab  = lazy(() => import('./hilfe/AutorenplanHilfeTab'))
+const FreieDokumenteTab    = lazy(() => import('./hilfe/FreieDokumenteTab'))
 const VerlaufUndoTab       = lazy(() => import('./hilfe/VerlaufUndoTab'))
 const SearchResultsView    = lazy(() => import('./hilfe/SearchResultsView'))
 // Admin-only
@@ -85,6 +86,8 @@ const NAV_ITEMS = [
     keywords: 'team work gruppe kollaboration autoren privat modus sichtbarkeit session' },
   { id: 'autorenplan',          label: 'Autorenplan',               icon: '📅',
     keywords: 'autorenplan autor plan kalender woche einsatz future terminplanung' },
+  { id: 'freie-dokumente',      label: 'Freie Dokumente',           icon: '📂',
+    keywords: 'freie dokumente schattenbuch casting szene spin-off sonstiges folge ohne nummer sichtbarkeit privat verknüpfen' },
   // Admin-only
   { id: 'datenmodell',          label: 'Datenmodell',               icon: '🗄️', adminOnly: true,
     keywords: 'datenbank tabelle schema migration sql postgresql technisch architektur' },
@@ -169,6 +172,7 @@ function HilfePage() {
       case 'datensicherheit-user': return <DatensicherheitUserTab />
       case 'team-work':          return <TeamWorkTab />
       case 'autorenplan':        return <AutorenplanHilfeTab />
+      case 'freie-dokumente':    return <FreieDokumenteTab />
       case 'datenmodell':        return <DatenmodellTab />
       case 'datensicherheit':    return <DatensicherheitTab />
       case 'potenzielle-fehler': return <PotenzielleFehldrTab />
