@@ -263,7 +263,7 @@ function VerknuepfeDialog({
   const [bloecke, setBloecke] = useState<any[]>([])
   const [alleFolgen, setAlleFolgen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedBlockNr, setSelectedBlockNr] = useState<number | null>(null)
+  const [selectedBlockId, setSelectedBlockId] = useState<string>('')
   const [zielFolgeId, setZielFolgeId] = useState('')
   const [labelFolgeSendung, setLabelFolgeSendung] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -277,24 +277,24 @@ function VerknuepfeDialog({
     ]).then(([blocks, folgen]) => {
       setBloecke(blocks)
       setAlleFolgen(folgen)
-      if (blocks.length > 0) setSelectedBlockNr(blocks[0].block_nummer)
+      if (blocks.length > 0) setSelectedBlockId(blocks[0].proddb_id)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [produktionId])
 
   // Folgen des gewählten Blocks
   const blockFolgen = useMemo(() => {
-    const block = bloecke.find(b => b.block_nummer === selectedBlockNr)
-    if (!block) return alleFolgen
+    const block = bloecke.find(b => b.proddb_id === selectedBlockId)
+    if (!block || block.folge_von == null) return alleFolgen
     return alleFolgen.filter(f =>
       f.folge_nummer != null &&
       f.folge_nummer >= block.folge_von &&
       (block.folge_bis == null || f.folge_nummer <= block.folge_bis)
     )
-  }, [alleFolgen, bloecke, selectedBlockNr])
+  }, [alleFolgen, bloecke, selectedBlockId])
 
   // Zielfolge zurücksetzen wenn Block wechselt
-  useEffect(() => { setZielFolgeId('') }, [selectedBlockNr])
+  useEffect(() => { setZielFolgeId('') }, [selectedBlockId])
 
   const handleSave = async () => {
     if (!zielFolgeId) { setError('Bitte eine Zielfolge auswählen.'); return }
@@ -350,18 +350,18 @@ function VerknuepfeDialog({
               ) : (
                 <>
                   {/* Block-Auswahl */}
-                  {bloecke.length > 1 && (
+                  {bloecke.length > 0 && (
                     <div>
                       <label style={labelStyle}>BLOCK</label>
                       <select
-                        value={selectedBlockNr ?? ''}
-                        onChange={e => setSelectedBlockNr(Number(e.target.value))}
+                        value={selectedBlockId}
+                        onChange={e => setSelectedBlockId(e.target.value)}
                         style={inputStyle}
                       >
                         {bloecke.map((b: any) => (
-                          <option key={b.block_nummer} value={b.block_nummer}>
+                          <option key={b.proddb_id} value={b.proddb_id}>
                             Block {b.block_nummer}
-                            {b.folge_von != null ? ` (Folge ${b.folge_von}–${b.folge_bis ?? '…'})` : ''}
+                            {b.folge_von != null && b.folge_bis != null ? ` (${b.folge_von}–${b.folge_bis}) · ${b.folge_bis - b.folge_von + 1} Folgen` : ''}
                           </option>
                         ))}
                       </select>
@@ -371,18 +371,24 @@ function VerknuepfeDialog({
                   {/* Folgen-Auswahl */}
                   <div>
                     <label style={labelStyle}>ZIELFOLGE</label>
-                    <select
-                      value={zielFolgeId}
-                      onChange={e => setZielFolgeId(e.target.value)}
-                      style={inputStyle}
-                    >
-                      <option value="">— Folge auswählen —</option>
-                      {blockFolgen.map((f: any) => (
-                        <option key={f.id} value={f.id}>
-                          Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                    {blockFolgen.length === 0 && selectedBlockId ? (
+                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6 }}>
+                        Keine Folgen in diesem Block
+                      </div>
+                    ) : (
+                      <select
+                        value={zielFolgeId}
+                        onChange={e => setZielFolgeId(e.target.value)}
+                        style={inputStyle}
+                      >
+                        <option value="">— Folge auswählen —</option>
+                        {blockFolgen.map((f: any) => (
+                          <option key={f.id} value={f.id}>
+                            Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </>
               )}
