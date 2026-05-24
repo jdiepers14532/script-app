@@ -890,9 +890,12 @@ function PreviewModal({
               for (const seg of item.segments) {
                 if (seg.kind === 'tab') {
                   const ts = seg as PreviewSegment & { kind: 'tab' }
-                  const frac = Math.max(colStart, Math.min(1, (ts.posCm - mLcm) / textAreaCm))
-                  pushCol(frac)
-                  colAlign = ts.align
+                  const frac = Math.min(1, (ts.posCm - mLcm) / textAreaCm)
+                  if (frac > colStart) {
+                    pushCol(frac)
+                    colAlign = ts.align
+                  }
+                  // Tab am/vor dem Textbereich → ignorieren, Inhalt fließt in nächste Spalte
                 } else {
                   colSegs.push(seg as TextSeg)
                 }
