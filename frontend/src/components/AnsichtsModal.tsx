@@ -50,27 +50,27 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
   const customColor = isDark ? tweaks.darkCustomBg : tweaks.lightCustomBg
 
   const fieldsetStyle: React.CSSProperties = {
-    marginBottom: 16,
-    padding: '2px 16px 10px',
+    marginBottom: 8,
+    padding: '0px 12px 6px',
     background: 'var(--bg-surface)',
     border: '1px solid var(--border-subtle)',
     borderRadius: 10,
     minWidth: 0,
   }
   const legendStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 600,
+    fontSize: 10, fontWeight: 600,
     color: 'var(--text-secondary)',
-    padding: '0 6px',
+    padding: '0 5px',
     marginLeft: 4,
   }
   const rowStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '5px 0',
+    padding: '3px 0',
     borderBottom: '1px solid var(--border-subtle)',
-    fontSize: 13,
+    fontSize: 12,
   }
   const labelStyle: React.CSSProperties = {
-    color: 'var(--text-secondary)', fontSize: 13, minWidth: 160,
+    color: 'var(--text-secondary)', fontSize: 12, minWidth: 150,
   }
 
   return (
@@ -96,7 +96,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
           onMouseDown={handleHeaderMouseDown}
           style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '14px 20px', borderBottom: '1px solid var(--border)',
+            padding: '10px 16px', borderBottom: '1px solid var(--border)',
             flexShrink: 0, cursor: 'grab', userSelect: 'none',
           }}
         >
@@ -115,7 +115,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
         </div>
 
         {/* Scrollable content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px 12px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px 8px' }}>
 
           {/* Editor */}
           <fieldset style={fieldsetStyle}>
@@ -335,7 +335,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
                 value={tweaks.interfaceFont}
                 onChange={e => set('interfaceFont', e.target.value)}
                 style={{
-                  fontSize: 12, padding: '4px 8px', borderRadius: 6,
+                  fontSize: 11, padding: '3px 6px', borderRadius: 5,
                   border: '1px solid var(--border)', background: 'var(--bg-subtle)',
                   color: 'var(--text-primary)', fontFamily: 'inherit',
                 }}
@@ -363,7 +363,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
                 value={tweaks.scriptFont}
                 onChange={e => set('scriptFont', e.target.value)}
                 style={{
-                  fontSize: 12, padding: '4px 8px', borderRadius: 6,
+                  fontSize: 11, padding: '3px 6px', borderRadius: 5,
                   border: '1px solid var(--border)', background: 'var(--bg-subtle)',
                   color: 'var(--text-primary)', fontFamily: tweaks.scriptFont,
                 }}
@@ -387,12 +387,12 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
           </fieldset>
 
           {/* Reset */}
-          <div style={{ textAlign: 'center', paddingBottom: 8 }}>
+          <div style={{ textAlign: 'center', paddingBottom: 4 }}>
             <button
               onClick={reset}
               style={{
-                fontSize: 12, color: 'var(--text-secondary)', background: 'none',
-                border: '1px solid var(--border)', borderRadius: 8, padding: '7px 18px',
+                fontSize: 11, color: 'var(--text-secondary)', background: 'none',
+                border: '1px solid var(--border)', borderRadius: 7, padding: '5px 14px',
                 cursor: 'pointer',
               }}
             >

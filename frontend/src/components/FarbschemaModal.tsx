@@ -18,14 +18,22 @@ function ColorSwatch({ color, size = 16 }: { color: string; size?: number }) {
   )
 }
 
+const SWATCH_TOOLTIPS: Record<keyof ColorScheme['colors'], string> = {
+  green:      'Aktion / Erfolg\nSpeichern-Buttons, aktive Zustände, Story-Strang-Farben, Erfolgs-Badges, Offline-Sync',
+  info:       'Info / Link\nFokus-Ring (Tastatur-Navigation), Link-Farbe, Info-Badges, Benachrichtigungs-Highlights, Suchmarkierung',
+  danger:     'Fehler / Löschen\nFehlermeldungen, Lösch-Buttons, kritische Warnungen, rote Status-Anzeigen',
+  warning:    'Warnung\nHinweise, ausstehende Aktionen, unsichere Zustände, Pending-Badges',
+  warningAlt: 'Orange (Akzent)\nSekundäre Warnungen, Werkleistungsverträge (C2), unsichere Match-Status, Timestamp-Hinweise',
+}
+
 function SchemeSwatches({ colors }: { colors: ColorScheme['colors'] }) {
   return (
     <span style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
-      <Tooltip text="Aktion / Erfolg"><ColorSwatch color={colors.green} /></Tooltip>
-      <Tooltip text="Info / Link"><ColorSwatch color={colors.info} /></Tooltip>
-      <Tooltip text="Fehler"><ColorSwatch color={colors.danger} /></Tooltip>
-      <Tooltip text="Warnung"><ColorSwatch color={colors.warning} /></Tooltip>
-      <Tooltip text="Orange"><ColorSwatch color={colors.warningAlt} /></Tooltip>
+      {(Object.keys(SWATCH_TOOLTIPS) as (keyof ColorScheme['colors'])[]).map(key => (
+        <Tooltip key={key} text={SWATCH_TOOLTIPS[key]}>
+          <ColorSwatch color={colors[key]} />
+        </Tooltip>
+      ))}
     </span>
   )
 }
@@ -36,11 +44,11 @@ const EMPTY_COLORS: ColorScheme['colors'] = {
 }
 
 const COLOR_FIELDS: { key: keyof ColorScheme['colors']; label: string; hint: string }[] = [
-  { key: 'green',      label: 'Aktion / Erfolg',    hint: 'z.B. Speichern-Buttons, Erfolgs-Badges, Strang-Farben' },
-  { key: 'info',       label: 'Info / Link',         hint: 'z.B. Links, Fokus-Ring, Benachrichtigungen' },
-  { key: 'danger',     label: 'Fehler',              hint: 'z.B. Fehler-Meldungen, Löschen-Buttons' },
-  { key: 'warning',    label: 'Warnung',             hint: 'z.B. Warnungen, ausstehende Aktionen' },
-  { key: 'warningAlt', label: 'Orange (Akzent)',     hint: 'z.B. Werkleistungs-Vertragsklasse, sekundäre Warnungen' },
+  { key: 'green',      label: 'Aktion / Erfolg',    hint: 'Speichern-Buttons, aktive Zustände, Story-Strang-Farben, Erfolgs-Badges, Offline-Sync-Anzeige' },
+  { key: 'info',       label: 'Info / Link',         hint: 'Fokus-Ring (Tastatur-Nav), Links, Info-Badges, Benachrichtigungs-Highlights, Suchmarkierungen — Fokus-Ring wird automatisch abgeleitet' },
+  { key: 'danger',     label: 'Fehler / Löschen',   hint: 'Fehlermeldungen, Lösch-Buttons, kritische Warnungen, rote Status-Anzeigen' },
+  { key: 'warning',    label: 'Warnung',             hint: 'Hinweise, ausstehende Aktionen, unsichere Zustände, Pending-Badges' },
+  { key: 'warningAlt', label: 'Orange (Akzent)',     hint: 'Sekundäre Warnungen, Werkleistungsverträge (C2), unsichere Match-Status, Timestamp-Hinweise' },
 ]
 
 export default function FarbschemaModal({ onClose }: { onClose: () => void }) {
@@ -289,6 +297,11 @@ export default function FarbschemaModal({ onClose }: { onClose: () => void }) {
                 >
                   <Plus size={13} /> Neues Schema erstellen
                 </button>
+              </div>
+
+              {/* Settings-Hinweis */}
+              <div style={{ marginTop: 12, fontSize: 10, color: 'var(--text-muted)', textAlign: 'center' }}>
+                Auswahl wird automatisch in deinen persönlichen Einstellungen gespeichert
               </div>
             </>
           ) : (

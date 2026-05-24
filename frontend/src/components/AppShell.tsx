@@ -664,6 +664,12 @@ export default function AppShell({
     el.style.setProperty('--sw-danger',      scheme.colors.danger)
     el.style.setProperty('--sw-warning',     scheme.colors.warning)
     el.style.setProperty('--sw-warning-alt', scheme.colors.warningAlt)
+    // Focus-Ring automatisch aus --sw-info ableiten (hex #RRGGBB → rgba mit 40% Alpha)
+    const hex = scheme.colors.info.replace('#', '')
+    const r = parseInt(hex.slice(0,2), 16)
+    const g = parseInt(hex.slice(2,4), 16)
+    const b = parseInt(hex.slice(4,6), 16)
+    el.style.setProperty('--focus-ring', `rgba(${r},${g},${b},0.4)`)
   }, [tweaks.activeColorSchemeId])
 
   // ── Sendedatum live aus ProdDB ────────────────────────────────────────────
