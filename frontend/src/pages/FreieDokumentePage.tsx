@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FolderOpen, Plus, Pencil, Trash2, Link2,
@@ -260,8 +260,10 @@ function VerknuepfeDialog({
   produktionId: string
   onClose: () => void
 }) {
-  const [folgen, setFolgen] = useState<any[]>([])
+  const [bloecke, setBloecke] = useState<any[]>([])
+  const [alleFolgen, setAlleFolgen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedBlockNr, setSelectedBlockNr] = useState<number | null>(null)
   const [zielFolgeId, setZielFolgeId] = useState('')
   const [labelFolgeSendung, setLabelFolgeSendung] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -269,10 +271,30 @@ function VerknuepfeDialog({
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    api.getFolgenV2(produktionId)
-      .then(rows => { setFolgen(rows); setLoading(false) })
-      .catch(() => setLoading(false))
+    Promise.all([
+      api.getBloecke(produktionId),
+      api.getFolgenV2(produktionId),
+    ]).then(([blocks, folgen]) => {
+      setBloecke(blocks)
+      setAlleFolgen(folgen)
+      if (blocks.length > 0) setSelectedBlockNr(blocks[0].block_nummer)
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [produktionId])
+
+  // Folgen des gewählten Blocks
+  const blockFolgen = useMemo(() => {
+    const block = bloecke.find(b => b.block_nummer === selectedBlockNr)
+    if (!block) return alleFolgen
+    return alleFolgen.filter(f =>
+      f.folge_nummer != null &&
+      f.folge_nummer >= block.folge_von &&
+      (block.folge_bis == null || f.folge_nummer <= block.folge_bis)
+    )
+  }, [alleFolgen, bloecke, selectedBlockNr])
+
+  // Zielfolge zurücksetzen wenn Block wechselt
+  useEffect(() => { setZielFolgeId('') }, [selectedBlockNr])
 
   const handleSave = async () => {
     if (!zielFolgeId) { setError('Bitte eine Zielfolge auswählen.'); return }
@@ -285,6 +307,11 @@ function VerknuepfeDialog({
     } finally {
       setSaving(false)
     }
+  }
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: 12, fontWeight: 600,
+    marginBottom: 6, color: 'var(--text-secondary)',
   }
 
   return (
@@ -318,36 +345,62 @@ function VerknuepfeDialog({
                 der gewählten Folge kopiert. Das freie Dokument bleibt als Archiv erhalten.
               </p>
 
-              <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>ZIELFOLGE</label>
-                {loading ? (
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lädt Folgen…</div>
-                ) : (
-                  <select
-                    value={zielFolgeId}
-                    onChange={e => setZielFolgeId(e.target.value)}
-                    style={inputStyle}
-                  >
-                    <option value="">— Folge auswählen —</option>
-                    {folgen.map((f: any) => (
-                      <option key={f.id} value={f.id}>
-                        Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
+              {loading ? (
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lädt…</div>
+              ) : (
+                <>
+                  {/* Block-Auswahl */}
+                  {bloecke.length > 1 && (
+                    <div>
+                      <label style={labelStyle}>BLOCK</label>
+                      <select
+                        value={selectedBlockNr ?? ''}
+                        onChange={e => setSelectedBlockNr(Number(e.target.value))}
+                        style={inputStyle}
+                      >
+                        {bloecke.map((b: any) => (
+                          <option key={b.block_nummer} value={b.block_nummer}>
+                            Block {b.block_nummer}
+                            {b.folge_von != null ? ` (Folge ${b.folge_von}–${b.folge_bis ?? '…'})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8 }}>
+                  {/* Folgen-Auswahl */}
+                  <div>
+                    <label style={labelStyle}>ZIELFOLGE</label>
+                    <select
+                      value={zielFolgeId}
+                      onChange={e => setZielFolgeId(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">— Folge auswählen —</option>
+                      {blockFolgen.map((f: any) => (
+                        <option key={f.id} value={f.id}>
+                          Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {/* Folge für Sendung */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8 }}>
                 <input
                   type="checkbox"
                   checked={labelFolgeSendung}
                   onChange={e => setLabelFolgeSendung(e.target.checked)}
+                  style={{ marginTop: 2, flexShrink: 0 }}
                 />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>Als „Folge für Sendung" markieren</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    Setzt das Label der Zielfolge auf „Folge für Sendung".
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, lineHeight: 1.5 }}>
+                    Erst wenn als „Folge für Sendung" markiert, können andere Apps und die
+                    Produktionsdatenbank auf das Dokument zugreifen. Ohne diese Kennzeichnung
+                    wird die Verknüpfung nur intern in „Freie Dokumente" verwendet.
                   </div>
                 </div>
               </label>
