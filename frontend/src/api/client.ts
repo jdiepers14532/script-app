@@ -500,7 +500,7 @@ export const api = {
     request<any>('PUT', `/v2/folgen/${id}`, data),
   deleteFreiesDokument: (id: string) =>
     request<any>('DELETE', `/v2/folgen/${id}`),
-  verknuepfeMitFolge: (freiDokId: string, data: { ziel_folge_id: string; label_folge_sendung?: boolean }) =>
+  verknuepfeMitFolge: (freiDokId: string, data: { ziel_folge_id?: string; ziel_folge_nummer?: number; label_folge_sendung?: boolean }) =>
     request<any>('POST', `/v2/folgen/${freiDokId}/verknuepfe-mit-folge`, data),
   getFreieDokLabels: (produktionId: string) =>
     request<any[]>('GET', `/v2/folgen/freie-dokument-labels?produktion_id=${encodeURIComponent(produktionId)}`),

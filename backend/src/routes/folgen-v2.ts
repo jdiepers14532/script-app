@@ -104,7 +104,11 @@ folgenV2Router.get('/', async (req, res) => {
     } else {
       rows = await query(
         `SELECT f.*,
-                (SELECT COUNT(*)::int FROM werkstufen w WHERE w.folge_id = f.id) AS werkstufen_count
+                (SELECT COUNT(*)::int FROM werkstufen w WHERE w.folge_id = f.id) AS werkstufen_count,
+                (SELECT json_agg(x ORDER BY x.typ)
+                 FROM (SELECT w.typ, MAX(w.version_nummer)::int AS max_version
+                       FROM werkstufen w WHERE w.folge_id = f.id
+                       GROUP BY w.typ) x) AS werkstufen_typen
          FROM folgen f
          WHERE f.produktion_id = $1
            AND f.ist_frei = false
@@ -310,18 +314,37 @@ folgenV2Router.delete('/:id', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /api/v2/folgen/:id/verknuepfe-mit-folge
 // Kopiert Inhalt des freien Dokuments in eine Werkstufe der Zielfolge
-// Body: { ziel_folge_id, label_folge_sendung?: boolean }
+// Body: { ziel_folge_id?, ziel_folge_nummer?, label_folge_sendung?: boolean }
+// Entweder ziel_folge_id (existierende Folge) ODER ziel_folge_nummer (find-or-create)
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
   const user = req.user!
-  const { ziel_folge_id, label_folge_sendung } = req.body
-  if (!ziel_folge_id) return res.status(400).json({ error: 'ziel_folge_id required' })
+  const { ziel_folge_id, ziel_folge_nummer, label_folge_sendung } = req.body
+  if (!ziel_folge_id && !ziel_folge_nummer) return res.status(400).json({ error: 'ziel_folge_id oder ziel_folge_nummer required' })
 
   try {
     const quelle = await queryOne('SELECT * FROM folgen WHERE id = $1 AND ist_frei = true', [req.params.id])
     if (!quelle) return res.status(404).json({ error: 'Freies Dokument nicht gefunden' })
 
-    const ziel = await queryOne('SELECT * FROM folgen WHERE id = $1 AND ist_frei = false', [ziel_folge_id])
+    // Zielfolge auflösen: per ID oder per Nummer (find-or-create)
+    let resolvedZielId = ziel_folge_id
+    if (!resolvedZielId) {
+      const existing = await queryOne(
+        'SELECT id FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2 AND ist_frei = false',
+        [quelle.produktion_id, ziel_folge_nummer]
+      )
+      if (existing) {
+        resolvedZielId = existing.id
+      } else {
+        const neu = await queryOne(
+          'INSERT INTO folgen (produktion_id, folge_nummer, ist_frei) VALUES ($1, $2, false) RETURNING id',
+          [quelle.produktion_id, ziel_folge_nummer]
+        )
+        resolvedZielId = neu!.id
+      }
+    }
+
+    const ziel = await queryOne('SELECT * FROM folgen WHERE id = $1 AND ist_frei = false', [resolvedZielId])
     if (!ziel) return res.status(404).json({ error: 'Zielfolge nicht gefunden' })
 
     // Neueste Werkstufe des freien Dokuments finden
@@ -334,7 +357,7 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
     // Nächste Versionsnummer für die Zielfolge
     const maxVer = await queryOne(
       `SELECT COALESCE(MAX(version_nummer), 0) AS mx FROM werkstufen WHERE folge_id = $1`,
-      [ziel_folge_id]
+      [resolvedZielId]
     )
     const neueVersion = (maxVer?.mx ?? 0) + 1
 
@@ -343,7 +366,7 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
       `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, erstellt_von)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`,
-      [ziel_folge_id, quellWerkstufe.typ ?? 'drehbuch', neueVersion,
+      [resolvedZielId, quellWerkstufe.typ ?? 'drehbuch', neueVersion,
        quelle.folgen_titel ?? 'Übernommen aus freiem Dokument', user.user_id]
     )
 
@@ -358,13 +381,12 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
     )
 
     for (const sz of szenen) {
-      // Neue scene_identity in der Zielproduktion anlegen
       const neueSi = await queryOne(
         `INSERT INTO scene_identities
            (folge_id, sz_nummer, motiv_id, innen_aussen, tag_nacht)
          VALUES ($1, $2, $3, $4, $5)
          RETURNING *`,
-        [ziel_folge_id, sz.sz_nummer, sz.motiv_id, sz.innen_aussen, sz.tag_nacht]
+        [resolvedZielId, sz.sz_nummer, sz.motiv_id, sz.innen_aussen, sz.tag_nacht]
       )
       await query(
         `INSERT INTO dokument_szenen
@@ -378,7 +400,7 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
     if (label_folge_sendung) {
       await query(
         `UPDATE folgen SET dokument_label = 'folge_sendung' WHERE id = $1`,
-        [ziel_folge_id]
+        [resolvedZielId]
       )
     }
 

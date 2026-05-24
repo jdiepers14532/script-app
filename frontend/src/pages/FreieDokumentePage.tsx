@@ -6,7 +6,7 @@ import {
   Check, X, AlertTriangle, FileText, Eye,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
-import { useSelectedProduction } from '../contexts'
+import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
 
 // ── Label-Darstellung ─────────────────────────────────────────────────────────
@@ -263,8 +263,9 @@ function VerknuepfeDialog({
   const [bloecke, setBloecke] = useState<any[]>([])
   const [alleFolgen, setAlleFolgen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const { treatmentLabel } = useAppSettings()
   const [selectedBlockId, setSelectedBlockId] = useState<string>('')
-  const [zielFolgeId, setZielFolgeId] = useState('')
+  const [zielFolgeNr, setZielFolgeNr] = useState<number | null>(null)
   const [labelFolgeSendung, setLabelFolgeSendung] = useState(false)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState<any>(null)
@@ -282,25 +283,62 @@ function VerknuepfeDialog({
     }).catch(() => setLoading(false))
   }, [produktionId])
 
-  // Folgen des gewählten Blocks
-  const blockFolgen = useMemo(() => {
+  // Folgenummern für den gewählten Block (aus ProdDB-Range, wie AppShell)
+  const blockFolgenNrs = useMemo(() => {
     const block = bloecke.find(b => b.proddb_id === selectedBlockId)
-    if (!block || block.folge_von == null) return alleFolgen
-    return alleFolgen.filter(f =>
-      f.folge_nummer != null &&
-      f.folge_nummer >= block.folge_von &&
-      (block.folge_bis == null || f.folge_nummer <= block.folge_bis)
-    )
-  }, [alleFolgen, bloecke, selectedBlockId])
+    if (!block || block.folge_von == null || block.folge_bis == null) return []
+    const result: number[] = []
+    for (let nr = block.folge_von; nr <= block.folge_bis; nr++) result.push(nr)
+    return result
+  }, [bloecke, selectedBlockId])
+
+  // Map: folge_nummer → werkstufen-Typen (aus script_db)
+  const folgenInfo = useMemo(() => {
+    const map = new Map<number, { typ: string; max_version: number }[]>()
+    for (const f of alleFolgen) {
+      if (f.folge_nummer != null && Array.isArray(f.werkstufen_typen)) {
+        map.set(f.folge_nummer, f.werkstufen_typen)
+      }
+    }
+    return map
+  }, [alleFolgen])
+
+  // Kürzel für Werkstufen-Typ
+  const getAbbr = (typ: string) => {
+    if (typ === 'drehbuch') return 'D'
+    if (typ === 'notiz') return 'N'
+    if (typ === 'storyline') {
+      if (treatmentLabel === 'Storylines') return 'S'
+      if (treatmentLabel === 'Outline') return 'O'
+      return 'T'
+    }
+    return typ.charAt(0).toUpperCase()
+  }
+
+  // Optionstext mit Indikator
+  const getOptionLabel = (nr: number) => {
+    const typen = folgenInfo.get(nr)
+    if (!typen || typen.length === 0) return `Folge ${nr}`
+    const indicator = [...typen]
+      .sort((a, b) => a.typ.localeCompare(b.typ))
+      .map(t => `${getAbbr(t.typ)} V${t.max_version}`)
+      .join(' · ')
+    return `Folge ${nr}  ·  ${indicator}`
+  }
 
   // Zielfolge zurücksetzen wenn Block wechselt
-  useEffect(() => { setZielFolgeId('') }, [selectedBlockId])
+  useEffect(() => { setZielFolgeNr(null) }, [selectedBlockId])
+
+  const neuesFolge = zielFolgeNr != null && !folgenInfo.has(zielFolgeNr)
 
   const handleSave = async () => {
-    if (!zielFolgeId) { setError('Bitte eine Zielfolge auswählen.'); return }
+    if (zielFolgeNr == null) { setError('Bitte eine Zielfolge auswählen.'); return }
     setSaving(true)
     try {
-      const result = await api.verknuepfeMitFolge(dok.id, { ziel_folge_id: zielFolgeId, label_folge_sendung: labelFolgeSendung })
+      const result = await api.verknuepfeMitFolge(dok.id, {
+        ziel_folge_nummer: zielFolgeNr,
+        label_folge_sendung: labelFolgeSendung,
+      })
       setDone(result)
     } catch (err: any) {
       setError(err?.message ?? 'Fehler beim Verknüpfen')
@@ -361,35 +399,43 @@ function VerknuepfeDialog({
                         {bloecke.map((b: any) => (
                           <option key={b.proddb_id} value={b.proddb_id}>
                             Block {b.block_nummer}
-                            {b.folge_von != null && b.folge_bis != null ? ` (${b.folge_von}–${b.folge_bis}) · ${b.folge_bis - b.folge_von + 1} Folgen` : ''}
+                            {b.folge_von != null && b.folge_bis != null
+                              ? ` (${b.folge_von}–${b.folge_bis}) · ${b.folge_bis - b.folge_von + 1} Folgen`
+                              : ''}
                           </option>
                         ))}
                       </select>
                     </div>
                   )}
 
-                  {/* Folgen-Auswahl */}
+                  {/* Folgen-Auswahl aus ProdDB-Range */}
                   <div>
                     <label style={labelStyle}>ZIELFOLGE</label>
-                    {blockFolgen.length === 0 && selectedBlockId ? (
-                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6 }}>
-                        Keine Folgen in diesem Block
-                      </div>
-                    ) : (
-                      <select
-                        value={zielFolgeId}
-                        onChange={e => setZielFolgeId(e.target.value)}
-                        style={inputStyle}
-                      >
-                        <option value="">— Folge auswählen —</option>
-                        {blockFolgen.map((f: any) => (
-                          <option key={f.id} value={f.id}>
-                            Folge {f.folge_nummer}{f.folgen_titel ? ` — ${f.folgen_titel}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    )}
+                    <select
+                      value={zielFolgeNr ?? ''}
+                      onChange={e => setZielFolgeNr(e.target.value ? Number(e.target.value) : null)}
+                      style={inputStyle}
+                    >
+                      <option value="">— Folge auswählen —</option>
+                      {blockFolgenNrs.map(nr => (
+                        <option key={nr} value={nr}>
+                          {getOptionLabel(nr)}
+                        </option>
+                      ))}
+                    </select>
                   </div>
+
+                  {/* Bestätigung für neue Folge */}
+                  {neuesFolge && (
+                    <div style={{ padding: '10px 12px', background: 'var(--bg-elevated)', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
+                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                        Es existiert noch keine Fassung zu dieser Folge.
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        Als erste Fassung anlegen und Inhalt übernehmen?
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -420,8 +466,8 @@ function VerknuepfeDialog({
           ) : (
             <>
               <button className="btn" onClick={onClose}>Abbrechen</button>
-              <button className="btn primary" onClick={handleSave} disabled={saving || !zielFolgeId}>
-                {saving ? 'Verknüpfe…' : 'Verknüpfen'}
+              <button className="btn primary" onClick={handleSave} disabled={saving || zielFolgeNr == null}>
+                {saving ? 'Verknüpfe…' : neuesFolge ? 'Ja, als erste Fassung anlegen' : 'Verknüpfen'}
               </button>
             </>
           )}
