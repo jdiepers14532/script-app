@@ -417,7 +417,13 @@ interface SceneRow {
 
 // ── Szenenkopf-Template-Renderer ──────────────────────────────────────────────
 
-const DEFAULT_SCENE_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
+const DEFAULT_SCENE_KUERZEL: Record<string, string> = {
+  // int/ext
+  int: 'I', ext: 'E',
+  // Tageszeiten (DB-Werte uppercase → toLowerCase vor Lookup)
+  tag: 'T', morgen: 'M', abend: 'A', nacht: 'N',
+  daemmerung: 'D', dämmerung: 'D',
+}
 
 /** Wert eines sk_chip-Keys aus den Szenendaten */
 function skChipValue(key: string, scene: SceneRow, folgeNummer: number, kuerzel: Record<string, string> = {}): string {
@@ -580,11 +586,14 @@ function buildBookmarkLabel(scene: SceneRow, folgeNummer: number, kuerzel: Recor
   const szNr = scene.scene_nummer != null
     ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
   const ie = (scene.int_ext ?? '').toLowerCase()
+  const tz = (scene.tageszeit ?? '').toLowerCase()
   const ieKurz = kuerzel[ie] ?? DEFAULT_SCENE_KUERZEL[ie] ?? (scene.int_ext?.charAt(0) ?? '')
+  const tzKurz = kuerzel[tz] ?? DEFAULT_SCENE_KUERZEL[tz] ?? (scene.tageszeit ? scene.tageszeit.charAt(0).toUpperCase() : '')
   return [
     `${folgeNummer}.${szNr}`,
     scene.ort_name     ? esc(scene.ort_name) : '',
     ieKurz             ? esc(ieKurz)         : '',
+    tzKurz             ? esc(tzKurz)         : '',
     scene.spieltag != null ? String(scene.spieltag) : '',
     scene.rollen?.length   ? scene.rollen.map(r => esc(r)).join(' ') : '',
   ].filter(Boolean).join(' ')
@@ -653,14 +662,16 @@ function renderMainScenes(
     if (scene.format !== 'notiz') {
       headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel, pdfBookmarks)
     } else {
-      const pb = index > 0 ? '<div style="page-break-before:always"></div>' : ''
-      const bmAttr = pdfBookmarks && scene.vorlage_name
-        ? ` data-bm-label="${escAttr(scene.vorlage_name)}"`
-        : ''
-      const titleDiv = scene.vorlage_name
-        ? `<div style="font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em"${bmAttr}>${esc(scene.vorlage_name)}</div>`
-        : ''
-      headHtml = pb + titleDiv
+      // Notiz-Format: page-break-before und data-bm-label auf dasselbe Element (konsistent mit Drehbuch-Szenen)
+      const pbStyle = index > 0 ? 'page-break-before:always;' : ''
+      const label   = scene.vorlage_name ?? 'Notiz'
+      const bmAttr  = pdfBookmarks ? ` data-bm-label="${escAttr(label)}"` : ''
+      if (scene.vorlage_name) {
+        headHtml = `<div style="${pbStyle}font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em"${bmAttr}>${esc(scene.vorlage_name)}</div>`
+      } else {
+        // Kein sichtbarer Titel — unsichtbarer Marker für page-break + ggf. Lesezeichen
+        headHtml = `<div style="${pbStyle}height:0;overflow:hidden"${bmAttr}></div>`
+      }
     }
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
