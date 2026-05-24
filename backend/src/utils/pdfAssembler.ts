@@ -615,6 +615,7 @@ function parseSzenenAuswahl(raw: string | undefined): SzeneSpec[] | null {
 // ── Druckauswahl-Text bauen ───────────────────────────────────────────────────
 
 function buildDruckauswahl(options: import('./exportJobQueue').ExportJobOptions): string | null {
+  console.log('[druckauswahl] options.filterRollen:', options.filterRollen, 'filterMotive:', options.filterMotive, 'filterKomparsen:', options.filterKomparsen, 'szenenAuswahl:', options.szenenAuswahl)
   const auswahl = options.szenenAuswahl?.trim()
     ? `Auswahl: Szenen ${options.szenenAuswahl.trim()}`
     : null
@@ -624,7 +625,9 @@ function buildDruckauswahl(options: import('./exportJobQueue').ExportJobOptions)
   if (options.filterKomparsen?.length) filterParts.push(`Komp.\u202fm.\u202fSp.: ${options.filterKomparsen.join(', ')}`)
   const filter = filterParts.length ? `Nur Szenen mit ${filterParts.join(' \u0026 ')}` : null
   const parts = [auswahl, filter].filter(Boolean) as string[]
-  return parts.length ? parts.join(' \u0026 ') : null
+  const result = parts.length ? parts.join(' \u0026 ') : null
+  console.log('[druckauswahl] result:', result)
+  return result
 }
 
 async function assembleHtml(
