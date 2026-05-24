@@ -425,7 +425,7 @@ function DeleteConfirm({ dok, onConfirm, onClose }: { dok: any; onConfirm: () =>
 
 export default function FreieDokumentePage() {
   const navigate = useNavigate()
-  const { selectedProduktionId } = useSelectedProduction()
+  const { selectedId: selectedProduktionId } = useSelectedProduction()
 
   const [dokumente, setDokumente] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
