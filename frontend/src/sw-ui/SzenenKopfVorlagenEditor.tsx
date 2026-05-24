@@ -874,15 +874,17 @@ function PreviewModal({
                   {textSegs.map(renderTextSeg)}
                 </div>
               }
-              // Tab-Zeilen als Flex-Spalten — Spaltenbreite proportional zu Tab-Stop-Abständen.
-              interface FlexCol { startFrac: number; endFrac: number; segs: TextSeg[]; align: TabAlign }
+              // Tab-Zeilen als Flex-Spalten.
+              // flexGrow=true: diese Spalte wächst (flex:1), statt fester Breite —
+              // nötig wenn danach ein rechts-ausgerichteter Tab am rechten Seitenrand folgt.
+              interface FlexCol { startFrac: number; endFrac: number; segs: TextSeg[]; align: TabAlign; flexGrow?: boolean }
               const cols: FlexCol[] = []
               let colSegs: TextSeg[] = []
               let colAlign: TabAlign = 'left'
               let colStart = 0
 
-              const pushCol = (endFrac: number) => {
-                cols.push({ startFrac: colStart, endFrac, segs: colSegs, align: colAlign })
+              const pushCol = (endFrac: number, flexGrow = false) => {
+                cols.push({ startFrac: colStart, endFrac, segs: colSegs, align: colAlign, flexGrow })
                 colSegs = []
                 colStart = endFrac
               }
@@ -892,26 +894,39 @@ function PreviewModal({
                   const ts = seg as PreviewSegment & { kind: 'tab' }
                   const frac = Math.min(1, (ts.posCm - mLcm) / textAreaCm)
                   if (frac > colStart) {
-                    pushCol(frac)
+                    // Rechts-Tab am rechten Rand: vorherige Spalte wächst, nachfolgende auto-breit
+                    pushCol(frac, ts.align === 'right' && frac >= 1.0)
                     colAlign = ts.align
                   }
-                  // Tab am/vor dem Textbereich → ignorieren, Inhalt fließt in nächste Spalte
+                  // Tab am/vor Textbereich-Anfang → ignorieren
                 } else {
                   colSegs.push(seg as TextSeg)
                 }
               }
-              pushCol(1)  // letzte Spalte bis rechter Rand
+              pushCol(1)  // letzte Spalte
 
               return (
                 <div key={i} style={{ ...item.style, display: 'flex', whiteSpace: 'normal' }}>
                   {cols.map((col, ci) => {
                     const widthPct = (col.endFrac - col.startFrac) * 100
                     const isLast = ci === cols.length - 1
+                    const prevFlexGrow = ci > 0 && cols[ci - 1].flexGrow
+                    // Letzte Spalte nach einer Wachstums-Spalte: auto-Breite (rechts ausgerichtet)
+                    let flex: string
+                    if (col.flexGrow) {
+                      flex = '1 1 0'
+                    } else if (isLast && prevFlexGrow) {
+                      flex = '0 0 auto'
+                    } else if (isLast) {
+                      flex = '1 1 0'
+                    } else {
+                      flex = `0 0 ${widthPct.toFixed(2)}%`
+                    }
                     return (
                       <span key={ci} style={{
-                        flex: isLast ? '1 1 0' : `0 0 ${widthPct.toFixed(2)}%`,
+                        flex,
                         minWidth: 0,
-                        overflow: 'hidden',
+                        overflow: (isLast && prevFlexGrow) ? 'visible' : 'hidden',
                         wordBreak: 'break-word',
                         textAlign: col.align === 'right' ? 'right' : col.align === 'center' ? 'center' : 'left',
                       }}>
