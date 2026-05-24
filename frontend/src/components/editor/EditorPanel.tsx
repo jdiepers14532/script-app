@@ -68,6 +68,12 @@ export default function EditorPanel({
   // ── Export Drawer ─────────────────────────────────────────────────────────
   const [exportOpen, setExportOpen] = useState(false)
 
+  useEffect(() => {
+    const handler = () => setExportOpen(true)
+    window.addEventListener('open-export-dialog', handler)
+    return () => window.removeEventListener('open-export-dialog', handler)
+  }, [])
+
   // ── Neue Werkstufe Modal ──────────────────────────────────────────────────
   const [neueFassungModal, setNeueFassungModal] = useState<'drehbuch' | 'storyline' | null>(null)
   const [platzhalterWerkId, setPlatzhalterWerkId] = useState<string | null>(null)

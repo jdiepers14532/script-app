@@ -86,10 +86,11 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
   // ── Navigation (App-Nav-Menü) ─────────────────────────────────────────────
   // Alt+Buchstabe — nicht von modernen Browsern als Navigation belegt.
   // Alt+D wurde bewusst ausgelassen (fokussiert Adressleiste in Chrome/Edge).
+  // ^ = Backquote-Taste (physisch links neben 1, auf QWERTZ unverschoben "^")
   navEpisoden: {
-    codes: ['KeyE'],
+    codes: ['Backquote'],
     altKey: true,
-    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+E`,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+^`,
   },
   navRollen: {
     codes: ['KeyR'],
@@ -125,6 +126,11 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     codes: ['KeyC'],
     altKey: true,
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+C`,
+  },
+  navExport: {
+    codes: ['KeyE'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+E`,
   },
 
 }

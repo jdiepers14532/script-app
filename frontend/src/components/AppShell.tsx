@@ -660,6 +660,7 @@ export default function AppShell({
       else if (matchesShortcut('navBesetzung', e))       { e.preventDefault(); navigate('/besetzung') }
       else if (matchesShortcut('navFreieDokumente', e))  { e.preventDefault(); navigate('/freie-dokumente') }
       else if (matchesShortcut('navDrehbuchkoordination', e) && hasDkAccess) { e.preventDefault(); navigate('/drehbuchkoordination') }
+      else if (matchesShortcut('navExport', e))          { e.preventDefault(); window.dispatchEvent(new CustomEvent('open-export-dialog')) }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -1385,13 +1386,26 @@ export default function AppShell({
               { to: '/motive',              label: t('motiv', 'p'),      icon: <MapPin size={14} />,          shortcut: 'navMotive' },
               { to: '/statistik',           label: 'Statistik',           icon: <BarChart3 size={14} />,       shortcut: 'navStatistik' },
               { to: '/besetzung',           label: 'Besetzung',           icon: <Grid3x3 size={14} />,         shortcut: 'navBesetzung' },
+              { to: null,                    label: 'Export',              icon: <Download size={14} />,        shortcut: 'navExport',   action: () => { setNavMenuOpen(false); window.dispatchEvent(new CustomEvent('open-export-dialog')) } },
               { to: '/import',              label: 'Import',              icon: <FileUp size={14} /> },
               { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} />,      shortcut: 'navFreieDokumente' },
               ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} />, shortcut: 'navDrehbuchkoordination' }] : []),
-            ].map(item => (
+            ].map(item => item.action ? (
+              <button
+                key={item.label}
+                className="um-item"
+                onClick={item.action}
+              >
+                {item.icon}
+                {item.label}
+                {item.shortcut && (
+                  <span className="um-shortcut">{sc(item.shortcut)}</span>
+                )}
+              </button>
+            ) : (
               <Link
                 key={item.to}
-                to={item.to}
+                to={item.to!}
                 className={`um-item${location.pathname === item.to ? ' um-item-active' : ''}`}
                 onClick={() => setNavMenuOpen(false)}
                 style={{ textDecoration: 'none' }}
