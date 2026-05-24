@@ -1,50 +1,68 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FolderOpen, Plus, Pencil, Trash2, Link2, Eye, EyeOff,
+  FolderOpen, Plus, Pencil, Trash2, Link2,
   Lock, Users, Globe, BookOpen, ChevronDown, ChevronRight,
-  Check, X, AlertTriangle, FileText, Tag,
+  Check, X, AlertTriangle, FileText, Eye,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { useSelectedProduction } from '../contexts'
 import { api } from '../api/client'
 
-// ── Label-System ─────────────────────────────────────────────────────────────
+// ── Label-Darstellung ─────────────────────────────────────────────────────────
 
-const LABEL_OPTIONS = [
-  { value: 'schattenbuch',  label: 'Schattenbuch',   desc: 'Alternatives Drehbuch zu einer Episode' },
-  { value: 'casting_szene', label: 'Casting-Szene',  desc: 'Szenen für Casting-Zwecke' },
-  { value: 'spin_off',      label: 'Spin-Off',        desc: 'Konzept für eine eigenständige Serienidee' },
-  { value: 'sonstiges',     label: 'Sonstiges',       desc: 'Allgemeines freies Dokument' },
-]
+// Vordefinierte Optionen für Datalist-Autocomplete
+const LABEL_DEFAULTS = ['Schattenbuch', 'Casting-Szene', 'Spin-Off', 'Sonstiges']
 
-const SICHTBARKEIT_OPTIONS = [
-  {
-    value: 'dauerhaft_privat',
-    label: 'Dauerhaft privat',
-    desc: 'Nur du und Superadmins können dieses Dokument sehen.',
-    icon: <Lock size={14} />,
-  },
-  {
-    value: 'team',
-    label: 'Team',
-    desc: 'Sichtbar für alle mit Drehbuchkoordinations-Zugang.',
-    icon: <Users size={14} />,
-  },
-  {
-    value: 'alle',
-    label: 'Alle Autoren',
-    desc: 'Sichtbar für alle Autoren dieser Produktion.',
-    icon: <Globe size={14} />,
-  },
-]
-
-function getLabelInfo(value: string) {
-  return LABEL_OPTIONS.find(l => l.value === value) ?? { label: value, desc: '' }
+// Backwards-compat: ältere Slug-Werte → lesbarer Text
+const SLUG_MAP: Record<string, string> = {
+  schattenbuch: 'Schattenbuch',
+  casting_szene: 'Casting-Szene',
+  spin_off: 'Spin-Off',
+  sonstiges: 'Sonstiges',
+  folge_sendung: 'Folge für Sendung',
 }
 
+function displayLabel(value: string): string {
+  return SLUG_MAP[value] ?? value
+}
+
+// ── Sichtbarkeit ──────────────────────────────────────────────────────────────
+
+const SICHTBARKEIT_OPTIONS = [
+  { value: 'privat',           label: 'Privat',          icon: <Lock size={14} /> },
+  { value: 'dauerhaft_privat', label: 'Dauerhaft privat', icon: <Lock size={14} /> },
+  { value: 'team',             label: 'Team',             icon: <Users size={14} /> },
+  { value: 'alle',             label: 'Alle Autoren',     icon: <Globe size={14} /> },
+]
+
 function getSichtbarkeitInfo(value: string) {
-  return SICHTBARKEIT_OPTIONS.find(s => s.value === value) ?? { label: value, desc: '', icon: <Eye size={14} /> }
+  return SICHTBARKEIT_OPTIONS.find(s => s.value === value)
+    ?? { label: value, icon: <Eye size={14} /> }
+}
+
+// ── Inline-Styles ─────────────────────────────────────────────────────────────
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 12px',
+  fontSize: 14,
+  border: '1.5px solid var(--border)',
+  borderRadius: 8,
+  background: 'var(--bg-surface)',
+  color: 'var(--text-primary)',
+  fontFamily: 'inherit',
+  outline: 'none',
+  boxSizing: 'border-box',
+}
+
+const modalFootStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 8,
+  padding: '12px 20px',
+  borderTop: '1px solid var(--border)',
+  flexShrink: 0,
 }
 
 // ── Freies Dokument Item ─────────────────────────────────────────────────────
@@ -59,7 +77,6 @@ function DokumentItem({
   onVerknuepfe: () => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const labelInfo = getLabelInfo(dok.dokument_label)
   const sichtInfo = getSichtbarkeitInfo(dok.sichtbarkeit_frei)
 
   const menuItems = [
@@ -76,7 +93,7 @@ function DokumentItem({
       <div className="fdi-main">
         <div className="fdi-title">{dok.folgen_titel ?? 'Unbenanntes Dokument'}</div>
         <div className="fdi-meta">
-          <span className="fdi-badge fdi-label">{labelInfo.label}</span>
+          <span className="fdi-badge fdi-label">{displayLabel(dok.dokument_label)}</span>
           <span className="fdi-badge fdi-sicht">
             {sichtInfo.icon}
             {sichtInfo.label}
@@ -136,16 +153,17 @@ function DokumentDialog({
   onClose: () => void
 }) {
   const [titel, setTitel] = useState(initial?.folgen_titel ?? '')
-  const [label, setLabel] = useState(initial?.dokument_label ?? 'sonstiges')
+  const [label, setLabel] = useState(displayLabel(initial?.dokument_label ?? 'sonstiges'))
   const [sichtbarkeit, setSichtbarkeit] = useState(initial?.sichtbarkeit_frei ?? 'team')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleSave = async () => {
     if (!titel.trim()) { setError('Bitte gib einen Titel ein.'); return }
+    if (!label.trim()) { setError('Bitte gib einen Dokumenttyp ein.'); return }
     setSaving(true)
     try {
-      await onSave({ folgen_titel: titel.trim(), dokument_label: label, sichtbarkeit_frei: sichtbarkeit })
+      await onSave({ folgen_titel: titel.trim(), dokument_label: label.trim(), sichtbarkeit_frei: sichtbarkeit })
       onClose()
     } catch (err: any) {
       setError(err?.message ?? 'Fehler beim Speichern')
@@ -156,11 +174,9 @@ function DokumentDialog({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: 480 }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>
-            {initial ? 'Dokument bearbeiten' : 'Neues freies Dokument'}
-          </h3>
+      <div className="modal-box" style={{ maxWidth: 480, width: '90%' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <span>{initial ? 'Dokument bearbeiten' : 'Neues freies Dokument'}</span>
           <button className="icon-btn" onClick={onClose}><X size={16} /></button>
         </div>
 
@@ -177,73 +193,51 @@ function DokumentDialog({
             <input
               autoFocus
               type="text"
-              className="form-input"
               placeholder="z.B. Schattenbuch Ep. 4290"
               value={titel}
               onChange={e => setTitel(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
-              style={{ width: '100%' }}
+              style={inputStyle}
             />
           </div>
 
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>DOKUMENTTYP</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {LABEL_OPTIONS.map(opt => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
-                    border: `1.5px solid ${label === opt.value ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 8, cursor: 'pointer',
-                    background: label === opt.value ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-surface)',
-                  }}
-                >
-                  <input type="radio" name="label" value={opt.value} checked={label === opt.value} onChange={() => setLabel(opt.value)} style={{ marginTop: 2 }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600 }}>{opt.label}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{opt.desc}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
+            <input
+              type="text"
+              list="label-datalist"
+              placeholder="z.B. Schattenbuch, Casting-Szene…"
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              style={inputStyle}
+            />
+            <datalist id="label-datalist">
+              {LABEL_DEFAULTS.map(l => <option key={l} value={l} />)}
+            </datalist>
           </div>
 
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>SICHTBARKEIT</label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <select
+              value={sichtbarkeit}
+              onChange={e => setSichtbarkeit(e.target.value)}
+              style={inputStyle}
+            >
               {SICHTBARKEIT_OPTIONS.map(opt => (
-                <label
-                  key={opt.value}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px',
-                    border: `1.5px solid ${sichtbarkeit === opt.value ? 'var(--accent)' : 'var(--border)'}`,
-                    borderRadius: 8, cursor: 'pointer',
-                    background: sichtbarkeit === opt.value ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--bg-surface)',
-                  }}
-                >
-                  <input type="radio" name="sichtbarkeit" value={opt.value} checked={sichtbarkeit === opt.value} onChange={() => setSichtbarkeit(opt.value)} style={{ marginTop: 2 }} />
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {opt.icon}
-                      {opt.label}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>{opt.desc}</div>
-                    {opt.value === 'dauerhaft_privat' && (
-                      <div style={{ fontSize: 11, color: '#FF9500', marginTop: 4, fontWeight: 500 }}>
-                        Achtung: Diese Einstellung ist dauerhaft und kann nicht rückgängig gemacht werden.
-                      </div>
-                    )}
-                  </div>
-                </label>
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
-            </div>
+            </select>
+            {sichtbarkeit === 'dauerhaft_privat' && (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
+                Automatisches Aufheben des Privat-Modus ist deaktiviert.
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+        <div style={modalFootStyle}>
+          <button className="btn" onClick={onClose}>Abbrechen</button>
+          <button className="btn primary" onClick={handleSave} disabled={saving}>
             {saving ? 'Speichern…' : initial ? 'Speichern' : 'Dokument anlegen'}
           </button>
         </div>
@@ -292,9 +286,9 @@ function VerknuepfeDialog({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: 520 }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Mit Folge verknüpfen</h3>
+      <div className="modal-box" style={{ maxWidth: 520, width: '90%' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <span>Mit Folge verknüpfen</span>
           <button className="icon-btn" onClick={onClose}><X size={16} /></button>
         </div>
 
@@ -316,12 +310,10 @@ function VerknuepfeDialog({
                 </div>
               )}
 
-              <div>
-                <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                  Die Szenen aus <strong>„{dok.folgen_titel}"</strong> werden in eine neue Werkstufe
-                  der gewählten Folge kopiert. Das freie Dokument bleibt als Archiv erhalten.
-                </p>
-              </div>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                Die Szenen aus <strong>„{dok.folgen_titel}"</strong> werden in eine neue Werkstufe
+                der gewählten Folge kopiert. Das freie Dokument bleibt als Archiv erhalten.
+              </p>
 
               <div>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>ZIELFOLGE</label>
@@ -329,10 +321,9 @@ function VerknuepfeDialog({
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Lädt Folgen…</div>
                 ) : (
                   <select
-                    className="form-input"
                     value={zielFolgeId}
                     onChange={e => setZielFolgeId(e.target.value)}
-                    style={{ width: '100%' }}
+                    style={inputStyle}
                   >
                     <option value="">— Folge auswählen —</option>
                     {folgen.map((f: any) => (
@@ -353,7 +344,7 @@ function VerknuepfeDialog({
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>Als „Folge für Sendung" markieren</div>
                   <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    Setzt das Label der Zielfolge auf „Folge für Sendung" — zeigt an, dass dies die offizielle Sendungsfassung ist.
+                    Setzt das Label der Zielfolge auf „Folge für Sendung".
                   </div>
                 </div>
               </label>
@@ -361,13 +352,13 @@ function VerknuepfeDialog({
           )}
         </div>
 
-        <div className="modal-footer">
+        <div style={modalFootStyle}>
           {done ? (
-            <button className="btn btn-primary" onClick={onClose}>Schließen</button>
+            <button className="btn primary" onClick={onClose}>Schließen</button>
           ) : (
             <>
-              <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
-              <button className="btn btn-primary" onClick={handleSave} disabled={saving || !zielFolgeId}>
+              <button className="btn" onClick={onClose}>Abbrechen</button>
+              <button className="btn primary" onClick={handleSave} disabled={saving || !zielFolgeId}>
                 {saving ? 'Verknüpfe…' : 'Verknüpfen'}
               </button>
             </>
@@ -385,9 +376,9 @@ function DeleteConfirm({ dok, onConfirm, onClose }: { dok: any; onConfirm: () =>
   const [error, setError] = useState<string | null>(null)
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ maxWidth: 420 }} onClick={e => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>Dokument löschen?</h3>
+      <div className="modal-box" style={{ maxWidth: 420, width: '90%' }} onClick={e => e.stopPropagation()}>
+        <div className="modal-head">
+          <span>Dokument löschen?</span>
           <button className="icon-btn" onClick={onClose}><X size={16} /></button>
         </div>
         <div className="modal-body" style={{ padding: '16px 20px' }}>
@@ -401,11 +392,11 @@ function DeleteConfirm({ dok, onConfirm, onClose }: { dok: any; onConfirm: () =>
             inklusive aller Werkstufen und Szenen. Diese Aktion kann nicht rückgängig gemacht werden.
           </p>
         </div>
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>Abbrechen</button>
+        <div style={modalFootStyle}>
+          <button className="btn" onClick={onClose}>Abbrechen</button>
           <button
             className="btn"
-            style={{ background: '#FF3B30', color: '#fff' }}
+            style={{ background: '#FF3B30', color: '#fff', borderColor: 'transparent' }}
             disabled={deleting}
             onClick={async () => {
               setDeleting(true)
@@ -456,7 +447,6 @@ export default function FreieDokumentePage() {
     if (!selectedProduktionId) throw new Error('Keine Produktion ausgewählt')
     const dok = await api.createFreiesDokument({ produktion_id: selectedProduktionId, ...data })
     await load()
-    // Direkt ins Dokument navigieren
     navigate(`/?freidok_id=${encodeURIComponent(dok.id)}`)
   }
 
@@ -486,7 +476,7 @@ export default function FreieDokumentePage() {
           </div>
           {selectedProduktionId && (
             <button
-              className="btn btn-primary"
+              className="btn primary"
               onClick={() => setCreateOpen(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
@@ -514,7 +504,7 @@ export default function FreieDokumentePage() {
               Erstelle Schattenbücher, Casting-Szenen, Spin-Off-Ideen oder andere Dokumente,
               die keiner Episode zugeordnet sind.
             </p>
-            <button className="btn btn-primary" onClick={() => setCreateOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <button className="btn primary" onClick={() => setCreateOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <Plus size={15} />
               Erstes Dokument anlegen
             </button>
@@ -598,10 +588,7 @@ export default function FreieDokumentePage() {
           flex-shrink: 0;
           color: var(--text-secondary);
         }
-        .fdi-main {
-          flex: 1;
-          min-width: 0;
-        }
+        .fdi-main { flex: 1; min-width: 0; }
         .fdi-title {
           font-size: 14px;
           font-weight: 600;

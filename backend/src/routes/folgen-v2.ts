@@ -86,7 +86,7 @@ folgenV2Router.get('/', async (req, res) => {
 
     let rows: any[]
     if (nurFrei) {
-      // Freie Dokumente: dauerhaft_privat → nur eigene sehen (außer superadmin)
+      // Freie Dokumente: privat + dauerhaft_privat → nur eigene sehen (außer superadmin)
       rows = await query(
         `SELECT f.*,
                 (SELECT COUNT(*)::int FROM werkstufen w WHERE w.folge_id = f.id) AS werkstufen_count
@@ -94,7 +94,7 @@ folgenV2Router.get('/', async (req, res) => {
          WHERE f.produktion_id = $1
            AND f.ist_frei = true
            AND (
-             f.sichtbarkeit_frei != 'dauerhaft_privat'
+             f.sichtbarkeit_frei NOT IN ('dauerhaft_privat', 'privat')
              OR f.ersteller_user_id = $2
              OR $3 = ANY(ARRAY['superadmin'])
            )
@@ -152,10 +152,9 @@ folgenV2Router.post('/', async (req, res) => {
     // Freies Dokument — kein folge_nummer
     if (!folgen_titel?.trim()) return res.status(400).json({ error: 'folgen_titel required für freie Dokumente' })
     const label = dokument_label ?? 'sonstiges'
-    const validLabels = ['schattenbuch', 'casting_szene', 'spin_off', 'sonstiges']
-    if (!validLabels.includes(label)) return res.status(400).json({ error: `Ungültiges dokument_label: ${label}` })
+    if (!label || !label.trim()) return res.status(400).json({ error: 'dokument_label darf nicht leer sein' })
     const sicht = sichtbarkeit_frei ?? 'team'
-    const validSicht = ['dauerhaft_privat', 'team', 'alle']
+    const validSicht = ['privat', 'dauerhaft_privat', 'team', 'alle']
     if (!validSicht.includes(sicht)) return res.status(400).json({ error: `Ungültige sichtbarkeit_frei: ${sicht}` })
 
     try {
@@ -218,12 +217,11 @@ folgenV2Router.put('/:id', async (req, res) => {
     }
 
     // Validierung Label + Sichtbarkeit wenn gesetzt
-    if (dokument_label) {
-      const validLabels = ['schattenbuch', 'casting_szene', 'spin_off', 'sonstiges']
-      if (!validLabels.includes(dokument_label)) return res.status(400).json({ error: `Ungültiges dokument_label` })
+    if (dokument_label !== undefined && !dokument_label?.trim()) {
+      return res.status(400).json({ error: 'dokument_label darf nicht leer sein' })
     }
     if (sichtbarkeit_frei) {
-      const validSicht = ['dauerhaft_privat', 'team', 'alle']
+      const validSicht = ['privat', 'dauerhaft_privat', 'team', 'alle']
       if (!validSicht.includes(sichtbarkeit_frei)) return res.status(400).json({ error: `Ungültige sichtbarkeit_frei` })
     }
 
