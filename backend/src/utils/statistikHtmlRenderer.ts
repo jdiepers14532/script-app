@@ -12,6 +12,12 @@ import { pool } from '../db'
 
 // ── Öffentliche Interface-Definition ─────────────────────────────────────────
 
+export interface StatistikFormatConfig {
+  fontFamily?: string
+  fontSize?: number
+  lineHeight?: number
+}
+
 export interface StatistikExportConfig {
   /** Folge-IDs (eine für Folge-Modus, mehrere für Block-Modus) */
   folge_ids: number[]
@@ -115,6 +121,17 @@ function stoppzeitOf(s: any, cfg: StatistikConfig, wsPartnerIds: Set<string>): n
 }
 
 // ── HTML-Bausteine ────────────────────────────────────────────────────────────
+
+/** Überschreibt die Base-Styles von .stat-wrap wenn Format-Config gesetzt */
+function buildFormatOverride(format?: StatistikFormatConfig): string {
+  if (!format) return ''
+  const parts: string[] = []
+  if (format.fontFamily) parts.push(`font-family: '${format.fontFamily}', sans-serif;`)
+  if (format.fontSize)   parts.push(`font-size: ${format.fontSize}pt;`)
+  if (format.lineHeight) parts.push(`line-height: ${format.lineHeight};`)
+  if (!parts.length)     return ''
+  return `<style>.stat-wrap { ${parts.join(' ')} }</style>`
+}
 
 const STYLES = `
 <style>
@@ -404,7 +421,7 @@ function renderDrehorte(drehorte: Array<{ name: string; scene_count: number }>):
  * Rendert den Statistik-Report als einbettbares HTML-Fragment.
  * Enthält eigene <style>-Tags. Kein <html>/<body>.
  */
-export async function renderStatistikHtml(config: StatistikExportConfig): Promise<string> {
+export async function renderStatistikHtml(config: StatistikExportConfig, format?: StatistikFormatConfig): Promise<string> {
   const client = await pool.connect()
   try {
     // 1. Produktion aus erster Folge ermitteln
@@ -630,7 +647,7 @@ export async function renderStatistikHtml(config: StatistikExportConfig): Promis
       return `<div style="color:#aaa;font-size:9pt">Keine Statistik-Sektionen ausgewählt.</div>`
     }
 
-    return `${STYLES}
+    return `${STYLES}${buildFormatOverride(format)}
 <div class="stat-wrap">
   ${titleHtml}
   ${sectionHtmlParts.join('\n')}

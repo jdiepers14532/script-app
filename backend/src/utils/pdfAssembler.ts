@@ -22,7 +22,7 @@ import {
   ExportContext,
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
-import { renderStatistikHtml } from './statistikHtmlRenderer'
+import { renderStatistikHtml, StatistikFormatConfig } from './statistikHtmlRenderer'
 
 // ── Admin Wasserzeichen-Einstellungen ─────────────────────────────────────────
 
@@ -521,7 +521,7 @@ function buildSceneBookmarkH2(scene: SceneRow, folgeNummer: number, kuerzel: Rec
   ].filter(Boolean).join(' ')
   const line2 = scene.rollen?.length ? scene.rollen.map(r => esc(r)).join(' ') : ''
   const content = line2 ? `${line1}<br>${line2}` : line1
-  return `<h2 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">${content}</h2>`
+  return `<h2 style="display:block;height:0;overflow:hidden;font-size:0;line-height:0;margin:0;padding:0">${content}</h2>`
 }
 
 function renderSzenenkopf(
@@ -585,7 +585,7 @@ function renderMainScenes(
     } else {
       const pb = index > 0 ? '<div style="page-break-before:always"></div>' : ''
       const bm = pdfBookmarks && scene.vorlage_name
-        ? `<h2 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">${esc(scene.vorlage_name)}</h2>`
+        ? `<h2 style="display:block;height:0;overflow:hidden;font-size:0;line-height:0;margin:0;padding:0">${esc(scene.vorlage_name)}</h2>`
         : ''
       headHtml = pb + bm
     }
@@ -893,7 +893,21 @@ async function assembleHtml(
       episode_terminus:       episodeTerminus,
     }
 
-    // ── 7. Geordnete Pre-/Post-Sektionen aufbauen ─────────────────────────────
+    // ── 7. Sonstige-Dokumente-Format laden ────────────────────────────────────
+    let statistikFormat: StatistikFormatConfig | undefined
+    try {
+      const sfRes = await client.query(
+        `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'sonstige_dokumente_format'`,
+        [w.produktion_id]
+      )
+      if (sfRes.rows.length) {
+        const parsed = typeof sfRes.rows[0].value === 'string'
+          ? JSON.parse(sfRes.rows[0].value) : sfRes.rows[0].value
+        statistikFormat = parsed?.statistik ?? undefined
+      }
+    } catch { /* kein Format → Defaults */ }
+
+    // ── 8. Geordnete Pre-/Post-Sektionen aufbauen ─────────────────────────────
     setProgress(30)
 
     /** Rendert ein einzelnes OrderedExportItem zu HTML */
@@ -933,7 +947,7 @@ async function assembleHtml(
         }
       }
       if (item.type === 'statistik' && item.statistikConfig) {
-        return renderStatistikHtml(item.statistikConfig)
+        return renderStatistikHtml(item.statistikConfig, statistikFormat)
       }
       return null
     }

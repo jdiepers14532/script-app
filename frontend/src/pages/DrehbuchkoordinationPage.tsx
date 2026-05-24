@@ -32,13 +32,14 @@ const DK_TABS = [
   { id: 'autorenplan',            label: 'Autorenplan' },
 ]
 
-const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates', 'freie-dok-labels']
+const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates', 'freie-dok-labels', 'sonstige-dokumente']
 const FORMAT_SUB_NAV = [
-  { id: 'dokument-typen',      label: 'Drehbuch-Formatierung' },
-  { id: 'kopf-fusszeilen',     label: 'Kopf-/Fußzeile' },
-  { id: 'vorlagen',            label: 'Dokumenten-Vorlagen' },
-  { id: 'stockshot-templates', label: 'Stockshot-Templates' },
-  { id: 'freie-dok-labels',    label: 'Freie Dokumente' },
+  { id: 'dokument-typen',       label: 'Drehbuch-Formatierung' },
+  { id: 'kopf-fusszeilen',      label: 'Kopf-/Fußzeile' },
+  { id: 'vorlagen',             label: 'Dokumenten-Vorlagen' },
+  { id: 'stockshot-templates',  label: 'Stockshot-Templates' },
+  { id: 'freie-dok-labels',     label: 'Freie Dokumente' },
+  { id: 'sonstige-dokumente',   label: 'Sonstige Dokumente' },
 ]
 
 const KUERZEL_FIELDS = [
@@ -1431,6 +1432,117 @@ function ProduktionTab() {
         </div>
       </section>
 
+    </div>
+  )
+}
+
+// ── Tab: Sonstige Dokumente ──────────────────────────────────────────────────
+
+const SONSTIGE_FONT_FAMILIES = ['Courier New', 'Courier Prime', 'Inter', 'Arial', 'Helvetica', 'Times New Roman', 'Georgia']
+
+interface SonstigeFormat {
+  fontFamily: string
+  fontSize: number
+  lineHeight: number
+}
+
+const SONSTIGE_DEFAULTS: SonstigeFormat = { fontFamily: 'Courier New', fontSize: 10, lineHeight: 1.5 }
+
+function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
+  const [statistik, setStatistik] = useState<SonstigeFormat>(SONSTIGE_DEFAULTS)
+  const [saving, setSaving]       = useState(false)
+  const [msg, setMsg]             = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!produktionId) return
+    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(s => {
+        if (s?.sonstige_dokumente_format) {
+          try {
+            const v = typeof s.sonstige_dokumente_format === 'string'
+              ? JSON.parse(s.sonstige_dokumente_format) : s.sonstige_dokumente_format
+            if (v?.statistik) setStatistik({ ...SONSTIGE_DEFAULTS, ...v.statistik })
+          } catch {}
+        }
+      })
+      .catch(() => {})
+  }, [produktionId])
+
+  async function handleSave() {
+    setSaving(true); setMsg(null)
+    try {
+      const value = JSON.stringify({ statistik })
+      const r = await fetch(`/api/dk-settings/${produktionId}/app-settings/sonstige_dokumente_format`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value }),
+      })
+      if (!r.ok) throw new Error(await r.text())
+      setMsg('Gespeichert')
+    } catch (e) {
+      setMsg('Fehler beim Speichern')
+    } finally {
+      setSaving(false)
+      setTimeout(() => setMsg(null), 2500)
+    }
+  }
+
+  const secStyle: React.CSSProperties = {
+    border: '1px solid var(--border)', borderRadius: 10, padding: '16px 20px',
+    display: 'flex', flexDirection: 'column', gap: 16,
+  }
+  const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }
+  const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', minWidth: 100 }
+  const inputStyle: React.CSSProperties = {
+    border: '1px solid var(--border)', borderRadius: 6, padding: '5px 9px',
+    fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 80,
+  }
+
+  return (
+    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 640 }}>
+      {/* Statistik */}
+      <div style={secStyle}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Statistik</div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Schriftart</span>
+          <select
+            value={statistik.fontFamily}
+            onChange={e => setStatistik(p => ({ ...p, fontFamily: e.target.value }))}
+            style={{ ...inputStyle, width: 180 }}
+          >
+            {SONSTIGE_FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Schriftgröße (pt)</span>
+          <input
+            type="number" min={6} max={24} step={0.5}
+            value={statistik.fontSize}
+            onChange={e => setStatistik(p => ({ ...p, fontSize: parseFloat(e.target.value) || p.fontSize }))}
+            style={inputStyle}
+          />
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Zeilenabstand</span>
+          <input
+            type="number" min={1} max={3} step={0.1}
+            value={statistik.lineHeight}
+            onChange={e => setStatistik(p => ({ ...p, lineHeight: parseFloat(e.target.value) || p.lineHeight }))}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          onClick={handleSave} disabled={saving}
+          style={{ padding: '7px 18px', fontSize: 13, fontWeight: 600, borderRadius: 8, border: 'none', background: '#007AFF', color: '#fff', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? 'Speichern…' : 'Speichern'}
+        </button>
+        {msg && <span style={{ fontSize: 12, color: msg.startsWith('Fehler') ? '#FF3B30' : '#00C853' }}>{msg}</span>}
+      </div>
     </div>
   )
 }
@@ -3113,6 +3225,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <KopfFusszeileTab productionId={produktionId} seitenformat={seitenformat} margins={margins} /> : <NoProduction />
       case 'freie-dok-labels':
         return produktionId ? <FreieDokLabelsTab produktionId={produktionId} /> : <NoProduction />
+      case 'sonstige-dokumente':
+        return produktionId ? <SonstigeDokumenteTab produktionId={produktionId} /> : <NoProduction />
       case 'autorenplan':
         return produktionId ? <AutorenplanTab produktionDbId={produktionId} /> : <NoProduction />
       default:
