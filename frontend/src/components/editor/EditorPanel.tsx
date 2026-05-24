@@ -865,11 +865,11 @@ export default function EditorPanel({
               {werkstufen.length === 0 ? 'Keine Werkstufen vorhanden' : 'Werkstufe auswählen'}
             </p>
             {werkstufen.length === 0 && folgeId && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['drehbuch', 'storyline'] as const).map(typ => (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {(['drehbuch', 'storyline', 'notiz'] as const).map(typ => (
                   <button key={typ} onClick={() => setNeueFassungModal(typ)}
                     style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
-                    + {typ === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
+                    + {typ === 'drehbuch' ? 'Drehbuch' : typ === 'storyline' ? 'Storyline' : 'Dokument ohne Formatierung'}
                   </button>
                 ))}
               </div>

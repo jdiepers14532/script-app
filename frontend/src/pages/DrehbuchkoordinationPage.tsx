@@ -5200,15 +5200,54 @@ function FreieDokLabelsTab({ produktionId }: { produktionId: string }) {
     fontFamily: 'inherit', outline: 'none',
   }
 
-  return (
-    <div style={{ padding: 24, maxWidth: 560 }}>
-      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Labels für Freie Dokumente</div>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 20, margin: '0 0 20px' }}>
-        Diese Labels erscheinen als Vorschläge beim Anlegen eines freien Dokuments (Autovervollständigung).
-        Neben diesen produktionsspezifischen Labels stehen immer die Standard-Labels
-        <em> Schattenbuch, Casting-Szene, Spin-Off, Sonstiges</em> zur Verfügung.
-      </p>
+  const sectionHead: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)',
+    letterSpacing: '0.07em', marginBottom: 6,
+  }
 
+  return (
+    <div style={{ maxWidth: 560 }}>
+      {/* Sticky header — top:-28px gleicht padding-top:28px des Scroll-Containers aus */}
+      <div style={{
+        position: 'sticky',
+        top: -28,
+        zIndex: 10,
+        background: 'var(--bg-page)',
+        paddingTop: 28,
+        paddingBottom: 14,
+        marginLeft: -32,
+        marginRight: -32,
+        paddingLeft: 32,
+        paddingRight: 32,
+        borderBottom: '1px solid var(--border)',
+        marginBottom: 20,
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Labels für Freie Dokumente</div>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          Diese Labels erscheinen als Vorschläge (Autovervollständigung) beim Anlegen eines freien Dokuments.
+        </div>
+      </div>
+
+      {/* Standard-Labels */}
+      <div style={sectionHead}>STANDARD (immer verfügbar)</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+        {['Schattenbuch', 'Casting-Szene', 'Spin-Off', 'Sonstiges'].map(l => (
+          <div key={l} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 12px', background: 'var(--bg-subtle)',
+            border: '1.5px solid var(--border)', borderRadius: 8,
+          }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{l}</span>
+            <span style={{
+              fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)',
+              background: 'var(--border)', borderRadius: 4, padding: '2px 7px',
+            }}>Standard</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Produktions-Labels */}
+      <div style={sectionHead}>DIESE PRODUKTION</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
         {labels.length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', padding: '8px 0' }}>
@@ -5230,6 +5269,7 @@ function FreieDokLabelsTab({ produktionId }: { produktionId: string }) {
         ))}
       </div>
 
+      {/* Neu hinzufügen */}
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           type="text"
