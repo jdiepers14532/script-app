@@ -83,6 +83,50 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+A`,
   },
 
+  // ── Navigation (App-Nav-Menü) ─────────────────────────────────────────────
+  // Alt+Buchstabe — nicht von modernen Browsern als Navigation belegt.
+  // Alt+D wurde bewusst ausgelassen (fokussiert Adressleiste in Chrome/Edge).
+  navEpisoden: {
+    codes: ['KeyE'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+E`,
+  },
+  navRollen: {
+    codes: ['KeyR'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+R`,
+  },
+  navKomparsen: {
+    codes: ['KeyK'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+K`,
+  },
+  navMotive: {
+    codes: ['KeyM'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+M`,
+  },
+  navStatistik: {
+    codes: ['KeyS'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+S`,
+  },
+  navBesetzung: {
+    codes: ['KeyB'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+B`,
+  },
+  navFreieDokumente: {
+    codes: ['KeyF'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+F`,
+  },
+  navDrehbuchkoordination: {
+    codes: ['KeyC'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+C`,
+  },
+
 }
 
 // ── Hilfsfunktionen (pure, kein React) ────────────────────────────────────────

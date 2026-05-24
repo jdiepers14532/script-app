@@ -1,5 +1,5 @@
 import { ReactNode, useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Minimize2, Maximize2, Columns2, PanelLeft, PanelRight,
   Bell, Sun, Moon, FileUp, FileCheck, CreditCard, BookMarked, ChevronRight,
@@ -200,6 +200,7 @@ export default function AppShell({
   freiDokTitel = null,
 }: AppShellProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const { focus, toggle, toolbarOpen, setToolbarOpen, setToolbarPos, setToolbarOpenedVia } = useFocus()
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
   // AppShell IS the TweaksContext provider → can't use useShortcut() hook here.
@@ -647,6 +648,22 @@ export default function AppShell({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [])
+
+  // ── Nav-Shortcuts (Alt+Buchstabe) → direkte Navigation ───────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (matchesShortcut('navEpisoden', e))             { e.preventDefault(); navigate('/') }
+      else if (matchesShortcut('navRollen', e))          { e.preventDefault(); navigate('/rollen') }
+      else if (matchesShortcut('navKomparsen', e))       { e.preventDefault(); navigate('/komparsen') }
+      else if (matchesShortcut('navMotive', e))          { e.preventDefault(); navigate('/motive') }
+      else if (matchesShortcut('navStatistik', e))       { e.preventDefault(); navigate('/statistik') }
+      else if (matchesShortcut('navBesetzung', e))       { e.preventDefault(); navigate('/besetzung') }
+      else if (matchesShortcut('navFreieDokumente', e))  { e.preventDefault(); navigate('/freie-dokumente') }
+      else if (matchesShortcut('navDrehbuchkoordination', e) && hasDkAccess) { e.preventDefault(); navigate('/drehbuchkoordination') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [hasDkAccess, navigate])
 
   // ── CSS-Variablen bei Änderung sofort anwenden ────────────────────────────
   useEffect(() => {
@@ -1362,15 +1379,15 @@ export default function AppShell({
           <div className="menu-overlay" onClick={() => setNavMenuOpen(false)} />
           <div className="user-menu" style={{ left: 8, right: 'auto', minWidth: 180 }}>
             {[
-              { to: '/',          label: t('episode', 'p'), icon: <LayoutDashboard size={14} /> },
-              { to: '/rollen',    label: figurenLabel, icon: <Users size={14} /> },
-              { to: '/komparsen', label: t('komparse', 'p'),  icon: <UserCheck size={14} /> },
-              { to: '/motive',    label: t('motiv', 'p'),     icon: <MapPin size={14} /> },
-              { to: '/statistik',  label: 'Statistik',  icon: <BarChart3 size={14} /> },
-              { to: '/besetzung', label: 'Besetzung',  icon: <Grid3x3 size={14} /> },
+              { to: '/',                    label: t('episode', 'p'),    icon: <LayoutDashboard size={14} />, shortcut: 'navEpisoden' },
+              { to: '/rollen',              label: figurenLabel,          icon: <Users size={14} />,           shortcut: 'navRollen' },
+              { to: '/komparsen',           label: t('komparse', 'p'),   icon: <UserCheck size={14} />,       shortcut: 'navKomparsen' },
+              { to: '/motive',              label: t('motiv', 'p'),      icon: <MapPin size={14} />,          shortcut: 'navMotive' },
+              { to: '/statistik',           label: 'Statistik',           icon: <BarChart3 size={14} />,       shortcut: 'navStatistik' },
+              { to: '/besetzung',           label: 'Besetzung',           icon: <Grid3x3 size={14} />,         shortcut: 'navBesetzung' },
               { to: '/import',              label: 'Import',              icon: <FileUp size={14} /> },
-              { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} /> },
-              ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} /> }] : []),
+              { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} />,      shortcut: 'navFreieDokumente' },
+              ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} />, shortcut: 'navDrehbuchkoordination' }] : []),
             ].map(item => (
               <Link
                 key={item.to}
@@ -1381,6 +1398,9 @@ export default function AppShell({
               >
                 {item.icon}
                 {item.label}
+                {item.shortcut && (
+                  <span className="um-shortcut">{sc(item.shortcut)}</span>
+                )}
               </Link>
             ))}
           </div>

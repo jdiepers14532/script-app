@@ -1140,6 +1140,7 @@
 .user-menu .um-item:hover { background: var(--bg-hover); }
 .user-menu .um-item-danger { color: var(--sw-danger); }
 .user-menu .um-item-danger:hover { background: rgba(255,59,48,0.08); }
+.user-menu .um-shortcut { margin-left: auto; font-size: 11px; color: var(--text-muted); font-family: ui-monospace, monospace; }
 
 /* ── Admin Modal ── */
 .modal-backdrop {
