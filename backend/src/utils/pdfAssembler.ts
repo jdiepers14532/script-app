@@ -344,6 +344,7 @@ interface SceneRow {
   scene_identity_id:   string | null
   rollen:              string[]
   spielzeit:           string | null
+  vorlage_name:        string | null
 }
 
 // ── Szenenkopf-Template-Renderer ──────────────────────────────────────────────
@@ -506,6 +507,23 @@ function renderSKParagraph(
  * für eine Szene. Gibt ein HTML-Div mit page-break-after:avoid zurück.
  * Fallback wenn kein Template: klassischer Einzeiler.
  */
+/** sr-only h2 für PDF-Bookmark — kein visueller Einfluss, aber im DOM für Chrome's Outline */
+function buildSceneBookmarkH2(scene: SceneRow, folgeNummer: number, kuerzel: Record<string, string>): string {
+  const szNr = scene.scene_nummer != null
+    ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
+  const ie = (scene.int_ext ?? '').toLowerCase()
+  const ieKurz = kuerzel[ie] ?? DEFAULT_SCENE_KUERZEL[ie] ?? (scene.int_ext?.charAt(0) ?? '')
+  const line1 = [
+    `${folgeNummer}.${szNr}`,
+    scene.ort_name ? esc(scene.ort_name) : '',
+    ieKurz        ? esc(ieKurz)          : '',
+    scene.spieltag != null ? String(scene.spieltag) : '',
+  ].filter(Boolean).join(' ')
+  const line2 = scene.rollen?.length ? scene.rollen.map(r => esc(r)).join(' ') : ''
+  const content = line2 ? `${line1}<br>${line2}` : line1
+  return `<h2 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">${content}</h2>`
+}
+
 function renderSzenenkopf(
   templateJson: any,
   scene: SceneRow,
@@ -516,6 +534,7 @@ function renderSzenenkopf(
   pdfBookmarks = false
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
+  const bmH2 = pdfBookmarks ? buildSceneBookmarkH2(scene, folgeNummer, kuerzel) : ''
 
   // Fallback wenn kein Template konfiguriert
   if (!templateJson) {
@@ -524,8 +543,7 @@ function renderSzenenkopf(
     if (scene.ort_name)  parts.push(esc(scene.ort_name))
     if (scene.int_ext)   parts.push(esc(scene.int_ext))
     if (scene.tageszeit) parts.push(esc(scene.tageszeit))
-    const tag = pdfBookmarks ? 'h2' : 'p'
-    return `<${tag} style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</${tag}>`
+    return `${bmH2}<p style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</p>`
   }
 
   const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
@@ -544,8 +562,7 @@ function renderSzenenkopf(
   }
 
   if (parts.length === 0) return ''
-  const tag = pdfBookmarks ? 'h2' : 'div'
-  return `<${tag} style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</${tag}>`
+  return `${bmH2}<div style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -562,9 +579,16 @@ function renderMainScenes(
 ): string {
   return scenes.map((scene, index) => {
     // Notiz-Format-Szenen bekommen keinen strukturierten Szenenkopf
-    const headHtml = scene.format !== 'notiz'
-      ? renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel, pdfBookmarks)
-      : (index > 0 ? '<div style="page-break-before:always"></div>' : '')
+    let headHtml: string
+    if (scene.format !== 'notiz') {
+      headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel, pdfBookmarks)
+    } else {
+      const pb = index > 0 ? '<div style="page-break-before:always"></div>' : ''
+      const bm = pdfBookmarks && scene.vorlage_name
+        ? `<h2 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">${esc(scene.vorlage_name)}</h2>`
+        : ''
+      headHtml = pb + bm
+    }
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     return `${headHtml}\n${bodyHtml}`
   }).join('\n')
@@ -934,12 +958,13 @@ async function assembleHtml(
     // ── 8. Hauptszenen laden ──────────────────────────────────────────────────
     setProgress(40)
     const szRes = await client.query<SceneRow>(
-      `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
-              stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp,
-              scene_identity_id, spielzeit
-       FROM dokument_szenen
-       WHERE werkstufe_id = $1 AND geloescht = false
-       ORDER BY sort_order`,
+      `SELECT ds.scene_nummer, ds.scene_nummer_suffix, ds.ort_name, ds.int_ext, ds.tageszeit, ds.spieltag,
+              ds.stoppzeit_sek, ds.content, ds.zusammenfassung, ds.sort_order, ds.format, ds.sondertyp,
+              ds.scene_identity_id, ds.spielzeit, dv.name AS vorlage_name
+       FROM dokument_szenen ds
+       LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
+       WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
+       ORDER BY ds.sort_order`,
       [werkstufId]
     )
 
