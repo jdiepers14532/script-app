@@ -117,9 +117,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
   const notizWerkstufen = werkstufen.filter(w => w.typ === 'notiz')
 
-  // Beim Öffnen initialisieren
+  // Beim Öffnen initialisieren — nicht zurücksetzen wenn ein Job läuft
   useEffect(() => {
     if (!isOpen || !selectedWerk) return
+    if (jobStatus === 'running' || jobStatus === 'pending') return
     setJobStatus('idle'); setProgress(0); setErrorMsg(null)
     setSzenenAuswahl('')
     setSelectedRollen(new Set()); setSelectedKomparsen(new Set()); setSelectedMotive(new Set())
@@ -172,7 +173,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       .catch(() => setFilterOptions({ rollen: [], komparsen: [], motive: [] }))
   }, [isOpen, selectedWerk?.id])
 
-  useEffect(() => { if (!isOpen) stopPolling() }, [isOpen])
+  // Polling beim Schließen NICHT stoppen — Hintergrund-Export läuft weiter
 
   useEffect(() => {
     const on  = () => setIsOnline(true)
@@ -378,7 +379,52 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const blockedByOffline = !isOnline && !currentFormatDef.offlineOk
   const hasAnyFilter = !!(szenenAuswahl.trim() || selectedRollen.size > 0 || selectedKomparsen.size > 0 || selectedMotive.size > 0)
 
-  if (!isOpen) return null
+  // ── Floating Pill (Drawer geschlossen, Job läuft im Hintergrund) ─────────────
+  if (!isOpen) {
+    const bgActive = jobStatus === 'running' || jobStatus === 'pending' || jobStatus === 'done' || jobStatus === 'error'
+    if (!bgActive) return null
+    return createPortal(
+      <div style={{
+        position: 'fixed', bottom: 20, right: 20, zIndex: 10001,
+        background: 'var(--bg, #fff)', borderRadius: 10,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.22)',
+        border: '1px solid var(--border, #e0e0e0)',
+        padding: '12px 14px', minWidth: 240, maxWidth: 300,
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+            {isRunning   && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: '#007AFF', flexShrink: 0 }} />}
+            {jobStatus === 'done'  && <CheckCircle size={14} style={{ color: '#00C853', flexShrink: 0 }} />}
+            {jobStatus === 'error' && <AlertCircle size={14} style={{ color: '#FF3B30', flexShrink: 0 }} />}
+            <span>{isRunning ? 'PDF wird exportiert…' : jobStatus === 'done' ? 'PDF bereit' : 'Export fehlgeschlagen'}</span>
+          </div>
+          {(jobStatus === 'done' || jobStatus === 'error') && (
+            <button onClick={() => { setJobStatus('idle'); setProgress(0); setErrorMsg(null) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }}>
+              <X size={14} />
+            </button>
+          )}
+        </div>
+        {isRunning && (
+          <div>
+            <div style={{ height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${progress}%`, background: '#007AFF', borderRadius: 2, transition: 'width 0.3s ease' }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{progress}%</div>
+          </div>
+        )}
+        {jobStatus === 'done' && jobIdRef.current && (
+          <button onClick={() => triggerDownload(jobIdRef.current!)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, background: '#007AFF', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            <Download size={12} />Download
+          </button>
+        )}
+        {jobStatus === 'error' && <div style={{ fontSize: 11, color: '#FF3B30' }}>{errorMsg}</div>}
+      </div>,
+      document.body
+    )
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -673,6 +719,14 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                          jobStatus === 'error'    ? (errorMsg ?? 'Fehler')  : ''}
                       </span>
                     </div>
+                    {isRunning && (
+                      <button
+                        onClick={onClose}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 8px', marginTop: 4, borderRadius: 5, fontSize: 11, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
+                      >
+                        Im Hintergrund weiterführen
+                      </button>
+                    )}
                     {jobStatus === 'done' && jobIdRef.current && (
                       <button
                         onClick={() => triggerDownload(jobIdRef.current!)}
