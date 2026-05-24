@@ -30,10 +30,9 @@ function displayLabel(value: string): string {
 // ── Sichtbarkeit ──────────────────────────────────────────────────────────────
 
 const SICHTBARKEIT_OPTIONS = [
-  { value: 'privat',           label: 'Privat',          icon: <Lock size={14} /> },
-  { value: 'dauerhaft_privat', label: 'Dauerhaft privat', icon: <Lock size={14} /> },
-  { value: 'team',             label: 'Team',             icon: <Users size={14} /> },
-  { value: 'alle',             label: 'Alle Autoren',     icon: <Globe size={14} /> },
+  { value: 'dauerhaft_privat', label: 'Privat',        icon: <Lock size={14} /> },
+  { value: 'team',             label: 'Team',           icon: <Users size={14} /> },
+  { value: 'alle',             label: 'Alle Autoren',   icon: <Globe size={14} /> },
 ]
 
 function getSichtbarkeitInfo(value: string) {
