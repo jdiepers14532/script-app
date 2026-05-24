@@ -4335,6 +4335,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
     geschaeftsfuehrung:  previewMeta.geschaeftsfuehrung ?? undefined,
     firmen_email:        previewMeta.firmenEmail ?? undefined,
     firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
+    druckauswahl:        'Auswahl: Szenen 1–10',
   }
 
   const [vorlagen, setVorlagen] = useState<any[]>([])
@@ -4980,6 +4981,7 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
     geschaeftsfuehrung:  previewMeta.geschaeftsfuehrung ?? undefined,
     firmen_email:        previewMeta.firmenEmail ?? undefined,
     firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
+    druckauswahl:        'Auswahl: Szenen 1–10',
   }
   // activeTyp = der im Editor angezeigte Typ (Quelle); syncTypen = alle die Änderungen empfangen
   const [activeTyp, setActiveTyp] = useState<string>('drehbuch')
