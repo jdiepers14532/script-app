@@ -132,6 +132,11 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     altKey: true,
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+E`,
   },
+  navHandbuch: {
+    codes: ['KeyH'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+H`,
+  },
 
 }
 

@@ -661,6 +661,7 @@ export default function AppShell({
       else if (matchesShortcut('navFreieDokumente', e))  { e.preventDefault(); navigate('/freie-dokumente') }
       else if (matchesShortcut('navDrehbuchkoordination', e) && hasDkAccess) { e.preventDefault(); navigate('/drehbuchkoordination') }
       else if (matchesShortcut('navExport', e))          { e.preventDefault(); window.dispatchEvent(new CustomEvent('open-export-dialog')) }
+      else if (matchesShortcut('navHandbuch', e))        { e.preventDefault(); navigate('/hilfe') }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -1566,6 +1567,7 @@ export default function AppShell({
             >
               <BookOpen size={14} />
               Handbuch
+              <span className="um-shortcut">{sc('navHandbuch')}</span>
             </Link>
             <button className="um-item" onClick={() => { set('theme', tweaks.theme === 'light' ? 'dark' : 'light') }}>
               {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
