@@ -507,21 +507,19 @@ function renderSKParagraph(
  * für eine Szene. Gibt ein HTML-Div mit page-break-after:avoid zurück.
  * Fallback wenn kein Template: klassischer Einzeiler.
  */
-/** sr-only h2 für PDF-Bookmark — kein visueller Einfluss, aber im DOM für Chrome's Outline */
-function buildSceneBookmarkH2(scene: SceneRow, folgeNummer: number, kuerzel: Record<string, string>): string {
+/** Baut den Bookmark-Label-Text für eine Szene */
+function buildBookmarkLabel(scene: SceneRow, folgeNummer: number, kuerzel: Record<string, string>): string {
   const szNr = scene.scene_nummer != null
     ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
   const ie = (scene.int_ext ?? '').toLowerCase()
   const ieKurz = kuerzel[ie] ?? DEFAULT_SCENE_KUERZEL[ie] ?? (scene.int_ext?.charAt(0) ?? '')
-  const line1 = [
+  return [
     `${folgeNummer}.${szNr}`,
-    scene.ort_name ? esc(scene.ort_name) : '',
-    ieKurz        ? esc(ieKurz)          : '',
+    scene.ort_name     ? esc(scene.ort_name) : '',
+    ieKurz             ? esc(ieKurz)         : '',
     scene.spieltag != null ? String(scene.spieltag) : '',
+    scene.rollen?.length   ? scene.rollen.map(r => esc(r)).join(' ') : '',
   ].filter(Boolean).join(' ')
-  const line2 = scene.rollen?.length ? scene.rollen.map(r => esc(r)).join(' ') : ''
-  const content = line2 ? `${line1}<br>${line2}` : line1
-  return `<h2 style="display:block;height:0;overflow:hidden;font-size:0;line-height:0;margin:0;padding:0">${content}</h2>`
 }
 
 function renderSzenenkopf(
@@ -534,7 +532,6 @@ function renderSzenenkopf(
   pdfBookmarks = false
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
-  const bmH2 = pdfBookmarks ? buildSceneBookmarkH2(scene, folgeNummer, kuerzel) : ''
 
   // Fallback wenn kein Template konfiguriert
   if (!templateJson) {
@@ -543,7 +540,10 @@ function renderSzenenkopf(
     if (scene.ort_name)  parts.push(esc(scene.ort_name))
     if (scene.int_ext)   parts.push(esc(scene.int_ext))
     if (scene.tageszeit) parts.push(esc(scene.tageszeit))
-    return `${bmH2}<p style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</p>`
+    // aria-label steuert den Bookmark-Text; h2 stellt sicher dass Chrome die Überschrift erkennt
+    const tag   = pdfBookmarks ? 'h2' : 'p'
+    const label = pdfBookmarks ? ` aria-label="${buildBookmarkLabel(scene, folgeNummer, kuerzel)}"` : ''
+    return `<${tag}${label} style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</${tag}>`
   }
 
   const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
@@ -562,7 +562,9 @@ function renderSzenenkopf(
   }
 
   if (parts.length === 0) return ''
-  return `${bmH2}<div style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
+  const tag   = pdfBookmarks ? 'h2' : 'div'
+  const label = pdfBookmarks ? ` aria-label="${buildBookmarkLabel(scene, folgeNummer, kuerzel)}"` : ''
+  return `<${tag}${label} style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</${tag}>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -584,8 +586,9 @@ function renderMainScenes(
       headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel, pdfBookmarks)
     } else {
       const pb = index > 0 ? '<div style="page-break-before:always"></div>' : ''
+      // Vorlage-Titel als sichtbare h2-Überschrift — Chrome PDF Outline braucht echten Content
       const bm = pdfBookmarks && scene.vorlage_name
-        ? `<h2 style="display:block;height:0;overflow:hidden;font-size:0;line-height:0;margin:0;padding:0">${esc(scene.vorlage_name)}</h2>`
+        ? `<h2 style="font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em">${esc(scene.vorlage_name)}</h2>`
         : ''
       headHtml = pb + bm
     }
