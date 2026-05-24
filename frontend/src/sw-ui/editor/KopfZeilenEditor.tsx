@@ -165,7 +165,7 @@ export interface KZPreviewContext {
 const DUMMY_CTX: KZPreviewContext = {
   produktion: 'Rote Rosen', staffel: '41', block: 'Block 4', folge: '8271',
   folgentitel: 'Das Familienrezept', werkstufe: 'Drehbuch', fassung: 'Rohfassung',
-  version: 'V1', stand_datum: '15.05.2026', autor: 'Max Mustermann',
+  version: 'V1', stand_datum: '15.05.26', autor: 'Max Mustermann',
   regie: 'Lena Kaufmann', firmenname: 'Serienwerft GmbH', sender: 'Das Erste',
   buero_adresse: 'Hansestraße 1, 21335 Lüneburg', tel_produktion: '+49 4131 12345',
   sendedatum: 'Mo. 16.06.2026', produktionszeitraum: '01.02.2026 – 31.07.2026',

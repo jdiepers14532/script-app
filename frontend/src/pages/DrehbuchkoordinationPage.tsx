@@ -4729,7 +4729,7 @@ const KF_TYPEN = [
 
 function formatDatum(iso: string, fmt: 'de' | 'en'): string {
   const [y, m, d] = iso.slice(0, 10).split('-')
-  return fmt === 'en' ? `${m}/${d}/${y}` : `${d}.${m}.${y}`
+  return fmt === 'en' ? `${m}/${d}/${y.slice(2)}` : `${d}.${m}.${y.slice(2)}`
 }
 
 interface PreviewMeta {
