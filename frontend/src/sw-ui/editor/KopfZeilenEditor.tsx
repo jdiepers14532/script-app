@@ -285,17 +285,27 @@ function pmInlineSeqToReact(nodes: any[], ctxMap: Record<string, string>, pi: nu
 
 function pmDocToReact(json: any, ctxMap: Record<string, string>): React.ReactNode {
   if (!json) return null
-  const nodes = json.content ?? []
+  const allNodes = json.content ?? []
+  // Trailing leere Paragraphen trimmen (Tiptap fügt immer mindestens einen an)
+  let nodes = [...allNodes]
+  while (nodes.length > 1) {
+    const last = nodes[nodes.length - 1]
+    if (last.type === 'paragraph' && (!last.content || last.content.length === 0)) nodes.pop()
+    else break
+  }
   return nodes.map((node: any, pi: number) => {
     if (node.type !== 'paragraph') return null
     const pa = node.attrs ?? {}
     const style: React.CSSProperties = {
       margin: 0,
-      fontFamily:   pa.fontFamily ?? undefined,
-      fontSize:     pa.fontSize   ?? 10,
-      lineHeight:   pa.lineHeight ?? 1.4,
-      textAlign:    pa.textAlign  ?? undefined,
-      marginBottom: pa.spaceAfter ?? undefined,
+      fontFamily:     pa.fontFamily     ?? undefined,
+      fontSize:       pa.fontSize       ?? 10,
+      fontWeight:     pa.fontWeight     ?? 'normal',
+      fontStyle:      pa.fontStyle      ?? 'normal',
+      textDecoration: pa.textDecoration ?? 'none',
+      lineHeight:     pa.lineHeight     ?? 1.4,
+      textAlign:      pa.textAlign      ?? undefined,
+      marginBottom:   pa.spaceAfter     ?? undefined,
     }
     const children = pmInlineSeqToReact(node.content ?? [], ctxMap, pi)
     return <p key={pi} style={style}>{children.length ? children : <br />}</p>
@@ -355,7 +365,7 @@ function KZPreviewModal({ value, previewContext, onClose }: {
 
             {/* Kopfzeile */}
             {value.kopfzeile_aktiv ? (
-              <div style={{ paddingTop: mT, paddingBottom: 8, borderBottom: '1px dashed #007AFF44', position: 'relative' }}>
+              <div style={{ paddingTop: 12, paddingBottom: 8, borderBottom: '1px solid #007AFF66', position: 'relative' }}>
                 {/* Rand-Führungslinien (weiß) */}
                 <div style={{ position: 'absolute', left: mL, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
                 <div style={{ position: 'absolute', right: mR, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
@@ -369,7 +379,7 @@ function KZPreviewModal({ value, previewContext, onClose }: {
                 </div>
               </div>
             ) : (
-              <div style={{ paddingTop: mT, paddingLeft: mL, paddingRight: mR, paddingBottom: 8 }}>
+              <div style={{ paddingTop: 12, paddingLeft: mL, paddingRight: mR, paddingBottom: 8 }}>
                 <div style={{ fontSize: 8, color: '#ccc' }}>KOPFZEILE (deaktiviert)</div>
               </div>
             )}
@@ -386,7 +396,7 @@ function KZPreviewModal({ value, previewContext, onClose }: {
 
             {/* Fußzeile */}
             {value.fusszeile_aktiv ? (
-              <div style={{ paddingBottom: mB, paddingTop: 8, borderTop: '1px dashed #FF950044', position: 'relative' }}>
+              <div style={{ paddingBottom: 12, paddingTop: 8, borderTop: '1px solid #FF950066', position: 'relative' }}>
                 {/* Rand-Führungslinien (weiß) */}
                 <div style={{ position: 'absolute', left: mL, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
                 <div style={{ position: 'absolute', right: mR, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.9)', pointerEvents: 'none', zIndex: 2 }} />
@@ -400,7 +410,7 @@ function KZPreviewModal({ value, previewContext, onClose }: {
                 </div>
               </div>
             ) : (
-              <div style={{ paddingBottom: mB, paddingLeft: mL, paddingRight: mR, paddingTop: 8 }}>
+              <div style={{ paddingBottom: 12, paddingLeft: mL, paddingRight: mR, paddingTop: 8 }}>
                 <div style={{ fontSize: 8, color: '#ccc' }}>FUSSZEILE (deaktiviert)</div>
               </div>
             )}
