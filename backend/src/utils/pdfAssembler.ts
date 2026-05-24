@@ -782,16 +782,27 @@ async function assembleHtml(
     const now = new Date()
     const tz = resolveTimezone(produktionLand, options.userTimezone)
     const tzOpts = { timeZone: tz } as const
+    const WERKSTUF_TYP_LABEL: Record<string, string> = {
+      drehbuch:  'Drehbuch',
+      storyline: 'Storyline',
+      notiz:     'Notiz',
+    }
+    const toGermanShortDate = (isoStr: string): string => {
+      const [year, month, day] = isoStr.slice(0, 10).split('-')
+      return `${day}.${month}.${year.slice(2)}`
+    }
     const ctx: ExportContext = {
       produktion:           w.produktion_titel,
       staffel:              null,
       block:                null,
       folge:                w.folge_nummer,
       folgentitel:          w.folgen_titel,
-      werkstufe:            w.label ?? w.typ,
+      werkstufe:            WERKSTUF_TYP_LABEL[w.typ] ?? w.typ,
       fassung:              w.label,
       version:              w.version_nummer,
-      stand_datum:          w.stand_datum ? String(w.stand_datum).slice(0, 10) : now.toISOString().slice(0, 10),
+      stand_datum:          w.stand_datum
+        ? toGermanShortDate(String(w.stand_datum))
+        : toGermanShortDate(now.toISOString()),
       autor:                userName,
       regie:                null,
       firmenname:           null,

@@ -8,8 +8,8 @@ const H1 = ({ children }: { children: React.ReactNode }) => (
 const H2 = ({ children }: { children: React.ReactNode }) => (
   <h3 style={{ fontSize: 14, fontWeight: 700, margin: '24px 0 10px', color: C.text }}>{children}</h3>
 )
-const P = ({ children }: { children: React.ReactNode }) => (
-  <p style={{ margin: '0 0 12px', fontSize: 14, lineHeight: 1.6, color: C.text }}>{children}</p>
+const P = ({ children, muted }: { children: React.ReactNode; muted?: boolean }) => (
+  <p style={{ margin: '0 0 12px', fontSize: 14, lineHeight: 1.6, color: muted ? C.muted : C.text }}>{children}</p>
 )
 const Hint = ({ icon = '💡', children }: { icon?: string; children: React.ReactNode }) => (
   <div style={{
@@ -64,7 +64,7 @@ export default function FreieDokumenteTab() {
 
       {/* ── User-Guide ─────────────────────────────────────────────────── */}
       <H1>Freie Dokumente</H1>
-      <P style={{ color: C.muted, marginBottom: 20 }}>
+      <P muted>
         Schreibe Drehbücher und Szenen, die zu einer Produktion gehören — aber keiner bestimmten Folge zugeordnet sind.
       </P>
 
@@ -151,7 +151,7 @@ export default function FreieDokumenteTab() {
       <Step n={2}><strong>„Mit Folge verknüpfen"</strong> auswählen.</Step>
       <Step n={3}>Die Zielfolge aus dem Dropdown auswählen.</Step>
       <Step n={4}>Optional: „Als Folge für Sendung markieren" aktivieren.</Step>
-      <Step n={5}}>Mit <strong>„Verknüpfen"</strong> bestätigen.</Step>
+      <Step n={5}>Mit <strong>„Verknüpfen"</strong> bestätigen.</Step>
 
       <Hint icon="📋">
         Die Szenen werden in eine neue Werkstufe der Zielfolge <strong>kopiert</strong> — das freie Dokument
@@ -174,7 +174,7 @@ export default function FreieDokumenteTab() {
           🔒 ADMIN-DOKUMENTATION
         </div>
         <H1>Technische Architektur</H1>
-        <P style={{ color: C.muted }}>
+        <P muted>
           Freie Dokumente nutzen <strong>keine eigene Tabelle</strong> — sie werden direkt als
           Einträge in der bestehenden <code>folgen</code>-Tabelle mit <code>ist_frei = true</code> gespeichert.
           Alle anderen Infrastrukturkomponenten (werkstufen, dokument_szenen, scene_identities, Revisionen,
