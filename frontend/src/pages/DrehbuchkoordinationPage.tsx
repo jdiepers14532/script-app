@@ -3154,16 +3154,37 @@ export default function DrehbuchkoordinationPage() {
     window.dispatchEvent(new CustomEvent('app-settings-changed', { detail: { productionId: produktionId } }))
   }
 
-  // Arrow key tab navigation
+  // Arrow key tab navigation:
+  // ↑↓ = Sidebar (DK_TABS), ←→ = Sub-Tabs (FORMAT_SUB_NAV wenn aktiv)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
-      const idx = DK_TABS.findIndex(t => t.id === activeTab)
-      if (idx === -1) return
-      if ((e.key === 'ArrowLeft' || e.key === 'ArrowUp') && idx > 0) setActiveTab(DK_TABS[idx - 1].id)
-      if ((e.key === 'ArrowRight' || e.key === 'ArrowDown') && idx < DK_TABS.length - 1) setActiveTab(DK_TABS[idx + 1].id)
+
+      const isInSubNav = FORMAT_TEMPLATE_TABS.includes(activeTab)
+
+      if (isInSubNav) {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+          const subIdx = FORMAT_SUB_NAV.findIndex(t => t.id === activeTab)
+          if (subIdx === -1) return
+          if (e.key === 'ArrowLeft' && subIdx > 0) setActiveTab(FORMAT_SUB_NAV[subIdx - 1].id)
+          if (e.key === 'ArrowRight' && subIdx < FORMAT_SUB_NAV.length - 1) setActiveTab(FORMAT_SUB_NAV[subIdx + 1].id)
+        }
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          // ↑↓ verlässt Sub-Nav — navigiert DK_TABS vom dokument-typen-Eintrag aus
+          const parentIdx = DK_TABS.findIndex(t => t.id === 'dokument-typen')
+          if (e.key === 'ArrowUp' && parentIdx > 0) setActiveTab(DK_TABS[parentIdx - 1].id)
+          if (e.key === 'ArrowDown' && parentIdx < DK_TABS.length - 1) setActiveTab(DK_TABS[parentIdx + 1].id)
+        }
+      } else {
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          const idx = DK_TABS.findIndex(t => t.id === activeTab)
+          if (idx === -1) return
+          if (e.key === 'ArrowUp' && idx > 0) setActiveTab(DK_TABS[idx - 1].id)
+          if (e.key === 'ArrowDown' && idx < DK_TABS.length - 1) setActiveTab(DK_TABS[idx + 1].id)
+        }
+      }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)

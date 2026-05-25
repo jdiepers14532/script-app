@@ -1296,6 +1296,21 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('ki')
   const navigate = useNavigate()
 
+  // ←→ Pfeiltasten-Navigation zwischen Admin-Tabs
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      const idx = ADMIN_TABS.findIndex(t => t.id === activeTab)
+      if (idx === -1) return
+      if (e.key === 'ArrowLeft' && idx > 0) setActiveTab(ADMIN_TABS[idx - 1].id)
+      if (e.key === 'ArrowRight' && idx < ADMIN_TABS.length - 1) setActiveTab(ADMIN_TABS[idx + 1].id)
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [activeTab])
+
   return (
     <AppShell>
       <div style={{

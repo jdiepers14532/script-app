@@ -138,6 +138,25 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+H`,
   },
 
+  // ── Editor: Cursor Anfang/Ende der Szene ─────────────────────────────────
+  editorGotoStart: {
+    codes: ['Home'],
+    ctrlKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Home`,
+  },
+  editorGotoEnd: {
+    codes: ['End'],
+    ctrlKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Ende`,
+  },
+
+  // ── Szenennavigation ─────────────────────────────────────────────────────
+  gotoSzene: {
+    codes: ['KeyG'],
+    ctrlKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+G`,
+  },
+
 }
 
 // ── Hilfsfunktionen (pure, kein React) ────────────────────────────────────────

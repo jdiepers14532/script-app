@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Send } from 'lucide-react'
 import { api } from '../../api/client'
 
@@ -14,6 +14,12 @@ export default function AbgabeModal({ dokumentId, fassungId, fassungNummer, onDo
   const [erstelleNaechste, setErstelleNaechste] = useState(true)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
 
   const handleAbgabe = async () => {
     setLoading(true)

@@ -64,6 +64,12 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
   const produktionId = selectedProduction?.id ?? null
   const { t } = useTerminologie()
 
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
   // Position / Size
   const [pos, setPos] = useState({ x: window.innerWidth - 520, y: 80 })
   const [size, setSize] = useState({ w: 480, h: 600 })

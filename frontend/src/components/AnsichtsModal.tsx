@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import {
   Columns2, PanelLeft, PanelRight, BookOpen, AlignLeft, X,
   Minimize2, Maximize2, Square,
@@ -17,6 +17,12 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
   const { t } = useTerminologie()
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
 
   const [pos, setPos] = useState(() => ({
     left: Math.max(0, Math.round((window.innerWidth - 520) / 2)),

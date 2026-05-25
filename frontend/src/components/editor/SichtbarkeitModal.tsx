@@ -40,6 +40,12 @@ export default function SichtbarkeitModal({ dokumentId, fassungId, produktionId,
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
+  useEffect(() => {
     api.getColabGruppen(produktionId).then(setGruppen).catch(() => {})
   }, [produktionId])
 

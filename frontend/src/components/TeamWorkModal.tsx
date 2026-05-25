@@ -42,6 +42,12 @@ export default function TeamWorkModal({
   currentUserName,
   onClose,
 }: TeamWorkModalProps) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
   const [gruppen, setGruppen] = useState<ColabGruppe[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedGruppe, setSelectedGruppe] = useState<ColabGruppe | null>(null)

@@ -243,6 +243,12 @@ export default function KopierenModal({
   const { productions, selectedProduction } = useSelectedProduction()
   const { t } = useTerminologie()
 
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
   const [sourceId, setSourceId] = useState('')
   const [search, setSearch] = useState('')
   const [dropOpen, setDropOpen] = useState(false)

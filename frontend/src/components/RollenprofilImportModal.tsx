@@ -114,6 +114,13 @@ function nextId() { return String(++idCounter) }
 
 export default function RollenprofilImportModal({ produktionId, onClose, onSuccess }: Props) {
   const { t } = useTerminologie()
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
   const [step, setStep] = useState<'upload' | 'review' | 'done'>('upload')
   const [dragging, setDragging] = useState(false)
   const [files, setFiles] = useState<FileItem[]>([])

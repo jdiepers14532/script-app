@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { X, Check, Pencil, Trash2, Plus, ChevronLeft } from 'lucide-react'
 import { useTweaks } from '../contexts'
 import {
@@ -58,6 +58,12 @@ export default function FarbschemaModal({ onClose }: { onClose: () => void }) {
   const [editScheme, setEditScheme] = useState<ColorScheme | null>(null)
   const [editName, setEditName] = useState('')
   const [editColors, setEditColors] = useState<ColorScheme['colors']>(EMPTY_COLORS)
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
 
   const [pos, setPos] = useState(() => ({
     left: Math.max(0, Math.round((window.innerWidth - 480) / 2)),

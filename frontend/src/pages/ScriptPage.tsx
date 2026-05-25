@@ -247,6 +247,87 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
 const MIN_WIDTH = 180
 const DEFAULT_WIDTH = 276
 
+// ── Gehe-zu-Szene Dialog ──────────────────────────────────────────────────────
+function GotoSzeneDialog({ szenen, onNavigate, onClose }: {
+  szenen: any[]
+  onNavigate: (id: number | string) => void
+  onClose: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
+  const q = query.trim().toLowerCase()
+  const match = q ? szenen.find(s =>
+    `${s.scene_nummer ?? ''}${s.scene_nummer_suffix ?? ''}`.toLowerCase() === q
+  ) : null
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (match) { onNavigate(match.id); onClose() }
+  }
+
+  return (
+    <>
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 2000 }}
+        onClick={onClose}
+      />
+      <div style={{
+        position: 'fixed', top: '28%', left: '50%', transform: 'translate(-50%, -50%)',
+        background: 'var(--bg-page)', borderRadius: 12, padding: '20px 24px',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.3)', zIndex: 2001,
+        minWidth: 300, display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Gehe zu Szene</div>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', gap: 8 }}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Sz-Nr., z.B. 42 oder 7a"
+            autoComplete="off"
+            style={{
+              flex: 1, padding: '8px 12px', borderRadius: 7,
+              border: `1px solid ${match ? 'var(--sw-green)' : 'var(--border)'}`,
+              background: 'var(--bg-subtle)', color: 'var(--text-primary)',
+              fontSize: 14, outline: 'none', fontFamily: 'inherit',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!match}
+            style={{
+              padding: '8px 16px', borderRadius: 7, border: 'none',
+              background: match ? 'var(--text-primary)' : 'var(--bg-subtle)',
+              color: match ? 'var(--bg-page)' : 'var(--text-secondary)',
+              fontSize: 13, fontWeight: 600, cursor: match ? 'pointer' : 'not-allowed',
+              fontFamily: 'inherit',
+            }}
+          >
+            Springen
+          </button>
+        </form>
+        {q && !match && (
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Szene nicht gefunden.</div>
+        )}
+        {match && (
+          <div style={{ fontSize: 12, color: 'var(--sw-green)' }}>
+            {match.ort_name ?? `Szene ${match.scene_nummer}${match.scene_nummer_suffix ?? ''}`}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 export default function ScriptPage() {
   const { t } = useTerminologie()
   const { focus } = useFocus()
@@ -311,6 +392,7 @@ export default function ScriptPage() {
   const [showRadar, setShowRadar] = useState(false)
   const [showStrangPanel, setShowStrangPanel] = useState(false)
   const [showStoppzeiten, setShowStoppzeiten] = useState(false)
+  const [gotoOpen, setGotoOpen] = useState(false)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
   const [allFolgen, setAllFolgen] = useState<any[]>([])
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
@@ -512,13 +594,20 @@ export default function ScriptPage() {
       }}).catch(() => {})
   }, [])
 
-  // Keyboard navigation: ←→ = Szene wechseln, ↑↓ = Editor scrollen (Browser-Default)
+  // Keyboard navigation: ←→ = Szene wechseln, Strg+G = Gehe zu Szene
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
       const tag = (document.activeElement?.tagName || '').toLowerCase()
-      if (['input', 'textarea', 'select'].includes(tag)) return
-      if (document.activeElement?.getAttribute('contenteditable')) return
+      const isEditable = ['input', 'textarea', 'select'].includes(tag) || !!document.activeElement?.getAttribute('contenteditable')
+
+      // Strg+G — Gehe zu Szene Dialog
+      if (e.ctrlKey && !e.altKey && !e.shiftKey && e.code === 'KeyG') {
+        if (!isEditable) { e.preventDefault(); setGotoOpen(true) }
+        return
+      }
+
+      if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
+      if (isEditable) return
 
       // ←→ — Szene wechseln, throttled auf 200ms
       e.preventDefault()
@@ -529,7 +618,7 @@ export default function ScriptPage() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, []) // empty deps — all state accessed via live refs
+  }, []) // empty deps — all state accessed via live refs; setGotoOpen ist stabil
 
   // Drag-to-resize (Mouse + Touch)
   const onDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -909,6 +998,15 @@ export default function ScriptPage() {
           open={showStoppzeiten}
           onClose={() => setShowStoppzeiten(false)}
           werkstufId={String(selectedStageId)}
+        />
+      )}
+
+      {/* Gehe zu Szene Dialog */}
+      {gotoOpen && (
+        <GotoSzeneDialog
+          szenen={szenen}
+          onNavigate={id => setSelectedSzeneId(id)}
+          onClose={() => setGotoOpen(false)}
         />
       )}
 

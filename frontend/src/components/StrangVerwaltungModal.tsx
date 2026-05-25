@@ -32,6 +32,13 @@ export default function StrangVerwaltungModal({ produktionId, open, onClose, all
 
   useEffect(() => {
     if (!open) return
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
     loadStraenge()
   }, [open, produktionId])
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
 import type { WerkstufeMeta } from '../hooks/useDokument'
 
@@ -30,6 +30,12 @@ const TYP_LABEL: Record<string, string> = {
 export default function NeueWerkstufeModal({
   requestedTyp, werkstufen, folgeNummer, produktionId, onConfirm, onClose,
 }: Props) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
   // --- Predecessor analysis ---
   const nonNotizWerkstufen = useMemo(() => werkstufen.filter(w => w.typ !== 'notiz'), [werkstufen])
 

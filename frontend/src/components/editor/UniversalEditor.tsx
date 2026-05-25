@@ -60,6 +60,23 @@ const AlignmentShortcuts = Extension.create({
   },
 })
 
+// ── Cursor-Anfang/Ende der Szene (Strg+Home / Strg+End) ─────────────────────
+const DocumentBoundsShortcuts = Extension.create({
+  name: 'documentBoundsShortcuts',
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Home': () => {
+        this.editor.commands.setTextSelection(0)
+        return true
+      },
+      'Mod-End': () => {
+        this.editor.commands.setTextSelection(this.editor.state.doc.content.size)
+        return true
+      },
+    }
+  },
+})
+
 // ── Courier Prime font ──────────────────────────────────────────────────────
 let fontLoaded = false
 function loadCourierPrime() {
@@ -512,6 +529,7 @@ export default function UniversalEditor({
       ScreenplayExtension.configure({ formatElements }),
       AbsatzExtension.configure({ formate: relevantFormats }),
       AlignmentShortcuts,
+      DocumentBoundsShortcuts,
       AnnotationMark,
       SearchHighlightExtension,
       PlaceholderChipExtension,

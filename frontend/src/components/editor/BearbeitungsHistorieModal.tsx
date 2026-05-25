@@ -23,6 +23,12 @@ export default function BearbeitungsHistorieModal({ dokumentId, fassungId, onClo
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
+  useEffect(() => {
     api.getAudit(dokumentId, fassungId)
       .then(setLogs)
       .catch(() => setLogs([]))

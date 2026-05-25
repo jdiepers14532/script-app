@@ -418,6 +418,12 @@ export default function AutorenplanSettingsModal({
   produktionDbId: string
   onClose: () => void
 }) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
+  }, [onClose])
+
   const [tab, setTab] = useState<'gagen' | 'pausen'>('gagen')
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
