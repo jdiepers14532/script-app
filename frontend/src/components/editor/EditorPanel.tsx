@@ -36,13 +36,14 @@ interface Props {
   onNavigatePrev?: () => void
   onWerkstufSelected?: (werkId: string | null) => void
   onNewWerkCreated?: (newWerkId: string, oldWerkId: string | null) => void
+  onSzenesNeedReload?: () => void
 }
 
 export default function EditorPanel({
   produktionId, folgeNummer, folgeId, werkstufen, formatElements = [],
   defaultTyp, selectedSzeneId, sceneIdentityId, useDokumentSzenen, activateWerkId,
   onCreateWerkstufe, onReloadWerkstufen,
-  onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated,
+  onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated, onSzenesNeedReload,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
@@ -940,7 +941,7 @@ export default function EditorPanel({
           produktionId={produktionId}
           open={true}
           onClose={() => setPlatzhalterWerkId(null)}
-          onCreated={() => setPlatzhalterWerkId(null)}
+          onCreated={() => { setPlatzhalterWerkId(null); onSzenesNeedReload?.() }}
         />
       )}
     </div>

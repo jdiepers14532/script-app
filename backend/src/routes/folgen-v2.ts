@@ -123,6 +123,45 @@ folgenV2Router.get('/', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET    /api/v2/folgen/freie-dokument-labels?produktion_id=X
+// POST   /api/v2/folgen/freie-dokument-labels   { produktion_id, label_name }
+// DELETE /api/v2/folgen/freie-dokument-labels/:labelId
+// MUSS vor /:id stehen, damit Express nicht 'freie-dokument-labels' als :id matched
+// ══════════════════════════════════════════════════════════════════════════════
+folgenV2Router.get('/freie-dokument-labels', async (req, res) => {
+  const { produktion_id } = req.query
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+  try {
+    const rows = await query(
+      `SELECT id, label_name, sort_order FROM freie_dokument_labels
+       WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [produktion_id]
+    )
+    res.json(rows)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+folgenV2Router.post('/freie-dokument-labels', async (req, res) => {
+  const { produktion_id, label_name } = req.body
+  if (!produktion_id || !label_name?.trim()) return res.status(400).json({ error: 'produktion_id und label_name required' })
+  try {
+    const row = await queryOne(
+      `INSERT INTO freie_dokument_labels (produktion_id, label_name)
+       VALUES ($1, $2) ON CONFLICT (produktion_id, label_name) DO NOTHING RETURNING *`,
+      [produktion_id, label_name.trim()]
+    )
+    res.json(row ?? { skipped: true })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+folgenV2Router.delete('/freie-dokument-labels/:labelId', async (req, res) => {
+  try {
+    await query('DELETE FROM freie_dokument_labels WHERE id = $1', [req.params.labelId])
+    res.json({ success: true })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GET /api/v2/folgen/:id — single Folge
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.get('/:id', async (req, res) => {
@@ -199,45 +238,6 @@ folgenV2Router.post('/', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
-})
-
-// ══════════════════════════════════════════════════════════════════════════════
-// ══════════════════════════════════════════════════════════════════════════════
-// GET    /api/v2/folgen/freie-dokument-labels?produktion_id=X
-// POST   /api/v2/folgen/freie-dokument-labels   { produktion_id, label_name }
-// DELETE /api/v2/folgen/freie-dokument-labels/:labelId
-// ══════════════════════════════════════════════════════════════════════════════
-folgenV2Router.get('/freie-dokument-labels', async (req, res) => {
-  const { produktion_id } = req.query
-  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
-  try {
-    const rows = await query(
-      `SELECT id, label_name, sort_order FROM freie_dokument_labels
-       WHERE produktion_id = $1 ORDER BY sort_order, id`,
-      [produktion_id]
-    )
-    res.json(rows)
-  } catch (err) { res.status(500).json({ error: String(err) }) }
-})
-
-folgenV2Router.post('/freie-dokument-labels', async (req, res) => {
-  const { produktion_id, label_name } = req.body
-  if (!produktion_id || !label_name?.trim()) return res.status(400).json({ error: 'produktion_id und label_name required' })
-  try {
-    const row = await queryOne(
-      `INSERT INTO freie_dokument_labels (produktion_id, label_name)
-       VALUES ($1, $2) ON CONFLICT (produktion_id, label_name) DO NOTHING RETURNING *`,
-      [produktion_id, label_name.trim()]
-    )
-    res.json(row ?? { skipped: true })
-  } catch (err) { res.status(500).json({ error: String(err) }) }
-})
-
-folgenV2Router.delete('/freie-dokument-labels/:labelId', async (req, res) => {
-  try {
-    await query('DELETE FROM freie_dokument_labels WHERE id = $1', [req.params.labelId])
-    res.json({ success: true })
-  } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
 // PUT /api/v2/folgen/:id — update Folge / freies Dokument

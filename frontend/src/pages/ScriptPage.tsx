@@ -19,7 +19,7 @@ import StoppzeitenModal from '../components/StoppzeitenModal'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
-function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead, onActiveWerkSelected }: {
+function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead, onActiveWerkSelected, onSzenesNeedReload }: {
   produktionId: string; folgeNummer: number | null
   freiDokFolgeId?: number | null  // freies Dokument: direkte folge_id statt Auflösung via folgeNummer
   selectedSzeneId: number | string | null; useDokumentSzenen: boolean
@@ -27,6 +27,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
   onNavigateNext?: () => void; onNavigatePrev?: () => void
   onSzeneUpdated?: (updated: any) => void; onMarkCommentsRead?: (szeneId: number) => void
   onActiveWerkSelected?: (werkId: string | null) => void
+  onSzenesNeedReload?: () => void
 }) {
   const { panelMode, setPanelMode } = usePanelMode()
   const { tweaks } = useTweaks()
@@ -173,6 +174,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
             onNavigatePrev={onNavigatePrev}
             onWerkstufSelected={setLeftWerkId}
             onNewWerkCreated={handleNewWerkCreated}
+            onSzenesNeedReload={onSzenesNeedReload}
           />
         </div>
       )}
@@ -233,6 +235,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
             onNavigatePrev={onNavigatePrev}
             onWerkstufSelected={setRightWerkId}
             onNewWerkCreated={handleNewWerkCreated}
+            onSzenesNeedReload={onSzenesNeedReload}
           />
         </div>
       )}
@@ -820,6 +823,7 @@ export default function ScriptPage() {
                 folgeNummer={freiDokId ? null : selectedFolgeNummer}
                 freiDokFolgeId={freiDokId ?? undefined}
                 onActiveWerkSelected={freiDokId ? (werkId) => { if (werkId) setSelectedStageId(werkId as any) } : undefined}
+                onSzenesNeedReload={freiDokId ? () => setRefreshKey(Date.now()) : undefined}
                 selectedSzeneId={selectedSzeneId}
                 useDokumentSzenen={useDokumentSzenen}
                 stageId={selectedStageId}
