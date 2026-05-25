@@ -4874,10 +4874,10 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
     const pvFmt  = editEditorValue.seiten_layout?.format ?? 'a4'
     const pvW    = pvFmt === 'letter' ? 816 : 794
     const pvH    = pvFmt === 'letter' ? 1056 : 1123
-    const pvMl   = (editEditorValue.seiten_layout?.margin_left   ?? 30) * (96 / 25.4)
-    const pvMr   = (editEditorValue.seiten_layout?.margin_right  ?? 25) * (96 / 25.4)
-    const pvMt   = (editEditorValue.seiten_layout?.margin_top    ?? 25) * (96 / 25.4)
-    const pvMb   = (editEditorValue.seiten_layout?.margin_bottom ?? 25) * (96 / 25.4)
+    const pvMl   = (editEditorValue.seiten_layout?.margin_left   ?? effectiveExternalLayout.margin_left)   * (96 / 25.4)
+    const pvMr   = (editEditorValue.seiten_layout?.margin_right  ?? effectiveExternalLayout.margin_right)  * (96 / 25.4)
+    const pvMt   = (editEditorValue.seiten_layout?.margin_top    ?? effectiveExternalLayout.margin_top)    * (96 / 25.4)
+    const pvMb   = (editEditorValue.seiten_layout?.margin_bottom ?? effectiveExternalLayout.margin_bottom) * (96 / 25.4)
     const pvHtml = renderPmToPreviewHtml(editEditorValue.body_content, previewContext)
 
     return (
