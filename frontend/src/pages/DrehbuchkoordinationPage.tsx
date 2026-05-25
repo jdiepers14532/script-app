@@ -4997,7 +4997,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
               <span style={{ flex: 1, fontWeight: 600 }}>Vorschau — Chips durch Beispieldaten ersetzt</span>
               <button onClick={() => setShowPreview(false)} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 6, color: '#fff', fontSize: 12, padding: '4px 12px', cursor: 'pointer', fontFamily: 'inherit' }}>Schließen</button>
             </div>
-            <div style={{ width: pvW, minHeight: pvH, background: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', borderRadius: 2, color: '#000', paddingTop: pvMt, paddingBottom: pvMb, paddingLeft: pvMl, paddingRight: pvMr, boxSizing: 'border-box', position: 'relative', fontFamily: '"Courier New", monospace', fontSize: 12, lineHeight: 1.5 }}>
+            <div style={{ width: pvW, minHeight: pvH, background: 'white', boxShadow: '0 8px 32px rgba(0,0,0,0.4)', borderRadius: 2, color: '#000', paddingTop: pvMt, paddingBottom: pvMb, paddingLeft: pvMl, paddingRight: pvMr, boxSizing: 'border-box', position: 'relative', fontFamily: '"Courier New", monospace', lineHeight: 1.5 }}>
               <div style={{ position: 'absolute', top: 8, right: 14, fontSize: 9, color: '#ccc', textTransform: 'uppercase', letterSpacing: 0.5 }}>{pvFmt === 'a4' ? 'A4 — 210×297 mm' : 'US Letter — 8.5×11 in'}</div>
               <div dangerouslySetInnerHTML={{ __html: pvHtml || '<p style="color:#aaa;font-style:italic">Kein Inhalt.</p>' }} style={{ minHeight: 200 }} />
             </div>

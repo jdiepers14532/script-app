@@ -3,7 +3,7 @@
 
 -- Colab-Gruppe für freie Dokumente
 ALTER TABLE folgen
-  ADD COLUMN IF NOT EXISTS sichtbarkeit_frei_colab_gruppe_id INTEGER
+  ADD COLUMN IF NOT EXISTS sichtbarkeit_frei_colab_gruppe_id UUID
     REFERENCES colab_gruppen(id) ON DELETE SET NULL;
 
 -- Werte migrieren
