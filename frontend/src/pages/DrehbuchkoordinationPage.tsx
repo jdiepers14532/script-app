@@ -1591,6 +1591,28 @@ function DokumentTypenTab({
   const [isAdmin, setIsAdmin] = useState(false)
   const [showOverwriteSystem, setShowOverwriteSystem] = useState(false)
   const [overwritePresetId, setOverwritePresetId] = useState<string | null>(null)
+  // US Master Scene Format Info Modal
+  const [showUsInfo, setShowUsInfo] = useState(false)
+  const [usInfoPos, setUsInfoPos] = useState({ x: 120, y: 80 })
+  const usInfoElRef = useRef<HTMLDivElement>(null)
+  const usInfoDragRef = useRef<{ ox: number; oy: number } | null>(null)
+  const startDragUsInfo = (clientX: number, clientY: number) => {
+    const el = usInfoElRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    usInfoDragRef.current = { ox: clientX - rect.left, oy: clientY - rect.top }
+    const onMove = (e: MouseEvent) => {
+      if (!usInfoDragRef.current) return
+      setUsInfoPos({ x: e.clientX - usInfoDragRef.current.ox, y: e.clientY - usInfoDragRef.current.oy })
+    }
+    const onUp = () => {
+      usInfoDragRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
 
   const load = async () => {
     if (!produktionId) return
@@ -1933,6 +1955,18 @@ function DokumentTypenTab({
         <span style={{ fontSize: 12, fontWeight: 600 }}>
           Absatz-Formatierungen{selectedPreset ? ` von „${selectedPreset.name}"` : ''}
         </span>
+        {selectedPreset?.name === 'US Master Scene Format (A4)' && (
+          <button
+            onClick={() => setShowUsInfo(true)}
+            title="Erklärung zum US Master Scene Format"
+            style={{
+              width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #007AFF',
+              background: 'transparent', color: '#007AFF', fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', padding: 0, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >i</button>
+        )}
         <div style={{ flex: 1 }} />
         <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Filter:</label>
         <select value={filterKat} onChange={e => setFilterKat(e.target.value)} style={selectStyle}>
@@ -2233,6 +2267,154 @@ function DokumentTypenTab({
             </div>
           </div>
         </div>
+      )}
+
+      {/* US Master Scene Format Info Modal */}
+      {showUsInfo && createPortal(
+        <div ref={usInfoElRef} style={{
+          position: 'fixed', left: usInfoPos.x, top: usInfoPos.y,
+          width: 560, minWidth: 320, maxWidth: '92vw',
+          minHeight: 260, maxHeight: '90vh',
+          background: 'var(--bg-surface)',
+          borderRadius: 12,
+          boxShadow: '0 20px 60px rgba(0,0,0,0.45)',
+          zIndex: 99999,
+          overflow: 'hidden',
+          resize: 'both',
+          display: 'flex', flexDirection: 'column',
+          border: '1px solid rgba(127,127,127,0.2)',
+        }}>
+          {/* Drag-Header */}
+          <div
+            onMouseDown={e => { e.preventDefault(); startDragUsInfo(e.clientX, e.clientY) }}
+            onTouchStart={e => startDragUsInfo(e.touches[0].clientX, e.touches[0].clientY)}
+            style={{
+              background: '#0d1117', color: '#e6edf3', padding: '11px 16px',
+              display: 'flex', alignItems: 'center', gap: 10,
+              cursor: 'grab', userSelect: 'none', flexShrink: 0,
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 700, flex: 1, letterSpacing: 0.2 }}>
+              US Master Scene Format
+            </span>
+            <span style={{ fontSize: 9, color: '#8b949e', fontFamily: 'Courier Prime, Courier, monospace', whiteSpace: 'nowrap' }}>
+              10 CPI · 6 LPI · Courier 12pt
+            </span>
+            <button onClick={() => setShowUsInfo(false)} style={{
+              background: 'rgba(255,255,255,0.1)', border: 'none', color: '#e6edf3',
+              cursor: 'pointer', width: 22, height: 22, borderRadius: '50%',
+              fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, padding: 0, marginLeft: 4,
+            }}>✕</button>
+          </div>
+
+          {/* Scrollable Content */}
+          <div style={{ overflow: 'auto', flex: 1, padding: '16px 18px', fontSize: 12, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+
+            {/* ── Sektion 1: Das Raster ─────────── */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                Das Monospace-Raster
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                <div style={{ background: '#007AFF12', border: '1px solid #007AFF35', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: '#007AFF', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 1 }}>10</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>CPI</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>10 Zeichen = 1 Zoll</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Zeichenbreite 2,54 mm</div>
+                </div>
+                <div style={{ background: '#00C85312', border: '1px solid #00C85335', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: '#00C853', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 1 }}>6</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>LPI</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>6 Zeilen = 1 Zoll</div>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Zeilenhöhe 4,23 mm</div>
+                </div>
+              </div>
+              <div style={{ background: '#FF950012', border: '1px solid #FF950045', borderRadius: 8, padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20, flexShrink: 0 }}>⏱</span>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#FF9500', fontSize: 12 }}>1 Seite ≈ 1 Filmminute</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Diese Regel gilt nur, solange Schrift, Zeichenbreite und Zeilenhöhe unverändert bleiben.</div>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Sektion 2: Einzüge (visuell) ─── */}
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                Einzüge der Elemente (Textspalte = 60 Zeichen)
+              </div>
+              {([
+                { label: 'Scene Heading / Action', indent: 0,  width: 60, color: '#007AFF', desc: '0 Z. — volle Spalte' },
+                { label: 'Dialogue',               indent: 10, width: 35, color: '#00C853', desc: '10 Z. Einzug · 35 Z. breit' },
+                { label: 'Parenthetical',          indent: 16, width: 20, color: '#AF52DE', desc: '16 Z. Einzug · 20 Z. breit' },
+                { label: 'Character',              indent: 22, width: 38, color: '#FF9500', desc: '22 Z. Einzug · UPPERCASE' },
+              ] as { label: string; indent: number; width: number; color: string; desc: string }[]).map(el => (
+                <div key={el.label} style={{ marginBottom: 7 }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, minWidth: 170, color: 'var(--text-primary)' }}>{el.label}</span>
+                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{el.desc}</span>
+                  </div>
+                  <div style={{ position: 'relative', height: 10, background: 'var(--bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{
+                      position: 'absolute',
+                      left: `${(el.indent / 60) * 100}%`,
+                      width: `${(el.width / 60) * 100}%`,
+                      height: '100%',
+                      background: el.color,
+                      opacity: 0.65,
+                      borderRadius: 2,
+                    }} />
+                  </div>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
+                <span>← linker Seitenrand (3,81 cm)</span>
+                <span>60 Zeichen = 15,24 cm →</span>
+              </div>
+            </div>
+
+            {/* ── Sektion 3: Letter vs. A4 Tabelle */}
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                Seitenränder — US Letter vs. A4 (Option A, dieses Preset)
+              </div>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-subtle)' }}>
+                    <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Element</th>
+                    <th style={{ textAlign: 'right', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>US Letter</th>
+                    <th style={{ textAlign: 'right', padding: '5px 8px', fontWeight: 600, color: '#007AFF', borderBottom: '1px solid var(--border)' }}>A4 (dieses Preset)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    { label: 'Blatt',        letter: '21,59 × 27,94 cm', a4: '21,0 × 29,7 cm',          ok: false, bold: false },
+                    { label: 'Rand links',   letter: '3,81 cm',           a4: '3,81 cm ✓',               ok: true,  bold: false },
+                    { label: 'Rand rechts',  letter: '2,54 cm',           a4: '1,95 cm',                 ok: false, bold: false },
+                    { label: 'Rand oben',    letter: '2,54 cm',           a4: '2,54 cm ✓',               ok: true,  bold: false },
+                    { label: 'Rand unten',   letter: '2,54 cm',           a4: '4,30 cm',                 ok: false, bold: false },
+                    { label: 'Textspalte',   letter: '15,24 cm / 60 Z.',  a4: '15,24 cm / 60 Z. ✓',     ok: true,  bold: true  },
+                    { label: 'Texthöhe',     letter: '22,86 cm / 54 Zl.', a4: '22,86 cm / 54 Zl. ✓',   ok: true,  bold: true  },
+                  ] as { label: string; letter: string; a4: string; ok: boolean; bold: boolean }[]).map((row, i) => (
+                    <tr key={row.label} style={{ background: row.bold ? '#007AFF08' : (i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)') }}>
+                      <td style={{ padding: '4px 8px', color: 'var(--text-primary)', fontWeight: row.bold ? 600 : 400 }}>{row.label}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10 }}>{row.letter}</td>
+                      <td style={{ padding: '4px 8px', textAlign: 'right', color: row.ok ? '#00C853' : 'var(--text-primary)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10, fontWeight: row.bold ? 600 : 400 }}>{row.a4}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', padding: '7px 10px', background: 'var(--bg-subtle)', borderRadius: 6, lineHeight: 1.6 }}>
+                <strong>Option A:</strong> Das Raster (10 CPI / 6 LPI) bleibt 1:1 erhalten — nur der rechte Rand schrumpft von 2,54 cm auf 1,95 cm.<br />
+                So bleibt die <em>Minuten-pro-Seite-Regel</em> auf A4 korrekt.
+              </div>
+            </div>
+
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Update-Preset Dialog */}
