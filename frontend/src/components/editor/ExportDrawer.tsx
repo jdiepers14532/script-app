@@ -332,7 +332,9 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       const disposition = res.headers.get('Content-Disposition') ?? ''
       const match = disposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i)
       const filename = match ? decodeURIComponent(match[1].replace(/"/g, '').trim()) : 'export.pdf'
-      const url = URL.createObjectURL(blob)
+      // octet-stream verhindert, dass der Browser die PDF automatisch öffnet
+      const downloadBlob = new Blob([await blob.arrayBuffer()], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(downloadBlob)
       const a = document.createElement('a')
       a.href = url; a.download = filename
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
@@ -427,7 +429,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
             {isRunning   && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite', color: '#007AFF', flexShrink: 0 }} />}
             {jobStatus === 'done'  && <CheckCircle size={14} style={{ color: '#00C853', flexShrink: 0 }} />}
             {jobStatus === 'error' && <AlertCircle size={14} style={{ color: '#FF3B30', flexShrink: 0 }} />}
-            <span>{isRunning ? 'PDF wird exportiert…' : jobStatus === 'done' ? 'PDF bereit' : 'Export fehlgeschlagen'}</span>
+            <span>{isRunning ? 'PDF wird exportiert…' : jobStatus === 'done' ? 'PDF erstellt & heruntergeladen' : 'Export fehlgeschlagen'}</span>
           </div>
           {(jobStatus === 'done' || jobStatus === 'error') && (
             <button onClick={() => { setJobStatus('idle'); setProgress(0); setErrorMsg(null) }}
@@ -444,10 +446,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{progress}%</div>
           </div>
         )}
-        {jobStatus === 'done' && jobIdRef.current && (
-          <button onClick={() => triggerDownload(jobIdRef.current!)}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, background: '#007AFF', color: '#fff', border: 'none', cursor: 'pointer' }}>
-            <Download size={12} />Download
+        {jobStatus === 'done' && (
+          <button onClick={() => { setJobStatus('idle'); setProgress(0); setErrorMsg(null) }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '7px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600, background: '#00C853', color: '#fff', border: 'none', cursor: 'pointer' }}>
+            OK
           </button>
         )}
         {jobStatus === 'error' && <div style={{ fontSize: 11, color: '#FF3B30' }}>{errorMsg}</div>}
