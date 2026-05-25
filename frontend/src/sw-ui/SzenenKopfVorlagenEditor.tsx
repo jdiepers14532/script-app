@@ -1025,10 +1025,7 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
 
   const setChipAttr = (key: string, val: string | null) => {
     if (!chipSelected) return
-    const sel = editor.state.selection as NodeSelection
-    editor.view.dispatch(
-      editor.state.tr.setNodeMarkup(sel.from, undefined, { ...sel.node.attrs, [key]: val || null })
-    )
+    editor.chain().focus().updateAttributes('sk_chip', { [key]: val || null }).run()
   }
 
   const setFontAttr = (key: string, val: string | null) => chipSelected ? setChipAttr(key, val) : setParaAttr(key, val)
