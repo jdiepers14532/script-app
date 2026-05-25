@@ -167,12 +167,12 @@ export interface KZPreviewContext {
 }
 
 const DUMMY_CTX: KZPreviewContext = {
-  produktion: 'Rote Rosen', staffel: '41', block: 'Block 4', folge: '8271',
+  produktion: 'Rote Rosen', staffel: '41', block: '4', folge: '8271',
   folgentitel: 'Das Familienrezept', werkstufe: 'Drehbuch', fassung: 'Rohfassung',
   version: 'V1', stand_datum: '15.05.26', autor: 'Max Mustermann',
   regie: 'Lena Kaufmann', firmenname: 'Serienwerft GmbH', sender: 'Das Erste',
   buero_adresse: 'Hansestraße 1, 21335 Lüneburg', tel_produktion: '+49 4131 12345',
-  sendedatum: 'Mo. 16.06.2026', produktionszeitraum: '01.02.2026 – 31.07.2026',
+  sendedatum: 'Mo., 16.06.2026', produktionszeitraum: '01.02.2026 – 31.07.2026',
   aktuelles_datum: new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }),
   aktuelles_uhrzeit: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', hour12: false }),
   aktuelles_uhrzeit_utc: new Date().toLocaleTimeString('de-DE', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', hour12: false }) + '\u202f(UTC)',

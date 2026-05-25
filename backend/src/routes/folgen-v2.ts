@@ -63,7 +63,7 @@ folgenV2Router.get('/block', async (req, res) => {
     for (let i = 0; i < bloecke.length; i++) {
       const b = bloecke[i]
       if (b.folge_von != null && b.folge_bis != null && fn >= b.folge_von && fn <= b.folge_bis) {
-        block = b.bezeichnung || `${d?.block_label ?? 'Block'} ${(d?.erster_block ?? 1) + i}`
+        block = b.bezeichnung || String((d?.erster_block ?? 1) + i)
         break
       }
     }
