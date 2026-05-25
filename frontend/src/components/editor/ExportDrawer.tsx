@@ -319,11 +319,28 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     }
   }
 
-  function triggerDownload(jobId: string) {
-    const a = document.createElement('a')
-    a.href = `/api/export/job/${jobId}/download`
-    a.download = ''
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
+  async function triggerDownload(jobId: string) {
+    try {
+      const res = await fetch(`/api/export/job/${jobId}/download`, { credentials: 'include' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setJobStatus('error')
+        setErrorMsg(err.error || `Download fehlgeschlagen (${res.status})`)
+        return
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('Content-Disposition') ?? ''
+      const match = disposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i)
+      const filename = match ? decodeURIComponent(match[1].replace(/"/g, '').trim()) : 'export.pdf'
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = filename
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    } catch {
+      setJobStatus('error')
+      setErrorMsg('Download fehlgeschlagen — Verbindung zum Server verloren')
+    }
   }
 
   async function openPreview() {
