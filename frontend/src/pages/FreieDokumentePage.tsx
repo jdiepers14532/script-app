@@ -427,12 +427,15 @@ function VerknuepfeDialog({
 
                   {/* Bestätigung für neue Folge */}
                   {neuesFolge && (
-                    <div style={{ padding: '10px 12px', background: 'var(--bg-elevated)', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13 }}>
-                      <div style={{ fontWeight: 600, marginBottom: 4 }}>
-                        Es existiert noch keine Fassung zu dieser Folge.
-                      </div>
-                      <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        Als erste Fassung anlegen und Inhalt übernehmen?
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '10px 12px', background: 'rgba(255, 204, 0, 0.1)', border: '1.5px solid #FFCC00', borderRadius: 8, fontSize: 13 }}>
+                      <AlertTriangle size={15} style={{ color: '#FFCC00', flexShrink: 0, marginTop: 1 }} />
+                      <div>
+                        <div style={{ fontWeight: 600, marginBottom: 3 }}>
+                          Es existiert noch keine Fassung zu dieser Folge.
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          Als erste Fassung anlegen und Inhalt übernehmen?
+                        </div>
                       </div>
                     </div>
                   )}
