@@ -1011,12 +1011,14 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
   const curSA  = para.spaceAfter ?? ''
   const isUppercase = para.textTransform === 'uppercase'
 
-  // Font/size/B/I/U: chip-level when chip selected, else para-level
+  // Font/size: chip-level when chip selected, else para-level
   const curFont     = chipAttrs ? (chipAttrs.fontFamily ?? '') : (para.fontFamily ?? '')
   const curSize     = chipAttrs ? (chipAttrs.fontSize ?? '')   : (para.fontSize ?? '')
-  const isBold      = chipAttrs ? chipAttrs.fontWeight === 'bold'          : para.fontWeight === 'bold'
-  const isItalic    = chipAttrs ? chipAttrs.fontStyle === 'italic'         : para.fontStyle === 'italic'
-  const isUnderline = chipAttrs ? chipAttrs.textDecoration === 'underline' : para.textDecoration === 'underline'
+
+  // B/I/U: chip-level wenn Chip (NodeSelection) selektiert, sonst Text-Mark (wie DokumentVorlagenEditor)
+  const isBold      = chipAttrs ? chipAttrs.fontWeight === 'bold'          : (editor.isActive('bold') ?? false)
+  const isItalic    = chipAttrs ? chipAttrs.fontStyle === 'italic'         : (editor.isActive('italic') ?? false)
+  const isUnderline = chipAttrs ? chipAttrs.textDecoration === 'underline' : (editor.isActive('underline') ?? false)
 
   const setParaAttr = (key: string, val: string | null) =>
     editor.chain().focus().updateAttributes('paragraph', { [key]: val || null }).run()
@@ -1029,10 +1031,18 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
     )
   }
 
-  const setFontAttr   = (key: string, val: string | null) => chipSelected ? setChipAttr(key, val) : setParaAttr(key, val)
-  const toggleBold      = () => setFontAttr('fontWeight',    isBold      ? null : 'bold')
-  const toggleItalic    = () => setFontAttr('fontStyle',     isItalic    ? null : 'italic')
-  const toggleUnderline = () => setFontAttr('textDecoration', isUnderline ? null : 'underline')
+  const toggleBold = () => {
+    if (chipSelected) setChipAttr('fontWeight', isBold ? null : 'bold')
+    else editor.chain().focus().toggleBold().run()
+  }
+  const toggleItalic = () => {
+    if (chipSelected) setChipAttr('fontStyle', isItalic ? null : 'italic')
+    else editor.chain().focus().toggleItalic().run()
+  }
+  const toggleUnderline = () => {
+    if (chipSelected) setChipAttr('textDecoration', isUnderline ? null : 'underline')
+    else editor.chain().focus().toggleUnderline().run()
+  }
 
   const Sep = () => <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
 
@@ -1068,16 +1078,16 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
 
       <Sep />
 
-      {/* B/I/U: chip-level wenn Chip selektiert, sonst para-level */}
+      {/* B/I/U: chip-level wenn Chip selektiert, sonst Text-Mark */}
       <button onMouseDown={e => { e.preventDefault(); toggleBold() }}
         style={fmtBtn(isBold)}
-        title={chipSelected ? 'Chip: Fett' : 'Absatz: Fett'}>B</button>
+        title={chipSelected ? 'Chip: Fett' : 'Fett (Auswahl)'}>B</button>
       <button onMouseDown={e => { e.preventDefault(); toggleItalic() }}
         style={fmtBtn(isItalic, { fontStyle: 'italic' })}
-        title={chipSelected ? 'Chip: Kursiv' : 'Absatz: Kursiv'}>I</button>
+        title={chipSelected ? 'Chip: Kursiv' : 'Kursiv (Auswahl)'}>I</button>
       <button onMouseDown={e => { e.preventDefault(); toggleUnderline() }}
         style={fmtBtn(isUnderline, { textDecoration: 'underline' })}
-        title={chipSelected ? 'Chip: Unterstrichen' : 'Absatz: Unterstrichen'}>U</button>
+        title={chipSelected ? 'Chip: Unterstrichen' : 'Unterstrichen (Auswahl)'}>U</button>
 
       {/* UC: immer para-level */}
       <button onMouseDown={e => { e.preventDefault(); setParaAttr('textTransform', isUppercase ? null : 'uppercase') }}
