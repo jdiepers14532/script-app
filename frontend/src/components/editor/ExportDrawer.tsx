@@ -345,6 +345,16 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
   async function openPreview() {
     if (!selectedWerk) return
+    // Fenster SYNCHRON öffnen (im User-Gesture-Kontext) — sonst blockiert der
+    // Browser-Popup-Blocker window.open() nach dem asynchronen fetch().
+    const win = window.open('', '_blank')
+    if (win) {
+      win.document.write(
+        '<html><body style="margin:0;background:#555;height:100vh;display:flex;' +
+        'align-items:center;justify-content:center;color:#fff;font-family:sans-serif;font-size:14px">' +
+        'PDF wird generiert\u2026</body></html>'
+      )
+    }
     try {
       const body = {
         werkstufId: selectedWerk.id,
@@ -373,10 +383,13 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       if (!res.ok) throw new Error('PDF-Vorschau fehlgeschlagen')
       const pdfBlob = await res.blob()
       const url = URL.createObjectURL(pdfBlob)
-      window.open(url, '_blank')
+      if (win) win.location.href = url
+      else window.open(url, '_blank')
       setTimeout(() => URL.revokeObjectURL(url), 120_000)
     } catch {
-      window.open(`/api/export/preview?werkstufId=${selectedWerk.id}`, '_blank')
+      const fallback = `/api/export/preview?werkstufId=${selectedWerk.id}`
+      if (win) win.location.href = fallback
+      else window.open(fallback, '_blank')
     }
   }
 
