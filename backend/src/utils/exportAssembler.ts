@@ -483,6 +483,11 @@ ${fontResource}
   [data-kuerzel="CHAR"] { page-break-after: avoid; }
   [data-kuerzel="DIA"]  { page-break-inside: avoid; }
   [data-kuerzel="PAR"]  { page-break-inside: avoid; page-break-after: avoid; }
+  /* Browser-Default-Margins für <p> zurücksetzen — entspricht .ProseMirror p { margin: 0 }
+     im DokumentVorlagenEditor; verhindert doppelten Abstand bei leeren Absätzen in Titelseiten.
+     Screenplay-Absätze verwenden explizite margin-top/bottom via Inline-Style (fmtToCss) und
+     sind davon nicht betroffen. */
+  p { margin: 0; }
   /* Tabellen: p-Margins in Zellen reset, sonst verdoppelter Abstand in Puppeteer */
   td p, th p { margin: 0; padding: 0; }
   td p + p, th p + p { margin-top: 0.25em; }
