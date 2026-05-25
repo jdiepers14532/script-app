@@ -1002,20 +1002,24 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
 
   if (!editor) return null
 
+  // Live-Checks (wie DokumentVorlagenEditor): lesen editor.state zum Aufrufzeitpunkt,
+  // nicht als Snapshot beim Render — verhindert Stale-Closure-Fehler nach Dispatches.
+  const liveChipSelected = () => editor.isActive('sk_chip')
+  const liveChipAttrs    = () => editor.getAttributes('sk_chip')
+
+  // Render-Snapshot für UI-State (Button-Highlights, Select-Werte)
   const { selection } = editor.state
   const chipSelected = selection instanceof NodeSelection && selection.node.type.name === 'sk_chip'
-  const chipAttrs = chipSelected ? (selection as NodeSelection).node.attrs : null
+  const chipAttrs    = chipSelected ? (selection as NodeSelection).node.attrs : null
 
   const para = editor.getAttributes('paragraph')
   const curLH  = para.lineHeight ?? ''
   const curSA  = para.spaceAfter ?? ''
   const isUppercase = para.textTransform === 'uppercase'
 
-  // Font/size: chip-level when chip selected, else para-level
-  const curFont     = chipAttrs ? (chipAttrs.fontFamily ?? '') : (para.fontFamily ?? '')
-  const curSize     = chipAttrs ? (chipAttrs.fontSize ?? '')   : (para.fontSize ?? '')
+  const curFont = chipAttrs ? (chipAttrs.fontFamily ?? '') : (para.fontFamily ?? '')
+  const curSize = chipAttrs ? (chipAttrs.fontSize ?? '')   : (para.fontSize ?? '')
 
-  // B/I/U: chip-level wenn Chip (NodeSelection) selektiert, sonst Text-Mark (wie DokumentVorlagenEditor)
   const isBold      = chipAttrs ? chipAttrs.fontWeight === 'bold'          : (editor.isActive('bold') ?? false)
   const isItalic    = chipAttrs ? chipAttrs.fontStyle === 'italic'         : (editor.isActive('italic') ?? false)
   const isUnderline = chipAttrs ? chipAttrs.textDecoration === 'underline' : (editor.isActive('underline') ?? false)
@@ -1023,24 +1027,45 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
   const setParaAttr = (key: string, val: string | null) =>
     editor.chain().focus().updateAttributes('paragraph', { [key]: val || null }).run()
 
+  // Chip-Attr setzen: explizites tr.setSelection(NodeSelection) stellt sicher,
+  // dass die NodeSelection nach dem Dispatch erhalten bleibt.
   const setChipAttr = (key: string, val: string | null) => {
-    if (!chipSelected) return
-    editor.chain().focus().updateAttributes('sk_chip', { [key]: val || null }).run()
+    const { state } = editor
+    const { selection: sel } = state
+    if (!(sel instanceof NodeSelection) || sel.node.type.name !== 'sk_chip') return
+    const pos = sel.from
+    const tr = state.tr.setNodeMarkup(pos, undefined, { ...sel.node.attrs, [key]: val || null })
+    tr.setSelection(new NodeSelection(tr.doc.resolve(pos)))
+    editor.view.dispatch(tr)
   }
 
-  const setFontAttr = (key: string, val: string | null) => chipSelected ? setChipAttr(key, val) : setParaAttr(key, val)
+  const setFontAttr = (key: string, val: string | null) => liveChipSelected() ? setChipAttr(key, val) : setParaAttr(key, val)
 
+  // Toggle-Funktionen lesen Chip-Attrs live (nicht aus Render-Snapshot isBold/isItalic/isUnderline),
+  // damit Stale-Closures nach einem Dispatch keinen falschen Zustand liefern.
   const toggleBold = () => {
-    if (chipSelected) setChipAttr('fontWeight', isBold ? null : 'bold')
-    else editor.chain().focus().toggleBold().run()
+    if (liveChipSelected()) {
+      const cur = liveChipAttrs().fontWeight === 'bold'
+      setChipAttr('fontWeight', cur ? null : 'bold')
+    } else {
+      editor.chain().focus().toggleBold().run()
+    }
   }
   const toggleItalic = () => {
-    if (chipSelected) setChipAttr('fontStyle', isItalic ? null : 'italic')
-    else editor.chain().focus().toggleItalic().run()
+    if (liveChipSelected()) {
+      const cur = liveChipAttrs().fontStyle === 'italic'
+      setChipAttr('fontStyle', cur ? null : 'italic')
+    } else {
+      editor.chain().focus().toggleItalic().run()
+    }
   }
   const toggleUnderline = () => {
-    if (chipSelected) setChipAttr('textDecoration', isUnderline ? null : 'underline')
-    else editor.chain().focus().toggleUnderline().run()
+    if (liveChipSelected()) {
+      const cur = liveChipAttrs().textDecoration === 'underline'
+      setChipAttr('textDecoration', cur ? null : 'underline')
+    } else {
+      editor.chain().focus().toggleUnderline().run()
+    }
   }
 
   const Sep = () => <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
