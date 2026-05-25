@@ -860,8 +860,8 @@ function PreviewModal({
               const hasTabs = item.segments.some(s => s.kind === 'tab')
               const renderTextSeg = (s: TextSeg, key: number) => (
                 <span key={key} style={{
-                  fontWeight:      s.bold      ? 'bold'      : undefined,
-                  fontStyle:       s.italic    ? 'italic'    : undefined,
+                  fontWeight:      s.bold      ? 'bold'   : 'normal',
+                  fontStyle:       s.italic    ? 'italic' : 'normal',
                   textDecoration:  s.underline ? 'underline' : undefined,
                   textTransform:   s.uppercase ? 'uppercase' : undefined,
                   fontFamily:      s.fontFamily ?? undefined,
