@@ -117,10 +117,11 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
         if (node.type.name !== 'absatz') return false
 
         const currentFmt = getFormatById(node.attrs.format_id)
-        if (!currentFmt?.tab_next_format) return false
+        // Consume Tab in absatz nodes even when no next format — prevents editor defocus
+        if (!currentFmt?.tab_next_format) return true
 
         const nextFmt = getFormatById(currentFmt.tab_next_format)
-        if (!nextFmt) return false
+        if (!nextFmt) return true
 
         return this.editor.chain()
           .updateAttributes('absatz', {
@@ -142,17 +143,26 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
         const nextFmt = getFormatById(currentFmt.enter_next_format)
         if (!nextFmt) return false
 
-        // Non-empty line: split and apply follow-up format
+        const { from } = state.selection
+        const tr = state.tr
+
+        // Non-empty line: split block and apply follow-up format to the new block.
+        // We use direct transaction manipulation instead of chain().splitBlock().updateAttributes()
+        // because updateAttributes() uses state.doc (pre-split) to resolve positions from tr.selection
+        // (post-split), which causes it to update the original block instead of the new one.
         if (node.content.size > 0) {
-          return this.editor.chain()
-            .splitBlock()
-            .updateAttributes('absatz', {
-              format_id: nextFmt.id,
-              format_name: nextFmt.name,
-            })
-            .run()
+          tr.split(from)
+          // After split, tr.selection points to start of the new block
+          const newBlockPos = tr.selection.$from.before()
+          tr.setNodeMarkup(newBlockPos, undefined, {
+            format_id: nextFmt.id,
+            format_name: nextFmt.name,
+          })
+          this.editor.view.dispatch(tr)
+          return true
         }
-        // Empty line: just change type in-place
+
+        // Empty line: change format in-place (single-step chain, no position mismatch)
         return this.editor.chain()
           .updateAttributes('absatz', {
             format_id: nextFmt.id,
