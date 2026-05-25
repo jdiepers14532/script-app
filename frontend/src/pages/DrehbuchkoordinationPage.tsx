@@ -42,15 +42,15 @@ const FORMAT_SUB_NAV = [
   { id: 'sonstige-dokumente',   label: 'Sonstige Dokumente' },
 ]
 
-// col: optionale Spaltenposition im 2-Spalten-Grid (für Dämmerung ohne Gegenüber)
-const KUERZEL_FIELDS: { key: string; label: string; col?: number }[] = [
-  { key: 'int',        label: 'Innen (INT)' },
-  { key: 'ext',        label: 'Außen (EXT)' },
-  { key: 'tag',        label: 'Tag' },
-  { key: 'nacht',      label: 'Nacht' },
-  { key: 'morgen',     label: 'Morgen' },
-  { key: 'abend',      label: 'Abend' },
-  { key: 'daemmerung', label: 'Dämmerung', col: 2 },
+// row 1: INT-Gruppe · row 2: EXT-Gruppe
+const KUERZEL_FIELDS: { key: string; label: string; row: 1 | 2 }[] = [
+  { key: 'int',        label: 'Innen (INT)', row: 1 },
+  { key: 'tag',        label: 'Tag',         row: 1 },
+  { key: 'morgen',     label: 'Morgen',      row: 1 },
+  { key: 'ext',        label: 'Außen (EXT)', row: 2 },
+  { key: 'nacht',      label: 'Nacht',       row: 2 },
+  { key: 'abend',      label: 'Abend',       row: 2 },
+  { key: 'daemmerung', label: 'Dämmerung',   row: 2 },
 ]
 const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', morgen: 'M', nacht: 'N', abend: 'A', daemmerung: 'D' }
 
@@ -360,19 +360,23 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
           Abkürzungen für die einzeilige {t('szene', 'c')}übersicht.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, maxWidth: 240 }}>
-          {KUERZEL_FIELDS.map(({ key, label, col }) => (
-            <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: col ?? 'auto' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
-              <input
-                type="text"
-                maxLength={4}
-                value={kuerzel[key] ?? ''}
-                onChange={e => setKuerzel(prev => ({ ...prev, [key]: e.target.value }))}
-                onBlur={() => saveKuerzel(kuerzel)}
-                style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit', textTransform: 'uppercase' }}
-              />
-            </label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {([1, 2] as const).map(row => (
+            <div key={row} style={{ display: 'flex', gap: 10 }}>
+              {KUERZEL_FIELDS.filter(f => f.row === row).map(({ key, label }) => (
+                <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 76 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
+                  <input
+                    type="text"
+                    maxLength={4}
+                    value={kuerzel[key] ?? ''}
+                    onChange={e => setKuerzel(prev => ({ ...prev, [key]: e.target.value }))}
+                    onBlur={() => saveKuerzel(kuerzel)}
+                    style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit', textTransform: 'uppercase' }}
+                  />
+                </label>
+              ))}
+            </div>
           ))}
         </div>
         <button
