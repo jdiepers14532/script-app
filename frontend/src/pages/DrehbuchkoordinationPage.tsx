@@ -5225,7 +5225,8 @@ function formatSendedatum(dateStr: string | null | undefined): string | undefine
     const d = new Date(String(dateStr).slice(0, 10) + 'T12:00:00Z')
     const day  = d.toLocaleDateString('de-DE', { weekday: 'short', timeZone: 'UTC' })
     const date = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })
-    return `${day}, ${date}`
+    const dayDot = day.endsWith('.') ? day : day + '.'
+    return `${dayDot}, ${date}`
   } catch { return undefined }
 }
 

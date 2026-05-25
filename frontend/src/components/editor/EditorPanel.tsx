@@ -621,7 +621,7 @@ export default function EditorPanel({
                     b.folge_von != null && b.folge_bis != null &&
                     folgeNummer >= b.folge_von && folgeNummer <= b.folge_bis
                   )
-                  return b ? `Block ${b.block_nummer}` : ''
+                  return b ? String(b.block_nummer) : ''
                 })()
 
                 // Sendedatum formatieren
@@ -630,7 +630,8 @@ export default function EditorPanel({
                   const dt = new Date(sendedatumData.datum + 'T00:00:00')
                   const wd = dt.toLocaleDateString('de-DE', { weekday: 'short' })
                   const d = dt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                  return `${wd}, ${d}`
+                  const wdDot = wd.endsWith('.') ? wd : wd + '.'
+                  return `${wdDot}, ${d}`
                 })()
 
                 // Firmendaten aus company-info auflösen
