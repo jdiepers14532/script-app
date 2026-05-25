@@ -99,10 +99,9 @@ export default function NeueWerkstufeModal({
   }, [selectedOption, predWerk, effectivePred, crossPred])
 
   const handleConfirm = () => {
-    const mode: WerkstufeCreateMode = selectedOption === 'platzhalter' ? 'empty' : selectedOption
     onConfirm({
       typ: requestedTyp,
-      mode,
+      mode: selectedOption,
       vorgaenger_id: vorgaengerId,
       kopiere_notizen: effectivePred ? kopiereNotizen : false,
       dualview,

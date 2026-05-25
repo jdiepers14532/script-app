@@ -19,13 +19,14 @@ import StoppzeitenModal from '../components/StoppzeitenModal'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
-function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead }: {
+function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead, onActiveWerkSelected }: {
   produktionId: string; folgeNummer: number | null
   freiDokFolgeId?: number | null  // freies Dokument: direkte folge_id statt Auflösung via folgeNummer
   selectedSzeneId: number | string | null; useDokumentSzenen: boolean
   stageId: number | null; sceneIdentityId: string | null
   onNavigateNext?: () => void; onNavigatePrev?: () => void
   onSzeneUpdated?: (updated: any) => void; onMarkCommentsRead?: (szeneId: number) => void
+  onActiveWerkSelected?: (werkId: string | null) => void
 }) {
   const { panelMode, setPanelMode } = usePanelMode()
   const { tweaks } = useTweaks()
@@ -49,6 +50,12 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
   // Track selected werkstufe per panel (for SceneEditor per panel)
   const [leftWerkId, setLeftWerkId] = useState<string | null>(null)
   const [rightWerkId, setRightWerkId] = useState<string | null>(null)
+
+  // Propagate dominant werkId to parent (used by free documents to update selectedStageId)
+  useEffect(() => {
+    const dominant = rightWerkId ?? leftWerkId
+    onActiveWerkSelected?.(dominant)
+  }, [leftWerkId, rightWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dual-view activation (from NeueWerkstufeModal)
   const [activateLeftWerkId, setActivateLeftWerkId] = useState<string | null>(null)
@@ -812,6 +819,7 @@ export default function ScriptPage() {
                 produktionId={selectedProduktionId}
                 folgeNummer={freiDokId ? null : selectedFolgeNummer}
                 freiDokFolgeId={freiDokId ?? undefined}
+                onActiveWerkSelected={freiDokId ? (werkId) => { if (werkId) setSelectedStageId(werkId as any) } : undefined}
                 selectedSzeneId={selectedSzeneId}
                 useDokumentSzenen={useDokumentSzenen}
                 stageId={selectedStageId}
