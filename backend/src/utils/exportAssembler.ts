@@ -211,7 +211,11 @@ function renderNode(node: any, ctx: ExportContext): string {
     if (fw)  styles.push(`font-weight:${fw}`)
     if (fst) styles.push(`font-style:${fst}`)
     if (td)  styles.push(`text-decoration:${td}`)
-    if (lh)  styles.push(`line-height:${lh}`)
+    // Explizit line-height setzen: ohne diesen Style erbt der Paragraph body's
+    // line-height:1.5 — der DokumentVorlagenEditor setzt aber kein line-height
+    // (Browser-Default "normal" ≈ 1.2). Ohne Override ist das PDF ~25% höher
+    // als der Editor-Preview. lh ?? 'normal' matcht das Editor-Verhalten.
+    styles.push(`line-height:${lh ?? 'normal'}`)
     if (sa)  styles.push(`margin-bottom:${sa}`)
     const style = styles.length ? ` style="${styles.join(';')}"` : ''
     const inner = renderInlineNodes(node.content ?? [], ctx)
