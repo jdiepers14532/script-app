@@ -34,7 +34,8 @@ async function fetchAuthUsers(): Promise<Map<string, { name: string; email: stri
       signal: AbortSignal.timeout(5000),
     })
     if (!r.ok) return new Map()
-    const users: any[] = await r.json()
+    const raw = await r.json()
+    const users: any[] = Array.isArray(raw) ? raw : []
     const map = new Map<string, { name: string; email: string }>()
     for (const u of users) {
       if (u.id) map.set(String(u.id), { name: u.name ?? u.username ?? '?', email: u.email ?? '' })
