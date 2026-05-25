@@ -354,6 +354,7 @@ async function runMigrations() {
     'v119_kzfz_margin_migration.sql',
     'v120_sichtbarkeit_frei_align.sql',
     'v121_private_docs_management.sql',
+    'v122_us_master_scene_format_preset.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
