@@ -38,6 +38,7 @@ interface AppShellProps {
   folgenMitDaten?: number[]
   hideProductionSelector?: boolean
   freiDokTitel?: string | null  // wenn gesetzt: freies Dokument aktiv, Block/Folge-Selektor ausblenden
+  freiDokLabel?: string | null  // Label-Text in Klammern hinter dem Titel
 }
 
 // TweakState type imported from ../contexts
@@ -198,6 +199,7 @@ export default function AppShell({
   folgenMitDaten = [],
   hideProductionSelector = false,
   freiDokTitel = null,
+  freiDokLabel = null,
 }: AppShellProps) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -914,8 +916,8 @@ export default function AppShell({
           {freiDokTitel && (
             <>
               <span>·</span>
-              <span style={{ fontSize: 13, fontWeight: 500, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {freiDokTitel}
+              <span style={{ fontSize: 13, fontWeight: 500, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {freiDokTitel}{freiDokLabel ? ` (${freiDokLabel})` : ''}
               </span>
             </>
           )}

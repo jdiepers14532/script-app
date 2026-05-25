@@ -302,6 +302,7 @@ export default function ScriptPage() {
     return parseInt(id) || null
   })
   const [freiDokTitel, setFreiDokTitel] = useState<string | null>(null)
+  const [freiDokLabel, setFreiDokLabel] = useState<string | null>(null)
 
   const [selectedProduktionId, setSelectedProduktionId] = useState<string>('')
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
@@ -333,6 +334,7 @@ export default function ScriptPage() {
     api.getFolgeV2(freiDokId)
       .then(folge => {
         setFreiDokTitel(folge.folgen_titel ?? 'Freies Dokument')
+        setFreiDokLabel(folge.dokument_label ?? null)
         // ProduktionId aus dem Dokument setzen
         if (folge.produktion_id) setSelectedProduktionId(folge.produktion_id)
         return api.getWerkstufen(freiDokId)
@@ -742,6 +744,7 @@ export default function ScriptPage() {
       onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
       folgenMitDaten={freiDokId ? [] : folgenMitDaten}
       freiDokTitel={freiDokTitel}
+      freiDokLabel={freiDokLabel}
     >
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
 

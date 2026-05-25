@@ -203,7 +203,7 @@ function DokumentDialog({
           </div>
 
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>DOKUMENTTYP</label>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>LABEL</label>
             <input
               type="text"
               list="label-datalist"
