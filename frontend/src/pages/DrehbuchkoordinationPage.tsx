@@ -360,24 +360,24 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
           Abkürzungen für die einzeilige {t('szene', 'c')}übersicht.
         </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {([1, 2] as const).map(row => (
-            <div key={row} style={{ display: 'flex', gap: 10 }}>
-              {KUERZEL_FIELDS.filter(f => f.row === row).map(({ key, label }) => (
-                <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 76 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
-                  <input
-                    type="text"
-                    maxLength={4}
-                    value={kuerzel[key] ?? ''}
-                    onChange={e => setKuerzel(prev => ({ ...prev, [key]: e.target.value }))}
-                    onBlur={() => saveKuerzel(kuerzel)}
-                    style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit', textTransform: 'uppercase' }}
-                  />
-                </label>
-              ))}
-            </div>
-          ))}
+        {/* 4-Spalten-Raster: Zeile 1 = INT-Gruppe (3 Felder), Zeile 2 = EXT-Gruppe (4 Felder).
+            Spalten 1–3 fluchten, Spalte 4 (Dämmerung) hat in Zeile 1 kein Gegenstück. */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, max-content)', gap: '6px 20px', alignItems: 'center' }}>
+          {([1, 2] as const).flatMap(row =>
+            KUERZEL_FIELDS.filter(f => f.row === row).map(({ key, label }, i) => (
+              <label key={key} style={{ gridRow: row, gridColumn: i + 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>{label}</span>
+                <input
+                  type="text"
+                  maxLength={4}
+                  value={kuerzel[key] ?? ''}
+                  onChange={e => setKuerzel(prev => ({ ...prev, [key]: e.target.value }))}
+                  onBlur={() => saveKuerzel(kuerzel)}
+                  style={{ width: 44, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit', textTransform: 'uppercase', textAlign: 'center' }}
+                />
+              </label>
+            ))
+          )}
         </div>
         <button
           style={{ marginTop: 12, padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-subtle)', fontSize: 12, cursor: 'pointer' }}
