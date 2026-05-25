@@ -484,7 +484,7 @@ export default function EditorPanel({
         produktionId={produktionId}
         folgeNummer={folgeNummer}
         folgeId={folgeId}
-        sceneFormat={currentSzene?.format ?? null}
+        sceneFormat={currentSzene?.format ?? selectedWerk?.typ ?? null}
         onSelectWerkstufe={setSelectedWerkId}
         onCreateWerkstufe={onCreateWerkstufe}
         onNeueFassungClick={folgeId ? (typ) => setNeueFassungModal(typ) : undefined}
