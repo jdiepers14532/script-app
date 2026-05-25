@@ -156,6 +156,9 @@ interface DokumentVorlagenEditorProps {
   zoom?: number
   /** Called when the active Tiptap editor changes */
   onActiveEditorChange?: (editor: Editor | null, zone: PlaceholderZone) => void
+  /** Externally provided seiten_layout (from KZ/FZ-Einstellungen) — overrides template's own
+   *  margin values for the visual preview. The PDF export uses this layout too. */
+  externalSeitenLayout?: SeitenLayout
 }
 
 const DEFAULT_LAYOUT: SeitenLayout = {
@@ -1297,19 +1300,23 @@ function PreviewCell({ content, align, color, ctx }: {
 export default function DokumentVorlagenEditor({
   value, onChange, noBody = false, noHeaderFooter = false, readOnly = false,
   produktionsLogoUrl, previewContext,
-  sidebarMode = false, zoom, onActiveEditorChange,
+  sidebarMode = false, zoom, onActiveEditorChange, externalSeitenLayout,
 }: DokumentVorlagenEditorProps) {
   useEffect(() => { injectChipCss() }, [])
 
   const layout: SeitenLayout = value.seiten_layout ?? DEFAULT_LAYOUT
+  // externalSeitenLayout (aus KZ/FZ-Einstellungen) überschreibt die Ränder für die visuelle Darstellung
+  const effectiveLayout: SeitenLayout = externalSeitenLayout
+    ? { ...layout, ...externalSeitenLayout }
+    : layout
   // Format-based page dimensions (96 DPI): A4 = 210×297mm, Letter = 8.5×11in
-  const pageDims = layout.format === 'letter'
+  const pageDims = effectiveLayout.format === 'letter'
     ? { wPx: 816, hPx: 1056 }
     : { wPx: 794, hPx: 1123 }
-  const marginLeftPx   = Math.round(layout.margin_left   * MM_TO_PX)
-  const marginRightPx  = Math.round(layout.margin_right  * MM_TO_PX)
-  const marginTopPx    = Math.round(layout.margin_top    * MM_TO_PX)
-  const marginBottomPx = Math.round(layout.margin_bottom * MM_TO_PX)
+  const marginLeftPx   = Math.round(effectiveLayout.margin_left   * MM_TO_PX)
+  const marginRightPx  = Math.round(effectiveLayout.margin_right  * MM_TO_PX)
+  const marginTopPx    = Math.round(effectiveLayout.margin_top    * MM_TO_PX)
+  const marginBottomPx = Math.round(effectiveLayout.margin_bottom * MM_TO_PX)
 
   const [bodyEditor, setBodyEditor] = useState<Editor | null>(null)
   const bodyFileRef = useRef<HTMLInputElement>(null)
@@ -1367,7 +1374,8 @@ export default function DokumentVorlagenEditor({
             </label>
           ))}
           <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-            Ränder: O {layout.margin_top} / R {layout.margin_right} / U {layout.margin_bottom} / L {layout.margin_left} mm
+            Ränder: O {effectiveLayout.margin_top} / R {effectiveLayout.margin_right} / U {effectiveLayout.margin_bottom} / L {effectiveLayout.margin_left} mm
+            {externalSeitenLayout && <span style={{ opacity: 0.6 }}> (aus KZ/FZ)</span>}
           </span>
         </div>
       )}
@@ -1412,8 +1420,8 @@ export default function DokumentVorlagenEditor({
               onToggle={handleBodyTabToggle}
               containerRef={bodyContainerRef}
               rulerCm={rulerCm}
-              marginLeftCm={layout.margin_left / 10}
-              marginRightCm={layout.margin_right / 10}
+              marginLeftCm={effectiveLayout.margin_left / 10}
+              marginRightCm={effectiveLayout.margin_right / 10}
               onMarginChange={readOnly ? undefined : handleBodyMarginChange}
             />
           </div>

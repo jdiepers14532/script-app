@@ -347,6 +347,7 @@ async function runMigrations() {
     'v116_timestamp_tz_fix.sql',
     'v117_freie_dokumente.sql',
     'v118_freie_dokument_labels.sql',
+    'v119_kzfz_margin_migration.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

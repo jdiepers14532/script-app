@@ -724,6 +724,10 @@ interface AssembleHtmlResult {
   pageMarginBottom: number
   bml: number
   bmr: number
+  /** Separates HTML für ist_titelseite-Vorlagen (kein KZ/FZ, eigene Ränder) — null wenn keine */
+  titelseiteHtml: string | null
+  /** Seitenränder für den Titelseite-Render (aus dokument_vorlagen.seiten_layout) */
+  titelseiteMargins: { oben: number; unten: number; links: number; rechts: number } | null
 }
 
 // ── Szenen-Auswahl parsen ─────────────────────────────────────────────────────
@@ -854,7 +858,7 @@ async function assembleHtml(
     )
     const kzFz = kzTypRes.rows[0] ?? kzAlleRes.rows[0] ?? null
 
-    // ── 4. Seitenränder aus production_app_settings ───────────────────────────
+    // ── 4. Seitenränder: Fallback page_margin_mm → kzFz.seiten_layout (Single Source of Truth) ──
     setProgress(22)
     const marginRes = await client.query(
       `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'page_margin_mm'`,
@@ -867,6 +871,14 @@ async function assembleHtml(
         const parsed = typeof v === 'string' ? JSON.parse(v) : v
         bodyMargins = { ...bodyMargins, ...parsed }
       } catch { /* defaults beibehalten */ }
+    }
+    // kzFz.seiten_layout überschreibt page_margin_mm — ist die maßgebliche Quelle nach v119
+    if (kzFz?.seiten_layout) {
+      const sl = kzFz.seiten_layout as Record<string, number | undefined>
+      if (sl.margin_top    != null) bodyMargins.oben   = sl.margin_top
+      if (sl.margin_bottom != null) bodyMargins.unten  = sl.margin_bottom
+      if (sl.margin_left   != null) bodyMargins.links  = sl.margin_left
+      if (sl.margin_right  != null) bodyMargins.rechts = sl.margin_right
     }
 
     // ── 4b. Szenen-Kürzel aus production_app_settings ─────────────────────────
@@ -1042,11 +1054,42 @@ async function assembleHtml(
     }))
     const resolvedPostItems: OrderedExportItem[] = options.postItems ?? []
 
+    // Titelseiten-Erkennung: preItems mit szeneId und ist_titelseite=true werden
+    // separat gerendert (kein KZ/FZ, eigene Ränder) — alle anderen gehen in den Hauptrender
+    const titelseiteHtmlParts: string[] = []
+    let titelseiteMargins: { oben: number; unten: number; links: number; rechts: number } | null = null
     const preSections: string[] = []
     for (const item of resolvedPreItems) {
+      if (item.type === 'notiz' && item.szeneId && item.enabled) {
+        const vorRes = await client.query<{ ist_titelseite: boolean; seiten_layout: any }>(
+          `SELECT dv.ist_titelseite, dv.seiten_layout
+           FROM dokument_szenen ds
+           LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
+           WHERE ds.id = $1`,
+          [item.szeneId]
+        )
+        if (vorRes.rows[0]?.ist_titelseite) {
+          const html = await renderOrderedItem(item)
+          if (html) titelseiteHtmlParts.push(html)
+          if (!titelseiteMargins) {
+            const sl: Record<string, number | undefined> = vorRes.rows[0].seiten_layout ?? {}
+            titelseiteMargins = {
+              oben:   sl.margin_top    ?? bodyMargins.oben,
+              unten:  sl.margin_bottom ?? bodyMargins.unten,
+              links:  sl.margin_left   ?? bodyMargins.links,
+              rechts: sl.margin_right  ?? bodyMargins.rechts,
+            }
+          }
+          continue
+        }
+      }
       const html = await renderOrderedItem(item)
       if (html) preSections.push(html)
     }
+    const titelseiteHtml = titelseiteHtmlParts.length > 0
+      ? titelseiteHtmlParts.join('\n')
+      : null
+
     const postSections: string[] = []
     for (const item of resolvedPostItems) {
       const html = await renderOrderedItem(item)
@@ -1227,7 +1270,7 @@ async function assembleHtml(
     const pageMarginTop    = hasHdr ? Math.max(bodyMargins.oben,  hmt + 14 + 4) : bodyMargins.oben
     const pageMarginBottom = hasFtr ? Math.max(bodyMargins.unten, hmb + 10 + 4) : bodyMargins.unten
 
-    return { html, title, headerHtml, footerHtml, hmt, hmb, hml, hmr, pageMarginTop, pageMarginBottom, bml, bmr }
+    return { html, title, headerHtml, footerHtml, hmt, hmb, hml, hmr, pageMarginTop, pageMarginBottom, bml, bmr, titelseiteHtml, titelseiteMargins }
 
   } finally {
     client.release()
@@ -1244,11 +1287,54 @@ export async function assemblePreviewHtml(
   return html
 }
 
+/** Rendert eine einzelne HTML-Seite mit Puppeteer zu PDF. */
+async function renderHtmlToPdf(
+  browser: any,
+  html: string,
+  opts: {
+    displayHeaderFooter: boolean
+    headerTemplate?: string
+    footerTemplate?: string
+    margin: { top: string; bottom: string; left: string; right: string }
+    emulateMedia?: boolean
+  }
+): Promise<Uint8Array> {
+  const page = await browser.newPage()
+  try {
+    if (opts.emulateMedia) await page.emulateMediaType('print')
+    await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
+    return await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      displayHeaderFooter: opts.displayHeaderFooter,
+      headerTemplate: opts.headerTemplate ?? '<div style="font-size:0"></div>',
+      footerTemplate: opts.footerTemplate ?? '<div style="font-size:0"></div>',
+      margin: opts.margin,
+    })
+  } finally {
+    await page.close()
+  }
+}
+
+/** Fügt zwei PDFs zusammen: alle Seiten von a, dann alle Seiten von b. */
+async function mergePdfs(a: Uint8Array, b: Uint8Array): Promise<Uint8Array> {
+  const [docA, docB] = await Promise.all([
+    PDFDocument.load(a),
+    PDFDocument.load(b),
+  ])
+  const merged = await PDFDocument.create()
+  const pagesA = await merged.copyPages(docA, docA.getPageIndices())
+  const pagesB = await merged.copyPages(docB, docB.getPageIndices())
+  for (const p of pagesA) merged.addPage(p)
+  for (const p of pagesB) merged.addPage(p)
+  return merged.save()
+}
+
 export async function assemblePdf(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void
 ): Promise<JobResult> {
-  const { html, title, headerHtml, footerHtml, hmt, hmb, hml, hmr, pageMarginTop, pageMarginBottom, bml, bmr } =
+  const { html, title, headerHtml, footerHtml, hmt, hmb, hml, hmr, pageMarginTop, pageMarginBottom, bml, bmr, titelseiteHtml, titelseiteMargins } =
     await assembleHtml(input, setProgress)
 
   // ── 11. Puppeteer → PDF ───────────────────────────────────────────────────
@@ -1278,15 +1364,13 @@ export async function assemblePdf(
 
   // Sichtbares Diagonal-Wasserzeichen (per-Seite overlay via headerTemplate)
   // position:absolute + overflow:visible → überlagert den gesamten Seitenbereich ohne Platz zu belegen
+  const wmText = wmSettings.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const wmOverlay = wmSettings.aktiv
     ? `<div style="position:absolute;top:0;left:0;width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;opacity:${wmSettings.opazitaet / 100};pointer-events:none;overflow:hidden;z-index:9999">` +
-      `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">` +
-      wmSettings.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
-      `</span></div>`
+      `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">${wmText}</span></div>`
     : ''
 
   // headerTemplate: KZ (falls vorhanden) + Wasserzeichen-Overlay
-  // Das Overlay ist position:absolute → nimmt keinen Platz ein, überlagert nur
   const headerTemplate = (inlinedHeader.trim() || wmOverlay)
     ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wmOverlay}${inlinedHeader.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(inlinedHeader)}</div>` : ''}</div>`
     : '<div style="font-size:0"></div>'
@@ -1298,45 +1382,45 @@ export async function assemblePdf(
   const pdfBookmarks = input.options.pdfBookmarks === true
 
   let pdfBytes: Uint8Array
-  // Kein try/finally mit browser.close() — Warm-Pool behält die Instanz
-  const page = await browser.newPage()
-  try {
-    // Print-Modus aktivieren, damit evaluate() und PDF-Rendering denselben Layout-Kontext nutzen
-    if (pdfBookmarks) {
-      await page.emulateMediaType('print')
-    }
-    // 'load' statt 'networkidle0': lokale Fonts brauchen kein Netzwerk-Idle
-    await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
-    setProgress(75)
 
-    // Bookmark-Positionen per DOM-Auswertung einsammeln (nur wenn Lesezeichen gewünscht)
-    // A4 bei 96 DPI = 297 / 25.4 * 96 ≈ 1122.52 CSS-Pixel pro Seite
-    type BmEntry = { label: string; pageIndex: number }
-    let bmEntries: BmEntry[] = []
-    if (pdfBookmarks) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      bmEntries = await page.evaluate((): any => {
-        const A4_H = 297 / 25.4 * 96  // ≈ 1122.52
-        // @ts-ignore — läuft im Browser-Kontext
-        return Array.from((document as any).querySelectorAll('[data-bm-label]')).map((el: any) => {
-          const rect = el.getBoundingClientRect()
-          // @ts-ignore
-          const top  = rect.top + ((window as any).scrollY ?? 0)
-          return {
-            label:     el.dataset?.bmLabel ?? '',
-            pageIndex: Math.max(0, Math.floor(top / A4_H)),
-          }
-        })
-      }) as BmEntry[]
-    }
+  // ── Titelseite-Split-Render ────────────────────────────────────────────────
+  // ist_titelseite=true → separate Render (kein KZ/FZ, eigene Ränder, Wasserzeichen via position:fixed)
+  if (titelseiteHtml && titelseiteMargins) {
+    // Sichtbares Wasserzeichen für Titelseite als position:fixed CSS-Div
+    const wmFixedDiv = wmSettings.aktiv
+      ? `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;opacity:${wmSettings.opazitaet / 100};pointer-events:none;z-index:9999;overflow:hidden">` +
+        `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">${wmText}</span></div>`
+      : ''
 
-    pdfBytes = await page.pdf({
-      format: 'A4',
-      printBackground: true,
+    const titelseiteBodyHtml = wmFixedDiv + titelseiteHtml
+
+    const titelseiteFullHtml = buildPdfHtml({
+      title,
+      bodyHtml: titelseiteBodyHtml,
+      kzFz: null,
+      ctx: {} as any,  // ctx wird für KZ/FZ-Rendering benötigt — leer da kein KZ/FZ
+      bodyMargins: titelseiteMargins,
+      localFontCss: loadLocalFontCss(),
+      puppeteerHeaderFooter: true,
+    })
+
+    setProgress(63)
+    const titelseiteBytes = await renderHtmlToPdf(browser, titelseiteFullHtml, {
+      displayHeaderFooter: false,
+      margin: {
+        top:    `${titelseiteMargins.oben}mm`,
+        bottom: `${titelseiteMargins.unten}mm`,
+        left:   `${titelseiteMargins.links}mm`,
+        right:  `${titelseiteMargins.rechts}mm`,
+      },
+    })
+    setProgress(70)
+
+    // Hauptrender (ohne Titelseite) — normaler KZ/FZ-Render
+    const mainBytes = await renderHtmlToPdf(browser, html, {
       displayHeaderFooter: true,
       headerTemplate,
       footerTemplate,
-      // margin übernimmt Seitenränder — kein @page-margin im HTML nötig
       margin: {
         top:    `${pageMarginTop}mm`,
         bottom: `${pageMarginBottom}mm`,
@@ -1344,20 +1428,62 @@ export async function assemblePdf(
         right:  `${bmr}mm`,
       },
     })
-    setProgress(88)
+    setProgress(85)
 
-    // Zweiter Durchgang: PDF-Lesezeichen per pdf-lib einschreiben
-    if (pdfBookmarks && bmEntries.length > 0) {
-      pdfBytes = await addPdfOutline(pdfBytes, bmEntries)
-    }
-
+    // Titelseite-Seiten + Hauptseiten zusammenführen
+    pdfBytes = await mergePdfs(titelseiteBytes, mainBytes)
     setProgress(90)
-  } finally {
-    await page.close()  // Nur den Tab schließen, Browser bleibt warm
+
+  } else {
+    // ── Normaler Einzelrender (kein ist_titelseite) ──────────────────────────
+    const page = await browser.newPage()
+    try {
+      if (pdfBookmarks) await page.emulateMediaType('print')
+      await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
+      setProgress(75)
+
+      // Bookmark-Positionen per DOM-Auswertung einsammeln
+      type BmEntry = { label: string; pageIndex: number }
+      let bmEntries: BmEntry[] = []
+      if (pdfBookmarks) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        bmEntries = await page.evaluate((): any => {
+          const A4_H = 297 / 25.4 * 96
+          // @ts-ignore — läuft im Browser-Kontext
+          return Array.from((document as any).querySelectorAll('[data-bm-label]')).map((el: any) => {
+            const rect = el.getBoundingClientRect()
+            // @ts-ignore
+            const top  = rect.top + ((window as any).scrollY ?? 0)
+            return { label: el.dataset?.bmLabel ?? '', pageIndex: Math.max(0, Math.floor(top / A4_H)) }
+          })
+        }) as BmEntry[]
+      }
+
+      pdfBytes = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        displayHeaderFooter: true,
+        headerTemplate,
+        footerTemplate,
+        margin: {
+          top:    `${pageMarginTop}mm`,
+          bottom: `${pageMarginBottom}mm`,
+          left:   `${bml}mm`,
+          right:  `${bmr}mm`,
+        },
+      })
+      setProgress(88)
+
+      if (pdfBookmarks && bmEntries.length > 0) {
+        pdfBytes = await addPdfOutline(pdfBytes, bmEntries)
+      }
+
+      setProgress(90)
+    } finally {
+      await page.close()
+    }
   }
 
-  // Werkstufe-Metadaten für Dateiname erneut aus DB (bereits im assembleHtml geholt,
-  // hier nochmal kompakt via title)
   const filename = title.replace(/\s*[-–]\s*$/, '') + '.pdf'
 
   return {

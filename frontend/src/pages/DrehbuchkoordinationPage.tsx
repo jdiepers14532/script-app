@@ -4344,6 +4344,19 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
     druckauswahl:        'Auswahl: Szenen 1–10',
   }
 
+  // KZ/FZ-Einstellungen laden — seiten_layout wird als externalSeitenLayout für den Vorlagen-Editor verwendet
+  const [kzFzLayout, setKzFzLayout] = useState<SeitenLayout | null>(null)
+  useEffect(() => {
+    api.getKopfFusszeilenTyp(productionId, 'alle')
+      .then((row: any) => { if (row?.seiten_layout) setKzFzLayout(row.seiten_layout) })
+      .catch(() => {})
+  }, [productionId])
+  const effectiveExternalLayout: SeitenLayout = kzFzLayout ?? {
+    format: seitenformat,
+    margin_top: margins.oben, margin_bottom: margins.unten,
+    margin_left: margins.links, margin_right: margins.rechts,
+  }
+
   const [vorlagen, setVorlagen] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<'list' | 'tiles'>('tiles')
@@ -4639,6 +4652,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
             onActiveEditorChange={ed => setActiveEditor(ed)}
             produktionsLogoUrl={produktionsLogoUrl}
             previewContext={previewContext}
+            externalSeitenLayout={effectiveExternalLayout}
           />
         </div>
       </div>

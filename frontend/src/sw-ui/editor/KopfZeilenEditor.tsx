@@ -827,15 +827,25 @@ export default function KopfZeilenEditor({ value, onChange, readOnly = false, de
         <input type="number" value={sl.margin_right} min={0} max={80}
           onChange={e => onChange({ ...value, seiten_layout: { ...sl, margin_right: Number(e.target.value) } })}
           style={selStyle({ width: 42, textAlign: 'right' })} />
+        <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)' }}>O</label>
+        <input type="number" value={sl.margin_top ?? 25} min={0} max={80}
+          onChange={e => onChange({ ...value, seiten_layout: { ...sl, margin_top: Number(e.target.value) } })}
+          style={selStyle({ width: 42, textAlign: 'right' })} />
+        <label style={{ fontSize: 11, color: 'var(--text-secondary, #666)' }}>U</label>
+        <input type="number" value={sl.margin_bottom ?? 20} min={0} max={80}
+          onChange={e => onChange({ ...value, seiten_layout: { ...sl, margin_bottom: Number(e.target.value) } })}
+          style={selStyle({ width: 42, textAlign: 'right' })} />
         {defaultLayout && (
           <>
             <span style={{ fontSize: 10, color: 'var(--text-muted, #aaa)', whiteSpace: 'nowrap' }}>
-              Dok: {defaultLayout.margin_left}/{defaultLayout.margin_right}
+              Dok: L{defaultLayout.margin_left}/R{defaultLayout.margin_right}/O{defaultLayout.margin_top ?? 25}/U{defaultLayout.margin_bottom ?? 20}
             </span>
-            {(sl.margin_left !== defaultLayout.margin_left || sl.margin_right !== defaultLayout.margin_right || sl.format !== defaultLayout.format) && (
+            {(sl.margin_left !== defaultLayout.margin_left || sl.margin_right !== defaultLayout.margin_right ||
+              (sl.margin_top ?? 25) !== (defaultLayout.margin_top ?? 25) || (sl.margin_bottom ?? 20) !== (defaultLayout.margin_bottom ?? 20) ||
+              sl.format !== defaultLayout.format) && (
               <button
                 title="Auf Dokumentrand zurücksetzen"
-                onClick={() => onChange({ ...value, seiten_layout: { ...sl, format: defaultLayout.format, margin_left: defaultLayout.margin_left, margin_right: defaultLayout.margin_right } })}
+                onClick={() => onChange({ ...value, seiten_layout: { ...sl, format: defaultLayout.format, margin_left: defaultLayout.margin_left, margin_right: defaultLayout.margin_right, margin_top: defaultLayout.margin_top ?? 25, margin_bottom: defaultLayout.margin_bottom ?? 20 } })}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'var(--text-secondary, #666)', padding: '0 2px', lineHeight: 1 }}
               >↺</button>
             )}
