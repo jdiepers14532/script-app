@@ -42,15 +42,17 @@ const FORMAT_SUB_NAV = [
   { id: 'sonstige-dokumente',   label: 'Sonstige Dokumente' },
 ]
 
-const KUERZEL_FIELDS = [
-  { key: 'int',       label: 'Innen (INT)' },
-  { key: 'ext',       label: 'Aussen (EXT)' },
-  { key: 'tag',       label: 'Tag' },
-  { key: 'nacht',     label: 'Nacht' },
-  { key: 'daemmerung',label: 'Dämmerung' },
-  { key: 'abend',     label: 'Abend' },
+// col: optionale Spaltenposition im 2-Spalten-Grid (für Dämmerung ohne Gegenüber)
+const KUERZEL_FIELDS: { key: string; label: string; col?: number }[] = [
+  { key: 'int',        label: 'Innen (INT)' },
+  { key: 'ext',        label: 'Außen (EXT)' },
+  { key: 'tag',        label: 'Tag' },
+  { key: 'nacht',      label: 'Nacht' },
+  { key: 'morgen',     label: 'Morgen' },
+  { key: 'abend',      label: 'Abend' },
+  { key: 'daemmerung', label: 'Dämmerung', col: 2 },
 ]
-const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', nacht: 'N', daemmerung: 'D', abend: 'A' }
+const DEFAULT_KUERZEL: Record<string, string> = { int: 'I', ext: 'E', tag: 'T', morgen: 'M', nacht: 'N', abend: 'A', daemmerung: 'D' }
 
 const ENV_COLOR_LABELS: Record<EnvKey, string> = {
   d_i:       'INT / Tag',
@@ -358,9 +360,9 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
           Abkürzungen für die einzeilige {t('szene', 'c')}übersicht.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, maxWidth: 360 }}>
-          {KUERZEL_FIELDS.map(({ key, label }) => (
-            <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, maxWidth: 240 }}>
+          {KUERZEL_FIELDS.map(({ key, label, col }) => (
+            <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, gridColumn: col ?? 'auto' }}>
               <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
               <input
                 type="text"
