@@ -832,6 +832,18 @@ export const api = {
   deleteAdminColabGruppe: (id: string) =>
     request<void>('DELETE', `/admin/colab-gruppen-register/${id}`),
 
+  // ── Private-Dokumente-Verwaltung (DK) ────────────────────────────────────
+  getPrivateDokumente: (produktionId: string, filter: '1' | '2' | '3' = '1') =>
+    request<any[]>('GET', `/dk/private-dokumente?produktion_id=${encodeURIComponent(produktionId)}&filter=${filter}`),
+  changePrivatDokSichtbarkeit: (id: number, data: {
+    neue_sichtbarkeit: string
+    colab_gruppe_id?: number | null
+    per_email_informiert: boolean
+    anderweitig_bestaetigt: boolean
+  }) => request<{ success: boolean; emailSent: boolean }>('POST', `/dk/private-dokumente/${id}/sichtbarkeit`, data),
+  getPrivateDokSettings: () =>
+    request<{ filter_2_enabled: boolean; filter_3_enabled: boolean; viewer_roles: string[] }>('GET', '/dk/private-dokumente/settings'),
+
   // ── Notifications ─────────────────────────────────────────────────────────
   getNotifications: () =>
     request<{ notifications: any[]; unread_count: number }>('GET', '/notifications'),

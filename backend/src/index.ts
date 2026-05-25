@@ -63,6 +63,7 @@ import { autorenplanRouter } from './routes/autorenplan'
 import { taetigkeitenInternalRouter } from './routes/taetigkeitenInternal'
 import { runPrivatModusWorker } from './workers/privatModusWorker'
 import analysisRouter from './routes/analysis'
+import { privateDokumenteRouter } from './routes/private-dokumente'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -185,6 +186,9 @@ app.use('/api/search', searchRouter)
 
 // Analyse-Editor
 app.use('/api/analysis', analysisRouter)
+
+// Private-Dokumente-Verwaltung (DK)
+app.use('/api/dk/private-dokumente', privateDokumenteRouter)
 
 // Autorenplan
 app.use('/api/autorenplan', autorenplanRouter)
@@ -349,6 +353,7 @@ async function runMigrations() {
     'v118_freie_dokument_labels.sql',
     'v119_kzfz_margin_migration.sql',
     'v120_sichtbarkeit_frei_align.sql',
+    'v121_private_docs_management.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

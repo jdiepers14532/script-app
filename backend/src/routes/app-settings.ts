@@ -40,6 +40,10 @@ router.put('/:key', async (req, res) => {
     // Analyse-Editor (v109)
     'analysis_model',
     'analysis_allowed_roles',
+    // Private-Dokumente-Verwaltung (v121)
+    'private_docs_filter_2_enabled',
+    'private_docs_filter_3_enabled',
+    'private_docs_viewer_roles',
   ]
 
   if (!allowed.includes(key)) {

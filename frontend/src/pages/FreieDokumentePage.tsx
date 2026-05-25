@@ -277,11 +277,6 @@ function DokumentDialog({
                 </select>
               </div>
             )}
-            {sichtbarkeit === 'privat' && (
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
-                Privat-Modus bei freien Dokumenten läuft nicht automatisch ab.
-              </div>
-            )}
           </div>
         </div>
 

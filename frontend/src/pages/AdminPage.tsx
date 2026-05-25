@@ -14,7 +14,7 @@ const ADMIN_TABS = [
   { id: 'dokument',       label: 'Dokument' },
   { id: 'autorenplan',    label: 'Autorenplan' },
   { id: 'analyse',        label: 'Analyse' },
-  { id: 'privatmodus',    label: 'Privat-Modus' },
+  { id: 'private-docs',   label: 'Private Dokumente' },
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
   { id: 'pwa',            label: 'App / PWA' },
@@ -853,97 +853,93 @@ function AnalyseAdminTab() {
 
 // ── Main AdminPage ────────────────────────────────────────────────────────────
 
-// ── Privat-Modus Tab ──────────────────────────────────────────────────────────
+// ── Private Dokumente Admin Tab ───────────────────────────────────────────────
 
-function PrivatmodusTab() {
-  const [stunden, setStunden] = useState<string>('')
-  const [current, setCurrent] = useState<string>('')
+const ALL_VIEWER_ROLES = [
+  'produktionsleitung', 'produktionsbuero', 'aufnahmeleitung', 'drehplanung',
+  'vertragserstellung', 'buchhaltung_produktion', 'hr_manager', 'redaktion',
+]
+
+function PrivateDokumenteAdminTab() {
+  const [filter2, setFilter2] = useState(false)
+  const [filter3, setFilter3] = useState(false)
+  const [viewerRoles, setViewerRoles] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     api.getAdminAppSettings().then(d => {
-      const val = d?.privat_modus_ablauf_stunden ?? '4'
-      setCurrent(val)
-      setStunden(val)
+      setFilter2(d?.private_docs_filter_2_enabled === 'true')
+      setFilter3(d?.private_docs_filter_3_enabled === 'true')
+      try { setViewerRoles(JSON.parse(d?.private_docs_viewer_roles ?? '[]')) } catch { setViewerRoles([]) }
     }).catch(() => {})
   }, [])
 
+  const toggleRole = (role: string) =>
+    setViewerRoles(prev => prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role])
+
   const handleSave = async () => {
-    const h = parseInt(stunden, 10)
-    if (isNaN(h) || h < 1 || h > 168) {
-      setError('Bitte einen Wert zwischen 1 und 168 Stunden eingeben.')
-      return
-    }
     setSaving(true)
-    setError(null)
     try {
-      await api.updateAdminAppSetting('privat_modus_ablauf_stunden', String(h))
-      setCurrent(String(h))
+      await Promise.all([
+        api.updateAdminAppSetting('private_docs_filter_2_enabled', String(filter2)),
+        api.updateAdminAppSetting('private_docs_filter_3_enabled', String(filter3)),
+        api.updateAdminAppSetting('private_docs_viewer_roles', JSON.stringify(viewerRoles)),
+      ])
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch (e: any) {
-      setError(e.message ?? 'Fehler beim Speichern')
-    } finally {
-      setSaving(false)
-    }
+    } catch {} finally { setSaving(false) }
   }
 
-  const changed = stunden !== current
+  const s: React.CSSProperties = { padding: '28px 32px', maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 28 }
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 12px', border: '1.5px solid var(--border)', borderRadius: 8 }
+  const desc: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.5 }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 28 }}>
+    <div style={s}>
       <section>
-        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Privat-Modus — automatischer Ablauf</h3>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
-          Wenn ein Autor seinen Werkstufen-Privat-Modus aktiviert, läuft er nach dieser Zeit
-          automatisch ab und die Sichtbarkeit kehrt auf den vorherigen Wert zurück.
-          <br />
-          <strong>Freie Dokumente</strong> sind davon nicht betroffen — ihr Privat-Modus läuft
-          nie automatisch ab.
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Sichtbare Filter in DK-Einstellungen</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Filter 1 (Label „Folge für Sendung") ist immer aktiv. Hier kannst du die erweiterten Filter freischalten.
         </p>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="number"
-              min={1}
-              max={168}
-              value={stunden}
-              onChange={e => { setStunden(e.target.value); setError(null) }}
-              style={{
-                width: 80,
-                padding: '7px 10px',
-                fontSize: 14,
-                border: '1.5px solid var(--border)',
-                borderRadius: 6,
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontFamily: 'inherit',
-              }}
-            />
-            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Stunden</span>
-          </div>
-          <button
-            className="btn primary"
-            onClick={handleSave}
-            disabled={saving || !changed}
-            style={{ minWidth: 90 }}
-          >
-            {saving ? 'Speichert…' : saved ? 'Gespeichert ✓' : 'Speichern'}
-          </button>
-        </div>
-
-        {error && (
-          <div style={{ marginTop: 10, fontSize: 13, color: '#FF3B30' }}>{error}</div>
-        )}
-
-        <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-          <strong>Aktuell gesetzt:</strong> {current} Stunden (Standardwert: 4 Stunden).<br />
-          Maximalwert: 168 Stunden (1 Woche). Der Worker prüft alle 15 Minuten auf abgelaufene Privat-Modi.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label style={row}>
+            <input type="checkbox" checked={filter2} onChange={e => setFilter2(e.target.checked)} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>Filter 2 — Mit Folge verknüpfte Dokumente</div>
+              <div style={desc}>Zeigt private freie Dokumente, die per „Mit Folge verknüpfen" einer Folge zugeordnet wurden.</div>
+            </div>
+          </label>
+          <label style={row}>
+            <input type="checkbox" checked={filter3} onChange={e => setFilter3(e.target.checked)} />
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>Filter 3 — Alle privaten freien Dokumente</div>
+              <div style={desc}>Zeigt alle privaten freien Dokumente, unabhängig von Label oder Verknüpfung.</div>
+            </div>
+          </label>
         </div>
       </section>
+
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Zugriff auf „Private Dokumente" in DK-Einstellungen</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Superadmin und Admin haben immer Zugriff. Hier können weitere Rollen freigeschaltet werden.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {ALL_VIEWER_ROLES.map(role => (
+            <label key={role} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '6px 10px', borderRadius: 6, background: viewerRoles.includes(role) ? 'rgba(0,122,255,0.06)' : 'transparent' }}>
+              <input type="checkbox" checked={viewerRoles.includes(role)} onChange={() => toggleRole(role)} />
+              <span style={{ fontSize: 13 }}>{role}</span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <div>
+        <button className="btn primary" onClick={handleSave} disabled={saving} style={{ minWidth: 110 }}>
+          {saving ? 'Speichert…' : saved ? 'Gespeichert ✓' : 'Einstellungen speichern'}
+        </button>
+      </div>
     </div>
   )
 }
@@ -1385,7 +1381,7 @@ export default function AdminPage() {
           )}
           {activeTab === 'autorenplan'    && <AutorenplanAdminTab />}
           {activeTab === 'analyse'        && <AnalyseAdminTab />}
-          {activeTab === 'privatmodus'    && <PrivatmodusTab />}
+          {activeTab === 'private-docs'   && <PrivateDokumenteAdminTab />}
           {activeTab === 'pwa'            && <PwaAdminTab />}
         </div>
       </div>

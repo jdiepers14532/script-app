@@ -3064,12 +3064,314 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
   )
 }
 
+// ── Tab: Private Dokumente ────────────────────────────────────────────────────
+
+type FilterType = '1' | '2' | '3'
+
+const FILTER_LABELS: Record<FilterType, string> = {
+  '1': 'Folge für Sendung',
+  '2': 'Mit Folge verknüpft',
+  '3': 'Alle privaten',
+}
+
+const SICHT_COLORS: Record<string, string> = {
+  privat: '#757575', colab: '#007AFF', produktion: '#AF52DE', alle: '#00C853',
+}
+const SICHT_LABELS: Record<string, string> = {
+  privat: 'Privat', colab: 'Colab', produktion: 'Produktion', alle: 'Alle',
+}
+
+function NotifyDialog({
+  dok,
+  neueSichtbarkeit,
+  colabGruppeId,
+  onConfirm,
+  onClose,
+}: {
+  dok: any
+  neueSichtbarkeit: string
+  colabGruppeId?: number | null
+  onConfirm: (perEmail: boolean, anderweitig: boolean) => Promise<void>
+  onClose: () => void
+}) {
+  const [step, setStep] = useState<'ask' | 'confirm'>('ask')
+  const [bestaetigt, setBestaetigt] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleEmail = async () => {
+    setSaving(true)
+    try { await onConfirm(true, false); onClose() }
+    catch (e: any) { setError(e.message); setSaving(false) }
+  }
+  const handleNein = () => setStep('confirm')
+  const handleConfirm = async () => {
+    if (!bestaetigt) return
+    setSaving(true)
+    try { await onConfirm(false, true); onClose() }
+    catch (e: any) { setError(e.message); setSaving(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.4)', display: 'grid', placeItems: 'center' }}>
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, width: 460, padding: 0, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Autor informieren?</span>
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {step === 'ask' ? (
+            <>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                Die Sichtbarkeit von <strong>„{dok.folgen_titel}"</strong> wurde auf{' '}
+                <strong style={{ color: SICHT_COLORS[neueSichtbarkeit] }}>{SICHT_LABELS[neueSichtbarkeit]}</strong> geändert.
+              </p>
+              <div style={{ padding: '10px 14px', background: 'rgba(255,204,0,0.08)', border: '1px solid rgba(255,204,0,0.3)', borderRadius: 8, fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.6 }}>
+                Autoren sollten über Änderungen an ihren Dokumenten informiert werden —
+                das ist wichtig für das Vertrauen in das System.
+              </div>
+              {error && <div style={{ fontSize: 13, color: '#FF3B30' }}>{error}</div>}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
+                <button className="btn" onClick={handleNein} disabled={saving}>Nein, ich informiere selbst</button>
+                <button className="btn primary" onClick={handleEmail} disabled={saving}>
+                  {saving ? 'Sendet…' : 'Ja, Email senden'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)' }}>
+                Bitte bestätige bevor du fortfährst:
+              </p>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', border: `1.5px solid ${bestaetigt ? '#00C853' : 'var(--border)'}`, borderRadius: 8, fontSize: 13, lineHeight: 1.5 }}>
+                <input type="checkbox" checked={bestaetigt} onChange={e => setBestaetigt(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
+                <span>
+                  Ich bestätige, dass <strong>{dok.ersteller_name}</strong> über die Änderung an
+                  „<strong>{dok.folgen_titel}</strong>" informiert wurde.
+                </span>
+              </label>
+              {error && <div style={{ fontSize: 13, color: '#FF3B30' }}>{error}</div>}
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
+                <button className="btn" onClick={onClose} disabled={saving}>Abbrechen</button>
+                <button className="btn primary" onClick={handleConfirm} disabled={!bestaetigt || saving}>
+                  {saving ? 'Speichert…' : 'Bestätigen'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SichtbarkeitChangeModal({
+  dok,
+  produktionId,
+  onDone,
+  onClose,
+}: {
+  dok: any
+  produktionId: string
+  onDone: () => void
+  onClose: () => void
+}) {
+  const [selected, setSelected] = useState<string>(dok.sichtbarkeit_frei)
+  const [colabGruppeId, setColabGruppeId] = useState<number | null>(dok.sichtbarkeit_frei_colab_gruppe_id ?? null)
+  const [gruppen, setGruppen] = useState<any[]>([])
+  const [notifyOpen, setNotifyOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.getColabGruppen(produktionId).then(setGruppen).catch(() => {})
+  }, [produktionId])
+
+  const options = [
+    { value: 'colab',      label: 'Colab',      desc: 'Ausgewählte Gruppe kann bearbeiten' },
+    { value: 'produktion', label: 'Produktion',  desc: 'Produktionsteam kann lesen' },
+    { value: 'alle',       label: 'Alle',        desc: 'Jeder mit Zugriff kann lesen' },
+  ]
+
+  const handleSave = async () => {
+    if (selected === dok.sichtbarkeit_frei) { onClose(); return }
+    setSaving(true)
+    setNotifyOpen(true)
+    setSaving(false)
+  }
+
+  const handleNotifyConfirm = async (perEmail: boolean, anderweitig: boolean) => {
+    await api.changePrivatDokSichtbarkeit(dok.id, {
+      neue_sichtbarkeit: selected,
+      colab_gruppe_id: selected === 'colab' ? colabGruppeId : null,
+      per_email_informiert: perEmail,
+      anderweitig_bestaetigt: anderweitig,
+    })
+    onDone()
+  }
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.4)', display: 'grid', placeItems: 'center' }} onClick={onClose}>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, width: 420, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Sichtbarkeit ändern</span>
+            <div style={{ flex: 1 }} />
+            <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4 }}>✕</button>
+          </div>
+          <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {options.map(o => (
+              <button key={o.value} onClick={() => setSelected(o.value)} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                border: `1px solid ${selected === o.value ? SICHT_COLORS[o.value] : 'var(--border)'}`,
+                borderRadius: 8, background: selected === o.value ? `${SICHT_COLORS[o.value]}22` : 'transparent',
+                cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%',
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: SICHT_COLORS[o.value], flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{o.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{o.desc}</div>
+                </div>
+              </button>
+            ))}
+            {selected === 'colab' && (
+              <select
+                value={colabGruppeId ?? ''}
+                onChange={e => setColabGruppeId(e.target.value ? Number(e.target.value) : null)}
+                style={{ padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', fontSize: 13, marginTop: 4 }}
+              >
+                <option value="">Keine Gruppe gewählt</option>
+                {gruppen.filter(g => g.typ === 'colab').map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            )}
+          </div>
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn" onClick={onClose}>Abbrechen</button>
+            <button className="btn primary" onClick={handleSave} disabled={saving || selected === dok.sichtbarkeit_frei}>
+              Ändern
+            </button>
+          </div>
+        </div>
+      </div>
+      {notifyOpen && (
+        <NotifyDialog
+          dok={dok}
+          neueSichtbarkeit={selected}
+          colabGruppeId={colabGruppeId}
+          onConfirm={handleNotifyConfirm}
+          onClose={() => { setNotifyOpen(false); onClose() }}
+        />
+      )}
+    </>
+  )
+}
+
+function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
+  const [filter, setFilter] = useState<FilterType>('1')
+  const [settings, setSettings] = useState<{ filter_2_enabled: boolean; filter_3_enabled: boolean }>({ filter_2_enabled: false, filter_3_enabled: false })
+  const [dokumente, setDokumente] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [changeDok, setChangeDok] = useState<any>(null)
+
+  const load = async () => {
+    setLoading(true)
+    try { setDokumente(await api.getPrivateDokumente(produktionId || '', filter)) }
+    catch { setDokumente([]) }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => {
+    api.getPrivateDokSettings()
+      .then(s => setSettings(s))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { load() }, [filter, produktionId])
+
+  const activeFilters: FilterType[] = ['1', ...(settings.filter_2_enabled ? ['2' as FilterType] : []), ...(settings.filter_3_enabled ? ['3' as FilterType] : [])]
+  const showTabs = activeFilters.length > 1
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+
+  return (
+    <div style={{ padding: '24px 28px', maxWidth: 860, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Private Dokumente</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+          Freie Dokumente, die aktuell auf Privat gesetzt sind und Koordinationsrelevanz haben.
+          Sichtbarkeit kann hier im Namen der Produktion überschrieben werden.
+        </p>
+      </div>
+
+      {showTabs && (
+        <div style={{ display: 'flex', gap: 6 }}>
+          {activeFilters.map(f => (
+            <button key={f} onClick={() => setFilter(f)} style={{
+              padding: '5px 14px', fontSize: 12, fontWeight: 500, borderRadius: 6, cursor: 'pointer',
+              border: `1px solid ${filter === f ? '#007AFF' : 'var(--border)'}`,
+              background: filter === f ? 'rgba(0,122,255,0.08)' : 'transparent',
+              color: filter === f ? '#007AFF' : 'var(--text-secondary)',
+            }}>
+              {FILTER_LABELS[f]}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {!produktionId ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+          Bitte zuerst eine Produktion auswählen.
+        </div>
+      ) : loading ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>Lädt…</div>
+      ) : dokumente.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
+          Keine privaten Dokumente in diesem Filter.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {dokumente.map(dok => (
+            <div key={dok.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--bg-surface)', border: '1.5px solid var(--border)', borderRadius: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {dok.folgen_titel ?? 'Unbenanntes Dokument'}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-secondary)' }}>
+                  <span style={{ padding: '2px 8px', background: 'var(--bg-subtle)', borderRadius: 99 }}>{dok.dokument_label ?? '—'}</span>
+                  <span>von <strong>{dok.ersteller_name}</strong></span>
+                  <span>privat seit {fmtDate(dok.sichtbarkeit_frei_geaendert_am ?? dok.erstellt_am)}</span>
+                  {dok.verknuepft_am && <span>verknüpft {fmtDate(dok.verknuepft_am)}</span>}
+                </div>
+              </div>
+              <button
+                className="btn"
+                style={{ fontSize: 12, padding: '5px 14px', flexShrink: 0 }}
+                onClick={() => setChangeDok(dok)}
+              >
+                Sichtbarkeit ändern
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {changeDok && (
+        <SichtbarkeitChangeModal
+          dok={changeDok}
+          produktionId={produktionId}
+          onDone={() => { setChangeDok(null); load() }}
+          onClose={() => setChangeDok(null)}
+        />
+      )}
+    </div>
+  )
+}
+
 // ── Main Page Export ──────────────────────────────────────────────────────────────
 
 export default function DrehbuchkoordinationPage() {
   const [activeTab, setActiveTab] = useState('allgemein')
   const [headerSlot, setHeaderSlot] = useState<HTMLDivElement | null>(null)
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
+  const [hasPrivateDokAccess, setHasPrivateDokAccess] = useState(false)
   const [kopierenModalOpen, setKopierenModalOpen] = useState(false)
   const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
   const [seitenformatSaving, setSeitenformatSaving] = useState(false)
@@ -3080,6 +3382,13 @@ export default function DrehbuchkoordinationPage() {
   const { t } = useTerminologie()
 
   const produktionId = selectedProduction?.id ?? ''
+
+  // Check Private-Dokumente access
+  useEffect(() => {
+    api.getPrivateDokSettings()
+      .then(() => setHasPrivateDokAccess(true))
+      .catch(() => setHasPrivateDokAccess(false))
+  }, [])
 
   // Check DK access on mount
   useEffect(() => {
@@ -3258,6 +3567,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <SonstigeDokumenteTab produktionId={produktionId} /> : <NoProduction />
       case 'autorenplan':
         return produktionId ? <AutorenplanTab produktionDbId={produktionId} /> : <NoProduction />
+      case 'private-dokumente':
+        return <PrivateDokumenteTab produktionId={produktionId} />
       default:
         return <Placeholder label={activeTab} />
     }
@@ -3375,7 +3686,7 @@ export default function DrehbuchkoordinationPage() {
           }}>
             {/* Nav items */}
             <nav style={{ flex: 1, paddingTop: 8 }}>
-              {DK_TABS.map(tab => (
+              {[...DK_TABS, ...(hasPrivateDokAccess ? [{ id: 'private-dokumente', label: 'Private Dokumente' }] : [])].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}

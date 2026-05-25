@@ -213,8 +213,8 @@ folgenV2Router.post('/', async (req, res) => {
       const row = await queryOne(
         `INSERT INTO folgen
            (produktion_id, folgen_titel, ist_frei, dokument_label, sichtbarkeit_frei,
-            sichtbarkeit_frei_colab_gruppe_id, ersteller_user_id, erstellt_von)
-         VALUES ($1, $2, true, $3, $4, $5, $6, $6)
+            sichtbarkeit_frei_colab_gruppe_id, sichtbarkeit_frei_geaendert_am, ersteller_user_id, erstellt_von)
+         VALUES ($1, $2, true, $3, $4, $5, NOW(), $6, $6)
          RETURNING *`,
         [produktion_id, folgen_titel.trim(), label, sicht,
          sicht === 'colab' ? (colab_gruppe_id ?? null) : null, user.user_id]
@@ -284,6 +284,7 @@ folgenV2Router.put('/:id', async (req, res) => {
         synopsis         = COALESCE($2, synopsis),
         dokument_label   = COALESCE($3, dokument_label),
         sichtbarkeit_frei = COALESCE($4, sichtbarkeit_frei),
+        sichtbarkeit_frei_geaendert_am = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE sichtbarkeit_frei_geaendert_am END,
         sichtbarkeit_frei_colab_gruppe_id = CASE
           WHEN $4 = 'colab' THEN $5::int
           WHEN $4 IS NOT NULL THEN NULL
@@ -420,6 +421,12 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
         [resolvedZielId]
       )
     }
+
+    // Freies Dokument als verknüpft markieren
+    await query(
+      `UPDATE folgen SET verknuepft_mit_folge_id = $1, verknuepft_am = NOW() WHERE id = $2`,
+      [resolvedZielId, req.params.id]
+    )
 
     res.json({ werkstufe: neueWerkstufe, szenen_kopiert: szenen.length })
   } catch (err) {
