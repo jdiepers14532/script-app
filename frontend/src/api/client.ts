@@ -155,6 +155,11 @@ export const api = {
   createEntity: (data: any) => request<any>('POST', '/entities', data),
   updateEntity: (id: number, data: any) => request<any>('PUT', `/entities/${id}`, data),
 
+  // Admin App-Settings (global)
+  getAdminAppSettings: () => request<Record<string, string>>('GET', '/admin/app-settings'),
+  updateAdminAppSetting: (key: string, value: string) =>
+    request<any>('PUT', `/admin/app-settings/${encodeURIComponent(key)}`, { value }),
+
   // KI
   getKiSettings: () => request<any[]>('GET', '/admin/ki-settings'),
   updateKiSetting: (funktion: string, data: any) => request<any>('PUT', `/admin/ki-settings/${funktion}`, data),
@@ -494,9 +499,9 @@ export const api = {
   getFolgeV2: (id: number) => request<any>('GET', `/v2/folgen/${id}`),
   createFolgeV2: (data: { produktion_id: string; folge_nummer: number; folgen_titel?: string }) =>
     request<any>('POST', '/v2/folgen', data),
-  createFreiesDokument: (data: { produktion_id: string; folgen_titel: string; dokument_label?: string; sichtbarkeit_frei?: string }) =>
+  createFreiesDokument: (data: { produktion_id: string; folgen_titel: string; dokument_label?: string; sichtbarkeit_frei?: string; colab_gruppe_id?: number | null }) =>
     request<any>('POST', '/v2/folgen', { ...data, ist_frei: true }),
-  updateFolgeV2: (id: string | number, data: { folgen_titel?: string; synopsis?: string; dokument_label?: string; sichtbarkeit_frei?: string }) =>
+  updateFolgeV2: (id: string | number, data: { folgen_titel?: string; synopsis?: string; dokument_label?: string; sichtbarkeit_frei?: string; colab_gruppe_id?: number | null }) =>
     request<any>('PUT', `/v2/folgen/${id}`, data),
   deleteFreiesDokument: (id: string) =>
     request<any>('DELETE', `/v2/folgen/${id}`),

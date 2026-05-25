@@ -86,7 +86,7 @@ folgenV2Router.get('/', async (req, res) => {
 
     let rows: any[]
     if (nurFrei) {
-      // Freie Dokumente: dauerhaft_privat → nur eigene sehen (außer superadmin)
+      // Freie Dokumente: privat → nur eigene sehen (außer superadmin)
       rows = await query(
         `SELECT f.*,
                 (SELECT COUNT(*)::int FROM werkstufen w WHERE w.folge_id = f.id) AS werkstufen_count
@@ -94,7 +94,7 @@ folgenV2Router.get('/', async (req, res) => {
          WHERE f.produktion_id = $1
            AND f.ist_frei = true
            AND (
-             f.sichtbarkeit_frei != 'dauerhaft_privat'
+             f.sichtbarkeit_frei != 'privat'
              OR f.ersteller_user_id = $2
              OR $3 = ANY(ARRAY['superadmin'])
            )
@@ -174,6 +174,15 @@ folgenV2Router.get('/:id', async (req, res) => {
       [req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
+
+    // Privat-Check für freie Dokumente
+    if (row.ist_frei && row.sichtbarkeit_frei === 'privat') {
+      const user = req.user!
+      if (row.ersteller_user_id !== user.user_id && user.role !== 'superadmin') {
+        return res.status(404).json({ error: 'Nicht gefunden' })
+      }
+    }
+
     res.json(row)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -186,7 +195,7 @@ folgenV2Router.get('/:id', async (req, res) => {
 // Freies Dokument: { produktion_id, ist_frei: true, folgen_titel, dokument_label?, sichtbarkeit_frei? }
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.post('/', async (req, res) => {
-  const { produktion_id, folge_nummer, folgen_titel, ist_frei, dokument_label, sichtbarkeit_frei } = req.body
+  const { produktion_id, folge_nummer, folgen_titel, ist_frei, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
   const user = req.user!
 
   if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
@@ -196,17 +205,19 @@ folgenV2Router.post('/', async (req, res) => {
     if (!folgen_titel?.trim()) return res.status(400).json({ error: 'folgen_titel required für freie Dokumente' })
     const label = dokument_label ?? 'sonstiges'
     if (!label || !label.trim()) return res.status(400).json({ error: 'dokument_label darf nicht leer sein' })
-    const sicht = sichtbarkeit_frei ?? 'team'
-    const validSicht = ['dauerhaft_privat', 'team', 'alle']
+    const sicht = sichtbarkeit_frei ?? 'produktion'
+    const validSicht = ['privat', 'colab', 'produktion', 'alle']
     if (!validSicht.includes(sicht)) return res.status(400).json({ error: `Ungültige sichtbarkeit_frei: ${sicht}` })
 
     try {
       const row = await queryOne(
         `INSERT INTO folgen
-           (produktion_id, folgen_titel, ist_frei, dokument_label, sichtbarkeit_frei, ersteller_user_id, erstellt_von)
-         VALUES ($1, $2, true, $3, $4, $5, $5)
+           (produktion_id, folgen_titel, ist_frei, dokument_label, sichtbarkeit_frei,
+            sichtbarkeit_frei_colab_gruppe_id, ersteller_user_id, erstellt_von)
+         VALUES ($1, $2, true, $3, $4, $5, $6, $6)
          RETURNING *`,
-        [produktion_id, folgen_titel.trim(), label, sicht, user.user_id]
+        [produktion_id, folgen_titel.trim(), label, sicht,
+         sicht === 'colab' ? (colab_gruppe_id ?? null) : null, user.user_id]
       )
       return res.status(201).json(row)
     } catch (err) {
@@ -245,14 +256,14 @@ folgenV2Router.post('/', async (req, res) => {
 // Freies Dokument: + dokument_label, sichtbarkeit_frei
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.put('/:id', async (req, res) => {
-  const { folgen_titel, synopsis, dokument_label, sichtbarkeit_frei } = req.body
+  const { folgen_titel, synopsis, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
   const user = req.user!
   try {
     const existing = await queryOne('SELECT * FROM folgen WHERE id = $1', [req.params.id])
     if (!existing) return res.status(404).json({ error: 'Folge nicht gefunden' })
 
-    // Für dauerhaft_privat-Dokumente: nur Ersteller oder Superadmin darf bearbeiten
-    if (existing.ist_frei && existing.sichtbarkeit_frei === 'dauerhaft_privat') {
+    // Für privat-Dokumente: nur Ersteller oder Superadmin darf bearbeiten
+    if (existing.ist_frei && existing.sichtbarkeit_frei === 'privat') {
       if (existing.ersteller_user_id !== user.user_id && user.role !== 'superadmin') {
         return res.status(404).json({ error: 'Nicht gefunden' })
       }
@@ -263,7 +274,7 @@ folgenV2Router.put('/:id', async (req, res) => {
       return res.status(400).json({ error: 'dokument_label darf nicht leer sein' })
     }
     if (sichtbarkeit_frei) {
-      const validSicht = ['dauerhaft_privat', 'team', 'alle']
+      const validSicht = ['privat', 'colab', 'produktion', 'alle']
       if (!validSicht.includes(sichtbarkeit_frei)) return res.status(400).json({ error: `Ungültige sichtbarkeit_frei` })
     }
 
@@ -272,9 +283,15 @@ folgenV2Router.put('/:id', async (req, res) => {
         folgen_titel     = COALESCE($1, folgen_titel),
         synopsis         = COALESCE($2, synopsis),
         dokument_label   = COALESCE($3, dokument_label),
-        sichtbarkeit_frei = COALESCE($4, sichtbarkeit_frei)
-       WHERE id = $5 RETURNING *`,
-      [folgen_titel ?? null, synopsis ?? null, dokument_label ?? null, sichtbarkeit_frei ?? null, req.params.id]
+        sichtbarkeit_frei = COALESCE($4, sichtbarkeit_frei),
+        sichtbarkeit_frei_colab_gruppe_id = CASE
+          WHEN $4 = 'colab' THEN $5::int
+          WHEN $4 IS NOT NULL THEN NULL
+          ELSE sichtbarkeit_frei_colab_gruppe_id
+        END
+       WHERE id = $6 RETURNING *`,
+      [folgen_titel ?? null, synopsis ?? null, dokument_label ?? null, sichtbarkeit_frei ?? null,
+       colab_gruppe_id ?? null, req.params.id]
     )
     res.json(row)
   } catch (err) {

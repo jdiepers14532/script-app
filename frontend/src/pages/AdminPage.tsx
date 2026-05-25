@@ -14,6 +14,7 @@ const ADMIN_TABS = [
   { id: 'dokument',       label: 'Dokument' },
   { id: 'autorenplan',    label: 'Autorenplan' },
   { id: 'analyse',        label: 'Analyse' },
+  { id: 'privatmodus',    label: 'Privat-Modus' },
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
   { id: 'pwa',            label: 'App / PWA' },
@@ -852,6 +853,101 @@ function AnalyseAdminTab() {
 
 // ── Main AdminPage ────────────────────────────────────────────────────────────
 
+// ── Privat-Modus Tab ──────────────────────────────────────────────────────────
+
+function PrivatmodusTab() {
+  const [stunden, setStunden] = useState<string>('')
+  const [current, setCurrent] = useState<string>('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.getAdminAppSettings().then(d => {
+      const val = d?.privat_modus_ablauf_stunden ?? '4'
+      setCurrent(val)
+      setStunden(val)
+    }).catch(() => {})
+  }, [])
+
+  const handleSave = async () => {
+    const h = parseInt(stunden, 10)
+    if (isNaN(h) || h < 1 || h > 168) {
+      setError('Bitte einen Wert zwischen 1 und 168 Stunden eingeben.')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await api.updateAdminAppSetting('privat_modus_ablauf_stunden', String(h))
+      setCurrent(String(h))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch (e: any) {
+      setError(e.message ?? 'Fehler beim Speichern')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const changed = stunden !== current
+
+  return (
+    <div style={{ padding: '28px 32px', maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 28 }}>
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Privat-Modus — automatischer Ablauf</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
+          Wenn ein Autor seinen Werkstufen-Privat-Modus aktiviert, läuft er nach dieser Zeit
+          automatisch ab und die Sichtbarkeit kehrt auf den vorherigen Wert zurück.
+          <br />
+          <strong>Freie Dokumente</strong> sind davon nicht betroffen — ihr Privat-Modus läuft
+          nie automatisch ab.
+        </p>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="number"
+              min={1}
+              max={168}
+              value={stunden}
+              onChange={e => { setStunden(e.target.value); setError(null) }}
+              style={{
+                width: 80,
+                padding: '7px 10px',
+                fontSize: 14,
+                border: '1.5px solid var(--border)',
+                borderRadius: 6,
+                background: 'var(--bg-surface)',
+                color: 'var(--text-primary)',
+                fontFamily: 'inherit',
+              }}
+            />
+            <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Stunden</span>
+          </div>
+          <button
+            className="btn primary"
+            onClick={handleSave}
+            disabled={saving || !changed}
+            style={{ minWidth: 90 }}
+          >
+            {saving ? 'Speichert…' : saved ? 'Gespeichert ✓' : 'Speichern'}
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: 10, fontSize: 13, color: '#FF3B30' }}>{error}</div>
+        )}
+
+        <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 8, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+          <strong>Aktuell gesetzt:</strong> {current} Stunden (Standardwert: 4 Stunden).<br />
+          Maximalwert: 168 Stunden (1 Woche). Der Worker prüft alle 15 Minuten auf abgelaufene Privat-Modi.
+        </div>
+      </section>
+    </div>
+  )
+}
+
 // ── PWA / App Tab ─────────────────────────────────────────────────────────────
 
 function PwaAdminTab() {
@@ -1274,6 +1370,7 @@ export default function AdminPage() {
           )}
           {activeTab === 'autorenplan'    && <AutorenplanAdminTab />}
           {activeTab === 'analyse'        && <AnalyseAdminTab />}
+          {activeTab === 'privatmodus'    && <PrivatmodusTab />}
           {activeTab === 'pwa'            && <PwaAdminTab />}
         </div>
       </div>

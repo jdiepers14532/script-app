@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FolderOpen, Plus, Pencil, Trash2, Link2,
-  Lock, Users, Globe, BookOpen, ChevronDown, ChevronRight,
+  Lock, Users, Globe, Building, BookOpen, ChevronDown, ChevronRight,
   Check, X, AlertTriangle, FileText, Eye,
 } from 'lucide-react'
 import AppShell from '../components/AppShell'
@@ -30,14 +30,15 @@ function displayLabel(value: string): string {
 // ── Sichtbarkeit ──────────────────────────────────────────────────────────────
 
 const SICHTBARKEIT_OPTIONS = [
-  { value: 'dauerhaft_privat', label: 'Privat',        icon: <Lock size={14} /> },
-  { value: 'team',             label: 'Team',           icon: <Users size={14} /> },
-  { value: 'alle',             label: 'Alle Autoren',   icon: <Globe size={14} /> },
+  { value: 'privat',     label: 'Privat',      icon: <Lock size={14} />,     desc: 'Nur du kannst sehen und bearbeiten' },
+  { value: 'colab',      label: 'Colab',       icon: <Users size={14} />,    desc: 'Ausgewählte Gruppe kann bearbeiten' },
+  { value: 'produktion', label: 'Produktion',  icon: <Building size={14} />, desc: 'Produktionsteam kann lesen' },
+  { value: 'alle',       label: 'Alle',        icon: <Globe size={14} />,    desc: 'Jeder mit Zugriff kann lesen' },
 ]
 
 function getSichtbarkeitInfo(value: string) {
   return SICHTBARKEIT_OPTIONS.find(s => s.value === value)
-    ?? { label: value, icon: <Eye size={14} /> }
+    ?? { label: value, icon: <Eye size={14} />, desc: '' }
 }
 
 // ── Inline-Styles ─────────────────────────────────────────────────────────────
@@ -147,24 +148,39 @@ function DokumentDialog({
   onSave,
   onClose,
   produktionLabels = [],
+  produktionId,
 }: {
-  initial?: { folgen_titel?: string; dokument_label?: string; sichtbarkeit_frei?: string }
-  onSave: (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string }) => Promise<void>
+  initial?: { folgen_titel?: string; dokument_label?: string; sichtbarkeit_frei?: string; colab_gruppe_id?: number | null }
+  onSave: (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string; colab_gruppe_id?: number | null }) => Promise<void>
   onClose: () => void
   produktionLabels?: string[]
+  produktionId?: string
 }) {
   const [titel, setTitel] = useState(initial?.folgen_titel ?? '')
   const [label, setLabel] = useState(displayLabel(initial?.dokument_label ?? 'sonstiges'))
-  const [sichtbarkeit, setSichtbarkeit] = useState(initial?.sichtbarkeit_frei ?? 'dauerhaft_privat')
+  const [sichtbarkeit, setSichtbarkeit] = useState(initial?.sichtbarkeit_frei ?? 'privat')
+  const [colabGruppeId, setColabGruppeId] = useState<number | null>(initial?.colab_gruppe_id ?? null)
+  const [colabGruppen, setColabGruppen] = useState<any[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (produktionId) {
+      api.getColabGruppen(produktionId).then(setColabGruppen).catch(() => {})
+    }
+  }, [produktionId])
+
   const handleSave = async () => {
     if (!titel.trim()) { setError('Bitte gib einen Titel ein.'); return }
-    if (!label.trim()) { setError('Bitte gib einen Dokumenttyp ein.'); return }
+    if (!label.trim()) { setError('Bitte gib ein Label ein.'); return }
     setSaving(true)
     try {
-      await onSave({ folgen_titel: titel.trim(), dokument_label: label.trim(), sichtbarkeit_frei: sichtbarkeit })
+      await onSave({
+        folgen_titel: titel.trim(),
+        dokument_label: label.trim(),
+        sichtbarkeit_frei: sichtbarkeit,
+        colab_gruppe_id: sichtbarkeit === 'colab' ? colabGruppeId : null,
+      })
       onClose()
     } catch (err: any) {
       setError(err?.message ?? 'Fehler beim Speichern')
@@ -221,18 +237,49 @@ function DokumentDialog({
 
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: 'var(--text-secondary)' }}>SICHTBARKEIT</label>
-            <select
-              value={sichtbarkeit}
-              onChange={e => setSichtbarkeit(e.target.value)}
-              style={inputStyle}
-            >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {SICHTBARKEIT_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setSichtbarkeit(opt.value)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 12px', border: `1.5px solid ${sichtbarkeit === opt.value ? '#007AFF' : 'var(--border)'}`,
+                    borderRadius: 8, background: sichtbarkeit === opt.value ? 'rgba(0,122,255,0.06)' : 'transparent',
+                    cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%',
+                  }}
+                >
+                  <span style={{ color: sichtbarkeit === opt.value ? '#007AFF' : 'var(--text-secondary)', flexShrink: 0 }}>
+                    {opt.icon}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{opt.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{opt.desc}</div>
+                  </div>
+                </button>
               ))}
-            </select>
-            {sichtbarkeit === 'dauerhaft_privat' && (
+            </div>
+            {sichtbarkeit === 'colab' && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                  Colab-Gruppe
+                </label>
+                <select
+                  value={colabGruppeId ?? ''}
+                  onChange={e => setColabGruppeId(e.target.value ? Number(e.target.value) : null)}
+                  style={inputStyle}
+                >
+                  <option value="">Keine Gruppe gewählt</option>
+                  {colabGruppen.filter(g => g.typ === 'colab').map(g => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {sichtbarkeit === 'privat' && (
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 6 }}>
-                Automatisches Aufheben des Privat-Modus ist deaktiviert.
+                Privat-Modus bei freien Dokumenten läuft nicht automatisch ab.
               </div>
             )}
           </div>
@@ -562,14 +609,14 @@ export default function FreieDokumentePage() {
       .catch(() => {})
   }, [selectedProduktionId])
 
-  const handleCreate = async (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string }) => {
+  const handleCreate = async (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string; colab_gruppe_id?: number | null }) => {
     if (!selectedProduktionId) throw new Error('Keine Produktion ausgewählt')
     const dok = await api.createFreiesDokument({ produktion_id: selectedProduktionId, ...data })
     await load()
     navigate(`/?freidok_id=${encodeURIComponent(dok.id)}`)
   }
 
-  const handleEdit = async (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string }) => {
+  const handleEdit = async (data: { folgen_titel: string; dokument_label: string; sichtbarkeit_frei: string; colab_gruppe_id?: number | null }) => {
     await api.updateFolgeV2(editDok.id, data)
     await load()
   }
@@ -656,14 +703,25 @@ export default function FreieDokumentePage() {
 
       {/* Modals */}
       {createOpen && (
-        <DokumentDialog onSave={handleCreate} onClose={() => setCreateOpen(false)} produktionLabels={prodLabels} />
+        <DokumentDialog
+          onSave={handleCreate}
+          onClose={() => setCreateOpen(false)}
+          produktionLabels={prodLabels}
+          produktionId={selectedProduktionId ?? undefined}
+        />
       )}
       {editDok && (
         <DokumentDialog
-          initial={{ folgen_titel: editDok.folgen_titel, dokument_label: editDok.dokument_label, sichtbarkeit_frei: editDok.sichtbarkeit_frei }}
+          initial={{
+            folgen_titel: editDok.folgen_titel,
+            dokument_label: editDok.dokument_label,
+            sichtbarkeit_frei: editDok.sichtbarkeit_frei,
+            colab_gruppe_id: editDok.sichtbarkeit_frei_colab_gruppe_id,
+          }}
           onSave={handleEdit}
           onClose={() => { setEditDok(null); load() }}
           produktionLabels={prodLabels}
+          produktionId={selectedProduktionId ?? undefined}
         />
       )}
       {deleteDok && (
