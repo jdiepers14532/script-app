@@ -286,7 +286,7 @@ folgenV2Router.put('/:id', async (req, res) => {
         sichtbarkeit_frei = COALESCE($4, sichtbarkeit_frei),
         sichtbarkeit_frei_geaendert_am = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE sichtbarkeit_frei_geaendert_am END,
         sichtbarkeit_frei_colab_gruppe_id = CASE
-          WHEN $4 = 'colab' THEN $5::int
+          WHEN $4 = 'colab' THEN $5::uuid
           WHEN $4 IS NOT NULL THEN NULL
           ELSE sichtbarkeit_frei_colab_gruppe_id
         END

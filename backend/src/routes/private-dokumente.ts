@@ -217,7 +217,7 @@ privateDokumenteRouter.post('/:id/sichtbarkeit', async (req, res) => {
       `UPDATE folgen SET
          sichtbarkeit_frei = $1,
          sichtbarkeit_frei_geaendert_am = NOW(),
-         sichtbarkeit_frei_colab_gruppe_id = CASE WHEN $1 = 'colab' THEN $2::int ELSE NULL END
+         sichtbarkeit_frei_colab_gruppe_id = CASE WHEN $1 = 'colab' THEN $2::uuid ELSE NULL END
        WHERE id = $3`,
       [neue_sichtbarkeit, colab_gruppe_id ?? null, req.params.id]
     )

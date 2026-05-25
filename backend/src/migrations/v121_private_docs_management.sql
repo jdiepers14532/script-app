@@ -21,8 +21,8 @@ CREATE INDEX IF NOT EXISTS idx_fdsl_folge ON freie_dok_sichtbarkeit_log(folge_id
 CREATE INDEX IF NOT EXISTS idx_fdsl_changed ON freie_dok_sichtbarkeit_log(geaendert_am DESC);
 
 -- App-Settings für Private-Dokumente-Verwaltung
-INSERT INTO app_settings (key, value, beschreibung) VALUES
-  ('private_docs_filter_2_enabled', 'false', 'Filter 2 (mit Folge verknüpft) in DK Private-Dokumente aktiviert'),
-  ('private_docs_filter_3_enabled', 'false', 'Filter 3 (alle privaten freien Dokumente) in DK Private-Dokumente aktiviert'),
-  ('private_docs_viewer_roles',     '[]',    'Zusätzliche Rollen mit Zugriff auf DK Private-Dokumente (JSON-Array, neben superadmin/admin)')
+INSERT INTO app_settings (key, value) VALUES
+  ('private_docs_filter_2_enabled', 'false'),
+  ('private_docs_filter_3_enabled', 'false'),
+  ('private_docs_viewer_roles',     '[]')
 ON CONFLICT (key) DO NOTHING;
