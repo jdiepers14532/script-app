@@ -1031,6 +1031,8 @@ function EditorToolbar({ editor }: { editor: Editor | null }) {
     )
   }
 
+  const setFontAttr = (key: string, val: string | null) => chipSelected ? setChipAttr(key, val) : setParaAttr(key, val)
+
   const toggleBold = () => {
     if (chipSelected) setChipAttr('fontWeight', isBold ? null : 'bold')
     else editor.chain().focus().toggleBold().run()
