@@ -365,7 +365,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, max-content)', gap: '6px 20px', alignItems: 'center' }}>
           {([1, 2] as const).flatMap(row =>
             KUERZEL_FIELDS.filter(f => f.row === row).map(({ key, label }, i) => (
-              <label key={key} style={{ gridRow: row, gridColumn: i + 1, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label key={key} style={{ gridRow: row, gridColumn: i + 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, minWidth: 120 }}>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>{label}</span>
                 <input
                   type="text"
@@ -373,7 +373,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
                   value={kuerzel[key] ?? ''}
                   onChange={e => setKuerzel(prev => ({ ...prev, [key]: e.target.value }))}
                   onBlur={() => saveKuerzel(kuerzel)}
-                  style={{ width: 44, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit', textTransform: 'uppercase', textAlign: 'center' }}
+                  style={{ width: 44, flexShrink: 0, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 13, fontFamily: 'inherit', textTransform: 'uppercase', textAlign: 'center' }}
                 />
               </label>
             ))
