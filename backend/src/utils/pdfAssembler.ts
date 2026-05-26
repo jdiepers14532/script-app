@@ -1134,6 +1134,12 @@ async function assembleHtml(
       ? titelseiteHtmlParts.join('\n')
       : null
 
+    // DEBUG: Titelseite-Inhalt für Diagnose loggen
+    if (titelseiteHtml) {
+      const hasDruckauswahl = titelseiteHtml.includes('Auswahl')
+      console.log('[titelseite] druckauswahl im ctx:', ctx.druckauswahl, '| "Auswahl" im HTML:', hasDruckauswahl, '| HTML-Snippet:', titelseiteHtml.slice(0, 400))
+    }
+
     const postSections: string[] = []
     for (const item of resolvedPostItems) {
       const html = await renderOrderedItem(item)
