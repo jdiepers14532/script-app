@@ -175,7 +175,9 @@ function saveOverrides(mode: 'light' | 'dark', o: Record<string, string>) {
 }
 
 function readToken(cssVar: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim()
+  // Overrides sitzen auf [data-theme]-Element (div.app), nicht auf <html>
+  const appEl = document.querySelector<HTMLElement>('[data-theme]') ?? document.documentElement
+  return getComputedStyle(appEl).getPropertyValue(cssVar).trim()
 }
 
 function isLightColor(hex: string): boolean {
@@ -290,10 +292,12 @@ function ColorChip({ token, mode, isOverridden, onSet, onReset }: {
       background: isOverridden ? 'rgba(0,122,255,0.05)' : 'transparent',
       border: `1px solid ${isOverridden ? 'rgba(0,122,255,0.2)' : 'transparent'}`,
     }}>
+      {/* Chip-Button mit darin geanktertem Color-Picker-Input (bottom-left) */}
       <div
         onClick={() => isHex && inputRef.current?.click()}
         title={isHex ? 'Klicken zum Ändern' : 'Nicht direkt editierbar'}
         style={{
+          position: 'relative',
           width: 32, height: 32, borderRadius: 7, flexShrink: 0,
           cursor: isHex ? 'pointer' : 'default',
           background: `var(${token.cssVar})`,
@@ -303,13 +307,15 @@ function ColorChip({ token, mode, isOverridden, onSet, onReset }: {
         }}
         onMouseEnter={e => isHex && ((e.target as HTMLElement).style.transform = 'scale(1.1)')}
         onMouseLeave={e => ((e.target as HTMLElement).style.transform = 'scale(1)')}
-      />
-      <input
-        ref={inputRef} type="color"
-        value={isHex ? currentVal : '#000000'}
-        onChange={e => { onSet(token.cssVar, e.target.value); setCurrentVal(e.target.value) }}
-        style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
-      />
+      >
+        {/* Input am unteren linken Rand des Chips → Color-Picker öffnet dort */}
+        <input
+          ref={inputRef} type="color"
+          value={isHex ? currentVal : '#000000'}
+          onChange={e => { onSet(token.cssVar, e.target.value); setCurrentVal(e.target.value) }}
+          style={{ position: 'absolute', bottom: 0, left: 0, opacity: 0, width: 1, height: 1, pointerEvents: 'none' }}
+        />
+      </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{token.label}</div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{token.cssVar}</div>
