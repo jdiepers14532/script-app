@@ -3,6 +3,7 @@ import { Copy, Check, RefreshCw, ChevronDown, ChevronRight, Clock, Database } fr
 import ReactMarkdown from 'react-markdown'
 import AppShell from '../components/AppShell'
 import { useSelectedProduction } from '../contexts'
+import { productionLabel } from '../hooks/useProduction'
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
@@ -170,9 +171,9 @@ function MethodBadge({ method, fromCache }: { method: string; fromCache: boolean
 // ── Hauptseite ────────────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
-  const { selectedProduction, productions } = useSelectedProduction()
+  const { selectedProduction } = useSelectedProduction()
 
-  const [selectedProdId, setSelectedProdId] = useState<string>(selectedProduction?.id || '')
+  const selectedProdId = selectedProduction?.id ?? ''
   const [blocks, setBlocks]     = useState<Block[]>([])
   const [blockNr, setBlockNr]   = useState<number | null>(null)
   const [ersterBlock, setErsterBlock] = useState<number>(1)
@@ -186,6 +187,7 @@ export default function AnalysisPage() {
 
   // Blöcke laden wenn Produktion gewechselt
   useEffect(() => {
+    setResults(null)
     if (!selectedProdId) { setBlocks([]); setBlockNr(null); return }
     fetch(`/api/produktionen/${encodeURIComponent(selectedProdId)}/bloecke`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
@@ -193,9 +195,7 @@ export default function AnalysisPage() {
         const blocksArr: Block[] = data.bloecke || data || []
         setBlocks(blocksArr)
         setErsterBlock(data.erster_block ?? 1)
-        if (blocksArr.length > 0 && blockNr == null) {
-          setBlockNr((data.erster_block ?? 1))
-        }
+        setBlockNr(blocksArr.length > 0 ? (data.erster_block ?? 1) : null)
       })
       .catch(() => setBlocks([]))
   }, [selectedProdId])
@@ -269,21 +269,24 @@ export default function AnalysisPage() {
                 Produktion &amp; Block
               </div>
 
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Produktion</label>
-              <select
-                value={selectedProdId}
-                onChange={e => { setSelectedProdId(e.target.value); setBlockNr(null); setResults(null) }}
-                style={{
-                  width: '100%', padding: '8px 10px', borderRadius: 6,
-                  border: '1px solid var(--border)', background: 'var(--bg-subtle)',
-                  fontSize: 13, color: 'var(--text-primary)', marginBottom: 12,
-                }}
-              >
-                <option value="">— Produktion wählen —</option>
-                {productions.map((p: any) => (
-                  <option key={p.id} value={p.id}>{p.title}</option>
-                ))}
-              </select>
+              {selectedProduction ? (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>
+                    {productionLabel(selectedProduction)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    Produktion wechseln: oben in der AppShell
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  marginBottom: 12, padding: '8px 10px', borderRadius: 6,
+                  border: '1px solid var(--border)', background: 'rgba(255,204,0,0.08)',
+                  fontSize: 12, color: 'var(--text-secondary)',
+                }}>
+                  Keine Produktion gewählt — bitte oben in der AppShell auswählen.
+                </div>
+              )}
 
               <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Block-Nummer</label>
               <select
