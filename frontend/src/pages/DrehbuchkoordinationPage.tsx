@@ -1555,6 +1555,19 @@ function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
 
 // ── Tab: Dokument-Typen (Absatzformate) ─────────────────────────────────────────
 
+const PRESET_HAS_INFO = new Set([
+  'US Master Scene Format (A4)',
+  'WGA Sitcom Multi-Camera',
+  'BBC TV Drama',
+  'Theaterstück (Samuel French)',
+])
+
+const PRESET_INFO_HEADER: Record<string, { title: string; subtitle: string }> = {
+  'US Master Scene Format (A4)':    { title: 'US Master Scene Format', subtitle: '10 CPI · 6 LPI · Courier 12pt' },
+  'WGA Sitcom Multi-Camera':        { title: 'WGA Sitcom Multi-Camera', subtitle: 'Doppelter Zeilenabstand · Shot-Card-Format' },
+  'BBC TV Drama':                   { title: 'BBC TV Drama Format', subtitle: 'BBC Writers Room Standard · A4' },
+  'Theaterstück (Samuel French)':   { title: 'Theaterstück — Samuel French', subtitle: 'Englischsprachiger Bühnenstandard · kein INT./EXT.' },
+}
 
 type DokTypenMargins = { oben: number; unten: number; links: number; rechts: number }
 
@@ -1955,10 +1968,10 @@ function DokumentTypenTab({
         <span style={{ fontSize: 12, fontWeight: 600 }}>
           Absatz-Formatierungen{selectedPreset ? ` von „${selectedPreset.name}"` : ''}
         </span>
-        {selectedPreset?.name === 'US Master Scene Format (A4)' && (
+        {selectedPreset && PRESET_HAS_INFO.has(selectedPreset.name) && (
           <button
             onClick={() => setShowUsInfo(true)}
-            title="Erklärung zum US Master Scene Format"
+            title={`Erklärung zum ${selectedPreset.name}`}
             style={{
               width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #007AFF',
               background: 'transparent', color: '#007AFF', fontSize: 11, fontWeight: 700,
@@ -2269,8 +2282,8 @@ function DokumentTypenTab({
         </div>
       )}
 
-      {/* US Master Scene Format Info Modal */}
-      {showUsInfo && createPortal(
+      {/* Preset Info Modal — generisch für alle Formate mit PRESET_HAS_INFO */}
+      {showUsInfo && selectedPreset && PRESET_HAS_INFO.has(selectedPreset.name) && createPortal(
         <div ref={usInfoElRef} style={{
           position: 'fixed', left: usInfoPos.x, top: usInfoPos.y,
           width: 560, minWidth: 320, maxWidth: '92vw',
@@ -2296,10 +2309,10 @@ function DokumentTypenTab({
             }}
           >
             <span style={{ fontSize: 13, fontWeight: 700, flex: 1, letterSpacing: 0.2 }}>
-              US Master Scene Format
+              {PRESET_INFO_HEADER[selectedPreset.name]?.title ?? selectedPreset.name}
             </span>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#c9d1d9', fontFamily: 'Courier Prime, Courier, monospace', whiteSpace: 'nowrap' }}>
-              10 CPI · 6 LPI · Courier 12pt
+              {PRESET_INFO_HEADER[selectedPreset.name]?.subtitle ?? ''}
             </span>
             <button onClick={() => setShowUsInfo(false)} style={{
               background: 'rgba(255,255,255,0.1)', border: 'none', color: '#e6edf3',
@@ -2312,110 +2325,392 @@ function DokumentTypenTab({
           {/* Scrollable Content */}
           <div style={{ overflow: 'auto', flex: 1, padding: '16px 18px', fontSize: 12, lineHeight: 1.6, color: 'var(--text-primary)' }}>
 
-            {/* ── Sektion 1: Das Raster ─────────── */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
-                Das Monospace-Raster
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>
-                Das US-Drehbuchformat ist kein „Layout" im typografischen Sinn, sondern ein festes Zeichenraster. Es funktioniert nur, weil Courier eine Monospace-Schrift ist: jedes Zeichen — ob „i" oder „W" — belegt exakt dieselbe Breite. Dadurch ist jede Position auf der Seite über Zeichen und Zeilen eindeutig adressierbar, unabhängig von der Software.
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                <div style={{ background: '#007AFF12', border: '1px solid #007AFF35', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#007AFF', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 1 }}>10</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>CPI</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>10 Zeichen = 1 Zoll</div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Zeichenbreite 2,54 mm</div>
+            {/* ══ US Master Scene Format ══════════════════════════════════════════ */}
+            {selectedPreset.name === 'US Master Scene Format (A4)' && (<>
+              {/* Sektion: Das Raster */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Das Monospace-Raster
                 </div>
-                <div style={{ background: '#00C85312', border: '1px solid #00C85335', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#00C853', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 1 }}>6</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>LPI</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>6 Zeilen = 1 Zoll</div>
-                  <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Zeilenhöhe 4,23 mm</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>
+                  Das US-Drehbuchformat ist kein „Layout" im typografischen Sinn, sondern ein festes Zeichenraster. Es funktioniert nur, weil Courier eine Monospace-Schrift ist: jedes Zeichen — ob „i" oder „W" — belegt exakt dieselbe Breite. Dadurch ist jede Position auf der Seite über Zeichen und Zeilen eindeutig adressierbar, unabhängig von der Software.
                 </div>
-              </div>
-              <div style={{ background: '#FF950012', border: '1px solid #FF950045', borderRadius: 8, padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontSize: 20, flexShrink: 0 }}>⏱</span>
-                <div>
-                  <div style={{ fontWeight: 700, color: '#FF9500', fontSize: 12 }}>1 Seite ≈ 1 Filmminute</div>
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Diese Regel gilt nur, solange Schrift, Zeichenbreite und Zeilenhöhe unverändert bleiben.</div>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Sektion 2: Einzüge (visuell) ─── */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
-                Einzüge der Elemente (Textspalte = 60 Zeichen)
-              </div>
-              {([
-                { label: 'Scene Heading / Action', indent: 0,  width: 60, color: '#007AFF', desc: '0 Z. — volle Spalte (1,5″ / 3,81 cm vom Blattrand)' },
-                { label: 'Dialogue',               indent: 10, width: 35, color: '#00C853', desc: '10 Z. Einzug · 35 Z. breit (2,5″ / 6,35 cm)' },
-                { label: 'Parenthetical',          indent: 16, width: 20, color: '#AF52DE', desc: '16 Z. Einzug · 20 Z. breit (3,1″ / 7,87 cm)' },
-                { label: 'Character',              indent: 22, width: 38, color: '#FF9500', desc: '22 Z. Einzug · UPPERCASE (3,7″ / 9,40 cm)' },
-                { label: 'Transition', indent: 0, width: 10, color: '#8b949e', desc: 'rechtsbündig — kein fixer Einzug', rightAlign: true },
-              ] as { label: string; indent: number; width: number; color: string; desc: string; rightAlign?: boolean }[]).map(el => (
-                <div key={el.label} style={{ marginBottom: 7 }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
-                    <span style={{ fontSize: 10, fontWeight: 600, minWidth: 170, color: 'var(--text-primary)' }}>{el.label}</span>
-                    <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{el.desc}</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
+                  <div style={{ background: '#007AFF12', border: '1px solid #007AFF35', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: '#007AFF', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 1 }}>10</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>CPI</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>10 Zeichen = 1 Zoll</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Zeichenbreite 2,54 mm</div>
                   </div>
-                  <div style={{ position: 'relative', height: 10, background: 'var(--bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>
-                    <div style={{
-                      position: 'absolute',
-                      ...(el.rightAlign
-                        ? { right: 0, width: `${(el.width / 60) * 100}%` }
-                        : { left: `${(el.indent / 60) * 100}%`, width: `${(el.width / 60) * 100}%` }),
-                      height: '100%',
-                      background: el.color,
-                      opacity: 0.65,
-                      borderRadius: 2,
-                    }} />
+                  <div style={{ background: '#00C85312', border: '1px solid #00C85335', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: '#00C853', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 1 }}>6</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>LPI</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 4 }}>6 Zeilen = 1 Zoll</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)' }}>Zeilenhöhe 4,23 mm</div>
                   </div>
                 </div>
-              ))}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
-                <span>← linker Seitenrand (3,81 cm)</span>
-                <span>60 Zeichen = 15,24 cm →</span>
+                <div style={{ background: '#FF950012', border: '1px solid #FF950045', borderRadius: 8, padding: '9px 13px', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 20, flexShrink: 0 }}>⏱</span>
+                  <div>
+                    <div style={{ fontWeight: 700, color: '#FF9500', fontSize: 12 }}>1 Seite ≈ 1 Filmminute</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Diese Regel gilt nur, solange Schrift, Zeichenbreite und Zeilenhöhe unverändert bleiben.</div>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* ── Sektion 3: Letter vs. A4 Tabelle */}
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
-                Seitenränder — US Letter vs. A4 (dieses Preset)
+              {/* Sektion: Einzüge */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Einzüge der Elemente (Textspalte = 60 Zeichen)
+                </div>
+                {([
+                  { label: 'Scene Heading / Action', indent: 0,  width: 60, color: '#007AFF', desc: '0 Z. — volle Spalte (1,5″ / 3,81 cm vom Blattrand)' },
+                  { label: 'Dialogue',               indent: 10, width: 35, color: '#00C853', desc: '10 Z. Einzug · 35 Z. breit (2,5″ / 6,35 cm)' },
+                  { label: 'Parenthetical',          indent: 16, width: 20, color: '#AF52DE', desc: '16 Z. Einzug · 20 Z. breit (3,1″ / 7,87 cm)' },
+                  { label: 'Character',              indent: 22, width: 38, color: '#FF9500', desc: '22 Z. Einzug · UPPERCASE (3,7″ / 9,40 cm)' },
+                  { label: 'Transition', indent: 0, width: 10, color: '#8b949e', desc: 'rechtsbündig — kein fixer Einzug', rightAlign: true },
+                ] as { label: string; indent: number; width: number; color: string; desc: string; rightAlign?: boolean }[]).map(el => (
+                  <div key={el.label} style={{ marginBottom: 7 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, minWidth: 170, color: 'var(--text-primary)' }}>{el.label}</span>
+                      <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{el.desc}</span>
+                    </div>
+                    <div style={{ position: 'relative', height: 10, background: 'var(--bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>
+                      <div style={{
+                        position: 'absolute',
+                        ...(el.rightAlign
+                          ? { right: 0, width: `${(el.width / 60) * 100}%` }
+                          : { left: `${(el.indent / 60) * 100}%`, width: `${(el.width / 60) * 100}%` }),
+                        height: '100%', background: el.color, opacity: 0.65, borderRadius: 2,
+                      }} />
+                    </div>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9, color: 'var(--text-muted)', marginTop: 4 }}>
+                  <span>← linker Seitenrand (3,81 cm)</span>
+                  <span>60 Zeichen = 15,24 cm →</span>
+                </div>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
-                <thead>
-                  <tr style={{ background: 'var(--bg-subtle)' }}>
-                    <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Element</th>
-                    <th style={{ textAlign: 'right', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>US Letter</th>
-                    <th style={{ textAlign: 'right', padding: '5px 8px', fontWeight: 600, color: '#007AFF', borderBottom: '1px solid var(--border)' }}>A4 (dieses Preset)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {([
-                    { label: 'Blatt',        letter: '21,59 × 27,94 cm', a4: '21,0 × 29,7 cm',          ok: false, bold: false },
-                    { label: 'Rand links',   letter: '3,81 cm',           a4: '3,81 cm ✓',               ok: true,  bold: false },
-                    { label: 'Rand rechts',  letter: '2,54 cm',           a4: '1,95 cm',                 ok: false, bold: false },
-                    { label: 'Rand oben',    letter: '2,54 cm',           a4: '2,54 cm ✓',               ok: true,  bold: false },
-                    { label: 'Rand unten',   letter: '2,54 cm',           a4: '4,30 cm',                 ok: false, bold: false },
-                    { label: 'Textspalte',   letter: '15,24 cm / 60 Z.',  a4: '15,24 cm / 60 Z. ✓',     ok: true,  bold: true  },
-                    { label: 'Texthöhe',     letter: '22,86 cm / 54 Zl.', a4: '22,86 cm / 54 Zl. ✓',   ok: true,  bold: true  },
-                  ] as { label: string; letter: string; a4: string; ok: boolean; bold: boolean }[]).map((row, i) => (
-                    <tr key={row.label} style={{ background: row.bold ? '#007AFF08' : (i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)') }}>
-                      <td style={{ padding: '4px 8px', color: 'var(--text-primary)', fontWeight: row.bold ? 600 : 400 }}>{row.label}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10 }}>{row.letter}</td>
-                      <td style={{ padding: '4px 8px', textAlign: 'right', color: row.ok ? '#00C853' : 'var(--text-primary)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10, fontWeight: row.bold ? 600 : 400 }}>{row.a4}</td>
+
+              {/* Sektion: Letter vs. A4 */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Seitenränder — US Letter vs. A4 (dieses Preset)
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-subtle)' }}>
+                      <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Element</th>
+                      <th style={{ textAlign: 'right', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>US Letter</th>
+                      <th style={{ textAlign: 'right', padding: '5px 8px', fontWeight: 600, color: '#007AFF', borderBottom: '1px solid var(--border)' }}>A4 (dieses Preset)</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', padding: '7px 10px', background: 'var(--bg-subtle)', borderRadius: 6, lineHeight: 1.6 }}>
-                Das Raster (10 CPI / 6 LPI) bleibt 1:1 erhalten — nur der rechte Rand schrumpft von 2,54 cm auf 1,95 cm.<br />
-                So bleibt die <em>Minuten-pro-Seite-Regel</em> auf A4 korrekt.
+                  </thead>
+                  <tbody>
+                    {([
+                      { label: 'Blatt',        letter: '21,59 × 27,94 cm', a4: '21,0 × 29,7 cm',        ok: false, bold: false },
+                      { label: 'Rand links',   letter: '3,81 cm',           a4: '3,81 cm ✓',             ok: true,  bold: false },
+                      { label: 'Rand rechts',  letter: '2,54 cm',           a4: '1,95 cm',               ok: false, bold: false },
+                      { label: 'Rand oben',    letter: '2,54 cm',           a4: '2,54 cm ✓',             ok: true,  bold: false },
+                      { label: 'Rand unten',   letter: '2,54 cm',           a4: '4,30 cm',               ok: false, bold: false },
+                      { label: 'Textspalte',   letter: '15,24 cm / 60 Z.',  a4: '15,24 cm / 60 Z. ✓',   ok: true,  bold: true  },
+                      { label: 'Texthöhe',     letter: '22,86 cm / 54 Zl.', a4: '22,86 cm / 54 Zl. ✓', ok: true,  bold: true  },
+                    ] as { label: string; letter: string; a4: string; ok: boolean; bold: boolean }[]).map((row, i) => (
+                      <tr key={row.label} style={{ background: row.bold ? '#007AFF08' : (i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)') }}>
+                        <td style={{ padding: '4px 8px', color: 'var(--text-primary)', fontWeight: row.bold ? 600 : 400 }}>{row.label}</td>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10 }}>{row.letter}</td>
+                        <td style={{ padding: '4px 8px', textAlign: 'right', color: row.ok ? '#00C853' : 'var(--text-primary)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10, fontWeight: row.bold ? 600 : 400 }}>{row.a4}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', padding: '7px 10px', background: 'var(--bg-subtle)', borderRadius: 6, lineHeight: 1.6 }}>
+                  Das Raster (10 CPI / 6 LPI) bleibt 1:1 erhalten — nur der rechte Rand schrumpft von 2,54 cm auf 1,95 cm.<br />
+                  So bleibt die <em>Minuten-pro-Seite-Regel</em> auf A4 korrekt.
+                </div>
               </div>
-            </div>
+
+              {/* Sektion: Verwendet für */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Verwendet für
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                  Gängiges Format für <strong style={{ color: 'var(--text-primary)' }}>Feature Film · One-Hour Drama · Sitcom Single-Camera</strong>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {['Breaking Bad', 'Game of Thrones', 'The Wire', 'Succession', 'The Sopranos', 'Mad Men', 'Better Call Saul'].map(show => (
+                    <span key={show} style={{ fontSize: 10, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', color: 'var(--text-secondary)' }}>
+                      {show}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  Alle großen US-Dramen verwenden das US Master Scene Format ohne Abweichungen — es ist seit den 1980ern der de-facto-Standard der amerikanischen Filmindustrie.
+                </div>
+              </div>
+            </>)}
+
+            {/* ══ WGA Sitcom Multi-Camera ═════════════════════════════════════════ */}
+            {selectedPreset.name === 'WGA Sitcom Multi-Camera' && (<>
+              {/* Sektion: Was ist das Multi-Camera-Format? */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Das Multi-Camera-Format
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Das WGA Multi-Camera-Format wurde für Sitcoms entwickelt, die gleichzeitig mit mehreren Kameras vor Live-Publikum gedreht werden. Das Skript dient dabei als <strong style={{ color: 'var(--text-primary)' }}>Shot Card</strong> — ein Arbeitsdokument für Kameramänner, Regie und Schauspiel-Crew.
+                </div>
+              </div>
+
+              {/* Sektion: Shot-Card-Konzept visuell */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Wozu die breiten Seitenränder?
+                </div>
+                <div style={{ position: 'relative', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', fontSize: 10, fontFamily: 'Courier Prime, Courier, monospace' }}>
+                  {/* Header */}
+                  <div style={{ background: 'var(--bg-subtle)', padding: '5px 10px', fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: 0.5 }}>
+                    SEITE ALS SHOT CARD — schematisch
+                  </div>
+                  {/* Seitendiagramm */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '72px 1fr 72px', minHeight: 110 }}>
+                    <div style={{ background: '#FF950015', borderRight: '2px dashed #FF950060', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6, gap: 4 }}>
+                      <span style={{ fontSize: 8, fontWeight: 700, color: '#FF9500', textAlign: 'center', lineHeight: 1.2 }}>LINKER RAND</span>
+                      <span style={{ fontSize: 7, color: 'var(--text-muted)', textAlign: 'center' }}>3,81 cm</span>
+                      <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+                        {['A-CAM', 'B-CAM', 'C-CAM'].map(c => (
+                          <div key={c} style={{ fontSize: 7, background: '#FF950025', borderRadius: 2, padding: '1px 4px', color: '#FF9500', textAlign: 'center' }}>{c}</div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: 0.3 }}>INT. WOHNZIMMER — TAG</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', lineHeight: 2 }}>JOEY SCHAUT VERWIRRT AUF SEINEN FREUND.</div>
+                      <div style={{ textAlign: 'center', fontSize: 10, fontWeight: 700, color: 'var(--text-primary)' }}>CHANDLER</div>
+                      <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: 2, marginLeft: 10, marginRight: 10 }}>Ich habe keine Ahnung, was hier passiert.</div>
+                    </div>
+                    <div style={{ background: '#007AFF15', borderLeft: '2px dashed #007AFF60', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 6, gap: 4 }}>
+                      <span style={{ fontSize: 8, fontWeight: 700, color: '#007AFF', textAlign: 'center', lineHeight: 1.2 }}>RECHTER RAND</span>
+                      <span style={{ fontSize: 7, color: 'var(--text-muted)', textAlign: 'center' }}>3,81 cm</span>
+                      <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2, width: '100%' }}>
+                        {['DOLLY', 'ZOOM', 'MARK'].map(c => (
+                          <div key={c} style={{ fontSize: 7, background: '#007AFF25', borderRadius: 2, padding: '1px 4px', color: '#007AFF', textAlign: 'center' }}>{c}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  Beide Seitenränder (je 3,81 cm) bleiben bewusst leer — Kameramänner und Regisseur tragen dort während der Probe die Camera-Assignments und Blocking-Notizen ein.
+                </div>
+              </div>
+
+              {/* Sektion: Doppelter Zeilenabstand */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Warum doppelter Zeilenabstand?
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>Single-Camera (US Master)</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 1.4 }}>
+                      ACTION LINE<br />
+                      ACTION LINE<br />
+                      ACTION LINE
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 9, color: 'var(--text-muted)' }}>Zeilenabstand: 1,0 — kein Annotationsraum</div>
+                  </div>
+                  <div style={{ background: '#FF950010', border: '1px solid #FF950030', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#FF9500', marginBottom: 4 }}>Multi-Camera (dieses Preset)</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: 'Courier Prime, Courier, monospace', lineHeight: 2 }}>
+                      ACTION LINE<br />
+                      ACTION LINE<br />
+                      ACTION LINE
+                    </div>
+                    <div style={{ marginTop: 6, fontSize: 9, color: 'var(--text-muted)' }}>Zeilenabstand: 2,0 — Platz für Blocking-Notizen</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sektion: Typische Produktionen */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Typisch für
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {['Friends', 'The Big Bang Theory', 'Two and a Half Men', 'How I Met Your Mother', 'Seinfeld', 'Cheers', 'Frasier'].map(show => (
+                    <span key={show} style={{ fontSize: 10, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', color: 'var(--text-secondary)' }}>
+                      {show}
+                    </span>
+                  ))}
+                </div>
+                <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  <em>The Office (US)</em> und <em>Modern Family</em> wurden zwar als Sitcoms verkauft, aber im Single-Camera-Format gedreht — sie verwenden das US Master Scene Format, nicht dieses Preset.
+                </div>
+              </div>
+            </>)}
+
+            {/* ══ BBC TV Drama ════════════════════════════════════════════════════ */}
+            {selectedPreset.name === 'BBC TV Drama' && (<>
+              {/* Sektion: Was ist das BBC-Format? */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  BBC Writers Room Standard
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Das BBC TV Drama Format ist der offizielle Standard des <strong style={{ color: 'var(--text-primary)' }}>BBC Writers Room</strong> — der zentralen Drehbuch-Entwicklungsabteilung der BBC. Es entspricht weitgehend dem US Master Scene Format, ist aber explizit auf A4 ausgelegt und verwendet leicht andere Ränder.
+                </div>
+              </div>
+
+              {/* Sektion: Unterschiede zum US Master */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Unterschiede zum US Master Scene Format
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-subtle)' }}>
+                      <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Aspekt</th>
+                      <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>US Master</th>
+                      <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: '#007AFF', borderBottom: '1px solid var(--border)' }}>BBC TV Drama</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {([
+                      { aspect: 'Papierformat', us: 'US Letter', bbc: 'A4 ✓', match: false },
+                      { aspect: 'Rand links',   us: '3,81 cm',   bbc: '3,81 cm ✓', match: true },
+                      { aspect: 'Rand rechts',  us: '1,95 cm',   bbc: '2,54 cm', match: false },
+                      { aspect: 'Rand unten',   us: '4,30 cm',   bbc: '3,00 cm', match: false },
+                      { aspect: 'Character',    us: 'linksbündig (3,7″)', bbc: 'zentriert ✓', match: false },
+                      { aspect: 'Action',       us: 'Gemischt', bbc: 'Gemischt ✓', match: true },
+                      { aspect: 'Zeilenabstand', us: 'einfach', bbc: 'einfach ✓', match: true },
+                    ] as { aspect: string; us: string; bbc: string; match: boolean }[]).map((row, i) => (
+                      <tr key={row.aspect} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)' }}>
+                        <td style={{ padding: '4px 8px', color: 'var(--text-secondary)', fontWeight: 500 }}>{row.aspect}</td>
+                        <td style={{ padding: '4px 8px', color: 'var(--text-muted)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10 }}>{row.us}</td>
+                        <td style={{ padding: '4px 8px', color: row.match ? '#00C853' : 'var(--text-primary)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10 }}>{row.bbc}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Sektion: Character zentriert */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Character: zentriert statt eingerückt
+                </div>
+                <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '10px 14px', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10, lineHeight: 1.8 }}>
+                  <div style={{ color: 'var(--text-muted)' }}>INT. FLAT — DAY</div>
+                  <div style={{ color: 'var(--text-secondary)', marginTop: 4 }}>Sarah picks up the phone.</div>
+                  <div style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)', marginTop: 4 }}>SARAH</div>
+                  <div style={{ marginLeft: '20%', marginRight: '20%', color: 'var(--text-secondary)' }}>Hello?</div>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  Der Figurenname steht bei BBC zentriert über dem Dialog — im US-Format ist er bei ca. 3,7″ (9,40 cm) linksbündig eingerückt.
+                </div>
+              </div>
+
+              {/* Sektion: Bekannte Produktionen */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Bekannte Produktionen
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {['Sherlock', 'Doctor Who', 'Fleabag', 'Broadchurch', 'Peaky Blinders', 'Luther', 'Happy Valley'].map(show => (
+                    <span key={show} style={{ fontSize: 10, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 8px', color: 'var(--text-secondary)' }}>
+                      {show}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </>)}
+
+            {/* ══ Theaterstück (Samuel French) ════════════════════════════════════ */}
+            {selectedPreset.name === 'Theaterstück (Samuel French)' && (<>
+              {/* Sektion: Was ist Samuel French? */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Der Samuel French Standard
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>Samuel French</strong> ist der älteste und meistgenutzte Theaterverlag der englischsprachigen Welt (gegr. 1830). Das Samuel French Format ist de-facto-Standard für englischsprachige Bühnenstücke — von Broadway bis West End. Es unterscheidet sich grundlegend vom Film-/TV-Drehbuchformat.
+                </div>
+              </div>
+
+              {/* Sektion: Kein Slug-Line-System */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Kein INT./EXT./TAG-System
+                </div>
+                <div style={{ background: '#FF3B3012', border: '1px solid #FF3B3030', borderRadius: 8, padding: '10px 14px', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Theater kennt keine Außen-/Innenräume im filmischen Sinn und keinen Schnitt. Statt Szenenköpfen gibt es <strong style={{ color: 'var(--text-primary)' }}>Akte und Szenen</strong>. Der Szenenkopf-Template ist daher auf <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{motiv}}'}</code> vereinfacht — nur der Schauplatz.
+                </div>
+              </div>
+
+              {/* Sektion: Format-Elemente */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+                  Format-Elemente im Vergleich
+                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: 'var(--bg-subtle)' }}>
+                      <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Element</th>
+                      <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Formatierung</th>
+                      <th style={{ textAlign: 'left', padding: '5px 8px', fontWeight: 600, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border)' }}>Entspricht (Film)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {([
+                      { el: 'Akt',            fmt: 'ZENTRIERT · FETT · CAPS',    film: 'Act Break' },
+                      { el: 'Szene',          fmt: 'ZENTRIERT · CAPS',           film: '—' },
+                      { el: 'Regieanweisung', fmt: 'Kursiv · eingerückt 1,5 cm', film: 'Action' },
+                      { el: 'Figurenname',    fmt: 'ZENTRIERT · CAPS',           film: 'Character' },
+                      { el: 'Dialog',         fmt: 'Volle Spaltenbreite · 1,2 Zl.', film: 'Dialogue' },
+                    ] as { el: string; fmt: string; film: string }[]).map((row, i) => (
+                      <tr key={row.el} style={{ background: i % 2 === 0 ? 'transparent' : 'var(--bg-subtle)' }}>
+                        <td style={{ padding: '4px 8px', color: 'var(--text-primary)', fontWeight: 500 }}>{row.el}</td>
+                        <td style={{ padding: '4px 8px', color: 'var(--text-secondary)', fontSize: 10 }}>{row.fmt}</td>
+                        <td style={{ padding: '4px 8px', color: 'var(--text-muted)', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10 }}>{row.film}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Sektion: Muster */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Beispiel
+                </div>
+                <div style={{ background: 'var(--bg-subtle)', borderRadius: 8, padding: '12px 16px', fontFamily: 'Courier Prime, Courier, monospace', fontSize: 10, lineHeight: 1.8 }}>
+                  <div style={{ textAlign: 'center', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-primary)' }}>ACT ONE</div>
+                  <div style={{ textAlign: 'center', textTransform: 'uppercase', color: 'var(--text-secondary)', marginBottom: 6 }}>SCENE I</div>
+                  <div style={{ fontStyle: 'italic', marginLeft: '10%', marginRight: '10%', color: 'var(--text-muted)' }}>
+                    The lights come up on a sparse living room. JOHN stands by the window, looking out.
+                  </div>
+                  <div style={{ textAlign: 'center', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-primary)', marginTop: 8 }}>JOHN</div>
+                  <div style={{ color: 'var(--text-secondary)' }}>I thought you'd never come back.</div>
+                </div>
+              </div>
+
+              {/* Sektion: Verlage */}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Verlage &amp; Standards
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                  Englischsprachig: <strong style={{ color: 'var(--text-primary)' }}>Samuel French</strong> (New York/London) · <strong style={{ color: 'var(--text-primary)' }}>Dramatists Play Service</strong> · <strong style={{ color: 'var(--text-primary)' }}>Concord Theatricals</strong>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginTop: 4 }}>
+                  Deutschsprachig: <strong style={{ color: 'var(--text-primary)' }}>S. Fischer Verlage</strong> · <strong style={{ color: 'var(--text-primary)' }}>Suhrkamp</strong> · <strong style={{ color: 'var(--text-primary)' }}>Rowohlt Theater</strong> · <strong style={{ color: 'var(--text-primary)' }}>Verlag der Autoren</strong>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                  Deutsche Bühnenverlage haben kein einheitliches Format-Vorschriften-System. Dieses Preset orientiert sich am Samuel French Standard als internationalem Referenz.
+                </div>
+              </div>
+            </>)}
 
           </div>
         </div>,

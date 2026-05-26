@@ -357,6 +357,7 @@ async function runMigrations() {
     'v122_us_master_scene_format_preset.sql',
     'v123_us_preset_szenen_kopf.sql',
     'v124_preset_sort_order.sql',
+    'v125_neue_presets_wga_theater.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
