@@ -1052,6 +1052,7 @@ async function assembleHtml(
 
     /** Rendert ein einzelnes OrderedExportItem zu HTML */
     async function renderOrderedItem(item: OrderedExportItem): Promise<string | null> {
+      console.log('[renderOrderedItem] ENTRY type:', item.type, 'szeneId:', item.szeneId, 'id:', item.id, 'enabled:', item.enabled)
       if (!item.enabled) return null
       if (item.type === 'notiz') {
         // Einzelne Notiz-Zeile aus dem aktuellen Drehbuch (szeneId = dokument_szenen.id)
