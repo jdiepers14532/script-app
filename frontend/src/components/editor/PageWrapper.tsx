@@ -71,7 +71,7 @@ export default function PageWrapper({
   if (showShadow) {
     // ── Blatt-Modus: weißes Blatt mit Schatten, subtile Trennlinie ────────
     return (
-      <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%' }}>
+      <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowX: 'auto' }}>
         <div
           ref={pageRef}
           className={className}
@@ -80,7 +80,6 @@ export default function PageWrapper({
             width: dim.width,
             minHeight: pageMinHeight,
             boxSizing: 'border-box',
-            maxWidth: '100%',
             margin: '0 auto',
             background: 'var(--bg-surface)',
             boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
