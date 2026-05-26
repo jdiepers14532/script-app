@@ -32,7 +32,10 @@ function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedE
   return raw
     .filter((x: any) => x && typeof x === 'object')
     .map((x: any) => ({
-      type: x.type === 'statistik' ? 'statistik' as const : 'notiz' as const,
+      type: (x.type === 'statistik' ? 'statistik'
+           : x.type === 'onliner'   ? 'onliner'
+           : x.type === 'synopse'   ? 'synopse'
+           : 'notiz') as 'notiz' | 'statistik' | 'onliner' | 'synopse',
       id: x.id ? String(x.id) : undefined,
       szeneId: x.szeneId ? String(x.szeneId) : undefined,
       label: x.label ? String(x.label) : undefined,
