@@ -245,7 +245,7 @@ async function addPdfOutline(
     // Ziel: Seitenanfang (XYZ mit null = aktuelle Position beibehalten)
     const destArray = ctx.obj([pageRefs[pi], PDFName.of('XYZ'), PDFNull, PDFNull, PDFNumber.of(0)])
     ctx.assign(ref, ctx.obj({
-      Title:  PDFString.of(bm.label),
+      Title:  PDFHexString.fromText(bm.label),
       Parent: outlineRootRef,
       Dest:   destArray,
     }))
@@ -852,21 +852,42 @@ async function assembleHtml(
     if (wsRes.rows.length === 0) throw new Error('Werkstufe nicht gefunden')
     const w = wsRes.rows[0]
 
-    // ── 1b. Land aus Produktionsdatenbank (für Timezone) ──────────────────────
+    // ── 1b. Produktionsdatenbank (Timezone + Export-Kontext-Felder) ───────────
     let produktionLand: string | null = null
+    let prodDbCtx: {
+      firma_name?: string | null; sender?: string | null; buero_adresse?: string | null
+      staffelnummer?: number | null; drehzeitraum?: string | null
+      block_label?: string | null; erster_block?: number | null; erste_folge?: number | null
+      bloecke?: Array<{ folge_von: number; folge_bis: number; dreh_von: string; dreh_bis: string; team_index: number }> | null
+    } = {}
+    let sendedatumRaw: string | null = null
     if (w.produktion_db_id) {
+      const PROD_DB_URL  = process.env.PROD_DB_URL  ?? 'http://127.0.0.1:3005'
+      const INTERNAL_KEY = process.env.PRODUKTION_INTERNAL_SECRET ?? 'prod-internal-2026'
       try {
-        const PROD_DB_URL  = process.env.PROD_DB_URL  ?? 'http://127.0.0.1:3005'
-        const INTERNAL_KEY = process.env.PRODUKTION_INTERNAL_SECRET ?? 'prod-internal-2026'
         const r = await fetch(
           `${PROD_DB_URL}/api/internal/productions/${w.produktion_db_id}/script-context`,
           { headers: { 'x-internal-key': INTERNAL_KEY } }
         )
         if (r.ok) {
-          const data = await r.json() as { land?: string | null }
+          const data = await r.json() as typeof prodDbCtx & { land?: string | null }
           produktionLand = data.land ?? null
+          prodDbCtx = data
         }
       } catch { /* Fehler nicht kritisch — Timezone-Fallback greift */ }
+      // Sendedatum aus Ausstrahlungskalender
+      if (w.folge_nummer) {
+        try {
+          const r = await fetch(
+            `${PROD_DB_URL}/api/internal/productions/${w.produktion_db_id}/air-date?folge_nr=${w.folge_nummer}`,
+            { headers: { 'x-internal-key': INTERNAL_KEY } }
+          )
+          if (r.ok) {
+            const data = await r.json() as { air_date?: string | null }
+            sendedatumRaw = data.air_date ?? null
+          }
+        } catch { /* kein Sendedatum */ }
+      }
     }
 
     // ── 2. Absatzformate ──────────────────────────────────────────────────────
@@ -994,10 +1015,33 @@ async function assembleHtml(
       const [year, month, day] = iso.split('-')
       return `${day}.${month}.${year.slice(2)}`
     }
+    // Block-Nummer + Drehzeitraum aus bloecke-Array berechnen
+    let berechneterBlock: string | null = null
+    let berechneterDrehzeitraum: string | null = null
+    if (prodDbCtx.bloecke?.length && w.folge_nummer) {
+      const bloecke = prodDbCtx.bloecke
+      // Einmalige Dreh-Perioden (unique dreh_von, sortiert), entsprechen Blocknummern
+      const uniquePeriods = [...new Set(bloecke.map(b => b.dreh_von))].sort()
+      const folgeBlock = bloecke.find(b => w.folge_nummer >= b.folge_von && w.folge_nummer <= b.folge_bis)
+      if (folgeBlock) {
+        const periodIndex = uniquePeriods.indexOf(folgeBlock.dreh_von)
+        const blockNr = (prodDbCtx.erster_block ?? 1) + periodIndex
+        const label = prodDbCtx.block_label ?? 'Block'
+        berechneterBlock = `${label} ${blockNr}`
+        // Alle Einträge dieser Periode (beide Teams) für den Zeitraum
+        const periodeEntries = bloecke.filter(b => b.dreh_von === folgeBlock.dreh_von)
+        const drehVon = new Date(Math.min(...periodeEntries.map(b => new Date(b.dreh_von).getTime())))
+        const drehBis = new Date(Math.max(...periodeEntries.map(b => new Date(b.dreh_bis).getTime())))
+        const fmtDate = (d: Date): string =>
+          d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        berechneterDrehzeitraum = `${fmtDate(drehVon)} – ${fmtDate(drehBis)}`
+      }
+    }
+
     const ctx: ExportContext = {
       produktion:           w.produktion_titel ?? '',
-      staffel:              null,
-      block:                null,
+      staffel:              prodDbCtx.staffelnummer != null ? String(prodDbCtx.staffelnummer) : null,
+      block:                berechneterBlock,
       folge:                w.folge_nummer,
       folgentitel:          w.folgen_titel,
       werkstufe:            WERKSTUF_TYP_LABEL[w.typ] ?? w.typ,
@@ -1008,11 +1052,11 @@ async function assembleHtml(
         : toGermanShortDate(now),
       autor:                userName,
       regie:                null,
-      firmenname:           null,
-      sender:               null,
-      buero_adresse:        null,
-      sendedatum:           null,
-      produktionszeitraum:  null,
+      firmenname:           prodDbCtx.firma_name ?? null,
+      sender:               prodDbCtx.sender ?? null,
+      buero_adresse:        prodDbCtx.buero_adresse ?? null,
+      sendedatum:           sendedatumRaw ? toGermanShortDate(sendedatumRaw) : null,
+      produktionszeitraum:  prodDbCtx.drehzeitraum ?? berechneterDrehzeitraum,
       aktuelles_datum:      now.toLocaleDateString('de-DE', { ...tzOpts, day: '2-digit', month: '2-digit', year: 'numeric' }),
       aktuelles_jahr:       new Intl.DateTimeFormat('de-DE', { ...tzOpts, year: 'numeric' }).format(now),
       aktuelles_uhrzeit:    now.toLocaleTimeString('de-DE', { ...tzOpts, hour: '2-digit', minute: '2-digit' }),
@@ -1032,7 +1076,42 @@ async function assembleHtml(
       revisions_farbe_hex:    options.revisions_farbe_hex ?? null,
       druckauswahl:           druckauswahl,
       episode_terminus:       episodeTerminus,
+      buero_strasse:          prodDbCtx.buero_adresse
+        ? (String(prodDbCtx.buero_adresse).split('\n')[0]?.trim() || null)
+        : null,
+      buero_plz_ort:          prodDbCtx.buero_adresse
+        ? (String(prodDbCtx.buero_adresse).split('\n')[1]?.trim() || null)
+        : null,
     }
+
+    // ── 6b. Titelseite-Metadaten aus production_app_settings ─────────────────
+    try {
+      const metaRes = await client.query(
+        `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'titelseite_meta'`,
+        [w.produktion_id]
+      )
+      if (metaRes.rows.length > 0) {
+        const meta = typeof metaRes.rows[0].value === 'string'
+          ? JSON.parse(metaRes.rows[0].value) : metaRes.rows[0].value
+        if (meta.block)               ctx.block = meta.block
+        if (meta.staffel)             ctx.staffel = meta.staffel
+        if (meta.sendedatum)          ctx.sendedatum = meta.sendedatum
+        if (meta.produktionszeitraum) ctx.produktionszeitraum = meta.produktionszeitraum
+        if (meta.firmenname)          ctx.firmenname = meta.firmenname
+        if (meta.sender)              ctx.sender = meta.sender
+        if (meta.buero_adresse)       ctx.buero_adresse = meta.buero_adresse
+        if (meta.buero_strasse)       ctx.buero_strasse = meta.buero_strasse
+        if (meta.buero_plz_ort)       ctx.buero_plz_ort = meta.buero_plz_ort
+        if (meta.firmen_adresse)      ctx.firmen_adresse = meta.firmen_adresse
+        if (meta.rechtsform)          ctx.rechtsform = meta.rechtsform
+        if (meta.handelsregister)     ctx.handelsregister = meta.handelsregister
+        if (meta.ust_id)              ctx.ust_id = meta.ust_id
+        if (meta.geschaeftsfuehrung)  ctx.geschaeftsfuehrung = meta.geschaeftsfuehrung
+        if (meta.firmen_email)        ctx.firmen_email = meta.firmen_email
+        if (meta.firmen_telefon)      ctx.firmen_telefon = meta.firmen_telefon
+        if (meta.tel_produktion)      ctx.tel_produktion = meta.tel_produktion
+      }
+    } catch { /* meta nicht kritisch */ }
 
     // ── 7. Sonstige-Dokumente-Format laden ────────────────────────────────────
     let statistikFormat: StatistikFormatConfig | undefined

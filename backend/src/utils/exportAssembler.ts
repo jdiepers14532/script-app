@@ -42,6 +42,8 @@ export interface ExportContext {
   revision:               string | null
   revisions_farbe_hex:    string | null
   episode_terminus:   string  // e.g. "Folge" or "Episode"
+  buero_strasse:      string | null
+  buero_plz_ort:      string | null
 }
 
 // ── Placeholder resolution ────────────────────────────────────────────────────
@@ -84,6 +86,8 @@ function resolvePlaceholder(key: string, ctx: ExportContext): string {
     case '{{revisions_farbe}}':        return ctx.revisions_farbe_hex
       ? `<span style="color:${ctx.revisions_farbe_hex}">&#9679;</span>`
       : ''
+    case '{{buero_strasse}}':          return ctx.buero_strasse ?? ''
+    case '{{buero_plz_ort}}':          return ctx.buero_plz_ort ?? ''
     case '{{seite}}':         return '<span class="ph-seite"></span>'
     case '{{seiten_gesamt}}': return '<span class="ph-seiten-gesamt"></span>'
     default:                  return key
@@ -262,11 +266,12 @@ function renderNode(node: any, ctx: ExportContext): string {
     const hasColWidths = firstRow?.content?.some((c: any) => c.attrs?.colwidth?.[0])
     const tableLayout = hasColWidths ? 'table-layout:fixed;' : ''
     const rows = (node.content ?? []).map((row: any) => {
-      const rowHeight = row.attrs?.rowHeight
+      const rawRowHeight = row.attrs?.rowHeight
+      // rowHeight=1 ist Editor-Default (kein expliziter Wert) — erst ab 16px als echte Höhe behandeln
+      const rowHeight = rawRowHeight != null && rawRowHeight > 15 ? rawRowHeight : null
       const rowStyle  = rowHeight ? ` style="height:${rowHeight}px"` : ''
-      // rowHeight auf <td> setzen: Chromium erzwingt Zeilenhöhe nur wenn td sie auch kennt
       const cellHeightStr = rowHeight ? `height:${rowHeight}px;max-height:${rowHeight}px;` : ''
-      const cellPad   = rowHeight ? 'padding:0 4px;overflow:hidden;' : 'padding:5px 10px;'
+      const cellPad   = rowHeight ? 'padding:0 4px;overflow:hidden;' : 'padding:6px 10px;'
       const cells = (row.content ?? []).map((cell: any) => {
         const isHeader = cell.type === 'tableHeader'
         const tag      = isHeader ? 'th' : 'td'
