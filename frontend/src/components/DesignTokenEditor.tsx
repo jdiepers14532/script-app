@@ -85,12 +85,27 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [currentVal, setCurrentVal] = useState(() => readToken(token.cssVar))
+  const [hexInput, setHexInput] = useState('')
+  const [editingHex, setEditingHex] = useState(false)
   useEffect(() => { setCurrentVal(readToken(token.cssVar)) })
 
   const isHex = currentVal.startsWith('#') && currentVal.length === 7
 
-  const darkDefault = token.dark
-  const focusDefault = token.focus
+  function handleHexBlur() {
+    setEditingHex(false)
+    const v = hexInput.trim()
+    const normalized = v.startsWith('#') ? v : `#${v}`
+    if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+      onSet(token.cssVar, normalized)
+      setCurrentVal(normalized)
+    }
+    setHexInput('')
+  }
+
+  function handleHexKey(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+    if (e.key === 'Escape') { setEditingHex(false); setHexInput('') }
+  }
 
   return (
     <div style={{
@@ -104,14 +119,14 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
         onClick={() => isHex && inputRef.current?.click()}
         title={isHex ? 'Klicken zum Ändern' : 'Nicht direkt editierbar (rgba)'}
         style={{
-          width: 30, height: 30, borderRadius: 7, flexShrink: 0,
+          width: 32, height: 32, borderRadius: 7, flexShrink: 0,
           cursor: isHex ? 'pointer' : 'default',
           background: `var(${token.cssVar})`,
           border: '1.5px solid var(--border)',
           boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.07)',
           transition: 'transform 0.1s',
         }}
-        onMouseEnter={e => isHex && ((e.target as HTMLElement).style.transform = 'scale(1.12)')}
+        onMouseEnter={e => isHex && ((e.target as HTMLElement).style.transform = 'scale(1.1)')}
         onMouseLeave={e => ((e.target as HTMLElement).style.transform = 'scale(1)')}
       />
       <input
@@ -122,11 +137,49 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
         style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
       />
 
-      {/* Label + CSS-Var + Beschreibung */}
+      {/* Label + CSS-Var */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{token.label}</div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{token.cssVar}</div>
       </div>
+
+      {/* Hex-Eingabe — klickbar zum Bearbeiten */}
+      {isHex ? (
+        editingHex ? (
+          <input
+            autoFocus
+            value={hexInput}
+            onChange={e => setHexInput(e.target.value)}
+            onBlur={handleHexBlur}
+            onKeyDown={handleHexKey}
+            placeholder={currentVal}
+            style={{
+              width: 76, fontSize: 11, fontFamily: 'monospace', textAlign: 'center',
+              border: '1px solid var(--color-info)', borderRadius: 4, padding: '3px 5px',
+              background: 'var(--input-bg)', color: 'var(--text-primary)', outline: 'none',
+            }}
+          />
+        ) : (
+          <div
+            onClick={() => { setEditingHex(true); setHexInput(currentVal) }}
+            title="Klicken zum Tippen"
+            style={{
+              width: 76, fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)',
+              textAlign: 'center', padding: '3px 5px', borderRadius: 4,
+              border: '1px solid transparent', cursor: 'text',
+              background: 'var(--bg-subtle)',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}
+          >
+            {currentVal}
+          </div>
+        )
+      ) : (
+        <div style={{ width: 76, fontSize: 10, fontFamily: 'monospace', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3, wordBreak: 'break-all' }}>
+          {currentVal}
+        </div>
+      )}
 
       {/* Aktueller Wert */}
       <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', minWidth: 72, textAlign: 'right' }}>
@@ -179,63 +232,6 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
   )
 }
 
-// ── Live-Vorschau ─────────────────────────────────────────────────────────────
-
-function PreviewPanel() {
-  const [hovered, setHovered] = useState(false)
-  const [pressed, setPressed] = useState(false)
-
-  return (
-    <div style={{
-      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 28,
-      padding: 14, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 8,
-    }}>
-      {/* Karte: bg-surface, border, Texthierarchie */}
-      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 14, boxShadow: 'var(--shadow-md)' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>Überschrift</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 5 }}>Beschreibungstext</div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Hinweis · text-muted</div>
-      </div>
-
-      {/* bg-subtle + Hover/Active */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <div style={{ background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '6px 10px', fontSize: 11, color: 'var(--text-secondary)' }}>
-          bg-subtle / border-subtle
-        </div>
-        <div
-          style={{
-            background: pressed ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent',
-            border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px',
-            fontSize: 11, color: 'var(--text-secondary)', cursor: 'pointer', transition: 'background 0.1s',
-          }}
-          onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); setPressed(false) }}
-          onMouseDown={() => setPressed(true)} onMouseUp={() => setPressed(false)}
-        >
-          {pressed ? 'bg-active' : hovered ? 'bg-hover' : 'hover / active testen →'}
-        </div>
-      </div>
-
-      {/* Button + Input */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button style={{ background: 'var(--btn-primary-bg)', color: 'var(--btn-primary-color)', border: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
-          Button
-        </button>
-        <input readOnly placeholder="Input…" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 8px', fontSize: 11, color: 'var(--text-primary)', fontFamily: 'inherit', width: 90 }} />
-        <div style={{ background: 'var(--notif-unread)', border: '1px solid var(--border)', borderRadius: 4, padding: '3px 7px', fontSize: 10, color: 'var(--text-primary)' }}>
-          3 neu
-        </div>
-      </div>
-
-      {/* Borders */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <div style={{ borderTop: '2px solid var(--border-strong)', paddingTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>border-strong</div>
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>border</div>
-        <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>border-subtle</div>
-      </div>
-    </div>
-  )
-}
-
 // ── Haupt-Komponente ──────────────────────────────────────────────────────────
 
 export function DesignTokenEditor() {
@@ -272,7 +268,7 @@ export function DesignTokenEditor() {
   }
 
   return (
-    <div style={{ padding: '28px 32px', maxWidth: 820 }}>
+    <div style={{ padding: '24px 28px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
         <div style={{ flex: 1 }}>
@@ -305,17 +301,12 @@ export function DesignTokenEditor() {
         borderRadius: 7, padding: '10px 14px', fontSize: 12,
         color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6,
       }}>
-        <strong style={{ color: 'var(--text-primary)' }}>Hinweis:</strong>{' '}
-        Klicke auf einen Farbchip, um den Color Picker zu öffnen.
-        Die kleinen <strong>D</strong>- und <strong>F</strong>-Chips zeigen die Dark- bzw. Focus-Default-Farben zur Orientierung — sie sind nicht editierbar.
-        <strong> ↺</strong> setzt den Token auf den System-Standard aus <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.06)', padding: '0 3px', borderRadius: 3 }}>tokens.css</code> zurück.
+        Chip klicken → Color Picker.
+        Hex-Wert klicken → direkt tippen.{' '}
+        <strong>D</strong> = Dark-Default · <strong>F</strong> = Focus-Default (nur Info).{' '}
+        <strong>↺</strong> = System-Standard aus <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.06)', padding: '0 3px', borderRadius: 3 }}>tokens.css</code>.
+        Live-Vorschau rechts.
       </div>
-
-      {/* Live-Vorschau */}
-      <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--text-muted)', marginBottom: 8 }}>
-        Live-Vorschau
-      </div>
-      <PreviewPanel />
 
       {/* Token-Gruppen */}
       {TOKEN_GROUPS.map(group => (
