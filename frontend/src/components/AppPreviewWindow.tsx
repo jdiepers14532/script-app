@@ -215,6 +215,35 @@ export default function AppPreviewWindow({ companyName = 'script', productionLab
               <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 4, fontSize: 10, color: 'var(--text-muted)' }}>border-subtle</div>
             </div>
 
+            {/* Tooltip-Demo */}
+            <div style={{ marginBottom: 10, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', paddingTop: 4, flexShrink: 0 }}>Tooltip:</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {/* Tooltip-Popup */}
+                <div style={{
+                  background: 'var(--tooltip-bg, #111)',
+                  color: 'var(--tooltip-color, #fff)',
+                  fontSize: 11, lineHeight: 1.5,
+                  padding: '5px 9px', borderRadius: 6,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  display: 'inline-block', width: 'fit-content',
+                }}>
+                  Szene exportieren ⌘E
+                </div>
+                {/* Zweizeiliger Tooltip */}
+                <div style={{
+                  background: 'var(--tooltip-bg, #111)',
+                  color: 'var(--tooltip-color, #fff)',
+                  fontSize: 11, lineHeight: 1.5,
+                  padding: '5px 9px', borderRadius: 6,
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                  display: 'inline-block', width: 'fit-content', maxWidth: 200, whiteSpace: 'pre-line',
+                }}>
+                  {'Fassung anlegen\nKopiert aktuelle Szenen'}
+                </div>
+              </div>
+            </div>
+
             {/* Input + Buttons */}
             <div style={{ marginBottom: 10 }}>
               <input

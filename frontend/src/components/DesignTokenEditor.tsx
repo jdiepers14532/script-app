@@ -47,6 +47,13 @@ const TOKEN_GROUPS: { title: string; tokens: TokenDef[] }[] = [
       { cssVar: '--notif-unread',      label: 'Ungelesen-Badge',    light: '#E8F2FF', dark: '#1A2940' },
     ],
   },
+  {
+    title: 'Overlays & Tooltips',
+    tokens: [
+      { cssVar: '--tooltip-bg',    label: 'Tooltip Hintergrund', light: '#111111', dark: '#2D2D2D' },
+      { cssVar: '--tooltip-color', label: 'Tooltip Text',        light: '#FFFFFF', dark: '#FFFFFF' },
+    ],
+  },
 ]
 
 // ── Export/Import-Format ──────────────────────────────────────────────────────

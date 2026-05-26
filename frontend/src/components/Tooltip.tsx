@@ -61,8 +61,8 @@ export default function Tooltip({ text, children, placement = 'top', delay = 0 }
             ? `clamp(4px, calc(${pos.y}px - 16px), calc(100vh - 60px))` as any
             : pos.y,
           transform: pos.isRight ? undefined : pos.isBottom ? undefined : 'translateY(-100%)',
-          background: '#111',
-          color: '#fff',
+          background: 'var(--tooltip-bg, #111)',
+          color: 'var(--tooltip-color, #fff)',
           fontSize: 11,
           lineHeight: 1.5,
           padding: '6px 10px',
