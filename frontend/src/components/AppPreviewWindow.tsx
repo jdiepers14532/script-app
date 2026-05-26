@@ -10,6 +10,13 @@ import { useState } from 'react'
  * width: 420px, flex-shrink: 0 — diese Werte NICHT ändern.
  */
 
+interface AppPreviewWindowProps {
+  /** Firmenname aus auth.app (company_name) — Fallback: 'script' */
+  companyName?: string
+  /** Aktuell gewählte Produktion — Fallback: 'Produktion' */
+  productionLabel?: string
+}
+
 // ── Kleine Hilfskomponenten ───────────────────────────────────────────────────
 
 function NavItem({ label, active, icon }: { label: string; active?: boolean; icon: string }) {
@@ -80,7 +87,7 @@ function StatusBadge({ label, color, bg }: { label: string; color: string; bg: s
 
 // ── Haupt-Komponente ──────────────────────────────────────────────────────────
 
-export default function AppPreviewWindow() {
+export default function AppPreviewWindow({ companyName = 'script', productionLabel = 'Produktion' }: AppPreviewWindowProps) {
   const [inputVal, setInputVal] = useState('')
   const [activeNav, setActiveNav] = useState('szenen')
   const [showModal, setShowModal] = useState(false)
@@ -111,7 +118,7 @@ export default function AppPreviewWindow() {
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#FF5F57' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#FEBC2E' }} />
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28C840' }} />
-        <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>script.serienwerft.studio</span>
+        <span style={{ fontSize: 11, color: '#888', marginLeft: 8 }}>{companyName}</span>
       </div>
 
       {/* ── App-Topbar ── */}
@@ -122,7 +129,7 @@ export default function AppPreviewWindow() {
       }}>
         <div style={{ width: 22, height: 22, borderRadius: 4, background: 'var(--text-primary)', flexShrink: 0 }} />
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', flex: 1 }}>script</span>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 2 }}>Rote Rosen · Staffel 24</span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 2 }}>{productionLabel}</span>
         {/* Notification Badge */}
         <div style={{ position: 'relative' }}>
           <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--bg-subtle)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

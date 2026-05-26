@@ -54,6 +54,44 @@ const TOKEN_GROUPS: { title: string; tokens: TokenDef[] }[] = [
 const SYSTEM_DEFAULTS: Record<string, string> = {}
 TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => { SYSTEM_DEFAULTS[t.cssVar] = t.light }))
 
+// ── Preset-System ─────────────────────────────────────────────────────────────
+
+interface TokenPreset {
+  id: string
+  name: string
+  overrides: Record<string, string>
+}
+
+const PRESETS: TokenPreset[] = [
+  {
+    id: 'system-light',
+    name: 'Light System Standard',
+    overrides: {}, // leere Overrides = System-Defaults aus tokens.css
+  },
+  {
+    id: 'lavendel',
+    name: 'Lavendel',
+    overrides: {
+      '--bg-page':            '#F4F1F8',
+      '--bg-surface':         '#EFECF4',
+      '--bg-subtle':          '#EAE6F0',
+      '--bg-active':          '#E5E0EC',
+      '--bg-hover':           '#E8E4EE',
+      '--text-primary':       '#1A1830',
+      '--text-secondary':     '#6B6478',
+      '--text-muted':         '#9E97A8',
+      '--text-inverse':       '#FFFFFF',
+      '--border':             '#D4CDE0',
+      '--border-subtle':      '#E2DCE9',
+      '--border-strong':      '#353340',
+      '--btn-primary-bg':     '#524D73',
+      '--btn-primary-color':  '#FFFFFF',
+      '--input-bg':           '#FAF8FC',
+      '--notif-unread':       '#EDE8F5',
+    },
+  },
+]
+
 // ── Hilfsfunktionen ───────────────────────────────────────────────────────────
 
 const LS_KEY = 'sw-token-overrides'
@@ -73,6 +111,30 @@ function isLightColor(hex: string): boolean {
   const g = parseInt(hex.slice(3, 5), 16)
   const b = parseInt(hex.slice(5, 7), 16)
   return (r * 299 + g * 587 + b * 114) / 1000 > 128
+}
+
+// Backend-Persistenz — debounced
+let persistTimer: ReturnType<typeof setTimeout> | null = null
+function persistToBackend(overrides: Record<string, string>) {
+  if (persistTimer) clearTimeout(persistTimer)
+  persistTimer = setTimeout(() => {
+    fetch('/api/me/settings', {
+      method: 'PUT',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ui_settings: { token_overrides: overrides } }),
+    }).catch(() => {})
+  }, 1000)
+}
+
+// Backend-Persistenz — einmalig laden
+async function loadFromBackend(): Promise<Record<string, string> | null> {
+  try {
+    const r = await fetch('/api/me/settings', { credentials: 'include' })
+    if (!r.ok) return null
+    const data = await r.json()
+    return data?.ui_settings?.token_overrides ?? null
+  } catch { return null }
 }
 
 // ── Einzelner Token-Chip ──────────────────────────────────────────────────────
@@ -238,11 +300,27 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
 
 export function DesignTokenEditor() {
   const [overrides, setOverrides] = useState<Record<string, string>>(loadOverrides)
+  const [backendLoaded, setBackendLoaded] = useState(false)
   const overridesCount = Object.keys(overrides).length
 
+  // Backend-Overrides beim Start laden (einmalig)
   useEffect(() => {
-    Object.entries(overrides).forEach(([cssVar, value]) => {
-      document.documentElement.style.setProperty(cssVar, value)
+    loadFromBackend().then(backendOverrides => {
+      if (backendOverrides && Object.keys(backendOverrides).length > 0) {
+        // Backend hat Daten — überschreibt localStorage (Backend ist führend)
+        const merged = { ...loadOverrides(), ...backendOverrides }
+        setOverrides(merged)
+        saveOverrides(merged)
+        Object.entries(merged).forEach(([cssVar, value]) => {
+          document.documentElement.style.setProperty(cssVar, value)
+        })
+      } else {
+        // Kein Backend-Stand — localStorage verwenden
+        Object.entries(loadOverrides()).forEach(([cssVar, value]) => {
+          document.documentElement.style.setProperty(cssVar, value)
+        })
+      }
+      setBackendLoaded(true)
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -251,22 +329,48 @@ export function DesignTokenEditor() {
     const next = { ...overrides, [cssVar]: value }
     setOverrides(next)
     saveOverrides(next)
+    persistToBackend(next)
   }
 
   function resetToken(cssVar: string) {
-    // System-Default wiederherstellen (CSS-Quelle übernimmt)
     document.documentElement.style.removeProperty(cssVar)
     const next = { ...overrides }
     delete next[cssVar]
     setOverrides(next)
     saveOverrides(next)
+    persistToBackend(next)
   }
 
   function resetAll() {
-    // Alle Overrides entfernen → CSS-Quelle (tokens.css) übernimmt
     Object.keys(overrides).forEach(v => document.documentElement.style.removeProperty(v))
     setOverrides({})
     saveOverrides({})
+    persistToBackend({})
+  }
+
+  function applyPreset(preset: TokenPreset) {
+    // Aktuelle Overrides entfernen
+    Object.keys(overrides).forEach(v => document.documentElement.style.removeProperty(v))
+    // Neue Overrides setzen
+    Object.entries(preset.overrides).forEach(([cssVar, value]) => {
+      document.documentElement.style.setProperty(cssVar, value)
+    })
+    setOverrides(preset.overrides)
+    saveOverrides(preset.overrides)
+    persistToBackend(preset.overrides)
+  }
+
+  // Aktives Preset ermitteln (für Anzeige)
+  function activePresetName(): string {
+    for (const p of PRESETS) {
+      if (p.id === 'system-light' && overridesCount === 0) return p.name
+      if (p.id !== 'system-light') {
+        const keys = Object.keys(p.overrides)
+        const matches = keys.every(k => overrides[k] === p.overrides[k])
+        if (matches && keys.length === overridesCount) return p.name
+      }
+    }
+    return overridesCount > 0 ? 'Benutzerdefiniert' : 'Light System Standard'
   }
 
   return (
@@ -278,7 +382,7 @@ export function DesignTokenEditor() {
             Light-Theme anpassen
           </div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            Ändere die Farben des hellen Themes. Änderungen werden gespeichert und beim nächsten Öffnen wiederhergestellt.
+            Ändere die Farben des hellen Themes. Änderungen werden in deinem Profil gespeichert.
             Das Dark-Theme bleibt unverändert.
           </div>
         </div>
@@ -297,6 +401,38 @@ export function DesignTokenEditor() {
         )}
       </div>
 
+      {/* Preset-Auswahl */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
+        padding: '8px 12px', background: 'var(--bg-surface)',
+        border: '1px solid var(--border)', borderRadius: 8,
+      }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>
+          Preset
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>
+          {activePresetName()}
+        </span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {PRESETS.map(preset => (
+            <button
+              key={preset.id}
+              onClick={() => applyPreset(preset)}
+              title={preset.name}
+              style={{
+                fontSize: 11, padding: '4px 10px', borderRadius: 5,
+                border: '1px solid var(--border)',
+                background: activePresetName() === preset.name ? 'var(--text-primary)' : 'var(--bg-subtle)',
+                color: activePresetName() === preset.name ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+              }}
+            >
+              {preset.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Info-Box */}
       <div style={{
         background: 'var(--color-info-bg)', border: '1px solid rgba(0,122,255,0.2)',
@@ -307,7 +443,7 @@ export function DesignTokenEditor() {
         Hex-Wert klicken → direkt tippen.{' '}
         <strong>D</strong> = Dark-Default · <strong>F</strong> = Focus-Default (nur Info).{' '}
         <strong>↺</strong> = System-Standard aus <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.06)', padding: '0 3px', borderRadius: 3 }}>tokens.css</code>.
-        Live-Vorschau rechts.
+        {!backendLoaded && <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>Lade gespeicherte Einstellungen…</span>}
       </div>
 
       {/* Token-Gruppen */}
