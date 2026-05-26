@@ -186,10 +186,21 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 128
 }
 
-/** Light-Overrides: inline style auf :root mit !important (überschreibt AppShell sw-view-settings) */
+/**
+ * Light-Overrides: injizierter <style>-Tag mit [data-theme='light'], .editor-app !important
+ * Muss NACH sw-view-settings im DOM stehen (gleiche Spezifität, spätere Position gewinnt).
+ * data-theme='light' liegt auf div.app, nicht auf html → setProperty auf html wirkt nicht.
+ */
 function applyLightOverrides(o: Record<string, string>) {
-  TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => document.documentElement.style.removeProperty(t.cssVar)))
-  Object.entries(o).forEach(([k, v]) => document.documentElement.style.setProperty(k, v, 'important'))
+  let style = document.getElementById('sw-light-overrides') as HTMLStyleElement | null
+  if (!style) {
+    style = document.createElement('style')
+    style.id = 'sw-light-overrides'
+    document.head.appendChild(style)
+  }
+  if (Object.keys(o).length === 0) { style.textContent = ''; return }
+  const rules = Object.entries(o).map(([k, v]) => `  ${k}: ${v} !important;`).join('\n')
+  style.textContent = `[data-theme='light'], .editor-app {\n${rules}\n}`
 }
 
 /** Dark-Overrides: injizierter <style>-Tag mit [data-theme='dark'] !important */
