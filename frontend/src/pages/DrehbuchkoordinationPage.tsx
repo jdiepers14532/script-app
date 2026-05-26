@@ -1454,8 +1454,29 @@ interface SonstigeFormat {
 
 const SONSTIGE_DEFAULTS: SonstigeFormat = { fontFamily: 'Courier New', fontSize: 10, lineHeight: 1.5 }
 
+interface OnlinerSonstigeFormat {
+  tableFontFamily: string
+  tableFontSize: number
+  tableLineHeight: number
+  headingFontFamily: string
+  headingFontSize: number
+  headingBold: boolean
+  refColWidthPt: number
+}
+
+const ONLINER_SONSTIGE_DEFAULTS: OnlinerSonstigeFormat = {
+  tableFontFamily: 'Courier New',
+  tableFontSize: 10,
+  tableLineHeight: 1.4,
+  headingFontFamily: 'Courier New',
+  headingFontSize: 13,
+  headingBold: true,
+  refColWidthPt: 52,
+}
+
 function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
   const [statistik, setStatistik] = useState<SonstigeFormat>(SONSTIGE_DEFAULTS)
+  const [onliner,   setOnliner]   = useState<OnlinerSonstigeFormat>(ONLINER_SONSTIGE_DEFAULTS)
   const [saving, setSaving]       = useState(false)
   const [msg, setMsg]             = useState<string | null>(null)
 
@@ -1468,7 +1489,8 @@ function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
           try {
             const v = typeof s.sonstige_dokumente_format === 'string'
               ? JSON.parse(s.sonstige_dokumente_format) : s.sonstige_dokumente_format
-            if (v?.statistik) setStatistik({ ...SONSTIGE_DEFAULTS, ...v.statistik })
+            if (v?.statistik) setStatistik({ ...SONSTIGE_DEFAULTS,         ...v.statistik })
+            if (v?.onliner)   setOnliner(  { ...ONLINER_SONSTIGE_DEFAULTS, ...v.onliner   })
           } catch {}
         }
       })
@@ -1478,7 +1500,7 @@ function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
   async function handleSave() {
     setSaving(true); setMsg(null)
     try {
-      const value = JSON.stringify({ statistik })
+      const value = JSON.stringify({ statistik, onliner })
       const r = await fetch(`/api/dk-settings/${produktionId}/app-settings/sonstige_dokumente_format`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -1499,10 +1521,14 @@ function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
     display: 'flex', flexDirection: 'column', gap: 16,
   }
   const rowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }
-  const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', minWidth: 100 }
+  const labelStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', minWidth: 120 }
   const inputStyle: React.CSSProperties = {
     border: '1px solid var(--border)', borderRadius: 6, padding: '5px 9px',
     fontSize: 13, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 80,
+  }
+  const subheadStyle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)',
+    textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 4,
   }
 
   return (
@@ -1535,6 +1561,82 @@ function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
             type="number" min={1} max={3} step={0.1}
             value={statistik.lineHeight}
             onChange={e => setStatistik(p => ({ ...p, lineHeight: parseFloat(e.target.value) || p.lineHeight }))}
+            style={inputStyle}
+          />
+        </div>
+      </div>
+
+      {/* Onliner */}
+      <div style={secStyle}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Onliner</div>
+
+        <div style={subheadStyle}>Überschrift</div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Schriftart</span>
+          <select
+            value={onliner.headingFontFamily}
+            onChange={e => setOnliner(p => ({ ...p, headingFontFamily: e.target.value }))}
+            style={{ ...inputStyle, width: 180 }}
+          >
+            {SONSTIGE_FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Schriftgröße (pt)</span>
+          <input
+            type="number" min={6} max={36} step={0.5}
+            value={onliner.headingFontSize}
+            onChange={e => setOnliner(p => ({ ...p, headingFontSize: parseFloat(e.target.value) || p.headingFontSize }))}
+            style={inputStyle}
+          />
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Fettschrift</span>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={onliner.headingBold}
+              onChange={e => setOnliner(p => ({ ...p, headingBold: e.target.checked }))}
+            />
+            Fett
+          </label>
+        </div>
+
+        <div style={subheadStyle}>Tabelle</div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Schriftart</span>
+          <select
+            value={onliner.tableFontFamily}
+            onChange={e => setOnliner(p => ({ ...p, tableFontFamily: e.target.value }))}
+            style={{ ...inputStyle, width: 180 }}
+          >
+            {SONSTIGE_FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Schriftgröße (pt)</span>
+          <input
+            type="number" min={6} max={24} step={0.5}
+            value={onliner.tableFontSize}
+            onChange={e => setOnliner(p => ({ ...p, tableFontSize: parseFloat(e.target.value) || p.tableFontSize }))}
+            style={inputStyle}
+          />
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Zeilenabstand</span>
+          <input
+            type="number" min={1} max={3} step={0.1}
+            value={onliner.tableLineHeight}
+            onChange={e => setOnliner(p => ({ ...p, tableLineHeight: parseFloat(e.target.value) || p.tableLineHeight }))}
+            style={inputStyle}
+          />
+        </div>
+        <div style={rowStyle}>
+          <span style={labelStyle}>Ref-Spalte (pt)</span>
+          <input
+            type="number" min={20} max={120} step={1}
+            value={onliner.refColWidthPt}
+            onChange={e => setOnliner(p => ({ ...p, refColWidthPt: parseInt(e.target.value) || p.refColWidthPt }))}
             style={inputStyle}
           />
         </div>

@@ -23,7 +23,7 @@ import {
   ExportContext,
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
-import { renderStatistikHtml, renderOnlinerHtml, renderSynopsenHtml, StatistikFormatConfig } from './statistikHtmlRenderer'
+import { renderStatistikHtml, renderOnlinerHtml, StatistikFormatConfig, OnlinerFormatConfig, StatistikExportConfig } from './statistikHtmlRenderer'
 
 // ── Admin Wasserzeichen-Einstellungen ─────────────────────────────────────────
 
@@ -726,6 +726,108 @@ function renderMainScenes(
   }).join('\n')
 }
 
+/**
+ * Rendert alle Szenenköpfe der angegebenen Folgen im Format des konfigurierten
+ * Szenenkopf-Templates — für den Synopsen-Export.
+ */
+async function buildSynopsenHtml(
+  client: any,
+  config: StatistikExportConfig,
+  szenenkopfTemplate: any,
+  kuerzel: Record<string, string>,
+  bodyMarginLeftCm: number
+): Promise<string> {
+  const { folge_ids: folgeIds } = config
+  if (!folgeIds.length) {
+    return `<div style="color:#c00;font-family:sans-serif">Synopsen: Keine Folge-IDs angegeben.</div>`
+  }
+
+  const folgeRes = await client.query(
+    `SELECT f.id, f.folge_nummer, f.folgen_titel, f.produktion_id FROM folgen f WHERE f.id = $1`,
+    [folgeIds[0]]
+  )
+  if (!folgeRes.rows.length) {
+    return `<div style="color:#c00;font-family:sans-serif">Synopsen: Folge ${folgeIds[0]} nicht gefunden.</div>`
+  }
+  const folge = folgeRes.rows[0]
+
+  let wsIds: string[] = []
+  for (const typ of ['drehbuch', 'storyline']) {
+    const r = await client.query(
+      `SELECT DISTINCT ON (w.folge_id) w.id
+       FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE f.id = ANY($1::int[]) AND w.typ = $2 AND f.produktion_id = $3
+       ORDER BY w.folge_id, w.version_nummer DESC`,
+      [folgeIds, typ, folge.produktion_id]
+    )
+    if (r.rows.length) { wsIds = r.rows.map((row: any) => row.id); break }
+  }
+
+  if (!wsIds.length) {
+    return `<div style="color:#888;font-family:sans-serif;font-size:9pt">Keine Werkstufe für diese Folge verfügbar.</div>`
+  }
+
+  const scenesRes = await client.query(
+    `SELECT ds.scene_nummer, ds.scene_nummer_suffix, ds.ort_name, ds.int_ext,
+            ds.tageszeit, ds.spieltag, ds.stoppzeit_sek, ds.zusammenfassung,
+            ds.spielzeit, ds.scene_identity_id, f.folge_nummer
+     FROM dokument_szenen ds
+     JOIN werkstufen w ON w.id = ds.werkstufe_id
+     JOIN folgen f ON f.id = w.folge_id
+     WHERE ds.werkstufe_id = ANY($1::uuid[])
+       AND ds.geloescht = false
+       AND COALESCE(ds.format, 'storyline') != 'notiz'
+     ORDER BY f.folge_nummer, ds.scene_nummer, COALESCE(ds.scene_nummer_suffix, '')`,
+    [wsIds]
+  )
+
+  if (!scenesRes.rows.length) {
+    return `<div style="color:#888;font-size:9pt">Keine Szenen gefunden.</div>`
+  }
+
+  // Rollen pro Szene (für rollen-Chip im Szenenkopf-Template)
+  const charRes = await client.query(
+    `SELECT sc.scene_identity_id,
+            array_agg(DISTINCT c.name ORDER BY c.name) AS rollen
+     FROM scene_characters sc
+     JOIN characters c ON c.id = sc.character_id
+     LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+     WHERE sc.werkstufe_id = ANY($1::uuid[]) AND COALESCE(ck.typ, 'rolle') <> 'komparse'
+     GROUP BY sc.scene_identity_id`,
+    [wsIds]
+  )
+  const charMap = new Map<string, string[]>(
+    charRes.rows.map((r: any) => [r.scene_identity_id, r.rollen])
+  )
+
+  const headings: string[] = []
+  for (const row of scenesRes.rows) {
+    const sceneRow: SceneRow = {
+      scene_nummer:        row.scene_nummer,
+      scene_nummer_suffix: row.scene_nummer_suffix,
+      ort_name:            row.ort_name,
+      int_ext:             row.int_ext,
+      tageszeit:           row.tageszeit,
+      spieltag:            row.spieltag,
+      stoppzeit_sek:       row.stoppzeit_sek,
+      content:             null,
+      zusammenfassung:     row.zusammenfassung,
+      sort_order:          0,
+      format:              null,
+      sondertyp:           null,
+      scene_identity_id:   row.scene_identity_id,
+      rollen:              row.scene_identity_id ? (charMap.get(row.scene_identity_id) ?? []) : [],
+      spielzeit:           row.spielzeit,
+      vorlage_name:        null,
+    }
+    const html = renderSzenenkopf(szenenkopfTemplate, sceneRow, row.folge_nummer, false, bodyMarginLeftCm, kuerzel)
+    if (html) headings.push(html)
+  }
+
+  return headings.join('\n')
+}
+
 /** Rendert eine Notiz-Werkstufe (ohne strukturierte Szenenköpfe) */
 function renderNotizWerkstufe(
   scenes: SceneRow[],
@@ -1115,6 +1217,7 @@ async function assembleHtml(
 
     // ── 7. Sonstige-Dokumente-Format laden ────────────────────────────────────
     let statistikFormat: StatistikFormatConfig | undefined
+    let onlinerFormat: OnlinerFormatConfig | undefined
     try {
       const sfRes = await client.query(
         `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'sonstige_dokumente_format'`,
@@ -1124,6 +1227,7 @@ async function assembleHtml(
         const parsed = typeof sfRes.rows[0].value === 'string'
           ? JSON.parse(sfRes.rows[0].value) : sfRes.rows[0].value
         statistikFormat = parsed?.statistik ?? undefined
+        onlinerFormat   = parsed?.onliner   ?? undefined
       }
     } catch { /* kein Format → Defaults */ }
 
@@ -1203,13 +1307,13 @@ async function assembleHtml(
         const bookmarkH2 = item.label
           ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
           : ''
-        return `${bookmarkH2}${await renderOnlinerHtml(item.statistikConfig, statistikFormat)}`
+        return `${bookmarkH2}${await renderOnlinerHtml(item.statistikConfig, onlinerFormat)}`
       }
       if (item.type === 'synopse' && item.statistikConfig) {
         const bookmarkH2 = item.label
           ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
           : ''
-        return `${bookmarkH2}${await renderSynopsenHtml(item.statistikConfig, statistikFormat)}`
+        return `${bookmarkH2}${await buildSynopsenHtml(client, item.statistikConfig, szenenkopfTemplate, sceneKuerzel, bodyMargins.links / 10)}`
       }
       return null
     }
