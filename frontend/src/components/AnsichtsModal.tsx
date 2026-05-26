@@ -11,7 +11,7 @@ import { useTweaks, useAppSettings } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
 
-export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose: () => void; onFarbschemaClick?: () => void }) {
+export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpassenClick }: { onClose: () => void; onFarbschemaClick?: () => void; onThemeAnpassenClick?: () => void }) {
   const { tweaks, set, reset } = useTweaks()
   const { treatmentLabel } = useAppSettings()
   const { t } = useTerminologie()
@@ -237,6 +237,16 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick }: { onClose:
                   }}
                 >
                   Farbschema
+                </button>
+                <button
+                  onClick={onThemeAnpassenClick}
+                  style={{
+                    fontSize: 11, padding: '3px 9px', borderRadius: 5,
+                    border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                    color: 'var(--text-secondary)', cursor: 'pointer',
+                  }}
+                >
+                  Theme anpassen
                 </button>
                 <div className="seg">
                   <button className={tweaks.theme === 'light' ? 'on' : ''} onClick={() => set('theme', 'light')}>Hell</button>

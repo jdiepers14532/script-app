@@ -5,7 +5,6 @@ import AdminKI from '../components/AdminKI'
 import { api } from '../api/client'
 import { useSelectedProduction } from '../contexts'
 import { useTerminologie } from '../sw-ui'
-import { DesignTokenEditor } from '../components/DesignTokenEditor'
 
 const ADMIN_TABS = [
   { id: 'ki',             label: 'KI-Konfiguration' },
@@ -19,7 +18,6 @@ const ADMIN_TABS = [
   { id: 'users',          label: 'Benutzer & Rollen' },
   { id: 'audit',          label: 'Audit-Log' },
   { id: 'pwa',            label: 'App / PWA' },
-  { id: 'design-tokens',  label: 'Design Tokens' },
 ]
 
 // ── Wasserzeichen Tab ─────────────────────────────────────────────────────────
@@ -1385,7 +1383,6 @@ export default function AdminPage() {
           {activeTab === 'analyse'        && <AnalyseAdminTab />}
           {activeTab === 'private-docs'   && <PrivateDokumenteAdminTab />}
           {activeTab === 'pwa'            && <PwaAdminTab />}
-          {activeTab === 'design-tokens' && <DesignTokenEditor />}
         </div>
       </div>
     </AppShell>

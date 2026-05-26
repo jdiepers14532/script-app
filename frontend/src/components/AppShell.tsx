@@ -1116,6 +1116,7 @@ export default function AppShell({
               <AnsichtsModal
                 onClose={() => setAnsichtsModalOpen(false)}
                 onFarbschemaClick={() => setFarbschemaOpen(true)}
+                onThemeAnpassenClick={() => { setAnsichtsModalOpen(false); navigate('/theme-anpassen') }}
               />
             )}
             {farbschemaOpen && (

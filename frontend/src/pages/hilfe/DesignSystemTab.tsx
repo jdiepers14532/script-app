@@ -1,229 +1,290 @@
 import { C, InfoBox } from './_shared'
 import { BUILTIN_COLOR_SCHEMES } from '../../components/appShellConstants'
 
-function ColorChip({ value, label }: { value: string; label: string }) {
+// ── Hilfselemente ─────────────────────────────────────────────────────────────
+
+function Swatch({ value }: { value: string }) {
+  const isVar = value.startsWith('var(')
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-      <div style={{
-        width: 36, height: 36, borderRadius: 8, background: value, flexShrink: 0,
-        border: '1px solid rgba(0,0,0,0.1)',
-      }} />
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: C.text, fontFamily: 'monospace' }}>{label}</div>
-        <div style={{ fontSize: 11, color: C.muted, fontFamily: 'monospace' }}>{value}</div>
-      </div>
-    </div>
+    <div style={{
+      width: 18, height: 18, borderRadius: 4, flexShrink: 0, display: 'inline-block',
+      background: isVar ? value : value,
+      border: '1px solid rgba(0,0,0,0.15)',
+      verticalAlign: 'middle', marginRight: 6,
+    }} />
   )
 }
 
-function TokenRow({ name, desc }: { name: string; desc: string }) {
+function TR({ token, light, dark, focus, desc }: {
+  token: string; light?: string; dark?: string; focus?: string; desc?: string
+}) {
+  const cell: React.CSSProperties = { padding: '6px 10px', border: `1px solid ${C.border}`, verticalAlign: 'middle' }
+  const code: React.CSSProperties = { fontSize: 11, fontFamily: 'monospace', color: C.blue }
+  const val: React.CSSProperties = { fontSize: 11, fontFamily: 'monospace', color: C.muted, display: 'flex', alignItems: 'center' }
   return (
-    <div style={{ display: 'flex', gap: 12, padding: '5px 0', borderBottom: `1px solid ${C.border}`, alignItems: 'flex-start' }}>
-      <code style={{ fontSize: 11, color: C.blue, fontFamily: 'monospace', minWidth: 220, flexShrink: 0 }}>{name}</code>
-      <span style={{ fontSize: 12, color: C.muted }}>{desc}</span>
-    </div>
+    <tr>
+      <td style={cell}><code style={code}>{token}</code>{desc && <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{desc}</div>}</td>
+      <td style={cell}>{light ? <span style={val}><Swatch value={light} />{light}</span> : <span style={{ color: C.muted, fontSize: 11 }}>—</span>}</td>
+      <td style={cell}>{dark  ? <span style={val}><Swatch value={dark}  />{dark}</span>  : <span style={{ color: C.muted, fontSize: 11 }}>—</span>}</td>
+      <td style={cell}>{focus ? <span style={val}><Swatch value={focus} />{focus}</span> : <span style={{ color: C.muted, fontSize: 11 }}>—</span>}</td>
+    </tr>
   )
 }
 
-const h2Style: React.CSSProperties = {
-  fontSize: 15, fontWeight: 700, margin: '32px 0 10px 0',
-  paddingBottom: 8, borderBottom: `2px solid ${C.border}`,
-  color: C.text,
+function THead() {
+  const th: React.CSSProperties = { textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}`, background: C.subtle, color: C.muted, fontSize: 11, fontWeight: 700 }
+  return (
+    <thead>
+      <tr>
+        <th style={{ ...th, minWidth: 220 }}>Token</th>
+        <th style={{ ...th, minWidth: 180 }}>Light (Default)</th>
+        <th style={{ ...th, minWidth: 180 }}>Dark</th>
+        <th style={{ ...th, minWidth: 160 }}>Focus</th>
+      </tr>
+    </thead>
+  )
 }
-const pStyle: React.CSSProperties = {
-  fontSize: 13, color: C.muted, lineHeight: 1.7, margin: '0 0 12px 0',
+
+function StaticTR({ token, value, desc }: { token: string; value: string; desc?: string }) {
+  const cell: React.CSSProperties = { padding: '6px 10px', border: `1px solid ${C.border}`, verticalAlign: 'middle' }
+  return (
+    <tr>
+      <td style={cell}><code style={{ fontSize: 11, fontFamily: 'monospace', color: C.blue }}>{token}</code>{desc && <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>{desc}</div>}</td>
+      <td style={{ ...cell, fontSize: 11, fontFamily: 'monospace', color: C.muted }} colSpan={3}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {value.startsWith('#') && <Swatch value={value} />}
+          {value}
+        </span>
+      </td>
+    </tr>
+  )
 }
-const boxStyle: React.CSSProperties = {
-  background: C.surface, border: `1px solid ${C.border}`,
-  borderRadius: 10, padding: '16px 20px', marginBottom: 8,
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <tr style={{ background: '#f0f4ff' }}>
+      <td colSpan={4} style={{ padding: '5px 10px', fontSize: 11, fontWeight: 700, color: '#3366cc', border: `1px solid ${C.border}`, letterSpacing: 0.3 }}>
+        {children}
+      </td>
+    </tr>
+  )
 }
+
+const h2: React.CSSProperties = { fontSize: 15, fontWeight: 700, margin: '36px 0 10px', paddingBottom: 8, borderBottom: `2px solid ${C.border}`, color: C.text }
+const p: React.CSSProperties = { fontSize: 13, color: C.muted, lineHeight: 1.7, margin: '0 0 12px' }
+const box: React.CSSProperties = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 10, padding: '16px 20px', marginBottom: 12 }
+
+// ── Haupt-Tab ─────────────────────────────────────────────────────────────────
 
 export default function DesignSystemTab() {
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 0 40px' }}>
-
-      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px 0', color: C.text }}>Design-System</h1>
-      <p style={{ ...pStyle, fontSize: 14 }}>
-        Alle Farben der Script-App sind in einer einzigen Datei definiert und über drei Ebenen
-        hierarchisch strukturiert. Das ermöglicht globale Farbänderungen ohne einzelne Komponenten
-        anfassen zu müssen.
+    <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 0 48px' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px', color: C.text }}>Design-System (Admin)</h1>
+      <p style={{ ...p, fontSize: 14 }}>
+        Vollständige Referenz aller CSS Custom Properties, Theme-Blöcke und technischen Details.
+        Für den User-Überblick: <strong>Hilfe → Theme &amp; Farben</strong>.
       </p>
 
-      {/* ── Ebene 1 ── */}
-      <h2 style={h2Style}>Ebene 1 — Brand Raw Tokens</h2>
-      <p style={pStyle}>
-        Die unterste Ebene definiert die <strong>rohen Markenwerte</strong> als benannte CSS Custom Properties.
-        Sie sind theme-unabhängig und stehen in <code>tokens.css</code> unter <code>:root</code>.
-        Hier eine Farbe zu ändern wirkt sich sofort auf alle Stellen aus, die das Token verwenden.
+      {/* ── Vollständige Token-Referenz ── */}
+      <h2 style={h2}>Vollständige Token-Referenz</h2>
+      <p style={p}>
+        Alle CSS Custom Properties aus <code style={{ fontFamily: 'monospace' }}>frontend/src/styles/tokens.css</code>.
+        Theme-gesteuerte Tokens haben unterschiedliche Werte pro Theme-Block.
+        Statische Tokens (kursiv grau) gelten für alle Themes gleich.
       </p>
-      <div style={boxStyle}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 24px' }}>
-          <ColorChip value="#00C853" label="--sw-green" />
-          <ColorChip value="#007AFF" label="--sw-info" />
-          <ColorChip value="#FF3B30" label="--sw-danger" />
-          <ColorChip value="#FFCC00" label="--sw-warning" />
-          <ColorChip value="#FF9500" label="--sw-warning-alt" />
-          <ColorChip value="#000000" label="--sw-black" />
-          <ColorChip value="#FFFFFF" label="--sw-white" />
-          <ColorChip value="#757575" label="--sw-gray-secondary" />
-        </div>
-        <InfoBox title="Hinweis" color={C.blue}>
-          Diese Werte werden durch das <strong>Farbschema</strong>-System überschrieben
-          via <code>document.documentElement.style.setProperty()</code> — Inline-Style hat
-          höhere CSS-Spezifität als Stylesheet-Regeln.
-        </InfoBox>
-      </div>
 
-      {/* ── Ebene 2 ── */}
-      <h2 style={h2Style}>Ebene 2 — Semantische Tokens</h2>
-      <p style={pStyle}>
-        Die mittlere Ebene mappt die Brand-Tokens auf <strong>bedeutungsbasierte Variablen</strong>.
-        Für jedes Theme gibt es einen eigenen Block in <code>tokens.css</code>.
-        Komponenten verwenden ausschließlich diese Variablen — nie direkte Farbwerte.
-      </p>
-      <div style={boxStyle}>
-        <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16 }}>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Hintergrund</div>
-            <TokenRow name="--bg-page"    desc="Seiten-Hintergrund" />
-            <TokenRow name="--bg-surface" desc="Karten, Panels" />
-            <TokenRow name="--bg-subtle"  desc="Inputs, inaktive Bereiche" />
-            <TokenRow name="--bg-active"  desc="Aktiver Listeneintrag" />
-            <TokenRow name="--bg-hover"   desc="Hover-Zustand" />
-          </div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Text &amp; Border</div>
-            <TokenRow name="--text-primary"   desc="Haupt-Textfarbe" />
-            <TokenRow name="--text-secondary" desc="Labels, Hilfstexte" />
-            <TokenRow name="--text-muted"     desc="Deaktiviert, Timestamps" />
-            <TokenRow name="--text-inverse"   desc="Text auf dunklem Hintergrund" />
-            <TokenRow name="--border"         desc="Trennlinien, Rahmen" />
-            <TokenRow name="--border-subtle"  desc="Sehr feine Trennlinien" />
-          </div>
-        </div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
-          Theme-Blöcke in tokens.css
-        </div>
+      <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-          <thead>
-            <tr style={{ background: C.subtle }}>
-              <th style={{ textAlign: 'left', padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted }}>Selektor</th>
-              <th style={{ textAlign: 'left', padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted }}>Wird aktiviert durch</th>
-            </tr>
-          </thead>
+          <THead />
           <tbody>
-            {[
-              ["`:root, [data-theme='light']`", 'Standard (Hell-Theme, Default)'],
-              ["[data-theme='dark']",           'Theme = Dunkel (User-Einstellung)'],
-              ["[data-mode='focus']",           'Fokus-Modus (Alt+Z) — warme, minimale Töne'],
-            ].map(([sel, note]) => (
-              <tr key={sel}>
-                <td style={{ padding: '6px 10px', border: `1px solid ${C.border}` }}><code style={{ fontSize: 11 }}>{sel}</code></td>
-                <td style={{ padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted }}>{note}</td>
-              </tr>
-            ))}
+
+            {/* ── Brand-Farben ── */}
+            <SectionLabel>Brand-Farben (Rohtokens) — statisch, theme-unabhängig</SectionLabel>
+            <StaticTR token="--sw-black"          value="#000000"  desc="Schwarz" />
+            <StaticTR token="--sw-white"          value="#FFFFFF"  desc="Weiß" />
+            <StaticTR token="--sw-green"          value="#00C853"  desc="Aktiv, Erfolg" />
+            <StaticTR token="--sw-danger"         value="#FF3B30"  desc="Fehler, Löschen" />
+            <StaticTR token="--sw-warning"        value="#FFCC00"  desc="Warnung (gelb)" />
+            <StaticTR token="--sw-warning-alt"    value="#FF9500"  desc="Warnung (orange), C2-Klasse" />
+            <StaticTR token="--sw-info"           value="#007AFF"  desc="Info, Links, Focus" />
+            <StaticTR token="--sw-gray-surface"   value="#F5F5F5"  desc="Grau-Fläche (Rohwert)" />
+            <StaticTR token="--sw-gray-border"    value="#E0E0E0"  desc="Grau-Border (Rohwert)" />
+            <StaticTR token="--sw-gray-secondary" value="#757575"  desc="Grau-Text (Rohwert)" />
+            <StaticTR token="--sw-gray-900"       value="#1a1a1a"  desc="Fast-Schwarz" />
+
+            {/* ── Semantische Status-Tokens ── */}
+            <SectionLabel>Semantische Status-Tokens — statisch, bedeutungsbasiert</SectionLabel>
+            <StaticTR token="--color-success"    value="#00C853"              desc="Erfolg — Textfarbe" />
+            <StaticTR token="--color-success-bg" value="rgba(0,200,83,0.08)" desc="Erfolg — Hintergrund" />
+            <StaticTR token="--color-danger"     value="#FF3B30"              desc="Fehler — Textfarbe" />
+            <StaticTR token="--color-danger-bg"  value="rgba(255,59,48,0.08)" desc="Fehler — Hintergrund" />
+            <StaticTR token="--color-warning"    value="#FF9500"              desc="Warnung — Textfarbe" />
+            <StaticTR token="--color-warning-bg" value="rgba(255,149,0,0.10)" desc="Warnung — Hintergrund" />
+            <StaticTR token="--color-info"       value="#007AFF"              desc="Info — Textfarbe" />
+            <StaticTR token="--color-info-bg"    value="rgba(0,122,255,0.08)" desc="Info — Hintergrund" />
+
+            {/* ── Hintergründe ── */}
+            <SectionLabel>Hintergründe — theme-gesteuert</SectionLabel>
+            <TR token="--bg-page"    desc="Äußerster Seitenhintergrund"       light="#FFFFFF"  dark="#0D0D0D"  focus="#FAFAF8" />
+            <TR token="--bg-surface" desc="Karten, Panels, Modals"            light="#FAFAFA"  dark="#181818"  focus="#FFFFFF" />
+            <TR token="--bg-subtle"  desc="Fieldsets, Hinweis-Boxen"          light="#F5F5F5"  dark="#1A1A1A"  focus="#F0EFED" />
+            <TR token="--bg-active"  desc="Aktiver Menüeintrag, selected"     light="#F5F5F5"  dark="#1F1F1F"  focus="#ECEAE6" />
+            <TR token="--bg-hover"   desc="Hover-Zustand"                     light="#EDEDED"  dark="#262626" />
+
+            {/* ── Texte ── */}
+            <SectionLabel>Texte — theme-gesteuert</SectionLabel>
+            <TR token="--text-primary"   desc="Haupttext, Überschriften"      light="#000000"  dark="#FFFFFF"  focus="#111111" />
+            <TR token="--text-secondary" desc="Labels, Hilfstexte"            light="#757575"  dark="#A0A0A0"  focus="#767470" />
+            <TR token="--text-muted"     desc="Metadaten, Timestamps"         light="#9E9E9E"  dark="#6B6B6B"  focus="#9E9C97" />
+            <TR token="--text-inverse"   desc="Text auf dunklem Grund"        light="#FFFFFF"  dark="#000000" />
+
+            {/* ── Borders ── */}
+            <SectionLabel>Borders — theme-gesteuert</SectionLabel>
+            <TR token="--border"        desc="Standardtrennlinie"             light="#E0E0E0"  dark="#2A2A2A"  focus="#E5E4E0" />
+            <TR token="--border-subtle" desc="Sehr dezente Trennlinie"        light="#EEEEEE"  dark="#1F1F1F"  focus="#EDECE8" />
+            <TR token="--border-strong" desc="Kräftige Abgrenzung"            light="#000000"  dark="#FFFFFF" />
+
+            {/* ── Interaktion ── */}
+            <SectionLabel>Buttons, Inputs, Benachrichtigungen — theme-gesteuert</SectionLabel>
+            <TR token="--btn-primary-bg"    desc="Primär-Button Hintergrund"  light="#000000"  dark="#FFFFFF" />
+            <TR token="--btn-primary-color" desc="Primär-Button Text"         light="#FFFFFF"  dark="#000000" />
+            <TR token="--input-bg"          desc="Eingabefelder"              light="#FFFFFF"  dark="#1A1A1A" />
+            <TR token="--notif-unread"      desc="Ungelesene Markierungen"    light="#E8F2FF"  dark="rgba(0,122,255,0.12)" />
+            <TR token="--focus-ring"        desc="Keyboard-Fokus-Ring"        light="rgba(0,122,255,0.4)" />
+
+            {/* ── Schatten ── */}
+            <SectionLabel>Schatten — theme-gesteuert (Light leicht, Dark kräftig)</SectionLabel>
+            <TR token="--shadow-sm" desc="Sehr kleiner Schatten"  light="0 1px 2px rgba(0,0,0,0.05)"  dark="0 1px 3px rgba(0,0,0,0.25)" />
+            <TR token="--shadow-md" desc="Standard-Schatten"      light="0 2px 8px rgba(0,0,0,0.08)"  dark="0 2px 10px rgba(0,0,0,0.35)" />
+            <TR token="--shadow-lg" desc="Große Flächen"          light="0 4px 16px rgba(0,0,0,0.08)" dark="0 4px 20px rgba(0,0,0,0.40)" />
+            <TR token="--shadow-xl" desc="Modals, Floating Panels" light="0 4px 24px rgba(0,0,0,0.15)" dark="0 8px 32px rgba(0,0,0,0.50)" />
+
           </tbody>
         </table>
       </div>
 
-      {/* ── Ebene 3 ── */}
-      <h2 style={h2Style}>Ebene 3 — Komponentenklassen (app.css)</h2>
-      <p style={pStyle}>
-        <code>app.css</code> enthält alle Layout- und Komponentenregeln. Farben werden
-        ausschließlich über semantische Tokens referenziert — nie als Hardcode-Werte.
-        Jede Farbänderung auf Ebene 1 oder 2 zieht sich automatisch durch alle Komponenten.
-      </p>
-      <div style={boxStyle}>
-        <pre style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.7, overflow: 'auto' }}>{`/* Beispiel aus app.css */
-.topbar {
-  background: var(--bg-surface);
-  border-bottom: 1px solid var(--border);
-}
-
-.btn-primary {
-  background: var(--btn-primary-bg);   /* = schwarz (hell) / weiß (dunkel) */
-  color: var(--btn-primary-color);
-}`}</pre>
-        <InfoBox title="Ausnahmen" color={C.orange}>
-          Vereinzelte Hardcode-Farben in app.css: <code>#ffe566</code> (Mark-Highlight im Editor),{' '}
-          <code>rgba(0,122,255,0.2)</code> (Textauswahl). Diese sind bewusst fest und ändern
-          sich nicht mit dem Farbschema.
-        </InfoBox>
+      {/* ── Typografie & Layout ── */}
+      <h2 style={h2}>Typografie & Layout — statisch</h2>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: C.subtle }}>
+              <th style={{ textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}`, color: C.muted, width: 220 }}>Token</th>
+              <th style={{ textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}`, color: C.muted }} colSpan={3}>Wert</th>
+            </tr>
+          </thead>
+          <tbody>
+            <SectionLabel>Schriften</SectionLabel>
+            <StaticTR token="--font-sans"  value="'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif" />
+            <StaticTR token="--font-mono"  value="'Courier Prime', 'Courier New', Courier, monospace" />
+            <StaticTR token="--user-interface-size" value="13px" desc="Wird zur Laufzeit via Ansicht-Modal überschrieben" />
+            <StaticTR token="--user-script-size"    value="13px" desc="Drehbuch-Schriftgröße" />
+            <SectionLabel>Schriftgrößen (fs = font-size)</SectionLabel>
+            <StaticTR token="--fs-xs"   value="11px" />
+            <StaticTR token="--fs-sm"   value="12px" />
+            <StaticTR token="--fs-base" value="13px" desc="Standard Interface-Text" />
+            <StaticTR token="--fs-md"   value="14px" />
+            <StaticTR token="--fs-lg"   value="15px" />
+            <StaticTR token="--fs-xl"   value="17px" />
+            <SectionLabel>Schriftgewichte (fw = font-weight)</SectionLabel>
+            <StaticTR token="--fw-regular" value="400" />
+            <StaticTR token="--fw-medium"  value="500" />
+            <StaticTR token="--fw-semi"    value="600" />
+            <StaticTR token="--fw-bold"    value="700" />
+            <SectionLabel>Zeilenhöhen (lh = line-height)</SectionLabel>
+            <StaticTR token="--lh-tight"   value="1.15" />
+            <StaticTR token="--lh-snug"    value="1.3" />
+            <StaticTR token="--lh-base"    value="1.5" />
+            <StaticTR token="--lh-relaxed" value="1.7" />
+            <SectionLabel>Abstände (space)</SectionLabel>
+            <StaticTR token="--space-1 … --space-20" value="4px · 8px · 12px · 16px · 20px · 24px · 32px · 40px · 48px · 64px · 80px" desc="8px-Grid" />
+            <SectionLabel>Radien (radius)</SectionLabel>
+            <StaticTR token="--radius-xs"   value="4px" />
+            <StaticTR token="--radius-sm"   value="6px" />
+            <StaticTR token="--radius-md"   value="8px" desc="Standard" />
+            <StaticTR token="--radius-lg"   value="12px" desc="Cards, Modals" />
+            <StaticTR token="--radius-xl"   value="20px" />
+            <StaticTR token="--radius-pill" value="999px" desc="Chips, Tags" />
+            <SectionLabel>Letter-Spacing (tracking)</SectionLabel>
+            <StaticTR token="--tracking-wide"  value="0.5px" />
+            <StaticTR token="--tracking-wider" value="0.08em" />
+          </tbody>
+        </table>
       </div>
 
+      {/* ── Architektur ── */}
+      <h2 style={h2}>Architektur: 3-Ebenen-Modell</h2>
+      <div style={box}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          {[
+            { num: '1', title: 'Brand Raw Tokens', desc: 'Rohe Markenwerte, theme-unabhängig. Farbschema-System überschreibt diese zur Laufzeit.' },
+            { num: '2', title: 'Semantische Tokens', desc: 'Bedeutungsbasierte Variablen pro Theme-Block (Light/Dark/Focus). Komponenten nutzen nur diese.' },
+            { num: '3', title: 'Komponentenklassen', desc: 'app.css — referenziert ausschließlich Ebene-2-Tokens. Nie direkte Farbwerte.' },
+          ].map(e => (
+            <div key={e.num} style={{ background: C.subtle, borderRadius: 8, padding: '12px 14px' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: C.muted, marginBottom: 6 }}>E{e.num}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 4 }}>{e.title}</div>
+              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{e.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Theme-Blöcke ── */}
+      <h2 style={h2}>Theme-Blöcke in tokens.css</h2>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: C.subtle }}>
+            {['CSS-Selektor', 'Aktiviert durch', 'Überschreibt'].map(h => (
+              <th key={h} style={{ textAlign: 'left', padding: '7px 10px', border: `1px solid ${C.border}`, color: C.muted }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            [":root, [data-theme='light']", 'Standard — automatisch aktiv',       'Light-Defaults auf bg-*, text-*, border-*, shadow-*'],
+            ["[data-theme='dark']",         'User-Einstellung „Dunkel"',           'bg-*, text-*, border-*, shadow-* + notif-unread'],
+            ["[data-mode='focus']",          'Fokus-Modus (Alt+Z / Toolbar)',      'bg-page/surface/subtle/active, text-*, border/subtle'],
+          ].map(([sel, trigger, overrides]) => (
+            <tr key={sel}>
+              <td style={{ padding: '7px 10px', border: `1px solid ${C.border}` }}><code style={{ fontSize: 11, fontFamily: 'monospace' }}>{sel}</code></td>
+              <td style={{ padding: '7px 10px', border: `1px solid ${C.border}`, color: C.muted, fontSize: 12 }}>{trigger}</td>
+              <td style={{ padding: '7px 10px', border: `1px solid ${C.border}`, color: C.muted, fontSize: 12 }}>{overrides}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
       {/* ── Farbschema-System ── */}
-      <h2 style={h2Style}>Farbschema-System</h2>
-      <p style={pStyle}>
-        Das Farbschema steuert die <strong>5 Brand-Akzentfarben</strong> (Ebene 1) zur Laufzeit.
-        Es ist unabhängig von Theme (Hell/Dunkel) und Hintergrundfarbe — alle drei Dimensionen
-        sind orthogonal kombinierbar.
-      </p>
-      <div style={boxStyle}>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+      <h2 style={h2}>Farbschema-System (Built-in)</h2>
+      <div style={box}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
           {BUILTIN_COLOR_SCHEMES.map(scheme => (
-            <div key={scheme.id} style={{
-              background: C.subtle, borderRadius: 8, padding: '10px 14px',
-              border: `1px solid ${C.border}`, minWidth: 148,
-            }}>
+            <div key={scheme.id} style={{ background: C.subtle, borderRadius: 8, padding: '10px 14px', border: `1px solid ${C.border}`, minWidth: 140 }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: C.text, marginBottom: 6 }}>{scheme.name}</div>
               <div style={{ display: 'flex', gap: 4 }}>
                 {Object.values(scheme.colors).map((c, i) => (
-                  <div key={i} style={{ width: 18, height: 18, borderRadius: 4, background: c, border: '1px solid rgba(0,0,0,0.1)' }} />
+                  <div key={i} style={{ width: 18, height: 18, borderRadius: 4, background: c as string, border: '1px solid rgba(0,0,0,0.1)' }} />
                 ))}
               </div>
             </div>
           ))}
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 12 }}>
-          <thead>
-            <tr style={{ background: C.subtle }}>
-              <th style={{ textAlign: 'left', padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted }}>Dimension</th>
-              <th style={{ textAlign: 'left', padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted }}>Speicherort</th>
-              <th style={{ textAlign: 'left', padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted }}>Einstellen via</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              ['Theme (Hell/Dunkel)',    'ui_settings.theme (Backend)',                    'Ansicht → Darstellung'],
-              ['Hintergrundfarbe',       'ui_settings.lightBgIndex (Backend)',             'Ansicht → Hintergrundfarbe'],
-              ['Farbschema (Akzent)',    'ui_settings.activeColorSchemeId (Backend)\n+ custom in localStorage',
-                                                                                           'Ansicht → Farbschema ändern'],
-            ].map(([dim, store, where]) => (
-              <tr key={dim}>
-                <td style={{ padding: '6px 10px', border: `1px solid ${C.border}`, fontWeight: 500, color: C.text }}>{dim}</td>
-                <td style={{ padding: '6px 10px', border: `1px solid ${C.border}` }}><code style={{ fontSize: 11 }}>{store}</code></td>
-                <td style={{ padding: '6px 10px', border: `1px solid ${C.border}`, color: C.muted }}>{where}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* ── Technische Umsetzung ── */}
-      <h2 style={h2Style}>Technische Umsetzung</h2>
-      <p style={pStyle}>
-        Farbschemata werden per <code>document.documentElement.style.setProperty()</code> als
-        Inline-Style auf <code>:root</code> gesetzt. Inline-Styles haben höhere CSS-Spezifität
-        als alle Stylesheet-Regeln — kein <code>!important</code> nötig, sofort wirksam, kein Reload.
-      </p>
-      <div style={boxStyle}>
-        <pre style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.7, overflow: 'auto' }}>{`// AppShell.tsx — Farbschema-Effekt
-useEffect(() => {
-  const scheme = resolveColorScheme(tweaks.activeColorSchemeId)
-  const el = document.documentElement
-  el.style.setProperty('--sw-green',       scheme.colors.green)
-  el.style.setProperty('--sw-info',        scheme.colors.info)
-  el.style.setProperty('--sw-danger',      scheme.colors.danger)
-  el.style.setProperty('--sw-warning',     scheme.colors.warning)
-  el.style.setProperty('--sw-warning-alt', scheme.colors.warningAlt)
-}, [tweaks.activeColorSchemeId])`}</pre>
-        <InfoBox title="Dateien" color={C.blue}>
-          <strong>Built-in Schemata:</strong> <code>appShellConstants.ts → BUILTIN_COLOR_SCHEMES</code><br />
-          <strong>Benutzerdefiniert:</strong> <code>localStorage['script-color-schemes-v1']</code> (JSON-Array)<br />
-          <strong>Aktive ID:</strong> <code>ui_settings.activeColorSchemeId</code> — automatisch im JSONB gespeichert,
-          kein DB-Migration nötig.
+        <InfoBox title="Technisch" color={C.blue}>
+          Farbschemata setzen die 5 <code>--sw-*</code>-Brand-Tokens via{' '}
+          <code>document.documentElement.style.setProperty()</code>. Inline-Styles haben
+          höhere CSS-Spezifität als alle Stylesheet-Regeln — wirkt sofort, kein Reload.
         </InfoBox>
       </div>
+
+      {/* ── Token Editor ── */}
+      <h2 style={h2}>Light-Theme Token-Editor</h2>
+      <p style={p}>
+        Unter <strong>Ansicht → Theme anpassen</strong> (oder direkt via Route <code style={{ fontFamily: 'monospace' }}>/theme-anpassen</code>) können alle
+        Light-Theme-Tokens einzeln überschrieben werden. Overrides werden in{' '}
+        <code style={{ fontFamily: 'monospace' }}>localStorage['sw-token-overrides']</code> persistiert und beim Mount auf <code style={{ fontFamily: 'monospace' }}>:root</code> angewendet.
+        Dark-Theme und Focus-Modus bleiben unberührt.
+      </p>
     </div>
   )
 }

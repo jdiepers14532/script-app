@@ -25,6 +25,7 @@ const TeamWorkTab          = lazy(() => import('./hilfe/TeamWorkTab'))
 const AutorenplanHilfeTab  = lazy(() => import('./hilfe/AutorenplanHilfeTab'))
 const FreieDokumenteTab    = lazy(() => import('./hilfe/FreieDokumenteTab'))
 const VerlaufUndoTab       = lazy(() => import('./hilfe/VerlaufUndoTab'))
+const ThemeAnpassenHilfeTab = lazy(() => import('./hilfe/ThemeAnpassenHilfeTab'))
 const SearchResultsView    = lazy(() => import('./hilfe/SearchResultsView'))
 // Admin-only
 const DatenmodellTab       = lazy(() => import('./hilfe/DatenmodellTab'))
@@ -89,6 +90,8 @@ const NAV_ITEMS = [
     keywords: 'autorenplan autor plan kalender woche einsatz future terminplanung' },
   { id: 'freie-dokumente',      label: 'Freie Dokumente',           icon: '📂',
     keywords: 'freie dokumente schattenbuch casting szene spin-off sonstiges folge ohne nummer sichtbarkeit privat verknüpfen' },
+  { id: 'theme-anpassen',       label: 'Theme & Farben',            icon: '🎨',
+    keywords: 'theme farben farbe anpassen light hell dark tokens css custom property hintergrund text border button farbschema' },
   // Admin-only
   { id: 'datenmodell',          label: 'Datenmodell',               icon: '🗄️', adminOnly: true,
     keywords: 'datenbank tabelle schema migration sql postgresql technisch architektur' },
@@ -176,6 +179,7 @@ function HilfePage() {
       case 'team-work':          return <TeamWorkTab />
       case 'autorenplan':        return <AutorenplanHilfeTab />
       case 'freie-dokumente':    return <FreieDokumenteTab />
+      case 'theme-anpassen':     return <ThemeAnpassenHilfeTab />
       case 'datenmodell':        return <DatenmodellTab />
       case 'datensicherheit':    return <DatensicherheitTab />
       case 'potenzielle-fehler': return <PotenzielleFehldrTab />
