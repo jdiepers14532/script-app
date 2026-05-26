@@ -200,19 +200,26 @@ export default function EditorPanel({
   useEffect(() => {
     if (!selectedWerkId) { setCurrentSzene(null); setSceneContent(null); return }
     if (!selectedSzeneId && !sceneIdentityId) { setCurrentSzene(null); setSceneContent(null); return }
+
+    // Clear immediately before async load — avoids stale content during transition
+    // and ensures the editor key changes even when loading completes synchronously (cached)
+    setCurrentSzene(null)
+    setSceneContent(null)
     setLoading(true)
 
     async function doLoad() {
       if (useDokumentSzenen) {
         // Resolve the correct dokument_szene for THIS panel's werkstufe.
-        // If sceneIdentityId is available, look up by (werkstufe + identity) so that
-        // each panel independently shows its own werkstufe's content.
-        let szeneId: string | null = typeof selectedSzeneId === 'string' ? selectedSzeneId : null
+        // When sceneIdentityId is available, ALWAYS use resolve — never fall back to
+        // selectedSzeneId (which belongs to a different werkstufe) to avoid showing
+        // wrong content after a werkstufe switch.
+        let szeneId: string | null = null
         if (sceneIdentityId && selectedWerkId) {
-          try {
-            const resolved = await api.resolveDokumentSzene(selectedWerkId, sceneIdentityId)
-            if (resolved?.id) szeneId = resolved.id
-          } catch { /* Szene existiert nicht in dieser Werkstufe → Fallback auf primary */ }
+          const resolved = await api.resolveDokumentSzene(selectedWerkId, sceneIdentityId)
+          if (resolved?.id) szeneId = resolved.id
+        } else if (typeof selectedSzeneId === 'string') {
+          // Fallback for non-scene elements (cover, synopsis, etc.) without identity
+          szeneId = selectedSzeneId
         }
         if (!szeneId) { setCurrentSzene(null); setSceneContent(null); return }
         const sz = await api.getDokumentSzene(szeneId)
@@ -894,7 +901,7 @@ export default function EditorPanel({
         ) : (
           <Suspense fallback={null}>
             <UniversalEditor
-              key={`${currentSzene?.id ?? selectedSzeneId}-${contentResetCounter}`}
+              key={`${selectedWerkId ?? ''}-${currentSzene?.id ?? selectedSzeneId}-${contentResetCounter}`}
               initialContent={sceneContent}
               onSave={isReadOnly ? undefined : scheduleSave}
               readOnly={!!isReadOnly}
