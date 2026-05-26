@@ -90,6 +90,8 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
   useEffect(() => { setCurrentVal(readToken(token.cssVar)) })
 
   const isHex = currentVal.startsWith('#') && currentVal.length === 7
+  const darkDefault = token.dark
+  const focusDefault = token.focus
 
   function handleHexBlur() {
     setEditingHex(false)
