@@ -167,12 +167,12 @@ export default function HeaderSelect({ options, value, onChange, scrollToValue, 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: o.bold ? 700 : o.value === value ? 600 : 400 }}>
                   {o.dot && <span style={{ fontSize: 8 }}>●</span>}
                   {o.label}
+                  {o.subtitle && (
+                    <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 400 }}>
+                      {o.subtitle}
+                    </span>
+                  )}
                 </div>
-                {o.subtitle && (
-                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 400, marginTop: 1, paddingLeft: o.dot ? 16 : 0 }}>
-                    {o.subtitle}
-                  </div>
-                )}
               </button>
             ))}
             {filteredOptions.length === 0 && (
