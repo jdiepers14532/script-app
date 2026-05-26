@@ -685,10 +685,11 @@ function renderSzenenkopf(
 
   if (parts.length === 0) return ''
 
-  // Template-Fall: unsichtbares <h2> mit kurzem Label für die PDF-Outline,
-  // gefolgt vom visuell gerenderten Template-Inhalt als <div>.
+  // Template-Fall: visuell transparentes <h2> (opacity:0, 1pt hoch) für die PDF-Outline —
+  // Chrome's generateDocumentOutline erkennt nur Elemente mit gerenderter Fläche (height>0).
+  // opacity:0 statt overflow:hidden: Element ist unsichtbar aber hat Layout → AX-Tree sieht es.
   const label = buildBookmarkLabel(scene, folgeNummer, kuerzel)
-  return `<h2 style="${pbStyle}height:0;overflow:hidden;margin:0;padding:0;line-height:0;page-break-after:avoid">${label}</h2>` +
+  return `<h2 style="${pbStyle}opacity:0;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${label}</h2>` +
          `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
 }
 
@@ -1423,6 +1424,7 @@ export async function assemblePdf(
     : '<div style="font-size:0"></div>'
 
   const pdfBookmarks = input.options.pdfBookmarks === true
+  console.log('[export] pdfBookmarks:', pdfBookmarks, '| titelseite:', !!(titelseiteHtml && titelseiteMargins))
 
   let pdfBytes: Uint8Array
 
