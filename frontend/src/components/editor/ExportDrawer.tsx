@@ -8,12 +8,12 @@
  * - Szenen deaktivierbar
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle,
   Eye, WifiOff, GripVertical, BarChart2, Settings, BookOpen, Filter,
-  ChevronDown,
+  ChevronDown, Table2, List,
 } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
@@ -37,7 +37,7 @@ interface FilterOptions {
 
 interface ExportItem {
   id: string
-  type: 'notiz' | 'statistik'
+  type: 'notiz' | 'statistik' | 'onliner' | 'synopse'
   werkstufId?: string   // Notiz-Werkstufe UUID (gesamtes Notiz-Dokument)
   szeneId?: string      // dokument_szenen.id (einzelne Notiz-Zeile aus aktueller Werkstufe)
   label: string
@@ -101,11 +101,12 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [szenenAktiv, setSzenenAktiv]             = useState(true)
   const [pdfBookmarks, setPdfBookmarks]           = useState(false)
 
-  // Statistik-Modal
-  const [statConfigItemId, setStatConfigItemId]   = useState<string | null>(null)
-  const [folgenForStat, setFolgenForStat]         = useState<any[]>([])
-  const [bloeckeForStat, setBloeckeForStat]       = useState<any[]>([])
-  const [statSections]                            = useState<StatModalSection[]>(DEFAULT_SECTIONS)
+  // Statistik / Folge-Picker Modal
+  const [statConfigItemId, setStatConfigItemId]     = useState<string | null>(null)
+  const [statConfigItemType, setStatConfigItemType] = useState<'statistik' | 'onliner' | 'synopse'>('statistik')
+  const [folgenForStat, setFolgenForStat]           = useState<any[]>([])
+  const [bloeckeForStat, setBloeckeForStat]         = useState<any[]>([])
+  const [statSections]                              = useState<StatModalSection[]>(DEFAULT_SECTIONS)
 
   // DnD
   const dragItemRef      = useRef<{ id: string; zone: 'pre' | 'post' } | null>(null)
@@ -132,10 +133,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       id: genId(), type: 'notiz', werkstufId: w.id,
       label: w.label || `${w.typ === 'notiz' ? 'Notiz' : 'Dokument'} V${w.version_nummer}`, enabled: true,
     }))
-    setPreItems([...notizWerkItems, {
-      id: genId(), type: 'statistik',
-      label: 'Statistik (Konfiguration nötig)', enabled: false,
-    }])
+    setPreItems([...notizWerkItems,
+      { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false },
+      { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false },
+      { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false },
+    ])
     setPostItems([])
 
     // Freie Notiz-Elemente der aktuellen Werkstufe laden + VOR/NACH einordnen
@@ -186,8 +188,8 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
   }
 
-  // Statistik-Modal: Folgen + Blöcke laden wenn noch nicht geladen
-  const openStatConfig = useCallback(async (itemId: string) => {
+  // Statistik / Onliner / Synopsen: Folgen + Blöcke laden wenn noch nicht geladen
+  const openStatConfig = useCallback(async (itemId: string, itemType: 'statistik' | 'onliner' | 'synopse' = 'statistik') => {
     if (!folgenForStat.length) {
       try {
         const [f, b] = await Promise.all([
@@ -201,15 +203,18 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       }
     }
     setStatConfigItemId(itemId)
+    setStatConfigItemType(itemType)
   }, [folgenForStat.length, produktionId])
 
   const handleStatistikUebernehmen = useCallback((config: StatistikExportConfig) => {
     if (!statConfigItemId) return
+    const suffix = config.mode === 'block' ? `Block ${config.folge_nummer}` : `Folge ${config.folge_nummer}`
     const updateItems = (items: ExportItem[]) =>
-      items.map(it => it.id === statConfigItemId
-        ? { ...it, enabled: true, statistikConfig: config, label: `Statistik Folge ${config.folge_nummer}` }
-        : it
-      )
+      items.map(it => {
+        if (it.id !== statConfigItemId) return it
+        const prefix = it.type === 'onliner' ? 'Onliner' : it.type === 'synopse' ? 'Synopsen' : 'Statistik'
+        return { ...it, enabled: true, statistikConfig: config, label: `${prefix} ${suffix}` }
+      })
     setPreItems(prev => updateItems(prev))
     setPostItems(prev => updateItems(prev))
     setStatConfigItemId(null)
@@ -543,7 +548,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                       zone="pre"
                       onToggle={() => toggleItem('pre', item.id)}
                       onDragStart={() => onItemDragStart(item.id, 'pre')}
-                      onConfigureStat={() => openStatConfig(item.id)}
+                      onConfigureStat={() => openStatConfig(item.id, item.type as 'statistik' | 'onliner' | 'synopse')}
                     />
                   ))}
                   {preItems.length === 0 && (
@@ -596,7 +601,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                       zone="post"
                       onToggle={() => toggleItem('post', item.id)}
                       onDragStart={() => onItemDragStart(item.id, 'post')}
-                      onConfigureStat={() => openStatConfig(item.id)}
+                      onConfigureStat={() => openStatConfig(item.id, item.type as 'statistik' | 'onliner' | 'synopse')}
                     />
                   ))}
                   {postItems.length === 0 && (
@@ -817,13 +822,23 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       </div>
 
       {/* Statistik-Konfiguration Modal */}
-      {statConfigItemId && (
+      {statConfigItemId && statConfigItemType === 'statistik' && (
         <StatistikModal
           onClose={() => setStatConfigItemId(null)}
           folgen={folgenForStat}
           bloecke={bloeckeForStat}
           sections={statSections}
           onExportUebernehmen={handleStatistikUebernehmen}
+        />
+      )}
+      {/* Onliner / Synopsen Konfiguration */}
+      {statConfigItemId && (statConfigItemType === 'onliner' || statConfigItemType === 'synopse') && (
+        <FolgePickerModal
+          title={statConfigItemType === 'onliner' ? 'Onliner konfigurieren' : 'Synopsen konfigurieren'}
+          folgen={folgenForStat}
+          bloecke={bloeckeForStat}
+          onConfirm={handleStatistikUebernehmen}
+          onClose={() => setStatConfigItemId(null)}
         />
       )}
 
@@ -869,8 +884,16 @@ function ItemRow({
   onDragStart: () => void
   onConfigureStat: () => void
 }) {
-  const isStatistik  = item.type === 'statistik'
-  const isConfigured = isStatistik && !!item.statistikConfig
+  const needsConfig  = item.type === 'statistik' || item.type === 'onliner' || item.type === 'synopse'
+  const isConfigured = needsConfig && !!item.statistikConfig
+
+  const typeIcon = item.type === 'statistik'
+    ? <BarChart2 size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
+    : item.type === 'onliner'
+    ? <Table2    size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
+    : item.type === 'synopse'
+    ? <List      size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
+    : <FileText  size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
 
   return (
     <div
@@ -888,14 +911,11 @@ function ItemRow({
         type="checkbox" checked={item.enabled} onChange={onToggle}
         style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }}
       />
-      {isStatistik
-        ? <BarChart2 size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
-        : <FileText  size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-      }
+      {typeIcon}
       <span style={{ flex: 1, fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>
         {item.label}
       </span>
-      {isStatistik && (
+      {needsConfig && (
         <button
           onClick={e => { e.stopPropagation(); onConfigureStat() }}
           style={{
@@ -938,6 +958,127 @@ function FilterPickerButton({ label, count, onClick }: { label: string; count: n
     </button>
   )
 }
+
+// ── FolgePickerModal — minimaler Folgen/Block-Picker für Onliner & Synopsen ────
+
+function FolgePickerModal({
+  title, folgen, bloecke, onConfirm, onClose,
+}: {
+  title: string
+  folgen: any[]
+  bloecke: any[]
+  onConfirm: (config: StatistikExportConfig) => void
+  onClose: () => void
+}) {
+  const [mode, setMode] = useState<'folge' | 'block'>('folge')
+  const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(
+    folgen.length ? folgen[folgen.length - 1].id : null
+  )
+  const [selectedBlockIdx, setSelectedBlockIdx] = useState(0)
+
+  const selectedFolgeIds = useMemo(() => {
+    if (mode === 'block' && bloecke[selectedBlockIdx]) {
+      const block = bloecke[selectedBlockIdx]
+      return folgen
+        .filter(f => f.folge_nummer >= block.folge_von && f.folge_nummer <= block.folge_bis)
+        .map(f => f.id)
+    }
+    if (mode === 'folge' && selectedFolgeId) return [selectedFolgeId]
+    return []
+  }, [mode, selectedBlockIdx, bloecke, selectedFolgeId, folgen])
+
+  function handleConfirm() {
+    if (!selectedFolgeIds.length) return
+    const folgeNummer = mode === 'folge' && selectedFolgeId
+      ? (folgen.find((f: any) => f.id === selectedFolgeId)?.folge_nummer ?? 0)
+      : (bloecke[selectedBlockIdx]?.folge_von ?? 0)
+    onConfirm({ folge_ids: selectedFolgeIds, folge_nummer: folgeNummer, mode, sections: [], includedSceneNumbers: null })
+  }
+
+  const btnBase: React.CSSProperties = {
+    padding: '5px 0', border: 'none', cursor: 'pointer', fontSize: 12, flex: 1, fontFamily: 'inherit',
+  }
+
+  return createPortal(
+    <>
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 10100 }} />
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%',
+        transform: 'translate(-50%,-50%)',
+        width: 'min(360px, 92vw)',
+        zIndex: 10101,
+        background: 'var(--bg, #fff)',
+        borderRadius: 10,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.28)',
+        border: '1px solid var(--border, #e0e0e0)',
+        padding: 20,
+        display: 'flex', flexDirection: 'column', gap: 14,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 2 }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Folge / Block Toggle */}
+        <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 5, overflow: 'hidden' }}>
+          <button onClick={() => setMode('folge')} style={{ ...btnBase, background: mode === 'folge' ? 'var(--text)' : 'var(--bg)', color: mode === 'folge' ? 'var(--bg)' : 'var(--text)' }}>
+            Pro Folge
+          </button>
+          <button onClick={() => setMode('block')} style={{ ...btnBase, background: mode === 'block' ? 'var(--text)' : 'var(--bg)', color: mode === 'block' ? 'var(--bg)' : 'var(--text)', borderLeft: '1px solid var(--border)' }}>
+            Pro Block
+          </button>
+        </div>
+
+        {mode === 'folge' && (
+          <select
+            value={selectedFolgeId ?? ''}
+            onChange={e => setSelectedFolgeId(Number(e.target.value) || null)}
+            style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, width: '100%', fontFamily: 'inherit' }}
+          >
+            {folgen.map((f: any) => (
+              <option key={f.id} value={f.id}>
+                Folge {f.folge_nummer}{f.folgen_titel ? ` \u2013 ${f.folgen_titel}` : ''}
+              </option>
+            ))}
+          </select>
+        )}
+        {mode === 'block' && bloecke.length > 0 && (
+          <select
+            value={selectedBlockIdx}
+            onChange={e => setSelectedBlockIdx(Number(e.target.value))}
+            style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, width: '100%', fontFamily: 'inherit' }}
+          >
+            {bloecke.map((b: any, i: number) => (
+              <option key={i} value={i}>Block {b.block_nummer} ({b.folge_von}–{b.folge_bis})</option>
+            ))}
+          </select>
+        )}
+        {mode === 'block' && bloecke.length === 0 && (
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Keine Blöcke konfiguriert</span>
+        )}
+
+        <button
+          onClick={handleConfirm}
+          disabled={!selectedFolgeIds.length}
+          style={{
+            padding: '8px 14px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
+            cursor: selectedFolgeIds.length ? 'pointer' : 'not-allowed',
+            background: selectedFolgeIds.length ? '#00C853' : '#e0e0e0',
+            color: selectedFolgeIds.length ? '#fff' : '#999',
+            fontSize: 13, fontWeight: 600,
+          }}
+        >
+          Übernehmen
+        </button>
+      </div>
+    </>,
+    document.body
+  )
+}
+
+// ── FilterPickerModal ──────────────────────────────────────────────────────────
 
 function FilterPickerModal({
   title, items, selected, onToggle, onSelectAll, onClear, onClose,

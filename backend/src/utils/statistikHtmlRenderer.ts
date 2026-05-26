@@ -657,3 +657,255 @@ export async function renderStatistikHtml(config: StatistikExportConfig, format?
     client.release()
   }
 }
+
+// ── Ergänzende Stile ───────────────────────────────────────────────────────────
+
+const ONLINER_STYLES = `
+<style>
+  .onliner-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10pt;
+    line-height: 1.4;
+  }
+  .onliner-th {
+    font-size: 8pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #888;
+    padding: 0 8pt 4pt 0;
+    border-bottom: 0.5pt solid #ddd;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .onliner-td-ref {
+    width: 52pt;
+    padding: 2.5pt 8pt 2.5pt 0;
+    vertical-align: top;
+    white-space: nowrap;
+    font-weight: bold;
+    color: #333;
+    border-bottom: 0.3pt solid #f0f0f0;
+    font-size: 9.5pt;
+  }
+  .onliner-td-text {
+    padding: 2.5pt 0;
+    vertical-align: top;
+    border-bottom: 0.3pt solid #f0f0f0;
+  }
+  .onliner-empty { color: #ccc; }
+</style>
+`
+
+const SYNOPSEN_STYLES = `
+<style>
+  .synopsen-row {
+    display: flex;
+    align-items: baseline;
+    gap: 10pt;
+    padding: 2.5pt 0;
+    border-bottom: 0.3pt solid #f0f0f0;
+    line-height: 1.4;
+  }
+  .synopsen-row:last-child { border-bottom: none; }
+  .synopsen-ref {
+    font-weight: bold;
+    color: #333;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: 44pt;
+    font-size: 9.5pt;
+  }
+  .synopsen-kopf {
+    flex: 1;
+    font-family: 'Courier New', Courier, monospace;
+  }
+  .synopsen-spieltag {
+    font-size: 8.5pt;
+    color: #888;
+    white-space: nowrap;
+  }
+</style>
+`
+
+// ── Shared helper: Werkstufen-IDs für eine Folgen-Menge ermitteln ──────────────
+
+async function resolveWsIds(client: any, folgeIds: number[], produktionId: string): Promise<string[]> {
+  for (const typ of ['drehbuch', 'storyline']) {
+    const r = await client.query(
+      `SELECT DISTINCT ON (w.folge_id) w.id
+       FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE f.id = ANY($1::int[]) AND w.typ = $2 AND f.produktion_id = $3
+       ORDER BY w.folge_id, w.version_nummer DESC`,
+      [folgeIds, typ, produktionId]
+    )
+    if (r.rows.length) return r.rows.map((row: any) => row.id)
+  }
+  return []
+}
+
+// ── Onliner-Export ─────────────────────────────────────────────────────────────
+
+/**
+ * Rendert eine zweispaltige Onliner-Tabelle (Szenennummer | Onliner-Text).
+ */
+export async function renderOnlinerHtml(config: StatistikExportConfig, format?: StatistikFormatConfig): Promise<string> {
+  const client = await pool.connect()
+  try {
+    const { folge_ids: folgeIds } = config
+    if (!folgeIds.length) {
+      return `<div style="color:#c00;font-family:sans-serif">Onliner: Keine Folge-IDs angegeben.</div>`
+    }
+
+    const folgeRes = await client.query(
+      `SELECT f.id, f.folge_nummer, f.folgen_titel, f.produktion_id
+       FROM folgen f WHERE f.id = $1`,
+      [folgeIds[0]]
+    )
+    if (!folgeRes.rows.length) {
+      return `<div style="color:#c00;font-family:sans-serif">Onliner: Folge ${folgeIds[0]} nicht gefunden.</div>`
+    }
+    const folge = folgeRes.rows[0]
+    const wsIds = await resolveWsIds(client, folgeIds, folge.produktion_id)
+
+    if (!wsIds.length) {
+      return `<div style="color:#888;font-family:sans-serif;font-size:9pt">Keine Werkstufe für diese Folge verfügbar.</div>`
+    }
+
+    const scenesRes = await client.query(
+      `SELECT ds.scene_nummer, ds.scene_nummer_suffix, ds.zusammenfassung, f.folge_nummer
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.werkstufe_id = ANY($1::uuid[])
+         AND ds.geloescht = false
+         AND COALESCE(ds.format, 'storyline') != 'notiz'
+       ORDER BY f.folge_nummer, ds.scene_nummer, COALESCE(ds.scene_nummer_suffix, '')`,
+      [wsIds]
+    )
+
+    const folgenLabel = config.mode === 'block' && folgeIds.length > 1
+      ? `Block ab Folge ${config.folge_nummer}`
+      : `Folge ${config.folge_nummer}${folge.folgen_titel ? ' \u2013 ' + folge.folgen_titel : ''}`
+
+    const titleHtml = `<div class="stat-title">Onliner \u2014 ${esc(folgenLabel)}</div>`
+
+    if (!scenesRes.rows.length) {
+      return `${STYLES}${ONLINER_STYLES}${buildFormatOverride(format)}<div class="stat-wrap">${titleHtml}<div class="stat-empty">Keine Szenen gefunden.</div></div>`
+    }
+
+    const rows = scenesRes.rows.map((s: any) => {
+      const ref = `${s.folge_nummer}.${s.scene_nummer}${s.scene_nummer_suffix ?? ''}`
+      const text = s.zusammenfassung?.trim()
+      return `<tr>
+        <td class="onliner-td-ref">${esc(ref)}</td>
+        <td class="onliner-td-text">${text ? esc(text) : '<span class="onliner-empty">\u2014</span>'}</td>
+      </tr>`
+    }).join('\n')
+
+    return `${STYLES}${ONLINER_STYLES}${buildFormatOverride(format)}
+<div class="stat-wrap">
+  ${titleHtml}
+  <div class="stat-section">
+    <table class="onliner-table">
+      <thead>
+        <tr>
+          <th class="onliner-th">Szene</th>
+          <th class="onliner-th">Onliner</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+      </tbody>
+    </table>
+  </div>
+</div>`
+  } finally {
+    client.release()
+  }
+}
+
+// ── Synopsen-Export ────────────────────────────────────────────────────────────
+
+/**
+ * Rendert eine Auflistung aller Szenenköpfe
+ * (Szenennummer + INT./AXT. + Ort + Tageszeit).
+ */
+export async function renderSynopsenHtml(config: StatistikExportConfig, format?: StatistikFormatConfig): Promise<string> {
+  const client = await pool.connect()
+  try {
+    const { folge_ids: folgeIds } = config
+    if (!folgeIds.length) {
+      return `<div style="color:#c00;font-family:sans-serif">Synopsen: Keine Folge-IDs angegeben.</div>`
+    }
+
+    const folgeRes = await client.query(
+      `SELECT f.id, f.folge_nummer, f.folgen_titel, f.produktion_id
+       FROM folgen f WHERE f.id = $1`,
+      [folgeIds[0]]
+    )
+    if (!folgeRes.rows.length) {
+      return `<div style="color:#c00;font-family:sans-serif">Synopsen: Folge ${folgeIds[0]} nicht gefunden.</div>`
+    }
+    const folge = folgeRes.rows[0]
+    const wsIds = await resolveWsIds(client, folgeIds, folge.produktion_id)
+
+    if (!wsIds.length) {
+      return `<div style="color:#888;font-family:sans-serif;font-size:9pt">Keine Werkstufe für diese Folge verfügbar.</div>`
+    }
+
+    const scenesRes = await client.query(
+      `SELECT ds.scene_nummer, ds.scene_nummer_suffix,
+              ds.int_ext, ds.ort_name, ds.tageszeit, ds.spieltag,
+              f.folge_nummer
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.werkstufe_id = ANY($1::uuid[])
+         AND ds.geloescht = false
+         AND COALESCE(ds.format, 'storyline') != 'notiz'
+       ORDER BY f.folge_nummer, ds.scene_nummer, COALESCE(ds.scene_nummer_suffix, '')`,
+      [wsIds]
+    )
+
+    const folgenLabel = config.mode === 'block' && folgeIds.length > 1
+      ? `Block ab Folge ${config.folge_nummer}`
+      : `Folge ${config.folge_nummer}${folge.folgen_titel ? ' \u2013 ' + folge.folgen_titel : ''}`
+
+    const titleHtml = `<div class="stat-title">Synopsen \u2014 ${esc(folgenLabel)}</div>`
+
+    if (!scenesRes.rows.length) {
+      return `${STYLES}${SYNOPSEN_STYLES}${buildFormatOverride(format)}<div class="stat-wrap">${titleHtml}<div class="stat-empty">Keine Szenen gefunden.</div></div>`
+    }
+
+    const rows = scenesRes.rows.map((s: any) => {
+      const ref = `${s.folge_nummer}.${s.scene_nummer}${s.scene_nummer_suffix ?? ''}`
+      const intExt = s.int_ext ? `${String(s.int_ext).toUpperCase()}.` : ''
+      const ort = s.ort_name ? String(s.ort_name).toUpperCase() : '\u2014'
+      const tageszeit = s.tageszeit ? String(s.tageszeit).toUpperCase() : ''
+      const kopfParts = [intExt, ort].filter(Boolean).join(' ')
+      const kopf = tageszeit ? `${kopfParts} \u2013 ${tageszeit}` : kopfParts
+      const spieltagHtml = s.spieltag
+        ? `<span class="synopsen-spieltag">(Spieltag ${esc(String(s.spieltag))})</span>`
+        : ''
+      return `<div class="synopsen-row">
+        <span class="synopsen-ref">${esc(ref)}</span>
+        <span class="synopsen-kopf">${esc(kopf)}</span>
+        ${spieltagHtml}
+      </div>`
+    }).join('\n')
+
+    return `${STYLES}${SYNOPSEN_STYLES}${buildFormatOverride(format)}
+<div class="stat-wrap">
+  ${titleHtml}
+  <div class="stat-section">
+    ${rows}
+  </div>
+</div>`
+  } finally {
+    client.release()
+  }
+}

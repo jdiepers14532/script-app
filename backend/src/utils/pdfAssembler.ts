@@ -23,7 +23,7 @@ import {
   ExportContext,
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
-import { renderStatistikHtml, StatistikFormatConfig } from './statistikHtmlRenderer'
+import { renderStatistikHtml, renderOnlinerHtml, renderSynopsenHtml, StatistikFormatConfig } from './statistikHtmlRenderer'
 
 // ── Admin Wasserzeichen-Einstellungen ─────────────────────────────────────────
 
@@ -1188,7 +1188,19 @@ async function assembleHtml(
         const bookmarkH2 = item.label
           ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
           : ''
-        return `${bookmarkH2}${renderStatistikHtml(item.statistikConfig, statistikFormat)}`
+        return `${bookmarkH2}${await renderStatistikHtml(item.statistikConfig, statistikFormat)}`
+      }
+      if (item.type === 'onliner' && item.statistikConfig) {
+        const bookmarkH2 = item.label
+          ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
+          : ''
+        return `${bookmarkH2}${await renderOnlinerHtml(item.statistikConfig, statistikFormat)}`
+      }
+      if (item.type === 'synopse' && item.statistikConfig) {
+        const bookmarkH2 = item.label
+          ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
+          : ''
+        return `${bookmarkH2}${await renderSynopsenHtml(item.statistikConfig, statistikFormat)}`
       }
       return null
     }

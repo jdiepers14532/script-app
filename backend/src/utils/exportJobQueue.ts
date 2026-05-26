@@ -12,8 +12,9 @@ export type JobStatus = 'pending' | 'running' | 'done' | 'error'
 
 /** Ein geordnetes Element VOR oder NACH dem Hauptinhalt im PDF */
 export interface OrderedExportItem {
-  /** 'notiz' = Notiz-Werkstufe oder einzelne Notiz-Zeile, 'statistik' = Statistik-Seite */
-  type: 'notiz' | 'statistik'
+  /** 'notiz' = Notiz-Werkstufe oder einzelne Notiz-Zeile, 'statistik' = Statistik-Seite,
+   *  'onliner' = Onliner-Tabelle, 'synopse' = Szenenköpfe-Liste */
+  type: 'notiz' | 'statistik' | 'onliner' | 'synopse'
   /** Werkstufe-UUID (für type='notiz': gesamte Notiz-Werkstufe) */
   id?: string
   /** dokument_szenen.id als String (für type='notiz': einzelne Notiz-Zeile aus Drehbuch-Werkstufe) */
