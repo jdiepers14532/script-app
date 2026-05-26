@@ -11,9 +11,11 @@ interface PdfPageViewerProps {
   cropLeft?: number
   cropRight?: number
   cropBottom?: number
+  pageFrom?: number
+  pageTo?: number
 }
 
-export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cropBottom = 0 }: PdfPageViewerProps) {
+export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cropBottom = 0, pageFrom, pageTo }: PdfPageViewerProps) {
   const outerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null)
@@ -170,6 +172,22 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
                 pointerEvents: 'none',
               }} />
             )}
+            {/* Out-of-range overlay */}
+            {(pageFrom || pageTo) && ((pageFrom && page < pageFrom) || (pageTo && page > pageTo)) && (
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                pointerEvents: 'none',
+              }}>
+                <span style={{
+                  color: '#fff', fontSize: 11, fontWeight: 500,
+                  background: 'rgba(0,0,0,0.65)', padding: '4px 10px', borderRadius: 4,
+                }}>
+                  Außerhalb des Importbereichs
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -193,6 +211,16 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
           <span style={{ fontSize: 12, color: '#fff', fontVariantNumeric: 'tabular-nums', minWidth: 48, textAlign: 'center' }}>
             {page} / {totalPages}
           </span>
+          {(pageFrom || pageTo) && (
+            <span style={{
+              fontSize: 10, fontWeight: 500, padding: '1px 6px', borderRadius: 3,
+              background: ((pageFrom && page < pageFrom) || (pageTo && page > pageTo))
+                ? 'rgba(255,59,48,0.5)' : 'rgba(0,200,83,0.45)',
+              color: '#fff',
+            }}>
+              Import: {pageFrom ?? 1}–{pageTo ?? totalPages}
+            </span>
+          )}
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages}

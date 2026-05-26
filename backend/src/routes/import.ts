@@ -438,11 +438,13 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
     // PDF extraction options from request body
     const parseOpts: ParseOptions = {}
     if (req.body.pdf_method === 'mistral') parseOpts.pdfMethod = 'mistral'
-    if (req.body.pdf_crop_left || req.body.pdf_crop_right || req.body.pdf_crop_bottom) {
+    if (req.body.pdf_crop_left || req.body.pdf_crop_right || req.body.pdf_crop_bottom || req.body.pdf_page_from || req.body.pdf_page_to) {
       parseOpts.pdfCrop = {
         cropLeft: parseInt(req.body.pdf_crop_left || '0', 10),
         cropRight: parseInt(req.body.pdf_crop_right || '0', 10),
         cropBottom: parseInt(req.body.pdf_crop_bottom || '0', 10),
+        ...(req.body.pdf_page_from ? { pageFrom: parseInt(req.body.pdf_page_from, 10) } : {}),
+        ...(req.body.pdf_page_to ? { pageTo: parseInt(req.body.pdf_page_to, 10) } : {}),
       }
     } else if (req.body.pdf_crop_percent) {
       parseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
@@ -541,11 +543,13 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
 
     const parseOpts: ParseOptions = {}
     if (req.body.pdf_method === 'mistral') parseOpts.pdfMethod = 'mistral'
-    if (req.body.pdf_crop_left || req.body.pdf_crop_right || req.body.pdf_crop_bottom) {
+    if (req.body.pdf_crop_left || req.body.pdf_crop_right || req.body.pdf_crop_bottom || req.body.pdf_page_from || req.body.pdf_page_to) {
       parseOpts.pdfCrop = {
         cropLeft: parseInt(req.body.pdf_crop_left || '0', 10),
         cropRight: parseInt(req.body.pdf_crop_right || '0', 10),
         cropBottom: parseInt(req.body.pdf_crop_bottom || '0', 10),
+        ...(req.body.pdf_page_from ? { pageFrom: parseInt(req.body.pdf_page_from, 10) } : {}),
+        ...(req.body.pdf_page_to ? { pageTo: parseInt(req.body.pdf_page_to, 10) } : {}),
       }
     } else if (req.body.pdf_crop_percent) {
       parseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)

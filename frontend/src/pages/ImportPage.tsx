@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
-import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil } from 'lucide-react'
+import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil, BookOpen } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
 import { useTerminologie } from '../sw-ui'
 import PdfPageViewer from '../components/PdfPageViewer'
+import * as pdfjsLib from 'pdfjs-dist'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 
@@ -151,6 +152,14 @@ export default function ImportPage() {
     }
   }, [file])
 
+  // Get total page count for PDF files (used in Step 1 page range UI)
+  useEffect(() => {
+    if (!fileUrl || !isPdf) { setPdfTotalPages(null); return }
+    const task = pdfjsLib.getDocument(fileUrl)
+    task.promise.then(pdf => setPdfTotalPages(pdf.numPages)).catch(() => setPdfTotalPages(null))
+    return () => { task.destroy() }
+  }, [fileUrl, isPdf])
+
   // Step 3 result
   const [commitResult, setCommitResult] = useState<CommitResult | null>(null)
 
@@ -162,6 +171,9 @@ export default function ImportPage() {
   const [pdfCropLeft, setPdfCropLeft] = useState(0)
   const [pdfCropRight, setPdfCropRight] = useState(0)
   const [pdfCropBottom, setPdfCropBottom] = useState(0)
+  const [pdfPageFrom, setPdfPageFrom] = useState<number | ''>('')
+  const [pdfPageTo, setPdfPageTo] = useState<number | ''>('')
+  const [pdfTotalPages, setPdfTotalPages] = useState<number | null>(null)
   const [ocrAvailable, setOcrAvailable] = useState(false)
 
   // Check OCR availability on mount
@@ -239,6 +251,8 @@ export default function ImportPage() {
           if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
           if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
         }
+        if (pdfPageFrom !== '') fd.append('pdf_page_from', String(pdfPageFrom))
+        if (pdfPageTo !== '') fd.append('pdf_page_to', String(pdfPageTo))
       }
       const res = await fetch('/api/import/preview', { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
@@ -324,6 +338,8 @@ export default function ImportPage() {
           if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
           if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
         }
+        if (pdfPageFrom !== '') fd.append('pdf_page_from', String(pdfPageFrom))
+        if (pdfPageTo !== '') fd.append('pdf_page_to', String(pdfPageTo))
       }
       if (nonSceneElements.length > 0) fd.append('non_scene_elements', JSON.stringify(nonSceneElements))
       if (Object.keys(sceneOverrides).length > 0) fd.append('scene_overrides', JSON.stringify(sceneOverrides))
@@ -366,6 +382,8 @@ export default function ImportPage() {
     setStandDatum('')
     setNonSceneElements([])
     setSceneOverrides({})
+    setPdfPageFrom('')
+    setPdfPageTo('')
     pendingAutoEpisode.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -524,6 +542,53 @@ export default function ImportPage() {
               </div>
             )}
 
+            {/* PDF Page Range */}
+            {isPdf && detectResult && (
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <BookOpen size={12} color="#757575" />
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#757575' }}>Seitenbereich</span>
+                  {pdfTotalPages && (
+                    <span style={{ fontSize: 11, color: '#999' }}>— {pdfTotalPages} Seiten</span>
+                  )}
+                  <span style={{ fontSize: 11, color: '#bbb', marginLeft: 4 }}>optional</span>
+                </div>
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                    <span style={{ color: '#757575', fontSize: 12, whiteSpace: 'nowrap' }}>Von Seite</span>
+                    <input
+                      type="number" min={1} max={pdfTotalPages || undefined}
+                      value={pdfPageFrom}
+                      onChange={e => setPdfPageFrom(e.target.value === '' ? '' : parseInt(e.target.value))}
+                      placeholder="1"
+                      style={{ width: 60, padding: '4px 8px', borderRadius: 6, border: '1px solid #e0e0e0', fontSize: 13 }}
+                    />
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                    <span style={{ color: '#757575', fontSize: 12, whiteSpace: 'nowrap' }}>bis Seite</span>
+                    <input
+                      type="number" min={1} max={pdfTotalPages || undefined}
+                      value={pdfPageTo}
+                      onChange={e => setPdfPageTo(e.target.value === '' ? '' : parseInt(e.target.value))}
+                      placeholder={pdfTotalPages ? String(pdfTotalPages) : 'Ende'}
+                      style={{ width: 60, padding: '4px 8px', borderRadius: 6, border: '1px solid #e0e0e0', fontSize: 13 }}
+                    />
+                  </label>
+                  {(pdfPageFrom !== '' || pdfPageTo !== '') && (
+                    <button
+                      onClick={() => { setPdfPageFrom(''); setPdfPageTo('') }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#999', padding: 0 }}
+                    >
+                      Zurücksetzen
+                    </button>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>
+                  Leer lassen = gesamtes Dokument importieren
+                </div>
+              </div>
+            )}
+
             {error && (
               <div style={{ color: 'var(--sw-danger)', fontSize: 13, marginBottom: 16, display: 'flex', gap: 6 }}>
                 <AlertTriangle size={14} />
@@ -625,6 +690,8 @@ export default function ImportPage() {
                       cropLeft={pdfMethod === 'pdftotext' ? pdfCropLeft : 0}
                       cropRight={pdfMethod === 'pdftotext' ? pdfCropRight : 0}
                       cropBottom={pdfMethod === 'pdftotext' ? pdfCropBottom : 0}
+                      pageFrom={pdfPageFrom !== '' ? pdfPageFrom : undefined}
+                      pageTo={pdfPageTo !== '' ? pdfPageTo : undefined}
                     />
                   ) : fileTextContent ? (
                     <pre style={{

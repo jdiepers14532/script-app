@@ -12,6 +12,8 @@ export interface PdftextCropOptions {
   cropLeft?: number   // percentage to cut from left (0-50)
   cropRight?: number  // percentage to cut from right (0-50)
   cropBottom?: number // percentage to cut from bottom (0-50)
+  pageFrom?: number   // first page to extract (1-based, inclusive)
+  pageTo?: number     // last page to extract (1-based, inclusive)
 }
 
 /** Try pdftotext (poppler) first — much more reliable than pdf-parse.
@@ -33,6 +35,8 @@ function extractWithPdftotext(buffer: Buffer, crop?: PdftextCropOptions): string
       const cropHeight = Math.round(842 * ((100 - bottom) / 100))
       args.push('-x', String(xOffset), '-y', '0', '-W', String(cropWidth), '-H', String(cropHeight))
     }
+    if (crop?.pageFrom) args.push('-f', String(crop.pageFrom))
+    if (crop?.pageTo) args.push('-l', String(crop.pageTo))
     args.push(tmpFile, '-')
     const result = spawnSync('pdftotext', args, {
       encoding: 'utf8',
@@ -52,7 +56,7 @@ function extractWithPdftotext(buffer: Buffer, crop?: PdftextCropOptions): string
 
 /** Extract text using Mistral OCR API (mistral-ocr-latest).
  *  Returns concatenated page texts or null on failure. */
-export async function extractWithMistral(buffer: Buffer): Promise<string | null> {
+export async function extractWithMistral(buffer: Buffer, pageFrom?: number, pageTo?: number): Promise<string | null> {
   const apiKey = await getProviderApiKey('mistral')
   if (!apiKey) {
     console.log('[PDF Import] Mistral OCR: no API key configured or provider inactive')
@@ -84,7 +88,13 @@ export async function extractWithMistral(buffer: Buffer): Promise<string | null>
 
     const data = await response.json() as any
     // Mistral OCR returns { pages: [{ markdown: string, index: number }] }
-    const pages = data.pages || data.results || []
+    const allPages = data.pages || data.results || []
+    const pages = (pageFrom || pageTo)
+      ? allPages.filter((p: any) => {
+          const num = (typeof p.index === 'number' ? p.index : 0) + 1
+          return (!pageFrom || num >= pageFrom) && (!pageTo || num <= pageTo)
+        })
+      : allPages
     const texts = pages.map((p: any) => p.markdown || p.text || '').filter(Boolean)
 
     // Track usage (page-based pricing)
@@ -108,7 +118,10 @@ export function extractBboxLayout(buffer: Buffer, crop?: PdftextCropOptions): Bb
   const tmpHtml = tmpPdf.replace('.pdf', '.html')
   try {
     fs.writeFileSync(tmpPdf, buffer)
-    const result = spawnSync('pdftotext', ['-bbox', tmpPdf, tmpHtml], {
+    const bboxArgs: string[] = []
+    if (crop?.pageFrom) bboxArgs.push('-f', String(crop.pageFrom))
+    if (crop?.pageTo) bboxArgs.push('-l', String(crop.pageTo))
+    const result = spawnSync('pdftotext', [...bboxArgs, '-bbox', tmpPdf, tmpHtml], {
       encoding: 'utf8',
       timeout: 30000,
     })
@@ -279,7 +292,7 @@ export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Pro
       : undefined
 
   if (method === 'mistral') {
-    text = await extractWithMistral(buffer)
+    text = await extractWithMistral(buffer, crop?.pageFrom, crop?.pageTo)
     if (!text) {
       console.log('[PDF Import] Mistral OCR failed, falling back to pdftotext')
       usedMethod = 'pdftotext'
