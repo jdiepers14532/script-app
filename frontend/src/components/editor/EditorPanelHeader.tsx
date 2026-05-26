@@ -354,9 +354,15 @@ export default function EditorPanelHeader({
       {/* Sichtbarkeits-Badge (klickbar) */}
       {selectedWerk && !selectedWerk.abgegeben && (
         <div ref={sichtbarkeitContainerRef} style={{ position: 'relative' }}>
+          <Tooltip text={
+            sichtbarkeit === 'privat'
+              ? (folgeNummer
+                  ? `Sichtbarkeit ändern: nur ich\n\nVergiss nicht die Sichtbarkeit wieder zu ändern, sonst kann keiner das Dokument sehen, wenn du fertig bist.`
+                  : `Sichtbarkeit ändern: nur ich`)
+              : `Sichtbarkeit ändern: ${getSichtbarkeitLabel(sichtbarkeit)}`
+          }>
           <button
             onClick={() => { setShowSichtbarkeitMenu(v => !v); setShowMenu(false); setShowLabelMenu(false) }}
-            title={`Sichtbarkeit ändern (aktuell: ${getSichtbarkeitLabel(sichtbarkeit)})`}
             style={{
               display: 'flex', alignItems: 'center', gap: 4, padding: '3px 7px',
               border: `1px solid ${SICHTBARKEIT_COLORS[sichtbarkeit.split(':')[0]] ?? '#ccc'}`,
@@ -369,6 +375,7 @@ export default function EditorPanelHeader({
             {getSichtbarkeitLabel(sichtbarkeit)}
             {sichtbarkeitSaving && <span style={{ marginLeft: 2, opacity: 0.6 }}>…</span>}
           </button>
+          </Tooltip>
 
           {showSichtbarkeitMenu && (
             <>
