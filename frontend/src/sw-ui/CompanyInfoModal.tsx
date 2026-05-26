@@ -65,6 +65,30 @@ function legalLabel(lf: string) { return LEGAL_FORMS[lf] || lf.toUpperCase(); }
 const LOGO_VARIANTS = ['light', 'dark', 'light2', 'dark2'] as const;
 type LogoVariant = typeof LOGO_VARIANTS[number];
 
+/** Download an image via canvas (CORS-safe, same as copy) */
+async function downloadLogo(imageUrl: string, filename: string): Promise<void> {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = reject;
+    img.src = imageUrl;
+  });
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas not supported');
+  ctx.drawImage(img, 0, 0);
+  const dataUrl = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 /** Copy an image URL as a PNG file to clipboard via Canvas API */
 async function copyImageToClipboard(imageUrl: string): Promise<void> {
   const img = new Image();
@@ -188,6 +212,8 @@ function LogoPanel({
 }) {
   const [copiedVariant, setCopiedVariant] = useState<LogoVariant | null>(null);
   const [copyError, setCopyError] = useState<LogoVariant | null>(null);
+  const [downloadedVariant, setDownloadedVariant] = useState<LogoVariant | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
   // Filter to variants that have a value
   const available = LOGO_VARIANTS.filter(v => logos[v]);
@@ -199,6 +225,18 @@ function LogoPanel({
       await copyImageToClipboard(fileUrl);
       setCopiedVariant(variant);
       setTimeout(() => setCopiedVariant(null), 1800);
+    } catch {
+      setCopyError(variant);
+      setTimeout(() => setCopyError(null), 1800);
+    }
+  };
+
+  const handleDownload = async (variant: LogoVariant) => {
+    const fileUrl = `${authUrl}/api/public/logo-file?variant=${variant}`;
+    try {
+      await downloadLogo(fileUrl, `logo-${variant}.png`);
+      setDownloadedVariant(variant);
+      setTimeout(() => setDownloadedVariant(null), 1800);
     } catch {
       setCopyError(variant);
       setTimeout(() => setCopyError(null), 1800);
@@ -221,28 +259,43 @@ function LogoPanel({
 
   return (
     <div style={s.logoPanel}>
-      <div style={s.logoPanelLabel}>Logos — klick zum Kopieren</div>
+      <div style={s.logoPanelLabel}>Logos — Klick: kopieren · Alt+Klick: herunterladen</div>
       <div style={s.logoGrid}>
         {available.map(variant => {
           const fileUrl = `${authUrl}/api/public/logo-file?variant=${variant}`;
           const bg = variantBg[variant];
           const isCopied = copiedVariant === variant;
+          const isDownloaded = downloadedVariant === variant;
           const isError = copyError === variant;
+          const tooltipText = `${variantLabel[variant]}\nKlick: als PNG kopieren\nAlt+Klick: herunterladen`;
           return (
             <button
               key={variant}
-              onClick={() => handleCopy(variant)}
-              title={`${variantLabel[variant]} als PNG kopieren`}
+              onClick={(e) => {
+                e.preventDefault();
+                if (e.altKey) handleDownload(variant);
+                else handleCopy(variant);
+              }}
+              onMouseEnter={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                setTooltip({ x: r.left + r.width / 2, y: r.top - 8, text: tooltipText });
+              }}
+              onMouseLeave={() => setTooltip(null)}
               style={{ ...s.logoGridItem, background: bg }}
             >
               <img
                 src={fileUrl}
                 alt={variantLabel[variant]}
-                style={{ maxWidth: '100%', maxHeight: 48, objectFit: 'contain', display: 'block' }}
+                style={{ maxWidth: '100%', maxHeight: 48, objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
               />
               {isCopied && (
                 <span style={s.logoGridBadge}>
                   {icons.check} Kopiert
+                </span>
+              )}
+              {isDownloaded && (
+                <span style={s.logoGridBadge}>
+                  {icons.check} Gespeichert
                 </span>
               )}
               {isError && (
@@ -254,6 +307,27 @@ function LogoPanel({
           );
         })}
       </div>
+      {tooltip && (
+        <div style={{
+          position: 'fixed',
+          left: tooltip.x,
+          top: tooltip.y,
+          transform: 'translate(-50%, -100%)',
+          background: '#111',
+          color: '#fff',
+          fontSize: 11,
+          lineHeight: 1.5,
+          padding: '6px 10px',
+          borderRadius: 6,
+          maxWidth: 220,
+          whiteSpace: 'pre-line',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 99999,
+          pointerEvents: 'none',
+        }}>
+          {tooltip.text}
+        </div>
+      )}
     </div>
   );
 }
