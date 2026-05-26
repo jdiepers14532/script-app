@@ -2314,8 +2314,11 @@ function DokumentTypenTab({
 
             {/* ── Sektion 1: Das Raster ─────────── */}
             <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
                 Das Monospace-Raster
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 10 }}>
+                Das US-Drehbuchformat ist kein „Layout" im typografischen Sinn, sondern ein festes Zeichenraster. Es funktioniert nur, weil Courier eine Monospace-Schrift ist: jedes Zeichen — ob „i" oder „W" — belegt exakt dieselbe Breite. Dadurch ist jede Position auf der Seite über Zeichen und Zeilen eindeutig adressierbar, unabhängig von der Software.
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
                 <div style={{ background: '#007AFF12', border: '1px solid #007AFF35', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
@@ -2346,11 +2349,12 @@ function DokumentTypenTab({
                 Einzüge der Elemente (Textspalte = 60 Zeichen)
               </div>
               {([
-                { label: 'Scene Heading / Action', indent: 0,  width: 60, color: '#007AFF', desc: '0 Z. — volle Spalte' },
-                { label: 'Dialogue',               indent: 10, width: 35, color: '#00C853', desc: '10 Z. Einzug · 35 Z. breit' },
-                { label: 'Parenthetical',          indent: 16, width: 20, color: '#AF52DE', desc: '16 Z. Einzug · 20 Z. breit' },
-                { label: 'Character',              indent: 22, width: 38, color: '#FF9500', desc: '22 Z. Einzug · UPPERCASE' },
-              ] as { label: string; indent: number; width: number; color: string; desc: string }[]).map(el => (
+                { label: 'Scene Heading / Action', indent: 0,  width: 60, color: '#007AFF', desc: '0 Z. — volle Spalte (1,5″ / 3,81 cm vom Blattrand)' },
+                { label: 'Dialogue',               indent: 10, width: 35, color: '#00C853', desc: '10 Z. Einzug · 35 Z. breit (2,5″ / 6,35 cm)' },
+                { label: 'Parenthetical',          indent: 16, width: 20, color: '#AF52DE', desc: '16 Z. Einzug · 20 Z. breit (3,1″ / 7,87 cm)' },
+                { label: 'Character',              indent: 22, width: 38, color: '#FF9500', desc: '22 Z. Einzug · UPPERCASE (3,7″ / 9,40 cm)' },
+                { label: 'Transition', indent: 0, width: 10, color: '#8b949e', desc: 'rechtsbündig — kein fixer Einzug', rightAlign: true },
+              ] as { label: string; indent: number; width: number; color: string; desc: string; rightAlign?: boolean }[]).map(el => (
                 <div key={el.label} style={{ marginBottom: 7 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginBottom: 2 }}>
                     <span style={{ fontSize: 10, fontWeight: 600, minWidth: 170, color: 'var(--text-primary)' }}>{el.label}</span>
@@ -2359,8 +2363,9 @@ function DokumentTypenTab({
                   <div style={{ position: 'relative', height: 10, background: 'var(--bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>
                     <div style={{
                       position: 'absolute',
-                      left: `${(el.indent / 60) * 100}%`,
-                      width: `${(el.width / 60) * 100}%`,
+                      ...(el.rightAlign
+                        ? { right: 0, width: `${(el.width / 60) * 100}%` }
+                        : { left: `${(el.indent / 60) * 100}%`, width: `${(el.width / 60) * 100}%` }),
                       height: '100%',
                       background: el.color,
                       opacity: 0.65,
@@ -2378,7 +2383,7 @@ function DokumentTypenTab({
             {/* ── Sektion 3: Letter vs. A4 Tabelle */}
             <div>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 }}>
-                Seitenränder — US Letter vs. A4 (Option A, dieses Preset)
+                Seitenränder — US Letter vs. A4 (dieses Preset)
               </div>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}>
                 <thead>
@@ -2407,7 +2412,7 @@ function DokumentTypenTab({
                 </tbody>
               </table>
               <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', padding: '7px 10px', background: 'var(--bg-subtle)', borderRadius: 6, lineHeight: 1.6 }}>
-                <strong>Option A:</strong> Das Raster (10 CPI / 6 LPI) bleibt 1:1 erhalten — nur der rechte Rand schrumpft von 2,54 cm auf 1,95 cm.<br />
+                Das Raster (10 CPI / 6 LPI) bleibt 1:1 erhalten — nur der rechte Rand schrumpft von 2,54 cm auf 1,95 cm.<br />
                 So bleibt die <em>Minuten-pro-Seite-Regel</em> auf A4 korrekt.
               </div>
             </div>
