@@ -685,11 +685,11 @@ function renderSzenenkopf(
 
   if (parts.length === 0) return ''
 
-  // Template-Fall: visuell transparentes <h2> (opacity:0, 1pt hoch) für die PDF-Outline —
-  // Chrome's generateDocumentOutline erkennt nur Elemente mit gerenderter Fläche (height>0).
-  // opacity:0 statt overflow:hidden: Element ist unsichtbar aber hat Layout → AX-Tree sieht es.
+  // Template-Fall: unsichtbares <h2> für die PDF-Outline (weißer Text auf weißem Hintergrund).
+  // Chrome's generateDocumentOutline ignoriert opacity:0 und height:0 — aber weißer Text
+  // auf weißem Hintergrund wird erkannt, weil das Element gerendert wird (layout ≠ 0).
   const label = buildBookmarkLabel(scene, folgeNummer, kuerzel)
-  return `<h2 style="${pbStyle}opacity:0;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${label}</h2>` +
+  return `<h2 style="${pbStyle}color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${label}</h2>` +
          `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
 }
 
@@ -807,7 +807,6 @@ function parseSzenenAuswahl(raw: string | undefined): SzeneSpec[] | null {
 // ── Druckauswahl-Text bauen ───────────────────────────────────────────────────
 
 function buildDruckauswahl(options: import('./exportJobQueue').ExportJobOptions): string | null {
-  console.log('[druckauswahl] options.filterRollen:', options.filterRollen, 'filterMotive:', options.filterMotive, 'filterKomparsen:', options.filterKomparsen, 'szenenAuswahl:', options.szenenAuswahl)
   const auswahl = options.szenenAuswahl?.trim()
     ? `Auswahl: Szenen ${options.szenenAuswahl.trim()}`
     : null
@@ -817,9 +816,7 @@ function buildDruckauswahl(options: import('./exportJobQueue').ExportJobOptions)
   if (options.filterKomparsen?.length) filterParts.push(`Komp.\u202fm.\u202fSp.: ${options.filterKomparsen.join(', ')}`)
   const filter = filterParts.length ? `Nur Szenen mit ${filterParts.join(' \u0026 ')}` : null
   const parts = [auswahl, filter].filter(Boolean) as string[]
-  const result = parts.length ? parts.join(' \u0026 ') : null
-  console.log('[druckauswahl] result:', result)
-  return result
+  return parts.length ? parts.join(' \u0026 ') : null
 }
 
 async function assembleHtml(
@@ -1052,7 +1049,6 @@ async function assembleHtml(
 
     /** Rendert ein einzelnes OrderedExportItem zu HTML */
     async function renderOrderedItem(item: OrderedExportItem): Promise<string | null> {
-      console.log('[renderOrderedItem] ENTRY type:', item.type, 'szeneId:', item.szeneId, 'id:', item.id, 'enabled:', item.enabled)
       if (!item.enabled) return null
       if (item.type === 'notiz') {
         // Einzelne Notiz-Zeile aus dem aktuellen Drehbuch (szeneId = dokument_szenen.id)
@@ -1067,7 +1063,6 @@ async function assembleHtml(
           if (!szRes.rows.length) return null
           const row = szRes.rows[0]
           const rendered = row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : null
-          console.log('[renderOrderedItem] szeneId:', item.szeneId, '| ctx.druckauswahl:', ctx.druckauswahl, '| contentType:', typeof row.content, '| contentStr:', JSON.stringify(row.content)?.slice(0, 300), '| renderedHas:', rendered?.includes('Auswahl'))
           return rendered
         }
         // Gesamte Notiz-Werkstufe (id = werkstufe_id)
@@ -1136,12 +1131,6 @@ async function assembleHtml(
     const titelseiteHtml = titelseiteHtmlParts.length > 0
       ? titelseiteHtmlParts.join('\n')
       : null
-
-    // DEBUG: Titelseite-Inhalt für Diagnose loggen
-    if (titelseiteHtml) {
-      const hasDruckauswahl = titelseiteHtml.includes('Auswahl')
-      console.log('[titelseite] druckauswahl im ctx:', ctx.druckauswahl, '| "Auswahl" im HTML:', hasDruckauswahl, '| HTML-Snippet:', titelseiteHtml.slice(0, 400))
-    }
 
     const postSections: string[] = []
     for (const item of resolvedPostItems) {
@@ -1433,7 +1422,6 @@ export async function assemblePdf(
     : '<div style="font-size:0"></div>'
 
   const pdfBookmarks = input.options.pdfBookmarks === true
-  console.log('[export] pdfBookmarks:', pdfBookmarks, '| titelseite:', !!(titelseiteHtml && titelseiteMargins))
 
   let pdfBytes: Uint8Array
 
