@@ -743,17 +743,54 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       )).rows[0]
       werkstufeId = werkRow.id
 
-      // ── Bulk insert scene_identities (generate_series → N rows in 1 query) ──
+      // ── Resolve scene_identities: reuse existing by scene_nummer, create new otherwise ──
+      // This ensures that a re-import (e.g. Drehbuch imported after Storyline already exists)
+      // shares the same scene_identity_ids, so switching between werkstufen works correctly.
       const sceneCount = sceneDataList.length
-      let sceneIdentityIds: string[] = []
+      let sceneIdentityIds: string[] = new Array(sceneCount).fill(null)
       if (sceneCount > 0) {
-        const siResult = await client.query(
-          `INSERT INTO scene_identities (folge_id, created_by)
-           SELECT $1, $2 FROM generate_series(1, $3)
-           RETURNING id`,
-          [folgeId, userName, sceneCount]
-        )
-        sceneIdentityIds = siResult.rows.map((r: any) => r.id)
+        // Step 1: find existing identities for each scene_nummer in this folge
+        const sceneNummern = sceneDataList
+          .map(s => s.sceneNummer)
+          .filter((n): n is number => n != null)
+        const existingByNummer = new Map<number, string>()
+        if (sceneNummern.length > 0) {
+          const existResult = await client.query(
+            `SELECT DISTINCT ON (ds.scene_nummer) ds.scene_nummer, si.id
+             FROM scene_identities si
+             JOIN dokument_szenen ds ON ds.scene_identity_id = si.id
+             WHERE si.folge_id = $1
+               AND ds.scene_nummer = ANY($2::int[])
+               AND ds.geloescht = false
+             ORDER BY ds.scene_nummer, si.id`,
+            [folgeId, sceneNummern]
+          )
+          for (const row of existResult.rows) existingByNummer.set(row.scene_nummer, row.id)
+        }
+
+        // Step 2: assign existing ids; collect indices that need new identities
+        const newIndices: number[] = []
+        for (let i = 0; i < sceneDataList.length; i++) {
+          const n = sceneDataList[i].sceneNummer
+          if (n != null && existingByNummer.has(n)) {
+            sceneIdentityIds[i] = existingByNummer.get(n)!
+          } else {
+            newIndices.push(i)
+          }
+        }
+
+        // Step 3: bulk-create identities only for scenes without an existing one
+        if (newIndices.length > 0) {
+          const siResult = await client.query(
+            `INSERT INTO scene_identities (folge_id, created_by)
+             SELECT $1, $2 FROM generate_series(1, $3)
+             RETURNING id`,
+            [folgeId, userName, newIndices.length]
+          )
+          for (let j = 0; j < newIndices.length; j++) {
+            sceneIdentityIds[newIndices[j]] = siResult.rows[j].id
+          }
+        }
       }
 
       // ── Bulk insert dokument_szenen (UNNEST → 1 query) ──
