@@ -3592,10 +3592,10 @@ const FILTER_LABELS: Record<FilterType, string> = {
 }
 
 const SICHT_COLORS: Record<string, string> = {
-  privat: '#757575', colab: '#007AFF', produktion: '#AF52DE', alle: '#00C853',
+  privat: '#757575', colab: '#007AFF', team: '#32ADE6', produktion: '#AF52DE', alle: '#00C853',
 }
 const SICHT_LABELS: Record<string, string> = {
-  privat: 'Privat', colab: 'Colab', produktion: 'Produktion', alle: 'Alle',
+  privat: 'Privat', colab: 'Colab', team: 'Team', produktion: 'Produktion', alle: 'Alle',
 }
 
 function NotifyDialog({
@@ -3607,7 +3607,7 @@ function NotifyDialog({
 }: {
   dok: any
   neueSichtbarkeit: string
-  colabGruppeId?: number | null
+  colabGruppeId?: string | null
   onConfirm: (perEmail: boolean, anderweitig: boolean) => Promise<void>
   onClose: () => void
 }) {
@@ -3692,8 +3692,8 @@ function SichtbarkeitChangeModal({
   onDone: () => void
   onClose: () => void
 }) {
-  const [selected, setSelected] = useState<string>(dok.sichtbarkeit_frei)
-  const [colabGruppeId, setColabGruppeId] = useState<number | null>(dok.sichtbarkeit_frei_colab_gruppe_id ?? null)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [colabGruppeId, setColabGruppeId] = useState<string | null>(null)
   const [gruppen, setGruppen] = useState<any[]>([])
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -3703,22 +3703,23 @@ function SichtbarkeitChangeModal({
   }, [produktionId])
 
   const options = [
-    { value: 'colab',      label: 'Colab',      desc: 'Ausgewählte Gruppe kann bearbeiten' },
+    { value: 'colab',      label: 'Colab',      desc: 'Ausgewählte Colab-Gruppe kann bearbeiten' },
+    { value: 'team',       label: 'Team',        desc: 'Ausgewählte Team-Gruppe kann lesen' },
     { value: 'produktion', label: 'Produktion',  desc: 'Produktionsteam kann lesen' },
     { value: 'alle',       label: 'Alle',        desc: 'Jeder mit Zugriff kann lesen' },
   ]
 
   const handleSave = async () => {
-    if (selected === dok.sichtbarkeit_frei) { onClose(); return }
+    if (!selected) return
     setSaving(true)
     setNotifyOpen(true)
     setSaving(false)
   }
 
   const handleNotifyConfirm = async (perEmail: boolean, anderweitig: boolean) => {
-    await api.changePrivatDokSichtbarkeit(dok.id, {
-      neue_sichtbarkeit: selected,
-      colab_gruppe_id: selected === 'colab' ? colabGruppeId : null,
+    await api.changePrivatDokSichtbarkeit(dok.folge_id, {
+      neue_sichtbarkeit: selected!,
+      colab_gruppe_id: (selected === 'colab' || selected === 'team') ? colabGruppeId : null,
       per_email_informiert: perEmail,
       anderweitig_bestaetigt: anderweitig,
     })
@@ -3730,19 +3731,23 @@ function SichtbarkeitChangeModal({
       <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.4)', display: 'grid', placeItems: 'center' }} onClick={onClose}>
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12, width: 420, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }} onClick={e => e.stopPropagation()}>
           <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>Sichtbarkeit ändern</span>
-            <div style={{ flex: 1 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>Sichtbarkeit ändern</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {dok.folge_nummer ? `Folge ${dok.folge_nummer}` : ''}{dok.folge_nummer && dok.folgen_titel ? ' — ' : ''}{dok.folgen_titel ?? ''}
+              </div>
+            </div>
             <button onClick={onClose} style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 4 }}>✕</button>
           </div>
           <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {options.map(o => (
-              <button key={o.value} onClick={() => setSelected(o.value)} style={{
+              <button key={o.value} onClick={() => { setSelected(o.value); setColabGruppeId(null) }} style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                border: `1px solid ${selected === o.value ? SICHT_COLORS[o.value] : 'var(--border)'}`,
+                border: `1px solid ${selected === o.value ? (SICHT_COLORS[o.value] ?? '#000') : 'var(--border)'}`,
                 borderRadius: 8, background: selected === o.value ? `${SICHT_COLORS[o.value]}22` : 'transparent',
                 cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', width: '100%',
               }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: SICHT_COLORS[o.value], flexShrink: 0 }} />
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: SICHT_COLORS[o.value] ?? '#757575', flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 500 }}>{o.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{o.desc}</div>
@@ -3752,11 +3757,21 @@ function SichtbarkeitChangeModal({
             {selected === 'colab' && (
               <select
                 value={colabGruppeId ?? ''}
-                onChange={e => setColabGruppeId(e.target.value ? Number(e.target.value) : null)}
+                onChange={e => setColabGruppeId(e.target.value || null)}
                 style={{ padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', fontSize: 13, marginTop: 4 }}
               >
                 <option value="">Keine Gruppe gewählt</option>
-                {gruppen.filter(g => g.typ === 'colab').map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                {gruppen.filter(g => g.typ === 'colab').map(g => <option key={g.id} value={String(g.id)}>{g.name}</option>)}
+              </select>
+            )}
+            {selected === 'team' && (
+              <select
+                value={colabGruppeId ?? ''}
+                onChange={e => setColabGruppeId(e.target.value || null)}
+                style={{ padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', fontSize: 13, marginTop: 4 }}
+              >
+                <option value="">Keine Gruppe gewählt</option>
+                {gruppen.filter(g => g.typ === 'team').map(g => <option key={g.id} value={String(g.id)}>{g.name}</option>)}
               </select>
             )}
           </div>
@@ -3768,7 +3783,7 @@ function SichtbarkeitChangeModal({
           </div>
         </div>
       </div>
-      {notifyOpen && (
+      {notifyOpen && selected && (
         <NotifyDialog
           dok={dok}
           neueSichtbarkeit={selected}
@@ -3781,12 +3796,17 @@ function SichtbarkeitChangeModal({
   )
 }
 
+type SortCol = 'folge_nummer' | 'folgen_titel' | 'werk_typ' | 'version_nummer' | 'werk_label' | 'ersteller_name' | 'privat_seit'
+
 function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
   const [filter, setFilter] = useState<FilterType>('1')
   const [settings, setSettings] = useState<{ filter_2_enabled: boolean; filter_3_enabled: boolean }>({ filter_2_enabled: false, filter_3_enabled: false })
   const [dokumente, setDokumente] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [changeDok, setChangeDok] = useState<any>(null)
+  const [search, setSearch] = useState('')
+  const [sortCol, setSortCol] = useState<SortCol>('privat_seit')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
   const load = async () => {
     setLoading(true)
@@ -3796,9 +3816,7 @@ function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
   }
 
   useEffect(() => {
-    api.getPrivateDokSettings()
-      .then(s => setSettings(s))
-      .catch(() => {})
+    api.getPrivateDokSettings().then(s => setSettings(s)).catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [filter, produktionId])
@@ -3806,31 +3824,88 @@ function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
   const activeFilters: FilterType[] = ['1', ...(settings.filter_2_enabled ? ['2' as FilterType] : []), ...(settings.filter_3_enabled ? ['3' as FilterType] : [])]
   const showTabs = activeFilters.length > 1
 
-  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + new Date(d).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—'
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortCol(col); setSortDir('asc') }
+  }
+
+  const q = search.toLowerCase()
+  const filtered = dokumente.filter(d =>
+    !q ||
+    String(d.folge_nummer ?? '').includes(q) ||
+    (d.folgen_titel ?? '').toLowerCase().includes(q) ||
+    (d.werk_typ ?? '').toLowerCase().includes(q) ||
+    (d.werk_label ?? '').toLowerCase().includes(q) ||
+    (d.ersteller_name ?? '').toLowerCase().includes(q)
+  )
+
+  const sorted = [...filtered].sort((a, b) => {
+    let va = a[sortCol] ?? ''
+    let vb = b[sortCol] ?? ''
+    if (sortCol === 'version_nummer' || sortCol === 'folge_nummer') {
+      va = Number(va) || 0
+      vb = Number(vb) || 0
+      return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number)
+    }
+    if (sortCol === 'privat_seit') {
+      va = va ? new Date(va as string).getTime() : 0
+      vb = vb ? new Date(vb as string).getTime() : 0
+      return sortDir === 'asc' ? (va as number) - (vb as number) : (vb as number) - (va as number)
+    }
+    return sortDir === 'asc'
+      ? String(va).localeCompare(String(vb), 'de')
+      : String(vb).localeCompare(String(va), 'de')
+  })
+
+  const SortIcon = ({ col }: { col: SortCol }) => (
+    <span style={{ marginLeft: 4, opacity: sortCol === col ? 1 : 0.3, fontSize: 10 }}>
+      {sortCol === col ? (sortDir === 'asc' ? '▲' : '▼') : '▲▼'}
+    </span>
+  )
+
+  const thStyle = (col: SortCol): React.CSSProperties => ({
+    padding: '8px 10px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)',
+    textAlign: 'left', cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+    background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)',
+    position: 'sticky', top: 0, zIndex: 1,
+  })
+
+  const tdStyle: React.CSSProperties = {
+    padding: '8px 10px', fontSize: 12, borderBottom: '1px solid var(--border)',
+    verticalAlign: 'middle',
+  }
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 860, display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
       <div>
         <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Private Dokumente</h3>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-          Dokumente und Episoden mit mindestens einer privaten Fassung — Sichtbarkeit kann hier im Namen der Produktion überschrieben werden.
+          Episoden und Dokumente mit mindestens einer privaten Fassung — Sichtbarkeit kann hier im Namen der Produktion geändert werden.
         </p>
       </div>
 
-      {showTabs && (
-        <div style={{ display: 'flex', gap: 6 }}>
-          {activeFilters.map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{
-              padding: '5px 14px', fontSize: 12, fontWeight: 500, borderRadius: 6, cursor: 'pointer',
-              border: `1px solid ${filter === f ? '#007AFF' : 'var(--border)'}`,
-              background: filter === f ? 'rgba(0,122,255,0.08)' : 'transparent',
-              color: filter === f ? '#007AFF' : 'var(--text-secondary)',
-            }}>
-              {FILTER_LABELS[f]}
-            </button>
-          ))}
-        </div>
-      )}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+        {showTabs && activeFilters.map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '5px 14px', fontSize: 12, fontWeight: 500, borderRadius: 6, cursor: 'pointer',
+            border: `1px solid ${filter === f ? '#007AFF' : 'var(--border)'}`,
+            background: filter === f ? 'rgba(0,122,255,0.08)' : 'transparent',
+            color: filter === f ? '#007AFF' : 'var(--text-secondary)',
+          }}>
+            {FILTER_LABELS[f]}
+          </button>
+        ))}
+        <input
+          type="text"
+          placeholder="Suchen…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ padding: '5px 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', minWidth: 180, marginLeft: 'auto' }}
+        />
+        {!loading && <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{sorted.length} Einträge</span>}
+      </div>
 
       {!produktionId ? (
         <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
@@ -3838,38 +3913,89 @@ function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
         </div>
       ) : loading ? (
         <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>Lädt…</div>
-      ) : dokumente.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>
-          Keine privaten Dokumente in diesem Filter.
+          {dokumente.length === 0 ? 'Keine privaten Dokumente in diesem Filter.' : 'Keine Treffer für die Suche.'}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {dokumente.map(dok => (
-            <div key={dok.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--bg-surface)', border: '1.5px solid var(--border)', borderRadius: 10 }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {dok.folge_nummer ? `Folge ${dok.folge_nummer}` : (dok.folgen_titel ?? 'Unbenanntes Dokument')}
-                  {dok.folge_nummer && dok.folgen_titel && (
-                    <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 6 }}>— {dok.folgen_titel}</span>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-secondary)' }}>
-                  <span style={{ padding: '2px 8px', background: 'var(--bg-subtle)', borderRadius: 99 }}>{dok.dokument_label ?? '—'}</span>
-                  {dok.ist_frei && <span style={{ padding: '2px 8px', background: 'rgba(0,200,83,0.1)', color: '#00C853', borderRadius: 99 }}>Freies Dok.</span>}
-                  <span>von <strong>{dok.ersteller_name}</strong></span>
-                  <span>privat seit {fmtDate(dok.privat_seit ?? dok.erstellt_am)}</span>
-                  {dok.verknuepft_am && <span>verknüpft {fmtDate(dok.verknuepft_am)}</span>}
-                </div>
-              </div>
-              <button
-                className="btn"
-                style={{ fontSize: 12, padding: '5px 14px', flexShrink: 0 }}
-                onClick={() => setChangeDok(dok)}
-              >
-                Sichtbarkeit ändern
-              </button>
-            </div>
-          ))}
+        <div style={{ flex: 1, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={thStyle('folge_nummer')} onClick={() => handleSort('folge_nummer')}>
+                  Folge <SortIcon col="folge_nummer" />
+                </th>
+                <th style={thStyle('folgen_titel')} onClick={() => handleSort('folgen_titel')}>
+                  Titel <SortIcon col="folgen_titel" />
+                </th>
+                <th style={thStyle('werk_typ')} onClick={() => handleSort('werk_typ')}>
+                  Werktyp <SortIcon col="werk_typ" />
+                </th>
+                <th style={thStyle('version_nummer')} onClick={() => handleSort('version_nummer')}>
+                  Version <SortIcon col="version_nummer" />
+                </th>
+                <th style={thStyle('werk_label')} onClick={() => handleSort('werk_label')}>
+                  Label <SortIcon col="werk_label" />
+                </th>
+                <th style={thStyle('ersteller_name')} onClick={() => handleSort('ersteller_name')}>
+                  Autor <SortIcon col="ersteller_name" />
+                </th>
+                <th style={thStyle('privat_seit')} onClick={() => handleSort('privat_seit')}>
+                  Privat seit <SortIcon col="privat_seit" />
+                </th>
+                <th style={{ ...thStyle('privat_seit'), cursor: 'default', width: 120 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(dok => (
+                <tr key={dok.werk_id} style={{ background: 'var(--bg-surface)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'var(--bg-surface)')}
+                >
+                  <td style={tdStyle}>
+                    {dok.folge_nummer ? (
+                      <span style={{ fontWeight: 600 }}>{dok.folge_nummer}</span>
+                    ) : (
+                      <span style={{ padding: '1px 6px', background: 'rgba(0,200,83,0.1)', color: '#00C853', borderRadius: 99, fontSize: 10, fontWeight: 600 }}>Frei</span>
+                    )}
+                  </td>
+                  <td style={{ ...tdStyle, maxWidth: 220 }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {dok.folgen_titel ?? <span style={{ color: 'var(--text-secondary)' }}>—</span>}
+                    </div>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ padding: '2px 7px', background: 'var(--bg-subtle)', borderRadius: 99, fontSize: 11, whiteSpace: 'nowrap' }}>
+                      {dok.werk_typ ?? '—'}
+                    </span>
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'center' }}>
+                    {dok.version_nummer != null ? `v${dok.version_nummer}` : '—'}
+                  </td>
+                  <td style={{ ...tdStyle, maxWidth: 160 }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                      {dok.werk_label ?? '—'}
+                    </div>
+                  </td>
+                  <td style={tdStyle}>
+                    {dok.ersteller_name ?? <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>unbekannt</span>}
+                  </td>
+                  <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>
+                    {fmtDate(dok.privat_seit)}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <button
+                      className="btn"
+                      style={{ fontSize: 11, padding: '4px 10px', whiteSpace: 'nowrap' }}
+                      onClick={() => setChangeDok(dok)}
+                    >
+                      Sichtbarkeit
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

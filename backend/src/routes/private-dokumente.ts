@@ -153,38 +153,26 @@ privateDokumenteRouter.get('/', async (req, res) => {
   try {
     let filterClause = ''
     if (filter === '1') filterClause = `AND f.dokument_label = 'folge_sendung'`
-    else if (filter === '2') filterClause = `AND f.ist_frei = true AND f.verknuepft_mit_folge_id IS NOT NULL`
+    else if (filter === '2') filterClause = `AND f.verknuepft_mit_folge_id IS NOT NULL`
     // filter === '3': keine Extra-Bedingung
 
     const prodClause = produktion_id ? `AND f.produktion_id = ${typeof produktion_id === 'string' ? `'${produktion_id.replace(/'/g, "''")}'` : produktion_id}` : ''
 
+    // Einen Row pro privater Werkstufe (nicht pro Folge)
     const rows = await query(
-      `SELECT DISTINCT
-              f.id, f.folgen_titel, f.folge_nummer, f.ist_frei, f.dokument_label,
-              f.ersteller_user_id,
-              f.sichtbarkeit_frei, f.sichtbarkeit_frei_geaendert_am,
-              f.verknuepft_mit_folge_id, f.verknuepft_am,
-              f.erstellt_am,
-              COALESCE(
-                (SELECT w2.privat_gesetzt_am FROM werkstufen w2
-                 WHERE w2.folge_id = f.id AND w2.sichtbarkeit = 'privat'
-                 ORDER BY w2.privat_gesetzt_am DESC NULLS LAST LIMIT 1),
-                f.sichtbarkeit_frei_geaendert_am
-              ) AS privat_seit,
-              COALESCE(
-                (SELECT w2.erstellt_von FROM werkstufen w2
-                 WHERE w2.folge_id = f.id AND w2.sichtbarkeit = 'privat'
-                 ORDER BY w2.privat_gesetzt_am DESC NULLS LAST LIMIT 1),
-                f.ersteller_user_id
-              ) AS autor_user_id,
-              (SELECT COUNT(*)::int FROM werkstufen w WHERE w.folge_id = f.id) AS werkstufen_count
+      `SELECT
+              f.id AS folge_id, f.folgen_titel, f.folge_nummer, f.ist_frei, f.dokument_label,
+              f.verknuepft_mit_folge_id, f.verknuepft_am, f.erstellt_am AS folge_erstellt_am,
+              w.id AS werk_id, w.typ AS werk_typ, w.version_nummer,
+              w.label AS werk_label,
+              COALESCE(w.privat_gesetzt_am, w.erstellt_am) AS privat_seit,
+              w.erstellt_von AS autor_user_id
        FROM folgen f
-       WHERE EXISTS (
-         SELECT 1 FROM werkstufen w WHERE w.folge_id = f.id AND w.sichtbarkeit = 'privat'
-       )
+       JOIN werkstufen w ON w.folge_id = f.id AND w.sichtbarkeit = 'privat'
+       WHERE true
          ${filterClause}
          ${prodClause}
-       ORDER BY privat_seit DESC NULLS LAST, f.erstellt_am DESC`,
+       ORDER BY COALESCE(w.privat_gesetzt_am, w.erstellt_am) DESC`,
       []
     )
 
@@ -193,7 +181,7 @@ privateDokumenteRouter.get('/', async (req, res) => {
 
     const result = rows.map((r: any) => ({
       ...r,
-      ersteller_name: userMap.get(String(r.autor_user_id))?.name ?? `User ${r.autor_user_id}`,
+      ersteller_name: userMap.get(String(r.autor_user_id))?.name ?? null,
       ersteller_email: userMap.get(String(r.autor_user_id))?.email ?? null,
     }))
 
@@ -214,7 +202,7 @@ privateDokumenteRouter.post('/:id/sichtbarkeit', async (req, res) => {
   }
 
   const { neue_sichtbarkeit, colab_gruppe_id, per_email_informiert, anderweitig_bestaetigt } = req.body
-  const validSicht = ['privat', 'colab', 'produktion', 'alle']
+  const validSicht = ['privat', 'colab', 'team', 'produktion', 'alle']
   if (!validSicht.includes(neue_sichtbarkeit)) {
     return res.status(400).json({ error: 'Ungültige Sichtbarkeit' })
   }
@@ -236,7 +224,7 @@ privateDokumenteRouter.post('/:id/sichtbarkeit', async (req, res) => {
         `UPDATE folgen SET
            sichtbarkeit_frei = $1,
            sichtbarkeit_frei_geaendert_am = NOW(),
-           sichtbarkeit_frei_colab_gruppe_id = CASE WHEN $1 = 'colab' THEN $2::uuid ELSE NULL END
+           sichtbarkeit_frei_colab_gruppe_id = CASE WHEN $1 IN ('colab', 'team') THEN $2::uuid ELSE NULL END
          WHERE id = $3`,
         [neue_sichtbarkeit, colab_gruppe_id ?? null, req.params.id]
       )
@@ -300,6 +288,7 @@ privateDokumenteRouter.post('/:id/sichtbarkeit', async (req, res) => {
 function mapFolgeSichtToWerk(folgeSicht: string, colabGruppeId?: string | null): string {
   if (folgeSicht === 'privat') return 'privat'
   if (folgeSicht === 'colab' && colabGruppeId) return `colab:${colabGruppeId}`
+  if (folgeSicht === 'team' && colabGruppeId) return `team:${colabGruppeId}`
   if (folgeSicht === 'alle') return 'autoren'
   return 'produktion'
 }
