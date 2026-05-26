@@ -40,6 +40,7 @@ interface ExportItem {
   type: 'notiz' | 'statistik' | 'onliner' | 'synopse'
   werkstufId?: string   // Notiz-Werkstufe UUID (gesamtes Notiz-Dokument)
   szeneId?: string      // dokument_szenen.id (einzelne Notiz-Zeile aus aktueller Werkstufe)
+  vorlageId?: string    // dokument_vorlagen.id (Titelseite direkt)
   label: string
   enabled: boolean
   statistikConfig?: StatistikExportConfig
@@ -100,6 +101,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [postItems, setPostItems]                 = useState<ExportItem[]>([])
   const [szenenAktiv, setSzenenAktiv]             = useState(true)
   const [pdfBookmarks, setPdfBookmarks]           = useState(false)
+  const [titelseiteVorlagen, setTitelseiteVorlagen] = useState<{ id: string; name: string }[]>([])
 
   // Statistik / Folge-Picker Modal
   const [statConfigItemId, setStatConfigItemId]     = useState<string | null>(null)
@@ -163,6 +165,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         })
         .catch(() => {/* kein Fehler — Notiz-Elemente einfach weglassen */})
     }
+
+    // Titelseite-Vorlagen laden
+    api.getExportTitelseiteVorlagen(produktionId)
+      .then(rows => setTitelseiteVorlagen(rows))
+      .catch(() => setTitelseiteVorlagen([]))
 
     // Filter-Optionen laden
     setFilterOptions(null)
@@ -282,11 +289,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         format,
         options: {
           preItems:  preItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, vorlageId: it.vorlageId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           postItems: postItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, vorlageId: it.vorlageId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           hauptinhaltAktiv: szenenAktiv,
@@ -367,11 +374,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         werkstufId: selectedWerk.id,
         options: {
           preItems:  preItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, vorlageId: it.vorlageId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           postItems: postItems.filter(i => i.enabled).map(it => ({
-            type: it.type, id: it.werkstufId, szeneId: it.szeneId, label: it.label, enabled: true,
+            type: it.type, id: it.werkstufId, szeneId: it.szeneId, vorlageId: it.vorlageId, label: it.label, enabled: true,
             statistikConfig: it.statistikConfig,
           })),
           hauptinhaltAktiv: szenenAktiv,
@@ -526,7 +533,41 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
               <div>
                 <span style={SEC}>Dokumentstruktur</span>
 
-                {/* VOR SZENEN Zone */}
+                {/* Titelseite-Vorlage hinzufügen */}
+                {titelseiteVorlagen.length > 0 && (
+                  <div style={{ marginBottom: 6 }}>
+                    {titelseiteVorlagen.map(v => {
+                      const already = preItems.some(i => i.vorlageId === v.id)
+                      return (
+                        <button
+                          key={v.id}
+                          disabled={already}
+                          onClick={() => {
+                            if (already) return
+                            setPreItems(prev => [
+                              { id: genId(), type: 'notiz', vorlageId: v.id, label: v.name, enabled: true },
+                              ...prev,
+                            ])
+                          }}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            width: '100%', padding: '5px 8px', borderRadius: 6, fontSize: 11,
+                            border: '1px dashed var(--border)',
+                            background: already ? 'var(--bg-subtle)' : 'transparent',
+                            color: already ? 'var(--text-muted)' : 'var(--text-primary)',
+                            cursor: already ? 'default' : 'pointer', fontFamily: 'inherit',
+                            opacity: already ? 0.5 : 1,
+                          }}
+                        >
+                          <FileText size={11} style={{ flexShrink: 0, color: already ? 'var(--text-muted)' : '#007AFF' }} />
+                          {already ? `${v.name} (bereits eingefügt)` : `+ ${v.name} (Titelseite) einfügen`}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+
+              {/* VOR SZENEN Zone */}
                 <div
                   onDragOver={e => { e.preventDefault(); setDragOverZone('pre') }}
                   onDragLeave={() => setDragOverZone(null)}
@@ -893,6 +934,8 @@ function ItemRow({
     ? <Table2    size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
     : item.type === 'synopse'
     ? <List      size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
+    : item.vorlageId
+    ? <FileText  size={11} style={{ color: '#007AFF', flexShrink: 0 }} />
     : <FileText  size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
 
   return (

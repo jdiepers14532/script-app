@@ -332,6 +332,24 @@ router.get('/export/filter-options', async (req, res) => {
   }
 })
 
+// ── GET /api/export/titelseite-vorlagen ──────────────────────────────────────
+// Liefert alle dokument_vorlagen mit ist_titelseite=true für eine Produktion.
+// Wird vom ExportDrawer genutzt um Titelseite direkt über vorlageId hinzuzufügen.
+
+router.get('/export/titelseite-vorlagen', async (req, res) => {
+  const produktionId = req.query.produktionId as string | undefined
+  if (!produktionId) return res.status(400).json({ error: 'produktionId erforderlich' })
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name FROM dokument_vorlagen WHERE produktion_id = $1 AND ist_titelseite = true ORDER BY created_at DESC`,
+      [produktionId]
+    )
+    res.json(rows)
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? 'Fehler' })
+  }
+})
+
 // ── GET /api/export/notiz-szenen ─────────────────────────────────────────────
 // Liefert format='notiz' + scene_nummer=null Rows der Werkstufe (freie Dokument-Elemente)
 // sowie die Block-Grenzen (min/max sort_order aller Rows mit scene_nummer != null).

@@ -19,6 +19,8 @@ export interface OrderedExportItem {
   id?: string
   /** dokument_szenen.id als String (für type='notiz': einzelne Notiz-Zeile aus Drehbuch-Werkstufe) */
   szeneId?: string
+  /** dokument_vorlagen.id — Vorlage direkt rendern (z.B. Titelseite ohne dazugehörige dokument_szene) */
+  vorlageId?: string
   /** Anzeige-Label für UI */
   label?: string
   /** false = Element wird im Export übersprungen */

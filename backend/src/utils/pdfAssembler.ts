@@ -1134,6 +1134,15 @@ async function assembleHtml(
     async function renderOrderedItem(item: OrderedExportItem): Promise<string | null> {
       if (!item.enabled) return null
       if (item.type === 'notiz') {
+        // Vorlage direkt (z.B. Titelseite direkt via ExportDrawer hinzugefügt, ohne szeneId)
+        if (item.vorlageId) {
+          const vorRes = await client.query<{ body_content: any }>(
+            'SELECT body_content FROM dokument_vorlagen WHERE id = $1',
+            [item.vorlageId]
+          )
+          if (!vorRes.rows[0]?.body_content) return null
+          return renderPmJson(vorRes.rows[0].body_content, ctx)
+        }
         // Einzelne Notiz-Zeile aus dem aktuellen Drehbuch (szeneId = dokument_szenen.id)
         if (item.szeneId) {
           const szRes = await client.query<SceneRow & { vorlage_id: string | null }>(
@@ -1217,27 +1226,51 @@ async function assembleHtml(
     let titelseiteMargins: { oben: number; unten: number; links: number; rechts: number } | null = null
     const preSections: string[] = []
     for (const item of resolvedPreItems) {
-      if (item.type === 'notiz' && item.szeneId && item.enabled) {
-        const vorRes = await client.query<{ ist_titelseite: boolean; seiten_layout: any }>(
-          `SELECT dv.ist_titelseite, dv.seiten_layout
-           FROM dokument_szenen ds
-           LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
-           WHERE ds.id = $1`,
-          [item.szeneId]
-        )
-        if (vorRes.rows[0]?.ist_titelseite) {
-          const html = await renderOrderedItem(item)
-          if (html) titelseiteHtmlParts.push(html)
-          if (!titelseiteMargins) {
-            const sl: Record<string, number | undefined> = vorRes.rows[0].seiten_layout ?? {}
-            titelseiteMargins = {
-              oben:   sl.margin_top    ?? bodyMargins.oben,
-              unten:  sl.margin_bottom ?? bodyMargins.unten,
-              links:  sl.margin_left   ?? bodyMargins.links,
-              rechts: sl.margin_right  ?? bodyMargins.rechts,
+      if (item.enabled) {
+        // Titelseite via vorlageId (direkt hinzugefügt ohne szeneId)
+        if (item.type === 'notiz' && item.vorlageId) {
+          const vorRes = await client.query<{ ist_titelseite: boolean; seiten_layout: any }>(
+            'SELECT ist_titelseite, seiten_layout FROM dokument_vorlagen WHERE id = $1',
+            [item.vorlageId]
+          )
+          if (vorRes.rows[0]?.ist_titelseite) {
+            const html = await renderOrderedItem(item)
+            if (html) titelseiteHtmlParts.push(html)
+            if (!titelseiteMargins) {
+              const sl: Record<string, number | undefined> = vorRes.rows[0].seiten_layout ?? {}
+              titelseiteMargins = {
+                oben:   sl.margin_top    ?? bodyMargins.oben,
+                unten:  sl.margin_bottom ?? bodyMargins.unten,
+                links:  sl.margin_left   ?? bodyMargins.links,
+                rechts: sl.margin_right  ?? bodyMargins.rechts,
+              }
             }
+            continue
           }
-          continue
+        }
+        // Titelseite via szeneId (szene hat vorlage mit ist_titelseite=true)
+        if (item.type === 'notiz' && item.szeneId) {
+          const vorRes = await client.query<{ ist_titelseite: boolean; seiten_layout: any }>(
+            `SELECT dv.ist_titelseite, dv.seiten_layout
+             FROM dokument_szenen ds
+             LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
+             WHERE ds.id = $1`,
+            [item.szeneId]
+          )
+          if (vorRes.rows[0]?.ist_titelseite) {
+            const html = await renderOrderedItem(item)
+            if (html) titelseiteHtmlParts.push(html)
+            if (!titelseiteMargins) {
+              const sl: Record<string, number | undefined> = vorRes.rows[0].seiten_layout ?? {}
+              titelseiteMargins = {
+                oben:   sl.margin_top    ?? bodyMargins.oben,
+                unten:  sl.margin_bottom ?? bodyMargins.unten,
+                links:  sl.margin_left   ?? bodyMargins.links,
+                rechts: sl.margin_right  ?? bodyMargins.rechts,
+              }
+            }
+            continue
+          }
         }
       }
       const html = await renderOrderedItem(item)
