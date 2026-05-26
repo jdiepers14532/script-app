@@ -47,13 +47,13 @@ export default function HeaderSelect({ options, value, onChange, scrollToValue }
   }, [open, updatePosition])
 
   useEffect(() => {
-    if (!open || !listRef.current) return
+    if (!open || !dropPos || !listRef.current) return
     const target = scrollToValue ?? value
     const idx = options.findIndex(o => o.value === target)
     if (idx < 0) return
     const items = listRef.current.querySelectorAll<HTMLButtonElement>('button')
-    items[idx]?.scrollIntoView({ block: 'nearest' })
-  }, [open])
+    items[idx]?.scrollIntoView({ block: 'center' })
+  }, [open, dropPos])
 
   const handleSelect = (val: string) => {
     onChange(val)
