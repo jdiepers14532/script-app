@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, useEffect, useRef, useState } from 'react'
 import type { PageMargins } from '../../contexts'
 
 const DEFAULT_MARGINS: PageMargins = { oben: 25, unten: 20, links: 25, rechts: 20 }
@@ -35,16 +35,50 @@ export default function PageWrapper({
   const ptLeft   = Math.round(pageMargins.links  * MM_TO_PX)
   const ptRight  = Math.round(pageMargins.rechts * MM_TO_PX)
 
+  // ── Blatt-Modus: dynamische Seitenhöhe ───────────────────────────────────
+  // minHeight wird auf das nächste ganzzahlige A4/Letter-Vielfache gerundet,
+  // damit jede angefangene Seite als vollständiges Blatt erscheint.
+  // Wir messen die echte ProseMirror-Höhe (nicht die Container-Höhe, die durch
+  // minHeight aufgeblasen wäre) → kein zirkulärer ResizeObserver-Loop.
+  const [pageMinHeight, setPageMinHeight] = useState(dim.height)
+  const pageRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!showShadow) return
+    const el = pageRef.current
+    if (!el) return
+
+    const update = () => {
+      const pm = el.querySelector('.ProseMirror') as HTMLElement | null
+      const contentH = pm ? pm.getBoundingClientRect().height : 0
+      const totalH = contentH + ptTop + ptBottom
+      const pages = Math.max(1, Math.ceil(totalH / dim.height))
+      setPageMinHeight(pages * dim.height)
+    }
+
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    // Initial run (ProseMirror ist beim ersten Tick noch nicht im DOM)
+    const raf = requestAnimationFrame(update)
+    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
+  }, [showShadow, dim.height, ptTop, ptBottom])
+
+  // dim/seitenformat wechselt → auf 1 Seite zurücksetzen, neu messen
+  useEffect(() => {
+    setPageMinHeight(dim.height)
+  }, [dim.height])
+
   if (showShadow) {
     // ── Blatt-Modus: weißes Blatt mit Schatten, subtile Trennlinie ────────
     return (
       <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%' }}>
         <div
+          ref={pageRef}
           className={className}
           style={{
             '--page-padding': `${ptLeft}px`,
             width: dim.width,
-            minHeight: dim.height,
+            minHeight: pageMinHeight,
             maxWidth: '100%',
             margin: '0 auto',
             background: 'var(--bg-surface)',
