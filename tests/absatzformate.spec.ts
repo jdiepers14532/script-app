@@ -66,7 +66,7 @@ test('Serienwerft Daily-Standard preset has correct format structure', async ({ 
   const data = await res.json()
 
   const names = data.formate.map((f: any) => f.name)
-  expect(names).toContain('Szenenueberschrift')
+  expect(names).toContain('Standard')
   expect(names).toContain('Action')
   expect(names).toContain('Character')
   expect(names).toContain('Dialogue')
@@ -122,7 +122,7 @@ test('GET absatzformate returns all formats', async ({ request }) => {
   expect(data.length).toBe(11)
 
   const sorted = [...data].sort((a: any, b: any) => a.sort_order - b.sort_order)
-  expect(sorted[0].name).toBe('Szenenueberschrift')
+  expect(sorted[0].name).toBe('Standard')
 })
 
 let createdFormatId: string

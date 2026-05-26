@@ -370,7 +370,7 @@ function renderInline(nodes: any[], ctx: ExportContext): string {
 
 // Mapping alter screenplay_element-Typen auf Absatzformat-Namen (Serienwerft Daily-Standard)
 const SCREENPLAY_ELEM_TO_FORMAT: Record<string, string> = {
-  scene_heading:  'Szenenueberschrift',
+  scene_heading:  'Standard',
   action:         'Action',
   character:      'Character',
   dialogue:       'Dialogue',

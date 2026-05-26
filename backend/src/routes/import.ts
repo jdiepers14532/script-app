@@ -603,7 +603,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     const elementTypeToFormatId = new Map<string, string>()
     if (absatzformate.length > 0) {
       const nameMap: Record<string, string> = {
-        scene_heading: 'Szenenueberschrift', action: 'Action', character: 'Character',
+        scene_heading: 'Standard', action: 'Action', character: 'Character',
         dialogue: 'Dialogue', parenthetical: 'Parenthetical', transition: 'Transition',
         shot: 'Shot', heading: 'Headline',
       }

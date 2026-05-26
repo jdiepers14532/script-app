@@ -359,6 +359,7 @@ async function runMigrations() {
     'v124_preset_sort_order.sql',
     'v125_neue_presets_wga_theater.sql',
     'v126_sichtbarkeit_frei_default.sql',
+    'v127_rename_szenenueberschrift_to_standard.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

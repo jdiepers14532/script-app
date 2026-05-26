@@ -216,7 +216,7 @@ export function generateAbsatzCSS(formate: AbsatzFormat[]): string {
 
 // Map old screenplay_element types to absatzformat names
 const ELEMENT_TYPE_TO_NAME: Record<string, string> = {
-  scene_heading: 'Szenenueberschrift',
+  scene_heading: 'Standard',
   action: 'Action',
   character: 'Character',
   dialogue: 'Dialogue',
