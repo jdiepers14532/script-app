@@ -203,7 +203,8 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           api.getFolgenV2(produktionId),
           api.getBloecke(produktionId),
         ])
-        setFolgenForStat(f)
+        // Freie Dokumente (ist_frei=true / folge_nummer=null) für Onliner/Synopsen ausschließen
+        setFolgenForStat(f.filter((folge: any) => !folge.ist_frei && folge.folge_nummer != null))
         setBloeckeForStat(b)
       } catch {
         setFolgenForStat([]); setBloeckeForStat([])
@@ -1021,22 +1022,30 @@ function FolgePickerModal({
   onConfirm: (config: StatistikExportConfig) => void
   onClose: () => void
 }) {
+  // Nur Folgen mit drehbuch- oder storyline-Werkstufen sind für Onliner/Synopsen relevant
+  const wsFolgen = useMemo(() =>
+    folgen.filter((f: any) =>
+      Array.isArray(f.werkstufen_typen) &&
+      f.werkstufen_typen.some((w: any) => w.typ === 'drehbuch' || w.typ === 'storyline')
+    ),
+    [folgen]
+  )
   const [mode, setMode] = useState<'folge' | 'block'>('folge')
   const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(
-    folgen.length ? folgen[folgen.length - 1].id : null
+    wsFolgen.length ? wsFolgen[0].id : (folgen.length ? folgen[0].id : null)
   )
   const [selectedBlockIdx, setSelectedBlockIdx] = useState(0)
 
   const selectedFolgeIds = useMemo(() => {
     if (mode === 'block' && bloecke[selectedBlockIdx]) {
       const block = bloecke[selectedBlockIdx]
-      return folgen
+      return wsFolgen
         .filter(f => f.folge_nummer >= block.folge_von && f.folge_nummer <= block.folge_bis)
         .map(f => f.id)
     }
     if (mode === 'folge' && selectedFolgeId) return [selectedFolgeId]
     return []
-  }, [mode, selectedBlockIdx, bloecke, selectedFolgeId, folgen])
+  }, [mode, selectedBlockIdx, bloecke, selectedFolgeId, wsFolgen])
 
   function handleConfirm() {
     if (!selectedFolgeIds.length) return
@@ -1088,7 +1097,7 @@ function FolgePickerModal({
             onChange={e => setSelectedFolgeId(Number(e.target.value) || null)}
             style={{ padding: '6px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', fontSize: 12, width: '100%', fontFamily: 'inherit' }}
           >
-            {folgen.map((f: any) => (
+            {(wsFolgen.length ? wsFolgen : folgen).map((f: any) => (
               <option key={f.id} value={f.id}>
                 Folge {f.folge_nummer}{f.folgen_titel ? ` \u2013 ${f.folgen_titel}` : ''}
               </option>
