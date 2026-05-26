@@ -18,11 +18,7 @@ const DOC_TYPE_RE = /(Treatment|Drehbuch)\s+-\s+Episode\s+(\d+)/
 
 export function isRoteRosenFormat(text: string): boolean {
   const header = text.slice(0, 3000) // Mistral OCR may have more preamble
-  if (TITLE_RE.test(header) && DOC_TYPE_RE.test(header)) return true
-  // When importing from a mid-document page the title block may be absent.
-  // Fall back: ≥2 lines starting with the distinctive NNNN.NNN scene number pattern.
-  const sceneMatches = (text.match(/^\d{4}\.\d{1,3}\s/gm) || []).length
-  return sceneMatches >= 2
+  return TITLE_RE.test(header) && DOC_TYPE_RE.test(header)
 }
 
 // ─── Filename Parser ────────────────────────────────────

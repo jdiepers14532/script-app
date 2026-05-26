@@ -291,6 +291,15 @@ export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Pro
       ? { cropRight: 100 - options.cropPercent }
       : undefined
 
+  // If the page range starts after page 1, extract the preceding pages via
+  // plain pdftotext (fast, no cost) exclusively for format detection.
+  // The actual parse uses only the selected range.
+  let detectionPrefix: string | null = null
+  if (crop?.pageFrom && crop.pageFrom > 1) {
+    detectionPrefix = extractWithPdftotext(buffer, { pageTo: crop.pageFrom - 1 })
+    console.log(`[PDF Import] Detection prefix: pages 1–${crop.pageFrom - 1}, ${(detectionPrefix || '').length} chars`)
+  }
+
   if (method === 'mistral') {
     text = await extractWithMistral(buffer, crop?.pageFrom, crop?.pageTo)
     if (!text) {
@@ -334,8 +343,12 @@ export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Pro
 
   console.log(`[PDF Import] Extraction method: ${usedMethod}, text length: ${text.length}`)
 
+  // For format detection use the prefix (title pages) + range text combined,
+  // so the format is recognised even when the range excludes the title block.
+  const textForDetection = detectionPrefix ? detectionPrefix + '\n' + text : text
+
   // Try Rote Rosen format first (structured production PDF)
-  if (isRoteRosenFormat(text)) {
+  if (isRoteRosenFormat(textForDetection)) {
     return parseRoteRosen(text, usedMethod === 'mistral', layout ?? undefined)
   }
 
