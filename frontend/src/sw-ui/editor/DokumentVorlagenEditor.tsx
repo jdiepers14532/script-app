@@ -1268,9 +1268,11 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       if (fst) styles.push(`font-style:${fst}`)
       if (td)  styles.push(`text-decoration:${td}`)
       // Immer line-height setzen — ohne expliziten Wert erbt der Browser den Eltern-
-      // Wert (hier: 1.5 vom App-Body). Das PDF exportiert mit line-height:normal (~1.2).
-      // lh ?? 'normal' matcht das Editor-Verhalten und das exportAssembler-Fix.
-      styles.push(`line-height:${lh ?? 'normal'}`)
+      // Wert (1.5 vom App-Body). Fallback '1.2' statt 'normal': 'normal' ist
+      // font- und OS-abhängig (Win Ascent/Descent ≠ hhea-Metrik in Puppeteer/Linux)
+      // → Vorschau-Zellen wirken höher als im PDF. 1.2 ist plattformunabhängig
+      // und entspricht Courier New/Prime auf allen Plattformen (~1.2).
+      styles.push(`line-height:${lh ?? '1.2'}`)
       if (sa)  styles.push(`margin-bottom:${sa}`)
       if (!node.content?.length) styles.push('min-height:1.2em')
       const style = styles.length ? ` style="${styles.join(';')}"` : ''
