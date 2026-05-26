@@ -1560,6 +1560,7 @@ const PRESET_HAS_INFO = new Set([
   'WGA Sitcom Multi-Camera',
   'BBC TV Drama',
   'Theaterstück (Samuel French)',
+  'ARD/ZDF Fernsehfilm',
 ])
 
 const PRESET_INFO_HEADER: Record<string, { title: string; subtitle: string }> = {
@@ -1567,6 +1568,7 @@ const PRESET_INFO_HEADER: Record<string, { title: string; subtitle: string }> = 
   'WGA Sitcom Multi-Camera':        { title: 'WGA Sitcom Multi-Camera', subtitle: 'Doppelter Zeilenabstand · Shot-Card-Format' },
   'BBC TV Drama':                   { title: 'BBC TV Drama Format', subtitle: 'BBC Writers Room Standard · A4' },
   'Theaterstück (Samuel French)':   { title: 'Theaterstück — Samuel French', subtitle: 'Englischsprachiger Bühnenstandard · kein INT./EXT.' },
+  'ARD/ZDF Fernsehfilm':            { title: 'ARD/ZDF Fernsehfilm', subtitle: 'Kein verbindlicher Formatstandard' },
 }
 
 type DokTypenMargins = { oben: number; unten: number; links: number; rechts: number }
@@ -2708,6 +2710,39 @@ function DokumentTypenTab({
                 </div>
                 <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.6 }}>
                   Deutsche Bühnenverlage haben kein einheitliches Format-Vorschriften-System. Dieses Preset orientiert sich am Samuel French Standard als internationalem Referenz.
+                </div>
+              </div>
+            </>)}
+
+            {/* ══ ARD/ZDF Fernsehfilm ═════════════════════════════════════════════ */}
+            {selectedPreset.name === 'ARD/ZDF Fernsehfilm' && (<>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ background: '#FF950015', border: '1px solid #FF950040', borderRadius: 8, padding: '12px 14px', fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                  <strong style={{ color: '#FF9500', fontSize: 12 }}>ARD und ZDF haben keine standardisierten Formatvorlagen.</strong>
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Hintergrund
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                  Anders als in den USA (WGA) oder Großbritannien (BBC Writers Room) gibt es in Deutschland keine sendereigenen oder verbandsverbindlichen Formatvorgaben für Drehbücher. ARD und ZDF veröffentlichen keine offiziellen Style Guides für Autoren.
+                </div>
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Was stattdessen gilt
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                  In der Praxis orientieren sich deutsche TV-Autoren an den Empfehlungen ihrer Produktionsfirma oder Redaktion. Verbreitet sind Formate, die dem <strong style={{ color: 'var(--text-primary)' }}>US Master Scene Format</strong> ähneln — mit Anpassungen für A4, deutschen Slugline-Konventionen (INT./EXT. · TAG/NACHT) und Courier 12pt.
+                </div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+                  Dieses Preset
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.7 }}>
+                  Das ARD/ZDF-Preset in dieser App basiert auf der gängigen Praxis bei deutschen Fernsehfilmen und Mehrteiler-Produktionen — es ist kein offizieller Standard, sondern eine praxisnahe Vorlage.
                 </div>
               </div>
             </>)}
