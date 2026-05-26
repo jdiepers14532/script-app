@@ -2274,7 +2274,7 @@ function DokumentTypenTab({
         <div ref={usInfoElRef} style={{
           position: 'fixed', left: usInfoPos.x, top: usInfoPos.y,
           width: 560, minWidth: 320, maxWidth: '92vw',
-          minHeight: 273, maxHeight: '90vh',
+          minHeight: 300, maxHeight: '90vh',
           background: 'var(--bg-surface)',
           borderRadius: 12,
           boxShadow: '0 20px 60px rgba(0,0,0,0.45)',

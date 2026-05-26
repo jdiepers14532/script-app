@@ -458,7 +458,7 @@ absatzformateRouter.post('/from-produktion', async (req, res) => {
 // GET /api/absatzformat-presets
 absatzformatPresetsRouter.get('/', async (_req, res) => {
   try {
-    const rows = await query('SELECT * FROM absatzformat_presets ORDER BY ist_system DESC, name')
+    const rows = await query('SELECT * FROM absatzformat_presets ORDER BY sort_order ASC, ist_system DESC, name')
     res.json(rows)
   } catch (err) {
     res.status(500).json({ error: String(err) })

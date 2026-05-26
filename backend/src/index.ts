@@ -356,6 +356,7 @@ async function runMigrations() {
     'v121_private_docs_management.sql',
     'v122_us_master_scene_format_preset.sql',
     'v123_us_preset_szenen_kopf.sql',
+    'v124_preset_sort_order.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
