@@ -79,6 +79,7 @@ export default function PageWrapper({
             '--page-padding': `${ptLeft}px`,
             width: dim.width,
             minHeight: pageMinHeight,
+            boxSizing: 'border-box',
             maxWidth: '100%',
             margin: '0 auto',
             background: 'var(--bg-surface)',
