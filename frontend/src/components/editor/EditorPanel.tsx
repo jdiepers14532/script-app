@@ -894,7 +894,7 @@ export default function EditorPanel({
         ) : (
           <Suspense fallback={null}>
             <UniversalEditor
-              key={`${selectedSzeneId}-${selectedWerkId ?? ''}-${contentResetCounter}`}
+              key={`${currentSzene?.id ?? selectedSzeneId}-${contentResetCounter}`}
               initialContent={sceneContent}
               onSave={isReadOnly ? undefined : scheduleSave}
               readOnly={!!isReadOnly}
