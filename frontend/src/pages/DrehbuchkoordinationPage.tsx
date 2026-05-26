@@ -1988,6 +1988,7 @@ function DokumentTypenTab({
           <option value="alle">Alle</option>
           <option value="drehbuch">Drehbuch</option>
           <option value="storyline">Storyline</option>
+          <option value="sl_db">SL/DB</option>
           <option value="notiz">Notiz</option>
         </select>
       </div>
@@ -2038,7 +2039,7 @@ function DokumentTypenTab({
                       </label>
                       <label style={{ fontSize: 10, color: 'var(--text-secondary)' }}>Kategorie
                         <select value={editData.kategorie} onChange={e => setEditData({ ...editData, kategorie: e.target.value })} style={{ ...selectStyle, marginTop: 2, width: '100%' }}>
-                          <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="notiz">notiz</option>
+                          <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="sl_db">SL/DB</option><option value="notiz">notiz</option>
                         </select>
                       </label>
                     </div>
@@ -2184,7 +2185,7 @@ function DokumentTypenTab({
               </td>
               <td style={{ padding: '6px 4px', color: f.textbaustein ? 'var(--text-primary)' : 'var(--text-muted)', fontWeight: f.textbaustein ? 600 : 400, fontSize: 10 }}>{f.textbaustein ?? '—'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kuerzel ?? '-'}</td>
-              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kategorie === 'alle' ? '*' : f.kategorie === 'drehbuch' ? 'DB' : f.kategorie === 'notiz' ? 'NZ' : 'SL'}</td>
+              <td style={{ padding: '6px 4px', color: 'var(--text-secondary)' }}>{f.kategorie === 'alle' ? '*' : f.kategorie === 'drehbuch' ? 'DB' : f.kategorie === 'notiz' ? 'NZ' : f.kategorie === 'sl_db' ? 'SL/DB' : 'SL'}</td>
               <td style={{ padding: '6px 4px', color: 'var(--text-secondary)', fontSize: 10 }}>{f.font_family} {f.font_size}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', color: 'var(--text-secondary)' }}>{f.font_size}</td>
               <td style={{ padding: '6px 4px', textAlign: 'center', fontSize: 10 }}>
@@ -2805,7 +2806,7 @@ function AbsatzformatAddForm({ formate, onAdd, onCancel }: { formate: any[]; onA
           <input value={data.kuerzel} onChange={e => setData({ ...data, kuerzel: e.target.value })} style={{ ...inputStyle, width: '100%' }} /></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Kategorie</label>
           <select value={data.kategorie} onChange={e => setData({ ...data, kategorie: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
-            <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="notiz">notiz</option>
+            <option value="alle">alle</option><option value="drehbuch">drehbuch</option><option value="storyline">storyline</option><option value="sl_db">SL/DB</option><option value="notiz">notiz</option>
           </select></div>
         <div><label style={{ display: 'block', fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Prefix (fett vorangestellt, Import-Erkennung)</label>
           <input value={data.textbaustein} onChange={e => setData({ ...data, textbaustein: e.target.value })} placeholder="z.B. Status Quo:" style={{ ...inputStyle, width: '100%' }} /></div>

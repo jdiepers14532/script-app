@@ -283,13 +283,13 @@ absatzformateRouter.post('/from-preset', async (req, res) => {
 
     // If preset covers no storyline/notiz formats, preserve existing ones
     const kategorien = new Set((formate as any[]).map((f: any) => f.kategorie))
-    const presetHasStoryline = kategorien.has('storyline') || kategorien.has('alle')
+    const presetHasStoryline = kategorien.has('storyline') || kategorien.has('alle') || kategorien.has('sl_db')
     const presetHasNotiz = kategorien.has('notiz') || kategorien.has('alle')
 
     if (presetHasStoryline && presetHasNotiz) {
       await client.query('DELETE FROM absatzformate WHERE produktion_id = $1', [pid])
     } else {
-      const toClear = ['drehbuch', 'alle']
+      const toClear = ['drehbuch', 'alle', 'sl_db']
       if (presetHasStoryline) toClear.push('storyline')
       if (presetHasNotiz) toClear.push('notiz')
       await client.query(
