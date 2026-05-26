@@ -84,7 +84,10 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
     await client.query('BEGIN')
 
     // Verify folge exists and get produktion_id (needed for TXT format lookup)
-    const folge = await client.query('SELECT id, produktion_id FROM folgen WHERE id = $1', [folgeId])
+    const folge = await client.query(
+      'SELECT id, produktion_id, ist_frei, sichtbarkeit_frei, sichtbarkeit_frei_colab_gruppe_id FROM folgen WHERE id = $1',
+      [folgeId]
+    )
     if (folge.rows.length === 0) {
       await client.query('ROLLBACK')
       return res.status(404).json({ error: 'Folge nicht gefunden' })
@@ -110,11 +113,22 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
     )
     const nextVersion = (cntRes.rows[0]?.m ?? 0) + 1
 
+    // Für freie Dokumente: initiale Sichtbarkeit aus folgens.sichtbarkeit_frei ableiten
+    let initialSichtbarkeit = sichtbarkeit ?? 'autoren'
+    if (folge.rows[0].ist_frei && !sichtbarkeit) {
+      const fs = folge.rows[0].sichtbarkeit_frei
+      const cg = folge.rows[0].sichtbarkeit_frei_colab_gruppe_id
+      if (fs === 'privat') initialSichtbarkeit = 'privat'
+      else if (fs === 'colab' && cg) initialSichtbarkeit = `colab:${cg}`
+      else initialSichtbarkeit = 'produktion'
+    }
+
     // Create Werkstufe
     const wsRes = await client.query(
-      `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-      [folgeId, typ, nextVersion, label ?? null, sichtbarkeit ?? 'autoren', user.user_id]
+      `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, privat_permanent, erstellt_von)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [folgeId, typ, nextVersion, label ?? null, initialSichtbarkeit,
+       folge.rows[0].ist_frei && initialSichtbarkeit === 'privat', user.user_id]
     )
     const werkstufe = wsRes.rows[0]
 

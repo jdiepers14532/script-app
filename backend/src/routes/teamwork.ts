@@ -206,7 +206,7 @@ sichtbarkeitRouter.put('/:id/sichtbarkeit', async (req, res) => {
 
   try {
     const current = await queryOne(
-      `SELECT w.sichtbarkeit, w.erstellt_von, f.produktion_id
+      `SELECT w.sichtbarkeit, w.erstellt_von, f.produktion_id, f.id AS folge_id, f.ist_frei
        FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
        WHERE w.id = $1`,
       [id]
@@ -231,6 +231,9 @@ sichtbarkeitRouter.put('/:id/sichtbarkeit', async (req, res) => {
     const isPrivat = sichtbarkeit === 'privat'
     const wasPrivat = current.sichtbarkeit === 'privat'
 
+    // Für freie Dokumente immer privat_permanent=true (kein Auto-Ablauf)
+    const effectivePrivatPermanent = current.ist_frei ? (sichtbarkeit === 'privat') : (privat_permanent ?? false)
+
     const row = await queryOne(
       `UPDATE werkstufen SET
          sichtbarkeit = $1,
@@ -241,14 +244,38 @@ sichtbarkeitRouter.put('/:id/sichtbarkeit', async (req, res) => {
        WHERE id = $7 RETURNING *`,
       [
         sichtbarkeit,
-        privat_permanent ?? false,
-        isPrivat && !wasPrivat,   // $3: gerade auf privat gesetzt
-        user.user_id,             // $4
-        wasPrivat,                // $5: war schon privat
-        current.sichtbarkeit,     // $6: vorherige Sichtbarkeit speichern
-        id,                       // $7
+        effectivePrivatPermanent,
+        isPrivat && !wasPrivat,
+        user.user_id,
+        wasPrivat,
+        current.sichtbarkeit,
+        id,
       ]
     )
+
+    // Für freie Dokumente: folgens.sichtbarkeit_frei synchron mitführen
+    if (current.ist_frei) {
+      let folgeSicht: string
+      let colabGruppeId: string | null = null
+      if (sichtbarkeit === 'privat') {
+        folgeSicht = 'privat'
+      } else if (sichtbarkeit.startsWith('colab:')) {
+        folgeSicht = 'colab'
+        colabGruppeId = sichtbarkeit.split(':')[1]
+      } else {
+        // autoren | produktion | team:X → produktion
+        folgeSicht = 'produktion'
+      }
+      await query(
+        `UPDATE folgen SET
+           sichtbarkeit_frei = $1,
+           sichtbarkeit_frei_colab_gruppe_id = $2::uuid,
+           sichtbarkeit_frei_geaendert_am = NOW()
+         WHERE id = $3`,
+        [folgeSicht, colabGruppeId, current.folge_id]
+      )
+    }
+
     res.json(row)
   } catch (err) {
     res.status(500).json({ error: String(err) })
