@@ -35,7 +35,7 @@ async function fetchAuthUsers(): Promise<Map<string, { name: string; email: stri
     })
     if (!r.ok) return new Map()
     const raw = await r.json()
-    const users: any[] = Array.isArray(raw) ? raw : []
+    const users: any[] = Array.isArray(raw) ? raw : (Array.isArray(raw?.users) ? raw.users : [])
     const map = new Map<string, { name: string; email: string }>()
     for (const u of users) {
       if (u.id) map.set(String(u.id), { name: u.name ?? u.username ?? '?', email: u.email ?? '' })
@@ -292,6 +292,46 @@ function mapFolgeSichtToWerk(folgeSicht: string, colabGruppeId?: string | null):
   if (folgeSicht === 'alle') return 'autoren'
   return 'produktion'
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/dk/private-dokumente/audit-log?produktion_id=X&limit=100&offset=0
+// ══════════════════════════════════════════════════════════════════════════════
+privateDokumenteRouter.get('/audit-log', async (req, res) => {
+  const user = req.user!
+  if (!(await hasAccess(user.role ?? ''))) {
+    return res.status(403).json({ error: 'Kein Zugriff' })
+  }
+  const { produktion_id, limit = '100', offset = '0' } = req.query
+  try {
+    const prodClause = produktion_id
+      ? `AND f.produktion_id = '${(produktion_id as string).replace(/'/g, "''")}'`
+      : ''
+    const rows = await query(
+      `SELECT
+         l.id, l.folge_id, l.geaendert_am,
+         l.geaendert_von_user_id, l.autor_user_id,
+         l.alte_sichtbarkeit, l.neue_sichtbarkeit,
+         l.per_email_informiert, l.anderweitig_bestaetigt,
+         f.folge_nummer, f.folgen_titel, f.ist_frei
+       FROM freie_dok_sichtbarkeit_log l
+       JOIN folgen f ON f.id = l.folge_id
+       WHERE true ${prodClause}
+       ORDER BY l.geaendert_am DESC
+       LIMIT ${parseInt(String(limit), 10) || 100}
+       OFFSET ${parseInt(String(offset), 10) || 0}`,
+      []
+    )
+    const userMap = await fetchAuthUsers()
+    const result = rows.map((r: any) => ({
+      ...r,
+      geaendert_von_name: userMap.get(String(r.geaendert_von_user_id))?.name ?? null,
+      autor_name: userMap.get(String(r.autor_user_id))?.name ?? null,
+    }))
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/dk/private-dokumente/settings — Filter-Settings + Viewer-Rollen

@@ -3661,10 +3661,7 @@ function NotifyDialog({
               </p>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', padding: '10px 12px', border: `1.5px solid ${bestaetigt ? '#00C853' : 'var(--border)'}`, borderRadius: 8, fontSize: 13, lineHeight: 1.5 }}>
                 <input type="checkbox" checked={bestaetigt} onChange={e => setBestaetigt(e.target.checked)} style={{ marginTop: 2, flexShrink: 0 }} />
-                <span>
-                  Ich bestätige, dass <strong>{dok.ersteller_name}</strong> über die Änderung an
-                  „<strong>{dok.folgen_titel}</strong>" informiert wurde.
-                </span>
+                <span>Der Autor wurde von mir informiert.</span>
               </label>
               {error && <div style={{ fontSize: 13, color: '#FF3B30' }}>{error}</div>}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', paddingTop: 4 }}>
@@ -3798,7 +3795,87 @@ function SichtbarkeitChangeModal({
 
 type SortCol = 'folge_nummer' | 'folgen_titel' | 'werk_typ' | 'version_nummer' | 'werk_label' | 'ersteller_name' | 'privat_seit'
 
+function AuditLogTab({ produktionId }: { produktionId: string }) {
+  const [log, setLog] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!produktionId) return
+    setLoading(true)
+    api.getPrivateDokAuditLog(produktionId, 200, 0)
+      .then(setLog).catch(() => setLog([]))
+      .finally(() => setLoading(false))
+  }, [produktionId])
+
+  const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) + ' ' + new Date(d).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '—'
+
+  const tdStyle: React.CSSProperties = { padding: '7px 10px', fontSize: 12, borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
+  const thStyle: React.CSSProperties = { padding: '8px 10px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', textAlign: 'left', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 1, whiteSpace: 'nowrap' }
+
+  return (
+    <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Audit-Log</h3>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+          Protokoll aller Sichtbarkeitsänderungen an privaten Dokumenten.
+        </p>
+      </div>
+      {!produktionId ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>Bitte zuerst eine Produktion auswählen.</div>
+      ) : loading ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>Lädt…</div>
+      ) : log.length === 0 ? (
+        <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13 }}>Noch keine Einträge.</div>
+      ) : (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>Zeitpunkt</th>
+                <th style={thStyle}>Folge</th>
+                <th style={thStyle}>Titel</th>
+                <th style={thStyle}>Von</th>
+                <th style={thStyle}>Nach</th>
+                <th style={thStyle}>Autor</th>
+                <th style={thStyle}>Geändert von</th>
+                <th style={thStyle}>Info</th>
+              </tr>
+            </thead>
+            <tbody>
+              {log.map(e => (
+                <tr key={e.id} style={{ background: 'var(--bg-surface)' }}>
+                  <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: 'var(--text-secondary)' }}>{fmtDate(e.geaendert_am)}</td>
+                  <td style={tdStyle}>{e.folge_nummer ?? <span style={{ color: 'var(--text-secondary)' }}>—</span>}</td>
+                  <td style={{ ...tdStyle, maxWidth: 180 }}>
+                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.folgen_titel ?? '—'}</div>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, background: `${SICHT_COLORS[e.alte_sichtbarkeit] ?? '#757575'}22`, color: SICHT_COLORS[e.alte_sichtbarkeit] ?? '#757575' }}>
+                      {SICHT_LABELS[e.alte_sichtbarkeit] ?? e.alte_sichtbarkeit}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    <span style={{ padding: '2px 7px', borderRadius: 99, fontSize: 11, background: `${SICHT_COLORS[e.neue_sichtbarkeit] ?? '#757575'}22`, color: SICHT_COLORS[e.neue_sichtbarkeit] ?? '#757575' }}>
+                      {SICHT_LABELS[e.neue_sichtbarkeit] ?? e.neue_sichtbarkeit}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>{e.autor_name ?? <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>unbekannt</span>}</td>
+                  <td style={tdStyle}>{e.geaendert_von_name ?? <span style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>unbekannt</span>}</td>
+                  <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: 11, color: 'var(--text-secondary)' }}>
+                    {e.per_email_informiert ? '✉ Email' : e.anderweitig_bestaetigt ? '✓ Manuell' : '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
+  const [view, setView] = useState<'liste' | 'audit'>('liste')
   const [filter, setFilter] = useState<FilterType>('1')
   const [settings, setSettings] = useState<{ filter_2_enabled: boolean; filter_3_enabled: boolean }>({ filter_2_enabled: false, filter_3_enabled: false })
   const [dokumente, setDokumente] = useState<any[]>([])
@@ -3877,13 +3954,29 @@ function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
     verticalAlign: 'middle',
   }
 
+  if (view === 'audit') return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ position: 'absolute', top: 20, right: 28, display: 'flex', gap: 4 }}>
+        <button onClick={() => setView('liste')} style={{ padding: '4px 12px', fontSize: 11, borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>Liste</button>
+        <button onClick={() => setView('audit')} style={{ padding: '4px 12px', fontSize: 11, borderRadius: 6, border: '1px solid #007AFF', background: 'rgba(0,122,255,0.08)', cursor: 'pointer', color: '#007AFF', fontWeight: 600 }}>Audit-Log</button>
+      </div>
+      <AuditLogTab produktionId={produktionId} />
+    </div>
+  )
+
   return (
     <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
-      <div>
-        <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Private Dokumente</h3>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-          Episoden und Dokumente mit mindestens einer privaten Fassung — Sichtbarkeit kann hier im Namen der Produktion geändert werden.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Private Dokumente</h3>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+            Episoden und Dokumente mit mindestens einer privaten Fassung — Sichtbarkeit kann hier im Namen der Produktion geändert werden.
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexShrink: 0, marginTop: 2 }}>
+          <button onClick={() => setView('liste')} style={{ padding: '4px 12px', fontSize: 11, borderRadius: 6, border: '1px solid #007AFF', background: 'rgba(0,122,255,0.08)', cursor: 'pointer', color: '#007AFF', fontWeight: 600 }}>Liste</button>
+          <button onClick={() => setView('audit')} style={{ padding: '4px 12px', fontSize: 11, borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>Audit-Log</button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>

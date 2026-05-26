@@ -843,6 +843,8 @@ export const api = {
   }) => request<{ success: boolean; emailSent: boolean }>('POST', `/dk/private-dokumente/${id}/sichtbarkeit`, data),
   getPrivateDokSettings: () =>
     request<{ filter_2_enabled: boolean; filter_3_enabled: boolean; viewer_roles: string[] }>('GET', '/dk/private-dokumente/settings'),
+  getPrivateDokAuditLog: (produktionId: string, limit = 100, offset = 0) =>
+    request<any[]>('GET', `/dk/private-dokumente/audit-log?produktion_id=${encodeURIComponent(produktionId)}&limit=${limit}&offset=${offset}`),
 
   // ── Notifications ─────────────────────────────────────────────────────────
   getNotifications: () =>
