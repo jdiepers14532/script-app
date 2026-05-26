@@ -492,6 +492,9 @@ ${fontResource}
      Screenplay-Absätze verwenden explizite margin-top/bottom via Inline-Style (fmtToCss) und
      sind davon nicht betroffen. */
   p { margin: 0; }
+  /* Szenenköpfe als <h2> für native Puppeteer-PDF-Outline (Lesezeichen).
+     Reset entfernt alle Browser-Defaults (größere Schrift, Bold, Margins). */
+  h2 { all: unset; display: block; }
   /* Tabellen: p-Margins in Zellen reset, sonst verdoppelter Abstand in Puppeteer */
   td p, th p { margin: 0; padding: 0; }
   td p + p, th p + p { margin-top: 0.25em; }

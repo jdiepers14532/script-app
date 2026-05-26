@@ -12,7 +12,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
-import { PDFDocument, PDFName, PDFNumber, PDFString, PDFNull } from 'pdf-lib'
+import { PDFDocument, PDFName, PDFNumber, PDFString, PDFNull, PDFHexString } from 'pdf-lib'
 import { pool } from '../db'
 import type { ExportJobOptions, OrderedExportItem, JobResult } from './exportJobQueue'
 import {
@@ -276,6 +276,53 @@ async function addPdfOutline(
 
   const saved = await pdfDoc.save()
   return saved
+}
+
+/**
+ * Liest die native PDF-Outline (generiert von Puppeteer outline:true) aus einem
+ * bereits gerenderten PDF aus. Wird für den Titelseite-Split-Pfad benötigt:
+ * Outline aus Hauptinhalt extrahieren → Seitennummern um Titelseiten-Anzahl versetzen.
+ */
+async function extractPdfOutline(
+  pdfBytes: Uint8Array
+): Promise<{ label: string; pageIndex: number }[]> {
+  const doc  = await PDFDocument.load(pdfBytes)
+  const ctx  = doc.context
+  const pageRefs = doc.getPages().map(p => p.ref)
+  const result: { label: string; pageIndex: number }[] = []
+
+  const outlinesObj = doc.catalog.get(PDFName.of('Outlines'))
+  if (!outlinesObj) return result
+
+  const outlineRoot = ctx.lookup(outlinesObj) as any
+  if (!outlineRoot?.get) return result
+
+  let itemRef: any = outlineRoot.get(PDFName.of('First'))
+  while (itemRef) {
+    const item = ctx.lookup(itemRef) as any
+    if (!item?.get) break
+
+    // Titel (PDF-String oder Hex-String)
+    const titleObj = item.get(PDFName.of('Title'))
+    const label = (titleObj instanceof PDFString || titleObj instanceof PDFHexString)
+      ? titleObj.decodeText()
+      : ''
+
+    // Dest: [pageRef, /XYZ, x, y, zoom]
+    let pageIndex = 0
+    const dest = item.get(PDFName.of('Dest'))
+    if (dest?.array?.length > 0) {
+      const pageRefObj = dest.array[0]
+      if (pageRefObj && 'objectNumber' in pageRefObj) {
+        const idx = pageRefs.findIndex(r => r.objectNumber === pageRefObj.objectNumber)
+        if (idx >= 0) pageIndex = idx
+      }
+    }
+
+    if (label) result.push({ label, pageIndex })
+    itemRef = item.get(PDFName.of('Next'))
+  }
+  return result
 }
 
 function formatStoppzeit(sek: number | null): string {
@@ -605,24 +652,20 @@ function renderSzenenkopf(
   folgeNummer: number,
   pageBreakBefore = false,
   bodyMarginLeftCm = 0,
-  kuerzel: Record<string, string> = {},
-  pdfBookmarks = false
+  kuerzel: Record<string, string> = {}
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
 
-  // data-bm-label-Attribut für pdf-lib Post-Processing (kein h2 mehr nötig)
-  const bmAttr = pdfBookmarks
-    ? ` data-bm-label="${escAttr(buildBookmarkLabel(scene, folgeNummer, kuerzel))}"`
-    : ''
-
-  // Fallback wenn kein Template konfiguriert
+  // <h2> statt <p>: Puppeteer outline:true liest h2-Tags für native PDF-Lesezeichen.
+  // CSS-Reset (h2 { all: unset; display: block }) in exportAssembler sorgt für
+  // identisches visuelles Rendering wie bisher.
   if (!templateJson) {
     const num  = scene.scene_nummer != null ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
     const parts = [`SZ\u00a0${num}`]
     if (scene.ort_name)  parts.push(esc(scene.ort_name))
     if (scene.int_ext)   parts.push(esc(scene.int_ext))
     if (scene.tageszeit) parts.push(esc(scene.tageszeit))
-    return `<p style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid"${bmAttr}>${parts.join(' \u2014 ')}</p>`
+    return `<h2 style="${pbStyle}font-weight:bold;text-transform:uppercase;margin:14pt 0 4pt;line-height:1;page-break-after:avoid">${parts.join(' \u2014 ')}</h2>`
   }
 
   const doc   = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
@@ -641,7 +684,12 @@ function renderSzenenkopf(
   }
 
   if (parts.length === 0) return ''
-  return `<div style="${pbStyle}margin-top:14pt;margin-bottom:4pt;page-break-after:avoid"${bmAttr}>${parts.join('\n')}</div>`
+
+  // Template-Fall: unsichtbares <h2> mit kurzem Label für die PDF-Outline,
+  // gefolgt vom visuell gerenderten Template-Inhalt als <div>.
+  const label = buildBookmarkLabel(scene, folgeNummer, kuerzel)
+  return `<h2 style="${pbStyle}height:0;overflow:hidden;margin:0;padding:0;line-height:0;page-break-after:avoid">${label}</h2>` +
+         `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -653,24 +701,19 @@ function renderMainScenes(
   kuerzel: Record<string, string>,
   szenenkopfTemplate: any,
   folgeNummer: number,
-  bodyMarginLeftCm = 0,
-  pdfBookmarks = false
+  bodyMarginLeftCm = 0
 ): string {
   return scenes.map((scene, index) => {
-    // Notiz-Format-Szenen bekommen keinen strukturierten Szenenkopf
     let headHtml: string
     if (scene.format !== 'notiz') {
-      headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel, pdfBookmarks)
+      headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel)
     } else {
-      // Notiz-Format: page-break-before und data-bm-label auf dasselbe Element (konsistent mit Drehbuch-Szenen)
+      // Notiz-Format: <h2> mit vorlage_name für PDF-Outline, sonst unsichtbarer page-break-Marker
       const pbStyle = index > 0 ? 'page-break-before:always;' : ''
-      const label   = scene.vorlage_name ?? 'Notiz'
-      const bmAttr  = pdfBookmarks ? ` data-bm-label="${escAttr(label)}"` : ''
       if (scene.vorlage_name) {
-        headHtml = `<div style="${pbStyle}font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em"${bmAttr}>${esc(scene.vorlage_name)}</div>`
+        headHtml = `<h2 style="${pbStyle}font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em">${esc(scene.vorlage_name)}</h2>`
       } else {
-        // Kein sichtbarer Titel — unsichtbarer Marker für page-break + ggf. Lesezeichen
-        headHtml = `<div style="${pbStyle}height:0;overflow:hidden"${bmAttr}></div>`
+        headHtml = `<div style="${pbStyle}height:0;overflow:hidden"></div>`
       }
     }
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
@@ -1209,7 +1252,7 @@ async function assembleHtml(
     if (hauptinhaltAktiv) {
       mainHtml = isNotizDoc
         ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10, input.options.pdfBookmarks === true)
+        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
     }
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
@@ -1296,12 +1339,11 @@ async function renderHtmlToPdf(
     headerTemplate?: string
     footerTemplate?: string
     margin: { top: string; bottom: string; left: string; right: string }
-    emulateMedia?: boolean
+    outline?: boolean
   }
 ): Promise<Uint8Array> {
   const page = await browser.newPage()
   try {
-    if (opts.emulateMedia) await page.emulateMediaType('print')
     await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
     return await page.pdf({
       format: 'A4',
@@ -1309,6 +1351,7 @@ async function renderHtmlToPdf(
       displayHeaderFooter: opts.displayHeaderFooter,
       headerTemplate: opts.headerTemplate ?? '<div style="font-size:0"></div>',
       footerTemplate: opts.footerTemplate ?? '<div style="font-size:0"></div>',
+      outline: opts.outline ?? false,
       margin: opts.margin,
     })
   } finally {
@@ -1421,6 +1464,7 @@ export async function assemblePdf(
       displayHeaderFooter: true,
       headerTemplate,
       footerTemplate,
+      outline: pdfBookmarks,
       margin: {
         top:    `${pageMarginTop}mm`,
         bottom: `${pageMarginBottom}mm`,
@@ -1432,39 +1476,35 @@ export async function assemblePdf(
 
     // Titelseite-Seiten + Hauptseiten zusammenführen
     pdfBytes = await mergePdfs(titelseiteBytes, mainBytes)
+
+    // Lesezeichen: native Outline aus Hauptinhalt extrahieren, Seitennummern
+    // um Titelseiten-Anzahl versetzen, dann in das Merged-PDF einbauen.
+    if (pdfBookmarks) {
+      const bmEntries = await extractPdfOutline(mainBytes)
+      if (bmEntries.length > 0) {
+        const titelseiteDoc = await PDFDocument.load(titelseiteBytes)
+        const offset = titelseiteDoc.getPageCount()
+        pdfBytes = await addPdfOutline(pdfBytes, bmEntries.map(e => ({ ...e, pageIndex: e.pageIndex + offset })))
+      }
+    }
     setProgress(90)
 
   } else {
     // ── Normaler Einzelrender (kein ist_titelseite) ──────────────────────────
     const page = await browser.newPage()
     try {
-      if (pdfBookmarks) await page.emulateMediaType('print')
       await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
       setProgress(75)
 
-      // Bookmark-Positionen per DOM-Auswertung einsammeln
-      type BmEntry = { label: string; pageIndex: number }
-      let bmEntries: BmEntry[] = []
-      if (pdfBookmarks) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        bmEntries = await page.evaluate((): any => {
-          const A4_H = 297 / 25.4 * 96
-          // @ts-ignore — läuft im Browser-Kontext
-          return Array.from((document as any).querySelectorAll('[data-bm-label]')).map((el: any) => {
-            const rect = el.getBoundingClientRect()
-            // @ts-ignore
-            const top  = rect.top + ((window as any).scrollY ?? 0)
-            return { label: el.dataset?.bmLabel ?? '', pageIndex: Math.max(0, Math.floor(top / A4_H)) }
-          })
-        }) as BmEntry[]
-      }
-
+      // outline:true → Chrome generiert PDF-Lesezeichen nativ aus <h2>-Tags.
+      // Akkurat, da der Browser selbst weiß auf welcher Seite jedes Element landet.
       pdfBytes = await page.pdf({
         format: 'A4',
         printBackground: true,
         displayHeaderFooter: true,
         headerTemplate,
         footerTemplate,
+        outline: pdfBookmarks,
         margin: {
           top:    `${pageMarginTop}mm`,
           bottom: `${pageMarginBottom}mm`,
@@ -1472,12 +1512,6 @@ export async function assemblePdf(
           right:  `${bmr}mm`,
         },
       })
-      setProgress(88)
-
-      if (pdfBookmarks && bmEntries.length > 0) {
-        pdfBytes = await addPdfOutline(pdfBytes, bmEntries)
-      }
-
       setProgress(90)
     } finally {
       await page.close()
