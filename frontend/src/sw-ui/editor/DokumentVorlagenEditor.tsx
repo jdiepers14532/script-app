@@ -1317,6 +1317,34 @@ export default function DokumentVorlagenEditor({
   const bodyFileRef = useRef<HTMLInputElement>(null)
   const bodyContainerRef = useRef<HTMLDivElement>(null)
 
+  // ── Seitenhöhe dynamisch auf A4/Letter-Vielfaches snappen (sidebarMode) ──
+  // Kinder-offsetHeight wird gemessen (nicht der Container selbst, der durch
+  // minHeight aufgeblasen wäre) → kein zirkulärer ResizeObserver-Loop.
+  const [dynMinHeight, setDynMinHeight] = useState(pageDims.hPx)
+  const sheetRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setDynMinHeight(pageDims.hPx)
+  }, [pageDims.hPx])
+
+  useEffect(() => {
+    if (!sidebarMode) return
+    const el = sheetRef.current
+    if (!el) return
+    const update = () => {
+      let naturalH = 0
+      for (const child of Array.from(el.children)) {
+        naturalH += (child as HTMLElement).offsetHeight
+      }
+      const pages = Math.max(1, Math.ceil(naturalH / pageDims.hPx))
+      setDynMinHeight(pages * pageDims.hPx)
+    }
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    const raf = requestAnimationFrame(update)
+    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
+  }, [sidebarMode, pageDims.hPx])
+
   const localTabStops: TabStop[] = value.tab_stops ?? []
   const rulerCm = layout.format === 'letter' ? 21.59 : 21.0
 
@@ -1376,13 +1404,15 @@ export default function DokumentVorlagenEditor({
       )}
 
       {/* A4 sheet */}
-      <div style={{
-        width: pageDims.wPx, maxWidth: sidebarMode ? undefined : '100%', margin: '0 auto',
-        background: 'white', boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
-        borderRadius: 2, overflow: 'hidden', color: '#000',
-        minHeight: sidebarMode ? pageDims.hPx : undefined,
-        ...(zoom ? { zoom: `${zoom}` } as React.CSSProperties : {}),
-      }}>
+      <div
+        ref={sidebarMode ? sheetRef : undefined}
+        style={{
+          width: pageDims.wPx, maxWidth: sidebarMode ? undefined : '100%', margin: '0 auto',
+          background: 'white', boxShadow: '0 4px 24px rgba(0,0,0,0.18)',
+          borderRadius: 2, overflow: 'hidden', color: '#000',
+          minHeight: sidebarMode ? dynMinHeight : undefined,
+          ...(zoom ? { zoom: `${zoom}` } as React.CSSProperties : {}),
+        }}>
         {/* Kopfzeile zone */}
         {!noHeaderFooter && (
           <div style={{
