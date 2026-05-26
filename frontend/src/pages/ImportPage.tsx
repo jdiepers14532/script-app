@@ -946,9 +946,9 @@ export default function ImportPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, minWidth: 0 }}>
                         <span style={{
                           fontSize: 12, fontWeight: 700, color: '#000',
-                          fontVariantNumeric: 'tabular-nums', minWidth: 44, flexShrink: 0,
+                          fontVariantNumeric: 'tabular-nums', minWidth: 60, flexShrink: 0,
                         }}>
-                          SZ {sz.nummer}
+                          SZ {selectedFolgeNummer != null ? `${selectedFolgeNummer}.${String(sz.nummer).padStart(2, '0')}` : sz.nummer}
                         </span>
                         <input type="text"
                           value={getSceneVal(sz, i, 'ort_name') || ''}

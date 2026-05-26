@@ -350,7 +350,7 @@
 .scenes .searchbar input:focus { outline:2px solid var(--focus-ring); outline-offset:-1px; border-color:transparent; }
 .scenes .list { flex:1; overflow-y:auto; }
 .scenes .row {
-  display:grid; grid-template-columns:30px 14px 1fr 32px 18px auto;
+  display:grid; grid-template-columns:62px 14px 1fr 32px 18px auto;
   align-items:stretch; gap:0; padding:0;
   border-bottom:1px solid var(--border-subtle);
   cursor:pointer; position:relative;
@@ -414,7 +414,7 @@
 
 [data-mode='focus'] .scenes .row .meta,
 [data-mode='focus'] .scenes .row .sl-info { display:none; }
-[data-mode='focus'] .scenes .row { grid-template-columns:30px 1fr auto; }
+[data-mode='focus'] .scenes .row { grid-template-columns:62px 1fr auto; }
 
 /* ── Detail Column ── */
 .detail { flex-shrink:0; width:100%; display:flex; flex-direction:column; background:var(--bg-page); overflow:hidden; }

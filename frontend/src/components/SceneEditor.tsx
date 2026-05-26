@@ -778,8 +778,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <tbody>
               <tr style={{ verticalAlign: 'baseline' }}>
                 {/* Col 1: SZ-Nummer */}
-                <td style={{ width: 56, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
-                  <span className="sz-group"><span className="scene-big">SZ{scene.scene_nummer}</span></span>
+                <td style={{ width: 88, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
+                  <span className="sz-group"><span className="scene-big">SZ{folgeNummer != null && scene.scene_nummer != null ? `${folgeNummer}.${String(scene.scene_nummer).padStart(2, '0')}` : scene.scene_nummer}</span></span>
                 </td>
                 {/* Col 2: Stoppzeit */}
                 <td style={{ width: 82, paddingRight: 8, whiteSpace: 'nowrap', paddingBottom: 4, overflow: 'hidden' }}>
@@ -1288,7 +1288,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         {/* Compact: original grid layout */}
         {compact && (
           <div className="scene-r1 scene-r1-compact">
-            <span className="sz-group"><span className="scene-big">SZ{scene.scene_nummer}</span></span>
+            <span className="sz-group"><span className="scene-big">SZ{folgeNummer != null && scene.scene_nummer != null ? `${folgeNummer}.${String(scene.scene_nummer).padStart(2, '0')}` : scene.scene_nummer}</span></span>
             <div className="stopp-col">
               <Tooltip text="Stoppzeit (mm:ss)" placement="bottom">
                 <input

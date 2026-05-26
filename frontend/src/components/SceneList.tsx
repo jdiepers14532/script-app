@@ -228,7 +228,8 @@ export default function SceneList({
   })
 
   const matchesSearch = (s: any) => searchQuery === '' ||
-    `${s.scene_nummer}${s.scene_nummer_suffix || ''}`.includes(searchQuery) ||
+    (`${s.scene_nummer}${s.scene_nummer_suffix || ''}`.includes(searchQuery) ||
+     (folgeNummer != null && s.scene_nummer != null && `${folgeNummer}.${String(s.scene_nummer).padStart(2, '0')}${s.scene_nummer_suffix || ''}`.includes(searchQuery))) ||
     (s.ort_name ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.zusammenfassung ?? '').toLowerCase().includes(searchQuery.toLowerCase())
 
@@ -446,7 +447,9 @@ export default function SceneList({
         ids: newIds,
         notizIds: movedNotizAfterLast,
         lastRealSceneNummer: lastReal.scene_nummer,
-        lastRealSceneLabel: `${lastReal.scene_nummer}${lastReal.scene_nummer_suffix || ''}`,
+        lastRealSceneLabel: folgeNummer != null && lastReal.scene_nummer != null
+          ? `${folgeNummer}.${String(lastReal.scene_nummer).padStart(2, '0')}${lastReal.scene_nummer_suffix || ''}`
+          : `${lastReal.scene_nummer}${lastReal.scene_nummer_suffix || ''}`,
       })
       return
     }
@@ -717,7 +720,10 @@ export default function SceneList({
           const isDragging = dragId === scene.id || (isMultiDrag && selectedIds.has(String(scene.id)))
           const isDragOver = dragOverId === scene.id && !isDragging
 
-          const sceneLabel = `${scene.scene_nummer}${scene.scene_nummer_suffix || ''}`
+          const sceneNrStr = folgeNummer != null && scene.scene_nummer != null
+            ? `${folgeNummer}.${String(scene.scene_nummer).padStart(2, '0')}`
+            : `${scene.scene_nummer ?? ''}`
+          const sceneLabel = `${sceneNrStr}${scene.scene_nummer_suffix || ''}`
 
           const unreadCount = commentCounts?.[scene.id] ?? 0
 
