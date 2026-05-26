@@ -5,9 +5,9 @@ import React, { useState, useEffect, useRef } from 'react'
 interface TokenDef {
   cssVar: string
   label: string
-  light: string       // Light-Default (editierbar)
-  dark?: string       // Dark-Referenz (nur zur Info)
-  focus?: string      // Focus-Referenz (nur zur Info)
+  light: string
+  dark?: string
+  focus?: string
   description?: string
 }
 
@@ -15,42 +15,41 @@ const TOKEN_GROUPS: { title: string; tokens: TokenDef[] }[] = [
   {
     title: 'Hintergründe',
     tokens: [
-      { cssVar: '--bg-page',    label: 'Seite',           light: '#FFFFFF', dark: '#0D0D0D', focus: '#FAFAF8', description: 'Äußerster Seitenhintergrund' },
-      { cssVar: '--bg-surface', label: 'Flächen & Cards', light: '#FAFAFA', dark: '#181818', focus: '#FFFFFF', description: 'Modals, Cards, Panels — leicht von Seite abgesetzt' },
-      { cssVar: '--bg-subtle',  label: 'Subtil',          light: '#F5F5F5', dark: '#1A1A1A', focus: '#F0EFED', description: 'Abschnittsflächen, Fieldsets' },
-      { cssVar: '--bg-active',  label: 'Aktiv',           light: '#F5F5F5', dark: '#1F1F1F', focus: '#ECEAE6', description: 'Aktiver Menüeintrag, selected state' },
-      { cssVar: '--bg-hover',   label: 'Hover',           light: '#EDEDED', dark: '#262626',                  description: 'Hover-Zustand von Listeneinträgen' },
+      { cssVar: '--bg-page',    label: 'Seite',           light: '#FFFFFF', dark: '#0D0D0D', focus: '#FAFAF8' },
+      { cssVar: '--bg-surface', label: 'Flächen & Cards', light: '#FAFAFA', dark: '#181818', focus: '#FFFFFF' },
+      { cssVar: '--bg-subtle',  label: 'Subtil',          light: '#F5F5F5', dark: '#1A1A1A', focus: '#F0EFED' },
+      { cssVar: '--bg-active',  label: 'Aktiv',           light: '#F5F5F5', dark: '#1F1F1F', focus: '#ECEAE6' },
+      { cssVar: '--bg-hover',   label: 'Hover',           light: '#EDEDED', dark: '#262626' },
     ],
   },
   {
     title: 'Texte',
     tokens: [
-      { cssVar: '--text-primary',   label: 'Primär',   light: '#000000', dark: '#FFFFFF',  focus: '#111111', description: 'Überschriften, Hauptinhalt' },
-      { cssVar: '--text-secondary', label: 'Sekundär', light: '#757575', dark: '#A0A0A0',  focus: '#767470', description: 'Labels, Beschreibungen' },
-      { cssVar: '--text-muted',     label: 'Gedämpft', light: '#9E9E9E', dark: '#6B6B6B',  focus: '#9E9C97', description: 'Hinweise, Metadaten' },
-      { cssVar: '--text-inverse',   label: 'Invers',   light: '#FFFFFF', dark: '#000000',                    description: 'Text auf dunklen Flächen (z.B. Buttons)' },
+      { cssVar: '--text-primary',   label: 'Primär',   light: '#000000', dark: '#FFFFFF',  focus: '#111111' },
+      { cssVar: '--text-secondary', label: 'Sekundär', light: '#757575', dark: '#A0A0A0',  focus: '#767470' },
+      { cssVar: '--text-muted',     label: 'Gedämpft', light: '#9E9E9E', dark: '#6B6B6B',  focus: '#9E9C97' },
+      { cssVar: '--text-inverse',   label: 'Invers',   light: '#FFFFFF', dark: '#000000' },
     ],
   },
   {
     title: 'Borders',
     tokens: [
-      { cssVar: '--border',        label: 'Standard', light: '#E0E0E0', dark: '#2A2A2A', focus: '#E5E4E0', description: 'Standardtrennlinie' },
-      { cssVar: '--border-subtle', label: 'Subtil',   light: '#EEEEEE', dark: '#1F1F1F', focus: '#EDECE8', description: 'Sehr dezente Trennlinie' },
-      { cssVar: '--border-strong', label: 'Kräftig',  light: '#000000', dark: '#FFFFFF',                   description: 'Starke Abgrenzung, aktive Elemente' },
+      { cssVar: '--border',        label: 'Standard', light: '#E0E0E0', dark: '#2A2A2A', focus: '#E5E4E0' },
+      { cssVar: '--border-subtle', label: 'Subtil',   light: '#EEEEEE', dark: '#1F1F1F', focus: '#EDECE8' },
+      { cssVar: '--border-strong', label: 'Kräftig',  light: '#000000', dark: '#FFFFFF' },
     ],
   },
   {
     title: 'Buttons & Inputs',
     tokens: [
-      { cssVar: '--btn-primary-bg',    label: 'Button Hintergrund', light: '#000000', dark: '#FFFFFF', description: 'Primärer Aktions-Button' },
-      { cssVar: '--btn-primary-color', label: 'Button Text',        light: '#FFFFFF', dark: '#000000', description: 'Text auf Primär-Button' },
-      { cssVar: '--input-bg',          label: 'Input Hintergrund',  light: '#FFFFFF', dark: '#1A1A1A', description: 'Eingabefelder, Textareas' },
-      { cssVar: '--notif-unread',      label: 'Ungelesen-Badge',    light: '#E8F2FF',                  description: 'Hintergrund für ungelesene Markierungen' },
+      { cssVar: '--btn-primary-bg',    label: 'Button Hintergrund', light: '#000000', dark: '#FFFFFF' },
+      { cssVar: '--btn-primary-color', label: 'Button Text',        light: '#FFFFFF', dark: '#000000' },
+      { cssVar: '--input-bg',          label: 'Input Hintergrund',  light: '#FFFFFF', dark: '#1A1A1A' },
+      { cssVar: '--notif-unread',      label: 'Ungelesen-Badge',    light: '#E8F2FF' },
     ],
   },
 ]
 
-// System-Defaults (Referenz für Reset auf CSS-Quelle)
 const SYSTEM_DEFAULTS: Record<string, string> = {}
 TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => { SYSTEM_DEFAULTS[t.cssVar] = t.light }))
 
@@ -60,34 +59,41 @@ interface TokenPreset {
   id: string
   name: string
   overrides: Record<string, string>
+  /** ID des BUILTIN_COLOR_SCHEMES, der zusammen mit diesem Preset aktiviert wird */
+  colorSchemeId?: string
 }
 
 const PRESETS: TokenPreset[] = [
   {
     id: 'system-light',
     name: 'Light System Standard',
-    overrides: {}, // leere Overrides = System-Defaults aus tokens.css
+    overrides: {},
+    colorSchemeId: 'default',
   },
   {
     id: 'lavendel',
     name: 'Lavendel',
+    // Backgrounds: Paletten 1–3,5 — starker Kontrast durch #2D0140 als Textfarbe
+    // Buttons: #510273 (Palette 1 — Royal Deep Purple)
+    // Farbschema: Image 4 (#660273 Action, #BC55D9 Akzent, Orange #F27405 Komplementär)
+    colorSchemeId: 'lavendel',
     overrides: {
-      '--bg-page':            '#F4F1F8',
-      '--bg-surface':         '#EFECF4',
-      '--bg-subtle':          '#EAE6F0',
-      '--bg-active':          '#E5E0EC',
-      '--bg-hover':           '#E8E4EE',
-      '--text-primary':       '#1A1830',
-      '--text-secondary':     '#6B6478',
-      '--text-muted':         '#9E97A8',
+      '--bg-page':            '#F5F0FC',
+      '--bg-surface':         '#ECE3F5',
+      '--bg-subtle':          '#E2D5ED',
+      '--bg-active':          '#D8C9E8',
+      '--bg-hover':           '#DECCEC',
+      '--text-primary':       '#2D0140',
+      '--text-secondary':     '#510273',
+      '--text-muted':         '#7776A6',
       '--text-inverse':       '#FFFFFF',
-      '--border':             '#D4CDE0',
-      '--border-subtle':      '#E2DCE9',
-      '--border-strong':      '#353340',
-      '--btn-primary-bg':     '#524D73',
+      '--border':             '#C5ADDE',
+      '--border-subtle':      '#D8CAE9',
+      '--border-strong':      '#2D0140',
+      '--btn-primary-bg':     '#510273',
       '--btn-primary-color':  '#FFFFFF',
-      '--input-bg':           '#FAF8FC',
-      '--notif-unread':       '#EDE8F5',
+      '--input-bg':           '#FAF6FF',
+      '--notif-unread':       '#EFE2FA',
     },
   },
 ]
@@ -113,7 +119,6 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 128
 }
 
-// Backend-Persistenz — debounced
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 function persistToBackend(overrides: Record<string, string>) {
   if (persistTimer) clearTimeout(persistTimer)
@@ -127,7 +132,6 @@ function persistToBackend(overrides: Record<string, string>) {
   }, 1000)
 }
 
-// Backend-Persistenz — einmalig laden
 async function loadFromBackend(): Promise<Record<string, string> | null> {
   try {
     const r = await fetch('/api/me/settings', { credentials: 'include' })
@@ -152,8 +156,6 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
   useEffect(() => { setCurrentVal(readToken(token.cssVar)) })
 
   const isHex = currentVal.startsWith('#') && currentVal.length === 7
-  const darkDefault = token.dark
-  const focusDefault = token.focus
 
   function handleHexBlur() {
     setEditingHex(false)
@@ -178,7 +180,6 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
       background: isOverridden ? 'rgba(0,122,255,0.05)' : 'transparent',
       border: `1px solid ${isOverridden ? 'rgba(0,122,255,0.2)' : 'transparent'}`,
     }}>
-      {/* Klickbarer Farbchip */}
       <div
         onClick={() => isHex && inputRef.current?.click()}
         title={isHex ? 'Klicken zum Ändern' : 'Nicht direkt editierbar (rgba)'}
@@ -200,14 +201,10 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
         onChange={e => { onSet(token.cssVar, e.target.value); setCurrentVal(e.target.value) }}
         style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
       />
-
-      {/* Label + CSS-Var */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{token.label}</div>
         <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{token.cssVar}</div>
       </div>
-
-      {/* Hex-Eingabe — klickbar zum Bearbeiten */}
       {isHex ? (
         editingHex ? (
           <input
@@ -244,51 +241,25 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
           {currentVal}
         </div>
       )}
-
-      {/* Aktueller Wert */}
       <div style={{ fontSize: 11, fontFamily: 'monospace', color: 'var(--text-secondary)', minWidth: 72, textAlign: 'right' }}>
         {currentVal || '—'}
       </div>
-
-      {/* Dark/Focus Referenz-Chips (nur Info, nicht editierbar) */}
       <div style={{ display: 'flex', gap: 3 }}>
-        {darkDefault && (
-          <div
-            title={`Dark Default: ${darkDefault}`}
-            style={{
-              width: 20, height: 20, borderRadius: 4, border: '1.5px solid var(--border)',
-              background: darkDefault, cursor: 'help',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 8, fontWeight: 700, color: isLightColor(darkDefault) ? '#000' : '#fff',
-            }}
-          >D</div>
+        {token.dark && (
+          <div title={`Dark Default: ${token.dark}`} style={{ width: 20, height: 20, borderRadius: 4, border: '1.5px solid var(--border)', background: token.dark, cursor: 'help', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: isLightColor(token.dark) ? '#000' : '#fff' }}>D</div>
         )}
-        {focusDefault && (
-          <div
-            title={`Focus Default: ${focusDefault}`}
-            style={{
-              width: 20, height: 20, borderRadius: 4, border: '1.5px solid var(--border)',
-              background: focusDefault, cursor: 'help',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 8, fontWeight: 700, color: isLightColor(focusDefault) ? '#000' : '#fff',
-            }}
-          >F</div>
+        {token.focus && (
+          <div title={`Focus Default: ${token.focus}`} style={{ width: 20, height: 20, borderRadius: 4, border: '1.5px solid var(--border)', background: token.focus, cursor: 'help', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 700, color: isLightColor(token.focus) ? '#000' : '#fff' }}>F</div>
         )}
-        {/* Platzhalter wenn kein D/F da */}
-        {!darkDefault && !focusDefault && <div style={{ width: 43 }} />}
-        {darkDefault && !focusDefault && <div style={{ width: 23 }} />}
+        {!token.dark && !token.focus && <div style={{ width: 43 }} />}
+        {token.dark && !token.focus && <div style={{ width: 23 }} />}
       </div>
-
-      {/* Reset auf System-Standard */}
       <div style={{ width: 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {isOverridden && (
           <button
             onClick={() => onReset(token.cssVar)}
-            title={`Zurücksetzen auf System-Standard (${SYSTEM_DEFAULTS[token.cssVar]})`}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-muted)', padding: 0, fontSize: 17, lineHeight: 1,
-            }}
+            title={`Zurücksetzen (${SYSTEM_DEFAULTS[token.cssVar]})`}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 17, lineHeight: 1 }}
           >↺</button>
         )}
       </div>
@@ -298,27 +269,25 @@ function ColorChip({ token, isOverridden, onSet, onReset }: {
 
 // ── Haupt-Komponente ──────────────────────────────────────────────────────────
 
-export function DesignTokenEditor() {
+interface DesignTokenEditorProps {
+  activeColorSchemeId?: string
+  onSetColorSchemeId?: (id: string) => void
+}
+
+export function DesignTokenEditor({ activeColorSchemeId, onSetColorSchemeId }: DesignTokenEditorProps) {
   const [overrides, setOverrides] = useState<Record<string, string>>(loadOverrides)
   const [backendLoaded, setBackendLoaded] = useState(false)
   const overridesCount = Object.keys(overrides).length
 
-  // Backend-Overrides beim Start laden (einmalig)
   useEffect(() => {
     loadFromBackend().then(backendOverrides => {
       if (backendOverrides && Object.keys(backendOverrides).length > 0) {
-        // Backend hat Daten — überschreibt localStorage (Backend ist führend)
         const merged = { ...loadOverrides(), ...backendOverrides }
         setOverrides(merged)
         saveOverrides(merged)
-        Object.entries(merged).forEach(([cssVar, value]) => {
-          document.documentElement.style.setProperty(cssVar, value)
-        })
+        Object.entries(merged).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
       } else {
-        // Kein Backend-Stand — localStorage verwenden
-        Object.entries(loadOverrides()).forEach(([cssVar, value]) => {
-          document.documentElement.style.setProperty(cssVar, value)
-        })
+        Object.entries(loadOverrides()).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
       }
       setBackendLoaded(true)
     })
@@ -349,33 +318,37 @@ export function DesignTokenEditor() {
   }
 
   function applyPreset(preset: TokenPreset) {
-    // Aktuelle Overrides entfernen
     Object.keys(overrides).forEach(v => document.documentElement.style.removeProperty(v))
-    // Neue Overrides setzen
-    Object.entries(preset.overrides).forEach(([cssVar, value]) => {
-      document.documentElement.style.setProperty(cssVar, value)
-    })
+    Object.entries(preset.overrides).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
     setOverrides(preset.overrides)
     saveOverrides(preset.overrides)
     persistToBackend(preset.overrides)
+    if (preset.colorSchemeId && onSetColorSchemeId) {
+      onSetColorSchemeId(preset.colorSchemeId)
+    }
   }
 
-  // Aktives Preset ermitteln (für Anzeige)
-  function activePresetName(): string {
+  function getActivePresetId(): string {
     for (const p of PRESETS) {
-      if (p.id === 'system-light' && overridesCount === 0) return p.name
-      if (p.id !== 'system-light') {
-        const keys = Object.keys(p.overrides)
-        const matches = keys.every(k => overrides[k] === p.overrides[k])
-        if (matches && keys.length === overridesCount) return p.name
+      if (p.id === 'system-light') {
+        const schemeOk = !p.colorSchemeId || activeColorSchemeId === p.colorSchemeId
+        if (overridesCount === 0 && schemeOk) return 'system-light'
+        continue
       }
+      const keys = Object.keys(p.overrides)
+      const tokensMatch = keys.length === overridesCount && keys.every(k => overrides[k] === p.overrides[k])
+      const schemeOk = !p.colorSchemeId || activeColorSchemeId === p.colorSchemeId
+      if (tokensMatch && schemeOk) return p.id
     }
-    return overridesCount > 0 ? 'Benutzerdefiniert' : 'Light System Standard'
+    return 'custom'
   }
+
+  const activePresetId = getActivePresetId()
 
   return (
     <div style={{ padding: '24px 28px' }}>
-      {/* Header */}
+
+      {/* Header mit Preset-Dropdown rechts */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
@@ -384,53 +357,52 @@ export function DesignTokenEditor() {
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
             Ändere die Farben des hellen Themes. Änderungen werden in deinem Profil gespeichert.
             Das Dark-Theme bleibt unverändert.
+            {!backendLoaded && <span style={{ marginLeft: 6, color: 'var(--text-muted)' }}>· Lade…</span>}
           </div>
         </div>
+
+        {/* Preset-Dropdown */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+          <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+            Preset
+          </label>
+          <select
+            value={activePresetId}
+            onChange={e => {
+              const p = PRESETS.find(x => x.id === e.target.value)
+              if (p) applyPreset(p)
+            }}
+            style={{
+              fontSize: 12, padding: '5px 10px', borderRadius: 6,
+              border: '1px solid var(--border)', background: 'var(--bg-surface)',
+              color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit',
+              outline: 'none', minWidth: 170,
+            }}
+          >
+            {PRESETS.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+            {activePresetId === 'custom' && (
+              <option value="custom" disabled>Benutzerdefiniert</option>
+            )}
+          </select>
+        </div>
+
+        {/* Reset-Button */}
         {overridesCount > 0 && (
           <button
             onClick={resetAll}
-            title="Alle Overrides entfernen — CSS-Quelle (tokens.css) übernimmt"
+            title="Alle Overrides auf System-Standard zurücksetzen"
             style={{
-              padding: '7px 14px', borderRadius: 6, border: '1px solid var(--border)',
+              padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)',
               background: 'none', color: 'var(--text-secondary)', fontSize: 12,
               cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, whiteSpace: 'nowrap',
+              alignSelf: 'flex-end',
             }}
           >
-            ↺ Auf System-Standard ({overridesCount} Änderung{overridesCount !== 1 ? 'en' : ''})
+            ↺ {overridesCount} Änderung{overridesCount !== 1 ? 'en' : ''}
           </button>
         )}
-      </div>
-
-      {/* Preset-Auswahl */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16,
-        padding: '8px 12px', background: 'var(--bg-surface)',
-        border: '1px solid var(--border)', borderRadius: 8,
-      }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>
-          Preset
-        </span>
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1 }}>
-          {activePresetName()}
-        </span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {PRESETS.map(preset => (
-            <button
-              key={preset.id}
-              onClick={() => applyPreset(preset)}
-              title={preset.name}
-              style={{
-                fontSize: 11, padding: '4px 10px', borderRadius: 5,
-                border: '1px solid var(--border)',
-                background: activePresetName() === preset.name ? 'var(--text-primary)' : 'var(--bg-subtle)',
-                color: activePresetName() === preset.name ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-              }}
-            >
-              {preset.name}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Info-Box */}
@@ -439,11 +411,10 @@ export function DesignTokenEditor() {
         borderRadius: 7, padding: '10px 14px', fontSize: 12,
         color: 'var(--text-secondary)', marginBottom: 24, lineHeight: 1.6,
       }}>
-        Chip klicken → Color Picker.
-        Hex-Wert klicken → direkt tippen.{' '}
+        Chip klicken → Color Picker. Hex-Wert klicken → direkt tippen.{' '}
         <strong>D</strong> = Dark-Default · <strong>F</strong> = Focus-Default (nur Info).{' '}
-        <strong>↺</strong> = System-Standard aus <code style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.06)', padding: '0 3px', borderRadius: 3 }}>tokens.css</code>.
-        {!backendLoaded && <span style={{ marginLeft: 8, color: 'var(--text-muted)' }}>Lade gespeicherte Einstellungen…</span>}
+        <strong>↺</strong> = System-Standard zurücksetzen.{' '}
+        Presets ändern auch das <strong>Farbschema</strong> (Akzentfarben).
       </div>
 
       {/* Token-Gruppen */}

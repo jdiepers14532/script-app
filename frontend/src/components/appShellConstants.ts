@@ -107,6 +107,14 @@ export const BUILTIN_COLOR_SCHEMES: ColorScheme[] = [
     isBuiltin: true,
     colors: { green: '#69F0AE', info: '#82B1FF', danger: '#FF5252', warning: '#FFD740', warningAlt: '#FF6D00' },
   },
+  {
+    id: 'lavendel',
+    name: 'Lavendel',
+    isBuiltin: true,
+    // Inspiriert von Purple Palette 4 (#DFB3F2, #660273, #BC55D9)
+    // Danger/Warning als Komplementär (Orange #F27405 aus Palette 5)
+    colors: { green: '#660273', info: '#524D73', danger: '#C2185B', warning: '#F27405', warningAlt: '#BC55D9' },
+  },
 ]
 
 /** localStorage-Key für benutzerdefinierte Farbschemata */

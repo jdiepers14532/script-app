@@ -157,7 +157,10 @@ function ThemeAnpassenContent() {
 
         {/* Linke Spalte: Token-Editor (scrollbar) */}
         <div style={{ flex: 1, overflowY: 'auto', minWidth: 380 }}>
-          <DesignTokenEditor />
+          <DesignTokenEditor
+            activeColorSchemeId={tweaks.activeColorSchemeId}
+            onSetColorSchemeId={id => set('activeColorSchemeId', id)}
+          />
         </div>
 
         {/* Rechte Spalte: App-Vorschau

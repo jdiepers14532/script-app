@@ -236,15 +236,48 @@ export default function AppPreviewWindow({ companyName = 'script', productionLab
               </div>
             </div>
 
-            {/* Status-Badges */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
-              <StatusBadge label="Erfolg" color="var(--color-success)" bg="var(--color-success-bg)" />
-              <StatusBadge label="Fehler" color="var(--color-danger)" bg="var(--color-danger-bg)" />
-              <StatusBadge label="Warnung" color="var(--color-warning)" bg="var(--color-warning-bg)" />
-              <StatusBadge label="Info" color="var(--color-info)" bg="var(--color-info-bg)" />
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--notif-unread)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: 'var(--color-info)' }}>
-                ● 3 ungelesen
-              </span>
+            {/* Farbschema-Demo — Akzentfarben reagieren auf Farbschema-Änderungen */}
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '8px 10px', marginBottom: 0 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+                Farbschema-Vorschau
+              </div>
+              {/* Akzentfarben-Streifen */}
+              <div style={{ display: 'flex', gap: 3, marginBottom: 7 }}>
+                {[
+                  { label: 'Aktion', color: 'var(--color-success)' },
+                  { label: 'Info',   color: 'var(--color-info)' },
+                  { label: 'Fehler', color: 'var(--color-danger)' },
+                  { label: 'Warn',   color: 'var(--color-warning)' },
+                  { label: 'Akzent',  color: 'var(--color-warning-alt, var(--sw-warning-alt))' },
+                ].map(s => (
+                  <div key={s.label} style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ height: 14, borderRadius: 3, background: s.color, marginBottom: 2 }} />
+                    <div style={{ fontSize: 7, color: 'var(--text-muted)' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Status-Badges */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                <StatusBadge label="Erfolg"  color="var(--color-success)" bg="var(--color-success-bg)" />
+                <StatusBadge label="Fehler"  color="var(--color-danger)"  bg="var(--color-danger-bg)" />
+                <StatusBadge label="Warnung" color="var(--color-warning)" bg="var(--color-warning-bg)" />
+                <StatusBadge label="Info"    color="var(--color-info)"    bg="var(--color-info-bg)" />
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--notif-unread)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 7px', fontSize: 10, fontWeight: 600, color: 'var(--color-info)' }}>
+                  ● 3 ungelesen
+                </span>
+              </div>
+              {/* Aktions-Button */}
+              <div style={{ display: 'flex', gap: 5 }}>
+                <button style={{ background: 'var(--color-success)', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: 10, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Speichern
+                </button>
+                <button style={{ background: 'transparent', color: 'var(--color-danger)', border: '1px solid var(--color-danger)', borderRadius: 5, padding: '4px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Löschen
+                </button>
+                <button style={{ background: 'var(--color-info-bg)', color: 'var(--color-info)', border: '1px solid var(--color-info)', borderRadius: 5, padding: '4px 10px', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Info
+                </button>
+              </div>
             </div>
           </div>
 
