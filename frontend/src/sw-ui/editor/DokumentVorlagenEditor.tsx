@@ -79,10 +79,6 @@ export interface SeitenLayout {
   margin_bottom: number
   margin_left: number
   margin_right: number
-  /** Abstand der Kopfzeile vom physischen oberen Papierrand (mm). Default: 10 */
-  header_abstand_rand?: number
-  /** Abstand der Fußzeile vom physischen unteren Papierrand (mm). Default: 10 */
-  footer_abstand_rand?: number
 }
 
 /** 3-column content for header / footer */
@@ -122,9 +118,8 @@ export interface PreviewContext {
   sendedatum?:          string
   produktionszeitraum?: string
   aktuelles_datum?:     string
-  aktuelles_uhrzeit?:     string
-  aktuelles_uhrzeit_utc?: string
-  aktuelles_jahr?:        string
+  aktuelles_uhrzeit?:   string
+  aktuelles_jahr?:      string
   folge_laenge_netto?:  string
   firmen_adresse?:      string
   rechtsform?:          string
@@ -1080,9 +1075,8 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{sendedatum}}':          'sendedatum',
   '{{produktionszeitraum}}': 'produktionszeitraum',
   '{{aktuelles_datum}}':     'aktuelles_datum',
-  '{{aktuelles_uhrzeit}}':     'aktuelles_uhrzeit',
-  '{{aktuelles_uhrzeit_utc}}': 'aktuelles_uhrzeit_utc',
-  '{{aktuelles_jahr}}':        'aktuelles_jahr',
+  '{{aktuelles_uhrzeit}}':   'aktuelles_uhrzeit',
+  '{{aktuelles_jahr}}':      'aktuelles_jahr',
   '{{folge_laenge_netto}}':  'folge_laenge_netto',
   '{{firmen_adresse}}':      'firmen_adresse',
   '{{rechtsform}}':          'rechtsform',
@@ -1205,7 +1199,8 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       const hasColWidths = firstRow?.content?.some((c: any) => c.attrs?.colwidth?.[0])
       const tableLayout = hasColWidths ? 'table-layout:fixed;' : ''
       const rows = (node.content ?? []).map((row: any) => {
-        const rh = row.attrs?.rowHeight
+        const rawRh = row.attrs?.rowHeight
+        const rh = rawRh != null && rawRh > 15 ? rawRh : null
         const rowStyle = rh ? ` style="height:${rh}px"` : ''
         const cellPad  = rh ? 'padding:0 4px;overflow:hidden;' : 'padding:5px 10px;'
         const cells = (row.content ?? []).map((cell: any) => {
@@ -1267,12 +1262,7 @@ export function renderPmToPreviewHtml(doc: any, ctx?: PreviewContext): string {
       if (fw)  styles.push(`font-weight:${fw}`)
       if (fst) styles.push(`font-style:${fst}`)
       if (td)  styles.push(`text-decoration:${td}`)
-      // Immer line-height setzen — ohne expliziten Wert erbt der Browser den Eltern-
-      // Wert (1.5 vom App-Body). Fallback '1.2' statt 'normal': 'normal' ist
-      // font- und OS-abhängig (Win Ascent/Descent ≠ hhea-Metrik in Puppeteer/Linux)
-      // → Vorschau-Zellen wirken höher als im PDF. 1.2 ist plattformunabhängig
-      // und entspricht Courier New/Prime auf allen Plattformen (~1.2).
-      styles.push(`line-height:${lh ?? '1.2'}`)
+      if (lh)  styles.push(`line-height:${lh}`)
       if (sa)  styles.push(`margin-bottom:${sa}`)
       if (!node.content?.length) styles.push('min-height:1.2em')
       const style = styles.length ? ` style="${styles.join(';')}"` : ''

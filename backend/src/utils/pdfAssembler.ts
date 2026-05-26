@@ -1040,7 +1040,7 @@ async function assembleHtml(
 
     const ctx: ExportContext = {
       produktion:           w.produktion_titel ?? '',
-      staffel:              prodDbCtx.staffelnummer != null ? String(prodDbCtx.staffelnummer) : null,
+      staffel:              null,
       block:                berechneterBlock,
       folge:                w.folge_nummer,
       folgentitel:          w.folgen_titel,
@@ -1185,7 +1185,10 @@ async function assembleHtml(
         }
       }
       if (item.type === 'statistik' && item.statistikConfig) {
-        return renderStatistikHtml(item.statistikConfig, statistikFormat)
+        const bookmarkH2 = item.label
+          ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
+          : ''
+        return `${bookmarkH2}${renderStatistikHtml(item.statistikConfig, statistikFormat)}`
       }
       return null
     }
@@ -1580,11 +1583,13 @@ export async function assemblePdf(
     // um Titelseiten-Anzahl versetzen, dann in das Merged-PDF einbauen.
     if (pdfBookmarks) {
       const bmEntries = await extractPdfOutline(mainBytes)
-      if (bmEntries.length > 0) {
-        const titelseiteDoc = await PDFDocument.load(titelseiteBytes)
-        const offset = titelseiteDoc.getPageCount()
-        pdfBytes = await addPdfOutline(pdfBytes, bmEntries.map(e => ({ ...e, pageIndex: e.pageIndex + offset })))
-      }
+      const titelseiteDoc = await PDFDocument.load(titelseiteBytes)
+      const offset = titelseiteDoc.getPageCount()
+      const allEntries = [
+        { pageIndex: 0, label: 'Titelseite' },
+        ...bmEntries.map(e => ({ ...e, pageIndex: e.pageIndex + offset })),
+      ]
+      pdfBytes = await addPdfOutline(pdfBytes, allEntries)
     }
     setProgress(90)
 
