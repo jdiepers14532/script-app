@@ -709,10 +709,14 @@ function renderMainScenes(
     if (scene.format !== 'notiz') {
       headHtml = renderSzenenkopf(szenenkopfTemplate, scene, folgeNummer, index > 0, bodyMarginLeftCm, kuerzel)
     } else {
-      // Notiz-Format: <h2> mit vorlage_name für PDF-Outline, sonst unsichtbarer page-break-Marker
+      // Notiz-Format: unsichtbares <h2> für PDF-Lesezeichen + sichtbarer Abschnittstitel
       const pbStyle = index > 0 ? 'page-break-before:always;' : ''
       if (scene.vorlage_name) {
-        headHtml = `<h2 style="${pbStyle}font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em">${esc(scene.vorlage_name)}</h2>`
+        // Unsichtbares h2 für Chrome generateDocumentOutline (PDF-Lesezeichen)
+        const bookmarkH2 = `<h2 style="${pbStyle}color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${esc(scene.vorlage_name)}</h2>`
+        // Sichtbarer Abschnittstitel
+        const visibleDiv = `<div style="font-size:10pt;font-weight:bold;margin:0 0 6pt;letter-spacing:0.02em">${esc(scene.vorlage_name)}</div>`
+        headHtml = `${bookmarkH2}${visibleDiv}`
       } else {
         headHtml = `<div style="${pbStyle}height:0;overflow:hidden"></div>`
       }
@@ -1053,17 +1057,34 @@ async function assembleHtml(
       if (item.type === 'notiz') {
         // Einzelne Notiz-Zeile aus dem aktuellen Drehbuch (szeneId = dokument_szenen.id)
         if (item.szeneId) {
-          const szRes = await client.query<SceneRow>(
-            `SELECT scene_nummer, scene_nummer_suffix, ort_name, int_ext, tageszeit, spieltag,
-                    stoppzeit_sek, content, zusammenfassung, sort_order, format, sondertyp,
-                    scene_identity_id, spielzeit
-             FROM dokument_szenen WHERE id = $1 AND geloescht = false`,
+          const szRes = await client.query<SceneRow & { vorlage_id: string | null }>(
+            `SELECT ds.scene_nummer, ds.scene_nummer_suffix, ds.ort_name, ds.int_ext, ds.tageszeit,
+                    ds.spieltag, ds.stoppzeit_sek, ds.content, ds.zusammenfassung, ds.sort_order,
+                    ds.format, ds.sondertyp, ds.scene_identity_id, ds.spielzeit, ds.vorlage_id
+             FROM dokument_szenen ds WHERE ds.id = $1 AND ds.geloescht = false`,
             [item.szeneId]
           )
           if (!szRes.rows.length) return null
           const row = szRes.rows[0]
+
+          // Titelseite: body_content der Vorlage rendern (enthält Chips + borderStyle)
+          if (row.vorlage_id) {
+            const vorRes = await client.query<{ ist_titelseite: boolean; body_content: any }>(
+              `SELECT ist_titelseite, body_content FROM dokument_vorlagen WHERE id = $1`,
+              [row.vorlage_id]
+            )
+            if (vorRes.rows[0]?.ist_titelseite && vorRes.rows[0].body_content) {
+              return renderPmJson(vorRes.rows[0].body_content, ctx)
+            }
+          }
+
+          // Notiz-Szene: unsichtbares <h2> für PDF-Lesezeichen (item.label), dann Content
           const rendered = row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : null
-          return rendered
+          if (!rendered) return null
+          const bookmarkH2 = item.label
+            ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
+            : ''
+          return `${bookmarkH2}${rendered}`
         }
         // Gesamte Notiz-Werkstufe (id = werkstufe_id)
         if (item.id) {
@@ -1154,7 +1175,7 @@ async function assembleHtml(
     // Rollen pro Szene (für rollen-Chip + filterRollen)
     const charRes = await client.query<{ scene_identity_id: string; rollen: string[] }>(
       `SELECT sc.scene_identity_id,
-              array_agg(c.name ORDER BY c.name) AS rollen
+              array_agg(DISTINCT c.name ORDER BY c.name) AS rollen
        FROM scene_characters sc
        JOIN characters c ON c.id = sc.character_id
        LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id

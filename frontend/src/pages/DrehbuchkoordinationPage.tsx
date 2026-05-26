@@ -5632,7 +5632,12 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
 
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 3 }}>Name</label>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 3 }}>
+                Name
+                <Tooltip text="Dieser Titel wird als PDF-Lesezeichen verwendet.\nGib einen aussagekräftigen Namen ein, damit er im PDF-Inhaltsverzeichnis erkennbar ist.">
+                  <span style={{ cursor: 'help', opacity: 0.6, fontSize: 10 }}>ⓘ</span>
+                </Tooltip>
+              </label>
               <input style={inputStyle} value={editName} onChange={e => setEditName(e.target.value)} placeholder="z.B. Titelseite Rote Rosen" />
             </div>
             <div>
