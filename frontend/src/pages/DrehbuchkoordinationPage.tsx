@@ -2274,7 +2274,7 @@ function DokumentTypenTab({
         <div ref={usInfoElRef} style={{
           position: 'fixed', left: usInfoPos.x, top: usInfoPos.y,
           width: 560, minWidth: 320, maxWidth: '92vw',
-          minHeight: 260, maxHeight: '90vh',
+          minHeight: 273, maxHeight: '90vh',
           background: 'var(--bg-surface)',
           borderRadius: 12,
           boxShadow: '0 20px 60px rgba(0,0,0,0.45)',
@@ -2298,7 +2298,7 @@ function DokumentTypenTab({
             <span style={{ fontSize: 13, fontWeight: 700, flex: 1, letterSpacing: 0.2 }}>
               US Master Scene Format
             </span>
-            <span style={{ fontSize: 9, color: '#8b949e', fontFamily: 'Courier Prime, Courier, monospace', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#c9d1d9', fontFamily: 'Courier Prime, Courier, monospace', whiteSpace: 'nowrap' }}>
               10 CPI · 6 LPI · Courier 12pt
             </span>
             <button onClick={() => setShowUsInfo(false)} style={{
