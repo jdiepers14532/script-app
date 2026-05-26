@@ -179,11 +179,10 @@ function isLightColor(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 > 128
 }
 
-/** Light-Overrides: inline style auf :root (wirkt im Light-Mode) */
+/** Light-Overrides: inline style auf :root mit !important (überschreibt AppShell sw-view-settings) */
 function applyLightOverrides(o: Record<string, string>) {
-  // Zuerst alle bekannten Light-Token entfernen
   TOKEN_GROUPS.forEach(g => g.tokens.forEach(t => document.documentElement.style.removeProperty(t.cssVar)))
-  Object.entries(o).forEach(([k, v]) => document.documentElement.style.setProperty(k, v))
+  Object.entries(o).forEach(([k, v]) => document.documentElement.style.setProperty(k, v, 'important'))
 }
 
 /** Dark-Overrides: injizierter <style>-Tag mit [data-theme='dark'] !important */
@@ -509,63 +508,71 @@ export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeI
           </div>
         </div>
 
-        {/* Preset-Dropdown + Export/Import */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-          <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-            Preset
-          </label>
-          <select
-            value={activePresetId}
-            onChange={e => {
-              const p = modePresets.find(x => x.id === e.target.value)
-              if (p) applyPreset(p)
-            }}
-            style={{
-              fontSize: 12, padding: '5px 10px', borderRadius: 6,
-              border: '1px solid var(--border)', background: 'var(--bg-surface)',
-              color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit',
-              outline: 'none', minWidth: 180,
-            }}
+        {/* Rechte Seite: Export / Import | Preset | Reset — alles in einer Zeile */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, alignSelf: 'flex-start', marginTop: 3 }}>
+          {/* Export */}
+          <button
+            onClick={exportJson}
+            title="Aktuelle Theme-Einstellungen als JSON exportieren"
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
           >
-            {modePresets.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-            {activePresetId === 'custom' && (
-              <option value="custom" disabled>Benutzerdefiniert</option>
-            )}
-          </select>
-
-          {/* Export / Import Buttons */}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={exportJson}
-              title="Aktuelle Theme-Einstellungen als JSON exportieren"
-              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              ↓ Export
-            </button>
-            <button
-              onClick={() => importRef.current?.click()}
-              title="Theme-JSON importieren"
-              style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              ↑ Import
-            </button>
-            <input ref={importRef} type="file" accept=".json" onChange={importJson}
-              style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
-            />
-          </div>
-        </div>
-
-        {/* Reset-Button */}
-        {overridesCount > 0 && (
-          <button onClick={resetAll}
-            title="Alle Änderungen zurücksetzen"
-            style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, whiteSpace: 'nowrap', alignSelf: 'flex-end' }}
-          >
-            ↺ {overridesCount} Änderung{overridesCount !== 1 ? 'en' : ''}
+            ↓ Export
           </button>
-        )}
+          {/* Import */}
+          <button
+            onClick={() => importRef.current?.click()}
+            title="Theme-JSON importieren"
+            style={{ fontSize: 11, padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+          >
+            ↑ Import
+          </button>
+          <input ref={importRef} type="file" accept=".json" onChange={importJson}
+            style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }}
+          />
+
+          {/* Divider */}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+
+          {/* Preset-Dropdown */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <label style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Preset
+            </label>
+            <select
+              value={activePresetId}
+              onChange={e => {
+                const p = modePresets.find(x => x.id === e.target.value)
+                if (p) applyPreset(p)
+              }}
+              style={{
+                fontSize: 12, padding: '4px 10px', borderRadius: 6,
+                border: '1px solid var(--border)', background: 'var(--bg-surface)',
+                color: 'var(--text-primary)', cursor: 'pointer', fontFamily: 'inherit',
+                outline: 'none', minWidth: 170,
+              }}
+            >
+              {modePresets.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+              {activePresetId === 'custom' && (
+                <option value="custom" disabled>Benutzerdefiniert</option>
+              )}
+            </select>
+          </div>
+
+          {/* Divider + Reset — nur wenn Änderungen */}
+          {overridesCount > 0 && (
+            <>
+              <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+              <button onClick={resetAll}
+                title="Alle Änderungen zurücksetzen"
+                style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+              >
+                ↺ {overridesCount}×
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Info */}
