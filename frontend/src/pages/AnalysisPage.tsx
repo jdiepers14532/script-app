@@ -281,7 +281,7 @@ export default function AnalysisPage() {
               >
                 <option value="">— Produktion wählen —</option>
                 {productions.map((p: any) => (
-                  <option key={p.id} value={p.id}>{p.titel}</option>
+                  <option key={p.id} value={p.id}>{p.title}</option>
                 ))}
               </select>
 
