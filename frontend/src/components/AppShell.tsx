@@ -842,6 +842,15 @@ export default function AppShell({
     onSelectFolge?.(nr)
   }
 
+  // Scroll-Ziel für Folgen-Dropdown: aktuelle Folge wenn im Block, sonst erste Folge des Blocks
+  const folgeScrollTarget = useMemo(() => {
+    if (!selectedBlock) return selectedFolgeNummer != null ? String(selectedFolgeNummer) : undefined
+    const inBlock = selectedFolgeNummer != null
+      && selectedFolgeNummer >= selectedBlock.folge_von
+      && selectedFolgeNummer <= selectedBlock.folge_bis
+    return inBlock ? String(selectedFolgeNummer) : String(selectedBlock.folge_von)
+  }, [selectedBlock, selectedFolgeNummer])
+
   const selectedProduktion = productions.find(p => p.id === selectedProduktionId)
   const crumbProduktion = selectedProduktion
     ? (selectedProduktion.staffelnummer ? `${selectedProduktion.title} ${t('staffel')} ${selectedProduktion.staffelnummer}` : selectedProduktion.title)
@@ -950,6 +959,7 @@ export default function AppShell({
                 }))}
                 value={String(selectedFolgeNummer ?? '')}
                 onChange={val => handleFolgeSelect(Number(val))}
+                scrollToValue={folgeScrollTarget}
               />
             </>
           )}

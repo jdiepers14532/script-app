@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 interface Option {
   value: string
@@ -12,13 +12,15 @@ interface Props {
   options: Option[]
   value: string
   onChange: (value: string) => void
+  scrollToValue?: string  // beim Öffnen zu diesem Wert scrollen (fallback: value)
 }
 
-export default function HeaderSelect({ options, value, onChange }: Props) {
+export default function HeaderSelect({ options, value, onChange, scrollToValue }: Props) {
   const [open, setOpen] = useState(false)
   const [dropPos, setDropPos] = useState<{ top: number; left: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
   const selected = options.find(o => o.value === value)
 
@@ -43,6 +45,15 @@ export default function HeaderSelect({ options, value, onChange }: Props) {
   useEffect(() => {
     if (open) updatePosition()
   }, [open, updatePosition])
+
+  useEffect(() => {
+    if (!open || !listRef.current) return
+    const target = scrollToValue ?? value
+    const idx = options.findIndex(o => o.value === target)
+    if (idx < 0) return
+    const items = listRef.current.querySelectorAll<HTMLButtonElement>('button')
+    items[idx]?.scrollIntoView({ block: 'nearest' })
+  }, [open])
 
   const handleSelect = (val: string) => {
     onChange(val)
@@ -87,7 +98,7 @@ export default function HeaderSelect({ options, value, onChange }: Props) {
             zIndex: 9999, overflow: 'hidden',
           }}
         >
-          <div style={{ maxHeight: 320, overflowY: 'auto' }}>
+          <div ref={listRef} style={{ maxHeight: 320, overflowY: 'auto' }}>
             {options.map(o => (
               <button
                 key={o.value}
