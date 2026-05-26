@@ -369,6 +369,35 @@ export default function ImportPage() {
     }
   }
 
+  const handleReanalyze = async () => {
+    if (!file) return
+    setLoading(true)
+    setError(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      if (isPdf) {
+        fd.append('pdf_method', pdfMethod)
+        if (pdfMethod === 'pdftotext') {
+          if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
+          if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
+          if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
+        }
+        if (pdfPageFrom !== '') fd.append('pdf_page_from', String(pdfPageFrom))
+        if (pdfPageTo !== '') fd.append('pdf_page_to', String(pdfPageTo))
+      }
+      const res = await fetch('/api/import/preview', { method: 'POST', body: fd, credentials: 'include' })
+      if (!res.ok) { const err = await res.json(); throw new Error(err.error || `Fehler ${res.status}`) }
+      const data = await res.json()
+      setPreviewResult(data)
+      setNonSceneElements(data.non_scene_elements || [])
+    } catch (err) {
+      setError(String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const reset = () => {
     setStep(1)
     setFile(null)
@@ -542,53 +571,6 @@ export default function ImportPage() {
               </div>
             )}
 
-            {/* PDF Page Range */}
-            {isPdf && detectResult && (
-              <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-                  <BookOpen size={12} color="#757575" />
-                  <span style={{ fontSize: 12, fontWeight: 600, color: '#757575' }}>Seitenbereich</span>
-                  {pdfTotalPages && (
-                    <span style={{ fontSize: 11, color: '#999' }}>— {pdfTotalPages} Seiten</span>
-                  )}
-                  <span style={{ fontSize: 11, color: '#bbb', marginLeft: 4 }}>optional</span>
-                </div>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                    <span style={{ color: '#757575', fontSize: 12, whiteSpace: 'nowrap' }}>Von Seite</span>
-                    <input
-                      type="number" min={1} max={pdfTotalPages || undefined}
-                      value={pdfPageFrom}
-                      onChange={e => setPdfPageFrom(e.target.value === '' ? '' : parseInt(e.target.value))}
-                      placeholder="1"
-                      style={{ width: 60, padding: '4px 8px', borderRadius: 6, border: '1px solid #e0e0e0', fontSize: 13 }}
-                    />
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
-                    <span style={{ color: '#757575', fontSize: 12, whiteSpace: 'nowrap' }}>bis Seite</span>
-                    <input
-                      type="number" min={1} max={pdfTotalPages || undefined}
-                      value={pdfPageTo}
-                      onChange={e => setPdfPageTo(e.target.value === '' ? '' : parseInt(e.target.value))}
-                      placeholder={pdfTotalPages ? String(pdfTotalPages) : 'Ende'}
-                      style={{ width: 60, padding: '4px 8px', borderRadius: 6, border: '1px solid #e0e0e0', fontSize: 13 }}
-                    />
-                  </label>
-                  {(pdfPageFrom !== '' || pdfPageTo !== '') && (
-                    <button
-                      onClick={() => { setPdfPageFrom(''); setPdfPageTo('') }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: '#999', padding: 0 }}
-                    >
-                      Zurücksetzen
-                    </button>
-                  )}
-                </div>
-                <div style={{ fontSize: 11, color: '#bbb', marginTop: 6 }}>
-                  Leer lassen = gesamtes Dokument importieren
-                </div>
-              </div>
-            )}
-
             {error && (
               <div style={{ color: 'var(--sw-danger)', fontSize: 13, marginBottom: 16, display: 'flex', gap: 6 }}>
                 <AlertTriangle size={14} />
@@ -672,6 +654,54 @@ export default function ImportPage() {
                     <button onClick={() => setShowDocPreview(false)} title="Vorschau schließen"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
                       <X size={14} />
+                    </button>
+                  </div>
+                )}
+                {/* Page range bar — shown for all PDFs */}
+                {isPdf && (
+                  <div style={{
+                    padding: '5px 12px', borderBottom: '1px solid #e0e0e0',
+                    background: '#fff', flexShrink: 0,
+                    display: 'flex', gap: 8, alignItems: 'center',
+                  }}>
+                    <BookOpen size={11} color="#757575" />
+                    <span style={{ fontSize: 11, color: '#757575', fontWeight: 600 }}>Seiten</span>
+                    {pdfTotalPages && (
+                      <span style={{ fontSize: 10, color: '#bbb' }}>{pdfTotalPages} ges.</span>
+                    )}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#757575' }}>
+                      von
+                      <input
+                        type="number" min={1} max={pdfTotalPages || undefined}
+                        value={pdfPageFrom}
+                        onChange={e => setPdfPageFrom(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        placeholder="1"
+                        style={{ width: 46, padding: '2px 5px', borderRadius: 4, border: '1px solid #e0e0e0', fontSize: 11, textAlign: 'center' }}
+                      />
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#757575' }}>
+                      bis
+                      <input
+                        type="number" min={1} max={pdfTotalPages || undefined}
+                        value={pdfPageTo}
+                        onChange={e => setPdfPageTo(e.target.value === '' ? '' : parseInt(e.target.value))}
+                        placeholder={pdfTotalPages ? String(pdfTotalPages) : 'Ende'}
+                        style={{ width: 46, padding: '2px 5px', borderRadius: 4, border: '1px solid #e0e0e0', fontSize: 11, textAlign: 'center' }}
+                      />
+                    </label>
+                    <button
+                      onClick={handleReanalyze}
+                      disabled={loading}
+                      title="Szenenvorschau mit aktuellem Seitenbereich neu analysieren"
+                      style={{
+                        marginLeft: 'auto', padding: '2px 8px', borderRadius: 4,
+                        border: '1px solid #e0e0e0', background: '#f5f5f5',
+                        fontSize: 11, cursor: loading ? 'default' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                        color: '#555', opacity: loading ? 0.5 : 1,
+                      }}
+                    >
+                      ↻ Neu analysieren
                     </button>
                   </div>
                 )}
