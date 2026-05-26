@@ -1065,7 +1065,9 @@ async function assembleHtml(
           )
           if (!szRes.rows.length) return null
           const row = szRes.rows[0]
-          return row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : null
+          const rendered = row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : null
+          console.log('[renderOrderedItem] szeneId:', item.szeneId, '| ctx.druckauswahl:', ctx.druckauswahl, '| contentType:', typeof row.content, '| contentStr:', JSON.stringify(row.content)?.slice(0, 300), '| renderedHas:', rendered?.includes('Auswahl'))
+          return rendered
         }
         // Gesamte Notiz-Werkstufe (id = werkstufe_id)
         if (item.id) {
