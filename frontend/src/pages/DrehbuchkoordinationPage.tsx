@@ -3727,7 +3727,7 @@ function SichtbarkeitChangeModal({
           </div>
           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button className="btn" onClick={onClose}>Abbrechen</button>
-            <button className="btn primary" onClick={handleSave} disabled={saving || selected === dok.sichtbarkeit_frei}>
+            <button className="btn primary" onClick={handleSave} disabled={saving || !selected}>
               Ändern
             </button>
           </div>
@@ -3778,8 +3778,7 @@ function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
       <div>
         <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 4px' }}>Private Dokumente</h3>
         <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
-          Freie Dokumente, die aktuell auf Privat gesetzt sind und Koordinationsrelevanz haben.
-          Sichtbarkeit kann hier im Namen der Produktion überschrieben werden.
+          Dokumente und Episoden mit mindestens einer privaten Fassung — Sichtbarkeit kann hier im Namen der Produktion überschrieben werden.
         </p>
       </div>
 
@@ -3814,12 +3813,16 @@ function PrivateDokumenteTab({ produktionId }: { produktionId: string }) {
             <div key={dok.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', background: 'var(--bg-surface)', border: '1.5px solid var(--border)', borderRadius: 10 }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {dok.folgen_titel ?? 'Unbenanntes Dokument'}
+                  {dok.folge_nummer ? `Folge ${dok.folge_nummer}` : (dok.folgen_titel ?? 'Unbenanntes Dokument')}
+                  {dok.folge_nummer && dok.folgen_titel && (
+                    <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 6 }}>— {dok.folgen_titel}</span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-secondary)' }}>
                   <span style={{ padding: '2px 8px', background: 'var(--bg-subtle)', borderRadius: 99 }}>{dok.dokument_label ?? '—'}</span>
+                  {dok.ist_frei && <span style={{ padding: '2px 8px', background: 'rgba(0,200,83,0.1)', color: '#00C853', borderRadius: 99 }}>Freies Dok.</span>}
                   <span>von <strong>{dok.ersteller_name}</strong></span>
-                  <span>privat seit {fmtDate(dok.sichtbarkeit_frei_geaendert_am ?? dok.erstellt_am)}</span>
+                  <span>privat seit {fmtDate(dok.privat_seit ?? dok.erstellt_am)}</span>
                   {dok.verknuepft_am && <span>verknüpft {fmtDate(dok.verknuepft_am)}</span>}
                 </div>
               </div>

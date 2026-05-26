@@ -130,6 +130,7 @@ async function sendNotificationEmail(
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/dk/private-dokumente?produktion_id=X&filter=1|2|3
+// Zeigt alle Folgen (frei ODER regulär) mit mindestens einer privaten Werkstufe.
 // ══════════════════════════════════════════════════════════════════════════════
 privateDokumenteRouter.get('/', async (req, res) => {
   const user = req.user!
@@ -152,23 +153,38 @@ privateDokumenteRouter.get('/', async (req, res) => {
   try {
     let filterClause = ''
     if (filter === '1') filterClause = `AND f.dokument_label = 'folge_sendung'`
-    else if (filter === '2') filterClause = `AND f.verknuepft_mit_folge_id IS NOT NULL`
+    else if (filter === '2') filterClause = `AND f.ist_frei = true AND f.verknuepft_mit_folge_id IS NOT NULL`
     // filter === '3': keine Extra-Bedingung
 
     const prodClause = produktion_id ? `AND f.produktion_id = ${typeof produktion_id === 'string' ? `'${produktion_id.replace(/'/g, "''")}'` : produktion_id}` : ''
 
     const rows = await query(
-      `SELECT f.id, f.folgen_titel, f.dokument_label, f.ersteller_user_id,
+      `SELECT DISTINCT
+              f.id, f.folgen_titel, f.folge_nummer, f.ist_frei, f.dokument_label,
+              f.ersteller_user_id,
               f.sichtbarkeit_frei, f.sichtbarkeit_frei_geaendert_am,
               f.verknuepft_mit_folge_id, f.verknuepft_am,
               f.erstellt_am,
+              COALESCE(
+                (SELECT w2.privat_gesetzt_am FROM werkstufen w2
+                 WHERE w2.folge_id = f.id AND w2.sichtbarkeit = 'privat'
+                 ORDER BY w2.privat_gesetzt_am DESC NULLS LAST LIMIT 1),
+                f.sichtbarkeit_frei_geaendert_am
+              ) AS privat_seit,
+              COALESCE(
+                (SELECT w2.erstellt_von FROM werkstufen w2
+                 WHERE w2.folge_id = f.id AND w2.sichtbarkeit = 'privat'
+                 ORDER BY w2.privat_gesetzt_am DESC NULLS LAST LIMIT 1),
+                f.ersteller_user_id
+              ) AS autor_user_id,
               (SELECT COUNT(*)::int FROM werkstufen w WHERE w.folge_id = f.id) AS werkstufen_count
        FROM folgen f
-       WHERE f.ist_frei = true
-         AND f.sichtbarkeit_frei = 'privat'
+       WHERE EXISTS (
+         SELECT 1 FROM werkstufen w WHERE w.folge_id = f.id AND w.sichtbarkeit = 'privat'
+       )
          ${filterClause}
          ${prodClause}
-       ORDER BY f.sichtbarkeit_frei_geaendert_am DESC NULLS LAST, f.erstellt_am DESC`,
+       ORDER BY privat_seit DESC NULLS LAST, f.erstellt_am DESC`,
       []
     )
 
@@ -177,8 +193,8 @@ privateDokumenteRouter.get('/', async (req, res) => {
 
     const result = rows.map((r: any) => ({
       ...r,
-      ersteller_name: userMap.get(String(r.ersteller_user_id))?.name ?? `User ${r.ersteller_user_id}`,
-      ersteller_email: userMap.get(String(r.ersteller_user_id))?.email ?? null,
+      ersteller_name: userMap.get(String(r.autor_user_id))?.name ?? `User ${r.autor_user_id}`,
+      ersteller_email: userMap.get(String(r.autor_user_id))?.email ?? null,
     }))
 
     res.json(result)
@@ -205,22 +221,48 @@ privateDokumenteRouter.post('/:id/sichtbarkeit', async (req, res) => {
 
   try {
     const dok = await queryOne(
-      `SELECT id, folgen_titel, sichtbarkeit_frei, ersteller_user_id FROM folgen WHERE id = $1 AND ist_frei = true`,
+      `SELECT id, folgen_titel, folge_nummer, ist_frei, sichtbarkeit_frei, ersteller_user_id FROM folgen WHERE id = $1`,
       [req.params.id]
     )
     if (!dok) return res.status(404).json({ error: 'Dokument nicht gefunden' })
 
-    const alteSichtbarkeit = dok.sichtbarkeit_frei
+    // Autor ermitteln: bei regulären Episoden = Ersteller der privaten Werkstufe
+    let autorUserId = dok.ersteller_user_id
+    const alteSichtbarkeit = 'privat'
 
-    // Sichtbarkeit + Zeitstempel aktualisieren
-    await query(
-      `UPDATE folgen SET
-         sichtbarkeit_frei = $1,
-         sichtbarkeit_frei_geaendert_am = NOW(),
-         sichtbarkeit_frei_colab_gruppe_id = CASE WHEN $1 = 'colab' THEN $2::uuid ELSE NULL END
-       WHERE id = $3`,
-      [neue_sichtbarkeit, colab_gruppe_id ?? null, req.params.id]
-    )
+    if (dok.ist_frei) {
+      // Freies Dokument: folge.sichtbarkeit_frei aktualisieren + Werkstufen synchronisieren
+      await query(
+        `UPDATE folgen SET
+           sichtbarkeit_frei = $1,
+           sichtbarkeit_frei_geaendert_am = NOW(),
+           sichtbarkeit_frei_colab_gruppe_id = CASE WHEN $1 = 'colab' THEN $2::uuid ELSE NULL END
+         WHERE id = $3`,
+        [neue_sichtbarkeit, colab_gruppe_id ?? null, req.params.id]
+      )
+      // Private Werkstufen ebenfalls freigeben
+      const werkSicht = mapFolgeSichtToWerk(neue_sichtbarkeit, colab_gruppe_id)
+      await query(
+        `UPDATE werkstufen SET sichtbarkeit = $1, privat_permanent = false
+         WHERE folge_id = $2 AND sichtbarkeit = 'privat'`,
+        [werkSicht, req.params.id]
+      )
+    } else {
+      // Reguläre Episode: alle privaten Werkstufen freigeben
+      const werkSicht = mapFolgeSichtToWerk(neue_sichtbarkeit, colab_gruppe_id)
+      // Autor aus der jüngsten privaten Werkstufe
+      const werkAutor = await queryOne(
+        `SELECT erstellt_von FROM werkstufen WHERE folge_id = $1 AND sichtbarkeit = 'privat'
+         ORDER BY privat_gesetzt_am DESC NULLS LAST LIMIT 1`,
+        [req.params.id]
+      )
+      if (werkAutor?.erstellt_von) autorUserId = werkAutor.erstellt_von
+      await query(
+        `UPDATE werkstufen SET sichtbarkeit = $1, privat_permanent = false
+         WHERE folge_id = $2 AND sichtbarkeit = 'privat'`,
+        [werkSicht, req.params.id]
+      )
+    }
 
     // Audit-Log
     await query(
@@ -228,20 +270,21 @@ privateDokumenteRouter.post('/:id/sichtbarkeit', async (req, res) => {
          (folge_id, geaendert_von_user_id, autor_user_id, alte_sichtbarkeit, neue_sichtbarkeit,
           per_email_informiert, anderweitig_bestaetigt)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [req.params.id, user.user_id, dok.ersteller_user_id,
+      [req.params.id, user.user_id, autorUserId,
        alteSichtbarkeit, neue_sichtbarkeit,
        per_email_informiert === true, anderweitig_bestaetigt === true]
     )
 
     // Email-Versand wenn gewünscht
     let emailSent = false
-    if (per_email_informiert && dok.ersteller_user_id) {
+    if (per_email_informiert && autorUserId) {
       const userMap = await fetchAuthUsers()
       const coordinatorName = userMap.get(String(user.user_id))?.name ?? 'Drehbuchkoordination'
+      const titel = dok.folgen_titel ?? (dok.folge_nummer ? `Folge ${dok.folge_nummer}` : 'Unbenanntes Dokument')
       emailSent = await sendNotificationEmail(
-        String(dok.ersteller_user_id),
+        String(autorUserId),
         coordinatorName,
-        dok.folgen_titel ?? 'Unbenanntes Dokument',
+        titel,
         dok.id,
         alteSichtbarkeit,
         neue_sichtbarkeit,
@@ -253,6 +296,13 @@ privateDokumenteRouter.post('/:id/sichtbarkeit', async (req, res) => {
     res.status(500).json({ error: String(err) })
   }
 })
+
+function mapFolgeSichtToWerk(folgeSicht: string, colabGruppeId?: string | null): string {
+  if (folgeSicht === 'privat') return 'privat'
+  if (folgeSicht === 'colab' && colabGruppeId) return `colab:${colabGruppeId}`
+  if (folgeSicht === 'alle') return 'autoren'
+  return 'produktion'
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/dk/private-dokumente/settings — Filter-Settings + Viewer-Rollen
