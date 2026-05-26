@@ -108,7 +108,10 @@ folgenV2Router.get('/', async (req, res) => {
                 (SELECT json_agg(x ORDER BY x.typ)
                  FROM (SELECT w.typ, MAX(w.version_nummer)::int AS max_version
                        FROM werkstufen w WHERE w.folge_id = f.id
-                       GROUP BY w.typ) x) AS werkstufen_typen
+                       GROUP BY w.typ) x) AS werkstufen_typen,
+                (SELECT json_build_object('typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label)
+                 FROM werkstufen w WHERE w.folge_id = f.id
+                 ORDER BY w.version_nummer DESC, w.erstellt_am DESC LIMIT 1) AS latest_werkstufe
          FROM folgen f
          WHERE f.produktion_id = $1
            AND f.ist_frei = false

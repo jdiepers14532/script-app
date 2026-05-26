@@ -6,6 +6,7 @@ interface Option {
   compactLabel: string // short label shown when collapsed
   bold?: boolean
   dot?: boolean        // show dot indicator
+  subtitle?: string    // secondary info shown only in dropdown, not in header
 }
 
 interface Props {
@@ -13,16 +14,27 @@ interface Props {
   value: string
   onChange: (value: string) => void
   scrollToValue?: string  // beim Öffnen zu diesem Wert scrollen (fallback: value)
+  searchable?: boolean    // Filterfeld oben im Dropdown anzeigen
 }
 
-export default function HeaderSelect({ options, value, onChange, scrollToValue }: Props) {
+export default function HeaderSelect({ options, value, onChange, scrollToValue, searchable }: Props) {
   const [open, setOpen] = useState(false)
   const [dropPos, setDropPos] = useState<{ top: number; left: number } | null>(null)
+  const [filter, setFilter] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const filterRef = useRef<HTMLInputElement>(null)
 
   const selected = options.find(o => o.value === value)
+
+  const filteredOptions = searchable && filter
+    ? options.filter(o =>
+        o.value.includes(filter) ||
+        o.label.toLowerCase().includes(filter.toLowerCase()) ||
+        (o.subtitle?.toLowerCase().includes(filter.toLowerCase()) ?? false)
+      )
+    : options
 
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return
@@ -43,9 +55,20 @@ export default function HeaderSelect({ options, value, onChange, scrollToValue }
   }, [open])
 
   useEffect(() => {
-    if (open) updatePosition()
+    if (open) {
+      updatePosition()
+    } else {
+      setFilter('')
+    }
   }, [open, updatePosition])
 
+  // Auto-focus Filterfeld nach Öffnen
+  useEffect(() => {
+    if (!open || !dropPos || !searchable) return
+    setTimeout(() => filterRef.current?.focus(), 0)
+  }, [open, dropPos, searchable])
+
+  // Zur aktuellen Auswahl scrollen (nach Render des Dropdowns)
   useEffect(() => {
     if (!open || !dropPos || !listRef.current) return
     const target = scrollToValue ?? value
@@ -58,6 +81,14 @@ export default function HeaderSelect({ options, value, onChange, scrollToValue }
   const handleSelect = (val: string) => {
     onChange(val)
     setOpen(false)
+  }
+
+  const handleFilterKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && filteredOptions.length > 0) {
+      handleSelect(filteredOptions[0].value)
+    } else if (e.key === 'Escape') {
+      setOpen(false)
+    }
   }
 
   if (options.length === 0) return null
@@ -92,34 +123,63 @@ export default function HeaderSelect({ options, value, onChange, scrollToValue }
             position: 'fixed',
             top: dropPos.top,
             left: dropPos.left,
-            minWidth: 180, maxWidth: 360,
+            minWidth: 200, maxWidth: 360,
             background: 'var(--bg-surface)', border: '1px solid var(--border)',
             borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
             zIndex: 9999, overflow: 'hidden',
           }}
         >
+          {searchable && (
+            <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border)' }}>
+              <input
+                ref={filterRef}
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                onKeyDown={handleFilterKeyDown}
+                placeholder="Suchen…"
+                style={{
+                  width: '100%', padding: '5px 8px',
+                  border: '1px solid var(--border)', borderRadius: 4,
+                  background: 'var(--bg-subtle)', color: 'var(--text-primary)',
+                  fontSize: 12, fontFamily: 'inherit', outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+            </div>
+          )}
           <div ref={listRef} style={{ maxHeight: 320, overflowY: 'auto' }}>
-            {options.map(o => (
+            {filteredOptions.map(o => (
               <button
                 key={o.value}
                 onClick={() => handleSelect(o.value)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                   width: '100%', padding: '7px 14px',
                   background: o.value === value ? 'var(--bg-active)' : 'transparent',
                   border: 'none', cursor: 'pointer', textAlign: 'left',
-                  color: 'var(--text-primary)', fontSize: 12, fontFamily: 'inherit',
-                  fontWeight: o.bold ? 700 : o.value === value ? 600 : 400,
+                  color: 'var(--text-primary)', fontFamily: 'inherit',
                   transition: 'background 0.1s',
                   whiteSpace: 'nowrap',
                 }}
                 onMouseEnter={e => { if (o.value !== value) (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)' }}
                 onMouseLeave={e => { if (o.value !== value) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               >
-                {o.dot && <span style={{ fontSize: 8 }}>●</span>}
-                {o.label}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: o.bold ? 700 : o.value === value ? 600 : 400 }}>
+                  {o.dot && <span style={{ fontSize: 8 }}>●</span>}
+                  {o.label}
+                </div>
+                {o.subtitle && (
+                  <div style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 400, marginTop: 1, paddingLeft: o.dot ? 16 : 0 }}>
+                    {o.subtitle}
+                  </div>
+                )}
               </button>
             ))}
+            {filteredOptions.length === 0 && (
+              <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text-secondary)' }}>
+                Keine Treffer
+              </div>
+            )}
           </div>
         </div>
       )}

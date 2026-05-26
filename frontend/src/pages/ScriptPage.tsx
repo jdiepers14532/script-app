@@ -338,6 +338,7 @@ export default function ScriptPage() {
   const [selectedWerkstufeTyp, setSelectedWerkstufeTyp] = useState<string | null>(null)
   const [useDokumentSzenen, setUseDokumentSzenen] = useState(false)
   const [folgenMitDaten, setFolgenMitDaten] = useState<number[]>([])
+  const [folgenMeta, setFolgenMeta] = useState<Record<number, { typ?: string; version?: number; label?: string | null }>>({})
   // refreshKey: increment to force all data re-fetches
   // Initialize from Date.now() so every mount gets a unique key (forces fresh load)
   const [refreshKey, setRefreshKey] = useState(() => Date.now())
@@ -741,6 +742,12 @@ export default function ScriptPage() {
         const folgen = await api.getFolgenV2(selectedProduktionId)
         // Track which folgen have imported data (for UI indicators)
         setFolgenMitDaten(folgen.filter((f: any) => f.werkstufen_count > 0).map((f: any) => f.folge_nummer))
+        // Meta für Dropdown (neueste Werkstufe pro Folge)
+        const meta: Record<number, { typ?: string; version?: number; label?: string | null }> = {}
+        for (const f of folgen as any[]) {
+          if (f.latest_werkstufe) meta[f.folge_nummer] = { typ: f.latest_werkstufe.typ, version: f.latest_werkstufe.version_nummer, label: f.latest_werkstufe.label }
+        }
+        setFolgenMeta(meta)
         let folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
         if (!folge) {
           // Folge existiert noch nicht in der DB (keine Szenen bisher) → auto-anlegen
@@ -832,6 +839,7 @@ export default function ScriptPage() {
       selectedStageId={selectedStageId}
       onSelectStage={id => { navRestored.current = true; setSelectedStageId(id) }}
       folgenMitDaten={freiDokId ? [] : folgenMitDaten}
+      folgenMeta={freiDokId ? {} : folgenMeta}
       freiDokTitel={freiDokTitel}
       freiDokLabel={freiDokLabel}
     >

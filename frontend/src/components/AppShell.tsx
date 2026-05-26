@@ -36,9 +36,21 @@ interface AppShellProps {
   selectedStageId?: number | null
   onSelectStage?: (id: number) => void
   folgenMitDaten?: number[]
+  folgenMeta?: Record<number, { typ?: string; version?: number; label?: string | null }>
   hideProductionSelector?: boolean
   freiDokTitel?: string | null  // wenn gesetzt: freies Dokument aktiv, Block/Folge-Selektor ausblenden
   freiDokLabel?: string | null  // Label-Text in Klammern hinter dem Titel
+}
+
+// Typ-Abkürzungen für Werkstufen-Anzeige im Dropdown
+const WERKSTUFE_ABBR: Record<string, string> = {
+  drehbuch: 'DB', storyline: 'SL', notiz: 'NO', treatment: 'TR', expose: 'EX',
+}
+function werkstufSubtitle(meta: { typ?: string; version?: number; label?: string | null }): string {
+  const abbr = WERKSTUFE_ABBR[meta.typ ?? ''] ?? meta.typ ?? '?'
+  const parts = [`${abbr} v${meta.version ?? 1}`]
+  if (meta.label) parts.push(meta.label)
+  return parts.join(' · ')
 }
 
 // TweakState type imported from ../contexts
@@ -197,6 +209,7 @@ export default function AppShell({
   selectedStageId = null,
   onSelectStage,
   folgenMitDaten = [],
+  folgenMeta = {},
   hideProductionSelector = false,
   freiDokTitel = null,
   freiDokLabel = null,
@@ -956,10 +969,12 @@ export default function AppShell({
                   compactLabel: String(nr),
                   bold: block.proddb_id === selectedBlock?.proddb_id,
                   dot: folgenMitDaten.includes(nr),
+                  subtitle: folgenMeta[nr] ? werkstufSubtitle(folgenMeta[nr]) : undefined,
                 }))}
                 value={String(selectedFolgeNummer ?? '')}
                 onChange={val => handleFolgeSelect(Number(val))}
                 scrollToValue={folgeScrollTarget}
+                searchable
               />
             </>
           )}
