@@ -951,7 +951,15 @@ function ItemRow({
     >
       <GripVertical size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
       <input
-        type="checkbox" checked={item.enabled} onChange={onToggle}
+        type="checkbox" checked={item.enabled}
+        onChange={() => {
+          // Unkonfigurierte Elemente direkt konfigurieren statt nur aktivieren
+          if (needsConfig && !isConfigured && !item.enabled) {
+            onConfigureStat()
+          } else {
+            onToggle()
+          }
+        }}
         style={{ cursor: 'pointer', accentColor: '#007AFF', width: 12, height: 12, flexShrink: 0 }}
       />
       {typeIcon}
