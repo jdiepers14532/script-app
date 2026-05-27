@@ -1,17 +1,14 @@
 /**
  * Analysis Runner — Orchestrierung
  *
- * 1. Block auflösen → Folgen-Range
- * 2. Aktuellste Werkstufe pro Folge bestimmen
- * 3. block_version_hash berechnen
- * 4. analysis_runs Eintrag anlegen
- * 5. Pro Methode: Cache-Lookup → ggf. Methoden-Runner → Persistenz + Cost-Logging
+ * prepareAnalysisRun  — DB-Prep (Block auflösen, Szenen laden, Run anlegen) → run_id sofort
+ * executeAnalysisRun  — KI-Aufrufe im Hintergrund, Status-Updates in DB
  */
 
 import * as crypto from 'crypto'
 import { query, queryOne } from '../../db'
 import { resolveBlock } from '../blocks/resolver'
-import { runStoryConsultant, calcCostEurCent, TokenUsage } from './methods/story-consultant'
+import { runStoryConsultant, calcCostEurCent } from './methods/story-consultant'
 import { DocumentScene } from './scene-renderer'
 
 export type AnalysisMethod = 'story_consultant_pur' | 'story_consultant_framework'
@@ -31,18 +28,29 @@ export interface MethodResult {
   duration_ms?: number
 }
 
-export interface RunAnalysisResult {
+export interface PreparedAnalysisContext {
   run_id: string
-  method_results: MethodResult[]
+  methods: AnalysisMethod[]
+  szenen: DocumentScene[]
+  folgenRows: any[]
+  werkstufenRows: any[]
+  roteRosenMeta: Record<string, any> | null
+  produktionRow: { id: string; titel: string }
+  dreh_von?: string | null
+  dreh_bis?: string | null
+  block_nummer: number
+  block_version_hash: string
 }
 
-export async function runAnalysis(opts: {
+// ── Schritt 1: Synchrone Vorbereitung (nur DB-Queries, kein KI-Aufruf) ────────
+
+export async function prepareAnalysisRun(opts: {
   produktion_id: string
   block_nummer: number
   methods: AnalysisMethod[]
   strang_filter?: string[]
   created_by: string
-}): Promise<RunAnalysisResult> {
+}): Promise<PreparedAnalysisContext> {
   const { produktion_id, block_nummer, methods, strang_filter, created_by } = opts
 
   // 1. Block auflösen
@@ -51,7 +59,7 @@ export async function runAnalysis(opts: {
     throw new Error(`Block ${block_nummer} hat keine Folgen in script_db (noch kein Import)`)
   }
 
-  // 2. Aktuellste Werkstufe pro Folge (typ drehbuch oder storyline, höchste version_nummer)
+  // 2. Aktuellste Werkstufe pro Folge
   const werkstufenRows = await query(
     `SELECT DISTINCT ON (folge_id)
        id, folge_id, typ, version_nummer, meta_json
@@ -90,7 +98,7 @@ export async function runAnalysis(opts: {
     [block.folgen_ids]
   )
 
-  // 6. Szenen laden (über alle aktuellsten Werkstufen)
+  // 6. Szenen laden
   const szenenRows = await query(
     `SELECT
        ds.id, ds.werkstufe_id, f.folge_nummer,
@@ -139,9 +147,7 @@ export async function runAnalysis(opts: {
     [werkstufen_ids]
   )
 
-  const szenen: DocumentScene[] = szenenRows
-
-  // 7. roteRosenMeta aus erster Werkstufe mit vorhandener meta_json
+  // 7. roteRosenMeta aus erster Werkstufe mit meta_json
   let roteRosenMeta: Record<string, any> | null = null
   for (const w of werkstufenRows) {
     if (w.meta_json?.rote_rosen) {
@@ -150,12 +156,12 @@ export async function runAnalysis(opts: {
     }
   }
 
-  // 8. analysis_runs Eintrag anlegen
+  // 8. Run anlegen (status=queued)
   const runRow = await queryOne(
     `INSERT INTO analysis_runs
        (produktion_id, block_nummer, folgen_ids, werkstufen_ids, block_version_hash,
-        requested_methods, strang_filter, created_by)
-     VALUES ($1, $2, $3::int[], $4::uuid[], $5, $6::jsonb, $7, $8)
+        requested_methods, strang_filter, created_by, status)
+     VALUES ($1, $2, $3::int[], $4::uuid[], $5, $6::jsonb, $7, $8, 'queued')
      RETURNING id`,
     [
       produktion_id,
@@ -164,15 +170,39 @@ export async function runAnalysis(opts: {
       werkstufen_ids,
       block_version_hash,
       JSON.stringify(methods),
-      strang_filter ? strang_filter : null,
+      strang_filter ?? null,
       created_by,
     ]
   )
-  const run_id: string = runRow.id
+
+  return {
+    run_id: runRow.id,
+    methods,
+    szenen: szenenRows,
+    folgenRows,
+    werkstufenRows,
+    roteRosenMeta,
+    produktionRow,
+    dreh_von: block.dreh_von,
+    dreh_bis: block.dreh_bis,
+    block_nummer,
+    block_version_hash,
+  }
+}
+
+// ── Schritt 2: KI-Ausführung im Hintergrund ───────────────────────────────────
+
+export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<void> {
+  const {
+    run_id, methods, szenen, folgenRows, werkstufenRows, roteRosenMeta,
+    produktionRow, dreh_von, dreh_bis, block_nummer, block_version_hash,
+  } = ctx
+
+  // Status auf 'running' setzen
+  await query(`UPDATE analysis_runs SET status = 'running' WHERE id = $1`, [run_id])
 
   const method_results: MethodResult[] = []
 
-  // 9. Pro Methode
   for (const method of methods) {
     const method_version = METHOD_VERSIONS[method]
     if (!method_version) {
@@ -183,7 +213,7 @@ export async function runAnalysis(opts: {
       continue
     }
 
-    // Cache-Lookup: gleicher block_version_hash + method + method_version
+    // Cache-Lookup
     const cached = await queryOne(
       `SELECT mr.id, mr.result_markdown, mr.duration_ms
        FROM analysis_method_results mr
@@ -227,8 +257,8 @@ export async function runAnalysis(opts: {
         method: method as 'story_consultant_pur' | 'story_consultant_framework',
         produktion: { id: produktionRow.id, titel: produktionRow.titel },
         block_nummer,
-        dreh_von: block.dreh_von,
-        dreh_bis: block.dreh_bis,
+        dreh_von,
+        dreh_bis,
         folgen: folgenRows,
         szenen,
         roteRosenMeta,
@@ -241,7 +271,6 @@ export async function runAnalysis(opts: {
         [result.markdown, result.duration_ms, method_result_id]
       )
 
-      // Cost-Logging
       const modelRow = await queryOne(`SELECT value FROM app_settings WHERE key = 'analysis_model'`, [])
       const model = (modelRow?.value as string | undefined) || 'claude-opus-4-6'
       const costEurCent = calcCostEurCent(result.usage, model)
@@ -278,12 +307,10 @@ export async function runAnalysis(opts: {
     }
   }
 
-  // 10. Run-Status finalisieren
+  // Run-Status finalisieren
   const finalStatus = method_results.every(r => r.status === 'error') ? 'error' : 'completed'
   await query(
     `UPDATE analysis_runs SET status = $1, completed_at = NOW() WHERE id = $2`,
     [finalStatus, run_id]
   )
-
-  return { run_id, method_results }
 }

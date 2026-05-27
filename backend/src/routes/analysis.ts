@@ -13,7 +13,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { authMiddleware } from '../auth'
 import { query, queryOne } from '../db'
 import { getProviderApiKey } from './ki'
-import { runAnalysis, AnalysisMethod } from '../lib/analysis/runner'
+import { prepareAnalysisRun, executeAnalysisRun, AnalysisMethod } from '../lib/analysis/runner'
 
 const router = Router()
 router.use(authMiddleware)
@@ -56,7 +56,8 @@ router.post('/run', async (req, res) => {
       return res.status(400).json({ error: `Unbekannte Methoden: ${invalid.join(', ')}` })
     }
 
-    const result = await runAnalysis({
+    // Synchrone Vorbereitung (nur DB-Queries, schnell)
+    const ctx = await prepareAnalysisRun({
       produktion_id,
       block_nummer: Number(block_nummer),
       methods: methods as AnalysisMethod[],
@@ -64,7 +65,21 @@ router.post('/run', async (req, res) => {
       created_by: req.user!.user_id,
     })
 
-    res.json(result)
+    // run_id sofort zurückgeben — KI-Ausführung läuft im Hintergrund
+    res.json({ run_id: ctx.run_id, status: 'queued' })
+
+    setImmediate(() => {
+      executeAnalysisRun(ctx).catch(async (err: any) => {
+        console.error('[analysis/execute]', err)
+        try {
+          const { query: dbQuery } = await import('../db')
+          await dbQuery(
+            `UPDATE analysis_runs SET status = 'error', completed_at = NOW() WHERE id = $1`,
+            [ctx.run_id]
+          )
+        } catch {}
+      })
+    })
   } catch (err: any) {
     console.error('[analysis/run]', err)
     res.status(500).json({ error: err.message || String(err) })

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Copy, Check, RefreshCw, ChevronDown, ChevronRight, Clock, Database } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import AppShell from '../components/AppShell'
@@ -25,10 +25,10 @@ interface MethodResult {
   duration_ms?: number
 }
 
-interface PreviousRun {
+interface RunData {
   id: string
   block_nummer: number
-  status: string
+  status: 'queued' | 'running' | 'completed' | 'error'
   created_at: string
   method_results: MethodResult[]
 }
@@ -65,7 +65,8 @@ const METHOD_LABELS: Record<string, { label: string; desc: string; cost: string;
 }
 
 const ALL_METHODS = Object.keys(METHOD_LABELS)
-const ACTIVE_METHODS = ALL_METHODS.filter(m => !METHOD_LABELS[m].disabled)
+const POLL_INTERVAL_MS = 4000
+const POLL_STORAGE_KEY = 'analysis_polling_run_id'
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
 
@@ -77,6 +78,12 @@ function fmtDuration(ms?: number) {
   if (!ms) return ''
   if (ms < 1000) return `${ms} ms`
   return `${(ms / 1000).toFixed(1)} s`
+}
+
+function statusLabel(status: string) {
+  if (status === 'queued') return 'In Warteschlange ...'
+  if (status === 'running') return 'Claude analysiert ...'
+  return status
 }
 
 // ── Unterkomponenten ──────────────────────────────────────────────────────────
@@ -107,12 +114,7 @@ function MarkdownResult({ markdown }: { markdown: string }) {
         {copied ? <Check size={12} /> : <Copy size={12} />}
         {copied ? 'Kopiert' : 'Kopieren'}
       </button>
-      <div style={{
-        paddingTop: 32,
-        fontSize: 13,
-        lineHeight: 1.7,
-        color: 'var(--text-primary)',
-      }}>
+      <div style={{ paddingTop: 32, fontSize: 13, lineHeight: 1.7, color: 'var(--text-primary)' }}>
         <ReactMarkdown
           components={{
             h1: ({ children }) => <h1 style={{ fontSize: 18, fontWeight: 700, margin: '20px 0 10px', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>{children}</h1>,
@@ -155,7 +157,7 @@ function MarkdownResult({ markdown }: { markdown: string }) {
   )
 }
 
-function MethodBadge({ method, fromCache }: { method: string; fromCache: boolean }) {
+function MethodBadge({ fromCache }: { fromCache: boolean }) {
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -173,22 +175,75 @@ function MethodBadge({ method, fromCache }: { method: string; fromCache: boolean
 
 export default function AnalysisPage() {
   const { selectedProduction } = useSelectedProduction()
-
   const selectedProdId = selectedProduction?.id ?? ''
-  const [blocks, setBlocks]     = useState<Block[]>([])
-  const [blockNr, setBlockNr]   = useState<number | null>(null)
+
+  const [blocks, setBlocks]         = useState<Block[]>([])
+  const [blockNr, setBlockNr]       = useState<number | null>(null)
   const [ersterBlock, setErsterBlock] = useState<number>(1)
-  const [methods, setMethods]   = useState<string[]>(['story_consultant_pur'])
-  const [running, setRunning]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
-  const [results, setResults]   = useState<MethodResult[] | null>(null)
-  const [activeTab, setActiveTab] = useState<string | null>(null)
-  const [prevRuns, setPrevRuns] = useState<PreviousRun[]>([])
+  const [methods, setMethods]       = useState<string[]>(['story_consultant_pur'])
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError]           = useState<string | null>(null)
+
+  // Aktiver laufender Run (auch nach Seitenwechsel wiederherstellbar)
+  const [activeRunId, setActiveRunId]       = useState<string | null>(null)
+  const [activeRunStatus, setActiveRunStatus] = useState<string | null>(null)
+  const [activeRunResults, setActiveRunResults] = useState<MethodResult[] | null>(null)
+  const [activeTab, setActiveTab]           = useState<string | null>(null)
+
+  const [prevRuns, setPrevRuns]       = useState<RunData[]>([])
   const [expandedRun, setExpandedRun] = useState<string | null>(null)
 
-  // Blöcke laden wenn Produktion gewechselt
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ── Polling-Logik ──────────────────────────────────────────────────────────
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+  }, [])
+
+  const pollRun = useCallback(async (runId: string) => {
+    try {
+      const resp = await fetch(`/api/analysis/run/${runId}`, { credentials: 'include' })
+      if (!resp.ok) return
+      const run: RunData = await resp.json()
+      setActiveRunStatus(run.status)
+      if (run.status === 'completed' || run.status === 'error') {
+        stopPolling()
+        localStorage.removeItem(POLL_STORAGE_KEY)
+        setActiveRunResults(run.method_results)
+        setActiveTab(run.method_results?.[0]?.method ?? null)
+        setPrevRuns(prev => {
+          const without = prev.filter(r => r.id !== run.id)
+          return [run, ...without]
+        })
+      }
+    } catch {}
+  }, [stopPolling])
+
+  const startPolling = useCallback((runId: string) => {
+    stopPolling()
+    setActiveRunId(runId)
+    localStorage.setItem(POLL_STORAGE_KEY, runId)
+    pollRef.current = setInterval(() => pollRun(runId), POLL_INTERVAL_MS)
+    // Sofort einmal abfragen
+    pollRun(runId)
+  }, [stopPolling, pollRun])
+
+  // Beim Mount: laufenden Run aus localStorage wiederherstellen
   useEffect(() => {
-    setResults(null)
+    const stored = localStorage.getItem(POLL_STORAGE_KEY)
+    if (stored) {
+      setActiveRunId(stored)
+      setActiveRunStatus('queued')
+      startPolling(stored)
+    }
+    return () => stopPolling()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Blöcke laden ──────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    setActiveRunResults(null)
     if (!selectedProdId) { setBlocks([]); setBlockNr(null); return }
     fetch(`/api/produktionen/${encodeURIComponent(selectedProdId)}/bloecke`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
@@ -202,7 +257,8 @@ export default function AnalysisPage() {
       .catch(() => setBlocks([]))
   }, [selectedProdId])
 
-  // Vorherige Runs laden
+  // ── Vorherige Runs laden ───────────────────────────────────────────────────
+
   const loadPrevRuns = useCallback(() => {
     if (!selectedProdId || blockNr == null) return
     fetch(`/api/analysis/block/${encodeURIComponent(selectedProdId)}/${blockNr}`, { credentials: 'include' })
@@ -213,10 +269,10 @@ export default function AnalysisPage() {
 
   useEffect(() => { loadPrevRuns() }, [loadPrevRuns])
 
+  // ── Analyse starten ───────────────────────────────────────────────────────
+
   const toggleMethod = (m: string) => {
-    setMethods(prev =>
-      prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
-    )
+    setMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
   }
 
   const estimatedCost = methods.reduce((sum, m) => {
@@ -226,10 +282,9 @@ export default function AnalysisPage() {
 
   const handleRun = async () => {
     if (!selectedProdId || blockNr == null || methods.length === 0) return
-    setRunning(true)
+    setSubmitting(true)
     setError(null)
-    setResults(null)
-    setActiveTab(methods[0])
+    setActiveRunResults(null)
     try {
       const resp = await fetch('/api/analysis/run', {
         method: 'POST',
@@ -239,16 +294,17 @@ export default function AnalysisPage() {
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
-      setResults(data.method_results)
-      setActiveTab(data.method_results?.[0]?.method || null)
+      setActiveRunStatus('queued')
+      startPolling(data.run_id)
       loadPrevRuns()
     } catch (e: any) {
       setError(e.message || String(e))
     } finally {
-      setRunning(false)
+      setSubmitting(false)
     }
   }
 
+  const isPolling = activeRunId != null && (activeRunStatus === 'queued' || activeRunStatus === 'running')
   const blockIndex = blockNr != null ? blockNr - ersterBlock : -1
   const blockInfo = blockIndex >= 0 && blockIndex < blocks.length ? blocks[blockIndex] : null
 
@@ -262,10 +318,10 @@ export default function AnalysisPage() {
 
         <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, alignItems: 'start' }}>
 
-          {/* ── Linke Spalte: Konfiguration ────────────────────────────────────── */}
+          {/* ── Linke Spalte: Konfiguration ──────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Produktion */}
+            {/* Produktion & Block */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
               <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 10 }}>
                 Produktion &amp; Block
@@ -273,9 +329,7 @@ export default function AnalysisPage() {
 
               {selectedProduction ? (
                 <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>
-                    {productionLabel(selectedProduction)}
-                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{productionLabel(selectedProduction)}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
                     Produktion wechseln: oben in der AppShell
                   </div>
@@ -293,7 +347,7 @@ export default function AnalysisPage() {
               <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Block-Nummer</label>
               <select
                 value={blockNr ?? ''}
-                onChange={e => { setBlockNr(e.target.value ? Number(e.target.value) : null); setResults(null) }}
+                onChange={e => { setBlockNr(e.target.value ? Number(e.target.value) : null); setActiveRunResults(null) }}
                 disabled={blocks.length === 0}
                 style={{
                   width: '100%', padding: '8px 10px', borderRadius: 6,
@@ -373,12 +427,8 @@ export default function AnalysisPage() {
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                   fontSize: 12,
                 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    Geschätzte Kosten
-                  </span>
-                  <span style={{ fontWeight: 600 }}>
-                    ~{estimatedCost.toFixed(2).replace('.', ',')} €
-                  </span>
+                  <span style={{ color: 'var(--text-secondary)' }}>Geschätzte Kosten</span>
+                  <span style={{ fontWeight: 600 }}>~{estimatedCost.toFixed(2).replace('.', ',')} €</span>
                 </div>
               )}
             </div>
@@ -386,27 +436,37 @@ export default function AnalysisPage() {
             {/* Run-Button */}
             <button
               onClick={handleRun}
-              disabled={running || !selectedProdId || blockNr == null || methods.length === 0}
+              disabled={submitting || isPolling || !selectedProdId || blockNr == null || methods.length === 0}
               style={{
                 padding: '12px 20px', borderRadius: 8, border: 'none',
-                background: running || !selectedProdId || blockNr == null || methods.length === 0
+                background: (submitting || isPolling || !selectedProdId || blockNr == null || methods.length === 0)
                   ? 'var(--border)' : '#000',
-                color: running || !selectedProdId || blockNr == null || methods.length === 0
+                color: (submitting || isPolling || !selectedProdId || blockNr == null || methods.length === 0)
                   ? 'var(--text-secondary)' : '#fff',
                 fontWeight: 600, fontSize: 14, cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 transition: 'opacity 0.15s',
               }}
             >
-              {running ? (
+              {(submitting || isPolling) ? (
                 <>
                   <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  Claude analysiert ... (~90 s/Methode)
+                  {submitting ? 'Wird vorbereitet ...' : statusLabel(activeRunStatus || 'queued')}
                 </>
-              ) : (
-                'Analyse starten'
-              )}
+              ) : 'Analyse starten'}
             </button>
+
+            {/* Hintergrund-Hinweis während Analyse */}
+            {isPolling && (
+              <div style={{
+                padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(0,122,255,0.06)', border: '1px solid rgba(0,122,255,0.15)',
+                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5,
+              }}>
+                Die Analyse läuft im Hintergrund — du kannst die Seite verlassen.
+                Das Ergebnis erscheint automatisch sobald Claude fertig ist.
+              </div>
+            )}
 
             {error && (
               <div style={{
@@ -422,15 +482,26 @@ export default function AnalysisPage() {
           {/* ── Rechte Spalte: Ergebnisse ─────────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Aktueller Run */}
-            {results && results.length > 0 && (
+            {/* Laufender Run — Spinner */}
+            {isPolling && !activeRunResults && (
+              <div style={{
+                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+                padding: 48, textAlign: 'center', fontSize: 13,
+              }}>
+                <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', marginBottom: 12, opacity: 0.4 }} />
+                <div style={{ fontWeight: 600 }}>{statusLabel(activeRunStatus || 'queued')}</div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 6 }}>
+                  Erwartet ca. 90 Sekunden pro Methode.<br />
+                  Du kannst die Seite verlassen — die Analyse läuft weiter.
+                </div>
+              </div>
+            )}
+
+            {/* Aktueller Run — Ergebnisse */}
+            {activeRunResults && activeRunResults.length > 0 && (
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-                {/* Tabs */}
-                <div style={{
-                  display: 'flex', borderBottom: '1px solid var(--border)',
-                  background: 'var(--bg-subtle)',
-                }}>
-                  {results.map(r => (
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                  {activeRunResults.map(r => (
                     <button
                       key={r.method}
                       onClick={() => setActiveTab(r.method)}
@@ -443,18 +514,14 @@ export default function AnalysisPage() {
                       }}
                     >
                       {METHOD_LABELS[r.method]?.label || r.method}
-                      {r.status === 'error' && (
-                        <span style={{ color: '#FF3B30', fontSize: 10 }}>Fehler</span>
-                      )}
+                      {r.status === 'error' && <span style={{ color: '#FF3B30', fontSize: 10 }}>Fehler</span>}
                     </button>
                   ))}
                 </div>
-
-                {/* Aktiver Tab Inhalt */}
-                {results.filter(r => r.method === activeTab).map(r => (
+                {activeRunResults.filter(r => r.method === activeTab).map(r => (
                   <div key={r.method} style={{ padding: 20 }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-                      <MethodBadge method={r.method} fromCache={r.from_cache} />
+                      <MethodBadge fromCache={r.from_cache} />
                       {r.duration_ms && (
                         <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3 }}>
                           <Clock size={10} /> {fmtDuration(r.duration_ms)}
@@ -462,9 +529,7 @@ export default function AnalysisPage() {
                       )}
                     </div>
                     {r.status === 'error' ? (
-                      <div style={{ color: '#FF3B30', fontSize: 13 }}>
-                        Fehler: {r.error_detail}
-                      </div>
+                      <div style={{ color: '#FF3B30', fontSize: 13 }}>Fehler: {r.error_detail}</div>
                     ) : r.markdown ? (
                       <MarkdownResult markdown={r.markdown} />
                     ) : (
@@ -476,26 +541,12 @@ export default function AnalysisPage() {
             )}
 
             {/* Leer-Zustand */}
-            {!results && !running && (
+            {!activeRunResults && !isPolling && (
               <div style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
                 padding: 48, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13,
               }}>
                 Produktion und Block wählen, Methoden auswählen, dann "Analyse starten".
-              </div>
-            )}
-
-            {/* Loading */}
-            {running && (
-              <div style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-                padding: 48, textAlign: 'center', fontSize: 13,
-              }}>
-                <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', marginBottom: 12, opacity: 0.4 }} />
-                <div style={{ fontWeight: 600 }}>Claude analysiert den Block ...</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 6 }}>
-                  Erwartet ca. 90 Sekunden pro Methode. Seite nicht schließen.
-                </div>
               </div>
             )}
 
@@ -511,6 +562,7 @@ export default function AnalysisPage() {
                 <div>
                   {prevRuns.map(run => {
                     const isExpanded = expandedRun === run.id
+                    const isActive = run.id === activeRunId
                     return (
                       <div key={run.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <button
@@ -522,31 +574,42 @@ export default function AnalysisPage() {
                           }}
                         >
                           {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            {fmtDate(run.created_at)}
-                          </span>
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtDate(run.created_at)}</span>
                           <span style={{ flex: 1, fontSize: 12 }}>
                             {run.method_results.map(mr => METHOD_LABELS[mr.method]?.label || mr.method).join(', ')}
                           </span>
+                          {isActive && (activeRunStatus === 'queued' || activeRunStatus === 'running') && (
+                            <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite', opacity: 0.5 }} />
+                          )}
                           <span style={{
                             fontSize: 10, padding: '2px 6px', borderRadius: 4,
-                            background: run.status === 'completed' ? 'rgba(0,200,83,0.1)' : 'rgba(255,59,48,0.1)',
-                            color: run.status === 'completed' ? '#00C853' : '#FF3B30',
+                            background: run.status === 'completed' ? 'rgba(0,200,83,0.1)'
+                              : run.status === 'error' ? 'rgba(255,59,48,0.1)'
+                              : 'rgba(0,122,255,0.1)',
+                            color: run.status === 'completed' ? '#00C853'
+                              : run.status === 'error' ? '#FF3B30'
+                              : '#007AFF',
                           }}>
-                            {run.status === 'completed' ? 'OK' : run.status}
+                            {run.status === 'completed' ? 'OK'
+                              : run.status === 'running' ? 'läuft'
+                              : run.status === 'queued' ? 'wartend'
+                              : run.status}
                           </span>
                         </button>
                         {isExpanded && (
                           <div style={{ padding: '0 16px 16px' }}>
+                            {run.method_results.length === 0 && (
+                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                                Analyse läuft noch ...
+                              </div>
+                            )}
                             {run.method_results.map(mr => (
                               <div key={mr.method} style={{ marginBottom: 16 }}>
                                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
                                   {METHOD_LABELS[mr.method]?.label || mr.method}
-                                  <MethodBadge method={mr.method} fromCache={mr.from_cache} />
+                                  <MethodBadge fromCache={mr.from_cache} />
                                   {mr.duration_ms && (
-                                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                                      {fmtDuration(mr.duration_ms)}
-                                    </span>
+                                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtDuration(mr.duration_ms)}</span>
                                   )}
                                 </div>
                                 {mr.status === 'error' ? (
