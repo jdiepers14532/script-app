@@ -69,7 +69,7 @@ export default function PageWrapper({
   }, [dim.height])
 
   if (showShadow) {
-    // ── Blatt-Modus: weißes Blatt mit Schatten, subtile Trennlinie ────────
+    // ── Blatt-Modus: weißes Blatt mit Schatten, sichtbare Seitentrennlinie ──
     return (
       <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowX: 'auto' }}>
         <div
@@ -87,16 +87,31 @@ export default function PageWrapper({
             paddingTop: ptTop, paddingBottom: ptBottom,
             paddingLeft: ptLeft, paddingRight: ptRight,
             position: 'relative',
-            backgroundImage: `repeating-linear-gradient(
-              to bottom,
-              transparent 0,
-              transparent ${dim.height - 1}px,
-              rgba(0,122,255,0.12) ${dim.height - 1}px,
-              rgba(0,122,255,0.12) ${dim.height}px
-            )`,
-            backgroundSize: `100% ${dim.height}px`,
           } as React.CSSProperties}
         >
+          {/* Seitennummer-Labels — wie im Fließtext-Modus, aber an absoluten Seitengrenzen */}
+          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 1 }}>
+            {Array.from({ length: 30 }, (_, i) => (
+              <div
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: (i + 1) * dim.height,
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', whiteSpace: 'nowrap', padding: '2px 6px', background: 'var(--bg-surface)', borderRadius: 4 }}>
+                  S.{i + 2} · {seitenformat.toUpperCase()}
+                </span>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+            ))}
+          </div>
           {children}
         </div>
       </div>
