@@ -365,6 +365,7 @@ async function runMigrations() {
     'v128_analysis_queued_status.sql',
     'v129_glossar_term_en_kategorien.sql',
     'v130_analysis_folge_scope.sql',
+    'v131_seitenzahlen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

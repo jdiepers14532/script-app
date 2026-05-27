@@ -1,7 +1,8 @@
 /**
  * Calculate page_length in 1/8 page increments from ProseMirror content JSON.
- * 1 page = 56 lines (Courier 12pt industry standard).
- * 1/8 page = 7 lines.
+ * A4:     59 lines/page (Courier 12pt, 25mm top + 20mm bottom margin)
+ * Letter: 56 lines/page (Courier 12pt, 1in top + 0.5in bottom margin)
+ * 1/8 page = LINES_PER_PAGE / 8 lines.
  *
  * Counts logical lines from screenplay elements:
  * - character: 1 line
@@ -13,9 +14,11 @@
  * Each element also adds 1 blank line between blocks.
  */
 
-const LINES_PER_PAGE = 56
+// A4 at Courier 12pt, 25mm top + 20mm bottom margins ≈ 59 usable lines
+// US Letter at Courier 12pt, 1in top + 0.5in bottom ≈ 56 usable lines
+const LINES_PER_PAGE_A4     = 59
+const LINES_PER_PAGE_LETTER = 56
 const EIGHTHS_PER_PAGE = 8
-const LINES_PER_EIGHTH = LINES_PER_PAGE / EIGHTHS_PER_PAGE // 7
 
 // Approximate characters per line for different element types
 const CHARS_PER_LINE_DIALOGUE = 35
@@ -36,7 +39,7 @@ function wrapLines(text: string, charsPerLine: number): number {
   return total
 }
 
-export function calcPageLength(content: any): number {
+export function calcPageLength(content: any, seitenformat: 'a4' | 'letter' = 'a4'): number {
   if (!content) return 0
 
   const nodes: any[] = Array.isArray(content)
@@ -44,6 +47,9 @@ export function calcPageLength(content: any): number {
     : (content?.content && Array.isArray(content.content) ? content.content : [])
 
   if (nodes.length === 0) return 0
+
+  const LINES_PER_PAGE = seitenformat === 'letter' ? LINES_PER_PAGE_LETTER : LINES_PER_PAGE_A4
+  const LINES_PER_EIGHTH = LINES_PER_PAGE / EIGHTHS_PER_PAGE
 
   let totalLines = 0
 

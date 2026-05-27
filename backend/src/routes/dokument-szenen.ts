@@ -3,6 +3,7 @@ import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { recalcSceneStats, updateReplikCount } from '../utils/recalcRepliken'
 import { calcPageLength } from '../utils/calcPageLength'
+import { recalcPageNumbers } from '../utils/recalcPageNumbers'
 
 // ── Einzelne Dokument-Szene Router ───────────────────────────────────────────
 // Mounted at /api/dokument-szenen/:id
@@ -246,6 +247,11 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     // Revision delta tracking: wenn Werkstufe eine Revision-Farbe hat, Diffs aufzeichnen
     if (effectiveContent && row.werkstufe_id) {
       recordRevisionDeltas(req.params.id, row.werkstufe_id, oldContent, effectiveContent).catch(() => {})
+    }
+
+    // Seitenzahlen neu berechnen (async, non-blocking)
+    if (row.werkstufe_id) {
+      recalcPageNumbers(row.werkstufe_id).catch(() => {})
     }
 
     res.json(row)

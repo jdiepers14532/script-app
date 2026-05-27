@@ -820,6 +820,9 @@ export default function SceneList({
                     <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
                   )}
                 </div>
+                {scene.format !== 'notiz' && scene.seite_von_str && (
+                  <div className="sl-page">{scene.seite_von_str === scene.seite_bis_str ? `S.${scene.seite_von_str}` : `S.${scene.seite_von_str}–${scene.seite_bis_str}`}</div>
+                )}
               </div>
               <div className="meta">
                 {scene.format !== 'notiz' ? (<>
