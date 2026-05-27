@@ -607,6 +607,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterKat, setFilterKat] = useState<GlossarKategorie | 'alle'>('alle')
+  const [langMode, setLangMode] = useState<'de' | 'en'>('de')
   const [editId, setEditId] = useState<number | null>(null)
   const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '', term_en: '', kategorie: 'kuerzel' })
   const [newDraft, setNewDraft] = useState<GlossarDraft | null>(null)
@@ -715,6 +716,12 @@ function GlossarSection({ productionId }: { productionId: string }) {
           </button>
         )}
         <div style={{ flex: 1 }} />
+        <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', fontSize: 11 }}>
+          <button onClick={() => setLangMode('de')}
+            style={{ padding: '3px 10px', border: 'none', background: langMode === 'de' ? 'var(--text-primary)' : 'transparent', color: langMode === 'de' ? '#fff' : 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}>DE</button>
+          <button onClick={() => setLangMode('en')}
+            style={{ padding: '3px 10px', border: 'none', background: langMode === 'en' ? 'var(--text-primary)' : 'transparent', color: langMode === 'en' ? '#fff' : 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}>EN</button>
+        </div>
         <button
           onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '', term_en: '', kategorie: 'kuerzel' }); setEditId(null) }}
           disabled={!!newDraft}
@@ -738,7 +745,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--bg-surface)' }}>
                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 180 }}>Begriff (DE / EN)</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 180 }}>Abkürzung</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Erklärung</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 90 }}>Kategorie</th>
                   <th style={{ width: 64 }} />
@@ -807,10 +814,9 @@ function GlossarSection({ productionId }: { productionId: string }) {
                               {entry.kuerzel}
                             </span>
                           )}
-                          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{entry.name}</div>
-                          {entry.term_en && (
-                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: 1 }}>{entry.term_en}</div>
-                          )}
+                          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>
+                            {langMode === 'en' && entry.term_en ? entry.term_en : entry.name}
+                          </div>
                         </td>
                         <td style={{ padding: '8px', color: 'var(--text-secondary)', verticalAlign: 'top', lineHeight: 1.5 }}>{entry.erklaerung}</td>
                         <td style={{ padding: '8px', verticalAlign: 'top' }}>
