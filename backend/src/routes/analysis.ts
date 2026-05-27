@@ -91,7 +91,14 @@ router.get('/run/:id', async (req, res) => {
   try {
     const run = await queryOne(
       `SELECT r.*,
-         COALESCE(json_agg(mr ORDER BY mr.created_at ASC) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results
+         COALESCE(json_agg(
+           json_build_object(
+             'id', mr.id, 'method', mr.method, 'method_version', mr.method_version,
+             'status', mr.status, 'markdown', mr.result_markdown,
+             'error_detail', mr.error_detail, 'from_cache', mr.from_cache,
+             'duration_ms', mr.duration_ms
+           ) ORDER BY mr.created_at ASC
+         ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results
        FROM analysis_runs r
        LEFT JOIN analysis_method_results mr ON mr.run_id = r.id
        WHERE r.id = $1
@@ -113,7 +120,14 @@ router.get('/block/:produktion_id/:block_nummer', async (req, res) => {
 
     const rows = await query(
       `SELECT r.*,
-         COALESCE(json_agg(mr ORDER BY mr.created_at ASC) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results
+         COALESCE(json_agg(
+           json_build_object(
+             'id', mr.id, 'method', mr.method, 'method_version', mr.method_version,
+             'status', mr.status, 'markdown', mr.result_markdown,
+             'error_detail', mr.error_detail, 'from_cache', mr.from_cache,
+             'duration_ms', mr.duration_ms
+           ) ORDER BY mr.created_at ASC
+         ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results
        FROM analysis_runs r
        LEFT JOIN analysis_method_results mr ON mr.run_id = r.id
        WHERE r.produktion_id = $1 AND r.block_nummer = $2
