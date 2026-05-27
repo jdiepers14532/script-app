@@ -136,4 +136,31 @@ router.put('/fassungs-nummerierung', dkAny, async (req, res) => {
   }
 })
 
+// ── POST /api/admin/recalc-seitenzahlen — Seitenzahlen für alle/eine Werkstufe neu berechnen
+// Body: { werkstufe_id?: string }  — ohne werkstufe_id: alle nicht-gesperrten Werkstufen
+router.post('/recalc-seitenzahlen', dkAny, async (req, res) => {
+  try {
+    const { recalcPageNumbers } = await import('../utils/recalcPageNumbers')
+    const { werkstufe_id } = req.body as { werkstufe_id?: string }
+
+    if (werkstufe_id) {
+      await recalcPageNumbers(werkstufe_id)
+      return res.json({ updated: 1 })
+    }
+
+    // Alle Werkstufen ohne gesperrte Seitenzahlen
+    const rows = await query(
+      `SELECT id FROM werkstufen WHERE seitenzahlen_gesperrt IS NOT TRUE`
+    )
+    let updated = 0
+    for (const row of rows) {
+      await recalcPageNumbers(row.id)
+      updated++
+    }
+    res.json({ updated })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 export default router
