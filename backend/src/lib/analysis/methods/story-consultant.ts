@@ -74,7 +74,7 @@ export async function runStoryConsultant(opts: {
     `SELECT value FROM app_settings WHERE key = 'analysis_model'`,
     []
   )
-  const model = (modelRow?.value as string | undefined) || 'claude-opus-4-6'
+  const model = (modelRow?.value as string | undefined) || 'claude-sonnet-4-6'
 
   const prompt = buildPrompt(opts)
 

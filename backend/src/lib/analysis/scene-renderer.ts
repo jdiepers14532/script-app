@@ -89,8 +89,12 @@ export function renderSceneForPrompt(scene: DocumentScene): string {
     lines.push(`Info: ${scene.szeneninfo}`)
   }
 
-  // Kein Dialog-Content — für Dramaturgie-Analyse nicht relevant und zu viele Tokens
-  // (150 Szenen × ~500 Wörter = ~100k Tokens → Timeout)
+  // Vollständiger Dialog-Content (für Dramaturgie-Analyse: Subtext, Ton, Charakterstimme)
+  const contentText = renderContent(scene.content || []).trim()
+  if (contentText) {
+    lines.push(`Inhalt:`)
+    lines.push(contentText)
+  }
 
   return lines.join('\n')
 }
