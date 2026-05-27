@@ -18,7 +18,7 @@ export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
   ) as { seitenzahlen_gesperrt: boolean } | null
   if (ws?.seitenzahlen_gesperrt) return
 
-  // Get all non-deleted scenes in sort order (include notiz scenes — they don't consume page space)
+  // Get all non-deleted scenes in sort order
   const scenes = await query(
     `SELECT id, page_length, format
      FROM dokument_szenen
@@ -39,19 +39,6 @@ export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
   const sbsArr: string[]  = []
 
   for (const scene of scenes) {
-    const isNotiz = scene.format === 'notiz'
-
-    if (isNotiz) {
-      // Notiz scenes don't advance the page counter, but record position
-      const pg = Math.floor(currentFraction) + 1
-      ids.push(scene.id)
-      svArr.push(currentFraction)
-      sbArr.push(currentFraction)
-      svsArr.push(String(pg))
-      sbsArr.push(String(pg))
-      continue
-    }
-
     const pageLenFraction = Math.max(1, scene.page_length ?? 1) / 8
     const seite_von = currentFraction
     const seite_bis = currentFraction + pageLenFraction
