@@ -206,21 +206,35 @@ export default function FarbschemaModal({ onClose }: { onClose: () => void }) {
                       {scheme.name}
                     </span>
                     <SchemeSwatches colors={scheme.colors} />
-                    {!active && (
-                      <button
-                        onClick={() => activate(scheme.id)}
-                        style={{
-                          fontSize: 11, padding: '3px 10px', borderRadius: 5,
-                          border: '1px solid var(--border)', background: 'var(--bg-surface)',
-                          color: 'var(--text-primary)', cursor: 'pointer', flexShrink: 0,
-                        }}
-                      >
-                        Aktivieren
-                      </button>
-                    )}
-                    {active && (
-                      <span style={{ fontSize: 11, color: 'var(--sw-green)', fontWeight: 600, minWidth: 62, textAlign: 'right' }}>Aktiv</span>
-                    )}
+                    <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      {!active && (
+                        <button
+                          onClick={() => activate(scheme.id)}
+                          style={{
+                            fontSize: 11, padding: '3px 10px', borderRadius: 5,
+                            border: '1px solid var(--border)', background: 'var(--bg-surface)',
+                            color: 'var(--text-primary)', cursor: 'pointer',
+                          }}
+                        >
+                          Aktivieren
+                        </button>
+                      )}
+                      {active && (
+                        <span style={{ fontSize: 11, color: 'var(--sw-green)', fontWeight: 600, minWidth: 42, textAlign: 'right', lineHeight: '26px' }}>Aktiv</span>
+                      )}
+                      <Tooltip text="Als Basis für eigenes Schema verwenden">
+                        <button
+                          onClick={() => { setEditScheme(null); setEditName(`${scheme.name} (Kopie)`); setEditColors({ ...scheme.colors }); setView('edit') }}
+                          style={{
+                            background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                            borderRadius: 5, padding: '3px 6px', cursor: 'pointer',
+                            color: 'var(--text-secondary)', display: 'flex', alignItems: 'center',
+                          }}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      </Tooltip>
+                    </div>
                   </div>
                 )
               })}
@@ -349,9 +363,23 @@ export default function FarbschemaModal({ onClose }: { onClose: () => void }) {
                     <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{f.hint}</div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <code style={{ fontSize: 11, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                      {editColors[f.key].toUpperCase()}
-                    </code>
+                    <input
+                      type="text"
+                      key={editColors[f.key]}
+                      defaultValue={editColors[f.key].toUpperCase()}
+                      onBlur={e => {
+                        const v = e.target.value.trim()
+                        const norm = v.startsWith('#') ? v : `#${v}`
+                        if (/^#[0-9a-fA-F]{6}$/.test(norm)) setEditColors(prev => ({ ...prev, [f.key]: norm }))
+                        else e.target.value = editColors[f.key].toUpperCase()
+                      }}
+                      onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+                      style={{
+                        width: 72, fontSize: 11, fontFamily: 'monospace', textAlign: 'center',
+                        padding: '3px 5px', borderRadius: 4, border: '1px solid var(--border)',
+                        background: 'var(--input-bg)', color: 'var(--text-secondary)', outline: 'none',
+                      }}
+                    />
                     <input
                       type="color"
                       value={editColors[f.key]}
