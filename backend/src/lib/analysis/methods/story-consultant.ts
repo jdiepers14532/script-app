@@ -81,12 +81,40 @@ export async function runStoryConsultant(opts: {
   const client = new Anthropic({ apiKey, timeout: 600_000 })
 
   const startMs = Date.now()
-  const response = await client.messages.create({
-    model,
-    max_tokens: 16000,
-    system:   prompt.system   as unknown as Anthropic.TextBlockParam[],
-    messages: prompt.messages as unknown as Anthropic.MessageParam[],
-  })
+  let response: Awaited<ReturnType<typeof client.messages.create>>
+  try {
+    response = await client.messages.create({
+      model,
+      max_tokens: 16000,
+      system:   prompt.system   as unknown as Anthropic.TextBlockParam[],
+      messages: prompt.messages as unknown as Anthropic.MessageParam[],
+    })
+  } catch (err: any) {
+    // Anthropic SDK Fehlertypen → verständliche Meldungen
+    if (err instanceof Anthropic.AuthenticationError) {
+      throw new Error('Claude API-Key ungültig oder abgelaufen — bitte in Admin → KI-Provider prüfen.')
+    }
+    if (err instanceof Anthropic.PermissionDeniedError) {
+      throw new Error(`Kein Zugriff auf Modell "${model}" — evtl. falsches Modell oder fehlende Berechtigung im API-Account.`)
+    }
+    if (err instanceof Anthropic.RateLimitError) {
+      const msg = err.message?.toLowerCase() ?? ''
+      if (msg.includes('credit') || msg.includes('balance') || msg.includes('quota')) {
+        throw new Error('Claude API-Guthaben erschöpft — bitte im Anthropic-Account aufladen.')
+      }
+      throw new Error('Claude API-Rate-Limit erreicht — bitte kurz warten und erneut versuchen.')
+    }
+    if (err instanceof Anthropic.NotFoundError) {
+      throw new Error(`Modell "${model}" nicht gefunden — bitte in Admin → Analyse ein anderes Modell wählen.`)
+    }
+    if (err instanceof Anthropic.APITimeoutError) {
+      throw new Error('Claude API hat nicht rechtzeitig geantwortet (Timeout). Bei großen Blöcken bitte erneut versuchen.')
+    }
+    if (err instanceof Anthropic.APIConnectionError) {
+      throw new Error('Verbindung zur Claude API fehlgeschlagen — Netzwerkproblem auf dem Server.')
+    }
+    throw err
+  }
   const duration_ms = Date.now() - startMs
 
   const firstContent = response.content[0]
