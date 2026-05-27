@@ -107,11 +107,11 @@ export async function runStoryConsultant(opts: {
     if (err instanceof Anthropic.NotFoundError) {
       throw new Error(`Modell "${model}" nicht gefunden — bitte in Admin → Analyse ein anderes Modell wählen.`)
     }
-    if (err instanceof Anthropic.APITimeoutError) {
-      throw new Error('Claude API hat nicht rechtzeitig geantwortet (Timeout). Bei großen Blöcken bitte erneut versuchen.')
-    }
     if (err instanceof Anthropic.APIConnectionError) {
-      throw new Error('Verbindung zur Claude API fehlgeschlagen — Netzwerkproblem auf dem Server.')
+      const isTimeout = err.message?.toLowerCase().includes('timeout')
+      throw new Error(isTimeout
+        ? 'Claude API hat nicht rechtzeitig geantwortet (Timeout). Bei großen Blöcken bitte erneut versuchen.'
+        : 'Verbindung zur Claude API fehlgeschlagen — Netzwerkproblem auf dem Server.')
     }
     throw err
   }
