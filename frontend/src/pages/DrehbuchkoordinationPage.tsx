@@ -742,7 +742,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
           )}
 
           {filtered.length > 0 && (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, tableLayout: 'fixed' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--bg-surface)' }}>
                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Begriff</th>
@@ -825,7 +825,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
                         </td>
                         <td style={{ padding: '8px', color: 'var(--text-secondary)', verticalAlign: 'top', lineHeight: 1.5 }}>{entry.erklaerung}</td>
                         <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', borderRadius: 4, padding: '2px 5px', display: 'inline-block', wordBreak: 'break-word' }}>
                             {katLabel(entry.kategorie)}
                           </span>
                         </td>
