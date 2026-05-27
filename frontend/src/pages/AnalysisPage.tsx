@@ -310,6 +310,8 @@ export default function AnalysisPage() {
 
   return (
     <AppShell>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+      <div style={{ flex: 1, overflowY: 'auto' }}>
       <div style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto' }}>
         <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 4px' }}>Analyse-Editor</h2>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 24px' }}>
@@ -320,6 +322,11 @@ export default function AnalysisPage() {
 
           {/* ── Linke Spalte: Konfiguration ──────────────────────────────────── */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* Workflow-Anleitung */}
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Produktion und Block wählen, Methoden auswählen, dann „Analyse starten".
+            </div>
 
             {/* Produktion & Block */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
@@ -540,16 +547,6 @@ export default function AnalysisPage() {
               </div>
             )}
 
-            {/* Leer-Zustand */}
-            {!activeRunResults && !isPolling && (
-              <div style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-                padding: 48, textAlign: 'center', color: 'var(--text-secondary)', fontSize: 13,
-              }}>
-                Produktion und Block wählen, Methoden auswählen, dann "Analyse starten".
-              </div>
-            )}
-
             {/* Vorherige Runs */}
             {prevRuns.length > 0 && (
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
@@ -629,6 +626,8 @@ export default function AnalysisPage() {
             )}
           </div>
         </div>
+      </div>
+      </div>
       </div>
 
       <style>{`
