@@ -446,5 +446,14 @@ httpServer.listen(PORT, async () => {
   } catch (err) {
     console.error('Migration error:', err)
   }
+  // Orphaned Analysis-Runs bereinigen (nach PM2-Neustart hängen gebliebene running/queued)
+  try {
+    const { query: dbQuery } = await import('./db')
+    const { rowCount } = await dbQuery(
+      `UPDATE analysis_runs SET status = 'error', completed_at = NOW()
+       WHERE status IN ('running', 'queued') AND completed_at IS NULL`
+    ) as any
+    if (rowCount > 0) console.log(`[analysis] ${rowCount} orphaned run(s) auf error gesetzt`)
+  } catch {}
   console.log(`Script backend running on port ${PORT} (HTTP + WebSocket)`)
 })
