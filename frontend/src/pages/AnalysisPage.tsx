@@ -8,6 +8,7 @@ import { productionLabel } from '../hooks/useProduction'
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
 interface Block {
+  block_nummer: number
   folge_von: number
   folge_bis: number
   dreh_von?: string | null
@@ -194,8 +195,9 @@ export default function AnalysisPage() {
       .then((data: any) => {
         const blocksArr: Block[] = data.bloecke || data || []
         setBlocks(blocksArr)
-        setErsterBlock(data.erster_block ?? 1)
-        setBlockNr(blocksArr.length > 0 ? (data.erster_block ?? 1) : null)
+        const firstBlockNr = blocksArr[0]?.block_nummer ?? 1
+        setErsterBlock(firstBlockNr)
+        setBlockNr(blocksArr.length > 0 ? firstBlockNr : null)
       })
       .catch(() => setBlocks([]))
   }, [selectedProdId])
@@ -301,14 +303,11 @@ export default function AnalysisPage() {
                 }}
               >
                 {blocks.length === 0 && <option value="">— Keine Blöcke —</option>}
-                {blocks.map((b, i) => {
-                  const nr = ersterBlock + i
-                  return (
-                    <option key={nr} value={nr}>
-                      Block {nr} (Folge {b.folge_von}–{b.folge_bis})
-                    </option>
-                  )
-                })}
+                {blocks.map((b) => (
+                  <option key={b.block_nummer} value={b.block_nummer}>
+                    Block {b.block_nummer} (Folge {b.folge_von}–{b.folge_bis})
+                  </option>
+                ))}
               </select>
 
               {blockInfo && (
