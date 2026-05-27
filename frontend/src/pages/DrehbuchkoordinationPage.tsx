@@ -745,7 +745,8 @@ function GlossarSection({ productionId }: { productionId: string }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--bg-surface)' }}>
                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 180 }}>Abkürzung</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Begriff</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 80 }}>Abkürzung</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Erklärung</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 90 }}>Kategorie</th>
                   <th style={{ width: 64 }} />
@@ -758,13 +759,15 @@ function GlossarSection({ productionId }: { productionId: string }) {
                       <>
                         <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <input value={editDraft.kuerzel} onChange={e => setEditDraft(d => ({ ...d, kuerzel: e.target.value }))}
-                              placeholder="Kürzel" style={{ ...inputSt, width: '100%', textTransform: 'uppercase' }} autoFocus />
                             <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
-                              placeholder="Name (DE)" style={{ ...inputSt, width: '100%' }} />
+                              placeholder="Name (DE)" style={{ ...inputSt, width: '100%' }} autoFocus />
                             <input value={editDraft.term_en} onChange={e => setEditDraft(d => ({ ...d, term_en: e.target.value }))}
                               placeholder="Term (EN)" style={{ ...inputSt, width: '100%', fontStyle: 'italic' }} />
                           </div>
+                        </td>
+                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                          <input value={editDraft.kuerzel} onChange={e => setEditDraft(d => ({ ...d, kuerzel: e.target.value }))}
+                            placeholder="Kürzel" style={{ ...inputSt, width: 64, textTransform: 'uppercase' }} />
                         </td>
                         <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                           <textarea value={editDraft.erklaerung} onChange={e => setEditDraft(d => ({ ...d, erklaerung: e.target.value }))}
@@ -792,7 +795,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
                       </>
                     ) : deleteConfirm === entry.id ? (
                       <>
-                        <td colSpan={3} style={{ padding: '8px', color: 'var(--text-secondary)', fontSize: 12 }}>
+                        <td colSpan={4} style={{ padding: '8px', color: 'var(--text-secondary)', fontSize: 12 }}>
                           <strong style={{ color: 'var(--text-primary)' }}>{entry.kuerzel || entry.name}</strong> wirklich löschen?
                         </td>
                         <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
@@ -809,14 +812,16 @@ function GlossarSection({ productionId }: { productionId: string }) {
                     ) : (
                       <>
                         <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                          {entry.kuerzel && (
-                            <span style={{ display: 'inline-block', fontWeight: 700, fontSize: 11, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', marginBottom: 3 }}>
-                              {entry.kuerzel}
-                            </span>
-                          )}
                           <div style={{ fontWeight: 600, lineHeight: 1.3 }}>
                             {langMode === 'en' && entry.term_en ? entry.term_en : entry.name}
                           </div>
+                        </td>
+                        <td style={{ padding: '8px', verticalAlign: 'top' }}>
+                          {entry.kuerzel && (
+                            <span style={{ display: 'inline-block', fontWeight: 700, fontSize: 11, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px' }}>
+                              {entry.kuerzel}
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '8px', color: 'var(--text-secondary)', verticalAlign: 'top', lineHeight: 1.5 }}>{entry.erklaerung}</td>
                         <td style={{ padding: '8px', verticalAlign: 'top' }}>
