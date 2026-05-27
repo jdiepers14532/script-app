@@ -98,7 +98,18 @@ export async function runAnalysis(opts: {
        ds.int_ext, ds.tageszeit, ds.ort_name,
        ds.spieltag, ds.zusammenfassung, ds.szeneninfo,
        ds.content, ds.format, ds.sondertyp, ds.element_type,
-       ds.geloescht, ds.wechselschnitt_partner,
+       ds.geloescht,
+       COALESCE(
+         (SELECT array_agg(
+            (SELECT ds2.scene_nummer FROM dokument_szenen ds2
+             WHERE ds2.scene_identity_id = wp.partner_identity_id
+               AND ds2.werkstufe_id = ds.werkstufe_id
+             LIMIT 1)
+            ORDER BY wp.position)
+          FROM wechselschnitt_partner wp
+          WHERE wp.dokument_szene_id = ds.id),
+         '{}'::int[]
+       ) AS wechselschnitt_partner,
        COALESCE(
          (SELECT array_agg(c.name ORDER BY c.name)
           FROM scene_characters sc
