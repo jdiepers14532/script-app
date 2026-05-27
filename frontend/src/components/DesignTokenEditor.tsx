@@ -533,7 +533,7 @@ export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeI
         </div>
 
         {/* Rechte Seite: Export / Import | Preset | Reset — alles in einer Zeile */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, alignSelf: 'flex-start', marginTop: 3 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, alignSelf: 'flex-end' }}>
           {/* Export */}
           <button
             onClick={exportJson}
