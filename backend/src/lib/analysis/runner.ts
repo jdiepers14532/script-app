@@ -114,14 +114,20 @@ export async function runAnalysis(opts: {
          (SELECT array_agg(c.name ORDER BY c.name)
           FROM scene_characters sc
           JOIN characters c ON c.id = sc.character_id
-          WHERE sc.dokument_szene_id = ds.id AND sc.is_komparse = false),
+          LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+          WHERE sc.scene_identity_id = ds.scene_identity_id
+            AND sc.werkstufe_id = ds.werkstufe_id
+            AND (ck.typ = 'rolle' OR ck.id IS NULL)),
          '{}'::text[]
        ) AS charaktere,
        COALESCE(
          (SELECT array_agg(c.name ORDER BY c.name)
           FROM scene_characters sc
           JOIN characters c ON c.id = sc.character_id
-          WHERE sc.dokument_szene_id = ds.id AND sc.is_komparse = true),
+          JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+          WHERE sc.scene_identity_id = ds.scene_identity_id
+            AND sc.werkstufe_id = ds.werkstufe_id
+            AND ck.typ = 'komparse'),
          '{}'::text[]
        ) AS komparsen
      FROM dokument_szenen ds
