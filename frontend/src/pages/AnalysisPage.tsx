@@ -3,6 +3,7 @@ import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plu
 import ReactMarkdown from 'react-markdown'
 import AppShell from '../components/AppShell'
 import { useSelectedProduction } from '../contexts'
+import * as api from '../api/client'
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
@@ -527,6 +528,28 @@ export default function AnalysisPage() {
     window.addEventListener('touchend', onUp)
   }, [sidebarWidth])
 
+  // ── Settings laden / speichern ──────────────────────────────────────────────
+
+  const settingsLoaded = useRef(false)
+  const [savedBlockNr, setSavedBlockNr] = useState<number | null>(null)
+  const [savedFolgeNr, setSavedFolgeNr] = useState<number | null>(null)
+
+  useEffect(() => {
+    api.getSettings().then((s: any) => {
+      const ui = s?.ui_settings || {}
+      if (ui.analysis_last_block_nr) setSavedBlockNr(Number(ui.analysis_last_block_nr))
+      if (ui.analysis_last_folge_nr) setSavedFolgeNr(Number(ui.analysis_last_folge_nr))
+      settingsLoaded.current = true
+    }).catch(() => { settingsLoaded.current = true })
+  }, [])
+
+  const saveAnalysisNav = useCallback((blockNr: number | null, folgeNr: number | null) => {
+    api.updateSettings({ ui_settings: {
+      analysis_last_block_nr: blockNr ?? null,
+      analysis_last_folge_nr: folgeNr ?? null,
+    }}).catch(() => {})
+  }, [])
+
   // ── Blöcke laden ────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -535,18 +558,26 @@ export default function AnalysisPage() {
       .then(r => r.ok ? r.json() : [])
       .then((data: Block[]) => {
         setBlocks(data)
-        if (data.length > 0) setSelectedBlock(prev => prev ?? data[0])
+        if (data.length === 0) return
+        // Gespeicherten Block wiederherstellen, sonst ersten Block
+        const restored = savedBlockNr != null ? data.find(b => b.block_nummer === savedBlockNr) : null
+        setSelectedBlock(prev => prev ?? restored ?? data[0])
       })
       .catch(() => setBlocks([]))
-  }, [selectedProdId])
+  }, [selectedProdId, savedBlockNr])
 
-  // Wenn Block wechselt: Folge auf erste im Block setzen
+  // Wenn Block wechselt: gespeicherte Folge wiederherstellen oder erste Folge des Blocks
   useEffect(() => {
     if (!selectedBlock) return
     setSelectedFolgeNummer(prev => {
+      // Wenn aktuelle Folge schon im Block liegt: beibehalten
       if (prev != null && prev >= selectedBlock.folge_von && prev <= selectedBlock.folge_bis) return prev
+      // Gespeicherte Folge aus Settings verwenden, wenn im Block
+      if (savedFolgeNr != null && savedFolgeNr >= selectedBlock.folge_von && savedFolgeNr <= selectedBlock.folge_bis) return savedFolgeNr
       return selectedBlock.folge_von
     })
+    // Navigation persistieren
+    saveAnalysisNav(selectedBlock.block_nummer, selectedFolgeNummer)
   }, [selectedBlock?.proddb_id])   // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Vorherige Runs laden ─────────────────────────────────────────────────────
@@ -685,9 +716,12 @@ export default function AnalysisPage() {
     <AppShell
       bloecke={blocks}
       selectedBlock={selectedBlock}
-      onSelectBlock={(b: Block) => { setSelectedBlock(b); setSelectedRunId(null); setSelectedRunData(null); setPrevRuns([]) }}
+      onSelectBlock={(b: Block) => {
+        setSelectedBlock(b); setSelectedRunId(null); setSelectedRunData(null); setPrevRuns([])
+        saveAnalysisNav(b.block_nummer, selectedFolgeNummer)
+      }}
       selectedFolgeNummer={selectedFolgeNummer}
-      onSelectFolge={nr => setSelectedFolgeNummer(nr)}
+      onSelectFolge={nr => { setSelectedFolgeNummer(nr); saveAnalysisNav(selectedBlock?.block_nummer ?? null, nr) }}
     >
       <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
