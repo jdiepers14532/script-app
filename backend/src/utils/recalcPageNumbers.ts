@@ -12,20 +12,20 @@ import { query, queryOne } from '../db'
  */
 export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
   // Check if page numbers are locked (Phase 2 — skip recalc if locked)
-  const ws = await queryOne<{ seitenzahlen_gesperrt: boolean }>(
+  const ws = await queryOne(
     'SELECT seitenzahlen_gesperrt FROM werkstufen WHERE id = $1',
     [werkstufeId]
-  )
+  ) as { seitenzahlen_gesperrt: boolean } | null
   if (ws?.seitenzahlen_gesperrt) return
 
   // Get all non-deleted scenes in sort order (include notiz scenes — they don't consume page space)
-  const scenes = await query<{ id: string; page_length: number | null; format: string | null }>(
+  const scenes = await query(
     `SELECT id, page_length, format
      FROM dokument_szenen
      WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
      ORDER BY sort_order ASC`,
     [werkstufeId]
-  )
+  ) as Array<{ id: string; page_length: number | null; format: string | null }>
 
   if (scenes.length === 0) return
 
