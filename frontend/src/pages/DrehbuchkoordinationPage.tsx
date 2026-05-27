@@ -588,11 +588,11 @@ const GLOSSAR_KATEGORIEN: { value: GlossarKategorie; label: string; importFilter
   { value: 'kuerzel',          label: 'Abkürzung',                              importFilter: true  },
   { value: 'transition',       label: 'Übergang / Transition',                  importFilter: true  },
   { value: 'shot',             label: 'Shot-Bezeichnung',                       importFilter: true  },
-  { value: 'dramaturgie',      label: 'A) Dramaturgie & Erzähltheorie',         importFilter: false },
-  { value: 'emotional_bogen',  label: 'B) Emotionaler Bogen',                   importFilter: false },
-  { value: 'serien_struktur',  label: 'D) Serien-Struktur',                     importFilter: false },
-  { value: 'format_produktion',label: 'E) Drehbuch-Format & Produktion',        importFilter: false },
-  { value: 'app_architektur',  label: 'F) App-Architektur',                     importFilter: false },
+  { value: 'dramaturgie',      label: 'Dramaturgie & Erzähltheorie',            importFilter: false },
+  { value: 'emotional_bogen',  label: 'Emotionaler Bogen',                      importFilter: false },
+  { value: 'serien_struktur',  label: 'Serien-Struktur',                        importFilter: false },
+  { value: 'format_produktion',label: 'Drehbuch-Format & Produktion',           importFilter: false },
+  { value: 'app_architektur',  label: 'App-Architektur',                        importFilter: false },
   { value: 'fachbegriff',      label: 'Produktionsbegriff (sonstige)',           importFilter: false },
   { value: 'sonstige',         label: 'Sonstige',                               importFilter: false },
 ]
@@ -748,7 +748,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Begriff</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 80 }}>Abkürzung</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Erklärung</th>
-                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 90 }}>Kategorie</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 45 }}>Kategorie</th>
                   <th style={{ width: 64 }} />
                 </tr>
               </thead>
@@ -3556,6 +3556,8 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
   const [config, setConfig] = useState<TerminologieConfig>({ ...currentConfig })
   const [saving, setSaving] = useState(false)
   const [glossarOpen, setGlossarOpen] = useState(false)
+  const [glossarWidth, setGlossarWidth] = useState(720)
+  const glossarDragRef = useRef<{ startX: number; startW: number } | null>(null)
   const [treatmentLabel, setTreatmentLabel] = useState<'Treatment' | 'Storylines' | 'Outline'>('Treatment')
   const [treatmentSaving, setTreatmentSaving] = useState(false)
   const [figurenLabel, setFigurenLabel] = useState<'Rollen' | 'Figuren' | 'Charaktere'>('Rollen')
@@ -3727,7 +3729,47 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
           style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           onClick={e => { if (e.target === e.currentTarget) setGlossarOpen(false) }}
         >
-          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.25)', padding: 24, maxWidth: 720, width: '90%', maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ position: 'relative', background: 'var(--bg-surface)', borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.25)', padding: 24, width: glossarWidth, maxWidth: '92vw', minWidth: 480, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            {/* Resize-Handle rechts */}
+            <div
+              onMouseDown={e => {
+                e.preventDefault()
+                glossarDragRef.current = { startX: e.clientX, startW: glossarWidth }
+                const onMove = (cx: number) => {
+                  if (!glossarDragRef.current) return
+                  setGlossarWidth(Math.max(480, Math.min(window.innerWidth * 0.95, glossarDragRef.current.startW + cx - glossarDragRef.current.startX)))
+                }
+                const onMouseMove = (ev: MouseEvent) => onMove(ev.clientX)
+                const onTouchMove = (ev: TouchEvent) => { ev.preventDefault(); onMove(ev.touches[0].clientX) }
+                const stop = () => {
+                  glossarDragRef.current = null
+                  document.removeEventListener('mousemove', onMouseMove)
+                  document.removeEventListener('mouseup', stop)
+                  document.removeEventListener('touchmove', onTouchMove)
+                  document.removeEventListener('touchend', stop)
+                }
+                document.addEventListener('mousemove', onMouseMove)
+                document.addEventListener('mouseup', stop)
+                document.addEventListener('touchmove', onTouchMove, { passive: false })
+                document.addEventListener('touchend', stop)
+              }}
+              onTouchStart={e => {
+                glossarDragRef.current = { startX: e.touches[0].clientX, startW: glossarWidth }
+                const onMove = (cx: number) => {
+                  if (!glossarDragRef.current) return
+                  setGlossarWidth(Math.max(480, Math.min(window.innerWidth * 0.95, glossarDragRef.current.startW + cx - glossarDragRef.current.startX)))
+                }
+                const onTouchMove = (ev: TouchEvent) => { ev.preventDefault(); onMove(ev.touches[0].clientX) }
+                const stop = () => {
+                  glossarDragRef.current = null
+                  document.removeEventListener('touchmove', onTouchMove)
+                  document.removeEventListener('touchend', stop)
+                }
+                document.addEventListener('touchmove', onTouchMove, { passive: false })
+                document.addEventListener('touchend', stop)
+              }}
+              style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 8, cursor: 'ew-resize', borderRadius: '0 12px 12px 0', zIndex: 10 }}
+            />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexShrink: 0 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Glossar</h2>
               <button
