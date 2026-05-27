@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X, Trash2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import AppShell from '../components/AppShell'
 import { useSelectedProduction } from '../contexts'
 import { api } from '../api/client'
@@ -80,7 +81,7 @@ const WERKSTUFE_ABBR: Record<string, string> = {
 const ALL_METHODS = Object.keys(METHOD_LABELS)
 const POLL_INTERVAL_MS = 4000
 const POLL_STORAGE_KEY = 'analysis_polling_run_id'
-const DEFAULT_SIDEBAR_WIDTH = 274
+const DEFAULT_SIDEBAR_WIDTH = 276
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
 
@@ -100,19 +101,17 @@ function statusLabel(status: string) {
   return status
 }
 
-/** Kompakte Werkstufen-Zusammenfassung: "DB v3 · Lüneburg" oder "DB v2–v4" */
+/** Kompakte Werkstufen-Zusammenfassung: "DB v3 · Lüneburg" — immer neueste Fassung pro Folge */
 function fmtWerkstufen(ws: WerkstufInfo[]): string {
   if (!ws || ws.length === 0) return ''
-  // Alle gleicher Typ?
+  // Distinct Typen, höchste Version als "die" analysierte Fassung
   const typen = [...new Set(ws.map(w => w.typ))]
   const abbr = typen.map(t => WERKSTUFE_ABBR[t] ?? t).join('/')
-  const versions = ws.map(w => w.version_nummer).sort((a, b) => a - b)
-  const vMin = versions[0], vMax = versions[versions.length - 1]
-  const vStr = vMin === vMax ? `v${vMin}` : `v${vMin}–${vMax}`
+  const maxVersion = Math.max(...ws.map(w => w.version_nummer))
   // Label: nur wenn alle gleich
   const labels = [...new Set(ws.map(w => w.label).filter(Boolean))]
   const labelStr = labels.length === 1 ? ` · ${labels[0]}` : ''
-  return `${abbr} ${vStr}${labelStr}`
+  return `${abbr} v${maxVersion}${labelStr}`
 }
 
 function getChildText(node: React.ReactNode): string {
@@ -181,6 +180,7 @@ function MarkdownResult({ markdown }: { markdown: string }) {
 
       <div style={{ paddingTop: 32, fontSize: 13, lineHeight: 1.7, color: 'var(--text-primary)' }}>
         <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
           components={{
             h1: ({ children }) => <h1 style={{ fontSize: 18, fontWeight: 700, margin: '20px 0 10px', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>{children}</h1>,
             h2: ({ children }) => <h2 style={{ fontSize: 15, fontWeight: 700, margin: '18px 0 8px' }}>{children}</h2>,
