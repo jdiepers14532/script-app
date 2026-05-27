@@ -579,23 +579,36 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 // ── Glossar-Sektion ───────────────────────────────────────────────────────────
 
 type GlossarKategorie = 'transition' | 'shot' | 'kuerzel' | 'fachbegriff' | 'sonstige'
-type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; kategorie: GlossarKategorie; sort_order: number }
-type GlossarDraft = { kuerzel: string; name: string; erklaerung: string; kategorie: GlossarKategorie }
+  | 'dramaturgie' | 'emotional_bogen' | 'serien_struktur' | 'format_produktion' | 'app_architektur'
+
+type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; term_en: string; kategorie: GlossarKategorie; sort_order: number }
+type GlossarDraft = { kuerzel: string; name: string; erklaerung: string; term_en: string; kategorie: GlossarKategorie }
 
 const GLOSSAR_KATEGORIEN: { value: GlossarKategorie; label: string; importFilter: boolean }[] = [
-  { value: 'transition', label: 'Übergang / Transition', importFilter: true },
-  { value: 'shot',       label: 'Shot-Bezeichnung',      importFilter: true },
-  { value: 'kuerzel',    label: 'Abkürzung',             importFilter: true },
-  { value: 'fachbegriff', label: 'Produktionsbegriff',   importFilter: false },
-  { value: 'sonstige',   label: 'Sonstige',              importFilter: false },
+  { value: 'kuerzel',          label: 'Abkürzung',                              importFilter: true  },
+  { value: 'transition',       label: 'Übergang / Transition',                  importFilter: true  },
+  { value: 'shot',             label: 'Shot-Bezeichnung',                       importFilter: true  },
+  { value: 'dramaturgie',      label: 'A) Dramaturgie & Erzähltheorie',         importFilter: false },
+  { value: 'emotional_bogen',  label: 'B) Emotionaler Bogen',                   importFilter: false },
+  { value: 'serien_struktur',  label: 'D) Serien-Struktur',                     importFilter: false },
+  { value: 'format_produktion',label: 'E) Drehbuch-Format & Produktion',        importFilter: false },
+  { value: 'app_architektur',  label: 'F) App-Architektur',                     importFilter: false },
+  { value: 'fachbegriff',      label: 'Produktionsbegriff (sonstige)',           importFilter: false },
+  { value: 'sonstige',         label: 'Sonstige',                               importFilter: false },
 ]
+
+// Kategorien, für die ein Kürzel optional (nicht Pflicht) ist
+const KAT_KUERZEL_OPTIONAL = new Set<GlossarKategorie>([
+  'dramaturgie', 'emotional_bogen', 'serien_struktur', 'format_produktion', 'app_architektur', 'fachbegriff', 'sonstige',
+])
 
 function GlossarSection({ productionId }: { productionId: string }) {
   const [entries, setEntries] = useState<GlossarEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [filterKat, setFilterKat] = useState<GlossarKategorie | 'alle'>('alle')
   const [editId, setEditId] = useState<number | null>(null)
-  const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '', kategorie: 'kuerzel' })
+  const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '', term_en: '', kategorie: 'kuerzel' })
   const [newDraft, setNewDraft] = useState<GlossarDraft | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -610,14 +623,16 @@ function GlossarSection({ productionId }: { productionId: string }) {
   }, [productionId])
 
   const filtered = entries.filter(e => {
+    if (filterKat !== 'alle' && e.kategorie !== filterKat) return false
     if (!search.trim()) return true
     const q = search.toLowerCase()
-    return e.kuerzel.toLowerCase().includes(q) || e.name.toLowerCase().includes(q) || e.erklaerung.toLowerCase().includes(q)
+    return e.kuerzel.toLowerCase().includes(q) || e.name.toLowerCase().includes(q)
+      || e.erklaerung.toLowerCase().includes(q) || e.term_en.toLowerCase().includes(q)
   })
 
   const startEdit = (e: GlossarEntry) => {
     setEditId(e.id)
-    setEditDraft({ kuerzel: e.kuerzel, name: e.name, erklaerung: e.erklaerung, kategorie: e.kategorie ?? 'kuerzel' })
+    setEditDraft({ kuerzel: e.kuerzel, name: e.name, erklaerung: e.erklaerung, term_en: e.term_en ?? '', kategorie: e.kategorie ?? 'kuerzel' })
     setNewDraft(null)
   }
 
@@ -640,7 +655,8 @@ function GlossarSection({ productionId }: { productionId: string }) {
   const cancelEdit = () => setEditId(null)
 
   const saveNew = async () => {
-    if (!newDraft || !newDraft.kuerzel.trim() || !newDraft.name.trim()) return
+    if (!newDraft || !newDraft.name.trim()) return
+    if (!KAT_KUERZEL_OPTIONAL.has(newDraft.kategorie) && !newDraft.kuerzel.trim()) return
     setSaving(true)
     try {
       const r = await fetch(`/api/dk-settings/${productionId}/glossar`, {
@@ -667,30 +683,40 @@ function GlossarSection({ productionId }: { productionId: string }) {
     background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 12, fontFamily: 'inherit',
   }
 
+  const katLabel = (k: GlossarKategorie) => GLOSSAR_KATEGORIEN.find(x => x.value === k)?.label ?? k
+
   return (
     <section style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px', flexShrink: 0 }}>Glossar</h3>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6, flexShrink: 0 }}>
-        Abkürzungsverzeichnis für diese Produktion — Kürzel, vollständiger Name und Erklärung.
+      <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6, flexShrink: 0 }}>
+        Fachbegriffe, Abkürzungen und Erklärungen für diese Produktion — inkl. englischer Entsprechungen.
       </p>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center', flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, alignItems: 'center', flexShrink: 0, flexWrap: 'wrap' }}>
         <input
           type="text"
-          placeholder="Suchen…"
+          placeholder="Suchen (DE / EN)…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          style={{ ...inputSt, width: 220 }}
+          style={{ ...inputSt, width: 180 }}
         />
-        {search && (
-          <button onClick={() => setSearch('')}
+        <select value={filterKat} onChange={e => setFilterKat(e.target.value as GlossarKategorie | 'alle')}
+          style={{ ...inputSt, fontSize: 11 }}>
+          <option value="alle">Alle Kategorien ({entries.length})</option>
+          {GLOSSAR_KATEGORIEN.map(k => {
+            const cnt = entries.filter(e => e.kategorie === k.value).length
+            return cnt > 0 ? <option key={k.value} value={k.value}>{k.label} ({cnt})</option> : null
+          })}
+        </select>
+        {(search || filterKat !== 'alle') && (
+          <button onClick={() => { setSearch(''); setFilterKat('alle') }}
             style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>
-            ✕ Löschen
+            ✕ Filter
           </button>
         )}
         <div style={{ flex: 1 }} />
         <button
-          onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '', kategorie: 'kuerzel' }); setEditId(null) }}
+          onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '', term_en: '', kategorie: 'kuerzel' }); setEditId(null) }}
           disabled={!!newDraft}
           style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
           + Eintrag
@@ -712,10 +738,10 @@ function GlossarSection({ productionId }: { productionId: string }) {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 1, background: 'var(--bg-surface)' }}>
                 <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 80 }}>Kürzel</th>
-                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 160 }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 180 }}>Begriff (DE / EN)</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)' }}>Erklärung</th>
-                  <th style={{ width: 72 }} />
+                  <th style={{ textAlign: 'left', padding: '4px 8px 6px', fontWeight: 600, fontSize: 11, color: 'var(--text-secondary)', width: 90 }}>Kategorie</th>
+                  <th style={{ width: 64 }} />
                 </tr>
               </thead>
               <tbody>
@@ -724,26 +750,27 @@ function GlossarSection({ productionId }: { productionId: string }) {
                     {editId === entry.id ? (
                       <>
                         <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <input value={editDraft.kuerzel} onChange={e => setEditDraft(d => ({ ...d, kuerzel: e.target.value }))}
-                            style={{ ...inputSt, width: 64, textTransform: 'uppercase' }} autoFocus />
-                        </td>
-                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
-                            style={{ ...inputSt, width: '100%' }} />
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            <input value={editDraft.kuerzel} onChange={e => setEditDraft(d => ({ ...d, kuerzel: e.target.value }))}
+                              placeholder="Kürzel" style={{ ...inputSt, width: '100%', textTransform: 'uppercase' }} autoFocus />
+                            <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                              placeholder="Name (DE)" style={{ ...inputSt, width: '100%' }} />
+                            <input value={editDraft.term_en} onChange={e => setEditDraft(d => ({ ...d, term_en: e.target.value }))}
+                              placeholder="Term (EN)" style={{ ...inputSt, width: '100%', fontStyle: 'italic' }} />
+                          </div>
                         </td>
                         <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
                           <textarea value={editDraft.erklaerung} onChange={e => setEditDraft(d => ({ ...d, erklaerung: e.target.value }))}
-                            rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical', marginBottom: 6 }} />
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600, whiteSpace: 'nowrap' }}>KATEGORIE</span>
-                            <select value={editDraft.kategorie}
-                              onChange={e => setEditDraft(d => ({ ...d, kategorie: e.target.value as GlossarKategorie }))}
-                              style={{ ...inputSt, fontSize: 11, padding: '2px 6px' }}>
-                              {GLOSSAR_KATEGORIEN.map(k => (
-                                <option key={k.value} value={k.value}>{k.label}{k.importFilter ? '' : ' (kein Import-Filter)'}</option>
-                              ))}
-                            </select>
-                          </div>
+                            rows={3} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
+                        </td>
+                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
+                          <select value={editDraft.kategorie}
+                            onChange={e => setEditDraft(d => ({ ...d, kategorie: e.target.value as GlossarKategorie }))}
+                            style={{ ...inputSt, fontSize: 11, padding: '2px 6px', width: '100%' }}>
+                            {GLOSSAR_KATEGORIEN.map(k => (
+                              <option key={k.value} value={k.value}>{k.label}</option>
+                            ))}
+                          </select>
                         </td>
                         <td style={{ padding: '6px 8px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
                           <button onClick={saveEdit} disabled={saving}
@@ -759,7 +786,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
                     ) : deleteConfirm === entry.id ? (
                       <>
                         <td colSpan={3} style={{ padding: '8px', color: 'var(--text-secondary)', fontSize: 12 }}>
-                          <strong style={{ color: 'var(--text-primary)' }}>{entry.kuerzel}</strong> wirklich löschen?
+                          <strong style={{ color: 'var(--text-primary)' }}>{entry.kuerzel || entry.name}</strong> wirklich löschen?
                         </td>
                         <td style={{ padding: '6px 8px', whiteSpace: 'nowrap' }}>
                           <button onClick={() => deleteEntry(entry.id)}
@@ -774,9 +801,23 @@ function GlossarSection({ productionId }: { productionId: string }) {
                       </>
                     ) : (
                       <>
-                        <td style={{ padding: '8px', fontWeight: 600, verticalAlign: 'top' }}>{entry.kuerzel}</td>
-                        <td style={{ padding: '8px', verticalAlign: 'top' }}>{entry.name}</td>
+                        <td style={{ padding: '8px', verticalAlign: 'top' }}>
+                          {entry.kuerzel && (
+                            <span style={{ display: 'inline-block', fontWeight: 700, fontSize: 11, background: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', marginBottom: 3 }}>
+                              {entry.kuerzel}
+                            </span>
+                          )}
+                          <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{entry.name}</div>
+                          {entry.term_en && (
+                            <div style={{ fontSize: 11, color: 'var(--text-secondary)', fontStyle: 'italic', marginTop: 1 }}>{entry.term_en}</div>
+                          )}
+                        </td>
                         <td style={{ padding: '8px', color: 'var(--text-secondary)', verticalAlign: 'top', lineHeight: 1.5 }}>{entry.erklaerung}</td>
+                        <td style={{ padding: '8px', verticalAlign: 'top' }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-secondary)', background: 'var(--bg-subtle)', borderRadius: 4, padding: '2px 5px', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                            {katLabel(entry.kategorie)}
+                          </span>
+                        </td>
                         <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
                           <button onClick={() => startEdit(entry)}
                             title="Bearbeiten"
@@ -797,24 +838,30 @@ function GlossarSection({ productionId }: { productionId: string }) {
             </table>
           )}
 
-          {search && filtered.length === 0 && entries.length > 0 && (
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>Keine Einträge für „{search}".</p>
+          {(search || filterKat !== 'alle') && filtered.length === 0 && entries.length > 0 && (
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>Keine Einträge für diese Suche / Kategorie.</p>
           )}
 
           {newDraft && (
             <div style={{ marginTop: 12, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-subtle)', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KÜRZEL</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KÜRZEL {KAT_KUERZEL_OPTIONAL.has(newDraft.kategorie) ? '(optional)' : ''}</span>
                   <input value={newDraft.kuerzel} onChange={e => setNewDraft(d => d ? { ...d, kuerzel: e.target.value } : d)}
                     placeholder="z. B. NMDP" autoFocus
-                    style={{ ...inputSt, width: 80, textTransform: 'uppercase' }} />
+                    style={{ ...inputSt, width: 90, textTransform: 'uppercase' }} />
                 </label>
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 140 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>NAME</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>NAME (DE)</span>
                   <input value={newDraft.name} onChange={e => setNewDraft(d => d ? { ...d, name: e.target.value } : d)}
                     placeholder="Vollständiger Name"
                     style={{ ...inputSt, width: '100%' }} />
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 140 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>TERM (EN)</span>
+                  <input value={newDraft.term_en} onChange={e => setNewDraft(d => d ? { ...d, term_en: e.target.value } : d)}
+                    placeholder="English term"
+                    style={{ ...inputSt, width: '100%', fontStyle: 'italic' }} />
                 </label>
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -829,12 +876,13 @@ function GlossarSection({ productionId }: { productionId: string }) {
                   onChange={e => setNewDraft(d => d ? { ...d, kategorie: e.target.value as GlossarKategorie } : d)}
                   style={{ ...inputSt, fontSize: 12 }}>
                   {GLOSSAR_KATEGORIEN.map(k => (
-                    <option key={k.value} value={k.value}>{k.label}{k.importFilter ? '' : ' (kein Import-Filter)'}</option>
+                    <option key={k.value} value={k.value}>{k.label}</option>
                   ))}
                 </select>
               </label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={saveNew} disabled={saving || !newDraft.kuerzel.trim() || !newDraft.name.trim()}
+                <button onClick={saveNew}
+                  disabled={saving || !newDraft.name.trim() || (!KAT_KUERZEL_OPTIONAL.has(newDraft.kategorie) && !newDraft.kuerzel.trim())}
                   style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
                   {saving ? 'Wird gespeichert…' : 'Hinzufügen'}
                 </button>

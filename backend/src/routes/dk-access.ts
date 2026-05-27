@@ -87,20 +87,20 @@ router.get('/:productionId/glossar',
     try {
       const pid = req.params.productionId
       let { rows } = await pool.query(
-        'SELECT id, kuerzel, name, erklaerung, kategorie, sort_order FROM dk_glossar WHERE production_id = $1 ORDER BY sort_order, kuerzel',
+        'SELECT id, kuerzel, name, erklaerung, term_en, kategorie, sort_order FROM dk_glossar WHERE production_id = $1 ORDER BY sort_order, name',
         [pid]
       )
       // Auto-seed aus dk_glossar_defaults wenn noch keine Einträge vorhanden
       if (rows.length === 0) {
         const { rows: defaults } = await pool.query(
-          'SELECT kuerzel, name, erklaerung, kategorie, sort_order FROM dk_glossar_defaults ORDER BY sort_order'
+          'SELECT kuerzel, name, erklaerung, term_en, kategorie, sort_order FROM dk_glossar_defaults ORDER BY sort_order'
         )
         if (defaults.length > 0) {
-          const values = defaults.map((_, i) => `($1, $${i * 5 + 2}, $${i * 5 + 3}, $${i * 5 + 4}, $${i * 5 + 5}, $${i * 5 + 6})`).join(', ')
+          const values = defaults.map((_, i) => `($1, $${i * 6 + 2}, $${i * 6 + 3}, $${i * 6 + 4}, $${i * 6 + 5}, $${i * 6 + 6}, $${i * 6 + 7})`).join(', ')
           const params: any[] = [pid]
-          defaults.forEach(d => params.push(d.kuerzel, d.name, d.erklaerung, d.kategorie ?? 'kuerzel', d.sort_order))
+          defaults.forEach(d => params.push(d.kuerzel, d.name, d.erklaerung, d.term_en ?? '', d.kategorie ?? 'kuerzel', d.sort_order))
           const inserted = await pool.query(
-            `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, kategorie, sort_order) VALUES ${values} RETURNING id, kuerzel, name, erklaerung, kategorie, sort_order`,
+            `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, term_en, kategorie, sort_order) VALUES ${values} RETURNING id, kuerzel, name, erklaerung, term_en, kategorie, sort_order`,
             params
           )
           rows = inserted.rows
@@ -113,18 +113,21 @@ router.get('/:productionId/glossar',
   }
 )
 
+const VALID_KATEGORIEN = ['transition', 'shot', 'kuerzel', 'fachbegriff', 'sonstige',
+  'dramaturgie', 'emotional_bogen', 'serien_struktur', 'format_produktion', 'app_architektur']
+
 // POST /api/dk-settings/:productionId/glossar
 router.post('/:productionId/glossar',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { kuerzel, name, erklaerung, kategorie } = req.body
-      const kat = (['transition', 'shot', 'kuerzel', 'fachbegriff', 'sonstige'].includes(kategorie)) ? kategorie : 'kuerzel'
+      const { kuerzel, name, erklaerung, term_en, kategorie } = req.body
+      const kat = VALID_KATEGORIEN.includes(kategorie) ? kategorie : 'kuerzel'
       const { rows } = await pool.query(
-        `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, kategorie, sort_order)
-         VALUES ($1, $2, $3, $4, $5, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM dk_glossar WHERE production_id = $1))
-         RETURNING id, kuerzel, name, erklaerung, kategorie, sort_order`,
-        [req.params.productionId, (kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), kat]
+        `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, term_en, kategorie, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM dk_glossar WHERE production_id = $1))
+         RETURNING id, kuerzel, name, erklaerung, term_en, kategorie, sort_order`,
+        [req.params.productionId, (kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), (term_en ?? '').trim(), kat]
       )
       res.json(rows[0])
     } catch (err) {
@@ -138,13 +141,13 @@ router.put('/:productionId/glossar/:id',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { kuerzel, name, erklaerung, kategorie } = req.body
-      const kat = (['transition', 'shot', 'kuerzel', 'fachbegriff', 'sonstige'].includes(kategorie)) ? kategorie : 'kuerzel'
+      const { kuerzel, name, erklaerung, term_en, kategorie } = req.body
+      const kat = VALID_KATEGORIEN.includes(kategorie) ? kategorie : 'kuerzel'
       const { rows } = await pool.query(
-        `UPDATE dk_glossar SET kuerzel = $1, name = $2, erklaerung = $3, kategorie = $4, updated_at = NOW()
-         WHERE id = $5 AND production_id = $6
-         RETURNING id, kuerzel, name, erklaerung, kategorie, sort_order`,
-        [(kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), kat, req.params.id, req.params.productionId]
+        `UPDATE dk_glossar SET kuerzel = $1, name = $2, erklaerung = $3, term_en = $4, kategorie = $5, updated_at = NOW()
+         WHERE id = $6 AND production_id = $7
+         RETURNING id, kuerzel, name, erklaerung, term_en, kategorie, sort_order`,
+        [(kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), (term_en ?? '').trim(), kat, req.params.id, req.params.productionId]
       )
       if (!rows[0]) return res.status(404).json({ error: 'Not found' })
       res.json(rows[0])
