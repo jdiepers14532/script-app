@@ -693,17 +693,28 @@ export default function AppShell({
   useEffect(() => {
     const scheme = resolveColorScheme(tweaks.activeColorSchemeId)
     const el = document.documentElement
-    el.style.setProperty('--sw-green',       scheme.colors.green)
-    el.style.setProperty('--sw-info',        scheme.colors.info)
-    el.style.setProperty('--sw-danger',      scheme.colors.danger)
-    el.style.setProperty('--sw-warning',     scheme.colors.warning)
-    el.style.setProperty('--sw-warning-alt', scheme.colors.warningAlt)
+    const hexToRgba = (hex: string, alpha: number) => {
+      const h = hex.replace('#', '')
+      const r = parseInt(h.slice(0,2), 16)
+      const g = parseInt(h.slice(2,4), 16)
+      const b = parseInt(h.slice(4,6), 16)
+      return `rgba(${r},${g},${b},${alpha})`
+    }
+    el.style.setProperty('--sw-green',        scheme.colors.green)
+    el.style.setProperty('--color-success',   scheme.colors.green)
+    el.style.setProperty('--color-success-bg', hexToRgba(scheme.colors.green, 0.08))
+    el.style.setProperty('--sw-info',         scheme.colors.info)
+    el.style.setProperty('--color-info',      scheme.colors.info)
+    el.style.setProperty('--color-info-bg',   hexToRgba(scheme.colors.info, 0.08))
+    el.style.setProperty('--sw-danger',       scheme.colors.danger)
+    el.style.setProperty('--color-danger',    scheme.colors.danger)
+    el.style.setProperty('--color-danger-bg', hexToRgba(scheme.colors.danger, 0.08))
+    el.style.setProperty('--sw-warning',      scheme.colors.warning)
+    el.style.setProperty('--color-warning',   scheme.colors.warning)
+    el.style.setProperty('--color-warning-bg', hexToRgba(scheme.colors.warning, 0.10))
+    el.style.setProperty('--sw-warning-alt',  scheme.colors.warningAlt)
     // Focus-Ring automatisch aus --sw-info ableiten (hex #RRGGBB → rgba mit 40% Alpha)
-    const hex = scheme.colors.info.replace('#', '')
-    const r = parseInt(hex.slice(0,2), 16)
-    const g = parseInt(hex.slice(2,4), 16)
-    const b = parseInt(hex.slice(4,6), 16)
-    el.style.setProperty('--focus-ring', `rgba(${r},${g},${b},0.4)`)
+    el.style.setProperty('--focus-ring', hexToRgba(scheme.colors.info, 0.4))
   }, [tweaks.activeColorSchemeId])
 
   // ── Sendedatum live aus ProdDB ────────────────────────────────────────────
