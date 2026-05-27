@@ -3,7 +3,7 @@ import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plu
 import ReactMarkdown from 'react-markdown'
 import AppShell from '../components/AppShell'
 import { useSelectedProduction } from '../contexts'
-import * as api from '../api/client'
+import { api } from '../api/client'
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
