@@ -750,17 +750,23 @@ export default function ScriptPage() {
         setFolgenMeta(meta)
         let folge = folgen.find((f: any) => f.folge_nummer === selectedFolgeNummer)
         if (!folge) {
-          // Folge existiert noch nicht in der DB (keine Szenen bisher) → auto-anlegen
+          // Folge existiert noch nicht in der DB → anlegen, aber KEINE Werkstufe auto-erstellen
           folge = await api.createFolgeV2({ produktion_id: selectedProduktionId, folge_nummer: selectedFolgeNummer! })
-          const newWerkstufe = await api.createWerkstufe(folge.id, { typ: 'drehbuch' })
-          setSelectedStageId(newWerkstufe.id)
-          setSelectedWerkstufeTyp('drehbuch')
+          setSelectedStageId(null)
+          setSelectedWerkstufeTyp(null)
           setSzenen([])
           setUseDokumentSzenen(true)
           return
         }
         const werkstufen = await api.getWerkstufen(folge.id)
-        if (werkstufen.length === 0) { console.warn('[ScriptPage] No werkstufen for folge', folge.id); return }
+        if (werkstufen.length === 0) {
+          // Noch keine Werkstufe → Empty-State anzeigen (Auswahl per Dropdown im Editor-Header)
+          setSelectedStageId(null)
+          setSelectedWerkstufeTyp(null)
+          setSzenen([])
+          setUseDokumentSzenen(true)
+          return
+        }
         // Prefer drehbuch > storyline > notiz, then latest version
         const prio = ['drehbuch', 'storyline', 'notiz']
         let matching: any[] = []
