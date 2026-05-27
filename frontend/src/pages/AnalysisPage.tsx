@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Copy, Check, RefreshCw, ChevronDown, ChevronRight, Clock, Database } from 'lucide-react'
+import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import AppShell from '../components/AppShell'
 import { useSelectedProduction } from '../contexts'
-import { productionLabel } from '../hooks/useProduction'
 
 // ── Typen ─────────────────────────────────────────────────────────────────────
 
 interface Block {
+  proddb_id: string
   block_nummer: number
   folge_von: number
   folge_bis: number
@@ -67,6 +67,7 @@ const METHOD_LABELS: Record<string, { label: string; desc: string; cost: string;
 const ALL_METHODS = Object.keys(METHOD_LABELS)
 const POLL_INTERVAL_MS = 4000
 const POLL_STORAGE_KEY = 'analysis_polling_run_id'
+const DEFAULT_SIDEBAR_WIDTH = 280
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
 
@@ -81,27 +82,36 @@ function fmtDuration(ms?: number) {
 }
 
 function statusLabel(status: string) {
-  if (status === 'queued') return 'In Warteschlange ...'
-  if (status === 'running') return 'Claude analysiert ...'
+  if (status === 'queued') return 'In Warteschlange …'
+  if (status === 'running') return 'Claude analysiert …'
   return status
 }
 
-// ── Unterkomponenten ──────────────────────────────────────────────────────────
+function getChildText(node: React.ReactNode): string {
+  if (!node) return ''
+  if (typeof node === 'string') return node
+  if (typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(getChildText).join('')
+  if (typeof node === 'object' && 'props' in (node as object)) {
+    return getChildText((node as React.ReactElement).props.children)
+  }
+  return ''
+}
+
+// ── MarkdownResult ─────────────────────────────────────────────────────────────
 
 function MarkdownResult({ markdown }: { markdown: string }) {
   const [copied, setCopied] = useState(false)
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(markdown).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
   return (
     <div style={{ position: 'relative' }}>
       <button
-        onClick={handleCopy}
+        onClick={() => {
+          navigator.clipboard.writeText(markdown).then(() => {
+            setCopied(true)
+            setTimeout(() => setCopied(false), 2000)
+          })
+        }}
         style={{
           position: 'absolute', top: 0, right: 0,
           display: 'flex', alignItems: 'center', gap: 4,
@@ -114,6 +124,7 @@ function MarkdownResult({ markdown }: { markdown: string }) {
         {copied ? <Check size={12} /> : <Copy size={12} />}
         {copied ? 'Kopiert' : 'Kopieren'}
       </button>
+
       <div style={{ paddingTop: 32, fontSize: 13, lineHeight: 1.7, color: 'var(--text-primary)' }}>
         <ReactMarkdown
           components={{
@@ -126,16 +137,41 @@ function MarkdownResult({ markdown }: { markdown: string }) {
             li: ({ children }) => <li style={{ marginBottom: 3 }}>{children}</li>,
             strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
             table: ({ children }) => (
-              <div style={{ overflowX: 'auto', margin: '12px 0' }}>
+              <div style={{ overflowX: 'auto', margin: '16px 0' }}>
                 <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>{children}</table>
               </div>
             ),
+            thead: ({ children }) => <thead>{children}</thead>,
+            tbody: ({ children }) => <tbody>{children}</tbody>,
+            tr: ({ children }) => <tr style={{ transition: 'background 0.1s' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-subtle)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '')}
+            >{children}</tr>,
             th: ({ children }) => (
-              <th style={{ border: '1px solid var(--border)', padding: '6px 10px', background: 'var(--bg-subtle)', fontWeight: 600, textAlign: 'left' }}>{children}</th>
+              <th style={{
+                border: '1px solid var(--border)', padding: '7px 12px',
+                background: 'var(--bg-subtle)', fontWeight: 600, textAlign: 'left',
+                whiteSpace: 'nowrap', fontSize: 11, letterSpacing: '0.03em',
+                color: 'var(--text-secondary)',
+              }}>{children}</th>
             ),
-            td: ({ children }) => (
-              <td style={{ border: '1px solid var(--border)', padding: '6px 10px' }}>{children}</td>
-            ),
+            td: ({ children }) => {
+              const text = getChildText(children)
+              let accentColor = ''
+              let bgColor = ''
+              if (/^Behalten/i.test(text)) { accentColor = '#00a844'; bgColor = 'rgba(0,200,83,0.07)' }
+              else if (/^Kürzen/i.test(text)) { accentColor = '#c47a00'; bgColor = 'rgba(255,149,0,0.08)' }
+              else if (/^Streichen/i.test(text)) { accentColor = '#d02a1e'; bgColor = 'rgba(255,59,48,0.07)' }
+              return (
+                <td style={{
+                  border: '1px solid var(--border)', padding: '6px 12px',
+                  verticalAlign: 'top',
+                  background: bgColor || undefined,
+                  color: accentColor || undefined,
+                  fontWeight: accentColor ? 600 : undefined,
+                }}>{children}</td>
+              )
+            },
             blockquote: ({ children }) => (
               <blockquote style={{ borderLeft: '3px solid var(--border)', margin: '8px 0', paddingLeft: 12, color: 'var(--text-secondary)' }}>{children}</blockquote>
             ),
@@ -157,6 +193,8 @@ function MarkdownResult({ markdown }: { markdown: string }) {
   )
 }
 
+// ── MethodBadge ────────────────────────────────────────────────────────────────
+
 function MethodBadge({ fromCache }: { fromCache: boolean }) {
   return (
     <span style={{
@@ -171,31 +209,341 @@ function MethodBadge({ fromCache }: { fromCache: boolean }) {
   )
 }
 
+// ── ReportView ─────────────────────────────────────────────────────────────────
+
+function ReportView({ run, activeTab, onTabChange }: {
+  run: RunData
+  activeTab: string | null
+  onTabChange: (tab: string) => void
+}) {
+  const currentTab = activeTab ?? run.method_results[0]?.method ?? null
+  const result = run.method_results.find(r => r.method === currentTab)
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+
+      {/* Tab-Leiste (nur wenn mehrere Methoden) */}
+      {run.method_results.length > 1 && (
+        <div style={{
+          display: 'flex', borderBottom: '1px solid var(--border)',
+          background: 'var(--bg-subtle)', flexShrink: 0,
+        }}>
+          {run.method_results.map(r => (
+            <button
+              key={r.method}
+              onClick={() => onTabChange(r.method)}
+              style={{
+                padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: currentTab === r.method ? 600 : 400,
+                borderBottom: currentTab === r.method ? '2px solid var(--text-primary)' : '2px solid transparent',
+                color: currentTab === r.method ? 'var(--text-primary)' : 'var(--text-secondary)',
+                display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
+              }}
+            >
+              {METHOD_LABELS[r.method]?.label || r.method}
+              {r.status === 'error' && (
+                <span style={{ color: '#FF3B30', fontSize: 10 }}>Fehler</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Report-Inhalt */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px' }}>
+        {result ? (
+          <>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
+              <MethodBadge fromCache={result.from_cache} />
+              {result.duration_ms && (
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                  <Clock size={10} /> {fmtDuration(result.duration_ms)}
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                {fmtDate(run.created_at)}
+              </span>
+            </div>
+            {result.status === 'error' ? (
+              <div style={{
+                padding: '12px 16px', borderRadius: 8,
+                background: 'rgba(255,59,48,0.08)', color: '#FF3B30',
+                fontSize: 13, lineHeight: 1.5,
+              }}>
+                Fehler: {result.error_detail}
+              </div>
+            ) : result.markdown ? (
+              <MarkdownResult markdown={result.markdown} />
+            ) : (
+              <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Kein Ergebnis vorhanden.</div>
+            )}
+          </>
+        ) : (
+          <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Kein Ergebnis ausgewählt.</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── MethodenModal ──────────────────────────────────────────────────────────────
+
+function MethodenModal({
+  methods, onChange, onStart, onClose, submitting, error, blockInfo,
+}: {
+  methods: string[]
+  onChange: (m: string[]) => void
+  onStart: () => void
+  onClose: () => void
+  submitting: boolean
+  error: string | null
+  blockInfo: Block | null
+}) {
+  const toggle = (m: string) =>
+    onChange(methods.includes(m) ? methods.filter(x => x !== m) : [...methods, m])
+
+  const activeMethods = methods.filter(m => !METHOD_LABELS[m]?.disabled)
+  const estimatedCost = activeMethods.reduce((sum, m) => {
+    const match = METHOD_LABELS[m]?.cost?.match(/[\d,.]+/)
+    return sum + (match ? parseFloat(match[0].replace(',', '.')) : 0)
+  }, 0)
+
+  return (
+    <>
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000 }}
+        onClick={!submitting ? onClose : undefined}
+      />
+      <div style={{
+        position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+        width: 460, maxWidth: '92vw',
+        background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 12,
+        boxShadow: '0 24px 64px rgba(0,0,0,0.25)',
+        zIndex: 1001, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+
+        {/* Header */}
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>Neue Analyse</div>
+            {blockInfo && (
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                Block {blockInfo.block_nummer} · Folge {blockInfo.folge_von}–{blockInfo.folge_bis}
+                {blockInfo.dreh_von && ` · Dreh: ${blockInfo.dreh_von}${blockInfo.dreh_bis ? ` – ${blockInfo.dreh_bis}` : ''}`}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            disabled={submitting}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 2, flexShrink: 0 }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '16px 20px' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 10 }}>
+            Analyse-Methode
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {ALL_METHODS.map(m => {
+              const meta = METHOD_LABELS[m]
+              const isDisabled = !!meta.disabled
+              const isSelected = methods.includes(m)
+              return (
+                <label
+                  key={m}
+                  style={{
+                    display: 'flex', gap: 10, padding: '10px 12px',
+                    borderRadius: 8, cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    border: `1px solid ${isSelected && !isDisabled ? 'var(--color-primary, #007AFF)' : 'var(--border)'}`,
+                    background: isSelected && !isDisabled ? 'rgba(0,122,255,0.05)' : 'transparent',
+                    opacity: isDisabled ? 0.45 : 1,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected && !isDisabled}
+                    disabled={isDisabled}
+                    onChange={() => !isDisabled && toggle(m)}
+                    style={{ marginTop: 2, accentColor: '#007AFF' }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span>{meta.label}</span>
+                      <span style={{ color: isDisabled ? 'var(--text-secondary)' : '#00C853', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                        {isDisabled ? 'ab Phase 3' : meta.cost}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4 }}>
+                      {meta.desc}
+                    </div>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+
+          {activeMethods.length > 0 && (
+            <div style={{
+              marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)',
+              display: 'flex', justifyContent: 'space-between', fontSize: 12,
+            }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Geschätzte Kosten</span>
+              <span style={{ fontWeight: 600 }}>~{estimatedCost.toFixed(2).replace('.', ',')} €</span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {error && (
+            <div style={{ flex: 1, fontSize: 12, color: '#FF3B30', lineHeight: 1.4 }}>{error}</div>
+          )}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+            <button
+              onClick={onClose}
+              disabled={submitting}
+              style={{
+                padding: '8px 16px', borderRadius: 6, border: '1px solid var(--border)',
+                background: 'transparent', color: 'var(--text-primary)', fontSize: 13,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={onStart}
+              disabled={submitting || activeMethods.length === 0}
+              style={{
+                padding: '8px 16px', borderRadius: 6, border: 'none',
+                background: (submitting || activeMethods.length === 0) ? 'var(--border)' : '#000',
+                color: (submitting || activeMethods.length === 0) ? 'var(--text-secondary)' : '#fff',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {submitting
+                ? <><RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Wird gestartet…</>
+                : 'Analyse starten'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ── Hauptseite ────────────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
   const { selectedProduction } = useSelectedProduction()
   const selectedProdId = selectedProduction?.id ?? ''
 
-  const [blocks, setBlocks]         = useState<Block[]>([])
-  const [blockNr, setBlockNr]       = useState<number | null>(null)
-  const [ersterBlock, setErsterBlock] = useState<number>(1)
-  const [methods, setMethods]       = useState<string[]>(['story_consultant_pur'])
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError]           = useState<string | null>(null)
+  // Block-Auswahl (AppShell übernimmt die Anzeige im Topbar)
+  const [blocks, setBlocks] = useState<Block[]>([])
+  const [selectedBlock, setSelectedBlock] = useState<Block | null>(null)
 
-  // Aktiver laufender Run (auch nach Seitenwechsel wiederherstellbar)
-  const [activeRunId, setActiveRunId]       = useState<string | null>(null)
+  // Sidebar
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_SIDEBAR_WIDTH)
+  const dragStartX = useRef(0)
+  const dragStartWidth = useRef(DEFAULT_SIDEBAR_WIDTH)
+  const isDragging = useRef(false)
+
+  // Modal
+  const [methodenModalOpen, setMethodenModalOpen] = useState(false)
+  const [methods, setMethods] = useState<string[]>(['story_consultant_pur'])
+
+  // Analyse-Runs
+  const [prevRuns, setPrevRuns] = useState<RunData[]>([])
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
+  const [selectedRunData, setSelectedRunData] = useState<RunData | null>(null)
+  const [selectedTab, setSelectedTab] = useState<string | null>(null)
+  const [loadingRun, setLoadingRun] = useState(false)
+
+  // Polling
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [activeRunStatus, setActiveRunStatus] = useState<string | null>(null)
-  const [activeRunResults, setActiveRunResults] = useState<MethodResult[] | null>(null)
-  const [activeTab, setActiveTab]           = useState<string | null>(null)
-
-  const [prevRuns, setPrevRuns]       = useState<RunData[]>([])
-  const [expandedRun, setExpandedRun] = useState<string | null>(null)
-
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // ── Polling-Logik ──────────────────────────────────────────────────────────
+  const isPolling = activeRunId != null && (activeRunStatus === 'queued' || activeRunStatus === 'running')
+
+  // ── Drag Handle ─────────────────────────────────────────────────────────────
+
+  const onDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    dragStartX.current = clientX
+    dragStartWidth.current = sidebarWidth
+    isDragging.current = true
+
+    const onMove = (ev: MouseEvent | TouchEvent) => {
+      if (!isDragging.current) return
+      const x = 'touches' in ev ? (ev as TouchEvent).touches[0].clientX : (ev as MouseEvent).clientX
+      const next = Math.min(480, Math.max(200, dragStartWidth.current + (x - dragStartX.current)))
+      setSidebarWidth(next)
+    }
+    const onUp = () => {
+      isDragging.current = false
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      window.removeEventListener('touchmove', onMove)
+      window.removeEventListener('touchend', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    window.addEventListener('touchmove', onMove, { passive: false })
+    window.addEventListener('touchend', onUp)
+  }, [sidebarWidth])
+
+  // ── Blöcke laden ────────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!selectedProdId) { setBlocks([]); setSelectedBlock(null); return }
+    fetch(`/api/produktionen/${encodeURIComponent(selectedProdId)}/bloecke`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: Block[]) => {
+        setBlocks(data)
+        if (data.length > 0) setSelectedBlock(prev => prev ?? data[0])
+      })
+      .catch(() => setBlocks([]))
+  }, [selectedProdId])
+
+  // ── Vorherige Runs laden ─────────────────────────────────────────────────────
+
+  const loadPrevRuns = useCallback(() => {
+    if (!selectedProdId || !selectedBlock) return
+    fetch(`/api/analysis/block/${encodeURIComponent(selectedProdId)}/${selectedBlock.block_nummer}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((runs: RunData[]) => {
+        setPrevRuns(runs)
+        // Neuesten abgeschlossenen Run auto-selektieren, falls noch nichts ausgewählt
+        setSelectedRunId(prev => {
+          if (prev) return prev
+          const latest = runs.find(r => r.status === 'completed')
+          if (latest) {
+            setSelectedRunData(latest)
+            setSelectedTab(latest.method_results?.[0]?.method ?? null)
+            return latest.id
+          }
+          return null
+        })
+      })
+      .catch(() => {})
+  }, [selectedProdId, selectedBlock?.block_nummer])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setSelectedRunId(null)
+    setSelectedRunData(null)
+    setPrevRuns([])
+    loadPrevRuns()
+  }, [loadPrevRuns])
+
+  // ── Polling ──────────────────────────────────────────────────────────────────
 
   const stopPolling = useCallback(() => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -207,15 +555,19 @@ export default function AnalysisPage() {
       if (!resp.ok) return
       const run: RunData = await resp.json()
       setActiveRunStatus(run.status)
+      // In der Liste aktualisieren
+      setPrevRuns(prev => {
+        const without = prev.filter(r => r.id !== run.id)
+        return [run, ...without]
+      })
       if (run.status === 'completed' || run.status === 'error') {
         stopPolling()
         localStorage.removeItem(POLL_STORAGE_KEY)
-        setActiveRunResults(run.method_results)
-        setActiveTab(run.method_results?.[0]?.method ?? null)
-        setPrevRuns(prev => {
-          const without = prev.filter(r => r.id !== run.id)
-          return [run, ...without]
-        })
+        setActiveRunId(null)
+        // Ergebnis sofort anzeigen
+        setSelectedRunId(run.id)
+        setSelectedRunData(run)
+        setSelectedTab(run.method_results?.[0]?.method ?? null)
       }
     } catch {}
   }, [stopPolling])
@@ -225,7 +577,6 @@ export default function AnalysisPage() {
     setActiveRunId(runId)
     localStorage.setItem(POLL_STORAGE_KEY, runId)
     pollRef.current = setInterval(() => pollRun(runId), POLL_INTERVAL_MS)
-    // Sofort einmal abfragen
     pollRun(runId)
   }, [stopPolling, pollRun])
 
@@ -240,60 +591,26 @@ export default function AnalysisPage() {
     return () => stopPolling()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Blöcke laden ──────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    setActiveRunResults(null)
-    if (!selectedProdId) { setBlocks([]); setBlockNr(null); return }
-    fetch(`/api/produktionen/${encodeURIComponent(selectedProdId)}/bloecke`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then((data: any) => {
-        const blocksArr: Block[] = data.bloecke || data || []
-        setBlocks(blocksArr)
-        const firstBlockNr = blocksArr[0]?.block_nummer ?? 1
-        setErsterBlock(firstBlockNr)
-        setBlockNr(blocksArr.length > 0 ? firstBlockNr : null)
-      })
-      .catch(() => setBlocks([]))
-  }, [selectedProdId])
-
-  // ── Vorherige Runs laden ───────────────────────────────────────────────────
-
-  const loadPrevRuns = useCallback(() => {
-    if (!selectedProdId || blockNr == null) return
-    fetch(`/api/analysis/block/${encodeURIComponent(selectedProdId)}/${blockNr}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(setPrevRuns)
-      .catch(() => {})
-  }, [selectedProdId, blockNr])
-
-  useEffect(() => { loadPrevRuns() }, [loadPrevRuns])
-
-  // ── Analyse starten ───────────────────────────────────────────────────────
-
-  const toggleMethod = (m: string) => {
-    setMethods(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m])
-  }
-
-  const estimatedCost = methods.reduce((sum, m) => {
-    const match = METHOD_LABELS[m]?.cost?.match(/[\d,.]+/)
-    return sum + (match ? parseFloat(match[0].replace(',', '.')) : 0)
-  }, 0)
+  // ── Analyse starten ──────────────────────────────────────────────────────────
 
   const handleRun = async () => {
-    if (!selectedProdId || blockNr == null || methods.length === 0) return
+    if (!selectedProdId || !selectedBlock || methods.length === 0) return
     setSubmitting(true)
     setError(null)
-    setActiveRunResults(null)
     try {
       const resp = await fetch('/api/analysis/run', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ produktion_id: selectedProdId, block_nummer: blockNr, methods }),
+        body: JSON.stringify({
+          produktion_id: selectedProdId,
+          block_nummer: selectedBlock.block_nummer,
+          methods,
+        }),
       })
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+      setMethodenModalOpen(false)
       setActiveRunStatus('queued')
       startPolling(data.run_id)
       loadPrevRuns()
@@ -304,336 +621,217 @@ export default function AnalysisPage() {
     }
   }
 
-  const isPolling = activeRunId != null && (activeRunStatus === 'queued' || activeRunStatus === 'running')
-  const blockIndex = blockNr != null ? blockNr - ersterBlock : -1
-  const blockInfo = blockIndex >= 0 && blockIndex < blocks.length ? blocks[blockIndex] : null
+  // ── Run aus Sidebar laden ────────────────────────────────────────────────────
+
+  const loadRun = useCallback(async (runId: string) => {
+    if (runId === selectedRunId) return
+    setSelectedRunId(runId)
+    const existing = prevRuns.find(r => r.id === runId)
+    if (existing) {
+      setSelectedRunData(existing)
+      setSelectedTab(existing.method_results?.[0]?.method ?? null)
+      return
+    }
+    setLoadingRun(true)
+    try {
+      const resp = await fetch(`/api/analysis/run/${runId}`, { credentials: 'include' })
+      if (!resp.ok) return
+      const run: RunData = await resp.json()
+      setSelectedRunData(run)
+      setSelectedTab(run.method_results?.[0]?.method ?? null)
+    } finally {
+      setLoadingRun(false)
+    }
+  }, [selectedRunId, prevRuns])
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <AppShell>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-      <div style={{ padding: '24px 28px', maxWidth: 1100, margin: '0 auto' }}>
-        <h2 style={{ fontSize: 18, fontWeight: 700, margin: '0 0 4px' }}>Analyse-Editor</h2>
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 24px' }}>
-          KI-gestützte dramaturgische Analyse eines Blocks (Methoden 1–2 aktiv, 3–5 ab Phase 3)
-        </p>
+    <AppShell
+      bloecke={blocks}
+      selectedBlock={selectedBlock}
+      onSelectBlock={(b: Block) => {
+        setSelectedBlock(b)
+        setSelectedRunId(null)
+        setSelectedRunData(null)
+        setPrevRuns([])
+      }}
+    >
+      <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 24, alignItems: 'start' }}>
-
-          {/* ── Linke Spalte: Konfiguration ──────────────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Workflow-Anleitung */}
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-              Produktion und Block wählen, Methoden auswählen, dann „Analyse starten".
-            </div>
-
-            {/* Produktion & Block */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 10 }}>
-                Produktion &amp; Block
-              </div>
-
-              {selectedProduction ? (
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{productionLabel(selectedProduction)}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    Produktion wechseln: oben in der AppShell
-                  </div>
-                </div>
-              ) : (
-                <div style={{
-                  marginBottom: 12, padding: '8px 10px', borderRadius: 6,
-                  border: '1px solid var(--border)', background: 'rgba(255,204,0,0.08)',
-                  fontSize: 12, color: 'var(--text-secondary)',
-                }}>
-                  Keine Produktion gewählt — bitte oben in der AppShell auswählen.
-                </div>
-              )}
-
-              <label style={{ display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>Block-Nummer</label>
-              <select
-                value={blockNr ?? ''}
-                onChange={e => { setBlockNr(e.target.value ? Number(e.target.value) : null); setActiveRunResults(null) }}
-                disabled={blocks.length === 0}
+        {/* ── Sidebar ────────────────────────────────────────────────────────── */}
+        {!sidebarCollapsed && (
+          <div
+            className="scene-list-sidebar"
+            style={{ width: sidebarWidth, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+          >
+            {/* Neue-Analyse-Button */}
+            <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <button
+                onClick={() => { setError(null); setMethodenModalOpen(true) }}
+                disabled={!selectedBlock || !selectedProdId}
                 style={{
-                  width: '100%', padding: '8px 10px', borderRadius: 6,
-                  border: '1px solid var(--border)', background: 'var(--bg-subtle)',
-                  fontSize: 13, color: 'var(--text-primary)',
-                  opacity: blocks.length === 0 ? 0.5 : 1,
+                  width: '100%', padding: '8px 12px', borderRadius: 7,
+                  border: 'none', background: '#000', color: '#fff',
+                  fontWeight: 600, fontSize: 12, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  opacity: (!selectedBlock || !selectedProdId) ? 0.4 : 1,
+                  fontFamily: 'inherit',
                 }}
               >
-                {blocks.length === 0 && <option value="">— Keine Blöcke —</option>}
-                {blocks.map((b) => (
-                  <option key={b.block_nummer} value={b.block_nummer}>
-                    Block {b.block_nummer} (Folge {b.folge_von}–{b.folge_bis})
-                  </option>
-                ))}
-              </select>
+                <Plus size={12} />
+                Neue Analyse
+              </button>
 
-              {blockInfo && (
-                <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-                  Folgen {blockInfo.folge_von}–{blockInfo.folge_bis}
-                  {blockInfo.dreh_von && (
-                    <span style={{ marginLeft: 8 }}>
-                      · Dreh: {blockInfo.dreh_von}{blockInfo.dreh_bis ? ` – ${blockInfo.dreh_bis}` : ''}
-                    </span>
-                  )}
+              {isPolling && (
+                <div style={{ marginTop: 8, fontSize: 11, color: '#007AFF', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+                  <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite' }} />
+                  {statusLabel(activeRunStatus || 'queued')}
                 </div>
               )}
             </div>
 
-            {/* Methoden */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', marginBottom: 10 }}>
-                Methoden
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {ALL_METHODS.map(m => {
-                  const meta = METHOD_LABELS[m]
-                  const isDisabled = !!meta.disabled
-                  const isSelected = methods.includes(m)
-                  return (
-                    <label
-                      key={m}
-                      style={{
-                        display: 'flex', gap: 10, padding: '10px 12px',
-                        borderRadius: 8, cursor: isDisabled ? 'not-allowed' : 'pointer',
-                        border: `1px solid ${isSelected && !isDisabled ? 'var(--color-primary, #007AFF)' : 'var(--border)'}`,
-                        background: isSelected && !isDisabled ? 'rgba(0,122,255,0.05)' : 'transparent',
-                        opacity: isDisabled ? 0.45 : 1,
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected && !isDisabled}
-                        disabled={isDisabled}
-                        onChange={() => !isDisabled && toggleMethod(m)}
-                        style={{ marginTop: 2, accentColor: '#007AFF' }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                          <span>{meta.label}</span>
-                          <span style={{ color: isDisabled ? 'var(--text-secondary)' : '#00C853', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                            {isDisabled ? 'ab Phase 3' : meta.cost}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4 }}>
-                          {meta.desc}
-                        </div>
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-
-              {methods.filter(m => !METHOD_LABELS[m]?.disabled).length > 0 && (
-                <div style={{
-                  marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  fontSize: 12,
-                }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>Geschätzte Kosten</span>
-                  <span style={{ fontWeight: 600 }}>~{estimatedCost.toFixed(2).replace('.', ',')} €</span>
+            {/* Runs-Liste */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {prevRuns.length === 0 && !isPolling && (
+                <div style={{ padding: '24px 12px', fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', lineHeight: 1.5 }}>
+                  Noch keine Analysen für diesen Block.
                 </div>
               )}
-            </div>
+              {prevRuns.map(run => {
+                const isSelected = run.id === selectedRunId
+                const isRunning = run.id === activeRunId && (run.status === 'queued' || run.status === 'running')
+                const borderColor =
+                  run.status === 'completed' ? '#00C853'
+                  : run.status === 'error'   ? '#FF3B30'
+                  : '#007AFF'
 
-            {/* Run-Button */}
-            <button
-              onClick={handleRun}
-              disabled={submitting || isPolling || !selectedProdId || blockNr == null || methods.length === 0}
-              style={{
-                padding: '12px 20px', borderRadius: 8, border: 'none',
-                background: (submitting || isPolling || !selectedProdId || blockNr == null || methods.length === 0)
-                  ? 'var(--border)' : '#000',
-                color: (submitting || isPolling || !selectedProdId || blockNr == null || methods.length === 0)
-                  ? 'var(--text-secondary)' : '#fff',
-                fontWeight: 600, fontSize: 14, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                transition: 'opacity 0.15s',
-              }}
-            >
-              {(submitting || isPolling) ? (
-                <>
-                  <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />
-                  {submitting ? 'Wird vorbereitet ...' : statusLabel(activeRunStatus || 'queued')}
-                </>
-              ) : 'Analyse starten'}
-            </button>
-
-            {/* Hintergrund-Hinweis während Analyse */}
-            {isPolling && (
-              <div style={{
-                padding: '10px 14px', borderRadius: 8,
-                background: 'rgba(0,122,255,0.06)', border: '1px solid rgba(0,122,255,0.15)',
-                fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5,
-              }}>
-                Die Analyse läuft im Hintergrund — du kannst die Seite verlassen.
-                Das Ergebnis erscheint automatisch sobald Claude fertig ist.
-              </div>
-            )}
-
-            {error && (
-              <div style={{
-                padding: '10px 14px', borderRadius: 8,
-                background: 'rgba(255,59,48,0.1)', color: '#FF3B30',
-                fontSize: 12, lineHeight: 1.5,
-              }}>
-                {error}
-              </div>
-            )}
-          </div>
-
-          {/* ── Rechte Spalte: Ergebnisse ─────────────────────────────────────── */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Laufender Run — Spinner */}
-            {isPolling && !activeRunResults && (
-              <div style={{
-                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-                padding: 48, textAlign: 'center', fontSize: 13,
-              }}>
-                <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', marginBottom: 12, opacity: 0.4 }} />
-                <div style={{ fontWeight: 600 }}>{statusLabel(activeRunStatus || 'queued')}</div>
-                <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 6 }}>
-                  Erwartet ca. 90 Sekunden pro Methode.<br />
-                  Du kannst die Seite verlassen — die Analyse läuft weiter.
-                </div>
-              </div>
-            )}
-
-            {/* Aktueller Run — Ergebnisse */}
-            {activeRunResults && activeRunResults.length > 0 && (
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-                  {activeRunResults.map(r => (
-                    <button
-                      key={r.method}
-                      onClick={() => setActiveTab(r.method)}
-                      style={{
-                        padding: '10px 16px', border: 'none', background: 'none',
-                        cursor: 'pointer', fontSize: 12, fontWeight: activeTab === r.method ? 600 : 400,
-                        borderBottom: activeTab === r.method ? '2px solid #000' : '2px solid transparent',
-                        color: activeTab === r.method ? 'var(--text-primary)' : 'var(--text-secondary)',
-                        display: 'flex', alignItems: 'center', gap: 6,
-                      }}
-                    >
-                      {METHOD_LABELS[r.method]?.label || r.method}
-                      {r.status === 'error' && <span style={{ color: '#FF3B30', fontSize: 10 }}>Fehler</span>}
-                    </button>
-                  ))}
-                </div>
-                {activeRunResults.filter(r => r.method === activeTab).map(r => (
-                  <div key={r.method} style={{ padding: 20 }}>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
-                      <MethodBadge fromCache={r.from_cache} />
-                      {r.duration_ms && (
-                        <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <Clock size={10} /> {fmtDuration(r.duration_ms)}
-                        </span>
-                      )}
+                return (
+                  <button
+                    key={run.id}
+                    onClick={() => loadRun(run.id)}
+                    style={{
+                      width: '100%', textAlign: 'left', border: 'none',
+                      borderBottom: '1px solid var(--border)',
+                      borderLeft: `3px solid ${borderColor}`,
+                      background: isSelected ? 'var(--bg-active, rgba(0,0,0,0.05))' : 'transparent',
+                      padding: '10px 12px', cursor: 'pointer', fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--bg-subtle)' }}
+                    onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 3 }}>
+                      {fmtDate(run.created_at)}
                     </div>
-                    {r.status === 'error' ? (
-                      <div style={{ color: '#FF3B30', fontSize: 13 }}>Fehler: {r.error_detail}</div>
-                    ) : r.markdown ? (
-                      <MarkdownResult markdown={r.markdown} />
-                    ) : (
-                      <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Kein Ergebnis</div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Vorherige Runs */}
-            {prevRuns.length > 0 && (
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>Frühere Analysen</span>
-                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 8 }}>
-                    {prevRuns.length} Run{prevRuns.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <div>
-                  {prevRuns.map(run => {
-                    const isExpanded = expandedRun === run.id
-                    const isActive = run.id === activeRunId
-                    return (
-                      <div key={run.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <button
-                          onClick={() => setExpandedRun(isExpanded ? null : run.id)}
-                          style={{
-                            width: '100%', padding: '10px 16px', border: 'none', background: 'none',
-                            cursor: 'pointer', textAlign: 'left',
-                            display: 'flex', alignItems: 'center', gap: 10,
-                          }}
-                        >
-                          {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{fmtDate(run.created_at)}</span>
-                          <span style={{ flex: 1, fontSize: 12 }}>
-                            {run.method_results.map(mr => METHOD_LABELS[mr.method]?.label || mr.method).join(', ')}
-                          </span>
-                          {isActive && (activeRunStatus === 'queued' || activeRunStatus === 'running') && (
-                            <RefreshCw size={10} style={{ animation: 'spin 1s linear infinite', opacity: 0.5 }} />
-                          )}
-                          <span style={{
-                            fontSize: 10, padding: '2px 6px', borderRadius: 4,
-                            background: run.status === 'completed' ? 'rgba(0,200,83,0.1)'
-                              : run.status === 'error' ? 'rgba(255,59,48,0.1)'
-                              : 'rgba(0,122,255,0.1)',
-                            color: run.status === 'completed' ? '#00C853'
-                              : run.status === 'error' ? '#FF3B30'
-                              : '#007AFF',
-                          }}>
-                            {run.status === 'completed' ? 'OK'
-                              : run.status === 'running' ? 'läuft'
-                              : run.status === 'queued' ? 'wartend'
-                              : run.status}
-                          </span>
-                        </button>
-                        {isExpanded && (
-                          <div style={{ padding: '0 16px 16px' }}>
-                            {run.method_results.length === 0 && (
-                              <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>
-                                Analyse läuft noch ...
-                              </div>
-                            )}
-                            {run.method_results.map(mr => (
-                              <div key={mr.method} style={{ marginBottom: 16 }}>
-                                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
-                                  {METHOD_LABELS[mr.method]?.label || mr.method}
-                                  <MethodBadge fromCache={mr.from_cache} />
-                                  {mr.duration_ms && (
-                                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{fmtDuration(mr.duration_ms)}</span>
-                                  )}
-                                </div>
-                                {mr.status === 'error' ? (
-                                  <div style={{ color: '#FF3B30', fontSize: 12 }}>{mr.error_detail}</div>
-                                ) : mr.markdown ? (
-                                  <MarkdownResult markdown={mr.markdown} />
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                    <div style={{ fontSize: 12, fontWeight: isSelected ? 600 : 400, lineHeight: 1.4 }}>
+                      {run.method_results.length > 0
+                        ? run.method_results.map(mr => METHOD_LABELS[mr.method]?.label || mr.method).join(', ')
+                        : run.status === 'queued' || run.status === 'running'
+                          ? methods.map(m => METHOD_LABELS[m]?.label || m).join(', ')
+                          : '—'
+                      }
+                    </div>
+                    {isRunning && (
+                      <div style={{ marginTop: 4, fontSize: 10, color: '#007AFF', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <RefreshCw size={9} style={{ animation: 'spin 1s linear infinite' }} />
+                        {statusLabel(activeRunStatus || '')}
                       </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+                    )}
+                    {run.status === 'error' && !isRunning && (
+                      <div style={{ marginTop: 3, fontSize: 10, color: '#FF3B30' }}>Fehler</div>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
           </div>
+        )}
+
+        {/* ── Drag Handle + Collapse ──────────────────────────────────────────── */}
+        <div
+          className="scene-list-handle"
+          onMouseDown={!sidebarCollapsed ? onDragStart : undefined}
+          onTouchStart={!sidebarCollapsed ? onDragStart : undefined}
+        >
+          <button
+            className="scene-list-collapse-btn"
+            onClick={() => setSidebarCollapsed(c => !c)}
+            title={sidebarCollapsed ? 'Analysen-Übersicht öffnen' : 'Analysen-Übersicht schließen'}
+          >
+            {sidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </div>
+
+        {/* ── Hauptbereich ───────────────────────────────────────────────────── */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+
+          {loadingRun ? (
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <RefreshCw size={20} style={{ animation: 'spin 1s linear infinite', opacity: 0.35 }} />
+            </div>
+
+          ) : isPolling && !selectedRunData ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textAlign: 'center' }}>
+              <RefreshCw size={22} style={{ animation: 'spin 1s linear infinite', opacity: 0.35, marginBottom: 14 }} />
+              <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)' }}>{statusLabel(activeRunStatus || 'queued')}</div>
+              <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.6 }}>
+                Erwartet ca. 90 Sekunden pro Methode.<br />
+                Du kannst die Seite verlassen — die Analyse läuft weiter.
+              </div>
+            </div>
+
+          ) : selectedRunData ? (
+            <ReportView
+              run={selectedRunData}
+              activeTab={selectedTab}
+              onTabChange={setSelectedTab}
+            />
+
+          ) : (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center', padding: 24, gap: 12 }}>
+              {!selectedProduction ? (
+                <span>Produktion in der AppShell oben auswählen.</span>
+              ) : !selectedBlock ? (
+                <span>Block auswählen, dann „Neue Analyse" klicken.</span>
+              ) : (
+                <>
+                  <span>Noch keine Analyse für Block {selectedBlock.block_nummer}.</span>
+                  <button
+                    onClick={() => { setError(null); setMethodenModalOpen(true) }}
+                    style={{
+                      padding: '8px 16px', borderRadius: 7, border: 'none',
+                      background: '#000', color: '#fff', fontWeight: 600, fontSize: 12,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
+                    <Plus size={12} />
+                    Neue Analyse starten
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
-      </div>
-      </div>
+
+      {/* ── Methoden-Modal ────────────────────────────────────────────────────── */}
+      {methodenModalOpen && (
+        <MethodenModal
+          methods={methods}
+          onChange={setMethods}
+          onStart={handleRun}
+          onClose={() => { setMethodenModalOpen(false); setError(null) }}
+          submitting={submitting}
+          error={error}
+          blockInfo={selectedBlock}
+        />
+      )}
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @media (max-width: 768px) {
-          .analysis-grid { grid-template-columns: 1fr !important; }
+        @media (pointer: coarse) {
+          .scene-list-handle { width: 20px !important; }
         }
       `}</style>
     </AppShell>
