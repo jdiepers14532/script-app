@@ -19,9 +19,10 @@ import StoppzeitenModal from '../components/StoppzeitenModal'
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
-function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead, onActiveWerkSelected, onSzenesNeedReload }: {
+function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId: folgeIdProp, selectedSzeneId, useDokumentSzenen, stageId, sceneIdentityId, onNavigateNext, onNavigatePrev, onSzeneUpdated, onMarkCommentsRead, onActiveWerkSelected, onSzenesNeedReload }: {
   produktionId: string; folgeNummer: number | null
   freiDokFolgeId?: number | null  // freies Dokument: direkte folge_id statt Auflösung via folgeNummer
+  folgeId?: number | null  // direkte folge_id von ScriptPage — verhindert async-Race-Condition
   selectedSzeneId: number | string | null; useDokumentSzenen: boolean
   stageId: number | null; sceneIdentityId: string | null
   onNavigateNext?: () => void; onNavigatePrev?: () => void
@@ -32,18 +33,21 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
   const { panelMode, setPanelMode } = usePanelMode()
   const { tweaks } = useTweaks()
   const sceneEditorMode = tweaks.sceneEditorMode ?? 'single'
-  const [folgeId, setFolgeId] = useState<number | null>(null)
+  const [localFolgeId, setLocalFolgeId] = useState<number | null>(null)
+  // Wenn folgeIdProp von ScriptPage übergeben wird, direkt nutzen (kein async-Lookup nötig)
+  const folgeId = folgeIdProp !== undefined ? (folgeIdProp ?? null) : localFolgeId
   // Freies Dokument: folge_id direkt, kein folgeNummer-Lookup nötig
   useEffect(() => {
-    if (freiDokFolgeId != null) { setFolgeId(freiDokFolgeId); return }
-    if (!produktionId || !folgeNummer) { setFolgeId(null); return }
+    if (folgeIdProp !== undefined) return  // Prop hat Vorrang — async-Lookup überspringen
+    if (freiDokFolgeId != null) { setLocalFolgeId(freiDokFolgeId); return }
+    if (!produktionId || !folgeNummer) { setLocalFolgeId(null); return }
     api.getFolgenV2(produktionId)
       .then(folgen => {
         const match = folgen.find((f: any) => f.folge_nummer === folgeNummer)
-        setFolgeId(match?.id ?? null)
+        setLocalFolgeId(match?.id ?? null)
       })
-      .catch(() => setFolgeId(null))
-  }, [produktionId, folgeNummer, freiDokFolgeId])
+      .catch(() => setLocalFolgeId(null))
+  }, [produktionId, folgeNummer, freiDokFolgeId, folgeIdProp])
 
   // Load werkstufen for this folge
   const { werkstufen, reload: reloadWerkstufen, createWerkstufe } = useWerkstufe(folgeId)
@@ -399,6 +403,7 @@ export default function ScriptPage() {
   const [allFolgen, setAllFolgen] = useState<any[]>([])
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null)
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | string | null>(null)
+  const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(null)
 
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({})
 
@@ -412,6 +417,7 @@ export default function ScriptPage() {
   useEffect(() => {
     if (!freiDokId) return
     setSzenen([])
+    setSelectedFolgeId(null)
     setSelectedSzeneId(null)
     setUseDokumentSzenen(false)
     setSelectedWerkstufeTyp(null)
@@ -438,6 +444,7 @@ export default function ScriptPage() {
         setSelectedStageId(werk.id)
         setSelectedWerkstufeTyp(werk.typ)
         api.getWerkstufenSzenen(werk.id).then(szenen => {
+          setSelectedFolgeId(freiDokId)
           if (szenen.length > 0) {
             setSzenen(szenen)
             setSelectedSzeneId(szenen[0].id)
@@ -734,6 +741,7 @@ export default function ScriptPage() {
     if (freiDokId) return  // freies Dokument hat eigenen Load-Pfad
     if (!selectedProduktionId || selectedFolgeNummer == null) return
     setSzenen([])
+    setSelectedFolgeId(null)
     setSelectedSzeneId(null)
     setUseDokumentSzenen(false)
     setSelectedWerkstufeTyp(null)
@@ -756,6 +764,7 @@ export default function ScriptPage() {
           setSelectedStageId(null)
           setSelectedWerkstufeTyp(null)
           setSzenen([])
+          setSelectedFolgeId(folge.id)
           setUseDokumentSzenen(true)
           return
         }
@@ -765,6 +774,7 @@ export default function ScriptPage() {
           setSelectedStageId(null)
           setSelectedWerkstufeTyp(null)
           setSzenen([])
+          setSelectedFolgeId(folge.id)
           setUseDokumentSzenen(true)
           return
         }
@@ -783,6 +793,7 @@ export default function ScriptPage() {
         setSelectedStageId(werk.id)
         setSelectedWerkstufeTyp(werk.typ)
         const werkSzenen = await api.getWerkstufenSzenen(werk.id)
+        setSelectedFolgeId(folge.id)
         if (werkSzenen.length > 0) {
           setSzenen(werkSzenen)
           setUseDokumentSzenen(true)
@@ -929,6 +940,7 @@ export default function ScriptPage() {
                 produktionId={selectedProduktionId}
                 folgeNummer={freiDokId ? null : selectedFolgeNummer}
                 freiDokFolgeId={freiDokId ?? undefined}
+                folgeId={selectedFolgeId}
                 onActiveWerkSelected={(werkId, typ) => {
                   if (!werkId) return
                   setSelectedStageId(werkId as any)
