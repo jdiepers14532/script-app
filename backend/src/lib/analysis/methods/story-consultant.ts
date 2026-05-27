@@ -78,7 +78,7 @@ export async function runStoryConsultant(opts: {
 
   const prompt = buildPrompt(opts)
 
-  const client = new Anthropic({ apiKey, timeout: 180_000 })
+  const client = new Anthropic({ apiKey, timeout: 600_000 })
 
   const startMs = Date.now()
   const response = await client.messages.create({
