@@ -106,6 +106,7 @@ router.get('/run/:id', async (req, res) => {
       [req.params.id]
     )
     if (!run) return res.status(404).json({ error: 'Run nicht gefunden' })
+    res.set('Cache-Control', 'no-store')
     res.json(run)
   } catch (err: any) {
     res.status(500).json({ error: String(err) })
