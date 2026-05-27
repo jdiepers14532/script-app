@@ -38,8 +38,26 @@ export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
   const svsArr: string[]  = []
   const sbsArr: string[]  = []
 
-  for (const scene of scenes) {
-    const pageLenFraction = Math.max(1, scene.page_length ?? 1) / 8
+  // Szenenkopf-Overhead pro nicht-Notiz-Szene:
+  // margin-top:14pt + Kopfzeilen-Text (~1 Zeile bei 11pt/lh:1.2 ≈ 13pt) + margin-bottom:4pt ≈ 31pt
+  // Bei Courier 12pt / A4: Zeilenhöhe ≈ 12pt → ~2.6 Zeilen → 2.6 / (59/8) ≈ 0.35 Achtel
+  const HEADING_OVERHEAD = 2.6 / (59 / 8)  // ≈ 0.352 Achtel
+
+  for (let i = 0; i < scenes.length; i++) {
+    const scene = scenes[i]
+
+    // Im PDF bekommt jede Szene außer der ersten `page-break-before:always`
+    // (renderMainScenes → renderSzenenkopf / notiz-Block mit pbStyle).
+    // currentFraction auf nächste ganzzahlige Seite aufrunden.
+    if (i > 0) {
+      currentFraction = Math.ceil(currentFraction)
+    }
+
+    // page_length in Achtel + Szenenkopf-Overhead für nicht-Notiz-Szenen
+    const rawEighths = Math.max(1, scene.page_length ?? 1)
+    const headingOverhead = scene.format !== 'notiz' ? HEADING_OVERHEAD : 0
+    const pageLenFraction = (rawEighths + headingOverhead) / 8
+
     const seite_von = currentFraction
     const seite_bis = currentFraction + pageLenFraction
 
