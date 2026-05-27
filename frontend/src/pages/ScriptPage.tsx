@@ -26,7 +26,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
   stageId: number | null; sceneIdentityId: string | null
   onNavigateNext?: () => void; onNavigatePrev?: () => void
   onSzeneUpdated?: (updated: any) => void; onMarkCommentsRead?: (szeneId: number) => void
-  onActiveWerkSelected?: (werkId: string | null) => void
+  onActiveWerkSelected?: (werkId: string | null, typ?: string | null) => void
   onSzenesNeedReload?: () => void
 }) {
   const { panelMode, setPanelMode } = usePanelMode()
@@ -52,10 +52,11 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, selecte
   const [leftWerkId, setLeftWerkId] = useState<string | null>(null)
   const [rightWerkId, setRightWerkId] = useState<string | null>(null)
 
-  // Propagate dominant werkId to parent (used by free documents to update selectedStageId)
+  // Propagate dominant werkId + typ to parent — synchronisiert SceneList mit aktivem EditorPanel
   useEffect(() => {
     const dominant = rightWerkId ?? leftWerkId
-    onActiveWerkSelected?.(dominant)
+    const dominantTyp = werkstufen.find((w: any) => w.id === dominant)?.typ ?? null
+    onActiveWerkSelected?.(dominant, dominantTyp)
   }, [leftWerkId, rightWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Dual-view activation (from NeueWerkstufeModal)
@@ -928,7 +929,18 @@ export default function ScriptPage() {
                 produktionId={selectedProduktionId}
                 folgeNummer={freiDokId ? null : selectedFolgeNummer}
                 freiDokFolgeId={freiDokId ?? undefined}
-                onActiveWerkSelected={freiDokId ? (werkId) => { if (werkId) setSelectedStageId(werkId as any) } : undefined}
+                onActiveWerkSelected={(werkId, typ) => {
+                  if (!werkId) return
+                  setSelectedStageId(werkId as any)
+                  if (freiDokId) return
+                  if (typ) setSelectedWerkstufeTyp(typ)
+                  api.getWerkstufenSzenen(werkId)
+                    .then(scenes => {
+                      setSzenen(scenes)
+                      setSelectedSzeneId(scenes.length > 0 ? scenes[0].id : null)
+                    })
+                    .catch(() => {})
+                }}
                 onSzenesNeedReload={freiDokId ? () => setRefreshKey(Date.now()) : undefined}
                 selectedSzeneId={selectedSzeneId}
                 useDokumentSzenen={useDokumentSzenen}
