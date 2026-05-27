@@ -374,12 +374,16 @@ interface DesignTokenEditorProps {
   mode: 'light' | 'dark'
   activeColorSchemeId?: string
   onSetColorSchemeId?: (id: string) => void
+  isAdmin?: boolean
 }
 
-export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeId }: DesignTokenEditorProps) {
+export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeId, isAdmin }: DesignTokenEditorProps) {
   const [overrides, setOverrides] = useState<Record<string, string>>(() => loadOverrides(mode))
   const [backendLoaded, setBackendLoaded] = useState(false)
   const importRef = useRef<HTMLInputElement>(null)
+  const [customPresets, setCustomPresets] = useState<TokenPreset[]>([])
+  const [savingPreset, setSavingPreset] = useState(false)
+  const [newPresetName, setNewPresetName] = useState('')
 
   // Beim Mode-Wechsel die Overrides neu laden
   useEffect(() => {
@@ -402,6 +406,34 @@ export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeI
       setBackendLoaded(true)
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Admin-Presets vom Backend laden
+  useEffect(() => {
+    fetch('/api/theme-presets', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(setCustomPresets)
+      .catch(() => {})
+  }, [])
+
+  async function handleSavePreset() {
+    if (!newPresetName.trim()) return
+    const r = await fetch('/api/theme-presets', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newPresetName.trim(), mode, overrides, colorSchemeId: activeColorSchemeId }),
+    })
+    if (r.ok) {
+      const saved = await r.json()
+      setCustomPresets(prev => [...prev, saved])
+    }
+    setSavingPreset(false)
+    setNewPresetName('')
+  }
+
+  async function handleDeletePreset(id: string) {
+    await fetch(`/api/theme-presets/${id}`, { method: 'DELETE', credentials: 'include' })
+    setCustomPresets(prev => prev.filter(p => p.id !== id))
+  }
 
   const overridesCount = Object.keys(overrides).length
 
@@ -444,7 +476,8 @@ export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeI
   }
 
   function getActivePresetId(): string {
-    for (const p of PRESETS.filter(x => x.mode === mode)) {
+    const allPresets = [...PRESETS, ...customPresets]
+    for (const p of allPresets.filter(x => x.mode === mode)) {
       if (p.id.endsWith('-standard') && overridesCount === 0) {
         const schemeOk = !p.colorSchemeId || activeColorSchemeId === p.colorSchemeId
         if (schemeOk) return p.id
@@ -513,7 +546,8 @@ export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeI
   }
 
   const activePresetId = getActivePresetId()
-  const modePresets = PRESETS.filter(p => p.mode === mode)
+  const modePresets = [...PRESETS, ...customPresets].filter(p => p.mode === mode)
+  const activeIsCustom = customPresets.some(p => p.id === activePresetId)
   const modeLabel = mode === 'light' ? 'Light' : 'Dark'
 
   return (
@@ -576,13 +610,50 @@ export function DesignTokenEditor({ mode, activeColorSchemeId, onSetColorSchemeI
               }}
             >
               {modePresets.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
+                <option key={p.id} value={p.id}>{(p as any).isCustom ? `★ ${p.name}` : p.name}</option>
               ))}
               {activePresetId === 'custom' && (
                 <option value="custom" disabled>Benutzerdefiniert</option>
               )}
             </select>
           </div>
+
+          {/* Admin: Preset speichern */}
+          {isAdmin && (
+            <>
+              <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+              {savingPreset ? (
+                <>
+                  <input
+                    autoFocus
+                    value={newPresetName}
+                    onChange={e => setNewPresetName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSavePreset(); if (e.key === 'Escape') { setSavingPreset(false); setNewPresetName('') } }}
+                    placeholder="Preset-Name…"
+                    style={{ fontSize: 11, padding: '4px 8px', borderRadius: 5, border: '1px solid var(--color-info)', background: 'var(--input-bg)', color: 'var(--text-primary)', width: 140, fontFamily: 'inherit', outline: 'none' }}
+                  />
+                  <button onClick={handleSavePreset}
+                    style={{ padding: '4px 8px', borderRadius: 5, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>✓</button>
+                  <button onClick={() => { setSavingPreset(false); setNewPresetName('') }}
+                    style={{ padding: '4px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+                </>
+              ) : (
+                <button onClick={() => setSavingPreset(true)}
+                  title="Aktuelle Einstellungen als Preset für alle User speichern"
+                  style={{ fontSize: 11, padding: '4px 10px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                  ★ Speichern
+                </button>
+              )}
+              {/* Löschen-Button wenn aktives Preset ein gespeichertes ist */}
+              {activeIsCustom && !savingPreset && (
+                <button onClick={() => handleDeletePreset(activePresetId)}
+                  title="Dieses Preset löschen"
+                  style={{ padding: '4px 8px', borderRadius: 5, border: '1px solid #FF3B30', background: 'transparent', color: '#FF3B30', fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                  ✕ Löschen
+                </button>
+              )}
+            </>
+          )}
 
           {/* Divider + Reset — nur wenn Änderungen */}
           {overridesCount > 0 && (

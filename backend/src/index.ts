@@ -40,6 +40,7 @@ import { produktionFelderRouter, characterFeldwerteRouter, motivFeldwerteRouter 
 import { produktionMotiveRouter, motivRouter, produktionDrehorteRouter } from './routes/motive'
 import { rollenprofilImportRouter } from './routes/rollenprofil-import'
 import { dkSettingsRouter, dkAccessAdminRouter } from './routes/dk-access'
+import themePresetsRouter from './routes/theme-presets'
 import { dokumentSzenenRouter, sceneIdentitiesRouter, stockshotArchivRouter, stockshotTemplatesRouter } from './routes/dokument-szenen'
 import { folgenV2Router } from './routes/folgen-v2'
 import { statistikRouter } from './routes/statistik'
@@ -138,6 +139,7 @@ app.use('/api/admin/watermark', watermarkAdminRouter)
 app.use('/api/admin/app-settings', appSettingsRouter)
 app.use('/api/dk-settings', dkSettingsRouter)
 app.use('/api/admin/dk-access', dkAccessAdminRouter)
+app.use('/api/theme-presets', themePresetsRouter)
 
 // Rollenprofil Import (must be before /api/characters to avoid route conflict)
 app.use('/api/characters/rollenprofil-import', rollenprofilImportRouter)

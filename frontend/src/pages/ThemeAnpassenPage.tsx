@@ -7,6 +7,7 @@ import AppPreviewWindow from '../components/AppPreviewWindow'
 import FarbschemaModal from '../components/FarbschemaModal'
 import Tooltip from '../components/Tooltip'
 import { useTweaks, useSelectedProduction } from '../contexts'
+import { api } from '../api/client'
 import { LIGHT_PALETTES, DARK_PALETTES, CUSTOM_IDX } from '../components/appShellConstants'
 import { productionLabel } from '../hooks/useProduction'
 
@@ -31,6 +32,14 @@ function ThemeAnpassenContent() {
   const { selectedProduction } = useSelectedProduction()
   const [farbschemaOpen, setFarbschemaOpen] = useState(false)
   const [companyName, setCompanyName] = useState<string>('script')
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    api.getMe().then(me => {
+      const roles: string[] = me.roles || (me.role ? [me.role] : [])
+      setIsAdmin(roles.some((r: string) => ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung'].includes(r)))
+    }).catch(() => {})
+  }, [])
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef  = useRef<HTMLInputElement>(null)
 
@@ -161,6 +170,7 @@ function ThemeAnpassenContent() {
             mode={tweaks.theme}
             activeColorSchemeId={tweaks.activeColorSchemeId}
             onSetColorSchemeId={id => set('activeColorSchemeId', id)}
+            isAdmin={isAdmin}
           />
         </div>
 
