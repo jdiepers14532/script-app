@@ -80,7 +80,7 @@ const WERKSTUFE_ABBR: Record<string, string> = {
 const ALL_METHODS = Object.keys(METHOD_LABELS)
 const POLL_INTERVAL_MS = 4000
 const POLL_STORAGE_KEY = 'analysis_polling_run_id'
-const DEFAULT_SIDEBAR_WIDTH = 268
+const DEFAULT_SIDEBAR_WIDTH = 274
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
 
@@ -211,12 +211,19 @@ function MarkdownResult({ markdown }: { markdown: string }) {
                 color: 'var(--text-secondary)',
               }}>{children}</th>
             ),
-            td: ({ children }) => {
-              const text = getChildText(children)
-              const isBewertung = /^(Behalten|Kürzen|Streichen)/i.test(text.trim())
+            td: ({ children, node }: any) => {
+              const getRaw = (n: any): string => {
+                if (!n) return ''
+                if (n.type === 'text') return n.value ?? ''
+                if (Array.isArray(n)) return n.map(getRaw).join('')
+                if (n.children) return n.children.map(getRaw).join('')
+                return ''
+              }
+              const rawText = getRaw(node).trim()
+              const isBewertung = /^(Behalten|Kürzen|Streichen)/i.test(rawText)
               return (
                 <td style={{ border: '1px solid var(--border)', padding: '6px 12px', verticalAlign: 'top' }}>
-                  {isBewertung ? <BewertungsChip text={text} /> : children}
+                  {isBewertung ? <BewertungsChip text={rawText} /> : children}
                 </td>
               )
             },
@@ -804,6 +811,7 @@ export default function AnalysisPage() {
                 return (
                   <div
                     key={run.id}
+                    className="analysis-run-item"
                     style={{
                       borderBottom: '1px solid var(--border)',
                       borderLeft: `3px solid ${borderColor}`,
@@ -842,17 +850,15 @@ export default function AnalysisPage() {
                     </div>
                     {/* Löschen-Button */}
                     <button
+                      className="run-delete-btn"
                       onClick={(e) => deleteRun(run.id, e)}
                       title="Analyse löschen"
                       style={{
                         position: 'absolute', top: 8, right: 8,
                         background: 'none', border: 'none', cursor: 'pointer',
                         color: 'var(--text-secondary)', padding: 3, borderRadius: 4,
-                        opacity: 0, transition: 'opacity 0.15s',
                         display: 'flex',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#FF3B30' }}
-                      onMouseLeave={e => { e.currentTarget.style.opacity = '0'; e.currentTarget.style.color = 'var(--text-secondary)' }}
                     >
                       <Trash2 size={12} />
                     </button>
@@ -923,6 +929,10 @@ export default function AnalysisPage() {
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @media (pointer: coarse) { .scene-list-handle { width: 20px !important; } }
+        .analysis-run-item .run-delete-btn { opacity: 0; transition: opacity 0.15s, color 0.15s; }
+        .analysis-run-item:hover .run-delete-btn { opacity: 1; }
+        .run-delete-btn:hover { color: #FF3B30 !important; }
+        @media (pointer: coarse) { .analysis-run-item .run-delete-btn { opacity: 0.45; } }
       `}</style>
     </AppShell>
   )
