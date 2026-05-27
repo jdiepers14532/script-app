@@ -364,6 +364,7 @@ async function runMigrations() {
     'v127_rename_szenenueberschrift_to_standard.sql',
     'v128_analysis_queued_status.sql',
     'v129_glossar_term_en_kategorien.sql',
+    'v130_analysis_folge_scope.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

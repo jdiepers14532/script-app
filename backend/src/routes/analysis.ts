@@ -40,7 +40,7 @@ router.post('/run', async (req, res) => {
       return res.status(403).json({ error: 'Keine Berechtigung für Analyse' })
     }
 
-    const { produktion_id, block_nummer, methods, strang_filter } = req.body
+    const { produktion_id, block_nummer, folge_nummer, methods, strang_filter } = req.body
 
     if (!produktion_id || block_nummer == null) {
       return res.status(400).json({ error: 'produktion_id und block_nummer erforderlich' })
@@ -60,6 +60,7 @@ router.post('/run', async (req, res) => {
     const ctx = await prepareAnalysisRun({
       produktion_id,
       block_nummer: Number(block_nummer),
+      folge_nummer: folge_nummer != null ? Number(folge_nummer) : null,
       methods: methods as AnalysisMethod[],
       strang_filter: strang_filter ?? undefined,
       created_by: req.user!.user_id,
@@ -90,7 +91,7 @@ router.post('/run', async (req, res) => {
 router.get('/run/:id', async (req, res) => {
   try {
     const run = await queryOne(
-      `SELECT r.*,
+      `SELECT r.id, r.block_nummer, r.folge_nummer, r.status, r.created_at, r.completed_at,
          COALESCE(json_agg(
            json_build_object(
              'id', mr.id, 'method', mr.method, 'method_version', mr.method_version,
@@ -98,7 +99,14 @@ router.get('/run/:id', async (req, res) => {
              'error_detail', mr.error_detail, 'from_cache', mr.from_cache,
              'duration_ms', mr.duration_ms
            ) ORDER BY mr.created_at ASC
-         ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results
+         ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results,
+         COALESCE(
+           (SELECT json_agg(DISTINCT jsonb_build_object(
+              'typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label
+            ) ORDER BY jsonb_build_object('typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label))
+            FROM werkstufen w WHERE w.id = ANY(r.werkstufen_ids)),
+           '[]'::json
+         ) AS werkstufen_info
        FROM analysis_runs r
        LEFT JOIN analysis_method_results mr ON mr.run_id = r.id
        WHERE r.id = $1
@@ -120,7 +128,7 @@ router.get('/block/:produktion_id/:block_nummer', async (req, res) => {
     const latestOnly = req.query.latest === 'true'
 
     const rows = await query(
-      `SELECT r.*,
+      `SELECT r.id, r.block_nummer, r.folge_nummer, r.status, r.created_at, r.completed_at,
          COALESCE(json_agg(
            json_build_object(
              'id', mr.id, 'method', mr.method, 'method_version', mr.method_version,
@@ -128,7 +136,14 @@ router.get('/block/:produktion_id/:block_nummer', async (req, res) => {
              'error_detail', mr.error_detail, 'from_cache', mr.from_cache,
              'duration_ms', mr.duration_ms
            ) ORDER BY mr.created_at ASC
-         ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results
+         ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results,
+         COALESCE(
+           (SELECT json_agg(DISTINCT jsonb_build_object(
+              'typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label
+            ) ORDER BY jsonb_build_object('typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label))
+            FROM werkstufen w WHERE w.id = ANY(r.werkstufen_ids)),
+           '[]'::json
+         ) AS werkstufen_info
        FROM analysis_runs r
        LEFT JOIN analysis_method_results mr ON mr.run_id = r.id
        WHERE r.produktion_id = $1 AND r.block_nummer = $2
@@ -138,6 +153,19 @@ router.get('/block/:produktion_id/:block_nummer', async (req, res) => {
       [produktion_id, Number(block_nummer)]
     )
     res.json(rows)
+  } catch (err: any) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── DELETE /api/analysis/run/:id ──────────────────────────────────────────────
+router.delete('/run/:id', async (req, res) => {
+  try {
+    await query(`DELETE FROM analysis_method_results WHERE run_id = $1`, [req.params.id])
+    await query(`DELETE FROM analysis_costs WHERE run_id = $1`, [req.params.id])
+    const result = await query(`DELETE FROM analysis_runs WHERE id = $1 RETURNING id`, [req.params.id])
+    if (!result.length) return res.status(404).json({ error: 'Run nicht gefunden' })
+    res.json({ deleted: true })
   } catch (err: any) {
     res.status(500).json({ error: String(err) })
   }

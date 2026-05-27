@@ -39,6 +39,7 @@ export interface PreparedAnalysisContext {
   dreh_von?: string | null
   dreh_bis?: string | null
   block_nummer: number
+  folge_nummer?: number | null
   block_version_hash: string
 }
 
@@ -47,16 +48,30 @@ export interface PreparedAnalysisContext {
 export async function prepareAnalysisRun(opts: {
   produktion_id: string
   block_nummer: number
+  folge_nummer?: number | null
   methods: AnalysisMethod[]
   strang_filter?: string[]
   created_by: string
 }): Promise<PreparedAnalysisContext> {
-  const { produktion_id, block_nummer, methods, strang_filter, created_by } = opts
+  const { produktion_id, block_nummer, folge_nummer, methods, strang_filter, created_by } = opts
 
   // 1. Block auflösen
   const block = await resolveBlock(produktion_id, block_nummer)
   if (block.folgen_ids.length === 0) {
     throw new Error(`Block ${block_nummer} hat keine Folgen in script_db (noch kein Import)`)
+  }
+
+  // 1b. Folgen-Filter: bei Folge-Analyse nur eine Folge laden
+  let active_folgen_ids = block.folgen_ids
+  if (folge_nummer != null) {
+    const folgeRow = await query(
+      `SELECT id FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
+      [produktion_id, folge_nummer]
+    )
+    const folgeId = folgeRow[0]?.id
+    if (!folgeId) throw new Error(`Folge ${folge_nummer} nicht in dieser Produktion gefunden`)
+    if (!block.folgen_ids.includes(folgeId)) throw new Error(`Folge ${folge_nummer} gehört nicht zu Block ${block_nummer}`)
+    active_folgen_ids = [folgeId]
   }
 
   // 2. Aktuellste Werkstufe pro Folge
@@ -68,17 +83,17 @@ export async function prepareAnalysisRun(opts: {
        AND typ IN ('drehbuch', 'storyline')
        AND sichtbarkeit != 'privat'
      ORDER BY folge_id, version_nummer DESC`,
-    [block.folgen_ids]
+    [active_folgen_ids]
   )
 
   const werkstufen_ids: string[] = werkstufenRows.map((w: any) => w.id)
   if (werkstufen_ids.length === 0) {
-    throw new Error(`Keine importierten Werkstufen für Block ${block_nummer} gefunden`)
+    throw new Error(`Keine importierten Werkstufen für ${folge_nummer != null ? `Folge ${folge_nummer}` : `Block ${block_nummer}`} gefunden`)
   }
 
   // 3. block_version_hash
   const hashInput =
-    [...block.folgen_ids].sort((a, b) => a - b).join(',') +
+    [...active_folgen_ids].sort((a, b) => a - b).join(',') +
     ':' +
     [...werkstufen_ids].sort().join(',')
   const block_version_hash = crypto.createHash('sha256').update(hashInput).digest('hex')
@@ -95,7 +110,7 @@ export async function prepareAnalysisRun(opts: {
     `SELECT id, folge_nummer FROM folgen
      WHERE id = ANY($1::int[])
      ORDER BY folge_nummer ASC`,
-    [block.folgen_ids]
+    [active_folgen_ids]
   )
 
   // 6. Szenen laden
@@ -159,14 +174,15 @@ export async function prepareAnalysisRun(opts: {
   // 8. Run anlegen (status=queued)
   const runRow = await queryOne(
     `INSERT INTO analysis_runs
-       (produktion_id, block_nummer, folgen_ids, werkstufen_ids, block_version_hash,
+       (produktion_id, block_nummer, folge_nummer, folgen_ids, werkstufen_ids, block_version_hash,
         requested_methods, strang_filter, created_by, status)
-     VALUES ($1, $2, $3::int[], $4::uuid[], $5, $6::jsonb, $7, $8, 'queued')
+     VALUES ($1, $2, $3, $4::int[], $5::uuid[], $6, $7::jsonb, $8, $9, 'queued')
      RETURNING id`,
     [
       produktion_id,
       block_nummer,
-      block.folgen_ids,
+      folge_nummer ?? null,
+      active_folgen_ids,
       werkstufen_ids,
       block_version_hash,
       JSON.stringify(methods),
@@ -186,6 +202,7 @@ export async function prepareAnalysisRun(opts: {
     dreh_von: block.dreh_von,
     dreh_bis: block.dreh_bis,
     block_nummer,
+    folge_nummer: folge_nummer ?? null,
     block_version_hash,
   }
 }
