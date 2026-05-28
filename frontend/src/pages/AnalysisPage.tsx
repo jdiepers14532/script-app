@@ -924,11 +924,14 @@ function VonnegutArcsChart({ data }: { data: any }) {
               </g>
             )
           })}
-          {/* Episode-Grenzen */}
-          {folgenWechsel.map(i => (
-            <line key={i} x1={xPos(i)} x2={xPos(i)} y1={PAD.top} y2={H - PAD.bottom}
-              stroke="var(--border)" strokeWidth={1} strokeDasharray="4,2" />
-          ))}
+          {/* Episode-Grenzen — zwischen letzter Szene der alten und erster der neuen Folge */}
+          {folgenWechsel.map(i => {
+            const x = (xPos(i - 1) + xPos(i)) / 2
+            return (
+              <line key={i} x1={x} x2={x} y1={PAD.top - 4} y2={H - PAD.bottom}
+                stroke="#aaa" strokeWidth={1.5} strokeDasharray="5,3" />
+            )
+          })}
           {/* Episode-Labels + optional Szenennummern */}
           {xKeys.map((k, i) => {
             const [fStr, sStr] = k.split('.')
