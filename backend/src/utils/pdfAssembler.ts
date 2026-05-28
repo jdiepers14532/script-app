@@ -304,9 +304,18 @@ async function extractPdfOutline(
 
     // Titel (PDF-String oder Hex-String)
     const titleObj = item.get(PDFName.of('Title'))
-    const label = (titleObj instanceof PDFString || titleObj instanceof PDFHexString)
+    let label = (titleObj instanceof PDFString || titleObj instanceof PDFHexString)
       ? titleObj.decodeText()
       : ''
+
+    // Workaround für einen Chromium-Bug (outline:true): Bei Lesezeichen-Titeln, die das Zeichen
+    // ß (U+00DF) enthalten, speichert Chrome den Titel manchmal als exakt doppelten String
+    // (z.B. "4402.1 Außendreh...4402.1 Außendreh..."). Erkennung: Länge gerade UND
+    // erste Hälfte == zweite Hälfte → nur erste Hälfte verwenden.
+    if (label.length > 0 && label.length % 2 === 0) {
+      const half = label.length / 2
+      if (label.slice(0, half) === label.slice(half)) label = label.slice(0, half)
+    }
 
     // Dest: [pageRef, /XYZ, x, y, zoom]
     let pageIndex = 0
