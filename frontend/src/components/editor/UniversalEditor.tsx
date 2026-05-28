@@ -30,7 +30,7 @@ import { SearchHighlightExtension } from '../../tiptap/SearchHighlightExtension'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
-import { useUserPrefs, useFocus, useAppSettings, useTweaks } from '../../contexts'
+import { useUserPrefs, useFocus, useAppSettings, useTweaks, useSelectedProduction } from '../../contexts'
 // Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
 import { LineNumberOverlay } from './LineNumberOverlay'
@@ -310,6 +310,7 @@ export default function UniversalEditor({
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { tweaks } = useTweaks()
+  const { selectedId: selectedProdId } = useSelectedProduction()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
   // Tabellen-Cursor-Erkennung + Rahmen-Toggle
@@ -473,7 +474,7 @@ export default function UniversalEditor({
     return initialContent
   }, [initialContent, relevantFormats])
 
-  // ── Charakter-Autovervollständigung (Nur Szenenkopf) ─────────────────────
+  // ── Charakter-Autovervollständigung ───────────────────────────────────────
   const [acSuggestions, setAcSuggestions] = useState<string[]>([])
   const [acSelectedIndex, setAcSelectedIndex] = useState(0)
   const [acPos, setAcPos] = useState<{ x: number; y: number } | null>(null)
@@ -483,6 +484,9 @@ export default function UniversalEditor({
   const acSelectedIndexRef = useRef(0)
   useEffect(() => { acSuggestionsRef.current = acSuggestions }, [acSuggestions])
   useEffect(() => { acSelectedIndexRef.current = acSelectedIndex }, [acSelectedIndex])
+
+  // Debounced DB-Suche für "alle"-Modus
+  const acDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // IDs der "Character"-Absatzformate
   const charFormatIds = useMemo(
@@ -720,8 +724,7 @@ export default function UniversalEditor({
   // ── Charakter-AC: State-Tracking (Cursor in Character-Node?) ───────────────
   useEffect(() => {
     if (!editor) return
-    const nurAus = !tweaks.nurCharAusSzenenkopf
-    const noChars = !sceneCharNames?.length
+    const modus = tweaks.nurCharAusSzenenkopf
     const noFormats = charFormatIds.length === 0
 
     const dismiss = () => {
@@ -729,9 +732,10 @@ export default function UniversalEditor({
       acActiveRef.current = false
       setAcSuggestions([])
       setAcPos(null)
+      if (acDbTimerRef.current) { clearTimeout(acDbTimerRef.current); acDbTimerRef.current = null }
     }
 
-    if (nurAus || noChars || noFormats) { dismiss(); return }
+    if (modus === 'aus' || noFormats) { dismiss(); return }
 
     const update = () => {
       const { state, view } = editor
@@ -742,17 +746,47 @@ export default function UniversalEditor({
       if (!isCharNode) { dismiss(); return }
 
       const query = node.textContent
-      const filtered = (sceneCharNames ?? []).filter(name =>
-        !query || name.toUpperCase().startsWith(query.toUpperCase())
-      ).slice(0, 8)
-
-      if (filtered.length === 0) { dismiss(); return }
-
       const coords = view.coordsAtPos($from.pos)
-      acActiveRef.current = true
-      setAcSuggestions(filtered)
-      setAcSelectedIndex(0)
-      setAcPos({ x: coords.left, y: coords.bottom + 4 })
+
+      if (modus === 'szenenkopf') {
+        // Nur Szenenkopf-Charaktere
+        const filtered = (sceneCharNames ?? []).filter(name =>
+          !query || name.toUpperCase().startsWith(query.toUpperCase())
+        ).slice(0, 8)
+
+        if (filtered.length === 0) { dismiss(); return }
+
+        acActiveRef.current = true
+        setAcSuggestions(filtered)
+        setAcSelectedIndex(0)
+        setAcPos({ x: coords.left, y: coords.bottom + 4 })
+      } else if (modus === 'alle' && selectedProdId) {
+        // Alle Charaktere der Produktion — debounced API-Suche
+        if (acDbTimerRef.current) clearTimeout(acDbTimerRef.current)
+        acDbTimerRef.current = setTimeout(async () => {
+          try {
+            const r = await fetch(`/api/autocomplete/characters?produktion_id=${selectedProdId}&q=${encodeURIComponent(query)}`, { credentials: 'include' })
+            if (!r.ok) return
+            const data = await r.json()
+            const names: string[] = [
+              ...(data.own ?? []).map((c: any) => c.name),
+              ...(data.cross ?? []).map((c: any) => c.name),
+            ].slice(0, 10)
+
+            if (!editor) return
+            const curNode = editor.state.selection.$from.node()
+            const stillInCharNode = curNode.type.name === 'absatz' && charFormatIds.includes(curNode.attrs.format_id)
+            if (!stillInCharNode) return
+
+            if (names.length === 0) { dismiss(); return }
+
+            acActiveRef.current = true
+            setAcSuggestions(names)
+            setAcSelectedIndex(0)
+            setAcPos({ x: coords.left, y: coords.bottom + 4 })
+          } catch { /* ignore */ }
+        }, 200)
+      }
     }
 
     editor.on('selectionUpdate', update)
@@ -761,8 +795,9 @@ export default function UniversalEditor({
       editor.off('selectionUpdate', update)
       editor.off('update', update)
       acActiveRef.current = false
+      if (acDbTimerRef.current) { clearTimeout(acDbTimerRef.current); acDbTimerRef.current = null }
     }
-  }, [editor, tweaks.nurCharAusSzenenkopf, sceneCharNames, charFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, tweaks.nurCharAusSzenenkopf, sceneCharNames, charFormatIds, selectedProdId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
   useEffect(() => {

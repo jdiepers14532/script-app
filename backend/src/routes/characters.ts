@@ -22,7 +22,7 @@ charactersRouter.get('/', async (req, res) => {
     const rows = await query(
       `SELECT c.id, c.name, c.meta_json, c.created_at,
               cp.rollen_nummer, cp.komparsen_nummer, cp.kategorie_id, cp.darsteller_name,
-              cp.updated_at AS prod_updated_at, cp.is_active,
+              cp.updated_at AS prod_updated_at, cp.is_active, cp.freigabe_status,
               ck.name AS kategorie_name, ck.typ AS kategorie_typ,
               (SELECT dateiname FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_foto_dateiname,
               (SELECT media_typ FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_media_typ,

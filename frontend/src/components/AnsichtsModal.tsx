@@ -205,10 +205,13 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
               </Tooltip>
               <div className="seg">
                 <Tooltip text="Nur Rollen/Komparsen aus dem Szenenkopf vorschlagen">
-                  <button className={tweaks.nurCharAusSzenenkopf ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', true)}>Nur Szenenkopf</button>
+                  <button className={tweaks.nurCharAusSzenenkopf === 'szenenkopf' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'szenenkopf')}>Nur Szenenkopf</button>
+                </Tooltip>
+                <Tooltip text="Alle Charaktere der Produktion vorschlagen (mit Neu-Anlegen-Option)">
+                  <button className={tweaks.nurCharAusSzenenkopf === 'alle' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'alle')}>Alle</button>
                 </Tooltip>
                 <Tooltip text="Autovervollständigung deaktivieren">
-                  <button className={!tweaks.nurCharAusSzenenkopf ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', false)}>Aus</button>
+                  <button className={tweaks.nurCharAusSzenenkopf === 'aus' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'aus')}>Aus</button>
                 </Tooltip>
               </div>
             </div>

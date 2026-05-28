@@ -120,8 +120,8 @@ export interface TweakState {
   sceneListNurSzenen: boolean
   /** Aktives Farbschema — ID aus BUILTIN_COLOR_SCHEMES oder benutzerdefiniert */
   activeColorSchemeId: string
-  /** Charakter-Autovervollständigung: nur Charaktere aus Szenenkopf vorschlagen */
-  nurCharAusSzenenkopf: boolean
+  /** Charakter-Autovervollständigung: 'szenenkopf' | 'alle' | 'aus' */
+  nurCharAusSzenenkopf: 'szenenkopf' | 'alle' | 'aus'
 }
 interface TweaksContextType {
   tweaks: TweakState

@@ -12,6 +12,7 @@ interface Entity {
   is_active?: boolean
   primaerFoto?: string | null
   badge?: string | null
+  freigabe_status?: string | null
 }
 
 interface EntitySidebarProps {
@@ -181,8 +182,14 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
         {nr != null ? nr : '—'}
       </span>
       <span style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
-        <span style={{ fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
           {entity.name}
+          {entity.freigabe_status === 'ausstehend' && (
+            <span title="Freigabe ausstehend" style={{ width: 7, height: 7, borderRadius: '50%', background: '#FFCC00', flexShrink: 0, display: 'inline-block' }} />
+          )}
+          {entity.freigabe_status === 'abgelehnt' && (
+            <span title="Freigabe abgelehnt" style={{ width: 7, height: 7, borderRadius: '50%', background: '#FF3B30', flexShrink: 0, display: 'inline-block' }} />
+          )}
         </span>
         {entity.badge && (
           <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'block', marginTop: 1 }}>
