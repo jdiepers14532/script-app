@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS rollen_freigabe_genehmiger (
 -- Freigabe-Anfragen (eine pro character + production)
 CREATE TABLE IF NOT EXISTS rollen_freigabe_anfragen (
   id SERIAL PRIMARY KEY,
-  character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+  character_id UUID NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
   production_id TEXT NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
   beantragt_von_user_id TEXT NOT NULL,
   beantragt_am TIMESTAMPTZ DEFAULT NOW(),
