@@ -55,7 +55,11 @@ function countLines(content: any): number {
 
     const text = getTextFromNode(node)
     const type = node.type
-    const elementType = node.attrs?.element_type
+    // screenplay_element uses element_type; absatz uses format_name (normalised to lowercase)
+    const elementType: string =
+      node.attrs?.element_type ??
+      (node.attrs?.format_name as string | undefined)?.toLowerCase() ??
+      ''
 
     if (type === 'screenplay_element') {
       switch (elementType) {
@@ -76,7 +80,14 @@ function countLines(content: any): number {
           break
       }
     } else if (type === 'absatz') {
-      totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
+      // Use format-aware column width for absatz nodes
+      if (elementType === 'dialogue') {
+        totalLines += wrapLines(text, CHARS_PER_LINE_DIALOGUE)
+      } else if (elementType === 'character' || elementType === 'parenthetical' || elementType === 'transition') {
+        totalLines += 1
+      } else {
+        totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
+      }
     } else if (type === 'paragraph' || type === 'heading') {
       totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
     } else {
@@ -85,8 +96,13 @@ function countLines(content: any): number {
     }
 
     // Spacing between elements (except after last)
+    // Uses elementType (works for both screenplay_element and absatz via format_name fallback)
     if (i < nodes.length - 1) {
-      const nextType = nodes[i + 1]?.attrs?.element_type
+      const nextNode = nodes[i + 1]
+      const nextType: string =
+        nextNode?.attrs?.element_type ??
+        (nextNode?.attrs?.format_name as string | undefined)?.toLowerCase() ??
+        ''
       if (elementType === 'character' && (nextType === 'dialogue' || nextType === 'parenthetical')) {
         // no spacing
       } else if (elementType === 'parenthetical' && nextType === 'dialogue') {

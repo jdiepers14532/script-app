@@ -70,13 +70,15 @@ export default function PageWrapper({
 
   if (showShadow) {
     // ── Blatt-Modus: weißes Blatt mit Schatten, sichtbare Seitentrennlinie ──
+    const contentMinHeight = dim.height - ptTop - ptBottom
     return (
       <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowX: 'auto' }}>
         <div
           ref={pageRef}
-          className={className}
+          className={`pw-blatt${className ? ` ${className}` : ''}`}
           style={{
             '--page-padding': `${ptLeft}px`,
+            '--pw-content-min-height': `${contentMinHeight}px`,
             width: dim.width,
             minHeight: pageMinHeight,
             boxSizing: 'border-box',

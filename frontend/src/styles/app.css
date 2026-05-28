@@ -2,6 +2,10 @@
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
+/* ── Blatt-Modus: ProseMirror füllt immer min. eine volle Inhaltsseite ── */
+/* --pw-content-min-height wird von PageWrapper (showShadow=true) gesetzt  */
+.pw-blatt .ProseMirror { min-height: var(--pw-content-min-height, 0px); }
+
 /* ── Inline RichText Editor (FeldEditor) ── */
 .tiptap-feld .ProseMirror { outline: none; }
 .tiptap-feld .ProseMirror p { margin: 0 0 0.4em; }
