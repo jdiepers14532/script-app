@@ -72,9 +72,10 @@ export default function SceneList({
 
   // Allowed formats depend on werkstufe type: drehbuch-Werkstufe → drehbuch+notiz, else storyline+notiz
   const isDrehbuchWerk = !werkstufTyp || werkstufTyp === 'drehbuch'
-  const allowedFormats = isDrehbuchWerk ? ['drehbuch', 'notiz'] : ['storyline', 'notiz']
-  const nativeFormat = isDrehbuchWerk ? 'drehbuch' : 'storyline'
-  const nativeLabel = isDrehbuchWerk ? 'Drehbuch' : 'Storyline'
+  const isNotizWerk = werkstufTyp === 'notiz'
+  const allowedFormats = isNotizWerk ? ['notiz'] : isDrehbuchWerk ? ['drehbuch', 'notiz'] : ['storyline', 'notiz']
+  const nativeFormat = isNotizWerk ? 'notiz' : isDrehbuchWerk ? 'drehbuch' : 'storyline'
+  const nativeLabel = isNotizWerk ? 'Dokument' : isDrehbuchWerk ? 'Drehbuch' : 'Storyline'
   const wrongLabel = isDrehbuchWerk ? 'Storyline' : 'Drehbuch'
   const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
   const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
@@ -377,7 +378,7 @@ export default function SceneList({
   const handleNewSzene = async (format?: string) => {
     if (!stageId || creating) return
     if (format !== undefined) { doCreateSzene(format); return }
-    const { format: fmt, showWarning } = getFormatFromKeys('notiz')
+    const { format: fmt, showWarning } = getFormatFromKeys(nativeFormat)
     if (showWarning) {
       setWrongFormatModal({ pendingFormat: fmt, correctFormat: fmt })
     } else {
@@ -561,15 +562,17 @@ export default function SceneList({
             <Lock size={11} style={{ color: 'var(--sw-warning)', display: 'block' }} />
           </span>
         )}
-        <Tooltip placement="bottom" text={isTouch
-          ? `Neue ${nativeLabel}-Szene`
-          : `Neue Szene\n${isDrehbuchWerk ? 'D=Drehbuch' : 'S/T=Storyline'} · N=Notiz\n(Taste halten + Klick)`
+        <Tooltip placement="bottom" text={isNotizWerk
+          ? 'Neuer Abschnitt'
+          : isTouch
+            ? `Neue ${nativeLabel}-Szene`
+            : `Neue Szene\n${isDrehbuchWerk ? 'D=Drehbuch' : 'S/T=Storyline'} · N=Dokument\n(Taste halten + Klick)`
         }>
           <button className="iconbtn" onClick={() => handleNewSzene()} disabled={creating || !stageId} style={{ flexShrink: 0 }}>
             <Plus size={13} />
           </button>
         </Tooltip>
-        {isTouch && (
+        {isTouch && !isNotizWerk && (
           <div style={{ position: 'relative', flexShrink: 0 }} ref={formatPickerRef}>
             <button
               className="iconbtn"
@@ -586,7 +589,7 @@ export default function SceneList({
                     {f === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
                   </button>
                 ))}
-                <button className="scene-ctx-item" onClick={() => { handleNewSzene('notiz'); setFormatPickerOpen(false) }}>Notiz</button>
+                <button className="scene-ctx-item" onClick={() => { handleNewSzene('notiz'); setFormatPickerOpen(false) }}>Dokument</button>
               </div>
             )}
           </div>
@@ -639,7 +642,7 @@ export default function SceneList({
                 onClick={() => { setPlatzhalterOpen(true); setHeaderMenuOpen(false) }}
                 disabled={!werkstufId}
               >
-                Platzhalter-{t('szene', 'p')} anlegen
+                {isNotizWerk ? 'Platzhalter-Abschnitte anlegen' : `Platzhalter-${t('szene', 'p')} anlegen`}
               </button>
               {onOpenRadar && (
                 <button
@@ -814,10 +817,10 @@ export default function SceneList({
                         setHoverPopup(null)
                       }}
                     >
-                      {scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}
+                      {scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || (isNotizWerk ? 'Abschnitt' : 'Notiz'))}
                     </span>
                   ) : (
-                    <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || 'Notiz')}</span>
+                    <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || (isNotizWerk ? 'Abschnitt' : 'Notiz'))}</span>
                   )}
                 </div>
                 {scene.format !== 'notiz' && scene.seite_von_str && (
@@ -873,7 +876,7 @@ export default function SceneList({
                           {f === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
                         </button>
                       ))}
-                      <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Notiz</button>
+                      <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Dokument</button>
                       <button className="scene-ctx-item danger" onClick={e => handleDelete(e, scene.id)}>Löschen</button>
                     </div>
                   )}

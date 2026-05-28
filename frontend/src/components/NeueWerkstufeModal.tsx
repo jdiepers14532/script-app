@@ -24,7 +24,7 @@ interface Props {
 const TYP_LABEL: Record<string, string> = {
   drehbuch: 'Drehbuch',
   storyline: 'Storyline',
-  notiz: 'Notiz',
+  notiz: 'Dokument',
 }
 
 export default function NeueWerkstufeModal({

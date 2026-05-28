@@ -953,7 +953,12 @@ export default function ScriptPage() {
                     })
                     .catch(() => {})
                 }}
-                onSzenesNeedReload={freiDokId ? () => setRefreshKey(Date.now()) : undefined}
+                onSzenesNeedReload={() => {
+                  if (freiDokId) { setRefreshKey(Date.now()); return }
+                  if (!selectedStageId) return
+                  clearCacheByPrefix(`/werkstufen/${String(selectedStageId)}/szenen`)
+                  api.getWerkstufenSzenen(String(selectedStageId)).then(setSzenen).catch(() => {})
+                }}
                 selectedSzeneId={selectedSzeneId}
                 useDokumentSzenen={useDokumentSzenen}
                 stageId={selectedStageId}

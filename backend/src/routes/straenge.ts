@@ -460,7 +460,7 @@ straengeRouter.post('/platzhalter-szenen', async (req, res) => {
             sort_order, scene_nummer, int_ext, tageszeit, updated_by)
          VALUES ($1, $2, 'scene', $3, $4, $5, 'INT', 'TAG', $6) RETURNING *`,
         [
-          werkstufe_id, identity.id, ws.typ === 'storyline' ? 'storyline' : 'drehbuch',
+          werkstufe_id, identity.id, ws.typ === 'storyline' ? 'storyline' : ws.typ === 'notiz' ? 'notiz' : 'drehbuch',
           baseSort + i + 1, baseNum + i + 1,
           req.user?.name ?? 'system',
         ]

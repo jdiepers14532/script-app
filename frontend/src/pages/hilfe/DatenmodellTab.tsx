@@ -927,6 +927,139 @@ function DatenmodellTab() {
           ))}
         </div>
       </Section>
+
+      {/* ── Terminologie & Begriffe ─────────────────────────────────────────── */}
+      <Section title="Terminologie & Begriffe">
+        <InfoBox>
+          Diese Tabellen definieren die kanonischen Bezeichnungen der Script-App — Frontend-Labels vs. DB-Werte.
+          DB-Werte werden <strong>nie</strong> geändert, um Abfragen stabil zu halten.
+        </InfoBox>
+
+        {/* Ebene 1: Dokument-Container */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: C.text }}>Ebene 1 — Dokument-Container</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.surface }}>
+                  {['Konzept', 'Was ist es?', 'Frontend-Label', 'DB / Backend'].map(h => (
+                    <th key={h} style={{ padding: '6px 10px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, color: C.muted, fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['Folge', 'Reguläre Episode mit Nummer', 'Folge', 'folgen · ist_frei=false · folge_nummer=N'],
+                  ['Freies Dokument', 'Dokument ohne Episodennummer, nicht an eine Folge gebunden; kann Werkstufen aller Typen enthalten', 'Freies Dokument', 'folgen · ist_frei=true · folge_nummer=NULL'],
+                ].map(([konzept, was, frontend, db]) => (
+                  <tr key={konzept as string} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: '6px 10px', fontWeight: 600, color: C.text }}>{konzept}</td>
+                    <td style={{ padding: '6px 10px', color: C.muted }}>{was}</td>
+                    <td style={{ padding: '6px 10px' }}><Badge color={C.green}>{frontend}</Badge></td>
+                    <td style={{ padding: '6px 10px' }}><code style={{ fontSize: 11, color: C.blue }}>{db}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Ebene 2: Werkstufen-Typ */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: C.text }}>Ebene 2 — Werkstufen-Typ</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.surface }}>
+                  {['Konzept', 'Was ist es?', 'Frontend-Label', 'DB-Wert (werkstufen.typ)'].map(h => (
+                    <th key={h} style={{ padding: '6px 10px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, color: C.muted, fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['Drehbuch-Fassung', 'Version im Screenplay-Format', 'Drehbuch', "'drehbuch'"],
+                  ['Storyline-Fassung', 'Version im Prosa/Storyline-Format', 'Storyline', "'storyline'"],
+                  ['Dokument-Fassung', 'Version im Freitext-Format ohne feste Struktur', 'Dokument', "'notiz'  ← DB-Wert bleibt 'notiz'"],
+                ].map(([konzept, was, frontend, db]) => (
+                  <tr key={konzept as string} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: '6px 10px', fontWeight: 600, color: C.text }}>{konzept}</td>
+                    <td style={{ padding: '6px 10px', color: C.muted }}>{was}</td>
+                    <td style={{ padding: '6px 10px' }}><Badge color={C.green}>{frontend}</Badge></td>
+                    <td style={{ padding: '6px 10px' }}><code style={{ fontSize: 11, color: C.blue }}>{db}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Ebene 3: Elemente innerhalb einer Werkstufe */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: C.text }}>Ebene 3 — Elemente innerhalb einer Werkstufe</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.surface }}>
+                  {['Konzept', 'Was ist es?', 'Frontend-Label', 'DB / Backend'].map(h => (
+                    <th key={h} style={{ padding: '6px 10px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, color: C.muted, fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['Szene', 'Dramatische Szene mit Szenennummer, INT/EXT, Motiv, Rollen etc.', 'Szene', 'dokument_szenen · scene_identities.is_non_scene=false'],
+                  ['Notiz-Element', 'Freitext-Annotation ohne Szenennummer; schwimmt zwischen Szenen in einer Drehbuch- oder Storyline-Werkstufe', 'Notiz', 'dokument_szenen.format=\'notiz\''],
+                  ['Abschnitt', 'Element innerhalb einer Dokument-Werkstufe (typ=\'notiz\'); alle Elemente haben format=\'notiz\'', 'Abschnitt', 'dokument_szenen.format=\'notiz\' in Werkstufe mit typ=\'notiz\''],
+                  ['Strukturelement', 'Nicht-dramatisches Dokument-Element (Titelseite, Synopsis, Recap…); ist_frei=true; format=\'notiz\'', 'Titelseite / Synopsis / …', 'scene_identities.is_non_scene=true · dokument_vorlagen.typ=titelseite|synopsis|…'],
+                ].map(([konzept, was, frontend, db]) => (
+                  <tr key={konzept as string} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: '6px 10px', fontWeight: 600, color: C.text }}>{konzept}</td>
+                    <td style={{ padding: '6px 10px', color: C.muted }}>{was}</td>
+                    <td style={{ padding: '6px 10px' }}><Badge color={C.green}>{frontend}</Badge></td>
+                    <td style={{ padding: '6px 10px' }}><code style={{ fontSize: 11, color: C.blue }}>{db}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Ebene 4: Editor-Format */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, color: C.text }}>Ebene 4 — Editor-Format (Toolbar-Dropdown)</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: C.surface }}>
+                  {['Format', 'Was steuert es?', 'Frontend-Label', 'DB-Wert (dokument_szenen.format)'].map(h => (
+                    <th key={h} style={{ padding: '6px 10px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, color: C.muted, fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  ['drehbuch', 'Screenplay-Editor (Szenenköpfe, Regieanweisungen, Dialog)', 'Drehbuch', "'drehbuch'"],
+                  ['storyline', 'Rich-Text-Editor (Prosa)', 'Storyline', "'storyline'"],
+                  ['notiz', 'Freitext ohne Struktur — in Drehbuch/Storyline: Notiz-Element; in Dokument-Werkstufe: Abschnitt', 'Dokument (Toolbar)  /  Notiz (Szenenlistenelement)', "'notiz'  ← DB-Wert bleibt 'notiz'"],
+                ].map(([fmt, was, frontend, db]) => (
+                  <tr key={fmt as string} style={{ borderBottom: `1px solid ${C.border}` }}>
+                    <td style={{ padding: '6px 10px', fontWeight: 600, color: C.text }}><code style={{ fontSize: 11 }}>{fmt}</code></td>
+                    <td style={{ padding: '6px 10px', color: C.muted }}>{was}</td>
+                    <td style={{ padding: '6px 10px' }}><Badge color={C.green}>{frontend}</Badge></td>
+                    <td style={{ padding: '6px 10px' }}><code style={{ fontSize: 11, color: C.blue }}>{db}</code></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <WarnBox>
+          <strong>Regel:</strong> DB-Werte (<code>'notiz'</code>, <code>'drehbuch'</code>, <code>'storyline'</code>) werden nie umbenannt.
+          Nur Frontend-Labels ändern sich. So bleiben alle SQL-Abfragen und API-Responses stabil.
+        </WarnBox>
+      </Section>
     </div>
   )
 }

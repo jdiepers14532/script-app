@@ -34,14 +34,14 @@ function getSichtbarkeitLabel(s: string) {
 const TYP_LABELS: Record<string, string> = {
   drehbuch: 'Drehbuch',
   storyline: 'Storyline',
-  notiz: 'Notiz',
+  notiz: 'Dokument',
   abstrakt: 'Abstrakt',
 }
 
 const FORMAT_OPTIONS = [
   { value: 'drehbuch', label: 'Drehbuch' },
   { value: 'storyline', label: 'Storyline' },
-  { value: 'notiz', label: 'Notiz' },
+  { value: 'notiz', label: 'Dokument' },
 ]
 
 interface Props {
@@ -212,7 +212,7 @@ export default function EditorPanelHeader({
                 onClick={() => { onCreateWerkstufe('notiz'); setShowMenu(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '7px 12px', fontSize: 12, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sw-info)', fontFamily: 'inherit' }}
               >
-                <Plus size={11} /> Neue Notiz
+                <Plus size={11} /> Neues Dokument ohne Formatierung
               </button>
             </div>
           </>
