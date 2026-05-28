@@ -168,6 +168,16 @@ const SECTION_GROUPS: GroupDef[] = [
         label: 'Statistik-Panel',
         tooltip: 'Konfiguration des Statistik-Panels in der Drehbuch-Ansicht.\nLegt fest, welche Auswertungen angezeigt werden und in welcher Reihenfolge:\nSzenen-Übersicht, Charakter-Repliken, Motiv-Auslastung, Komparsen-Bedarf usw.',
       },
+      {
+        id: 'statistik_modal_config',
+        label: 'Statistik-Modal-Bereiche',
+        tooltip: 'Konfiguration der Statistik-Bereiche im Drehbuch-Seitenbereich.\nLegt Reihenfolge und Sichtbarkeit der einzelnen Statistik-Tabs im Modal fest.',
+      },
+      {
+        id: 'sonstige_dokumente_format',
+        label: 'Onliner-/Statistik-Dokument-Format',
+        tooltip: 'Formateinstellungen für Onliner- und Statistik-Dokumente (Seitenformat, Schriften, Abstände).\nWird beim PDF-Export dieser Dokument-Typen angewendet.',
+      },
     ],
   },
   {

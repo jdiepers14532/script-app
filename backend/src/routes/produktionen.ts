@@ -156,8 +156,12 @@ router.get('/:id/copy-preview', async (req, res) => {
         stockshot_templates: { count: parseInt(stockshotCnt.rows[0].count), label: `${stockshotCnt.rows[0].count} Templates` },
       },
       sonstige: {
-        daily_regeln:           { label: dailyLabel },
-        statistik_config:       { label: s.statistik_config ? 'konfiguriert' : 'Standard' },
+        daily_regeln:            { label: dailyLabel },
+        statistik_config:        { label: s.statistik_config ? 'konfiguriert' : 'Standard' },
+        statistik_modal_config:  { label: s.statistik_modal_config ? 'konfiguriert' : 'Standard' },
+        sonstige_dokumente_format: { label: s.sonstige_dokumente_format ? 'konfiguriert' : 'Standard' },
+      },
+      autorenplan: {
         autorenplan_kategorien: { count: autorenCnt, label: autorenCnt > 0 ? `${autorenCnt} Job-Kategorien` : '—' },
       },
     })
@@ -181,6 +185,7 @@ router.post('/:id/copy-settings', async (req, res) => {
     'datumsformat', 'scene_kuerzel', 'szenenfarben', 'ln_settings', 'replik_settings',
     'treatment_label', 'glossar', 'charakter_felder', 'vorstopp', 'seitenformat_margins',
     'kopf_fusszeilen', 'stockshot_templates', 'daily_regeln', 'statistik_config', 'autorenplan_kategorien',
+    'statistik_modal_config', 'sonstige_dokumente_format',
   ]
   const invalid = (sections as string[]).filter(s => !ALLOWED.includes(s))
   if (invalid.length) return res.status(400).json({ error: `Ungültige Sections: ${invalid.join(', ')}` })
@@ -216,7 +221,9 @@ router.post('/:id/copy-settings', async (req, res) => {
     if (sections.includes('replik_settings')) await copyAppSetting(client, 'replik_settings')
     if (sections.includes('treatment_label')) await copyAppSetting(client, 'treatment_label')
     if (sections.includes('daily_regeln'))    await copyAppSetting(client, 'daily_regeln')
-    if (sections.includes('statistik_config'))await copyAppSetting(client, 'statistik_config')
+    if (sections.includes('statistik_config'))         await copyAppSetting(client, 'statistik_config')
+    if (sections.includes('statistik_modal_config'))   await copyAppSetting(client, 'statistik_modal_config')
+    if (sections.includes('sonstige_dokumente_format')) await copyAppSetting(client, 'sonstige_dokumente_format')
     if (sections.includes('seitenformat_margins')) {
       await copyAppSetting(client, 'seitenformat')
       await copyAppSetting(client, 'page_margin_mm')
