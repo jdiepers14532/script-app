@@ -56,6 +56,14 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
   const [leftWerkId, setLeftWerkId] = useState<string | null>(null)
   const [rightWerkId, setRightWerkId] = useState<string | null>(null)
 
+  // Scene characters from SceneEditor header → passed to EditorPanels for autocomplete
+  const [sceneCharNames, setSceneCharNames] = useState<string[]>([])
+  const handleCharsChange = useCallback((chars: { name: string }[]) => {
+    setSceneCharNames(chars.map(c => c.name))
+  }, [])
+  // Reset when scene changes
+  useEffect(() => { setSceneCharNames([]) }, [selectedSzeneId])
+
   // Propagate dominant werkId + typ to parent — synchronisiert SceneList mit aktivem EditorPanel
   useEffect(() => {
     const dominant = rightWerkId ?? leftWerkId
@@ -135,6 +143,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
           onNavigatePrev={onNavigatePrev}
           onNavigateNext={onNavigateNext}
           onMarkCommentsRead={onMarkCommentsRead}
+          onCharsChange={handleCharsChange}
         />
       )}
       <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -180,6 +189,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             onWerkstufSelected={setLeftWerkId}
             onNewWerkCreated={handleNewWerkCreated}
             onSzenesNeedReload={onSzenesNeedReload}
+            sceneCharNames={sceneCharNames}
           />
         </div>
       )}
@@ -241,6 +251,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             onWerkstufSelected={setRightWerkId}
             onNewWerkCreated={handleNewWerkCreated}
             onSzenesNeedReload={onSzenesNeedReload}
+            sceneCharNames={sceneCharNames}
           />
         </div>
       )}

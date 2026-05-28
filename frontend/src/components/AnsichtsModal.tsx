@@ -200,6 +200,20 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
             </div>
 
             <div style={rowStyle}>
+              <Tooltip text="Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein Charakter-Format.">
+                <span style={labelStyle}>Charakter-Autovervollständigung</span>
+              </Tooltip>
+              <div className="seg">
+                <Tooltip text="Nur Rollen/Komparsen aus dem Szenenkopf vorschlagen">
+                  <button className={tweaks.nurCharAusSzenenkopf ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', true)}>Nur Szenenkopf</button>
+                </Tooltip>
+                <Tooltip text="Autovervollständigung deaktivieren">
+                  <button className={!tweaks.nurCharAusSzenenkopf ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', false)}>Aus</button>
+                </Tooltip>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
               <span style={labelStyle}>Automatische Stimmungsanpassung</span>
               <div className="seg">
                 <Tooltip text="Tageszeit-Änderung auf alle folgenden Szenen der Folge übertragen"><button className={tweaks.autoStimmungPropagation ? 'on' : ''} onClick={() => set('autoStimmungPropagation', true)}>An</button></Tooltip>

@@ -114,6 +114,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   sceneListPopup: true,
   sceneListNurSzenen: false,
   activeColorSchemeId: 'default',
+  nurCharAusSzenenkopf: true,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -622,6 +623,7 @@ export default function AppShell({
           sceneListPopup: typeof s.sceneListPopup === 'boolean' ? s.sceneListPopup : true,
           sceneListNurSzenen: typeof s.sceneListNurSzenen === 'boolean' ? s.sceneListNurSzenen : false,
           activeColorSchemeId: typeof s.activeColorSchemeId === 'string' ? s.activeColorSchemeId : 'default',
+          nurCharAusSzenenkopf: typeof s.nurCharAusSzenenkopf === 'boolean' ? s.nurCharAusSzenenkopf : true,
         }))
       }
     }).catch(() => {}).finally(() => {

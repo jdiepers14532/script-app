@@ -23,6 +23,7 @@ interface SceneEditorProps {
   onNavigatePrev?: () => void
   onNavigateNext?: () => void
   onMarkCommentsRead?: (szeneId: number) => void
+  onCharsChange?: (chars: { name: string }[]) => void
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -48,7 +49,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
 }
 
 
-export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -579,6 +580,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       console.error('Fehler beim Entfernen', e)
     }
   }, [scene])
+
+  // Notify parent when scene characters change (for editor autocomplete)
+  useEffect(() => {
+    onCharsChange?.(sceneChars)
+  }, [sceneChars]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMotivSelect = useCallback(async (parentMotiv: any) => {
     setMotivDropdownOpen(false)

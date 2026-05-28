@@ -3,6 +3,7 @@ import CollaborationCursor from '@tiptap/extension-collaboration-cursor'
 import * as Y from 'yjs'
 import type { HocuspocusProvider } from '@hocuspocus/provider'
 import { useState, useEffect, useRef, useCallback, useMemo, type WheelEvent, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Info, ChevronDown, ChevronUp,
   Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
@@ -29,7 +30,7 @@ import { SearchHighlightExtension } from '../../tiptap/SearchHighlightExtension'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
-import { useUserPrefs, useFocus, useAppSettings } from '../../contexts'
+import { useUserPrefs, useFocus, useAppSettings, useTweaks } from '../../contexts'
 // Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
 import { LineNumberOverlay } from './LineNumberOverlay'
@@ -266,6 +267,8 @@ interface UniversalEditorProps {
   revisionColor?: string | null
   /** Ref that is populated with the active Tiptap editor instance for external reads */
   editorRef?: React.MutableRefObject<any>
+  /** Charakternamen aus dem Szenenkopf (Rollen + Komparsen) für Autovervollständigung */
+  sceneCharNames?: string[]
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -296,6 +299,7 @@ export default function UniversalEditor({
   changedBlocks,
   revisionColor = null,
   editorRef,
+  sceneCharNames,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
@@ -305,6 +309,7 @@ export default function UniversalEditor({
   injectTableCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
+  const { tweaks } = useTweaks()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
   // Tabellen-Cursor-Erkennung + Rahmen-Toggle
@@ -468,30 +473,45 @@ export default function UniversalEditor({
     return initialContent
   }, [initialContent, relevantFormats])
 
-  // Character autocomplete (for screenplay/drehbuch mode)
+  // ── Charakter-Autovervollständigung (Nur Szenenkopf) ─────────────────────
   const [acSuggestions, setAcSuggestions] = useState<string[]>([])
-  const [acQuery, setAcQuery] = useState('')
+  const [acSelectedIndex, setAcSelectedIndex] = useState(0)
   const [acPos, setAcPos] = useState<{ x: number; y: number } | null>(null)
-  const acTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Refs für synchronen Zugriff in Keyboard-Handlers
+  const acActiveRef = useRef(false)
+  const acSuggestionsRef = useRef<string[]>([])
+  const acSelectedIndexRef = useRef(0)
+  useEffect(() => { acSuggestionsRef.current = acSuggestions }, [acSuggestions])
+  useEffect(() => { acSelectedIndexRef.current = acSelectedIndex }, [acSelectedIndex])
 
-  const triggerAutocomplete = useCallback((query: string, domRect: DOMRect | null) => {
-    setAcQuery(query)
-    if (!query || !produktionId || !domRect) { setAcSuggestions([]); setAcPos(null); return }
-    if (acTimer.current) clearTimeout(acTimer.current)
-    acTimer.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/autocomplete/characters?produktion_id=${encodeURIComponent(produktionId)}&q=${encodeURIComponent(query)}`, { credentials: 'include' })
-        const data = await res.json()
-        const names = [
-          ...(data.own ?? []).map((c: any) => c.name),
-          ...(data.cross ?? []).map((c: any) => `${c.name} • ${c.produktion_id}`),
-        ].slice(0, 8)
-        setAcSuggestions(names)
-        if (names.length > 0) setAcPos({ x: domRect.left, y: domRect.bottom + 4 })
-        else setAcPos(null)
-      } catch { setAcSuggestions([]); setAcPos(null) }
-    }, 250)
-  }, [produktionId])
+  // IDs der "Character"-Absatzformate
+  const charFormatIds = useMemo(
+    () => absatzformate.filter(f => f.name.toLowerCase() === 'character').map(f => f.id),
+    [absatzformate]
+  )
+
+  // Keyboard-Handler via mutable ref (lesen von Refs für frische Werte)
+  const acHandlersRef = useRef({
+    onArrowUp: () => {},
+    onArrowDown: () => {},
+    onAccept: () => {},
+    onDismiss: () => {},
+  })
+
+  // Keyboard-Extension — useMemo mit [] damit die Instanz stabil bleibt
+  // addKeyboardShortcuts liest acActiveRef/acHandlersRef zur Laufzeit
+  const charAcKeyExtension = useMemo(() => Extension.create({
+    name: 'charAcKey',
+    addKeyboardShortcuts() {
+      return {
+        ArrowUp:  () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowUp();  return true },
+        ArrowDown:() => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowDown(); return true },
+        Tab:      () => { if (!acActiveRef.current) return false; acHandlersRef.current.onAccept();    return true },
+        Enter:    () => { if (!acActiveRef.current) return false; acHandlersRef.current.onAccept();    return true },
+        Escape:   () => { if (!acActiveRef.current) return false; acHandlersRef.current.onDismiss();   return true },
+      }
+    },
+  }), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const collabExtensions = useMemo(() => ydoc ? [
     Collaboration.configure({ document: ydoc }),
@@ -547,6 +567,8 @@ export default function UniversalEditor({
         emptyEditorClass: 'universal-editor-empty',
       }),
       ...collabExtensions,
+      // charAcKeyExtension LAST → höchste Priorität für Keyboard-Shortcuts
+      charAcKeyExtension,
     ],
     content: ydoc ? undefined : (processedContent || getDefaultContent(hasAbsatzFormate, relevantFormats, kategorie)),
     editable: !readOnly,
@@ -694,6 +716,84 @@ export default function UniversalEditor({
       editor.off('transaction', update)
     }
   }, [editor, getCurrentFormat, getCurrentElementType])
+
+  // ── Charakter-AC: State-Tracking (Cursor in Character-Node?) ───────────────
+  useEffect(() => {
+    if (!editor) return
+    const nurAus = !tweaks.nurCharAusSzenenkopf
+    const noChars = !sceneCharNames?.length
+    const noFormats = charFormatIds.length === 0
+
+    const dismiss = () => {
+      if (!acActiveRef.current) return
+      acActiveRef.current = false
+      setAcSuggestions([])
+      setAcPos(null)
+    }
+
+    if (nurAus || noChars || noFormats) { dismiss(); return }
+
+    const update = () => {
+      const { state, view } = editor
+      const { $from } = state.selection
+      const node = $from.node()
+      const isCharNode = node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)
+
+      if (!isCharNode) { dismiss(); return }
+
+      const query = node.textContent
+      const filtered = (sceneCharNames ?? []).filter(name =>
+        !query || name.toUpperCase().startsWith(query.toUpperCase())
+      ).slice(0, 8)
+
+      if (filtered.length === 0) { dismiss(); return }
+
+      const coords = view.coordsAtPos($from.pos)
+      acActiveRef.current = true
+      setAcSuggestions(filtered)
+      setAcSelectedIndex(0)
+      setAcPos({ x: coords.left, y: coords.bottom + 4 })
+    }
+
+    editor.on('selectionUpdate', update)
+    editor.on('update', update)
+    return () => {
+      editor.off('selectionUpdate', update)
+      editor.off('update', update)
+      acActiveRef.current = false
+    }
+  }, [editor, tweaks.nurCharAusSzenenkopf, sceneCharNames, charFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
+  useEffect(() => {
+    acHandlersRef.current = {
+      onArrowUp: () => setAcSelectedIndex(prev => Math.max(0, prev - 1)),
+      onArrowDown: () => setAcSelectedIndex(prev => Math.min(acSuggestionsRef.current.length - 1, prev + 1)),
+      onAccept: () => {
+        const name = acSuggestionsRef.current[acSelectedIndexRef.current]
+        if (!name || !editor) return
+        const { state } = editor
+        const { $from } = state.selection
+        if ($from.node().type.name !== 'absatz') return
+        const start = $from.start()
+        const end = $from.end()
+        const chain = editor.chain().focus()
+        if (start < end) {
+          chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
+        } else {
+          chain.insertContentAt(start, name).run()
+        }
+        acActiveRef.current = false
+        setAcSuggestions([])
+        setAcPos(null)
+      },
+      onDismiss: () => {
+        acActiveRef.current = false
+        setAcSuggestions([])
+        setAcPos(null)
+      },
+    }
+  }, [editor, acSuggestions, acSelectedIndex]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Image upload handler
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -882,6 +982,26 @@ export default function UniversalEditor({
   }, [editor])
 
   if (!editor) return null
+
+  // Direkte AC-Accept-Funktion für Klick im Dropdown (nach editor-Guard)
+  const acceptAcByIndex = (i: number) => {
+    const name = acSuggestions[i]
+    if (!name) return
+    const { state } = editor
+    const { $from } = state.selection
+    if ($from.node().type.name !== 'absatz') return
+    const start = $from.start()
+    const end = $from.end()
+    const chain = editor.chain().focus()
+    if (start < end) {
+      chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
+    } else {
+      chain.insertContentAt(start, name).run()
+    }
+    acActiveRef.current = false
+    setAcSuggestions([])
+    setAcPos(null)
+  }
 
   // Current inline style values for dropdowns
   const activeFontFamily = editor.getAttributes('textStyle').fontFamily || ''
@@ -1305,6 +1425,49 @@ export default function UniversalEditor({
           />
         </PageWrapper>
       </div>
+
+      {/* Charakter-Autovervollständigung Dropdown */}
+      {acPos && acSuggestions.length > 0 && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            left: acPos.x,
+            top: acPos.y,
+            zIndex: 99990,
+            background: 'var(--bg-surface, #fff)',
+            border: '1px solid var(--border, #ddd)',
+            borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            minWidth: 160,
+            maxWidth: 280,
+            overflow: 'hidden',
+            fontSize: 12,
+          }}
+          onMouseDown={e => e.preventDefault()} // Fokus im Editor behalten
+        >
+          {acSuggestions.map((name, i) => (
+            <div
+              key={name}
+              onClick={() => acceptAcByIndex(i)}
+              onMouseEnter={() => setAcSelectedIndex(i)}
+              style={{
+                padding: '7px 12px',
+                background: i === acSelectedIndex ? '#007AFF' : 'transparent',
+                color: i === acSelectedIndex ? '#fff' : 'var(--text-primary, #111)',
+                cursor: 'pointer',
+                fontFamily: "'Courier Prime', monospace",
+                letterSpacing: '0.03em',
+              }}
+            >
+              {name}
+            </div>
+          ))}
+          <div style={{ padding: '4px 12px', borderTop: '1px solid var(--border-subtle, #eee)', fontSize: 10, color: 'var(--text-muted, #999)' }}>
+            ↑↓ navigieren · Tab/Enter übernehmen · Esc schließen
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* LanguageTool Popup */}
       {ltPopup && (
