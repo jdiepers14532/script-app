@@ -55,7 +55,8 @@ dokumentSzenenRouter.get('/resolve', async (req, res) => {
        WHERE ds.scene_identity_id = $1
          AND w.folge_id = $2
          AND ds.geloescht = false
-       ORDER BY w.version_nummer DESC LIMIT 1`,
+       ORDER BY CASE WHEN w.typ = 'drehbuch' THEN 2 WHEN w.typ = 'storyline' THEN 1 ELSE 0 END DESC,
+                w.version_nummer DESC LIMIT 1`,
       [scene_identity_id, ws.folge_id]
     )
 

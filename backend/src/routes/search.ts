@@ -450,7 +450,8 @@ async function buildAllProductionsQuery(
              f.folge_nummer, f.produktion_id,
              ROW_NUMBER() OVER (
                PARTITION BY w.folge_id
-               ORDER BY w.version_nummer DESC
+               ORDER BY CASE WHEN w.typ = 'drehbuch' THEN 2 WHEN w.typ = 'storyline' THEN 1 ELSE 0 END DESC,
+                        w.version_nummer DESC
              ) AS rn
       FROM werkstufen w
       JOIN folgen f ON f.id = w.folge_id

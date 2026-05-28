@@ -111,7 +111,8 @@ folgenV2Router.get('/', async (req, res) => {
                        GROUP BY w.typ) x) AS werkstufen_typen,
                 (SELECT json_build_object('typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label)
                  FROM werkstufen w WHERE w.folge_id = f.id
-                 ORDER BY w.version_nummer DESC, w.erstellt_am DESC LIMIT 1) AS latest_werkstufe
+                 ORDER BY CASE WHEN w.typ = 'drehbuch' THEN 2 WHEN w.typ = 'storyline' THEN 1 ELSE 0 END DESC,
+                          w.version_nummer DESC LIMIT 1) AS latest_werkstufe
          FROM folgen f
          WHERE f.produktion_id = $1
            AND f.ist_frei = false
@@ -370,7 +371,7 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
 
     // Neueste Werkstufe des freien Dokuments finden
     const quellWerkstufe = await queryOne(
-      `SELECT * FROM werkstufen WHERE folge_id = $1 ORDER BY version_nummer DESC LIMIT 1`,
+      `SELECT * FROM werkstufen WHERE folge_id = $1 ORDER BY CASE WHEN typ = 'drehbuch' THEN 2 WHEN typ = 'storyline' THEN 1 ELSE 0 END DESC, version_nummer DESC LIMIT 1`,
       [req.params.id]
     )
     if (!quellWerkstufe) return res.status(400).json({ error: 'Freies Dokument hat keine Werkstufe' })
