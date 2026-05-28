@@ -263,27 +263,49 @@ function MarkdownResult({ markdown }: { markdown: string }) {
 
 // ── Glossar-Leiste ────────────────────────────────────────────────────────────
 
-const GLOSSAR_EINTRAEGE: Record<string, {
+interface GlossarEintrag {
   label: string
   modell: 'A' | 'B' | 'C'
   modellName: string
   erklärung: string
   quelle: string
-}> = {
-  'oedipus':         { label: 'Oedipus-Arc',        modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Fall → Aufstieg → Fall. Figur beginnt schwierig, gewinnt kurz, verliert wieder. Zwei Wendepunkte — komplexer Arc.', quelle: 'Reagan et al., The emotional arcs of stories are dominated by six basic shapes, PLOS ONE 2016' },
-  'icarus':          { label: 'Icarus-Arc',          modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Aufstieg → Fall. Nur ein Wendepunkt — dramaturgisch schwächer, weil vorhersehbar.', quelle: 'Reagan et al., PLOS ONE 2016' },
-  'cinderella':      { label: 'Cinderella-Modell',   modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Aufstieg → Fall → Aufstieg. Komplexester Basis-Arc. Korreliert in Studien mit höherem emotionalen Engagement beim Zuschauer.', quelle: 'Reagan et al., PLOS ONE 2016' },
-  'man in a hole':   { label: 'Man in a Hole',       modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Fall → Aufstieg. Figur gerät in Schwierigkeiten, findet dann heraus. Ein Wendepunkt.', quelle: 'Reagan et al., PLOS ONE 2016' },
-  'rags to riches':  { label: 'Rags to Riches',      modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Durchgehender Aufstieg ohne Wendepunkt. Dramaturgisch der einfachste und vorhersehbarste Arc.', quelle: 'Reagan et al., PLOS ONE 2016' },
-  'tragedy':         { label: 'Tragedy-Arc',         modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Durchgehender Fall (Riches to Rags). Kein Wendepunkt nach unten.', quelle: 'Reagan et al., PLOS ONE 2016' },
-  'speed':           { label: 'Speed',               modell: 'B', modellName: 'Toubia et al.',    erklärung: 'Maß für thematische Sprünge zwischen aufeinanderfolgenden Szenen. Höhere Speed korreliert bei TV-Episoden mit besserer Publikumsbewertung.', quelle: 'Toubia, Berger, Eliashberg, How Quantifying the Shape of Stories Predicts Their Virality, Management Science 2021' },
-  'volume':          { label: 'Volume',              modell: 'B', modellName: 'Toubia et al.',    erklärung: 'Thematische Bandbreite einer Episode. Zu hohes Volume (zu viele unverbundene Themen) korreliert mit schlechteren Bewertungen — der Effekt ist am Episodenende am stärksten.', quelle: 'Toubia et al., Management Science 2021' },
-  'circuitousness':  { label: 'Circuitousness',      modell: 'B', modellName: 'Toubia et al.',    erklärung: 'Wie verschlungen der thematische Weg ist — ob Themen wiederkehren statt linear voranzuschreiten.', quelle: 'Toubia et al., Management Science 2021' },
-  'isotopie':        { label: 'Narrative Isotopie',  modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'Jede Szene gehört einer von drei Erzählachsen an: Soap-Plot (Beziehungen), Genre-Plot (Berufswelt), Anthology-Plot (abgeschlossene Episodenstories). Die Verteilung — "narrative Biomass" — ist die erzählerische Identität einer Serie.', quelle: 'Rocchi & Pescatore, Narrative isotopies in serial fiction, Convergence 2022' },
+  isModell?: boolean  // true = immer anzeigen, erklärt das Modell selbst
+}
+
+const GLOSSAR_EINTRAEGE: Record<string, GlossarEintrag> = {
+  // Modell-Erklärungen — immer sichtbar
+  'modell_a': {
+    label: 'Reagan et al. (2016)', modell: 'A', modellName: 'Reagan et al.', isModell: true,
+    erklärung: 'Identifiziert sechs emotionale Grundformen in Erzählungen durch Sentiment-Analyse von über 1.700 literarischen Texten. Die Modell-Typen (Rags to Riches, Tragedy, Man in a Hole, Icarus, Oedipus, Cinderella) beschreiben, wie die emotionale Valenz einer Geschichte im Zeitverlauf verläuft. Komplexere Arcs (Cinderella, Oedipus) korrelieren empirisch mit höherem Leser-Engagement.',
+    quelle: 'Reagan, A.J. et al. (2016): The emotional arcs of stories are dominated by six basic shapes. PLOS ONE 11(12).',
+  },
+  'modell_b': {
+    label: 'Toubia et al. (2021)', modell: 'B', modellName: 'Toubia et al.', isModell: true,
+    erklärung: 'Misst drei narrative Eigenschaften über Text-Embeddings — Speed (thematische Sprungweite zwischen Szenen), Volume (thematische Bandbreite), Circuitousness (Wiederkehr zu früheren Themen). An TV-Piloten nachgewiesen: höhere Speed und moderates Volume (besonders am Episodenende) korrelieren mit besseren Zuschauer-Bewertungen und Staffel-Verlängerung.',
+    quelle: 'Toubia, O., Berger, J. & Eliashberg, J. (2021): How Quantifying the Shape of Stories Predicts Their Virality. Management Science 67(4).',
+  },
+  'modell_c': {
+    label: 'Rocchi & Pescatore (2022)', modell: 'C', modellName: 'Rocchi & Pescatore', isModell: true,
+    erklärung: 'Analysiert Daily-Soap-Narrative durch drei Erzählachsen (narrative Isotopien): Soap-Plot (Beziehungen, Emotionen, Familie), Genre-Plot (Berufswelt der Serie) und Anthology-Plot (episodisch abgeschlossene Handlungen). Die relative Gewichtung dieser Achsen — die "narrative Biomass" — ist die erzählerische DNA einer Serie und unterscheidet z.B. Rote Rosen von GZSZ.',
+    quelle: 'Rocchi, M. & Pescatore, G. (2022): Narrative isotopies in serial fiction. Convergence 28(3).',
+  },
+  // Fachbegriffe — erscheinen wenn im Text erwähnt
+  'oedipus':         { label: 'Oedipus-Arc',        modell: 'A', modellName: 'Reagan et al.',      erklärung: 'Fall → Aufstieg → Fall. Figur beginnt schwierig, gewinnt kurz, verliert wieder. Zwei Wendepunkte — komplexer Arc.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'icarus':          { label: 'Icarus-Arc',          modell: 'A', modellName: 'Reagan et al.',      erklärung: 'Aufstieg → Fall. Nur ein Wendepunkt — dramaturgisch schwächer, weil vorhersehbar.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'cinderella':      { label: 'Cinderella-Arc',      modell: 'A', modellName: 'Reagan et al.',      erklärung: 'Aufstieg → Fall → Aufstieg. Komplexester Basis-Arc. Korreliert in Studien mit höherem emotionalen Engagement.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'man in a hole':   { label: 'Man in a Hole',       modell: 'A', modellName: 'Reagan et al.',      erklärung: 'Fall → Aufstieg. Figur gerät in Schwierigkeiten, findet dann heraus. Ein Wendepunkt.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'rags to riches':  { label: 'Rags to Riches',      modell: 'A', modellName: 'Reagan et al.',      erklärung: 'Durchgehender Aufstieg ohne Wendepunkt. Dramaturgisch der einfachste und vorhersehbarste Arc.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'tragedy':         { label: 'Tragedy-Arc',         modell: 'A', modellName: 'Reagan et al.',      erklärung: 'Durchgehender Fall (Riches to Rags). Kein Wendepunkt.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'speed':           { label: 'Speed',               modell: 'B', modellName: 'Toubia et al.',      erklärung: 'Maß für thematische Sprünge zwischen aufeinanderfolgenden Szenen. Höhere Speed korreliert bei TV-Episoden mit besserer Publikumsbewertung.', quelle: 'Toubia et al., Management Science 2021' },
+  'volume':          { label: 'Volume',              modell: 'B', modellName: 'Toubia et al.',      erklärung: 'Thematische Bandbreite einer Episode. Zu hohes Volume (zu viele unverbundene Themen) korreliert mit schlechteren Bewertungen — besonders am Episodenende.', quelle: 'Toubia et al., Management Science 2021' },
+  'circuitousness':  { label: 'Circuitousness',      modell: 'B', modellName: 'Toubia et al.',      erklärung: 'Wie verschlungen der thematische Weg ist — ob Themen wiederkehren statt linear voranzuschreiten.', quelle: 'Toubia et al., Management Science 2021' },
+  'isotopie':        { label: 'Narrative Isotopie',  modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'Jede Szene gehört einer von drei Erzählachsen an: Soap-Plot, Genre-Plot, Anthology-Plot. Die Verteilung — "narrative Biomass" — ist die erzählerische Identität einer Serie.', quelle: 'Rocchi & Pescatore, Convergence 2022' },
   'soap-plot':       { label: 'Soap-Plot',           modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'Erzählachse für Liebesbeziehungen, Familie, emotionale Konflikte. Bei Daily Soaps dominant (ca. 60–70 % der Szenen).', quelle: 'Rocchi & Pescatore, Convergence 2022' },
   'genre-plot':      { label: 'Genre-Plot',          modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'Erzählachse für die Berufswelt der Serie (Hotel, Café, Tischlerei). Gibt der Soap ihre spezifische Alltagsumgebung.', quelle: 'Rocchi & Pescatore, Convergence 2022' },
   'anthology-plot':  { label: 'Anthology-Plot',      modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'In sich abgeschlossene Storylines, die in wenigen Episoden enden. In Daily Soaps selten, aber nützlich für Gäste- und Episodenfiguren.', quelle: 'Rocchi & Pescatore, Convergence 2022' },
 }
+
+const MODELL_KEYS = ['modell_a', 'modell_b', 'modell_c']
 
 const MODELL_COLORS: Record<string, { bg: string; color: string }> = {
   A: { bg: 'rgba(0,122,255,0.10)', color: '#007AFF' },
@@ -295,21 +317,48 @@ function findGlossarTerme(markdown: string): string[] {
   const found: string[] = []
   const lower = markdown.toLowerCase()
   for (const key of Object.keys(GLOSSAR_EINTRAEGE)) {
+    if (GLOSSAR_EINTRAEGE[key].isModell) continue  // Modelle separat
     if (lower.includes(key)) found.push(key)
   }
   return found
+}
+
+function GlossarChip({ glossarKey, open, onClick }: {
+  glossarKey: string
+  open: boolean
+  onClick: (key: string, e: React.MouseEvent<HTMLButtonElement>) => void
+}) {
+  const e = GLOSSAR_EINTRAEGE[glossarKey]
+  const c = MODELL_COLORS[e.modell]
+  return (
+    <button
+      onClick={ev => onClick(glossarKey, ev)}
+      style={{
+        fontSize: 10, padding: '2px 7px', borderRadius: 4,
+        border: `1px solid ${open ? c.color : 'transparent'}`,
+        background: open ? c.bg : 'var(--bg-card, #f8f8f8)',
+        color: open ? c.color : 'var(--text-secondary)',
+        cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+        transition: 'all 0.12s',
+      }}
+    >
+      {e.isModell
+        ? <><span style={{ fontWeight: 700, marginRight: 4, color: c.color }}>Modell {e.modell}</span>{e.label}</>
+        : <><span style={{ opacity: 0.6, marginRight: 3 }}>({e.modell})</span>{e.label}</>
+      }
+    </button>
+  )
 }
 
 function GlossarLeiste({ markdown }: { markdown: string }) {
   const [open, setOpen] = useState<string | null>(null)
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null)
   const terme = findGlossarTerme(markdown)
-  if (terme.length === 0) return null
 
   const handleClick = (key: string, e: React.MouseEvent<HTMLButtonElement>) => {
     if (open === key) { setOpen(null); setPopoverPos(null); return }
     const r = e.currentTarget.getBoundingClientRect()
-    setPopoverPos({ top: r.bottom + 6, left: Math.min(r.left, window.innerWidth - 300) })
+    setPopoverPos({ top: r.bottom + 6, left: Math.min(r.left, window.innerWidth - 310) })
     setOpen(key)
   }
 
@@ -320,28 +369,22 @@ function GlossarLeiste({ markdown }: { markdown: string }) {
     <div style={{ borderBottom: '1px solid var(--border)', padding: '5px 12px', background: 'var(--bg-subtle)', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-          Glossar
+          Modelle
         </span>
-        {terme.map(key => {
-          const e = GLOSSAR_EINTRAEGE[key]
-          const c = MODELL_COLORS[e.modell]
-          return (
-            <button
-              key={key}
-              onClick={ev => handleClick(key, ev)}
-              style={{
-                fontSize: 10, padding: '2px 7px', borderRadius: 4,
-                border: `1px solid ${open === key ? c.color : 'transparent'}`,
-                background: open === key ? c.bg : 'var(--bg-card, #f8f8f8)',
-                color: open === key ? c.color : 'var(--text-secondary)',
-                cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
-                transition: 'all 0.12s',
-              }}
-            >
-              <span style={{ opacity: 0.6, marginRight: 3 }}>({e.modell})</span>{e.label}
-            </button>
-          )
-        })}
+        {MODELL_KEYS.map(key => (
+          <GlossarChip key={key} glossarKey={key} open={open === key} onClick={handleClick} />
+        ))}
+        {terme.length > 0 && (
+          <>
+            <span style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0, margin: '0 2px' }} />
+            <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+              Begriffe
+            </span>
+            {terme.map(key => (
+              <GlossarChip key={key} glossarKey={key} open={open === key} onClick={handleClick} />
+            ))}
+          </>
+        )}
       </div>
 
       {open && entry && mc && popoverPos && (
@@ -349,13 +392,13 @@ function GlossarLeiste({ markdown }: { markdown: string }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }} onClick={() => { setOpen(null); setPopoverPos(null) }} />
           <div style={{
             position: 'fixed', top: popoverPos.top, left: popoverPos.left,
-            width: 290, zIndex: 1001,
+            width: 300, zIndex: 1001,
             background: 'var(--bg-surface, #fff)', border: `1px solid ${mc.color}`,
             borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.13)', padding: '12px 14px',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, background: mc.bg, color: mc.color, fontWeight: 700 }}>
-                Modell {entry.modell} · {entry.modellName}
+                {entry.isModell ? `Modell ${entry.modell}` : `Modell ${entry.modell} · ${entry.modellName}`}
               </span>
             </div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 5 }}>{entry.label}</div>
