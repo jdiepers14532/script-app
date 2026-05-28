@@ -9,13 +9,24 @@ import * as crypto from 'crypto'
 import { query, queryOne } from '../../db'
 import { resolveBlock } from '../blocks/resolver'
 import { runStoryConsultant, calcCostEurCent } from './methods/story-consultant'
+import { runStrangHeatmap } from './methods/strang-heatmap'
+import { runFigurenAgency } from './methods/figuren-agency'
+import { runVonnegutArcs } from './methods/vonnegut-arcs'
 import { DocumentScene } from './scene-renderer'
 
-export type AnalysisMethod = 'story_consultant_pur' | 'story_consultant_framework'
+export type AnalysisMethod =
+  | 'story_consultant_pur'
+  | 'story_consultant_framework'
+  | 'strang_heatmap'
+  | 'figuren_agency'
+  | 'vonnegut_arcs'
 
 const METHOD_VERSIONS: Record<AnalysisMethod, string> = {
   story_consultant_pur:       'story-consultant-pur-v2',
   story_consultant_framework: 'story-consultant-framework-v1',
+  strang_heatmap:             'strang-heatmap-v1',
+  figuren_agency:             'figuren-agency-v1',
+  vonnegut_arcs:              'vonnegut-arcs-v1',
 }
 
 export interface MethodResult {
@@ -230,9 +241,11 @@ export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<
       continue
     }
 
+    const isVisual = ['strang_heatmap', 'figuren_agency', 'vonnegut_arcs'].includes(method)
+
     // Cache-Lookup
     const cached = await queryOne(
-      `SELECT mr.id, mr.result_markdown, mr.duration_ms
+      `SELECT mr.id, mr.result_markdown, mr.result_structured, mr.duration_ms
        FROM analysis_method_results mr
        JOIN analysis_runs ar ON ar.id = mr.run_id
        WHERE mr.method = $1
@@ -247,14 +260,18 @@ export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<
     if (cached) {
       await queryOne(
         `INSERT INTO analysis_method_results
-           (run_id, method, method_version, status, from_cache, result_markdown, duration_ms)
-         VALUES ($1, $2, $3, 'completed', true, $4, $5)
+           (run_id, method, method_version, status, from_cache, result_markdown, result_structured, duration_ms)
+         VALUES ($1, $2, $3, 'completed', true, $4, $5::jsonb, $6)
          RETURNING id`,
-        [run_id, method, method_version, cached.result_markdown, cached.duration_ms]
+        [run_id, method, method_version,
+         cached.result_markdown,
+         cached.result_structured ? JSON.stringify(cached.result_structured) : null,
+         cached.duration_ms]
       )
       method_results.push({
         method, method_version, status: 'completed',
-        markdown: cached.result_markdown, from_cache: true, duration_ms: cached.duration_ms,
+        markdown: cached.result_markdown ?? undefined,
+        from_cache: true, duration_ms: cached.duration_ms,
       })
       continue
     }
@@ -269,58 +286,61 @@ export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<
     )
     const method_result_id: string = methodResRow.id
 
+    const runOpts = {
+      produktion: { id: produktionRow.id, titel: produktionRow.titel },
+      block_nummer, dreh_von, dreh_bis,
+      folgen: folgenRows, szenen, roteRosenMeta,
+    }
+
     try {
-      const result = await runStoryConsultant({
-        method: method as 'story_consultant_pur' | 'story_consultant_framework',
-        produktion: { id: produktionRow.id, titel: produktionRow.titel },
-        block_nummer,
-        dreh_von,
-        dreh_bis,
-        folgen: folgenRows,
-        szenen,
-        roteRosenMeta,
-      })
+      if (method === 'strang_heatmap') {
+        const result = await runStrangHeatmap(runOpts)
+        await query(
+          `UPDATE analysis_method_results SET status = 'completed', result_structured = $1::jsonb, duration_ms = $2 WHERE id = $3`,
+          [JSON.stringify(result.structured), result.duration_ms, method_result_id]
+        )
+        await _logCost(method_result_id, run_id, result.usage)
+        method_results.push({ method, method_version, status: 'completed', from_cache: false, duration_ms: result.duration_ms })
 
-      await query(
-        `UPDATE analysis_method_results
-         SET status = 'completed', result_markdown = $1, duration_ms = $2
-         WHERE id = $3`,
-        [result.markdown, result.duration_ms, method_result_id]
-      )
+      } else if (method === 'figuren_agency') {
+        const result = await runFigurenAgency(runOpts)
+        await query(
+          `UPDATE analysis_method_results SET status = 'completed', result_structured = $1::jsonb, duration_ms = $2 WHERE id = $3`,
+          [JSON.stringify(result.structured), result.duration_ms, method_result_id]
+        )
+        await _logCost(method_result_id, run_id, result.usage)
+        method_results.push({ method, method_version, status: 'completed', from_cache: false, duration_ms: result.duration_ms })
 
-      const modelRow = await queryOne(`SELECT value FROM app_settings WHERE key = 'analysis_model'`, [])
-      const model = (modelRow?.value as string | undefined) || 'claude-sonnet-4-6'
-      const costEurCent = calcCostEurCent(result.usage, model)
+      } else if (method === 'vonnegut_arcs') {
+        const result = await runVonnegutArcs(runOpts)
+        await query(
+          `UPDATE analysis_method_results SET status = 'completed', result_structured = $1::jsonb, duration_ms = $2 WHERE id = $3`,
+          [JSON.stringify(result.structured), result.duration_ms, method_result_id]
+        )
+        await _logCost(method_result_id, run_id, result.usage)
+        method_results.push({ method, method_version, status: 'completed', from_cache: false, duration_ms: result.duration_ms })
 
-      await query(
-        `INSERT INTO analysis_costs
-           (method_result_id, run_id, provider, model,
-            input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_eur_cent)
-         VALUES ($1, $2, 'claude', $3, $4, $5, $6, $7, $8)`,
-        [
-          method_result_id, run_id, model,
-          result.usage.input_tokens,
-          result.usage.output_tokens,
-          result.usage.cache_creation_input_tokens,
-          result.usage.cache_read_input_tokens,
-          costEurCent,
-        ]
-      )
+      } else {
+        // story_consultant_pur / story_consultant_framework
+        const result = await runStoryConsultant({
+          method: method as 'story_consultant_pur' | 'story_consultant_framework',
+          ...runOpts,
+        })
+        await query(
+          `UPDATE analysis_method_results SET status = 'completed', result_markdown = $1, duration_ms = $2 WHERE id = $3`,
+          [result.markdown, result.duration_ms, method_result_id]
+        )
+        await _logCost(method_result_id, run_id, result.usage)
+        method_results.push({ method, method_version, status: 'completed', markdown: result.markdown, from_cache: false, duration_ms: result.duration_ms })
+      }
 
-      method_results.push({
-        method, method_version, status: 'completed',
-        markdown: result.markdown, from_cache: false, duration_ms: result.duration_ms,
-      })
     } catch (err: any) {
       const errMsg = String(err?.message || err)
       await query(
         `UPDATE analysis_method_results SET status = 'error', error_detail = $1 WHERE id = $2`,
         [errMsg, method_result_id]
       )
-      method_results.push({
-        method, method_version, status: 'error',
-        error_detail: errMsg, from_cache: false,
-      })
+      method_results.push({ method, method_version, status: 'error', error_detail: errMsg, from_cache: false })
     }
   }
 
@@ -329,5 +349,27 @@ export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<
   await query(
     `UPDATE analysis_runs SET status = $1, completed_at = NOW() WHERE id = $2`,
     [finalStatus, run_id]
+  )
+}
+
+// Hilfsfunktion: Kosten loggen
+async function _logCost(
+  method_result_id: string,
+  run_id: string,
+  usage: { input_tokens: number; output_tokens: number; cache_creation_input_tokens: number; cache_read_input_tokens: number }
+) {
+  const modelRow = await queryOne(`SELECT value FROM app_settings WHERE key = 'analysis_model'`, [])
+  const model = (modelRow?.value as string | undefined) || 'claude-sonnet-4-6'
+  const { calcCostEurCent } = await import('./methods/story-consultant')
+  const costEurCent = calcCostEurCent(usage, model)
+  await query(
+    `INSERT INTO analysis_costs
+       (method_result_id, run_id, provider, model,
+        input_tokens, output_tokens, cache_write_tokens, cache_read_tokens, cost_eur_cent)
+     VALUES ($1, $2, 'claude', $3, $4, $5, $6, $7, $8)`,
+    [method_result_id, run_id, model,
+     usage.input_tokens, usage.output_tokens,
+     usage.cache_creation_input_tokens, usage.cache_read_input_tokens,
+     costEurCent]
   )
 }

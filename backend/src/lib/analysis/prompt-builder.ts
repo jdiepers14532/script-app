@@ -47,6 +47,9 @@ export interface BuiltPrompt {
 const METHOD_PROMPT_FILES: Record<string, string> = {
   story_consultant_pur:       'story-consultant-pur-v2.md',
   story_consultant_framework: 'story-consultant-framework-v1.md',
+  strang_heatmap:             'strang-heatmap-v1.md',
+  figuren_agency:             'figuren-agency-v1.md',
+  vonnegut_arcs:              'vonnegut-arcs-v1.md',
 }
 
 function loadSystemPrompt(method: string): string {

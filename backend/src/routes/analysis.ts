@@ -50,7 +50,7 @@ router.post('/run', async (req, res) => {
       return res.status(400).json({ error: 'Mindestens eine Methode erforderlich' })
     }
 
-    const validMethods: AnalysisMethod[] = ['story_consultant_pur', 'story_consultant_framework']
+    const validMethods: AnalysisMethod[] = ['story_consultant_pur', 'story_consultant_framework', 'strang_heatmap', 'figuren_agency', 'vonnegut_arcs']
     const invalid = (methods as string[]).filter(m => !validMethods.includes(m as AnalysisMethod))
     if (invalid.length > 0) {
       return res.status(400).json({ error: `Unbekannte Methoden: ${invalid.join(', ')}` })
@@ -96,6 +96,7 @@ router.get('/run/:id', async (req, res) => {
            json_build_object(
              'id', mr.id, 'method', mr.method, 'method_version', mr.method_version,
              'status', mr.status, 'markdown', mr.result_markdown,
+             'structured', mr.result_structured,
              'error_detail', mr.error_detail, 'from_cache', mr.from_cache,
              'duration_ms', mr.duration_ms
            ) ORDER BY mr.created_at ASC
@@ -135,6 +136,7 @@ router.get('/block/:produktion_id/:block_nummer', async (req, res) => {
            json_build_object(
              'id', mr.id, 'method', mr.method, 'method_version', mr.method_version,
              'status', mr.status, 'markdown', mr.result_markdown,
+             'structured', mr.result_structured,
              'error_detail', mr.error_detail, 'from_cache', mr.from_cache,
              'duration_ms', mr.duration_ms
            ) ORDER BY mr.created_at ASC

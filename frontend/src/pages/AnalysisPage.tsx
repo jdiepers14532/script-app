@@ -30,6 +30,7 @@ interface MethodResult {
   method_version: string
   status: 'completed' | 'error' | 'running'
   markdown?: string
+  structured?: any
   error_detail?: string
   from_cache: boolean
   duration_ms?: number
@@ -60,19 +61,16 @@ const METHOD_LABELS: Record<string, { label: string; desc: string; cost: string;
     label: 'Strang-Heatmap',
     desc: 'Visualisierung der Strang-Verteilung über Folgen und Szenen',
     cost: '~0,50 €',
-    disabled: true,
   },
   figuren_agency: {
     label: 'Figuren-Agency-Matrix',
     desc: 'Wer trifft Entscheidungen? Wer reagiert nur?',
     cost: '~0,50 €',
-    disabled: true,
   },
   vonnegut_arcs: {
     label: 'Vonnegut-Arcs',
     desc: 'Emotionale Kurven der Stränge über den Block',
     cost: '~0,50 €',
-    disabled: true,
   },
 }
 
@@ -427,6 +425,277 @@ function GlossarLeiste({ markdown }: { markdown: string }) {
   )
 }
 
+// ── Strang-Heatmap ─────────────────────────────────────────────────────────────
+
+function StrangHeatmap({ data }: { data: any }) {
+  const straenge: any[] = data?.straenge ?? []
+  if (!straenge.length) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keine Strang-Daten vorhanden.</div>
+
+  // Alle Folgen-Nummern sammeln und sortieren
+  const folgen = [...new Set(straenge.flatMap(s => s.szenen.map((z: any) => z.folge_nr)))].sort((a, b) => a - b)
+
+  // Pro Strang + Folge: max Intensität
+  const grid: Record<string, Record<number, { max: number; count: number }>> = {}
+  for (const s of straenge) {
+    grid[s.name] = {}
+    for (const f of folgen) grid[s.name][f] = { max: 0, count: 0 }
+    for (const z of s.szenen) {
+      if (!grid[s.name][z.folge_nr]) grid[s.name][z.folge_nr] = { max: 0, count: 0 }
+      grid[s.name][z.folge_nr].max = Math.max(grid[s.name][z.folge_nr].max, z.intensitaet)
+      grid[s.name][z.folge_nr].count++
+    }
+  }
+
+  const intensityAlpha = (v: number) => [0, 0.08, 0.2, 0.4, 0.65, 0.9][Math.min(v, 5)]
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
+        Farbintensität = Strang-Präsenz in der Folge (1 = schwach · 5 = zentral)
+      </div>
+      <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: 400 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '4px 12px 4px 0', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap', minWidth: 140 }}>Strang</th>
+            {folgen.map(f => (
+              <th key={f} style={{ padding: '4px 6px', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {f}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {straenge.map(s => (
+            <tr key={s.name}>
+              <td style={{ padding: '5px 12px 5px 0', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: s.farbe, flexShrink: 0, display: 'inline-block' }} />
+                <span style={{ fontWeight: 500 }}>{s.name}</span>
+              </td>
+              {folgen.map(f => {
+                const cell = grid[s.name]?.[f]
+                const v = cell?.max ?? 0
+                return (
+                  <td key={f} style={{ padding: '4px 6px', textAlign: 'center' }}>
+                    <div style={{
+                      width: 32, height: 24, borderRadius: 4, margin: '0 auto',
+                      background: v > 0 ? s.farbe : 'var(--border)',
+                      opacity: v > 0 ? intensityAlpha(v) + 0.1 : 0.15,
+                      border: `1px solid ${v > 0 ? s.farbe : 'transparent'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: v > 0 ? s.farbe : 'var(--text-secondary)',
+                      fontSize: 9, fontWeight: 700,
+                    }}>
+                      {v > 0 ? v : ''}
+                    </div>
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ marginTop: 20 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Strang-Details</div>
+        {straenge.map(s => (
+          <div key={s.name} style={{ marginBottom: 6, display: 'flex', alignItems: 'baseline', gap: 6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.farbe, flexShrink: 0, display: 'inline-block', marginTop: 3 }} />
+            <span style={{ fontSize: 12, fontWeight: 600 }}>{s.name}</span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.szenen.length} Szene{s.szenen.length !== 1 ? 'n' : ''}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Figuren-Agency-Matrix ──────────────────────────────────────────────────────
+
+function FigurenAgencyMatrix({ data }: { data: any }) {
+  const charaktere: any[] = data?.charaktere ?? []
+  if (!charaktere.length) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keine Figuren-Daten vorhanden.</div>
+
+  const folgen = [...new Set(charaktere.flatMap(c => c.episoden.map((e: any) => e.folge_nr)))].sort((a, b) => a - b)
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
+        <span style={{ color: '#00C853', fontWeight: 600 }}>A</span> = Aktiv (Entscheidung) ·{' '}
+        <span style={{ color: '#FF9500', fontWeight: 600 }}>R</span> = Reaktiv ·{' '}
+        <span style={{ color: 'var(--border)', fontWeight: 600 }}>—</span> = Abwesend/Passiv
+      </div>
+      <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 400, width: '100%' }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: 'left', padding: '6px 16px 6px 0', fontWeight: 600, color: 'var(--text-secondary)', minWidth: 120 }}>Figur</th>
+            {folgen.map(f => (
+              <th key={f} style={{ padding: '6px 8px', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', minWidth: 60 }}>
+                Folge {f}
+              </th>
+            ))}
+            <th style={{ padding: '6px 8px', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center' }}>Gesamt A:R</th>
+          </tr>
+        </thead>
+        <tbody>
+          {charaktere.map(c => {
+            const epMap: Record<number, any> = {}
+            for (const e of c.episoden) epMap[e.folge_nr] = e
+            const totalA = c.episoden.reduce((s: number, e: any) => s + (e.aktiv || 0), 0)
+            const totalR = c.episoden.reduce((s: number, e: any) => s + (e.reaktiv || 0), 0)
+            const ratio = totalA + totalR > 0 ? totalA / (totalA + totalR) : 0
+            return (
+              <tr key={c.name} style={{ borderTop: '1px solid var(--border)' }}>
+                <td style={{ padding: '7px 16px 7px 0', fontWeight: 600 }}>{c.name}</td>
+                {folgen.map(f => {
+                  const ep = epMap[f]
+                  if (!ep || (ep.aktiv === 0 && ep.reaktiv === 0)) {
+                    return <td key={f} style={{ padding: '7px 8px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: 11 }}>—</td>
+                  }
+                  return (
+                    <td key={f} style={{ padding: '7px 8px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+                        {ep.aktiv > 0 && (
+                          <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'rgba(0,200,83,0.12)', color: '#00a844', fontWeight: 700 }}>
+                            A{ep.aktiv > 1 ? `×${ep.aktiv}` : ''}
+                          </span>
+                        )}
+                        {ep.reaktiv > 0 && (
+                          <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 3, background: 'rgba(255,149,0,0.12)', color: '#b86e00', fontWeight: 700 }}>
+                            R{ep.reaktiv > 1 ? `×${ep.reaktiv}` : ''}
+                          </span>
+                        )}
+                        {ep.top_entscheidung && (
+                          <div style={{ fontSize: 9, color: 'var(--text-secondary)', maxWidth: 90, lineHeight: 1.3, marginTop: 2, textAlign: 'center' }}
+                            title={ep.top_entscheidung}>
+                            {ep.top_entscheidung.length > 40 ? ep.top_entscheidung.slice(0, 38) + '…' : ep.top_entscheidung}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  )
+                })}
+                <td style={{ padding: '7px 8px', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#00a844' }}>{totalA}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>:</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#b86e00' }}>{totalR}</span>
+                    <div style={{ width: 40, height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden', marginLeft: 4 }}>
+                      <div style={{ width: `${ratio * 100}%`, height: '100%', background: '#00C853', borderRadius: 3 }} />
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ── Vonnegut-Arcs Chart ────────────────────────────────────────────────────────
+
+function VonnegutArcsChart({ data }: { data: any }) {
+  const straenge: any[] = data?.straenge ?? []
+  if (!straenge.length) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keine Arc-Daten vorhanden.</div>
+
+  // Alle Punkte über alle Stränge sammeln und sortieren
+  const allPunkte = straenge.flatMap(s =>
+    s.punkte.map((p: any) => ({ ...p, strang: s.name }))
+  ).sort((a, b) => a.folge_nr - b.folge_nr || a.scene_nr - b.scene_nr)
+
+  // Eindeutige x-Positionen: folge_nr.scene_nr
+  const xKeys = [...new Set(allPunkte.map(p => `${p.folge_nr}.${p.scene_nr}`))].sort((a, b) => {
+    const [af, as_] = a.split('.').map(Number)
+    const [bf, bs] = b.split('.').map(Number)
+    return af - bf || as_ - bs
+  })
+
+  const W = Math.max(600, xKeys.length * 14)
+  const H = 200
+  const PAD = { top: 16, right: 16, bottom: 28, left: 32 }
+  const chartW = W - PAD.left - PAD.right
+  const chartH = H - PAD.top - PAD.bottom
+
+  const xPos = (i: number) => PAD.left + (i / Math.max(xKeys.length - 1, 1)) * chartW
+  const yPos = (v: number) => PAD.top + ((5 - v) / 10) * chartH  // -5..+5 → top..bottom
+
+  // Episode-Grenzen für Grid-Linien
+  const folgenWechsel: number[] = []
+  let lastFolge = -1
+  xKeys.forEach((k, i) => {
+    const f = Number(k.split('.')[0])
+    if (f !== lastFolge && i > 0) folgenWechsel.push(i)
+    lastFolge = f
+  })
+
+  const yGridLines = [-4, -2, 0, 2, 4]
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+        {straenge.map(s => (
+          <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+            <span style={{ width: 20, height: 2, background: s.farbe, display: 'inline-block', borderRadius: 1 }} />
+            <span>{s.name}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <svg width={W} height={H} style={{ display: 'block' }}>
+          {/* Y-Grid */}
+          {yGridLines.map(v => (
+            <g key={v}>
+              <line x1={PAD.left} x2={W - PAD.right} y1={yPos(v)} y2={yPos(v)}
+                stroke={v === 0 ? 'var(--text-secondary)' : 'var(--border)'}
+                strokeWidth={v === 0 ? 1 : 0.5} strokeDasharray={v === 0 ? '' : '3,3'} />
+              <text x={PAD.left - 4} y={yPos(v) + 3.5} textAnchor="end" fontSize={8} fill="var(--text-secondary)">{v > 0 ? `+${v}` : v}</text>
+            </g>
+          ))}
+          {/* Episode-Grenzen */}
+          {folgenWechsel.map(i => (
+            <line key={i} x1={xPos(i)} x2={xPos(i)} y1={PAD.top} y2={H - PAD.bottom}
+              stroke="var(--border)" strokeWidth={1} strokeDasharray="4,2" />
+          ))}
+          {/* Episode-Labels */}
+          {xKeys.map((k, i) => {
+            const f = Number(k.split('.')[0])
+            const prevF = i > 0 ? Number(xKeys[i - 1].split('.')[0]) : -1
+            if (f === prevF) return null
+            return <text key={k} x={xPos(i)} y={H - 6} fontSize={9} fill="var(--text-secondary)" textAnchor="middle">Folge {f}</text>
+          })}
+          {/* Strang-Linien */}
+          {straenge.map(s => {
+            const pts = s.punkte
+              .sort((a: any, b: any) => a.folge_nr - b.folge_nr || a.scene_nr - b.scene_nr)
+              .map((p: any) => {
+                const key = `${p.folge_nr}.${p.scene_nr}`
+                const xi = xKeys.indexOf(key)
+                if (xi < 0) return null
+                return { x: xPos(xi), y: yPos(p.wert), wert: p.wert, notiz: p.notiz }
+              })
+              .filter(Boolean)
+            if (pts.length < 2) return null
+            const d = pts.map((p: any, i: number) => `${i === 0 ? 'M' : 'L'}${p!.x},${p!.y}`).join(' ')
+            return (
+              <g key={s.name}>
+                <path d={d} fill="none" stroke={s.farbe} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                {pts.map((p: any, i: number) => p?.notiz ? (
+                  <circle key={i} cx={p.x} cy={p.y} r={3.5} fill={s.farbe} stroke="var(--bg-surface,#fff)" strokeWidth={1.5}>
+                    <title>{p.notiz}</title>
+                  </circle>
+                ) : null)}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
+      <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 6 }}>
+        Gefüllte Punkte = Wendepunkte (Hover für Notiz)
+      </div>
+    </div>
+  )
+}
+
 // ── MethodBadge ────────────────────────────────────────────────────────────────
 
 function MethodBadge({ fromCache }: { fromCache: boolean }) {
@@ -534,6 +803,12 @@ function ReportView({ run, activeTab, onTabChange }: {
               <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(255,59,48,0.08)', color: '#FF3B30', fontSize: 13, lineHeight: 1.5 }}>
                 Fehler: {result.error_detail}
               </div>
+            ) : result.method === 'strang_heatmap' && result.structured ? (
+              <StrangHeatmap data={result.structured} />
+            ) : result.method === 'figuren_agency' && result.structured ? (
+              <FigurenAgencyMatrix data={result.structured} />
+            ) : result.method === 'vonnegut_arcs' && result.structured ? (
+              <VonnegutArcsChart data={result.structured} />
             ) : result.markdown ? (
               <MarkdownResult markdown={result.markdown} />
             ) : (
