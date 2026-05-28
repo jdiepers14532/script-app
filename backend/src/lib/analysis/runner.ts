@@ -93,7 +93,7 @@ export async function prepareAnalysisRun(opts: {
      WHERE folge_id = ANY($1::int[])
        AND typ IN ('drehbuch', 'storyline')
        AND sichtbarkeit != 'privat'
-     ORDER BY folge_id, version_nummer DESC`,
+     ORDER BY folge_id, version_nummer DESC, erstellt_am DESC`,
     [active_folgen_ids]
   )
 
