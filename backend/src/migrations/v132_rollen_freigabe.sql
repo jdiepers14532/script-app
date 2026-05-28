@@ -4,7 +4,7 @@
 -- Per-Produktion Konfiguration
 CREATE TABLE IF NOT EXISTS rollen_freigabe_konfiguration (
   id SERIAL PRIMARY KEY,
-  production_id INTEGER NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
+  production_id TEXT NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
   freigabe_aktiv BOOLEAN NOT NULL DEFAULT FALSE,
   erinnerung_nach_tagen INTEGER NOT NULL DEFAULT 3,
   erstellt_am TIMESTAMPTZ DEFAULT NOW(),
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS rollen_freigabe_konfiguration (
 -- Genehmiger-Liste pro Produktion
 CREATE TABLE IF NOT EXISTS rollen_freigabe_genehmiger (
   id SERIAL PRIMARY KEY,
-  production_id INTEGER NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
+  production_id TEXT NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT NOT NULL,
   ist_obligatorisch BOOLEAN NOT NULL DEFAULT TRUE,
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS rollen_freigabe_genehmiger (
 CREATE TABLE IF NOT EXISTS rollen_freigabe_anfragen (
   id SERIAL PRIMARY KEY,
   character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
-  production_id INTEGER NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
+  production_id TEXT NOT NULL REFERENCES produktionen(id) ON DELETE CASCADE,
   beantragt_von_user_id TEXT NOT NULL,
   beantragt_am TIMESTAMPTZ DEFAULT NOW(),
   status TEXT NOT NULL DEFAULT 'ausstehend',
