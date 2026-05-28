@@ -35,6 +35,9 @@ function calcHeadingLines(templateJson: any, seitenformat: 'a4' | 'letter'): num
     return totalPt / ptPerLine
   }
 
+  // Invisible h2 for PDF outline: font-size:1pt, line-height:1 (not in templateJson)
+  totalPt += 1
+
   const doc = typeof templateJson === 'string' ? JSON.parse(templateJson) : templateJson
   const nodes: any[] = Array.isArray(doc) ? doc
     : doc.type === 'doc' ? (doc.content ?? [])
@@ -42,7 +45,7 @@ function calcHeadingLines(templateJson: any, seitenformat: 'a4' | 'letter'): num
 
   for (const node of nodes) {
     if (node.type === 'horizontalRule') {
-      totalPt += 4  // thin rule + minimal spacing
+      totalPt += 4.5  // margin:2pt×2 + border-top:0.5pt
       continue
     }
     if (node.type !== 'paragraph') continue
@@ -114,12 +117,14 @@ export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
 
   // Load all non-deleted scenes WITH content JSON
   const scenes = await query(
-    `SELECT id, content, format
-     FROM dokument_szenen
-     WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
-     ORDER BY sort_order ASC`,
+    `SELECT ds.id, ds.content, ds.format,
+            COALESCE(dv.ist_titelseite, FALSE) AS ist_titelseite
+     FROM dokument_szenen ds
+     LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
+     WHERE ds.werkstufe_id = $1 AND ds.geloescht IS NOT TRUE
+     ORDER BY ds.sort_order ASC`,
     [werkstufeId]
-  ) as Array<{ id: string; content: any; format: string | null }>
+  ) as Array<{ id: string; content: any; format: string | null; ist_titelseite: boolean }>
 
   if (scenes.length === 0) return
 
@@ -133,6 +138,9 @@ export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
 
   for (let i = 0; i < scenes.length; i++) {
     const scene = scenes[i]
+
+    // Titelseite is not counted in screenplay page numbering
+    if (scene.ist_titelseite) continue
 
     // PDF: every scene except the first has page-break-before:always
     if (i > 0) {
