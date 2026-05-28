@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
-import { api } from '../api/client'
+import { api, clearCacheByPrefix } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
@@ -1047,7 +1047,10 @@ export default function SceneList({
           open={platzhalterOpen}
           onClose={() => setPlatzhalterOpen(false)}
           onCreated={() => {
-            if (stageId) api.getWerkstufenSzenen(String(stageId)).then(s => onSzenesReordered?.(s)).catch(() => {})
+            if (stageId) {
+              clearCacheByPrefix(`/werkstufen/${String(stageId)}/szenen`)
+              api.getWerkstufenSzenen(String(stageId)).then(s => onSzenesReordered?.(s)).catch(() => {})
+            }
           }}
         />
       )}
