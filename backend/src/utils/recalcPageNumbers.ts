@@ -1,31 +1,29 @@
 import { query, queryOne } from '../db'
 import { calcContentLinesRaw } from './calcPageLength'
 
-// Page geometry (must match pdfAssembler.ts and calcPageLength.ts)
-const LINES_PER_PAGE_A4     = 59
-const LINES_PER_PAGE_LETTER = 56
-
-// Usable page height in pt (page height minus top/bottom margins)
-// A4:    (297 - 25 - 20) mm × (72/25.4) ≈ 714.33 pt
-// Letter: (11 - 1 - 0.5) in × 72       = 684 pt
-const USABLE_PT_A4     = (297 - 25 - 20) * (72 / 25.4)
-const USABLE_PT_LETTER = (11 - 1 - 0.5) * 72
-
 // Szenenkopf margins (hardcoded in pdfAssembler.ts renderSzenenkopf)
 const HEADING_MARGIN_TOP_PT    = 14
 const HEADING_MARGIN_BOTTOM_PT = 4
+
+// Screenplay content line height (font-size:12pt, line-height:1)
+const CONTENT_LINE_HEIGHT_PT = 12
+
+// Page height in mm per format
+const PAGE_HEIGHT_MM: Record<'a4' | 'letter', number> = { a4: 297, letter: 279.4 }
+// Default top/bottom margins in mm (may be overridden by KZ/FZ config)
+const DEFAULT_MARGIN_TOP_MM:    Record<'a4' | 'letter', number> = { a4: 25, letter: 25.4 }
+const DEFAULT_MARGIN_BOTTOM_MM: Record<'a4' | 'letter', number> = { a4: 20, letter: 12.7 }
 
 /**
  * Calculates the heading height in content-line equivalents from a
  * szenenkopf_template JSON (Tiptap) as rendered by pdfAssembler.
  *
  * Falls back to the default <h2> style if no template is set.
- * 1 content line = usable_page_pt / LINES_PER_PAGE.
+ * usablePt and linesPerPage must match the effective page geometry
+ * (accounting for KZ/FZ margin expansion).
  */
-function calcHeadingLines(templateJson: any, seitenformat: 'a4' | 'letter'): number {
-  const linesPerPage = seitenformat === 'letter' ? LINES_PER_PAGE_LETTER : LINES_PER_PAGE_A4
-  const usablePt     = seitenformat === 'letter' ? USABLE_PT_LETTER : USABLE_PT_A4
-  const ptPerLine    = usablePt / linesPerPage
+function calcHeadingLines(templateJson: any, usablePt: number, linesPerPage: number): number {
+  const ptPerLine = usablePt / linesPerPage
 
   let totalPt = HEADING_MARGIN_TOP_PT + HEADING_MARGIN_BOTTOM_PT
 
@@ -112,8 +110,54 @@ export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
     }
   }
 
-  const LINES_PER_PAGE = seitenformat === 'letter' ? LINES_PER_PAGE_LETTER : LINES_PER_PAGE_A4
-  const headingLines   = calcHeadingLines(szenenkopfTemplate, seitenformat)
+  // ── Effective page geometry: account for KZ/FZ margin expansion ────────────
+  // pdfAssembler expands top/bottom margins when KZ/FZ is active.
+  // If we use the nominal margins (25/20mm), LINES_PER_PAGE is wrong for such docs.
+  let effectiveTopMm    = DEFAULT_MARGIN_TOP_MM[seitenformat]
+  let effectiveBottomMm = DEFAULT_MARGIN_BOTTOM_MM[seitenformat]
+
+  if (ws?.produktion_id) {
+    const wsTyp = await queryOne(
+      `SELECT typ FROM werkstufen WHERE id = $1`,
+      [werkstufeId]
+    ) as { typ: string } | null
+
+    // Query KZ/FZ config: type-specific first, then fallback (typ IS NULL)
+    const kzFz = (wsTyp?.typ
+      ? await queryOne(
+          `SELECT kopfzeile_aktiv, fusszeile_aktiv, seiten_layout,
+                  (kopfzeile_aktiv AND kopfzeile_content IS NOT NULL) AS has_hdr,
+                  (fusszeile_aktiv AND fusszeile_content IS NOT NULL) AS has_ftr
+           FROM kopf_fusszeilen_defaults
+           WHERE produktion_id = $1 AND werkstufe_typ = $2`,
+          [ws.produktion_id, wsTyp.typ]
+        )
+      : null
+    ) ?? await queryOne(
+      `SELECT kopfzeile_aktiv, fusszeile_aktiv, seiten_layout,
+              (kopfzeile_aktiv AND kopfzeile_content IS NOT NULL) AS has_hdr,
+              (fusszeile_aktiv AND fusszeile_content IS NOT NULL) AS has_ftr
+       FROM kopf_fusszeilen_defaults
+       WHERE produktion_id = $1 AND werkstufe_typ IS NULL`,
+      [ws.produktion_id]
+    ) as { has_hdr: boolean; has_ftr: boolean; seiten_layout: any } | null
+
+    if (kzFz) {
+      const sl     = kzFz.seiten_layout ?? {}
+      const hmt    = sl.header_abstand_rand ?? 10   // mm from top edge
+      const hmb    = sl.footer_abstand_rand ?? 10   // mm from bottom edge
+      const baseTop    = sl.margin_top    ?? effectiveTopMm
+      const baseBottom = sl.margin_bottom ?? effectiveBottomMm
+      // Same formula as pdfAssembler buildKzFzHtml (lines 1573-1574)
+      if (kzFz.has_hdr) effectiveTopMm    = Math.max(baseTop,    hmt + 14 + 4)
+      if (kzFz.has_ftr) effectiveBottomMm = Math.max(baseBottom, hmb + 10 + 4)
+    }
+  }
+
+  const pageHeightMm = PAGE_HEIGHT_MM[seitenformat]
+  const usablePt     = (pageHeightMm - effectiveTopMm - effectiveBottomMm) * (72 / 25.4)
+  const LINES_PER_PAGE = Math.max(30, Math.floor(usablePt / CONTENT_LINE_HEIGHT_PT))
+  const headingLines   = calcHeadingLines(szenenkopfTemplate, usablePt, LINES_PER_PAGE)
 
   // Load all non-deleted scenes WITH content JSON
   const scenes = await query(
