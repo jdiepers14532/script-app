@@ -47,8 +47,8 @@ interface RunData {
 
 const METHOD_LABELS: Record<string, { label: string; desc: string; cost: string; disabled?: boolean }> = {
   story_consultant_pur: {
-    label: 'Story-Consultant Pur',
-    desc: 'Praktiker-Analyse ohne dramaturgische Theorie — unvoreingenommenes Urteil',
+    label: 'Showrunner-Check',
+    desc: 'Produktionsorientierte Analyse: Welche Szenen tragen wirklich — und was kann gestrichen werden, wenn morgen zwei Drehtage wegfallen?',
     cost: '~2 €',
   },
   story_consultant_framework: {
@@ -269,6 +269,7 @@ interface GlossarEintrag {
   modellName: string
   erklärung: string
   quelle: string
+  link?: string       // DOI / Open-Access-Link zur Studie
   isModell?: boolean  // true = immer anzeigen, erklärt das Modell selbst
 }
 
@@ -278,16 +279,19 @@ const GLOSSAR_EINTRAEGE: Record<string, GlossarEintrag> = {
     label: 'Reagan et al. (2016)', modell: 'A', modellName: 'Reagan et al.', isModell: true,
     erklärung: 'Identifiziert sechs emotionale Grundformen in Erzählungen durch Sentiment-Analyse von über 1.700 literarischen Texten. Die Modell-Typen (Rags to Riches, Tragedy, Man in a Hole, Icarus, Oedipus, Cinderella) beschreiben, wie die emotionale Valenz einer Geschichte im Zeitverlauf verläuft. Komplexere Arcs (Cinderella, Oedipus) korrelieren empirisch mit höherem Leser-Engagement.',
     quelle: 'Reagan, A.J. et al. (2016): The emotional arcs of stories are dominated by six basic shapes. PLOS ONE 11(12).',
+    link: 'https://doi.org/10.1371/journal.pone.0165498',
   },
   'modell_b': {
     label: 'Toubia et al. (2021)', modell: 'B', modellName: 'Toubia et al.', isModell: true,
     erklärung: 'Misst drei narrative Eigenschaften über Text-Embeddings — Speed (thematische Sprungweite zwischen Szenen), Volume (thematische Bandbreite), Circuitousness (Wiederkehr zu früheren Themen). An TV-Piloten nachgewiesen: höhere Speed und moderates Volume (besonders am Episodenende) korrelieren mit besseren Zuschauer-Bewertungen und Staffel-Verlängerung.',
     quelle: 'Toubia, O., Berger, J. & Eliashberg, J. (2021): How Quantifying the Shape of Stories Predicts Their Virality. Management Science 67(4).',
+    link: undefined,  // TODO: DOI eintragen, z.B. https://doi.org/10.1287/mnsc.XXXX
   },
   'modell_c': {
     label: 'Rocchi & Pescatore (2022)', modell: 'C', modellName: 'Rocchi & Pescatore', isModell: true,
     erklärung: 'Analysiert Daily-Soap-Narrative durch drei Erzählachsen (narrative Isotopien): Soap-Plot (Beziehungen, Emotionen, Familie), Genre-Plot (Berufswelt der Serie) und Anthology-Plot (episodisch abgeschlossene Handlungen). Die relative Gewichtung dieser Achsen — die "narrative Biomass" — ist die erzählerische DNA einer Serie und unterscheidet z.B. Rote Rosen von GZSZ.',
     quelle: 'Rocchi, M. & Pescatore, G. (2022): Narrative isotopies in serial fiction. Convergence 28(3).',
+    link: undefined,  // TODO: DOI eintragen, z.B. https://doi.org/10.1177/XXXXXXXX
   },
   // Fachbegriffe — erscheinen wenn im Text erwähnt
   'oedipus':         { label: 'Oedipus-Arc',        modell: 'A', modellName: 'Reagan et al.',      erklärung: 'Fall → Aufstieg → Fall. Figur beginnt schwierig, gewinnt kurz, verliert wieder. Zwei Wendepunkte — komplexer Arc.', quelle: 'Reagan et al., PLOS ONE 2016' },
@@ -405,6 +409,16 @@ function GlossarLeiste({ markdown }: { markdown: string }) {
             <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--text-primary)' }}>{entry.erklärung}</div>
             <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
               {entry.quelle}
+              {entry.link && (
+                <a
+                  href={entry.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 5, color: mc!.color, textDecoration: 'none', fontSize: 10 }}
+                >
+                  Studie öffnen →
+                </a>
+              )}
             </div>
           </div>
         </>

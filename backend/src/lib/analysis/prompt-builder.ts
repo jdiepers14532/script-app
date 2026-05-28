@@ -45,7 +45,7 @@ export interface BuiltPrompt {
 }
 
 const METHOD_PROMPT_FILES: Record<string, string> = {
-  story_consultant_pur:       'story-consultant-pur-v1.md',
+  story_consultant_pur:       'story-consultant-pur-v2.md',
   story_consultant_framework: 'story-consultant-framework-v1.md',
 }
 

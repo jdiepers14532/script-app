@@ -14,7 +14,7 @@ import { DocumentScene } from './scene-renderer'
 export type AnalysisMethod = 'story_consultant_pur' | 'story_consultant_framework'
 
 const METHOD_VERSIONS: Record<AnalysisMethod, string> = {
-  story_consultant_pur:       'story-consultant-pur-v1',
+  story_consultant_pur:       'story-consultant-pur-v2',
   story_consultant_framework: 'story-consultant-framework-v1',
 }
 
