@@ -7,6 +7,10 @@ const HEADING_MARGIN_BOTTOM_PT = 4
 
 // Screenplay content line height (font-size:12pt, line-height:1)
 const CONTENT_LINE_HEIGHT_PT = 12
+// Puppeteer sub-pixel rendering overhead at page boundaries (~4-5pt empirically).
+// Subtracting this from usablePt before computing LINES_PER_PAGE ensures the
+// calculated LP matches what Puppeteer actually renders (LP=57 not 58 for this production).
+const RENDER_BUFFER_PT = 5
 
 // Page height in mm per format
 const PAGE_HEIGHT_MM: Record<'a4' | 'letter', number> = { a4: 297, letter: 279.4 }
@@ -156,7 +160,7 @@ export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
 
   const pageHeightMm = PAGE_HEIGHT_MM[seitenformat]
   const usablePt     = (pageHeightMm - effectiveTopMm - effectiveBottomMm) * (72 / 25.4)
-  const LINES_PER_PAGE = Math.max(30, Math.floor(usablePt / CONTENT_LINE_HEIGHT_PT))
+  const LINES_PER_PAGE = Math.max(30, Math.floor((usablePt - RENDER_BUFFER_PT) / CONTENT_LINE_HEIGHT_PT))
   const headingLines   = calcHeadingLines(szenenkopfTemplate, usablePt, LINES_PER_PAGE)
 
   // Load all non-deleted scenes WITH content JSON
