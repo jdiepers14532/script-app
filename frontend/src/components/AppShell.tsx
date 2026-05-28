@@ -113,6 +113,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   autoStimmungPropagation: true,
   sceneListPopup: true,
   sceneListNurSzenen: false,
+  sceneListSeitenzahlen: true,
   activeColorSchemeId: 'default',
   nurCharAusSzenenkopf: 'szenenkopf',
 }
@@ -624,6 +625,7 @@ export default function AppShell({
           autoStimmungPropagation: typeof s.autoStimmungPropagation === 'boolean' ? s.autoStimmungPropagation : prev.autoStimmungPropagation,
           sceneListPopup: typeof s.sceneListPopup === 'boolean' ? s.sceneListPopup : true,
           sceneListNurSzenen: typeof s.sceneListNurSzenen === 'boolean' ? s.sceneListNurSzenen : false,
+          sceneListSeitenzahlen: typeof s.sceneListSeitenzahlen === 'boolean' ? s.sceneListSeitenzahlen : true,
           activeColorSchemeId: typeof s.activeColorSchemeId === 'string' ? s.activeColorSchemeId : 'default',
           nurCharAusSzenenkopf: (['szenenkopf', 'alle', 'aus'] as const).includes(s.nurCharAusSzenenkopf) ? s.nurCharAusSzenenkopf : (s.nurCharAusSzenenkopf === false ? 'aus' : 'szenenkopf'),
         }))

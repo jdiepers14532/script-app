@@ -673,6 +673,12 @@ export default function SceneList({
               >
                 {tweaks.sceneListNurSzenen ? 'Alle Seiten' : 'Nur Szenen'}
               </button>
+              <button
+                className="scene-ctx-item"
+                onClick={() => { setTweak('sceneListSeitenzahlen', !tweaks.sceneListSeitenzahlen); setHeaderMenuOpen(false) }}
+              >
+                {tweaks.sceneListSeitenzahlen ? 'Seitenzahlen aus' : 'Seitenzahlen an'}
+              </button>
 
               {/* Kategorie: Auswertung */}
               <CategoryDivider label="Auswertung" />
@@ -823,7 +829,7 @@ export default function SceneList({
                     <span className="sl-set">{scene.format !== 'notiz' ? (scene.ort_name || scene.zusammenfassung || '') : (scene.zusammenfassung || scene.element_type || (isNotizWerk ? 'Abschnitt' : 'Notiz'))}</span>
                   )}
                 </div>
-                {scene.format !== 'notiz' && scene.seite_von_str && (
+                {tweaks.sceneListSeitenzahlen && scene.format !== 'notiz' && scene.seite_von_str && (
                   <div className="sl-page">{scene.seite_von_str === scene.seite_bis_str ? `S.${scene.seite_von_str}` : `S.${scene.seite_von_str}–${scene.seite_bis_str}`}</div>
                 )}
               </div>
