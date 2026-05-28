@@ -106,10 +106,14 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
       if (prev.rows.length > 0) predecessorId = prev.rows[0].id
     }
 
-    // Determine next version_nummer
+    // Determine next version_nummer (global or per-typ depending on app setting)
+    const modusRes = await client.query(`SELECT value FROM app_settings WHERE key = 'fassungs_nummerierung_modus'`)
+    const numModus = modusRes.rows[0]?.value ?? 'per_typ'
     const cntRes = await client.query(
-      `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
-      [folgeId, typ]
+      numModus === 'global'
+        ? `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1`
+        : `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
+      numModus === 'global' ? [folgeId] : [folgeId, typ]
     )
     const nextVersion = (cntRes.rows[0]?.m ?? 0) + 1
 

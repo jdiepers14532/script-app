@@ -732,9 +732,13 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       folgeId = folgeRow.id
 
       // Create werkstufe
+      const modusRes = (await client.query(`SELECT value FROM app_settings WHERE key = 'fassungs_nummerierung_modus'`)).rows[0]
+      const numModus = modusRes?.value ?? 'per_typ'
       const maxVerRow = (await client.query(
-        `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
-        [folgeId, docTyp]
+        numModus === 'global'
+          ? `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1`
+          : `SELECT COALESCE(MAX(version_nummer), 0) AS m FROM werkstufen WHERE folge_id = $1 AND typ = $2`,
+        numModus === 'global' ? [folgeId] : [folgeId, docTyp]
       )).rows[0]
       const werkRow = (await client.query(
         `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum, meta_json)
