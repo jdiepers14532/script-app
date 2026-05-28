@@ -39,17 +39,13 @@ function wrapLines(text: string, charsPerLine: number): number {
   return total
 }
 
-export function calcPageLength(content: any, seitenformat: 'a4' | 'letter' = 'a4'): number {
-  if (!content) return 0
-
+// Counts raw logical lines from content nodes — shared by calcPageLength and calcContentLinesRaw.
+function countLines(content: any): number {
   const nodes: any[] = Array.isArray(content)
     ? content
     : (content?.content && Array.isArray(content.content) ? content.content : [])
 
   if (nodes.length === 0) return 0
-
-  const LINES_PER_PAGE = seitenformat === 'letter' ? LINES_PER_PAGE_LETTER : LINES_PER_PAGE_A4
-  const LINES_PER_EIGHTH = LINES_PER_PAGE / EIGHTHS_PER_PAGE
 
   let totalLines = 0
 
@@ -84,14 +80,12 @@ export function calcPageLength(content: any, seitenformat: 'a4' | 'letter' = 'a4
     } else if (type === 'paragraph' || type === 'heading') {
       totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
     } else {
-      // Unknown node type — count as at least 1 line
       if (text) totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
       else totalLines += 1
     }
 
-    // Add spacing between elements (except after last)
+    // Spacing between elements (except after last)
     if (i < nodes.length - 1) {
-      // Dialogue/parenthetical after character: no extra blank line
       const nextType = nodes[i + 1]?.attrs?.element_type
       if (elementType === 'character' && (nextType === 'dialogue' || nextType === 'parenthetical')) {
         // no spacing
@@ -105,6 +99,23 @@ export function calcPageLength(content: any, seitenformat: 'a4' | 'letter' = 'a4
     }
   }
 
-  // Convert to eighths (round up to nearest eighth)
-  return Math.max(1, Math.ceil(totalLines / LINES_PER_EIGHTH))
+  return totalLines
+}
+
+export function calcPageLength(content: any, seitenformat: 'a4' | 'letter' = 'a4'): number {
+  if (!content) return 0
+  const LINES_PER_PAGE = seitenformat === 'letter' ? LINES_PER_PAGE_LETTER : LINES_PER_PAGE_A4
+  const LINES_PER_EIGHTH = LINES_PER_PAGE / EIGHTHS_PER_PAGE
+  const total = countLines(content)
+  if (total === 0) return 0
+  return Math.max(1, Math.ceil(total / LINES_PER_EIGHTH))
+}
+
+/**
+ * Returns the raw logical line count (float) without ceiling rounding.
+ * Used by recalcPageNumbers for precise fractional page arithmetic.
+ */
+export function calcContentLinesRaw(content: any): number {
+  if (!content) return 0
+  return countLines(content)
 }
