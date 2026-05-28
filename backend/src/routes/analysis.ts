@@ -101,9 +101,11 @@ router.get('/run/:id', async (req, res) => {
            ) ORDER BY mr.created_at ASC
          ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results,
          COALESCE(
-           (SELECT json_agg(DISTINCT jsonb_build_object(
-              'typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label
-            ) ORDER BY jsonb_build_object('typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label))
+           (SELECT json_agg(jsonb_build_object(
+              'typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label,
+              'stand_datum', w.stand_datum,
+              'erstellt_am', w.erstellt_am
+            ) ORDER BY w.version_nummer DESC)
             FROM werkstufen w WHERE w.id = ANY(r.werkstufen_ids)),
            '[]'::json
          ) AS werkstufen_info
@@ -138,9 +140,11 @@ router.get('/block/:produktion_id/:block_nummer', async (req, res) => {
            ) ORDER BY mr.created_at ASC
          ) FILTER (WHERE mr.id IS NOT NULL), '[]') AS method_results,
          COALESCE(
-           (SELECT json_agg(DISTINCT jsonb_build_object(
-              'typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label
-            ) ORDER BY jsonb_build_object('typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label))
+           (SELECT json_agg(jsonb_build_object(
+              'typ', w.typ, 'version_nummer', w.version_nummer, 'label', w.label,
+              'stand_datum', w.stand_datum,
+              'erstellt_am', w.erstellt_am
+            ) ORDER BY w.version_nummer DESC)
             FROM werkstufen w WHERE w.id = ANY(r.werkstufen_ids)),
            '[]'::json
          ) AS werkstufen_info

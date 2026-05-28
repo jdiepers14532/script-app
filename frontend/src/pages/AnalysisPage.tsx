@@ -21,6 +21,8 @@ interface WerkstufInfo {
   typ: string
   version_nummer: number
   label: string | null
+  stand_datum?: string | null
+  erstellt_am?: string | null
 }
 
 interface MethodResult {
@@ -101,15 +103,26 @@ function statusLabel(status: string) {
   return status
 }
 
+function fmtStandDatum(ws: WerkstufInfo[]): string {
+  if (!ws || ws.length === 0) return ''
+  // Neueste Fassung (höchste version_nummer)
+  const latest = [...ws].sort((a, b) => b.version_nummer - a.version_nummer)[0]
+  const raw = latest.stand_datum ?? latest.erstellt_am ?? null
+  if (!raw) return ''
+  return new Date(raw).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
 /** Kompakte Werkstufen-Zusammenfassung: "DB v3 · Lüneburg" — immer neueste Fassung pro Folge */
 function fmtWerkstufen(ws: WerkstufInfo[]): string {
   if (!ws || ws.length === 0) return ''
-  // Distinct Typen, höchste Version als "die" analysierte Fassung
   const typen = [...new Set(ws.map(w => w.typ))]
   const abbr = typen.map(t => WERKSTUFE_ABBR[t] ?? t).join('/')
   const maxVersion = Math.max(...ws.map(w => w.version_nummer))
-  // Label: nur wenn alle gleich
-  const labels = [...new Set(ws.map(w => w.label).filter(Boolean))]
+  // Label: "Import: xyz.pdf" → nur Dateiname ohne "Import: " Präfix kürzen
+  const labels = [...new Set(ws.map(w => {
+    if (!w.label) return null
+    return w.label.startsWith('Import: ') ? w.label.slice(8).replace(/\.pdf$/i, '') : w.label
+  }).filter(Boolean))]
   const labelStr = labels.length === 1 ? ` · ${labels[0]}` : ''
   return `${abbr} v${maxVersion}${labelStr}`
 }
@@ -277,7 +290,9 @@ function ReportView({ run, activeTab, onTabChange }: {
   const scopeLabel = run.folge_nummer != null
     ? `Folge ${run.folge_nummer}`
     : `Block ${run.block_nummer}`
-  const wsLabel = fmtWerkstufen(run.werkstufen_info ?? [])
+  const wsInfo = run.werkstufen_info ?? []
+  const wsLabel = fmtWerkstufen(wsInfo)
+  const standDatum = fmtStandDatum(wsInfo)
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
@@ -294,6 +309,13 @@ function ReportView({ run, activeTab, onTabChange }: {
             fontSize: 11, padding: '2px 7px', borderRadius: 4,
             background: 'rgba(0,122,255,0.08)', color: '#007AFF',
           }}>{wsLabel}</span>
+        )}
+        {standDatum && (
+          <span style={{
+            fontSize: 11, padding: '2px 7px', borderRadius: 4,
+            background: 'var(--bg-subtle)', color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+          }}>Stand {standDatum}</span>
         )}
         <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
           {fmtDate(run.created_at)}
