@@ -763,6 +763,8 @@ function VonnegutArcsChart({ data }: { data: any }) {
 
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
   const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const [zoom, setZoom] = useState(1)
+  const [showSceneNrs, setShowSceneNrs] = useState(false)
   const toggleStrang = (name: string) =>
     setHidden(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n })
 
@@ -778,9 +780,11 @@ function VonnegutArcsChart({ data }: { data: any }) {
     return af - bf || as_ - bs
   })
 
-  const W = Math.max(620, xKeys.length * 14)
+  const pxPerPoint = 14 * zoom
+  const W = Math.max(620, xKeys.length * pxPerPoint)
+  const bottomPad = showSceneNrs ? 52 : 32
   const H = 220
-  const PAD = { top: 20, right: 72, bottom: 32, left: 42 }
+  const PAD = { top: 20, right: 72, bottom: bottomPad, left: 42 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
 
@@ -845,6 +849,38 @@ function VonnegutArcsChart({ data }: { data: any }) {
         )}
       </div>
 
+      {/* Toolbar: Zoom + Szenennummern */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Zoom</span>
+          <button onClick={() => setZoom(z => Math.max(0.5, +(z - 0.5).toFixed(1)))}
+            disabled={zoom <= 0.5}
+            style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 14, lineHeight: 1, color: zoom <= 0.5 ? 'var(--border)' : 'var(--text-primary)', fontFamily: 'inherit' }}>−</button>
+          <span style={{ fontSize: 11, minWidth: 32, textAlign: 'center', color: 'var(--text-secondary)' }}>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.min(5, +(z + 0.5).toFixed(1)))}
+            disabled={zoom >= 5}
+            style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 14, lineHeight: 1, color: zoom >= 5 ? 'var(--border)' : 'var(--text-primary)', fontFamily: 'inherit' }}>+</button>
+          {zoom !== 1 && (
+            <button onClick={() => setZoom(1)}
+              style={{ fontSize: 10, padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit' }}>
+              Zurücksetzen
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => setShowSceneNrs(s => !s)}
+          style={{
+            fontSize: 11, padding: '3px 10px', borderRadius: 4,
+            border: '1px solid var(--border)',
+            background: showSceneNrs ? 'var(--bg-subtle)' : 'none',
+            cursor: 'pointer', color: showSceneNrs ? 'var(--text-primary)' : 'var(--text-secondary)',
+            fontFamily: 'inherit',
+          }}
+        >
+          Szenennummern {showSceneNrs ? 'ausblenden' : 'einblenden'}
+        </button>
+      </div>
+
       <div style={{ overflowX: 'auto' }}>
         <svg width={W} height={H} style={{ display: 'block' }}>
           {/* Y-Grid */}
@@ -876,12 +912,38 @@ function VonnegutArcsChart({ data }: { data: any }) {
             <line key={i} x1={xPos(i)} x2={xPos(i)} y1={PAD.top} y2={H - PAD.bottom}
               stroke="var(--border)" strokeWidth={1} strokeDasharray="4,2" />
           ))}
-          {/* Episode-Labels */}
+          {/* Episode-Labels + optional Szenennummern */}
           {xKeys.map((k, i) => {
-            const f = Number(k.split('.')[0])
+            const [fStr, sStr] = k.split('.')
+            const f = Number(fStr)
+            const sceneNr = Number(sStr)
             const prevF = i > 0 ? Number(xKeys[i - 1].split('.')[0]) : -1
-            if (f === prevF) return null
-            return <text key={k} x={xPos(i)} y={H - 8} fontSize={9} fill="var(--text-secondary)" textAnchor="middle">Folge {f}</text>
+            const isNewFolge = f !== prevF
+            const folgeY = showSceneNrs ? H - bottomPad + 12 : H - 8
+            return (
+              <g key={k}>
+                {isNewFolge && (
+                  <text x={xPos(i)} y={folgeY} fontSize={9} fill="var(--text-secondary)" textAnchor="middle" fontWeight="500">
+                    Folge {f}
+                  </text>
+                )}
+                {showSceneNrs && (
+                  <text
+                    x={xPos(i)} y={H - bottomPad + 26}
+                    fontSize={pxPerPoint >= 14 ? 8 : 7}
+                    fill={isNewFolge ? '#007AFF' : 'var(--text-secondary)'}
+                    textAnchor="middle"
+                    opacity={pxPerPoint < 8 ? 0 : 1}
+                  >
+                    {sceneNr}
+                  </text>
+                )}
+                {showSceneNrs && (
+                  <line x1={xPos(i)} x2={xPos(i)} y1={H - bottomPad} y2={H - bottomPad + 4}
+                    stroke="var(--border)" strokeWidth={0.5} />
+                )}
+              </g>
+            )
           })}
           {/* Strang-Linien */}
           {straenge.map(s => {
