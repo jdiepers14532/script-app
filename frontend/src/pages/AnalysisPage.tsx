@@ -790,6 +790,7 @@ function VonnegutArcsChart({ data }: { data: any }) {
 
   const xPos = (i: number) => PAD.left + (i / Math.max(xKeys.length - 1, 1)) * chartW
   const yPos = (v: number) => PAD.top + ((5 - v) / 10) * chartH  // -5..+5 → top..bottom
+  const xSpacing = xKeys.length > 1 ? chartW / (xKeys.length - 1) : pxPerPoint
 
   // Episode-Grenzen für Grid-Linien
   const folgenWechsel: number[] = []
@@ -883,6 +884,22 @@ function VonnegutArcsChart({ data }: { data: any }) {
 
       <div style={{ overflowX: 'auto' }}>
         <svg width={W} height={H} style={{ display: 'block' }}>
+          {/* Zebra-Streifen: ungerade Szenennummern */}
+          {showSceneNrs && xKeys.map((k, i) => {
+            const sceneNr = Number(k.split('.')[1])
+            if (sceneNr % 2 === 0) return null
+            return (
+              <rect
+                key={`band-${k}`}
+                x={xPos(i) - xSpacing / 2}
+                y={PAD.top}
+                width={xSpacing}
+                height={chartH}
+                fill="rgba(0,0,0,0.04)"
+              />
+            )
+          })}
+
           {/* Y-Grid */}
           {yGridLines.map(v => {
             const isMain = v === 0 || v === 5 || v === -5
