@@ -52,8 +52,8 @@ const METHOD_LABELS: Record<string, { label: string; desc: string; cost: string;
     cost: '~2 €',
   },
   story_consultant_framework: {
-    label: 'Story-Consultant Framework',
-    desc: 'Analyse mit drei Dramaturgie-Modellen (Reagan-Arcs, Toubia-Semantik, Rocchi-Isotopien)',
+    label: 'Story-Consultant (Reagan, Toubia, Rocchi)',
+    desc: 'Analyse mit drei Dramaturgie-Modellen als explizitem Werkzeug. Befunde, die auch in "Pur" erscheinen, sind besonders verlässlich.',
     cost: '~2 €',
   },
   strang_heatmap: {
@@ -261,6 +261,115 @@ function MarkdownResult({ markdown }: { markdown: string }) {
   )
 }
 
+// ── Glossar-Leiste ────────────────────────────────────────────────────────────
+
+const GLOSSAR_EINTRAEGE: Record<string, {
+  label: string
+  modell: 'A' | 'B' | 'C'
+  modellName: string
+  erklärung: string
+  quelle: string
+}> = {
+  'oedipus':         { label: 'Oedipus-Arc',        modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Fall → Aufstieg → Fall. Figur beginnt schwierig, gewinnt kurz, verliert wieder. Zwei Wendepunkte — komplexer Arc.', quelle: 'Reagan et al., The emotional arcs of stories are dominated by six basic shapes, PLOS ONE 2016' },
+  'icarus':          { label: 'Icarus-Arc',          modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Aufstieg → Fall. Nur ein Wendepunkt — dramaturgisch schwächer, weil vorhersehbar.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'cinderella':      { label: 'Cinderella-Modell',   modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Aufstieg → Fall → Aufstieg. Komplexester Basis-Arc. Korreliert in Studien mit höherem emotionalen Engagement beim Zuschauer.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'man in a hole':   { label: 'Man in a Hole',       modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Fall → Aufstieg. Figur gerät in Schwierigkeiten, findet dann heraus. Ein Wendepunkt.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'rags to riches':  { label: 'Rags to Riches',      modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Durchgehender Aufstieg ohne Wendepunkt. Dramaturgisch der einfachste und vorhersehbarste Arc.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'tragedy':         { label: 'Tragedy-Arc',         modell: 'A', modellName: 'Reagan et al.',    erklärung: 'Durchgehender Fall (Riches to Rags). Kein Wendepunkt nach unten.', quelle: 'Reagan et al., PLOS ONE 2016' },
+  'speed':           { label: 'Speed',               modell: 'B', modellName: 'Toubia et al.',    erklärung: 'Maß für thematische Sprünge zwischen aufeinanderfolgenden Szenen. Höhere Speed korreliert bei TV-Episoden mit besserer Publikumsbewertung.', quelle: 'Toubia, Berger, Eliashberg, How Quantifying the Shape of Stories Predicts Their Virality, Management Science 2021' },
+  'volume':          { label: 'Volume',              modell: 'B', modellName: 'Toubia et al.',    erklärung: 'Thematische Bandbreite einer Episode. Zu hohes Volume (zu viele unverbundene Themen) korreliert mit schlechteren Bewertungen — der Effekt ist am Episodenende am stärksten.', quelle: 'Toubia et al., Management Science 2021' },
+  'circuitousness':  { label: 'Circuitousness',      modell: 'B', modellName: 'Toubia et al.',    erklärung: 'Wie verschlungen der thematische Weg ist — ob Themen wiederkehren statt linear voranzuschreiten.', quelle: 'Toubia et al., Management Science 2021' },
+  'isotopie':        { label: 'Narrative Isotopie',  modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'Jede Szene gehört einer von drei Erzählachsen an: Soap-Plot (Beziehungen), Genre-Plot (Berufswelt), Anthology-Plot (abgeschlossene Episodenstories). Die Verteilung — "narrative Biomass" — ist die erzählerische Identität einer Serie.', quelle: 'Rocchi & Pescatore, Narrative isotopies in serial fiction, Convergence 2022' },
+  'soap-plot':       { label: 'Soap-Plot',           modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'Erzählachse für Liebesbeziehungen, Familie, emotionale Konflikte. Bei Daily Soaps dominant (ca. 60–70 % der Szenen).', quelle: 'Rocchi & Pescatore, Convergence 2022' },
+  'genre-plot':      { label: 'Genre-Plot',          modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'Erzählachse für die Berufswelt der Serie (Hotel, Café, Tischlerei). Gibt der Soap ihre spezifische Alltagsumgebung.', quelle: 'Rocchi & Pescatore, Convergence 2022' },
+  'anthology-plot':  { label: 'Anthology-Plot',      modell: 'C', modellName: 'Rocchi & Pescatore', erklärung: 'In sich abgeschlossene Storylines, die in wenigen Episoden enden. In Daily Soaps selten, aber nützlich für Gäste- und Episodenfiguren.', quelle: 'Rocchi & Pescatore, Convergence 2022' },
+}
+
+const MODELL_COLORS: Record<string, { bg: string; color: string }> = {
+  A: { bg: 'rgba(0,122,255,0.10)', color: '#007AFF' },
+  B: { bg: 'rgba(175,82,222,0.10)', color: '#AF52DE' },
+  C: { bg: 'rgba(255,149,0,0.10)',  color: '#FF9500' },
+}
+
+function findGlossarTerme(markdown: string): string[] {
+  const found: string[] = []
+  const lower = markdown.toLowerCase()
+  for (const key of Object.keys(GLOSSAR_EINTRAEGE)) {
+    if (lower.includes(key)) found.push(key)
+  }
+  return found
+}
+
+function GlossarLeiste({ markdown }: { markdown: string }) {
+  const [open, setOpen] = useState<string | null>(null)
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null)
+  const terme = findGlossarTerme(markdown)
+  if (terme.length === 0) return null
+
+  const handleClick = (key: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (open === key) { setOpen(null); setPopoverPos(null); return }
+    const r = e.currentTarget.getBoundingClientRect()
+    setPopoverPos({ top: r.bottom + 6, left: Math.min(r.left, window.innerWidth - 300) })
+    setOpen(key)
+  }
+
+  const entry = open ? GLOSSAR_EINTRAEGE[open] : null
+  const mc = entry ? MODELL_COLORS[entry.modell] : null
+
+  return (
+    <div style={{ borderBottom: '1px solid var(--border)', padding: '5px 12px', background: 'var(--bg-subtle)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.05em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          Glossar
+        </span>
+        {terme.map(key => {
+          const e = GLOSSAR_EINTRAEGE[key]
+          const c = MODELL_COLORS[e.modell]
+          return (
+            <button
+              key={key}
+              onClick={ev => handleClick(key, ev)}
+              style={{
+                fontSize: 10, padding: '2px 7px', borderRadius: 4,
+                border: `1px solid ${open === key ? c.color : 'transparent'}`,
+                background: open === key ? c.bg : 'var(--bg-card, #f8f8f8)',
+                color: open === key ? c.color : 'var(--text-secondary)',
+                cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+                transition: 'all 0.12s',
+              }}
+            >
+              <span style={{ opacity: 0.6, marginRight: 3 }}>({e.modell})</span>{e.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {open && entry && mc && popoverPos && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1000 }} onClick={() => { setOpen(null); setPopoverPos(null) }} />
+          <div style={{
+            position: 'fixed', top: popoverPos.top, left: popoverPos.left,
+            width: 290, zIndex: 1001,
+            background: 'var(--bg-surface, #fff)', border: `1px solid ${mc.color}`,
+            borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.13)', padding: '12px 14px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 3, background: mc.bg, color: mc.color, fontWeight: 700 }}>
+                Modell {entry.modell} · {entry.modellName}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 5 }}>{entry.label}</div>
+            <div style={{ fontSize: 12, lineHeight: 1.55, color: 'var(--text-primary)' }}>{entry.erklärung}</div>
+            <div style={{ marginTop: 8, fontSize: 10, color: 'var(--text-secondary)', lineHeight: 1.4, borderTop: '1px solid var(--border)', paddingTop: 6 }}>
+              {entry.quelle}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── MethodBadge ────────────────────────────────────────────────────────────────
 
 function MethodBadge({ fromCache }: { fromCache: boolean }) {
@@ -345,6 +454,11 @@ function ReportView({ run, activeTab, onTabChange }: {
             </button>
           ))}
         </div>
+      )}
+
+      {/* Glossar-Leiste — nur bei Framework */}
+      {result?.method === 'story_consultant_framework' && result.markdown && (
+        <GlossarLeiste markdown={result.markdown} />
       )}
 
       {/* Inhalt */}
