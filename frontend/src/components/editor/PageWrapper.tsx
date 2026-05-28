@@ -50,6 +50,9 @@ export default function PageWrapper({
 
     const update = () => {
       const pm = el.querySelector('.ProseMirror') as HTMLElement | null
+      // ProseMirror soll immer mind. eine volle Inhaltsseite hoch sein —
+      // direkt setzen (vor dem Messen), damit getBoundingClientRect korrekt ist.
+      if (pm) pm.style.minHeight = `${dim.height - ptTop - ptBottom}px`
       const contentH = pm ? pm.getBoundingClientRect().height : 0
       const totalH = contentH + ptTop + ptBottom
       const pages = Math.max(1, Math.ceil(totalH / dim.height))
