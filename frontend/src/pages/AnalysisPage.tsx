@@ -762,8 +762,11 @@ function VonnegutArcsChart({ data }: { data: any }) {
   if (!straenge.length) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keine Arc-Daten vorhanden.</div>
 
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
+  const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const toggleStrang = (name: string) =>
+    setHidden(prev => { const n = new Set(prev); n.has(name) ? n.delete(name) : n.add(name); return n })
 
-  // Alle Punkte über alle Stränge sammeln und sortieren
+  // Alle Punkte über alle Stränge sammeln und sortieren (für x-Achse: immer alle, auch ausgeblendete)
   const allPunkte = straenge.flatMap(s =>
     s.punkte.map((p: any) => ({ ...p, strang: s.name }))
   ).sort((a, b) => a.folge_nr - b.folge_nr || a.scene_nr - b.scene_nr)
@@ -801,14 +804,45 @@ function VonnegutArcsChart({ data }: { data: any }) {
       <VisualisierungsHeader method="vonnegut_arcs" />
       {tooltip && <InlineTooltip {...tooltip} />}
 
-      {/* Legende Stränge */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12 }}>
-        {straenge.map(s => (
-          <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
-            <span style={{ width: 20, height: 2.5, background: s.farbe, display: 'inline-block', borderRadius: 1 }} />
-            <span>{s.name}</span>
-          </div>
-        ))}
+      {/* Legende Stränge — klickbar zum Ein-/Ausblenden */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {straenge.map(s => {
+          const isHidden = hidden.has(s.name)
+          return (
+            <button
+              key={s.name}
+              onClick={() => toggleStrang(s.name)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, fontSize: 11,
+                padding: '3px 10px', borderRadius: 20,
+                border: `1.5px solid ${isHidden ? 'var(--border)' : s.farbe}`,
+                background: isHidden ? 'none' : `${s.farbe}18`,
+                color: isHidden ? 'var(--text-secondary)' : 'var(--text-primary)',
+                cursor: 'pointer', fontFamily: 'inherit',
+                opacity: isHidden ? 0.5 : 1,
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{
+                width: 20, height: 2.5, borderRadius: 1, display: 'inline-block',
+                background: isHidden ? 'var(--border)' : s.farbe,
+              }} />
+              {s.name}
+            </button>
+          )
+        })}
+        {hidden.size > 0 && (
+          <button
+            onClick={() => setHidden(new Set())}
+            style={{
+              fontSize: 10, padding: '3px 8px', borderRadius: 20,
+              border: '1px solid var(--border)', background: 'none',
+              color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
+            }}
+          >
+            Alle einblenden
+          </button>
+        )}
       </div>
 
       <div style={{ overflowX: 'auto' }}>
@@ -851,6 +885,7 @@ function VonnegutArcsChart({ data }: { data: any }) {
           })}
           {/* Strang-Linien */}
           {straenge.map(s => {
+            if (hidden.has(s.name)) return null
             const pts = s.punkte
               .sort((a: any, b: any) => a.folge_nr - b.folge_nr || a.scene_nr - b.scene_nr)
               .map((p: any) => {
