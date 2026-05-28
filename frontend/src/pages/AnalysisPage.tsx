@@ -315,6 +315,92 @@ const MODELL_COLORS: Record<string, { bg: string; color: string }> = {
   C: { bg: 'rgba(255,149,0,0.10)',  color: '#FF9500' },
 }
 
+// ── Methoden-Info ─────────────────────────────────────────────────────────────
+
+const METHODEN_INFO: Record<string, { was: string; wie: string; quelle: string; link?: string }> = {
+  strang_heatmap: {
+    was: 'Zeigt, wie stark jeder Story-Strang in jeder Folge präsent ist — von kaum sichtbar (1) bis dominant (5).',
+    wie: 'Claude identifiziert die Story-Stränge des Blocks aus Figuren-Konstellationen und Szenen-Zusammenfassungen. Jede Szene wird einem oder mehreren Strängen zugeordnet. Die Heatmap zeigt pro Folge die maximale Intensität aller Szenen des jeweiligen Strangs.',
+    quelle: 'Rocchi, M. & Pescatore, G. (2022): Narrative isotopies in serial fiction. Convergence 28(3).',
+  },
+  figuren_agency: {
+    was: '„Agency" (Handlungsmacht) bezeichnet die Fähigkeit einer Figur, aktiv zu entscheiden und den Handlungsverlauf aus eigenem Antrieb zu verändern. Aktiv = die Figur trifft eine Entscheidung, die die Geschichte vorantreibt. Reaktiv = die Figur antwortet auf Impulse anderer. Hohe Agency kennzeichnet zentrale Hauptfiguren; sinkende Agency kann auf eine dramaturgische Abschiebung zur Nebenfigur hinweisen.',
+    wie: 'Claude analysiert für jede Hauptfigur und Folge: Wie viele Szenen enthalten aktive Entscheidungen (Agency) und wie viele reaktive Momente — und was war die wichtigste Handlungs-Entscheidung der Folge?',
+    quelle: 'Greimas, A.J. (1966): Strukturale Semantik (Aktantenmodell). Bordwell, D. (1985): Narration in the Fiction Film.',
+  },
+  vonnegut_arcs: {
+    was: 'Emotionaler Verlauf jedes Story-Strangs. +5 = Höhepunkt (Glück, Erfolg, Liebe, Verbindung) · 0 = neutral · −5 = Tiefpunkt (Verlust, Scheitern, Schmerz, Trennung). Markierte Punkte auf der Linie sind dramaturgische Wendepunkte.',
+    wie: 'Basiert auf Kurt Vonneguts Konzept „Shape of Stories" (Vortrag 1973). Reagan et al. (2016) haben durch Sentiment-Analyse an über 1.700 Texten gezeigt: Arcs mit mehreren Wendepunkten (z.B. Cinderella, Oedipus) erzeugen stärkeres emotionales Engagement als lineare Verläufe.',
+    quelle: 'Vonnegut, K. (1973): Vortrag "Shape of Stories". Reagan, A.J. et al. (2016): PLOS ONE 11(12).',
+    link: 'https://doi.org/10.1371/journal.pone.0165498',
+  },
+}
+
+// Hover-Tooltip — bewusst nicht im SW-UI-Design (heller Hintergrund)
+function InlineTooltip({ text, x, y }: { text: string; x: number; y: number }) {
+  return (
+    <div style={{
+      position: 'fixed', left: x + 14, top: y - 10,
+      background: '#fff', color: '#333', border: '1px solid #d8d8d8',
+      borderRadius: 6, padding: '6px 10px', fontSize: 11, lineHeight: 1.5,
+      maxWidth: 240, boxShadow: '0 2px 10px rgba(0,0,0,0.10)',
+      pointerEvents: 'none', zIndex: 9999, whiteSpace: 'pre-wrap',
+    }}>
+      {text}
+    </div>
+  )
+}
+
+function VisualisierungsHeader({ method }: { method: string }) {
+  const [open, setOpen] = useState(false)
+  const info = METHODEN_INFO[method]
+  const label = METHOD_LABELS[method]
+  if (!info || !label) return null
+
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+          {label.label}
+        </span>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            fontSize: 11, color: '#007AFF',
+            background: 'none', border: '1px solid rgba(0,122,255,0.3)',
+            borderRadius: 4, cursor: 'pointer', padding: '2px 8px', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 3,
+          }}
+        >
+          Methode &amp; Quelle {open ? '▴' : '▾'}
+        </button>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+        {info.was}
+      </div>
+      {open && (
+        <div style={{
+          marginTop: 10, padding: '10px 14px', borderRadius: 8,
+          background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+        }}>
+          <div style={{ fontSize: 12, lineHeight: 1.6, marginBottom: 8, color: 'var(--text-primary)' }}>
+            <span style={{ fontWeight: 600 }}>Methode: </span>{info.wie}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+            <span style={{ fontWeight: 600 }}>Quelle: </span>{info.quelle}
+            {info.link && (
+              <a href={info.link} target="_blank" rel="noopener noreferrer"
+                style={{ marginLeft: 8, color: '#007AFF', textDecoration: 'none', fontWeight: 500 }}>
+                Studie öffnen →
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function findGlossarTerme(markdown: string): string[] {
   const found: string[] = []
   const lower = markdown.toLowerCase()
@@ -433,6 +519,7 @@ function StrangHeatmap({ data }: { data: any }) {
 
   // Alle Folgen-Nummern sammeln und sortieren
   const folgen = [...new Set(straenge.flatMap(s => s.szenen.map((z: any) => z.folge_nr)))].sort((a, b) => a - b)
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   // Pro Strang + Folge: max Intensität
   const grid: Record<string, Record<number, { max: number; count: number }>> = {}
@@ -446,63 +533,130 @@ function StrangHeatmap({ data }: { data: any }) {
     }
   }
 
-  const intensityAlpha = (v: number) => [0, 0.08, 0.2, 0.4, 0.65, 0.9][Math.min(v, 5)]
+  const [showNumbers, setShowNumbers] = useState(true)
+  const intensityAlpha = (v: number) => [0, 0.12, 0.28, 0.48, 0.68, 0.90][Math.min(v, 5)]
+  // Szenenanzahl-Tooltip: pro Strang + Folge
+  const buildCellTooltip = (s: any, f: number): string => {
+    const cell = grid[s.name]?.[f]
+    if (!cell || cell.max === 0) return ''
+    const scenesInFolge = s.szenen.filter((z: any) => z.folge_nr === f)
+    const cliffs = scenesInFolge.filter((z: any) => z.funktion === 'CLIFF')
+    const pens  = scenesInFolge.filter((z: any) => z.funktion === 'PEN')
+    let text = `${s.name}\nFolge ${f}: Intensität ${cell.max} · ${cell.count} Szene${cell.count !== 1 ? 'n' : ''}`
+    if (cliffs.length) text += `\n⚡ CLIFF (Sz. ${cliffs.map((z: any) => z.scene_nr).join(', ')})`
+    if (pens.length)   text += `\n🔗 PEN (Sz. ${pens.map((z: any) => z.scene_nr).join(', ')})`
+    return text
+  }
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
-        Farbintensität = Strang-Präsenz in der Folge (1 = schwach · 5 = zentral)
-      </div>
-      <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: 400 }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: 'left', padding: '4px 12px 4px 0', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap', minWidth: 140 }}>Strang</th>
-            {folgen.map(f => (
-              <th key={f} style={{ padding: '4px 6px', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', whiteSpace: 'nowrap' }}>
-                {f}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {straenge.map(s => (
-            <tr key={s.name}>
-              <td style={{ padding: '5px 12px 5px 0', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-                <span style={{ width: 10, height: 10, borderRadius: '50%', background: s.farbe, flexShrink: 0, display: 'inline-block' }} />
-                <span style={{ fontWeight: 500 }}>{s.name}</span>
-              </td>
-              {folgen.map(f => {
-                const cell = grid[s.name]?.[f]
-                const v = cell?.max ?? 0
-                return (
-                  <td key={f} style={{ padding: '4px 6px', textAlign: 'center' }}>
-                    <div style={{
-                      width: 32, height: 24, borderRadius: 4, margin: '0 auto',
-                      background: v > 0 ? s.farbe : 'var(--border)',
-                      opacity: v > 0 ? intensityAlpha(v) + 0.1 : 0.15,
-                      border: `1px solid ${v > 0 ? s.farbe : 'transparent'}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: v > 0 ? s.farbe : 'var(--text-secondary)',
-                      fontSize: 9, fontWeight: 700,
-                    }}>
-                      {v > 0 ? v : ''}
-                    </div>
-                  </td>
-                )
-              })}
-            </tr>
+    <div>
+      <VisualisierungsHeader method="strang_heatmap" />
+      {tooltip && <InlineTooltip {...tooltip} />}
+
+      {/* Legende + Toggle */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text-secondary)' }}>
+          <span>Intensität:</span>
+          {[1,2,3,4,5].map(v => (
+            <span key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <span style={{
+                width: 18, height: 14, borderRadius: 3, display: 'inline-block',
+                background: '#888', opacity: intensityAlpha(v),
+                border: '1px solid #888',
+              }} />
+              <span>{v}</span>
+            </span>
           ))}
-        </tbody>
-      </table>
-      <div style={{ marginTop: 20 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Strang-Details</div>
-        {straenge.map(s => (
-          <div key={s.name} style={{ marginBottom: 6, display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.farbe, flexShrink: 0, display: 'inline-block', marginTop: 3 }} />
-            <span style={{ fontSize: 12, fontWeight: 600 }}>{s.name}</span>
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.szenen.length} Szene{s.szenen.length !== 1 ? 'n' : ''}</span>
-          </div>
-        ))}
+        </div>
+        <button
+          onClick={() => setShowNumbers(n => !n)}
+          style={{
+            fontSize: 11, padding: '2px 8px', borderRadius: 4,
+            border: '1px solid var(--border)', background: showNumbers ? 'var(--bg-subtle)' : 'none',
+            cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit',
+            marginLeft: 'auto',
+          }}
+        >
+          {showNumbers ? 'Zahlen ausblenden' : 'Zahlen einblenden'}
+        </button>
+      </div>
+
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: 11, minWidth: 400 }}>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', padding: '4px 12px 4px 0', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap', minWidth: 160 }}>Strang</th>
+              {folgen.map(f => (
+                <th key={f} style={{ padding: '4px 6px', fontWeight: 500, color: 'var(--text-secondary)', textAlign: 'center', whiteSpace: 'nowrap', fontSize: 10 }}>
+                  Folge<br />{f}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {straenge.map(s => (
+              <tr key={s.name}>
+                <td style={{ padding: '4px 12px 4px 0', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: s.farbe, flexShrink: 0, display: 'inline-block' }} />
+                    <span style={{ fontWeight: 500 }}>{s.name}</span>
+                    <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>({s.szenen.length})</span>
+                  </div>
+                </td>
+                {folgen.map(f => {
+                  const cell = grid[s.name]?.[f]
+                  const v = cell?.max ?? 0
+                  const tip = buildCellTooltip(s, f)
+                  return (
+                    <td key={f} style={{ padding: '4px 6px', textAlign: 'center' }}>
+                      <div
+                        onMouseEnter={tip ? e => setTooltip({ text: tip, x: e.clientX, y: e.clientY }) : undefined}
+                        onMouseLeave={tip ? () => setTooltip(null) : undefined}
+                        onMouseMove={tip ? e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null) : undefined}
+                        style={{
+                          width: 34, height: 26, borderRadius: 4, margin: '0 auto',
+                          background: v > 0 ? s.farbe : 'var(--border)',
+                          opacity: v > 0 ? intensityAlpha(v) + 0.08 : 0.12,
+                          border: `1px solid ${v > 0 ? s.farbe + '80' : 'transparent'}`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: tip ? 'default' : undefined,
+                        }}>
+                        {showNumbers && v > 0 && (
+                          <span style={{
+                            fontSize: 10, fontWeight: 700,
+                            color: v >= 4 ? '#fff' : s.farbe,
+                            opacity: 1,
+                          }}>{v}</span>
+                        )}
+                      </div>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Stränge · Klammerwert = Szenenanzahl im Block
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
+          {straenge.map(s => {
+            const cliffCount = s.szenen.filter((z: any) => z.funktion === 'CLIFF').length
+            const penCount   = s.szenen.filter((z: any) => z.funktion === 'PEN').length
+            return (
+              <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.farbe, display: 'inline-block', flexShrink: 0 }} />
+                <span style={{ fontWeight: 500 }}>{s.name}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{s.szenen.length} Sz.</span>
+                {cliffCount > 0 && <span style={{ fontSize: 10, color: '#FF3B30', fontWeight: 600 }}>{cliffCount}×CLIFF</span>}
+                {penCount   > 0 && <span style={{ fontSize: 10, color: '#007AFF', fontWeight: 600 }}>{penCount}×PEN</span>}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
@@ -515,13 +669,18 @@ function FigurenAgencyMatrix({ data }: { data: any }) {
   if (!charaktere.length) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keine Figuren-Daten vorhanden.</div>
 
   const folgen = [...new Set(charaktere.flatMap(c => c.episoden.map((e: any) => e.folge_nr)))].sort((a, b) => a - b)
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10 }}>
-        <span style={{ color: '#00C853', fontWeight: 600 }}>A</span> = Aktiv (Entscheidung) ·{' '}
-        <span style={{ color: '#FF9500', fontWeight: 600 }}>R</span> = Reaktiv ·{' '}
-        <span style={{ color: 'var(--border)', fontWeight: 600 }}>—</span> = Abwesend/Passiv
+    <div>
+      <VisualisierungsHeader method="figuren_agency" />
+      {tooltip && <InlineTooltip {...tooltip} />}
+      <div style={{ overflowX: 'auto' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        <span><span style={{ color: '#00C853', fontWeight: 700 }}>A</span> = Aktiv — Figur trifft eine Entscheidung</span>
+        <span><span style={{ color: '#FF9500', fontWeight: 700 }}>R</span> = Reaktiv — Figur reagiert auf andere</span>
+        <span style={{ color: 'var(--text-secondary)' }}>— = nicht präsent / passiv</span>
+        <span style={{ color: 'var(--text-secondary)', fontSize: 10 }}>Hover auf Zelle = zentrale Entscheidung der Folge</span>
       </div>
       <table style={{ borderCollapse: 'collapse', fontSize: 12, minWidth: 400, width: '100%' }}>
         <thead>
@@ -564,8 +723,11 @@ function FigurenAgencyMatrix({ data }: { data: any }) {
                           </span>
                         )}
                         {ep.top_entscheidung && (
-                          <div style={{ fontSize: 9, color: 'var(--text-secondary)', maxWidth: 90, lineHeight: 1.3, marginTop: 2, textAlign: 'center' }}
-                            title={ep.top_entscheidung}>
+                          <div
+                            onMouseEnter={e => setTooltip({ text: ep.top_entscheidung, x: e.clientX, y: e.clientY })}
+                            onMouseLeave={() => setTooltip(null)}
+                            onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+                            style={{ fontSize: 9, color: 'var(--text-secondary)', maxWidth: 90, lineHeight: 1.3, marginTop: 2, textAlign: 'center', cursor: 'help' }}>
                             {ep.top_entscheidung.length > 40 ? ep.top_entscheidung.slice(0, 38) + '…' : ep.top_entscheidung}
                           </div>
                         )}
@@ -588,6 +750,7 @@ function FigurenAgencyMatrix({ data }: { data: any }) {
           })}
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
@@ -597,6 +760,8 @@ function FigurenAgencyMatrix({ data }: { data: any }) {
 function VonnegutArcsChart({ data }: { data: any }) {
   const straenge: any[] = data?.straenge ?? []
   if (!straenge.length) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keine Arc-Daten vorhanden.</div>
+
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null)
 
   // Alle Punkte über alle Stränge sammeln und sortieren
   const allPunkte = straenge.flatMap(s =>
@@ -610,9 +775,9 @@ function VonnegutArcsChart({ data }: { data: any }) {
     return af - bf || as_ - bs
   })
 
-  const W = Math.max(600, xKeys.length * 14)
-  const H = 200
-  const PAD = { top: 16, right: 16, bottom: 28, left: 32 }
+  const W = Math.max(620, xKeys.length * 14)
+  const H = 220
+  const PAD = { top: 20, right: 72, bottom: 32, left: 42 }
   const chartW = W - PAD.left - PAD.right
   const chartH = H - PAD.top - PAD.bottom
 
@@ -628,29 +793,50 @@ function VonnegutArcsChart({ data }: { data: any }) {
     lastFolge = f
   })
 
-  const yGridLines = [-4, -2, 0, 2, 4]
+  const yGridLines = [-5, -4, -2, 0, 2, 4, 5]
+  const yAxisLabels: Record<number, string> = { 5: 'Höhepunkt', 0: 'Neutral', '-5': 'Tiefpunkt' } as any
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+      <VisualisierungsHeader method="vonnegut_arcs" />
+      {tooltip && <InlineTooltip {...tooltip} />}
+
+      {/* Legende Stränge */}
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 12 }}>
         {straenge.map(s => (
           <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11 }}>
-            <span style={{ width: 20, height: 2, background: s.farbe, display: 'inline-block', borderRadius: 1 }} />
+            <span style={{ width: 20, height: 2.5, background: s.farbe, display: 'inline-block', borderRadius: 1 }} />
             <span>{s.name}</span>
           </div>
         ))}
       </div>
+
       <div style={{ overflowX: 'auto' }}>
         <svg width={W} height={H} style={{ display: 'block' }}>
           {/* Y-Grid */}
-          {yGridLines.map(v => (
-            <g key={v}>
-              <line x1={PAD.left} x2={W - PAD.right} y1={yPos(v)} y2={yPos(v)}
-                stroke={v === 0 ? 'var(--text-secondary)' : 'var(--border)'}
-                strokeWidth={v === 0 ? 1 : 0.5} strokeDasharray={v === 0 ? '' : '3,3'} />
-              <text x={PAD.left - 4} y={yPos(v) + 3.5} textAnchor="end" fontSize={8} fill="var(--text-secondary)">{v > 0 ? `+${v}` : v}</text>
-            </g>
-          ))}
+          {yGridLines.map(v => {
+            const isMain = v === 0 || v === 5 || v === -5
+            const label = v === 5 ? 'Höhepunkt' : v === -5 ? 'Tiefpunkt' : v === 0 ? 'Neutral' : null
+            return (
+              <g key={v}>
+                <line
+                  x1={PAD.left} x2={W - PAD.right}
+                  y1={yPos(v)} y2={yPos(v)}
+                  stroke={isMain ? (v === 0 ? '#999' : v > 0 ? 'rgba(0,200,83,0.3)' : 'rgba(255,59,48,0.25)') : 'var(--border)'}
+                  strokeWidth={isMain ? (v === 0 ? 1.5 : 0.8) : 0.5}
+                  strokeDasharray={v === 0 ? '' : '3,3'}
+                />
+                <text x={PAD.left - 4} y={yPos(v) + 3.5} textAnchor="end" fontSize={8} fill={isMain ? '#666' : 'var(--text-secondary)'} fontWeight={isMain ? '600' : '400'}>
+                  {v > 0 ? `+${v}` : v}
+                </text>
+                {label && (
+                  <text x={W - PAD.right + 4} y={yPos(v) + 3.5} textAnchor="start" fontSize={8} fill={v > 0 ? '#00a844' : v < 0 ? '#cc2a1e' : '#666'} fontWeight="500">
+                    {label}
+                  </text>
+                )}
+              </g>
+            )
+          })}
           {/* Episode-Grenzen */}
           {folgenWechsel.map(i => (
             <line key={i} x1={xPos(i)} x2={xPos(i)} y1={PAD.top} y2={H - PAD.bottom}
@@ -661,7 +847,7 @@ function VonnegutArcsChart({ data }: { data: any }) {
             const f = Number(k.split('.')[0])
             const prevF = i > 0 ? Number(xKeys[i - 1].split('.')[0]) : -1
             if (f === prevF) return null
-            return <text key={k} x={xPos(i)} y={H - 6} fontSize={9} fill="var(--text-secondary)" textAnchor="middle">Folge {f}</text>
+            return <text key={k} x={xPos(i)} y={H - 8} fontSize={9} fill="var(--text-secondary)" textAnchor="middle">Folge {f}</text>
           })}
           {/* Strang-Linien */}
           {straenge.map(s => {
@@ -671,7 +857,7 @@ function VonnegutArcsChart({ data }: { data: any }) {
                 const key = `${p.folge_nr}.${p.scene_nr}`
                 const xi = xKeys.indexOf(key)
                 if (xi < 0) return null
-                return { x: xPos(xi), y: yPos(p.wert), wert: p.wert, notiz: p.notiz }
+                return { x: xPos(xi), y: yPos(p.wert), wert: p.wert, notiz: p.notiz, folge: p.folge_nr, scene: p.scene_nr }
               })
               .filter(Boolean)
             if (pts.length < 2) return null
@@ -680,17 +866,24 @@ function VonnegutArcsChart({ data }: { data: any }) {
               <g key={s.name}>
                 <path d={d} fill="none" stroke={s.farbe} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
                 {pts.map((p: any, i: number) => p?.notiz ? (
-                  <circle key={i} cx={p.x} cy={p.y} r={3.5} fill={s.farbe} stroke="var(--bg-surface,#fff)" strokeWidth={1.5}>
-                    <title>{p.notiz}</title>
-                  </circle>
-                ) : null)}
+                  <circle
+                    key={i} cx={p.x} cy={p.y} r={4}
+                    fill={s.farbe} stroke="var(--bg-surface,#fff)" strokeWidth={1.5}
+                    style={{ cursor: 'help' }}
+                    onMouseEnter={e => setTooltip({ text: `${s.name} · Folge ${p.folge}, Sz. ${p.scene}\nWert: ${p.wert > 0 ? '+' : ''}${p.wert}\n\n${p.notiz}`, x: e.clientX, y: e.clientY })}
+                    onMouseLeave={() => setTooltip(null)}
+                    onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+                  />
+                ) : (
+                  <circle key={i} cx={p.x} cy={p.y} r={2} fill={s.farbe} opacity={0.4} />
+                ))}
               </g>
             )
           })}
         </svg>
       </div>
       <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 6 }}>
-        Gefüllte Punkte = Wendepunkte (Hover für Notiz)
+        Große gefüllte Punkte = Wendepunkte · Hover für Szenen-Notiz
       </div>
     </div>
   )
