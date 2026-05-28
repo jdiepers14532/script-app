@@ -551,6 +551,10 @@ export const api = {
     request<{ offsets: Record<string, number>; total: number; baseline: any }>('GET', `/werkstufen/${werkId}/replik-offsets`),
   saveReplikBaseline: (werkId: string) =>
     request<{ ok: boolean; baseline: any; total: number }>('POST', `/werkstufen/${werkId}/replik-baseline`),
+  lockSeitenzahlen: (werkstufenId: string) =>
+    request<any>('POST', `/werkstufen/${werkstufenId}/seitenzahlen-lock`, {}),
+  unlockSeitenzahlen: (werkstufenId: string) =>
+    request<any>('DELETE', `/werkstufen/${werkstufenId}/seitenzahlen-lock`),
   applyVorlage: (werkId: string, vorlageId: string) =>
     request<{ ok: boolean; inserted: number }>('POST', `/werkstufen/${werkId}/apply-vorlage`, { vorlage_id: vorlageId }),
 

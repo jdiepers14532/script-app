@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { recalcPageNumbers } from '../utils/recalcPageNumbers'
 
 // ── Absatzformate pro Produktion ────────────────────────────────────────────
 // Mounted at /api/produktionen/:produktionId/absatzformate
@@ -357,6 +358,24 @@ absatzformateRouter.post('/from-preset', async (req, res) => {
       [pid]
     )
     res.status(201).json({ formate: rows, remapped_scenes: remappedScenes, applied_preset_id: preset_id })
+
+    // Phase 1f: fire-and-forget recalcPageNumbers für alle nicht-gesperrten Werkstufen dieser Produktion
+    const pidForRecalc = pid
+    setImmediate(async () => {
+      try {
+        const werkstufen = await query(
+          `SELECT w.id FROM werkstufen w
+           JOIN folgen f ON f.id = w.folge_id
+           WHERE f.produktion_id = $1 AND w.seitenzahlen_gesperrt IS NOT TRUE`,
+          [pidForRecalc]
+        ) as Array<{ id: string }>
+        for (const ws of werkstufen) {
+          await recalcPageNumbers(ws.id)
+        }
+      } catch (e) {
+        console.error('[recalc-after-from-preset] error:', e)
+      }
+    })
   } catch (err) {
     await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })
@@ -524,6 +543,36 @@ absatzformatPresetsRouter.patch('/:id', async (req, res) => {
     )
     if (!row) return res.status(404).json({ error: 'Preset nicht gefunden oder keine Berechtigung' })
     res.json(row)
+
+    // Phase 1f: fire-and-forget recalcPageNumbers für alle Werkstufen die dieses Preset verwenden
+    // Nur wenn format-relevante Felder geändert wurden
+    const needsRecalc = szenen_kopf_template !== undefined || seitenformat !== undefined
+      || page_margins !== undefined || formate !== undefined
+    if (needsRecalc) {
+      const presetId = req.params.id
+      setImmediate(async () => {
+        try {
+          const produktionen = await query(
+            `SELECT DISTINCT production_id FROM production_app_settings
+             WHERE key = 'absatzformat_preset_id'
+               AND (value = $1 OR value = '"' || $1 || '"')`,
+            [presetId]
+          ) as Array<{ production_id: string }>
+          if (!produktionen.length) return
+          const werkstufen = await query(
+            `SELECT w.id FROM werkstufen w
+             JOIN folgen f ON f.id = w.folge_id
+             WHERE f.produktion_id = ANY($1::text[]) AND w.seitenzahlen_gesperrt IS NOT TRUE`,
+            [produktionen.map(p => p.production_id)]
+          ) as Array<{ id: string }>
+          for (const ws of werkstufen) {
+            await recalcPageNumbers(ws.id)
+          }
+        } catch (e) {
+          console.error('[recalc-after-preset-patch] error:', e)
+        }
+      })
+    }
   } catch (err: any) {
     if (err.code === '23505') return res.status(409).json({ error: 'Name bereits vergeben' })
     res.status(500).json({ error: String(err) })

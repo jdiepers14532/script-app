@@ -81,6 +81,8 @@ export default function EditorPanelHeader({
   const [revisionColors, setRevisionColors] = useState<{ id: number; name: string; color: string }[]>([])
   const [showRevisionMenu, setShowRevisionMenu] = useState(false)
   const [revisionSaving, setRevisionSaving] = useState(false)
+  const [userRoles, setUserRoles] = useState<string[]>([])
+  const [seitenLockSaving, setSeitenLockSaving] = useState(false)
 
   // Hover device detection (mouse = true, touch-only = false)
   const isHoverDevice = useRef(
@@ -95,6 +97,10 @@ export default function EditorPanelHeader({
   function scheduleCloseSubmenu() {
     hoverTimeoutRef.current = setTimeout(() => setActiveSubmenu(null), 150)
   }
+
+  useEffect(() => {
+    api.getMe().then(me => setUserRoles(me.roles || (me.role ? [me.role] : []))).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!produktionId) return
@@ -229,6 +235,43 @@ export default function EditorPanelHeader({
           <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
         </button>
       )}
+
+      {/* Seitenzahlen-Lock-Badge */}
+      {selectedWerk?.seitenzahlen_gesperrt && (() => {
+        const isSuperAdmin = userRoles.includes('superadmin')
+        const gesperrtseit = selectedWerk.gesperrt_am
+          ? new Date(selectedWerk.gesperrt_am).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
+          : '—'
+        const tooltipLines = [
+          'Seitenzahlen gesperrt',
+          `Seit: ${gesperrtseit}`,
+          selectedWerk.gesperrt_von ? `Von: ${selectedWerk.gesperrt_von}` : null,
+          isSuperAdmin ? '\n(Klicken zum Entsperren)' : null,
+        ].filter(Boolean).join('\n')
+        return (
+          <Tooltip text={tooltipLines}>
+            <button
+              onClick={isSuperAdmin ? async () => {
+                if (!confirm('Seitenzahlen entsperren?\n\nBeim nächsten Speichern werden alle Seitenzahlen neu berechnet — sie können sich verschieben.')) return
+                setSeitenLockSaving(true)
+                try {
+                  await api.unlockSeitenzahlen(selectedWerk.id)
+                  onReloadWerkstufen()
+                } catch { /* ignore */ } finally { setSeitenLockSaving(false) }
+              } : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 3, padding: '3px 7px',
+                border: '1px solid #FF9500', borderRadius: 999, fontSize: 11, fontWeight: 500,
+                color: '#FF9500', background: 'transparent',
+                cursor: isSuperAdmin ? 'pointer' : 'default', fontFamily: 'inherit',
+              }}
+            >
+              <Lock size={10} />
+              {seitenLockSaving ? '…' : 'S. gesperrt'}
+            </button>
+          </Tooltip>
+        )
+      })()}
 
       {/* Fassungs-Label — nach Version */}
       {selectedWerk && stageLabels.length > 0 && (

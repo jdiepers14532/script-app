@@ -18,6 +18,7 @@ const SuchenErsetzenTab    = lazy(() => import('./hilfe/SuchenErsetzenTab'))
 const StoryStaengeTab      = lazy(() => import('./hilfe/StoryStaengeTab'))
 const SonderszenentTab     = lazy(() => import('./hilfe/SonderszenentTab'))
 const WerkstufenLabelsTab  = lazy(() => import('./hilfe/WerkstufenLabelsTab'))
+const SeitenzahlenTab      = lazy(() => import('./hilfe/SeitenzahlenTab'))
 const VorlagenOcrTab       = lazy(() => import('./hilfe/VorlagenOcrTab'))
 const ExportKopfzeilen     = lazy(() => import('./hilfe/ExportKopfzeilen'))
 const DatensicherheitUserTab = lazy(() => import('./hilfe/DatensicherheitUserTab'))
@@ -78,6 +79,8 @@ const NAV_ITEMS = [
     keywords: 'sonderszene stockshot wechselschnitt flashback rückblende stimmung archiv' },
   { id: 'werkstufen-labels',    label: 'Werkstufen & Labels',       icon: '🏷️',
     keywords: 'werkstufe label status entwurf freigegeben gesperrt team work kollaboration' },
+  { id: 'seitenzahlen',         label: 'Seitenzahlen',              icon: '📄',
+    keywords: 'seitenzahl seite s.12 gesperrt lock sperren einfrieren produktionsfassung pdf a4 letter format recalc' },
   { id: 'vorlagen-ocr',         label: 'Vorlagen & OCR',            icon: '📄',
     keywords: 'vorlage template ocr mistral erkennen scan pdf einscannen' },
   { id: 'export-kopfzeilen',    label: 'Export & Kopf-/Fußzeilen',  icon: '📤',
@@ -173,6 +176,7 @@ function HilfePage() {
       case 'story-straenge':     return <StoryStaengeTab />
       case 'sonderszenen':       return <SonderszenentTab />
       case 'werkstufen-labels':  return <WerkstufenLabelsTab />
+      case 'seitenzahlen':       return <SeitenzahlenTab isAdmin={isAdmin} />
       case 'vorlagen-ocr':       return <VorlagenOcrTab />
       case 'export-kopfzeilen':  return <ExportKopfzeilen />
       case 'datensicherheit-user': return <DatensicherheitUserTab />

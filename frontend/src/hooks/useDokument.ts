@@ -112,6 +112,9 @@ export interface WerkstufeMeta {
   produktion_id?: string
   folge_nummer?: number
   revision_color_id?: number | null
+  seitenzahlen_gesperrt?: boolean
+  gesperrt_am?: string | null
+  gesperrt_von?: string | null
 }
 
 export function useWerkstufe(folgeId: number | null) {

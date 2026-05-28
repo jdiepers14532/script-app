@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
-import { authMiddleware } from '../auth'
+import { authMiddleware, requireRole } from '../auth'
 import { applyVorlage } from './dokument-vorlagen'
 import { calcPageLength } from '../utils/calcPageLength'
 
@@ -369,8 +369,38 @@ werkstufenRouter.put('/:id', async (req, res) => {
       row.rows[0].replik_baseline = baseline
     }
 
+    // Seitenzahlen-Unlock: wenn Produktionsfassung-Label entfernt → Seitenzahlen freigeben
+    if (autoBearbeitungStatus === 'entwurf' && row.rows[0].seitenzahlen_gesperrt) {
+      await client.query(
+        `UPDATE werkstufen SET seitenzahlen_gesperrt=FALSE, gesperrt_am=NULL, gesperrt_von=NULL WHERE id=$1`,
+        [req.params.id]
+      )
+      row.rows[0].seitenzahlen_gesperrt = false
+      row.rows[0].gesperrt_am = null
+      row.rows[0].gesperrt_von = null
+    }
+
     await client.query('COMMIT')
-    res.json(row.rows[0])
+
+    let finalRow = row.rows[0]
+
+    // Seitenzahlen-Lock: finaler Recalc + Einfrieren wenn Produktionsfassung gesetzt
+    if (autoBearbeitungStatus === 'gesperrt' && !finalRow.seitenzahlen_gesperrt) {
+      try {
+        const { recalcPageNumbers } = await import('../utils/recalcPageNumbers')
+        await recalcPageNumbers(req.params.id)
+        const lockRes = await pool.query(
+          `UPDATE werkstufen SET seitenzahlen_gesperrt=TRUE, gesperrt_am=NOW(), gesperrt_von=$1
+           WHERE id=$2 RETURNING seitenzahlen_gesperrt, gesperrt_am, gesperrt_von`,
+          [req.user!.name || req.user!.user_id, req.params.id]
+        )
+        if (lockRes.rows[0]) finalRow = { ...finalRow, ...lockRes.rows[0] }
+      } catch (e) {
+        console.error('[seitenzahlen-lock] error:', e)
+      }
+    }
+
+    res.json(finalRow)
   } catch (err) {
     await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })
@@ -378,6 +408,50 @@ werkstufenRouter.put('/:id', async (req, res) => {
     client.release()
   }
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/werkstufen/:id/seitenzahlen-lock — Seitenzahlen einfrieren (herstellungsleitung/superadmin)
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.post('/:id/seitenzahlen-lock',
+  requireRole('herstellungsleitung', 'superadmin'),
+  async (req, res) => {
+    try {
+      const { recalcPageNumbers } = await import('../utils/recalcPageNumbers')
+      await recalcPageNumbers(req.params.id)
+      const row = await queryOne(
+        `UPDATE werkstufen
+         SET seitenzahlen_gesperrt=TRUE, gesperrt_am=NOW(), gesperrt_von=$1
+         WHERE id=$2 RETURNING *`,
+        [req.user!.name || req.user!.user_id, req.params.id]
+      )
+      if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+      res.json(row)
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// DELETE /api/werkstufen/:id/seitenzahlen-lock — Seitenzahlen entsperren (nur superadmin)
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.delete('/:id/seitenzahlen-lock',
+  requireRole('superadmin'),
+  async (req, res) => {
+    try {
+      const row = await queryOne(
+        `UPDATE werkstufen
+         SET seitenzahlen_gesperrt=FALSE, gesperrt_am=NULL, gesperrt_von=NULL
+         WHERE id=$1 RETURNING *`,
+        [req.params.id]
+      )
+      if (!row) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+      res.json(row)
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
 
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /api/werkstufen/:id/start-revision — Aktiviert Revision mit Farbe + Baseline-Snapshot
