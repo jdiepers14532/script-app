@@ -6,7 +6,7 @@ import {
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone, Trash2, Zap,
   Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
-  Clapperboard, Tv, FolderOpen,
+  Clapperboard, Tv, FolderOpen, ShieldCheck,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext, ToastContext } from '../contexts'
 import type { TweakState, ToastType } from '../contexts'
@@ -242,6 +242,7 @@ export default function AppShell({
   const [appList, setAppList] = useState<any[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [hasDkAccess, setHasDkAccess] = useState(false)
+  const [pendingFreigabenCount, setPendingFreigabenCount] = useState(0)
   const [ansichtsModalOpen, setAnsichtsModalOpen] = useState(false)
   const [farbschemaOpen, setFarbschemaOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string; user_id?: string } | null>(null)
@@ -527,6 +528,7 @@ export default function AppShell({
       .then(d => setHasDkAccess(d.global || d.production_ids.length > 0))
       .catch(() => setHasDkAccess(false))
 
+
     // ── Silent Token-Refresh (5 Minuten vor Ablauf) ───────────────────────
     // Versucht exp-Timestamp aus /api/auth/me zu lesen.
     // Fallback: alle 50 Minuten refreshen (konservativ bei 60min Session).
@@ -653,6 +655,14 @@ export default function AppShell({
     window.addEventListener('ln-default-changed', handler)
     return () => window.removeEventListener('ln-default-changed', handler)
   }, [])
+
+  // ── Pending Freigaben Badge ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!selectedProdId) return
+    api.get(`/rollen-freigabe/${selectedProdId}/anfragen`)
+      .then((rows: any[]) => setPendingFreigabenCount(rows.filter((r: any) => r.status === 'ausstehend').length))
+      .catch(() => setPendingFreigabenCount(0))
+  }, [selectedProdId])
 
   // ── Alt+A → Ansichts-Modal öffnen ────────────────────────────────────────
   useEffect(() => {
@@ -1431,6 +1441,12 @@ export default function AppShell({
               { to: null,                    label: 'Export',              icon: <Download size={14} />,        shortcut: 'navExport',   action: () => { setNavMenuOpen(false); window.dispatchEvent(new CustomEvent('open-export-dialog')) } },
               { to: '/import',              label: 'Import',              icon: <FileUp size={14} /> },
               { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} />,      shortcut: 'navFreieDokumente' },
+              ...(hasDkAccess ? [{
+                to: '/freigaben',
+                label: 'Freigaben',
+                icon: <ShieldCheck size={14} />,
+                badge: pendingFreigabenCount > 0 ? pendingFreigabenCount : undefined,
+              }] : []),
               ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} />, shortcut: 'navDrehbuchkoordination' }] : []),
             ].map(item => item.action ? (
               <button
@@ -1454,6 +1470,13 @@ export default function AppShell({
               >
                 {item.icon}
                 {item.label}
+                {(item as any).badge != null && (
+                  <span style={{
+                    marginLeft: 'auto', background: '#FF3B30', color: '#fff',
+                    borderRadius: 99, fontSize: 10, fontWeight: 700,
+                    padding: '1px 6px', minWidth: 16, textAlign: 'center',
+                  }}>{(item as any).badge}</span>
+                )}
                 {item.shortcut && (
                   <span className="um-shortcut">{sc(item.shortcut)}</span>
                 )}

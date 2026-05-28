@@ -65,6 +65,7 @@ import { taetigkeitenInternalRouter } from './routes/taetigkeitenInternal'
 import { runPrivatModusWorker } from './workers/privatModusWorker'
 import analysisRouter from './routes/analysis'
 import { privateDokumenteRouter } from './routes/private-dokumente'
+import { rollenFreigabeRouter, rollenFreigabePublicRouter } from './routes/rollen-freigabe'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -118,6 +119,7 @@ app.use(generalLimiter)
 app.use('/api', healthRouter)
 // Public routes (no auth) — MUST be before the catch-all /api routers with auth middleware
 app.use('/api/privat-mode-tokens', privatModeTokensPublicRouter)
+app.use('/api/public/freigabe', rollenFreigabePublicRouter)
 app.use('/api/produktionen', produktionenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
@@ -191,6 +193,9 @@ app.use('/api/analysis', analysisRouter)
 
 // Private-Dokumente-Verwaltung (DK)
 app.use('/api/dk/private-dokumente', privateDokumenteRouter)
+
+// Rollen-Freigabe
+app.use('/api/rollen-freigabe', rollenFreigabeRouter)
 
 // Autorenplan
 app.use('/api/autorenplan', autorenplanRouter)
@@ -366,6 +371,7 @@ async function runMigrations() {
     'v129_glossar_term_en_kategorien.sql',
     'v130_analysis_folge_scope.sql',
     'v131_seitenzahlen.sql',
+    'v132_rollen_freigabe.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

@@ -16,6 +16,8 @@ import PrivatModeTokenPage from './pages/PrivatModeTokenPage'
 import AnalysisPage from './pages/AnalysisPage'
 import FreieDokumentePage from './pages/FreieDokumentePage'
 import ThemeAnpassenPage from './pages/ThemeAnpassenPage'
+import FreigabenPage from './pages/FreigabenPage'
+import FreigabePublicPage from './pages/FreigabePublicPage'
 import { useFocusMode } from './hooks/useFocusMode'
 import { useProduction } from './hooks/useProduction'
 import {
@@ -149,6 +151,8 @@ export default function App() {
               <Route path="/freie-dokumente" element={<FreieDokumentePage />} />
               <Route path="/privat-mode-token/:token" element={<PrivatModeTokenPage />} />
               <Route path="/theme-anpassen" element={<ThemeAnpassenPage />} />
+              <Route path="/freigaben" element={<FreigabenPage />} />
+              <Route path="/freigabe/:token" element={<FreigabePublicPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </BrowserRouter>
