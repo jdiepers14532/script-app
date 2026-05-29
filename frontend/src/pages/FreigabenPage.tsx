@@ -77,7 +77,7 @@ function GenIcon({ g }: { g: GenStatus }) {
 }
 
 export default function FreigabenPage() {
-  const { selectedProductionId } = useSelectedProduction()
+  const { selectedId: selectedProductionId } = useSelectedProduction()
   const [anfragen, setAnfragen] = useState<Anfrage[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('ausstehend')
