@@ -152,9 +152,12 @@ export async function autoUpsertNtEintraege(szeneId: string, content: any): Prom
     const upsertedCharIds: string[] = []
 
     for (const entry of ntChars) {
-      // Figur in der Produktion per Name (case-insensitiv) suchen
+      // Figur per Name in der Produktion suchen (characters hat keine produktion_id — via character_productions)
       const char = await queryOne(
-        `SELECT id FROM characters WHERE produktion_id = $1 AND UPPER(name) = $2 LIMIT 1`,
+        `SELECT c.id FROM characters c
+         JOIN character_productions cp ON cp.character_id = c.id
+         WHERE cp.produktion_id = $1 AND UPPER(c.name) = $2
+         LIMIT 1`,
         [szene.produktion_id, entry.nameUpper]
       )
       if (!char?.id) continue

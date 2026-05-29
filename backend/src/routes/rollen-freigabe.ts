@@ -28,19 +28,25 @@ import { authMiddleware, requireDkAccess } from '../auth'
 import nodemailer from 'nodemailer'
 import crypto from 'crypto'
 
-const APP_URL   = process.env.APP_URL   ?? 'https://script.serienwerft.studio'
-const SMTP_HOST = process.env.SMTP_HOST ?? 'smtp.ionos.de'
-const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587')
-const SMTP_USER = process.env.SMTP_USER ?? ''
-const SMTP_PASS = process.env.SMTP_PASS ?? ''
+// APP_URL ist ein Wert der sich nicht ändert, kann statisch sein
+const APP_URL = process.env.APP_URL ?? 'https://script.serienwerft.studio'
 
+// SMTP-Credentials werden lazy aus process.env gelesen (NACH dotenv.config() in index.ts)
+// Daher KEINE module-level Konstanten — getTransporter() liest sie beim ersten Aufruf.
 let transporter: nodemailer.Transporter | null = null
 function getTransporter(): nodemailer.Transporter | null {
-  if (!SMTP_USER || !SMTP_PASS) return null
+  const smtpUser = process.env.SMTP_USER ?? ''
+  const smtpPass = process.env.SMTP_PASS ?? ''
+  if (!smtpUser || !smtpPass) {
+    console.log('[rollenFreigabe] SMTP_USER oder SMTP_PASS nicht gesetzt — Email nicht möglich')
+    return null
+  }
   if (!transporter) {
+    const smtpHost = process.env.SMTP_HOST ?? 'smtp.ionos.de'
+    const smtpPort = parseInt(process.env.SMTP_PORT ?? '587')
     transporter = nodemailer.createTransport({
-      host: SMTP_HOST, port: SMTP_PORT, secure: false,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      host: smtpHost, port: smtpPort, secure: false,
+      auth: { user: smtpUser, pass: smtpPass },
       tls: { rejectUnauthorized: true },
     })
   }
@@ -61,7 +67,7 @@ async function sendFreigabeAnfrageEmail(opts: {
   const t = getTransporter()
   if (!t) { console.log('[rollenFreigabe] Kein SMTP — Email übersprungen:', opts.toEmail); return }
   await t.sendMail({
-    from: `"Script · Serienwerft" <${SMTP_USER}>`,
+    from: `"Script · Serienwerft" <${process.env.SMTP_USER}>`,
     to: opts.toEmail,
     subject: `Freigabe erbeten: Neue Rolle „${opts.rollenName}"`,
     html: `
@@ -115,7 +121,7 @@ async function sendErinnerungEmail(opts: {
   const t = getTransporter()
   if (!t) { console.log('[rollenFreigabe] Kein SMTP — Erinnerung übersprungen:', opts.toEmail); return }
   await t.sendMail({
-    from: `"Script · Serienwerft" <${SMTP_USER}>`,
+    from: `"Script · Serienwerft" <${process.env.SMTP_USER}>`,
     to: opts.toEmail,
     subject: `Erinnerung: Freigabe für Rolle „${opts.rollenName}" steht noch aus`,
     html: `
