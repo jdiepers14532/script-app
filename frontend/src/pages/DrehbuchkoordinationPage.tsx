@@ -930,12 +930,58 @@ function FigurenTab() {
   const [newKat, setNewKat] = useState({ name: '', typ: 'rolle' as 'rolle' | 'komparse' })
   const [katSaving, setKatSaving] = useState(false)
 
+  // Suffix-Settings (P4)
+  const [suffixOff, setSuffixOff] = useState(true)
+  const [suffixNt, setSuffixNt] = useState(true)
+  const [suffixOneway, setSuffixOneway] = useState(true)
+  const [offFigurenImSzenenkopf, setOffFigurenImSzenenkopf] = useState(false)
+  const [actionAcEnabled, setActionAcEnabled] = useState(true)
+  const [actionAcTriggerChars, setActionAcTriggerChars] = useState(4)
+  const [actionAutoCaps, setActionAutoCaps] = useState(true)
+  const [suffixSaving, setSuffixSaving] = useState(false)
+
   useEffect(() => {
     fetch('/api/admin/app-settings', { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then((d: any) => { if (d?.figuren_label) setFigurenLabel(d.figuren_label) })
+      .then((d: any) => {
+        if (d?.figuren_label) setFigurenLabel(d.figuren_label)
+        if (d?.suffix_settings) {
+          try {
+            const s = JSON.parse(d.suffix_settings)
+            if (s.suffix_off_enabled !== undefined) setSuffixOff(s.suffix_off_enabled)
+            if (s.suffix_nt_enabled !== undefined) setSuffixNt(s.suffix_nt_enabled)
+            if (s.suffix_oneway_enabled !== undefined) setSuffixOneway(s.suffix_oneway_enabled)
+            if (s.off_figuren_im_szenenkopf !== undefined) setOffFigurenImSzenenkopf(s.off_figuren_im_szenenkopf)
+            if (s.action_ac_enabled !== undefined) setActionAcEnabled(s.action_ac_enabled)
+            if (s.action_ac_trigger_chars !== undefined) setActionAcTriggerChars(s.action_ac_trigger_chars)
+            if (s.action_auto_caps !== undefined) setActionAutoCaps(s.action_auto_caps)
+          } catch {}
+        }
+      })
       .catch(() => {})
   }, [])
+
+  const saveSuffixSettings = async (patch: Record<string, any>) => {
+    setSuffixSaving(true)
+    const current = {
+      suffix_off_enabled: suffixOff,
+      suffix_nt_enabled: suffixNt,
+      suffix_oneway_enabled: suffixOneway,
+      off_figuren_im_szenenkopf: offFigurenImSzenenkopf,
+      action_ac_enabled: actionAcEnabled,
+      action_ac_trigger_chars: actionAcTriggerChars,
+      action_auto_caps: actionAutoCaps,
+      ...patch,
+    }
+    try {
+      await fetch('/api/admin/app-settings/suffix_settings', {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(current) }),
+      })
+      window.dispatchEvent(new CustomEvent('app-settings-changed'))
+    } catch {} finally { setSuffixSaving(false) }
+  }
 
   useEffect(() => {
     if (!produktionId) return
@@ -1116,6 +1162,79 @@ function FigurenTab() {
             <button style={{ fontSize: 12, padding: '6px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', cursor: 'pointer', fontFamily: 'inherit' }} onClick={addKat} disabled={katSaving || !newKat.name.trim()}>
               {katSaving ? '...' : '+ Hinzufügen'}
             </button>
+          </div>
+        </section>
+
+        {/* Charakter-Suffixe & Action-AC */}
+        <section style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Charakter-Suffixe & Action-AC</h3>
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+              Steuert die automatische Erkennung von OFF-, NT- und ONE-WAY-Suffixen in CHARACTER-Zeilen sowie die Großbuchstaben-Erkennung in Action-Zeilen.
+            </p>
+          </div>
+
+          {/* Suffix-Erkennung */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>Suffix-Erkennung in CHARACTER-Zeilen</p>
+            {([
+              { label: 'OFF / O.S. erkennen', value: suffixOff, key: 'suffix_off_enabled', set: setSuffixOff },
+              { label: 'NT (Nur Ton) erkennen', value: suffixNt, key: 'suffix_nt_enabled', set: setSuffixNt },
+              { label: 'ONE-WAY erkennen', value: suffixOneway, key: 'suffix_oneway_enabled', set: setSuffixOneway },
+            ] as const).map(row => (
+              <label key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={row.value} disabled={suffixSaving} onChange={e => {
+                  row.set(e.target.checked as any)
+                  saveSuffixSettings({ [row.key]: e.target.checked })
+                }} />
+                <span style={{ fontSize: 13 }}>{row.label}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* OFF im Szenenkopf */}
+          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" style={{ marginTop: 2 }} checked={offFigurenImSzenenkopf} disabled={suffixSaving} onChange={e => {
+                setOffFigurenImSzenenkopf(e.target.checked)
+                saveSuffixSettings({ off_figuren_im_szenenkopf: e.target.checked })
+              }} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>OFF-Figuren im Szenenkopf aufführen</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.5 }}>
+                  Standard (aus): OFF-Figuren erscheinen nur in der Szenen-Notiz, nicht unter Rollen.<br />
+                  Ein: OFF-Figuren werden mit <code style={{ fontSize: 10 }}>(OFF)</code> unter Rollen eingetragen — Drehplanung disponiert sie ans Set.
+                </div>
+              </div>
+            </label>
+          </div>
+
+          {/* Action-AC */}
+          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>Autovervollständigung in Action-Zeilen</p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={actionAcEnabled} disabled={suffixSaving} onChange={e => {
+                setActionAcEnabled(e.target.checked)
+                saveSuffixSettings({ action_ac_enabled: e.target.checked })
+              }} />
+              <span style={{ fontSize: 13 }}>Aktiviert (Großbuchstaben-Wörter in Action werden erkannt)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 13, minWidth: 220 }}>Mindestlänge Großbuchstaben-Wort</span>
+              <input type="number" min={2} max={10} value={actionAcTriggerChars} disabled={suffixSaving || !actionAcEnabled}
+                style={{ width: 56, fontSize: 13, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}
+                onChange={e => setActionAcTriggerChars(Number(e.target.value))}
+                onBlur={e => saveSuffixSettings({ action_ac_trigger_chars: Number(e.target.value) })}
+              />
+              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Zeichen</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={actionAutoCaps} disabled={suffixSaving || !actionAcEnabled} onChange={e => {
+                setActionAutoCaps(e.target.checked)
+                saveSuffixSettings({ action_auto_caps: e.target.checked })
+              }} />
+              <span style={{ fontSize: 13 }}>Namen in Action-Zeilen nach Einfügen großschreiben</span>
+            </label>
           </div>
         </section>
         </>

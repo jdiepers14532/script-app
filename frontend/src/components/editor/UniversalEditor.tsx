@@ -551,6 +551,9 @@ export default function UniversalEditor({
   const [newCharDialog, setNewCharDialog] = useState<{ name: string; suffix?: string | null; loading: boolean } | null>(null)
   // Erkannter Suffix (OFF/NT/ONE-WAY) aus letzter AC-Eingabe — wird beim Einfügen angehängt
   const detectedSuffixRef = useRef<string | null>(null)
+  // Stabile Ref für suffixSettings (für AC-Closure)
+  const suffixSettingsRef = useRef(suffixSettings)
+  useEffect(() => { suffixSettingsRef.current = suffixSettings }, [suffixSettings])
 
   // Debounced DB-Suche für "alle"-Modus (nicht mehr verwendet — durch Cache ersetzt)
   const acDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -739,7 +742,7 @@ export default function UniversalEditor({
   }, [editor])
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
-  const { lnSettings, pageMargins, replikSettings } = useAppSettings()
+  const { lnSettings, pageMargins, replikSettings, suffixSettings } = useAppSettings()
 
   // ── Replik number plugin ──────────────────────────────────────────────────
   useEffect(() => {
@@ -903,7 +906,12 @@ export default function UniversalEditor({
 
       const query = node.textContent
       // Suffix erkennen (OFF / NT / ONE-WAY) — Suche läuft auf dem bereinigten Namen
-      const { name: queryClean, suffix: querySuffix } = parseSuffix(query.trim())
+      const { name: queryClean, suffix: rawSuffix } = parseSuffix(query.trim())
+      const ss = suffixSettingsRef.current
+      const querySuffix = rawSuffix === '(OFF)' && !ss.suffix_off_enabled ? null
+        : rawSuffix === '(NT)' && !ss.suffix_nt_enabled ? null
+        : rawSuffix === '(ONE-WAY)' && !ss.suffix_oneway_enabled ? null
+        : rawSuffix
       const queryUpper = queryClean.toUpperCase()
       // Memory-Suffix: letzter bekannter Suffix dieser Figur in der aktuellen Szene
       const memorySuffix = !querySuffix

@@ -44,6 +44,8 @@ router.put('/:key', async (req, res) => {
     'private_docs_filter_2_enabled',
     'private_docs_filter_3_enabled',
     'private_docs_viewer_roles',
+    // Charakter-Suffixe & Action-AC (P4)
+    'suffix_settings',
   ]
 
   if (!allowed.includes(key)) {

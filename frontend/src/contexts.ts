@@ -64,8 +64,26 @@ export interface PageMargins { oben: number; unten: number; links: number; recht
 export const DEFAULT_PAGE_MARGINS: PageMargins = { oben: 25, unten: 20, links: 25, rechts: 20 }
 export interface ReplikSettings { color: string; mode: 'continuous' | 'per_scene' }
 export const REPLIK_SETTINGS_DEFAULTS: ReplikSettings = { color: '#000000', mode: 'continuous' }
-interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS })
+export interface SuffixSettings {
+  suffix_off_enabled: boolean
+  suffix_nt_enabled: boolean
+  suffix_oneway_enabled: boolean
+  off_figuren_im_szenenkopf: boolean
+  action_ac_enabled: boolean
+  action_ac_trigger_chars: number
+  action_auto_caps: boolean
+}
+export const SUFFIX_SETTINGS_DEFAULTS: SuffixSettings = {
+  suffix_off_enabled: true,
+  suffix_nt_enabled: true,
+  suffix_oneway_enabled: true,
+  off_figuren_im_szenenkopf: false,
+  action_ac_enabled: true,
+  action_ac_trigger_chars: 4,
+  action_auto_caps: true,
+}
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings; suffixSettings: SuffixSettings }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS, suffixSettings: SUFFIX_SETTINGS_DEFAULTS })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context

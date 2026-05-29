@@ -28,9 +28,11 @@ import {
   LN_SETTINGS_DEFAULTS,
   DEFAULT_PAGE_MARGINS,
   REPLIK_SETTINGS_DEFAULTS,
+  SUFFIX_SETTINGS_DEFAULTS,
   type LnSettings,
   type PageMargins,
   type ReplikSettings,
+  type SuffixSettings,
 } from './contexts'
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 import { TerminologieProvider, TERM_DEFAULTS, OfflineQueueProvider } from './sw-ui'
@@ -47,6 +49,7 @@ export default function App() {
   const [lnSettings, setLnSettings] = useState<LnSettings>(LN_SETTINGS_DEFAULTS)
   const [pageMargins, setPageMargins] = useState<PageMargins>(DEFAULT_PAGE_MARGINS)
   const [replikSettings, setReplikSettings] = useState<ReplikSettings>(REPLIK_SETTINGS_DEFAULTS)
+  const [suffixSettings, setSuffixSettings] = useState<SuffixSettings>(SUFFIX_SETTINGS_DEFAULTS)
 
   useEffect(() => {
     const loadSettings = (e?: Event) => {
@@ -98,6 +101,12 @@ export default function App() {
               setReplikSettings({ ...REPLIK_SETTINGS_DEFAULTS, ...parsed })
             } catch {}
           }
+          if (data?.suffix_settings) {
+            try {
+              const parsed = JSON.parse(data.suffix_settings)
+              setSuffixSettings({ ...SUFFIX_SETTINGS_DEFAULTS, ...parsed })
+            } catch {}
+          }
           // PWA Admin-Steuerung (v67): einmalig ausführen, dann sofort zurücksetzen
           if (data?.pwa_update_action === 'update') {
             fetch('/api/admin/app-settings/pwa_update_action', {
@@ -130,7 +139,7 @@ export default function App() {
   return (
     <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>
