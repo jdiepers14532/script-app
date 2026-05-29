@@ -1010,6 +1010,10 @@ export default function ScriptPage() {
         currentProduktionId={selectedProduktionId || undefined}
         currentBlockNummer={selectedBlock?.block_nummer}
         productions={productions}
+        // Modus
+        searchMode={searchReplace.state.searchMode}
+        onSetSearchMode={searchReplace.setSearchMode}
+        // Editor
         editorActiveIndex={searchReplace.state.editorActiveIndex}
         editorTotal={searchReplace.state.editorTotal}
         onEditorSearch={searchReplace.searchInEditor}
@@ -1017,21 +1021,59 @@ export default function ScriptPage() {
         onFindPrev={searchReplace.findPrev}
         onReplaceCurrent={searchReplace.replaceCurrent}
         onReplaceAllEditor={searchReplace.replaceAllInEditor}
+        // Backend Text
         onBackendSearch={searchReplace.searchBackend}
-        onBackendReplace={async (params) => {
-          const result = await searchReplace.replaceBackend(params)
-          return result
-        }}
+        onBackendReplace={async (params) => searchReplace.replaceBackend(params)}
+        // Backend Szenen
+        onSearchSzenen={searchReplace.searchSzenen}
+        // Ergebnisse
         backendResults={searchReplace.state.results}
         backendTotal={searchReplace.state.total}
         backendTotalScenes={searchReplace.state.totalScenes}
         backendLockedCount={searchReplace.state.lockedCount}
-        backendFallbackCount={searchReplace.state.fallbackCount}
+        backendFallbackCount={false}
         backendLoading={searchReplace.state.loading}
         backendError={searchReplace.state.error}
-        onNavigateToScene={(szeneId, _folgeId) => {
-          setSelectedSzeneId(szeneId)
+        sceneResults={searchReplace.state.sceneResults}
+        sceneTotal={searchReplace.state.sceneTotal}
+        // Entity
+        entityType={searchReplace.state.entityType}
+        entityMatches={searchReplace.state.entityMatches}
+        entityMode={searchReplace.state.entityMode}
+        onCheckEntity={searchReplace.checkEntity}
+        onSetEntityMode={searchReplace.setEntityMode}
+        // Chips
+        chips={searchReplace.state.chips}
+        onAddChip={searchReplace.addChip}
+        onRemoveChip={searchReplace.removeChip}
+        onClearChips={searchReplace.clearChips}
+        // Review
+        reviewStatus={searchReplace.state.reviewStatus}
+        reviewAccepted={searchReplace.state.reviewAccepted}
+        reviewSkipped={searchReplace.state.reviewSkipped}
+        onStartReview={searchReplace.startReview}
+        onAcceptMatch={async (match) => {
+          const { state } = searchReplace
+          await searchReplace.acceptCurrent(match, state.query, state.replacement, state.options,
+            (szeneId) => setSelectedSzeneId(szeneId))
         }}
+        onSkipMatch={searchReplace.skipCurrent}
+        onAcceptAll={async () => {
+          const { state } = searchReplace
+          await searchReplace.acceptAllRemaining(
+            state.query, state.replacement, state.scope, state.scopeId,
+            state.options, state.results.map(r => r.dokument_szene_id)
+          )
+        }}
+        onFinishReview={searchReplace.finishReview}
+        onResetReview={searchReplace.resetReview}
+        // Rollenname
+        rollennameMode={searchReplace.state.rollennameMode}
+        onReplaceRollenname={async (old_name, new_name) =>
+          searchReplace.replaceRollenname({ old_name, new_name, produktion_id: selectedProduktionId || '' })
+        }
+        // Navigation
+        onNavigateToScene={(szeneId) => setSelectedSzeneId(szeneId)}
         bloecke={bloecke?.map((b: any) => ({
           block_nummer: b.block_nummer,
           folge_von: b.folge_von,

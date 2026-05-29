@@ -685,6 +685,8 @@ export const api = {
     regex?: boolean
     limit?: number
     offset?: number
+    include_frei?: boolean
+    include_private?: boolean
   }) => {
     const qs = new URLSearchParams()
     qs.set('query', params.query)
@@ -697,6 +699,8 @@ export const api = {
     if (params.regex) qs.set('regex', 'true')
     if (params.limit) qs.set('limit', String(params.limit))
     if (params.offset) qs.set('offset', String(params.offset))
+    if (params.include_frei) qs.set('include_frei', 'true')
+    if (params.include_private) qs.set('include_private', 'true')
     return request<{
       results: any[]
       total: number
@@ -706,6 +710,45 @@ export const api = {
       has_more: boolean
     }>('GET', `/search?${qs.toString()}`)
   },
+
+  searchEntityCheck: (params: { q: string; produktion_id: string }) => {
+    const qs = new URLSearchParams({ q: params.q, produktion_id: params.produktion_id })
+    return request<{ type: 'rolle' | 'motiv' | 'none'; matches: any[] }>('GET', `/search/entity-check?${qs.toString()}`)
+  },
+
+  searchSzenen: (params: {
+    produktion_id: string
+    scope?: string
+    scope_id?: string
+    werkstufe_typ?: string
+    rolle_ids?: string[]
+    motiv_ids?: string[]
+    rolle_names?: string[]
+    ia?: string
+    dt?: string
+    freitext?: string
+    include_frei?: boolean
+    include_private?: boolean
+  }) => {
+    const qs = new URLSearchParams({ produktion_id: params.produktion_id })
+    if (params.scope) qs.set('scope', params.scope)
+    if (params.scope_id) qs.set('scope_id', params.scope_id)
+    if (params.werkstufe_typ) qs.set('werkstufe_typ', params.werkstufe_typ)
+    if (params.rolle_ids?.length) qs.set('rolle_ids', params.rolle_ids.join(','))
+    if (params.motiv_ids?.length) qs.set('motiv_ids', params.motiv_ids.join(','))
+    if (params.rolle_names?.length) qs.set('rolle_names', params.rolle_names.join(','))
+    if (params.ia) qs.set('ia', params.ia)
+    if (params.dt) qs.set('dt', params.dt)
+    if (params.freitext) qs.set('freitext', params.freitext)
+    if (params.include_frei) qs.set('include_frei', 'true')
+    if (params.include_private) qs.set('include_private', 'true')
+    return request<{ szenen: any[]; total: number }>('GET', `/search/szenen?${qs.toString()}`)
+  },
+
+  replaceRollenname: (params: { old_name: string; new_name: string; produktion_id: string }) =>
+    request<{ characters_updated: number; scene_characters_updated: number; content_nodes_updated: number; total: number }>(
+      'POST', '/search/replace-rollenname', params
+    ),
 
   // ── Straenge (Story-Arcs) ──────────────────────────────────────────────────
   getStraenge: (produktionId: string) =>

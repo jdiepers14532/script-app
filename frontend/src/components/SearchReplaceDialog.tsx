@@ -1,21 +1,35 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, ChevronUp, ChevronDown, X, AlertTriangle, Lock } from 'lucide-react'
+import {
+  Search, X, AlertTriangle, Lock, ChevronUp, ChevronDown,
+  Plus, User, MapPin, Sun, Moon, Type, Check, SkipForward,
+  RefreshCw, ChevronRight, Layers,
+} from 'lucide-react'
 import { useTerminologie } from '../sw-ui/TerminologieContext'
 import { useAppSettings } from '../contexts'
-import type { SearchScope, SearchOptions } from '../hooks/useSearchReplace'
+import type {
+  SearchScope, SearchOptions, SearchResult, SceneCard, EntityChip,
+  EntityType, EntityMode, SearchMode, ReviewStatus,
+} from '../hooks/useSearchReplace'
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Props
+// ══════════════════════════════════════════════════════════════════════════════
 
 interface Props {
   open: boolean
   onClose: () => void
-  // Current context
+  // Context
   currentSzeneId?: string
   currentWerkstufenId?: string
   currentFolgeId?: number
   currentProduktionId?: string
   currentBlockNummer?: number
-  // All productions (Staffeln) for the dropdown
   productions?: { id: string; title: string; staffelnummer?: number; projektnummer?: string; is_active: boolean }[]
-  // Editor search (scope: szene)
+  bloecke?: { block_nummer: number; folge_von: number; folge_bis: number }[]
+  // Modus
+  searchMode: SearchMode
+  onSetSearchMode: (m: SearchMode) => void
+  // Editor (scope: szene)
   editorActiveIndex: number
   editorTotal: number
   onEditorSearch: (query: string, opts: SearchOptions) => void
@@ -23,80 +37,104 @@ interface Props {
   onFindPrev: () => void
   onReplaceCurrent: (replacement: string) => void
   onReplaceAllEditor: (replacement: string) => void
-  // Backend search (scope >= episode)
+  // Backend Text-Suche
   onBackendSearch: (params: {
-    query: string
-    scope: SearchScope
-    scopeId?: string
-    werkstufenTyp?: string
-    contentTypes?: string[]
-    options: SearchOptions
+    query: string; scope: SearchScope; scopeId?: string
+    werkstufenTyp?: string; contentTypes?: string[]; options: SearchOptions
+    includeFrei?: boolean; includePrivate?: boolean
   }) => void
   onBackendReplace: (params: {
-    query: string
-    replacement: string
-    scope: SearchScope
-    scopeId?: string
-    werkstufenTyp?: string
-    contentTypes?: string[]
-    options: SearchOptions
+    query: string; replacement: string; scope: SearchScope; scopeId?: string
+    werkstufenTyp?: string; contentTypes?: string[]; options: SearchOptions
     excludeIds?: string[]
   }) => Promise<{ replaced_count: number; skipped_locked: number } | null>
-  // Backend results
-  backendResults: any[]
+  // Backend Szenen-Suche
+  onSearchSzenen: (params: {
+    produktion_id: string; scope?: SearchScope; scopeId?: string
+    werkstufenTyp?: string; chips: EntityChip[]
+    includeFrei?: boolean; includePrivate?: boolean
+  }) => void
+  // Ergebnisse
+  backendResults: SearchResult[]
   backendTotal: number
   backendTotalScenes: number
   backendLockedCount: number
-  backendFallbackCount: number
+  backendFallbackCount: boolean
   backendLoading: boolean
   backendError: string | null
+  sceneResults: SceneCard[]
+  sceneTotal: number
+  // Entity
+  entityType: EntityType
+  entityMatches: any[]
+  entityMode: EntityMode
+  onCheckEntity: (q: string, produktionId: string) => void
+  onSetEntityMode: (m: EntityMode) => void
+  // Chips
+  chips: EntityChip[]
+  onAddChip: (chip: Omit<EntityChip, 'id'>) => void
+  onRemoveChip: (id: string) => void
+  onClearChips: () => void
+  // Accept/Reject
+  reviewStatus: ReviewStatus
+  reviewAccepted: number
+  reviewSkipped: number
+  onStartReview: () => void
+  onAcceptMatch: (match: SearchResult) => Promise<void>
+  onSkipMatch: (match: SearchResult) => void
+  onAcceptAll: () => Promise<void>
+  onFinishReview: () => void
+  onResetReview: () => void
+  // Rollenname-Ersetzen
+  rollennameMode: boolean
+  onReplaceRollenname: (old_name: string, new_name: string) => Promise<any>
   // Navigation
   onNavigateToScene: (szeneId: string, folgeId: number) => void
-  // Bloecke for block scope
-  bloecke?: { block_nummer: number; folge_von: number; folge_bis: number }[]
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Haupt-Komponente
+// ══════════════════════════════════════════════════════════════════════════════
 
 export default function SearchReplaceDialog({
   open, onClose,
-  currentSzeneId, currentWerkstufenId, currentFolgeId, currentProduktionId,
-  currentBlockNummer, productions,
+  currentSzeneId, currentWerkstufenId, currentFolgeId,
+  currentProduktionId, currentBlockNummer, productions, bloecke,
+  searchMode, onSetSearchMode,
   editorActiveIndex, editorTotal,
   onEditorSearch, onFindNext, onFindPrev, onReplaceCurrent, onReplaceAllEditor,
-  onBackendSearch, onBackendReplace,
+  onBackendSearch, onBackendReplace, onSearchSzenen,
   backendResults, backendTotal, backendTotalScenes, backendLockedCount,
   backendFallbackCount, backendLoading, backendError,
-  onNavigateToScene, bloecke,
+  sceneResults, sceneTotal,
+  entityType, entityMatches, entityMode, onCheckEntity, onSetEntityMode,
+  chips, onAddChip, onRemoveChip, onClearChips,
+  reviewStatus, reviewAccepted, reviewSkipped,
+  onStartReview, onAcceptMatch, onSkipMatch, onAcceptAll, onFinishReview, onResetReview,
+  rollennameMode, onReplaceRollenname,
+  onNavigateToScene,
 }: Props) {
   const { t } = useTerminologie()
   const { treatmentLabel } = useAppSettings()
   const inputRef = useRef<HTMLInputElement>(null)
-
-  const prodLabel = (p: { title: string; staffelnummer?: number; projektnummer?: string }) => {
-    const base = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
-    return p.projektnummer ? `${p.projektnummer} · ${base}` : base
-  }
+  const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent)
 
   const [query, setQuery] = useState('')
   const [replacement, setReplacement] = useState('')
-  const [scope, setScope] = useState<SearchScope>('block')
+  const [scope, setScope] = useState<SearchScope>('produktion')
   const [werkstufenTyp, setWerkstufenTyp] = useState('drehbuch')
   const [options, setOptions] = useState<SearchOptions>({
-    caseSensitive: false,
-    wholeWords: false,
-    regex: false,
+    caseSensitive: false, wholeWords: false, regex: false,
   })
   const [selectedBlock, setSelectedBlock] = useState<string | undefined>(undefined)
   const [selectedStaffel, setSelectedStaffel] = useState<string>(currentProduktionId || '')
-  const [showPreview, setShowPreview] = useState(false)
-  const [excludeIds, setExcludeIds] = useState<Set<string>>(new Set())
+  const [includeFrei, setIncludeFrei] = useState(false)
+  const [includePrivate, setIncludePrivate] = useState(false)
   const [replaceResult, setReplaceResult] = useState<{ replaced_count: number; skipped_locked: number } | null>(null)
-
-  // Auto-select current block when switching to block scope
-  useEffect(() => {
-    if (scope === 'block' && currentBlockNummer != null && !selectedBlock) {
-      setSelectedBlock(String(currentBlockNummer))
-    }
-  }, [scope, currentBlockNummer, selectedBlock])
+  const [rollennameResult, setRollennameResult] = useState<any>(null)
+  const [rollennameReplaceType, setRollennameReplaceType] = useState<'nur_rollennamen' | 'volltext'>('nur_rollennamen')
+  const [showChipAdder, setShowChipAdder] = useState<ChipType | null>(null)
+  const [chipInput, setChipInput] = useState('')
 
   // Sync selectedStaffel when production changes
   useEffect(() => {
@@ -105,31 +143,85 @@ export default function SearchReplaceDialog({
     }
   }, [currentProduktionId])
 
-  // Focus input on open
+  // Sync selectedBlock
+  useEffect(() => {
+    if (scope === 'block' && currentBlockNummer != null && !selectedBlock) {
+      setSelectedBlock(String(currentBlockNummer))
+    }
+  }, [scope, currentBlockNummer, selectedBlock])
+
+  // Focus on open
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 100)
       setReplaceResult(null)
+      setRollennameResult(null)
     }
   }, [open])
 
-  // Debounced search
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  // Entity-Check on query change
   useEffect(() => {
-    if (!open || !query) return
+    if (currentProduktionId && query.trim()) {
+      onCheckEntity(query.trim(), currentProduktionId)
+    }
+  }, [query, currentProduktionId])
+
+  // Suche auslösen (Debounce via useEffect)
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const triggerSearch = useCallback(() => {
     clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => {
-      if (scope === 'szene') {
-        onEditorSearch(query, options)
-      } else {
-        const eScope = scope === 'produktion' && selectedStaffel === 'alle' ? 'alle' as SearchScope : scope
-        const scopeId = getScopeId()
-        onBackendSearch({ query, scope: eScope, scopeId, werkstufenTyp, options })
+      const hasChips = chips.length > 0
+      const isEntitySzenen = entityType === 'rolle' || entityType === 'motiv'
+      const useSceneMode = (hasChips || (isEntitySzenen && entityMode === 'szenen')) && currentProduktionId
+
+      if (useSceneMode) {
+        const allChips = [...chips]
+        // Entity-Match als Chip hinzufügen (wenn noch kein Chip für diese Entity existiert)
+        if (isEntitySzenen && entityMode === 'szenen' && entityMatches.length > 0 && chips.length === 0) {
+          const match = entityMatches[0]
+          allChips.push({
+            id: 'auto',
+            type: entityType,
+            label: match.name,
+            value: match.name,
+            entityId: match.id,
+          })
+        }
+        onSearchSzenen({
+          produktion_id: currentProduktionId!,
+          scope: getEffectiveScope(),
+          scopeId: getScopeId(),
+          werkstufenTyp,
+          chips: allChips,
+          includeFrei,
+          includePrivate,
+        })
+      } else if (query.trim()) {
+        if (scope === 'szene') {
+          onEditorSearch(query, options)
+        } else {
+          onBackendSearch({
+            query,
+            scope: getEffectiveScope(),
+            scopeId: getScopeId(),
+            werkstufenTyp,
+            options,
+            includeFrei,
+            includePrivate,
+          })
+        }
       }
-    }, 300)
+    }, 350)
     return () => clearTimeout(searchTimerRef.current)
+  }, [query, scope, options, werkstufenTyp, selectedBlock, selectedStaffel, chips, entityType, entityMode, entityMatches, includeFrei, includePrivate])
+
+  useEffect(() => {
+    if (!open) return
+    if (!query.trim() && chips.length === 0) return
+    triggerSearch()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, scope, options, werkstufenTyp, selectedBlock, selectedStaffel])
+  }, [query, scope, options, werkstufenTyp, selectedBlock, selectedStaffel, chips, entityMode, includeFrei, includePrivate, open])
 
   const getScopeId = useCallback((): string | undefined => {
     switch (scope) {
@@ -141,10 +233,7 @@ export default function SearchReplaceDialog({
         if (!block) return undefined
         return `${currentProduktionId}:${block.folge_von}:${block.folge_bis}`
       }
-      case 'produktion': {
-        if (selectedStaffel === 'alle') return undefined
-        return selectedStaffel || currentProduktionId
-      }
+      case 'produktion': return selectedStaffel === 'alle' ? undefined : (selectedStaffel || currentProduktionId)
       case 'alle': return undefined
     }
   }, [scope, currentSzeneId, currentWerkstufenId, currentProduktionId, selectedBlock, bloecke, selectedStaffel])
@@ -152,134 +241,100 @@ export default function SearchReplaceDialog({
   const getEffectiveScope = (): SearchScope =>
     scope === 'produktion' && selectedStaffel === 'alle' ? 'alle' : scope
 
-  const handleReplace = async () => {
-    if (scope === 'szene') {
-      onReplaceCurrent(replacement)
-    } else {
-      if (!showPreview) {
-        setShowPreview(true)
-        return
-      }
-      const eScope = getEffectiveScope()
-      const result = await onBackendReplace({
-        query, replacement, scope: eScope,
-        scopeId: getScopeId(),
-        werkstufenTyp, options,
-        excludeIds: Array.from(excludeIds),
-      })
-      if (result) {
-        setReplaceResult(result)
-        onBackendSearch({
-          query, scope: eScope,
-          scopeId: getScopeId(),
-          werkstufenTyp, options,
-        })
-      }
-    }
+  const prodLabel = (p: { title: string; staffelnummer?: number; projektnummer?: string }) => {
+    const base = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
+    return p.projektnummer ? `${p.projektnummer} · ${base}` : base
   }
 
-  const handleReplaceAll = async () => {
-    if (scope === 'szene') {
-      onReplaceAllEditor(replacement)
-    } else {
-      const eScope = getEffectiveScope()
-      const result = await onBackendReplace({
-        query, replacement, scope: eScope,
-        scopeId: getScopeId(),
-        werkstufenTyp, options,
-        excludeIds: Array.from(excludeIds),
-      })
-      if (result) {
-        setReplaceResult(result)
-        onBackendSearch({
-          query, scope: eScope,
-          scopeId: getScopeId(),
-          werkstufenTyp, options,
-        })
-      }
-    }
-  }
+  // Aktuell dargestellte Szenen-/Snippet-Resultate
+  const isSceneMode = chips.length > 0 || (entityType !== 'none' && entityType !== 'loading' && entityMode === 'szenen')
+  const isSzeneScope = scope === 'szene'
+  const showWerkstufenSelector = scope === 'block' || scope === 'produktion'
+  const showFreiOptionen = (scope === 'produktion' || scope === 'alle') && !isSzeneScope
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      onClose()
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      if (scope === 'szene') onFindNext()
-    } else if (e.key === 'Enter' && e.shiftKey) {
-      e.preventDefault()
-      if (scope === 'szene') onFindPrev()
-    }
+    if (e.key === 'Escape') onClose()
+    if (e.key === 'Enter' && !e.shiftKey && isSzeneScope) { e.preventDefault(); onFindNext() }
+    if (e.key === 'Enter' && e.shiftKey && isSzeneScope) { e.preventDefault(); onFindPrev() }
   }
 
-  // Group results by folge_nummer
-  const groupedResults: Record<number, any[]> = {}
-  for (const r of backendResults) {
-    const key = r.folge_nummer
-    if (!groupedResults[key]) groupedResults[key] = []
-    groupedResults[key].push(r)
-  }
+  // Zeige Entity-Badge?
+  const showEntityBadge = query.trim().length >= 2 && entityType !== 'none' && entityType !== 'loading' && chips.length === 0
 
   if (!open) return null
 
-  const isSzeneScope = scope === 'szene'
-  const showWerkstufenSelector = scope === 'block' || scope === 'produktion'
-
-  // Scope buttons: szene, episode, block, staffel (with dropdown)
-  const scopeButtons: { key: SearchScope; label: string }[] = [
-    { key: 'szene', label: `Aktuelle ${t('szene')}` },
-    { key: 'episode', label: t('episode') },
-    { key: 'block', label: 'Block' },
-    { key: 'produktion', label: t('staffel') },
-  ]
-
   return (
-    <div style={{
-      position: 'fixed', top: 0, right: 0, bottom: 0,
-      width: 420, maxWidth: '100vw',
-      background: 'var(--bg-surface)',
-      borderLeft: '1px solid var(--border)',
-      boxShadow: '-4px 0 24px rgba(0,0,0,0.12)',
-      zIndex: 50,
-      display: 'flex', flexDirection: 'column',
-      fontSize: 13,
-    }} onKeyDown={handleKeyDown}>
-
-      {/* Header */}
+    <div
+      style={{
+        position: 'fixed', top: 0, right: 0, bottom: 0,
+        width: 440, maxWidth: '100vw',
+        background: 'var(--bg-surface)',
+        borderLeft: '1px solid var(--border)',
+        boxShadow: '-4px 0 24px rgba(0,0,0,0.15)',
+        zIndex: 50,
+        display: 'flex', flexDirection: 'column',
+        fontSize: 13,
+      }}
+      onKeyDown={handleKeyDown}
+    >
+      {/* ── Header ── */}
       <div style={{
-        padding: '16px 20px',
+        padding: '14px 20px 0',
         borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexShrink: 0,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14 }}>
-          <Search size={16} />
-          Suchen und Ersetzen
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, fontSize: 14 }}>
+            <Search size={15} />
+            Suchen & Ersetzen
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+              {isMac ? '⌘H' : 'Ctrl+H'}
+            </span>
+            <button onClick={onClose} style={iconBtnStyle}>
+              <X size={16} />
+            </button>
+          </div>
         </div>
-        <button onClick={onClose} style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          padding: 4, borderRadius: 4, color: 'var(--text-secondary)',
-        }}>
-          <X size={18} />
-        </button>
+        {/* Tab-Switch */}
+        <div style={{ display: 'flex', gap: 0, marginBottom: -1 }}>
+          {(['suchen', 'ersetzen'] as SearchMode[]).map(m => (
+            <button
+              key={m}
+              onClick={() => onSetSearchMode(m)}
+              style={{
+                padding: '7px 18px',
+                border: 'none',
+                borderBottom: searchMode === m ? '2px solid var(--text-primary)' : '2px solid transparent',
+                background: 'none',
+                fontWeight: searchMode === m ? 600 : 400,
+                fontSize: 13,
+                cursor: 'pointer',
+                color: searchMode === m ? 'var(--text-primary)' : 'var(--text-secondary)',
+                transition: 'color 0.15s',
+              }}
+            >
+              {m === 'suchen' ? 'Suchen' : 'Ersetzen'}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Content */}
+      {/* ── Scrollbarer Inhalt ── */}
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
 
-        {/* Search input */}
-        <div style={{ marginBottom: 12 }}>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-            Suchen
-          </label>
+        {/* Sucheingabe */}
+        <div style={{ marginBottom: 8 }}>
           <div style={{ position: 'relative' }}>
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder={`In ${t('szene', 'p')} suchen...`}
+              placeholder={chips.length > 0 ? 'Zusätzlicher Text...' : `In ${t('szene', 'p')} suchen...`}
               style={{
-                width: '100%', padding: '8px 12px', paddingRight: 80,
+                width: '100%', padding: '8px 12px', paddingRight: 100,
                 border: '1px solid var(--border)', borderRadius: 8,
                 background: 'var(--bg-surface)', color: 'var(--text-primary)',
                 fontSize: 13, outline: 'none', boxSizing: 'border-box',
@@ -290,41 +345,85 @@ export default function SearchReplaceDialog({
                 position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
                 fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap',
               }}>
-                {isSzeneScope
+                {entityType === 'loading' ? '...' : isSzeneScope
                   ? (editorTotal > 0 ? `${editorActiveIndex + 1} von ${editorTotal}` : 'Keine Treffer')
-                  : (backendLoading ? '...' : `${backendTotal} Treffer`)
+                  : (backendLoading ? '...' : isSceneMode
+                    ? (sceneTotal > 0 ? `${sceneTotal} Szenen` : '')
+                    : (backendTotal > 0 ? `${backendTotal} Treffer` : ''))
                 }
               </span>
             )}
           </div>
         </div>
 
-        {/* Replace input */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-            Ersetzen durch
-          </label>
-          <input
-            type="text"
-            value={replacement}
-            onChange={e => setReplacement(e.target.value)}
-            placeholder="Neuer Text..."
-            style={{
-              width: '100%', padding: '8px 12px',
-              border: '1px solid var(--border)', borderRadius: 8,
-              background: 'var(--bg-surface)', color: 'var(--text-primary)',
-              fontSize: 13, outline: 'none', boxSizing: 'border-box',
-            }}
+        {/* Entity-Badge */}
+        {showEntityBadge && (
+          <EntityBadge
+            type={entityType}
+            matches={entityMatches}
+            mode={entityMode}
+            searchMode={searchMode}
+            onSetMode={onSetEntityMode}
+            onAddChip={onAddChip}
+            query={query}
           />
-        </div>
+        )}
 
-        {/* Scope selector */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6, display: 'block' }}>
-            Ersetzen in
-          </label>
+        {/* Ersetzen-Feld */}
+        {searchMode === 'ersetzen' && (
+          <div style={{ marginBottom: 12 }}>
+            <input
+              type="text"
+              value={replacement}
+              onChange={e => setReplacement(e.target.value)}
+              placeholder="Ersetzen durch..."
+              style={{
+                width: '100%', padding: '8px 12px',
+                border: '1px solid var(--border)', borderRadius: 8,
+                background: 'var(--bg-surface)', color: 'var(--text-primary)',
+                fontSize: 13, outline: 'none', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        )}
+
+        {/* Rollenname-Ersetzen-Auswahl */}
+        {searchMode === 'ersetzen' && rollennameMode && (
+          <RollennameReplaceChoice
+            entityMatches={entityMatches}
+            replaceType={rollennameReplaceType}
+            onSetType={setRollennameReplaceType}
+          />
+        )}
+
+        {/* Chips */}
+        {chips.length > 0 && (
+          <ChipList chips={chips} onRemove={onRemoveChip} onClearAll={onClearChips} />
+        )}
+
+        {/* Chip-Adder */}
+        <ChipAdderBar
+          showAdder={showChipAdder}
+          onSetAdder={setShowChipAdder}
+          chipInput={chipInput}
+          onSetChipInput={setChipInput}
+          onAddChip={onAddChip}
+          currentProduktionId={currentProduktionId}
+          chips={chips}
+        />
+
+        {/* Scope */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 6 }}>
+            {searchMode === 'ersetzen' ? 'Ersetzen in' : 'Suchen in'}
+          </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {scopeButtons.map(({ key, label }) => (
+            {([
+              { key: 'szene', label: `Akt. ${t('szene')}` },
+              { key: 'episode', label: t('episode') },
+              { key: 'block', label: 'Block' },
+              { key: 'produktion', label: t('staffel') },
+            ] as { key: SearchScope; label: string }[]).map(({ key, label }) => (
               <button
                 key={key}
                 onClick={() => setScope(key)}
@@ -342,21 +441,12 @@ export default function SearchReplaceDialog({
           </div>
         </div>
 
-        {/* Staffel dropdown (when produktion scope is selected) */}
+        {/* Staffel-Dropdown */}
         {scope === 'produktion' && productions && productions.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-              {t('staffel')}
-            </label>
-            <select
-              value={selectedStaffel}
-              onChange={e => setSelectedStaffel(e.target.value)}
-              style={selectStyle}
-            >
+          <div style={{ marginBottom: 12 }}>
+            <select value={selectedStaffel} onChange={e => setSelectedStaffel(e.target.value)} style={selectStyle}>
               {productions.filter(p => p.is_active).map(p => (
-                <option key={p.id} value={p.id}>
-                  {prodLabel(p)}{p.id === currentProduktionId ? ' (aktuell)' : ''}
-                </option>
+                <option key={p.id} value={p.id}>{prodLabel(p)}{p.id === currentProduktionId ? ' (aktuell)' : ''}</option>
               ))}
               <option value="alle">Alle {t('staffel', 'p')}</option>
               {productions.some(p => !p.is_active) && (
@@ -370,18 +460,11 @@ export default function SearchReplaceDialog({
           </div>
         )}
 
-        {/* Block selector */}
+        {/* Block-Dropdown */}
         {scope === 'block' && bloecke && bloecke.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-              Block
-            </label>
-            <select
-              value={selectedBlock || ''}
-              onChange={e => setSelectedBlock(e.target.value || undefined)}
-              style={selectStyle}
-            >
-              <option value="">Block waehlen...</option>
+          <div style={{ marginBottom: 12 }}>
+            <select value={selectedBlock || ''} onChange={e => setSelectedBlock(e.target.value || undefined)} style={selectStyle}>
+              <option value="">Block wählen...</option>
               {bloecke.map(b => (
                 <option key={b.block_nummer} value={String(b.block_nummer)}>
                   Block {b.block_nummer} ({t('episode')} {b.folge_von}–{b.folge_bis})
@@ -391,18 +474,11 @@ export default function SearchReplaceDialog({
           </div>
         )}
 
-        {/* Werkstufen-Typ selector */}
+        {/* Werkstufe */}
         {showWerkstufenSelector && (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 4, display: 'block' }}>
-              Werkstufe
-            </label>
-            <select
-              value={werkstufenTyp}
-              onChange={e => setWerkstufenTyp(e.target.value)}
-              style={selectStyle}
-            >
-              <option value="drehbuch">Drehbuch</option>
+          <div style={{ marginBottom: 12 }}>
+            <select value={werkstufenTyp} onChange={e => setWerkstufenTyp(e.target.value)} style={selectStyle}>
+              <option value="drehbuch">Drehbuch (empfohlen)</option>
               <option value="treatment">{treatmentLabel}</option>
               <option value="storyline">Beschreibung</option>
               <option value="notiz">Notiz</option>
@@ -410,12 +486,28 @@ export default function SearchReplaceDialog({
           </div>
         )}
 
-        {/* Options */}
-        <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Freie Dokumente */}
+        {showFreiOptionen && (
+          <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
+              <input type="checkbox" checked={includeFrei} onChange={e => { setIncludeFrei(e.target.checked); if (!e.target.checked) setIncludePrivate(false) }} style={{ accentColor: '#007AFF' }} />
+              Freie Dokumente einschließen
+            </label>
+            {includeFrei && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, paddingLeft: 24 }}>
+                <input type="checkbox" checked={includePrivate} onChange={e => setIncludePrivate(e.target.checked)} style={{ accentColor: '#007AFF' }} />
+                Auch private einschließen
+              </label>
+            )}
+          </div>
+        )}
+
+        {/* Optionen */}
+        <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
           {[
-            { key: 'caseSensitive' as const, label: 'Gross-/Kleinschreibung beachten' },
-            { key: 'wholeWords' as const, label: 'Nur ganze Woerter' },
-            { key: 'regex' as const, label: 'Regulaere Ausdruecke' },
+            { key: 'caseSensitive' as const, label: 'Groß-/Kleinschreibung beachten' },
+            { key: 'wholeWords' as const, label: 'Nur ganze Wörter' },
+            { key: 'regex' as const, label: 'Reguläre Ausdrücke' },
           ].map(({ key, label }) => (
             <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12 }}>
               <input
@@ -429,112 +521,182 @@ export default function SearchReplaceDialog({
           ))}
         </div>
 
-        {/* Error */}
+        {/* Fehler */}
         {backendError && (
           <div style={{
             padding: '8px 12px', borderRadius: 8, marginBottom: 12,
-            background: '#FF3B3022', border: '1px solid #FF3B3055',
+            background: '#FF3B3018', border: '1px solid #FF3B3040',
             color: '#FF3B30', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6,
           }}>
-            <AlertTriangle size={14} />
-            {backendError}
+            <AlertTriangle size={13} /> {backendError}
           </div>
         )}
 
-        {/* Replace result */}
+        {/* Rollenname-Ergebnis */}
+        {rollennameResult && (
+          <div style={{
+            padding: '8px 12px', borderRadius: 8, marginBottom: 12,
+            background: '#00C85318', border: '1px solid #00C85340',
+            fontSize: 12, color: '#00C853',
+          }}>
+            Rollenname ersetzt: {rollennameResult.total} Stellen
+            ({rollennameResult.characters_updated} Charakter, {rollennameResult.scene_characters_updated} Szenen-Besetzung,
+            {rollennameResult.content_nodes_updated} Dialog-Köpfe)
+          </div>
+        )}
+
+        {/* Ergebnis-Meldung */}
         {replaceResult && (
           <div style={{
             padding: '8px 12px', borderRadius: 8, marginBottom: 12,
-            background: '#00C85322', border: '1px solid #00C85355',
+            background: '#00C85318', border: '1px solid #00C85340',
             color: '#00C853', fontSize: 12,
           }}>
-            {replaceResult.replaced_count} Ersetzungen durchgefuehrt.
+            {replaceResult.replaced_count} Ersetzungen durchgeführt.
             {replaceResult.skipped_locked > 0 && (
-              <span style={{ color: '#FF9500' }}>
-                {' '}{replaceResult.skipped_locked} {t('szene', replaceResult.skipped_locked === 1 ? 's' : 'p')} waren gesperrt.
-              </span>
+              <span style={{ color: '#FF9500' }}> {replaceResult.skipped_locked} Szenen waren gesperrt.</span>
             )}
           </div>
         )}
 
-        {/* Backend results (grouped by episode) */}
-        {!isSzeneScope && backendResults.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            <div style={{
-              fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8,
-              display: 'flex', justifyContent: 'space-between',
-            }}>
-              <span>{backendTotal} Treffer in {backendTotalScenes} {t('szene', 'p')}</span>
-              {backendLockedCount > 0 && (
-                <span style={{ color: '#FF9500' }}>
-                  <Lock size={11} style={{ verticalAlign: -1 }} /> {backendLockedCount} gesperrt
-                </span>
-              )}
-            </div>
+        {/* Review-Status */}
+        {reviewStatus !== 'idle' && (
+          <ReviewStatusBar
+            status={reviewStatus}
+            accepted={reviewAccepted}
+            skipped={reviewSkipped}
+            remaining={backendTotal}
+            onAcceptAll={onAcceptAll}
+            onFinish={onFinishReview}
+            onReset={onResetReview}
+          />
+        )}
 
-            {Object.entries(groupedResults)
-              .sort(([a], [b]) => parseInt(a) - parseInt(b))
-              .map(([folgeNr, scenes]) => (
-                <ResultGroup
-                  key={folgeNr}
-                  folgeNummer={parseInt(folgeNr)}
-                  scenes={scenes}
-                  query={query}
-                  episodeLabel={t('episode')}
-                  szeneLabel={t('szene')}
-                  onNavigate={onNavigateToScene}
-                  showPreview={showPreview}
-                  excludeIds={excludeIds}
-                  onToggleExclude={(id) => {
-                    setExcludeIds(prev => {
-                      const next = new Set(prev)
-                      if (next.has(id)) next.delete(id)
-                      else next.add(id)
-                      return next
-                    })
-                  }}
-                />
-              ))
-            }
-          </div>
+        {/* ── ERGEBNISSE ── */}
+        {!isSzeneScope && (
+          <>
+            {isSceneMode ? (
+              <SceneCardResults
+                scenes={sceneResults}
+                total={sceneTotal}
+                onNavigate={onNavigateToScene}
+                episodeLabel={t('episode')}
+                szeneLabel={t('szene')}
+              />
+            ) : (
+              <SnippetResults
+                results={backendResults}
+                total={backendTotal}
+                totalScenes={backendTotalScenes}
+                lockedCount={backendLockedCount}
+                loading={backendLoading}
+                query={query}
+                searchMode={searchMode}
+                reviewStatus={reviewStatus}
+                episodeLabel={t('episode')}
+                szeneLabel={t('szene')}
+                onNavigate={onNavigateToScene}
+                onAcceptMatch={onAcceptMatch}
+                onSkipMatch={onSkipMatch}
+              />
+            )}
+          </>
         )}
       </div>
 
-      {/* Footer buttons */}
+      {/* ── Footer ── */}
       <div style={{
         padding: '12px 20px',
         borderTop: '1px solid var(--border)',
-        display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center',
+        display: 'flex', gap: 8, alignItems: 'center',
+        flexShrink: 0,
       }}>
-        {isSzeneScope && (
+        {isSzeneScope && searchMode === 'suchen' && (
           <>
-            <button onClick={onFindPrev} disabled={editorTotal === 0} style={navBtnStyle}>
-              <ChevronUp size={14} />
-            </button>
-            <button onClick={onFindNext} disabled={editorTotal === 0} style={navBtnStyle}>
-              <ChevronDown size={14} />
-            </button>
-            <button onClick={() => handleReplace()} disabled={editorTotal === 0}
-              style={{ ...actionBtnStyle, background: 'var(--bg-surface)' }}>
+            <button onClick={onFindPrev} disabled={editorTotal === 0} style={navBtnStyle}><ChevronUp size={14} /></button>
+            <button onClick={onFindNext} disabled={editorTotal === 0} style={navBtnStyle}><ChevronDown size={14} /></button>
+          </>
+        )}
+
+        {isSzeneScope && searchMode === 'ersetzen' && (
+          <>
+            <button onClick={onFindPrev} disabled={editorTotal === 0} style={navBtnStyle}><ChevronUp size={14} /></button>
+            <button onClick={onFindNext} disabled={editorTotal === 0} style={navBtnStyle}><ChevronDown size={14} /></button>
+            <button onClick={() => onReplaceCurrent(replacement)} disabled={editorTotal === 0} style={secBtnStyle}>
               Ersetzen
             </button>
-            <button onClick={() => handleReplaceAll()} disabled={editorTotal === 0}
-              style={primaryBtnStyle}>
+            <button onClick={() => onReplaceAllEditor(replacement)} disabled={editorTotal === 0} style={primBtnStyle}>
               Alle ersetzen
             </button>
           </>
         )}
-        {!isSzeneScope && (
+
+        {!isSzeneScope && searchMode === 'suchen' && (
           <>
             <span style={{ flex: 1 }} />
-            {showPreview && backendResults.length > 0 && (
-              <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                {backendResults.length - excludeIds.size} ausgewaehlt
-              </span>
+            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              {isSceneMode
+                ? (sceneTotal > 0 ? `${sceneTotal} ${t('szene', 'p')}` : '')
+                : (backendTotal > 0 ? `${backendTotal} Treffer in ${backendTotalScenes} ${t('szene', 'p')}` : '')
+              }
+            </span>
+          </>
+        )}
+
+        {!isSzeneScope && searchMode === 'ersetzen' && rollennameMode && (
+          <RollennameReplaceFooter
+            query={query}
+            replacement={replacement}
+            replaceType={rollennameReplaceType}
+            loading={backendLoading}
+            onReplace={async () => {
+              if (rollennameReplaceType === 'nur_rollennamen' && currentProduktionId) {
+                const res = await onReplaceRollenname(query, replacement)
+                setRollennameResult(res)
+              } else {
+                const res = await onBackendReplace({
+                  query, replacement,
+                  scope: getEffectiveScope(),
+                  scopeId: getScopeId(),
+                  werkstufenTyp, options,
+                })
+                if (res) setReplaceResult(res)
+              }
+            }}
+          />
+        )}
+
+        {!isSzeneScope && searchMode === 'ersetzen' && !rollennameMode && reviewStatus === 'idle' && (
+          <>
+            <span style={{ flex: 1 }} />
+            {backendTotal > 0 && (
+              <button onClick={onStartReview} disabled={backendLoading} style={secBtnStyle}>
+                Einzeln prüfen
+              </button>
             )}
-            <button onClick={() => handleReplaceAll()} disabled={backendTotal === 0 || backendLoading}
-              style={primaryBtnStyle}>
-              {backendLoading ? 'Wird ersetzt...' : 'Alle ersetzen'}
+            <button
+              onClick={async () => {
+                const res = await onBackendReplace({
+                  query, replacement,
+                  scope: getEffectiveScope(), scopeId: getScopeId(),
+                  werkstufenTyp, options,
+                })
+                if (res) setReplaceResult(res)
+              }}
+              disabled={backendTotal === 0 || backendLoading}
+              style={primBtnStyle}
+            >
+              {backendLoading ? 'Lädt...' : 'Alle ersetzen'}
+            </button>
+          </>
+        )}
+
+        {!isSzeneScope && searchMode === 'ersetzen' && !rollennameMode && reviewStatus === 'reviewing' && (
+          <>
+            <span style={{ flex: 1 }} />
+            <button onClick={onResetReview} style={secBtnStyle}>Abbrechen</button>
+            <button onClick={onAcceptAll} disabled={backendLoading} style={primBtnStyle}>
+              Alle restlichen annehmen
             </button>
           </>
         )}
@@ -543,88 +705,540 @@ export default function SearchReplaceDialog({
   )
 }
 
-// ── Result group (per episode) ─────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// Entity-Badge
+// ══════════════════════════════════════════════════════════════════════════════
 
-function ResultGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel, onNavigate, showPreview, excludeIds, onToggleExclude }: {
-  folgeNummer: number
-  scenes: any[]
+function EntityBadge({ type, matches, mode, searchMode, onSetMode, onAddChip, query }: {
+  type: EntityType; matches: any[]; mode: EntityMode; searchMode: SearchMode
+  onSetMode: (m: EntityMode) => void
+  onAddChip: (chip: Omit<EntityChip, 'id'>) => void
   query: string
-  episodeLabel: string
-  szeneLabel: string
-  onNavigate: (szeneId: string, folgeId: number) => void
-  showPreview: boolean
-  excludeIds: Set<string>
-  onToggleExclude: (id: string) => void
 }) {
-  const [expanded, setExpanded] = useState(true)
+  const isRolle = type === 'rolle'
+  const color = isRolle ? '#007AFF' : '#00C853'
+  const icon = isRolle ? <User size={12} /> : <MapPin size={12} />
+  const label = isRolle ? 'Rollenname erkannt' : 'Motiv erkannt'
+  const match = matches[0]
 
   return (
-    <div style={{ marginBottom: 8 }}>
+    <div style={{
+      marginBottom: 10, padding: '8px 12px', borderRadius: 8,
+      background: color + '10', border: `1px solid ${color}30`,
+      fontSize: 12,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, color }}>
+        {icon}
+        <strong>{label}: {match?.name || query}</strong>
+        {match?.rollen_nummer && <span style={{ color: 'var(--text-secondary)', fontWeight: 400 }}>Nr. {match.rollen_nummer}</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button
+          onClick={() => onSetMode('szenen')}
+          style={{
+            ...modeBtnStyle,
+            border: mode === 'szenen' ? `1px solid ${color}` : '1px solid var(--border)',
+            color: mode === 'szenen' ? color : 'var(--text-secondary)',
+            background: mode === 'szenen' ? color + '15' : 'var(--bg-surface)',
+          }}
+        >
+          Szenen anzeigen
+        </button>
+        <button
+          onClick={() => onSetMode('text')}
+          style={{
+            ...modeBtnStyle,
+            border: mode === 'text' ? `1px solid ${color}` : '1px solid var(--border)',
+            color: mode === 'text' ? color : 'var(--text-secondary)',
+            background: mode === 'text' ? color + '15' : 'var(--bg-surface)',
+          }}
+        >
+          Text suchen
+        </button>
+        {match && (
+          <button
+            onClick={() => onAddChip({ type: type as 'rolle' | 'motiv', label: match.name, value: match.name, entityId: match.id })}
+            style={{ ...modeBtnStyle, marginLeft: 'auto', color: color }}
+          >
+            <Plus size={11} /> Als Filter
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Chip-Liste
+// ══════════════════════════════════════════════════════════════════════════════
+
+const CHIP_COLORS: Record<string, string> = {
+  rolle: '#007AFF', motiv: '#00C853', ia: '#FF9500', dt: '#AF52DE', text: '#757575',
+}
+const CHIP_ICONS: Record<string, React.ReactNode> = {
+  rolle: <User size={10} />, motiv: <MapPin size={10} />,
+  ia: <Layers size={10} />, dt: <Sun size={10} />, text: <Type size={10} />,
+}
+
+function ChipList({ chips, onRemove, onClearAll }: {
+  chips: EntityChip[]; onRemove: (id: string) => void; onClearAll: () => void
+}) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+        {chips.map(chip => {
+          const color = CHIP_COLORS[chip.type] || '#757575'
+          return (
+            <span key={chip.id} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4,
+              padding: '3px 8px 3px 6px', borderRadius: 99,
+              background: color + '18', border: `1px solid ${color}50`,
+              color, fontSize: 11, fontWeight: 500,
+            }}>
+              {CHIP_ICONS[chip.type]}
+              {chip.label}
+              <button onClick={() => onRemove(chip.id)} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color, padding: 0, lineHeight: 1, marginLeft: 2,
+              }}><X size={10} /></button>
+            </span>
+          )
+        })}
+        {chips.length > 1 && (
+          <button onClick={onClearAll} style={{ fontSize: 11, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px' }}>
+            Alle löschen
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Chip-Adder
+// ══════════════════════════════════════════════════════════════════════════════
+
+type ChipType = 'rolle' | 'motiv' | 'ia' | 'dt' | 'text'
+
+const IA_OPTIONS = [
+  { label: 'Innen', value: 'innen' },
+  { label: 'Außen', value: 'aussen' },
+]
+const DT_OPTIONS = [
+  { label: 'Tag', value: 'tag' },
+  { label: 'Nacht', value: 'nacht' },
+]
+
+function ChipAdderBar({ showAdder, onSetAdder, chipInput, onSetChipInput, onAddChip, currentProduktionId, chips }: {
+  showAdder: ChipType | null
+  onSetAdder: (t: ChipType | null) => void
+  chipInput: string
+  onSetChipInput: (s: string) => void
+  onAddChip: (chip: Omit<EntityChip, 'id'>) => void
+  currentProduktionId?: string
+  chips: EntityChip[]
+}) {
+  const hasIA = chips.some(c => c.type === 'ia')
+  const hasDT = chips.some(c => c.type === 'dt')
+
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {([
+          { type: 'rolle' as ChipType, icon: <User size={10} />, label: '+ Rolle' },
+          { type: 'motiv' as ChipType, icon: <MapPin size={10} />, label: '+ Motiv' },
+          { type: 'ia' as ChipType, icon: <Layers size={10} />, label: '+ I/A', disabled: hasIA },
+          { type: 'dt' as ChipType, icon: <Sun size={10} />, label: '+ T/N', disabled: hasDT },
+        ]).map(({ type, icon, label, disabled }) => (
+          <button
+            key={type}
+            onClick={() => onSetAdder(showAdder === type ? null : type)}
+            disabled={disabled}
+            style={{
+              padding: '3px 8px', borderRadius: 6, fontSize: 11,
+              border: `1px solid ${showAdder === type ? CHIP_COLORS[type] : 'var(--border)'}`,
+              background: showAdder === type ? CHIP_COLORS[type] + '15' : 'var(--bg-surface)',
+              color: showAdder === type ? CHIP_COLORS[type] : 'var(--text-secondary)',
+              cursor: disabled ? 'not-allowed' : 'pointer',
+              opacity: disabled ? 0.4 : 1,
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            {icon}{label}
+          </button>
+        ))}
+      </div>
+
+      {showAdder === 'ia' && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+          {IA_OPTIONS.map(o => (
+            <button key={o.value} onClick={() => { onAddChip({ type: 'ia', label: o.label, value: o.value }); onSetAdder(null) }}
+              style={{ ...secBtnStyle, fontSize: 11 }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {showAdder === 'dt' && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+          {DT_OPTIONS.map(o => (
+            <button key={o.value} onClick={() => { onAddChip({ type: 'dt', label: o.label, value: o.value }); onSetAdder(null) }}
+              style={{ ...secBtnStyle, fontSize: 11 }}>
+              {o.label === 'Tag' ? <><Sun size={11} /> Tag</> : <><Moon size={11} /> Nacht</>}
+            </button>
+          ))}
+        </div>
+      )}
+      {(showAdder === 'rolle' || showAdder === 'motiv') && (
+        <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+          <input
+            autoFocus
+            type="text"
+            value={chipInput}
+            onChange={e => onSetChipInput(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && chipInput.trim()) {
+                onAddChip({ type: showAdder, label: chipInput.trim(), value: chipInput.trim() })
+                onSetChipInput('')
+                onSetAdder(null)
+              }
+              if (e.key === 'Escape') onSetAdder(null)
+            }}
+            placeholder={showAdder === 'rolle' ? 'Rollenname...' : 'Motiv-Name...'}
+            style={{
+              flex: 1, padding: '6px 10px', borderRadius: 6, fontSize: 12,
+              border: '1px solid var(--border)', background: 'var(--bg-surface)',
+              color: 'var(--text-primary)', outline: 'none',
+            }}
+          />
+          <button
+            onClick={() => {
+              if (chipInput.trim()) {
+                onAddChip({ type: showAdder, label: chipInput.trim(), value: chipInput.trim() })
+                onSetChipInput('')
+                onSetAdder(null)
+              }
+            }}
+            style={{ ...primBtnStyle, fontSize: 12 }}
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Rollenname-Ersetzen-Auswahl
+// ══════════════════════════════════════════════════════════════════════════════
+
+function RollennameReplaceChoice({ entityMatches, replaceType, onSetType }: {
+  entityMatches: any[]
+  replaceType: 'nur_rollennamen' | 'volltext'
+  onSetType: (t: 'nur_rollennamen' | 'volltext') => void
+}) {
+  const match = entityMatches[0]
+  return (
+    <div style={{
+      marginBottom: 12, padding: '10px 12px', borderRadius: 8,
+      background: '#007AFF10', border: '1px solid #007AFF30',
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#007AFF', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <User size={13} />
+        Rollenname erkannt{match ? `: ${match.name}` : ''}
+      </div>
+      {[
+        {
+          value: 'nur_rollennamen' as const,
+          label: 'Nur Rollennamen-Elemente',
+          desc: 'Ersetzt den Dialogkopf, Szenen-Besetzungsliste und die Charakterdatenbank. Fließtext im Dialog bleibt unberührt.',
+        },
+        {
+          value: 'volltext' as const,
+          label: 'Gesamten Text durchsuchen',
+          desc: `Ersetzt alle Text-Vorkommen (inkl. Dialog). Kann tausende Treffer ergeben.`,
+        },
+      ].map(opt => (
+        <label key={opt.value} style={{
+          display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer',
+          marginBottom: 6, fontSize: 12,
+        }}>
+          <input
+            type="radio"
+            checked={replaceType === opt.value}
+            onChange={() => onSetType(opt.value)}
+            style={{ marginTop: 2, accentColor: '#007AFF' }}
+          />
+          <div>
+            <div style={{ fontWeight: 500 }}>{opt.label}</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: 11 }}>{opt.desc}</div>
+          </div>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function RollennameReplaceFooter({ query, replacement, replaceType, loading, onReplace }: {
+  query: string; replacement: string; replaceType: 'nur_rollennamen' | 'volltext'
+  loading: boolean; onReplace: () => Promise<void>
+}) {
+  return (
+    <>
+      <span style={{ flex: 1 }} />
       <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 6,
-          padding: '6px 8px', borderRadius: 6, border: 'none',
-          background: 'var(--bg-subtle)', cursor: 'pointer',
-          fontSize: 12, fontWeight: 600, color: 'var(--text-primary)',
-        }}
+        onClick={onReplace}
+        disabled={loading || !replacement.trim()}
+        style={primBtnStyle}
       >
+        {loading ? 'Wird ersetzt...' : replaceType === 'nur_rollennamen' ? 'Rollenname ersetzen' : 'Alle ersetzen'}
+      </button>
+    </>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Review-Status-Bar
+// ══════════════════════════════════════════════════════════════════════════════
+
+function ReviewStatusBar({ status, accepted, skipped, remaining, onAcceptAll, onFinish, onReset }: {
+  status: ReviewStatus; accepted: number; skipped: number; remaining: number
+  onAcceptAll: () => Promise<void>; onFinish: () => void; onReset: () => void
+}) {
+  const total = accepted + skipped + remaining
+  return (
+    <div style={{
+      marginBottom: 12, padding: '10px 12px', borderRadius: 8,
+      background: 'var(--bg-subtle)', border: '1px solid var(--border)', fontSize: 12,
+    }}>
+      {status === 'reviewing' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <RefreshCw size={12} style={{ color: '#007AFF' }} />
+            <strong>Einzel-Prüfung aktiv</strong>
+            <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: 11 }}>
+              {accepted + skipped} von {total} bearbeitet
+            </span>
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+            <span style={{ color: '#00C853' }}>✓ {accepted} angenommen</span>
+            {' · '}
+            <span style={{ color: '#FF9500' }}>{skipped} übersprungen</span>
+            {' · '}
+            <span>{remaining} verbleibend</span>
+          </div>
+        </>
+      )}
+      {status === 'done' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Check size={12} style={{ color: '#00C853' }} />
+          <strong style={{ color: '#00C853' }}>Abgeschlossen:</strong>
+          <span>{accepted} ersetzt · {skipped} übersprungen</span>
+          <button onClick={onReset} style={{ marginLeft: 'auto', ...secBtnStyle, fontSize: 11 }}>Neu starten</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Snippet-Ergebnisse (Text-Suche)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function SnippetResults({ results, total, totalScenes, lockedCount, loading, query,
+  searchMode, reviewStatus, episodeLabel, szeneLabel, onNavigate, onAcceptMatch, onSkipMatch }: {
+  results: SearchResult[]; total: number; totalScenes: number; lockedCount: number
+  loading: boolean; query: string; searchMode: SearchMode; reviewStatus: ReviewStatus
+  episodeLabel: string; szeneLabel: string
+  onNavigate: (szeneId: string, folgeId: number) => void
+  onAcceptMatch: (m: SearchResult) => Promise<void>
+  onSkipMatch: (m: SearchResult) => void
+}) {
+  if (loading && results.length === 0) {
+    return <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '16px 0', textAlign: 'center' }}>Suche läuft...</div>
+  }
+  if (!loading && results.length === 0 && query) {
+    return <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '16px 0', textAlign: 'center' }}>Keine Treffer</div>
+  }
+  if (results.length === 0) return null
+
+  // Gruppieren nach Folge
+  const grouped: Record<number, SearchResult[]> = {}
+  for (const r of results) {
+    if (!grouped[r.folge_nummer]) grouped[r.folge_nummer] = []
+    grouped[r.folge_nummer].push(r)
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+        <span>{total} Treffer in {totalScenes} {szeneLabel}n</span>
+        {lockedCount > 0 && <span style={{ color: '#FF9500' }}><Lock size={10} style={{ verticalAlign: -1 }} /> {lockedCount} gesperrt</span>}
+      </div>
+      {Object.entries(grouped).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([folgeNr, scenes]) => (
+        <SnippetGroup
+          key={folgeNr}
+          folgeNummer={parseInt(folgeNr)}
+          scenes={scenes}
+          query={query}
+          episodeLabel={episodeLabel}
+          szeneLabel={szeneLabel}
+          searchMode={searchMode}
+          reviewStatus={reviewStatus}
+          onNavigate={onNavigate}
+          onAccept={onAcceptMatch}
+          onSkip={onSkipMatch}
+        />
+      ))}
+    </div>
+  )
+}
+
+function SnippetGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel,
+  searchMode, reviewStatus, onNavigate, onAccept, onSkip }: {
+  folgeNummer: number; scenes: SearchResult[]; query: string
+  episodeLabel: string; szeneLabel: string; searchMode: SearchMode; reviewStatus: ReviewStatus
+  onNavigate: (szeneId: string, folgeId: number) => void
+  onAccept: (m: SearchResult) => Promise<void>; onSkip: (m: SearchResult) => void
+}) {
+  const [expanded, setExpanded] = useState(true)
+  const [accepting, setAccepting] = useState<string | null>(null)
+  const showReviewButtons = searchMode === 'ersetzen' && reviewStatus === 'reviewing'
+
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <button onClick={() => setExpanded(!expanded)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+        padding: '5px 8px', borderRadius: 6, border: 'none',
+        background: 'var(--bg-subtle)', cursor: 'pointer',
+        fontSize: 12, fontWeight: 600, color: 'var(--text-primary)',
+      }}>
         <span style={{ fontSize: 10 }}>{expanded ? '▼' : '▶'}</span>
         {episodeLabel} {folgeNummer}
-        <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+        <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 'auto', fontSize: 11 }}>
           {scenes.length} Treffer
         </span>
       </button>
       {expanded && (
-        <div style={{ paddingLeft: 12, marginTop: 4 }}>
-          {scenes.map((scene, i) => (
-            <div
-              key={`${scene.dokument_szene_id}-${i}`}
-              style={{
+        <div style={{ paddingLeft: 8, marginTop: 3 }}>
+          {scenes.map((scene, i) => {
+            const key = `${scene.dokument_szene_id}-${i}`
+            const isAccepting = accepting === key
+            return (
+              <div key={key} style={{
                 padding: '6px 8px', borderRadius: 6, marginBottom: 2,
-                cursor: scene.is_locked ? 'default' : 'pointer',
+                cursor: scene.is_locked || showReviewButtons ? 'default' : 'pointer',
                 opacity: scene.is_locked ? 0.5 : 1,
                 fontSize: 12,
-                display: 'flex', alignItems: 'flex-start', gap: 6,
+                border: '1px solid transparent',
+                transition: 'background 0.1s',
               }}
-              onClick={() => !scene.is_locked && onNavigate(scene.dokument_szene_id, scene.folge_id)}
-            >
-              {showPreview && (
-                <input
-                  type="checkbox"
-                  checked={!excludeIds.has(scene.dokument_szene_id) && !scene.is_locked}
-                  disabled={scene.is_locked}
-                  onChange={() => onToggleExclude(scene.dokument_szene_id)}
-                  onClick={e => e.stopPropagation()}
-                  style={{ marginTop: 2, accentColor: '#007AFF' }}
-                />
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
+                onClick={() => !scene.is_locked && !showReviewButtons && onNavigate(scene.dokument_szene_id, scene.folge_id)}
+                onMouseEnter={e => { if (!showReviewButtons) (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)' }}
+                onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+              >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                  {scene.is_locked && <Lock size={11} style={{ color: '#FF9500' }} />}
-                  <span style={{ fontWeight: 500 }}>
-                    {szeneLabel} {scene.scene_nummer}
-                  </span>
-                  {scene.ort_name && (
-                    <span style={{ color: 'var(--text-secondary)' }}>({scene.ort_name})</span>
-                  )}
+                  {scene.is_locked && <Lock size={10} style={{ color: '#FF9500' }} />}
+                  <span style={{ fontWeight: 500 }}>{szeneLabel} {scene.scene_nummer}</span>
+                  {scene.ort_name && <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>({scene.ort_name})</span>}
                   <span style={{
-                    marginLeft: 'auto', fontSize: 10, padding: '1px 6px',
-                    borderRadius: 4, fontWeight: 500,
-                    background: scene.is_fallback ? '#FF950022' : 'var(--bg-subtle)',
+                    marginLeft: 'auto', fontSize: 10, padding: '1px 5px', borderRadius: 4,
+                    background: scene.is_fallback ? '#FF950018' : 'var(--bg-subtle)',
                     color: scene.is_fallback ? '#FF9500' : 'var(--text-secondary)',
                   }}>
                     [{scene.werkstufe_typ}{scene.is_fallback ? ' ↑' : ''}]
                   </span>
                 </div>
-                <div style={{
-                  fontSize: 11, color: 'var(--text-secondary)',
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {highlightSnippet(scene.snippet, query)}
                 </div>
+                {showReviewButtons && !scene.is_locked && (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                    <button
+                      onClick={async e => { e.stopPropagation(); setAccepting(key); onNavigate(scene.dokument_szene_id, scene.folge_id); await onAccept(scene); setAccepting(null) }}
+                      disabled={isAccepting}
+                      style={{ ...primBtnStyle, fontSize: 11, padding: '3px 10px', flex: 1 }}
+                    >
+                      <Check size={11} /> {isAccepting ? '...' : 'Annehmen'}
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); onSkip(scene) }}
+                      style={{ ...secBtnStyle, fontSize: 11, padding: '3px 10px', flex: 1 }}
+                    >
+                      <SkipForward size={11} /> Überspringen
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Szenen-Karten-Ergebnisse (Entity/Kombi-Modus)
+// ══════════════════════════════════════════════════════════════════════════════
+
+function SceneCardResults({ scenes, total, onNavigate, episodeLabel, szeneLabel }: {
+  scenes: SceneCard[]; total: number
+  onNavigate: (szeneId: string, folgeId: number) => void
+  episodeLabel: string; szeneLabel: string
+}) {
+  if (scenes.length === 0) return null
+
+  // Gruppieren nach Folge
+  const grouped: Record<number, SceneCard[]> = {}
+  for (const s of scenes) {
+    if (!grouped[s.folge_nummer]) grouped[s.folge_nummer] = []
+    grouped[s.folge_nummer].push(s)
+  }
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+        {total} {szeneLabel}n in {Object.keys(grouped).length} {episodeLabel}n
+      </div>
+      {Object.entries(grouped).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([folgeNr, scs]) => (
+        <SceneGroup key={folgeNr} folgeNummer={parseInt(folgeNr)} scenes={scs} onNavigate={onNavigate} episodeLabel={episodeLabel} szeneLabel={szeneLabel} />
+      ))}
+    </div>
+  )
+}
+
+function SceneGroup({ folgeNummer, scenes, onNavigate, episodeLabel, szeneLabel }: {
+  folgeNummer: number; scenes: SceneCard[]
+  onNavigate: (szeneId: string, folgeId: number) => void
+  episodeLabel: string; szeneLabel: string
+}) {
+  const [expanded, setExpanded] = useState(true)
+
+  return (
+    <div style={{ marginBottom: 8 }}>
+      <button onClick={() => setExpanded(!expanded)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 6,
+        padding: '5px 8px', borderRadius: 6, border: 'none',
+        background: 'var(--bg-subtle)', cursor: 'pointer',
+        fontSize: 12, fontWeight: 600, color: 'var(--text-primary)',
+      }}>
+        <span style={{ fontSize: 10 }}>{expanded ? '▼' : '▶'}</span>
+        {episodeLabel} {folgeNummer}
+        <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 'auto', fontSize: 11 }}>
+          {scenes.length} {szeneLabel}n
+        </span>
+      </button>
+      {expanded && (
+        <div style={{ paddingLeft: 4, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {scenes.map(scene => (
+            <SceneCardItem
+              key={scene.dokument_szene_id}
+              scene={scene}
+              szeneLabel={szeneLabel}
+              onNavigate={onNavigate}
+            />
           ))}
         </div>
       )}
@@ -632,7 +1246,74 @@ function ResultGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel, onN
   )
 }
 
-// ── Snippet highlighting ───────────────────────────────────────────────────
+function SceneCardItem({ scene, szeneLabel, onNavigate }: {
+  scene: SceneCard; szeneLabel: string
+  onNavigate: (szeneId: string, folgeId: number) => void
+}) {
+  const iaStr = scene.innen_aussen ? scene.innen_aussen.toUpperCase().slice(0, 3) : ''
+  const dtStr = scene.tag_nacht ? scene.tag_nacht.toUpperCase().slice(0, 1) : ''
+  const min = scene.stoppzeit_sek ? Math.floor(scene.stoppzeit_sek / 60) : null
+  const sec = scene.stoppzeit_sek ? scene.stoppzeit_sek % 60 : null
+
+  return (
+    <div
+      onClick={() => !scene.is_locked && onNavigate(scene.dokument_szene_id, scene.folge_id)}
+      style={{
+        padding: '8px 10px', borderRadius: 8, fontSize: 12,
+        border: '1px solid var(--border)',
+        background: 'var(--bg-surface)',
+        cursor: scene.is_locked ? 'default' : 'pointer',
+        opacity: scene.is_locked ? 0.5 : 1,
+        transition: 'border-color 0.15s',
+      }}
+      onMouseEnter={e => { if (!scene.is_locked) (e.currentTarget as HTMLElement).style.borderColor = '#007AFF55' }}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        {scene.is_locked && <Lock size={11} style={{ color: '#FF9500' }} />}
+        <strong style={{ fontSize: 12 }}>{szeneLabel} {scene.scene_nummer}</strong>
+        {iaStr && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#FF950018', color: '#FF9500', fontWeight: 600 }}>{iaStr}</span>}
+        {dtStr && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#AF52DE18', color: '#AF52DE', fontWeight: 600 }}>{dtStr}</span>}
+        <span style={{
+          marginLeft: 'auto', fontSize: 10, padding: '1px 5px', borderRadius: 4,
+          background: scene.is_fallback ? '#FF950018' : 'var(--bg-subtle)',
+          color: scene.is_fallback ? '#FF9500' : 'var(--text-secondary)',
+        }}>
+          [{scene.werkstufe_typ}{scene.is_fallback ? ' ↑' : ''}]
+        </span>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: scene.rollen?.length > 0 ? 4 : 0 }}>
+        {scene.ort_name || '–'}
+      </div>
+      {scene.rollen && scene.rollen.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {scene.rollen.slice(0, 6).map((r, i) => (
+            <span key={i} style={{
+              fontSize: 10, padding: '1px 6px', borderRadius: 99,
+              background: '#007AFF15', color: '#007AFF', fontWeight: 500,
+            }}>
+              {r.name}
+            </span>
+          ))}
+          {scene.rollen.length > 6 && (
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', padding: '1px 4px' }}>
+              +{scene.rollen.length - 6}
+            </span>
+          )}
+        </div>
+      )}
+      {min !== null && (
+        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 3 }}>
+          ⏱ {min}:{String(sec).padStart(2, '0')}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Snippet Highlighting
+// ══════════════════════════════════════════════════════════════════════════════
 
 function highlightSnippet(snippet: string, query: string) {
   if (!query || !snippet) return snippet
@@ -650,7 +1331,9 @@ function highlightSnippet(snippet: string, query: string) {
   }
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// Styles
+// ══════════════════════════════════════════════════════════════════════════════
 
 const selectStyle: React.CSSProperties = {
   width: '100%', padding: '6px 10px', borderRadius: 8,
@@ -659,19 +1342,34 @@ const selectStyle: React.CSSProperties = {
   colorScheme: 'light dark',
 }
 
+const iconBtnStyle: React.CSSProperties = {
+  background: 'none', border: 'none', cursor: 'pointer',
+  padding: 4, borderRadius: 4, color: 'var(--text-secondary)',
+  display: 'flex', alignItems: 'center',
+}
+
 const navBtnStyle: React.CSSProperties = {
   padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)',
   background: 'var(--bg-surface)', cursor: 'pointer', color: 'var(--text-primary)',
   display: 'flex', alignItems: 'center',
 }
 
-const actionBtnStyle: React.CSSProperties = {
+const secBtnStyle: React.CSSProperties = {
   padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)',
-  cursor: 'pointer', fontSize: 12, fontWeight: 500, color: 'var(--text-primary)',
+  background: 'var(--bg-surface)', cursor: 'pointer',
+  fontSize: 12, fontWeight: 500, color: 'var(--text-primary)',
+  display: 'flex', alignItems: 'center', gap: 4,
 }
 
-const primaryBtnStyle: React.CSSProperties = {
+const primBtnStyle: React.CSSProperties = {
   padding: '6px 14px', borderRadius: 6, border: 'none',
   background: '#007AFF', color: '#fff',
   cursor: 'pointer', fontSize: 12, fontWeight: 600,
+  display: 'flex', alignItems: 'center', gap: 4,
+}
+
+const modeBtnStyle: React.CSSProperties = {
+  padding: '3px 10px', borderRadius: 6, cursor: 'pointer',
+  fontSize: 11, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4,
+  background: 'none',
 }

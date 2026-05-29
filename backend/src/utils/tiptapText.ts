@@ -143,3 +143,69 @@ function marksEqual(a: any[] | undefined, b: any[] | undefined): boolean {
   if (a.length !== b.length) return false
   return JSON.stringify(a) === JSON.stringify(b)
 }
+
+/**
+ * Ersetzt den Rollennamen nur in character-Element-Nodes (Dialogkopf).
+ * Betrifft: screenplay_element mit element_type='character'
+ *           absatz-Nodes deren format_name auf 'character' / 'Figur' hinweist.
+ * Fließtext (Dialog, Action) bleibt unberührt.
+ */
+export function replaceCharacterNodes(
+  content: any,
+  oldName: string,
+  newName: string
+): { content: any; count: number } {
+  if (!content) return { content, count: 0 }
+
+  let totalCount = 0
+  const oldLower = oldName.trim().toLowerCase()
+
+  const CHARACTER_FORMAT_NAMES = ['character', 'figur', 'charakter', 'rolle', 'character (cont\'d)']
+
+  function isCharacterNode(node: any): boolean {
+    if (!node) return false
+    // ScreenplayExtension nodes
+    if (node.type === 'screenplay_element' && node.attrs?.element_type === 'character') return true
+    // AbsatzExtension nodes
+    if (node.type === 'absatz') {
+      const fn = (node.attrs?.format_name || '').toLowerCase()
+      return CHARACTER_FORMAT_NAMES.some(n => fn.includes(n))
+    }
+    return false
+  }
+
+  function getText(node: any): string {
+    if (!node) return ''
+    if (node.text) return node.text
+    if (node.content && Array.isArray(node.content)) return node.content.map(getText).join('')
+    return ''
+  }
+
+  function traverse(node: any): any {
+    if (!node) return node
+
+    if (isCharacterNode(node)) {
+      const text = getText(node).trim()
+      if (text.toLowerCase() === oldLower) {
+        totalCount++
+        return {
+          ...node,
+          content: [{ type: 'text', text: newName }],
+        }
+      }
+      return node
+    }
+
+    if (node.content && Array.isArray(node.content)) {
+      return { ...node, content: node.content.map(traverse) }
+    }
+    if (Array.isArray(node)) {
+      return node.map(traverse)
+    }
+    return node
+  }
+
+  const cloned = JSON.parse(JSON.stringify(content))
+  const result = traverse(cloned)
+  return { content: result, count: totalCount }
+}

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
-import { extractText, buildSearchRegex, findMatches, replaceInContent } from '../utils/tiptapText'
+import { extractText, buildSearchRegex, findMatches, replaceInContent, replaceCharacterNodes } from '../utils/tiptapText'
 import { recalcSceneStats } from '../utils/recalcRepliken'
 import { calcPageLength } from '../utils/calcPageLength'
 
@@ -33,6 +33,8 @@ searchRouter.get('/', async (req, res) => {
       regex: useRegex,
       limit: limitStr,
       offset: offsetStr,
+      include_frei,
+      include_private,
     } = req.query as Record<string, string>
 
     if (!searchQuery || !scope) {
@@ -60,7 +62,10 @@ searchRouter.get('/', async (req, res) => {
     }
 
     // Build the scene query based on scope
-    const { sql, params } = await buildScopeQuery(scope, scope_id, werkstufe_typ, contentTypes)
+    const includeFrei = include_frei === 'true'
+    const includePrivate = include_private === 'true'
+    const userId = req.user!.user_id
+    const { sql, params } = await buildScopeQuery(scope, scope_id, werkstufe_typ, contentTypes, includeFrei, includePrivate, userId)
 
     const rows = await query(sql, params)
 
@@ -134,6 +139,8 @@ searchRouter.post('/replace', async (req, res) => {
     whole_words,
     regex: useRegex,
     exclude_ids,
+    include_frei,
+    include_private,
   } = req.body
 
   if (!searchQuery || replacement === undefined || !scope) {
@@ -154,13 +161,16 @@ searchRouter.post('/replace', async (req, res) => {
 
   const excludeSet = new Set<string>(exclude_ids || [])
   const contentTypesArr = content_types && content_types.length > 0 ? content_types : null
+  const includeFrei = include_frei === 'true'
+  const includePrivate = include_private === 'true'
+  const userId = req.user!.user_id
 
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
 
     // Get scenes to process
-    const { sql, params } = await buildScopeQuery(scope, scope_id, werkstufe_typ, contentTypesArr)
+    const { sql, params } = await buildScopeQuery(scope, scope_id, werkstufe_typ, contentTypesArr, includeFrei, includePrivate, userId)
     const rawResult = await client.query(sql, params as any[])
     const rows = rawResult.rows as any[]
 
@@ -250,7 +260,10 @@ async function buildScopeQuery(
   scope: string,
   scopeId: string | undefined,
   werkstufenTyp: string | undefined,
-  contentTypes: string[] | null
+  contentTypes: string[] | null,
+  includeFrei = false,
+  includePrivate = false,
+  userId?: string
 ): Promise<{ sql: string; params: any[] }> {
   const params: any[] = []
   let whereClause = 'ds.geloescht = false'
@@ -280,38 +293,26 @@ async function buildScopeQuery(
 
     case 'block': {
       // All episodes in a block — scopeId = blockId (from ProdDB)
-      // Block provides folge_von/folge_bis
-      // We need the produktion_id to find folgen
-      params.push(scopeId)
-      // Get block info: we join on folgen where folge_nummer BETWEEN block range
       // scopeId format: "produktionId:folgeVon:folgeBis"
       const parts = (scopeId || '').split(':')
       if (parts.length !== 3) {
         throw new Error('block scope_id muss Format "produktionId:folgeVon:folgeBis" haben')
       }
-      params.pop() // remove the full scopeId
       const [prodId, vonStr, bisStr] = parts
-      params.push(prodId, parseInt(vonStr), parseInt(bisStr))
-
-      joinClause = `
-        JOIN folgen f ON f.id = ds.folge_id_computed
-      `
-      // Use a subquery approach instead
-      whereClause = `ds.geloescht = false`
 
       // Build with Werkstufen-Fallback
-      return buildFallbackQuery(prodId, parseInt(vonStr), parseInt(bisStr), werkstufenTyp, contentTypes)
+      return buildFallbackQuery(prodId, parseInt(vonStr), parseInt(bisStr), werkstufenTyp, contentTypes, includeFrei, includePrivate, userId)
     }
 
     case 'produktion': {
       // All episodes of a production
       params.push(scopeId)
-      return buildFallbackQuery(scopeId!, null, null, werkstufenTyp, contentTypes)
+      return buildFallbackQuery(scopeId!, null, null, werkstufenTyp, contentTypes, includeFrei, includePrivate, userId)
     }
 
     case 'alle': {
       // All productions — get all produktion IDs
-      return buildAllProductionsQuery(werkstufenTyp, contentTypes)
+      return buildAllProductionsQuery(werkstufenTyp, contentTypes, includeFrei, includePrivate, userId)
     }
 
     default:
@@ -349,7 +350,10 @@ async function buildFallbackQuery(
   folgeVon: number | null,
   folgeBis: number | null,
   werkstufenTyp: string | undefined,
-  contentTypes: string[] | null
+  contentTypes: string[] | null,
+  includeFrei = false,
+  includePrivate = false,
+  userId?: string
 ): Promise<{ sql: string; params: any[] }> {
   const params: any[] = [produktionId]
   let folgenFilter = ''
@@ -357,6 +361,17 @@ async function buildFallbackQuery(
   if (folgeVon !== null && folgeBis !== null) {
     params.push(folgeVon, folgeBis)
     folgenFilter = `AND f.folge_nummer BETWEEN $${params.length - 1} AND $${params.length}`
+  }
+
+  // Freie-Dokumente-Filter
+  let freiFilter = 'AND (f.ist_frei IS NULL OR f.ist_frei = false)'
+  if (includeFrei && includePrivate) {
+    freiFilter = '' // alles einschließen
+  } else if (includeFrei && userId) {
+    params.push(userId)
+    freiFilter = `AND (f.ist_frei IS NULL OR f.ist_frei = false OR f.sichtbarkeit_frei != 'privat' OR f.ersteller_user_id = $${params.length})`
+  } else if (includeFrei) {
+    freiFilter = `AND (f.ist_frei IS NULL OR f.ist_frei = false OR f.sichtbarkeit_frei != 'privat')`
   }
 
   // Content type filter
@@ -408,6 +423,7 @@ async function buildFallbackQuery(
       JOIN folgen f ON f.id = w.folge_id
       WHERE f.produktion_id = $1
         ${folgenFilter}
+        ${freiFilter}
         ${contentTypeFilter}
     )
     SELECT ds.id, ds.scene_identity_id, ds.scene_nummer, ds.ort_name,
@@ -433,7 +449,10 @@ async function buildFallbackQuery(
  */
 async function buildAllProductionsQuery(
   werkstufenTyp: string | undefined,
-  contentTypes: string[] | null
+  contentTypes: string[] | null,
+  includeFrei = false,
+  includePrivate = false,
+  userId?: string
 ): Promise<{ sql: string; params: any[] }> {
   const params: any[] = []
 
@@ -441,6 +460,16 @@ async function buildAllProductionsQuery(
   if (contentTypes && contentTypes.length > 0) {
     params.push(contentTypes)
     contentTypeFilter = `AND w.typ = ANY($${params.length}::text[])`
+  }
+
+  let freiFilter = 'AND (f.ist_frei IS NULL OR f.ist_frei = false)'
+  if (includeFrei && includePrivate) {
+    freiFilter = ''
+  } else if (includeFrei && userId) {
+    params.push(userId)
+    freiFilter = `AND (f.ist_frei IS NULL OR f.ist_frei = false OR f.sichtbarkeit_frei != 'privat' OR f.ersteller_user_id = $${params.length})`
+  } else if (includeFrei) {
+    freiFilter = `AND (f.ist_frei IS NULL OR f.ist_frei = false OR f.sichtbarkeit_frei != 'privat')`
   }
 
   // For "alle": always use the latest version (highest version_nummer)
@@ -456,6 +485,7 @@ async function buildAllProductionsQuery(
       FROM werkstufen w
       JOIN folgen f ON f.id = w.folge_id
       WHERE 1=1
+        ${freiFilter}
         ${contentTypeFilter}
     )
     SELECT ds.id, ds.scene_identity_id, ds.scene_nummer, ds.ort_name,
@@ -475,5 +505,349 @@ async function buildAllProductionsQuery(
   `
   return { sql, params }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/search/entity-check — Prüft ob Eingabe ein Rollenname oder Motiv ist
+// ══════════════════════════════════════════════════════════════════════════════
+searchRouter.get('/entity-check', async (req, res) => {
+  try {
+    const { q, produktion_id } = req.query as Record<string, string>
+    if (!q || q.trim().length < 2 || !produktion_id) {
+      return res.json({ type: 'none', matches: [] })
+    }
+
+    const term = q.trim()
+
+    // 1. Exakter Match in characters (für diese Produktion)
+    const rollen = await query(
+      `SELECT c.id, c.name, cp.rollen_nummer, cp.kategorie_id
+       FROM characters c
+       JOIN character_productions cp ON cp.character_id = c.id
+       WHERE cp.produktion_id = $1
+         AND LOWER(c.name) = LOWER($2)
+       ORDER BY cp.rollen_nummer NULLS LAST
+       LIMIT 10`,
+      [produktion_id, term]
+    )
+    if (rollen.length > 0) {
+      return res.json({ type: 'rolle', matches: rollen })
+    }
+
+    // 2. Prefix-Match in characters (z.B. "Brit" → "BRITTA")
+    const rollenPrefix = await query(
+      `SELECT c.id, c.name, cp.rollen_nummer, cp.kategorie_id
+       FROM characters c
+       JOIN character_productions cp ON cp.character_id = c.id
+       WHERE cp.produktion_id = $1
+         AND LOWER(c.name) LIKE LOWER($2 || '%')
+       ORDER BY cp.rollen_nummer NULLS LAST
+       LIMIT 5`,
+      [produktion_id, term]
+    )
+    if (rollenPrefix.length === 1) {
+      // Eindeutiger Prefix-Match → als Rolle behandeln
+      return res.json({ type: 'rolle', matches: rollenPrefix })
+    }
+
+    // 3. Exakter Match in motive
+    const motiveExakt = await query(
+      `SELECT id, name, typ, motiv_nummer
+       FROM motive
+       WHERE produktion_id = $1
+         AND LOWER(name) = LOWER($2)
+       ORDER BY motiv_nummer NULLS LAST
+       LIMIT 10`,
+      [produktion_id, term]
+    )
+    if (motiveExakt.length > 0) {
+      return res.json({ type: 'motiv', matches: motiveExakt })
+    }
+
+    // 4. Contains-Match in motive (z.B. "Krankenhaus" → "Krankenhaus Flur")
+    const motive = await query(
+      `SELECT id, name, typ, motiv_nummer
+       FROM motive
+       WHERE produktion_id = $1
+         AND LOWER(name) ILIKE '%' || LOWER($2) || '%'
+       ORDER BY motiv_nummer NULLS LAST
+       LIMIT 5`,
+      [produktion_id, term]
+    )
+    if (motive.length > 0 && motive.length <= 3) {
+      // Nur bei wenigen Treffern als Motiv-Match behandeln
+      return res.json({ type: 'motiv', matches: motive })
+    }
+
+    res.json({ type: 'none', matches: [] })
+  } catch (err) {
+    console.error('Entity-check error:', err)
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/search/szenen — Strukturierte Szenen-Suche (Kombi-Filter)
+// ══════════════════════════════════════════════════════════════════════════════
+searchRouter.get('/szenen', async (req, res) => {
+  try {
+    const {
+      produktion_id,
+      scope,
+      scope_id,
+      werkstufe_typ,
+      rolle_ids,    // komma-separierte character IDs
+      motiv_ids,    // komma-separierte motiv IDs
+      rolle_names,  // komma-separierte Namen (alternativ zu IDs)
+      ia,           // 'innen'|'aussen'|'exterior'|'interior' oder leer
+      dt,           // 'tag'|'nacht'|'day'|'night' oder leer
+      freitext,     // optionaler Zusatz-Text
+      include_frei,
+      include_private,
+    } = req.query as Record<string, string>
+
+    if (!produktion_id) {
+      return res.status(400).json({ error: 'produktion_id erforderlich' })
+    }
+
+    const rolleIdList = rolle_ids ? rolle_ids.split(',').filter(Boolean) : []
+    const motivIdList = motiv_ids ? motiv_ids.split(',').filter(Boolean) : []
+    const rolleNameList = rolle_names ? rolle_names.split(',').filter(Boolean) : []
+    const includeFrei = include_frei === 'true'
+    const includePrivate = include_private === 'true'
+    const effectiveScope = scope || 'produktion'
+
+    // Baue die WHERE-Bedingungen auf
+    const params: any[] = [produktion_id]
+    const joins: string[] = []
+    const conditions: string[] = []
+
+    // --- Scope-Filter ---
+    let freiFilter = ''
+    if (!includeFrei) {
+      freiFilter = 'AND (f.ist_frei IS NULL OR f.ist_frei = false)'
+    } else if (!includePrivate) {
+      freiFilter = `AND (f.ist_frei IS NULL OR f.ist_frei = false OR f.sichtbarkeit_frei != 'privat' OR f.ersteller_user_id = $${params.length + 1})`
+      params.push(req.user!.user_id)
+    }
+
+    if (effectiveScope === 'episode' && scope_id) {
+      params.push(scope_id)
+      conditions.push(`w.id = $${params.length}`)
+    } else if (effectiveScope === 'block' && scope_id) {
+      const parts = scope_id.split(':')
+      if (parts.length === 3) {
+        const [prodId, vonStr, bisStr] = parts
+        params.push(prodId, parseInt(vonStr), parseInt(bisStr))
+        conditions.push(`f.produktion_id = $${params.length - 2} AND f.folge_nummer BETWEEN $${params.length - 1} AND $${params.length}`)
+      }
+    }
+
+    // --- Rollen-Filter via IDs ---
+    rolleIdList.forEach((roleId, i) => {
+      const alias = `sc_role_${i}`
+      // Verknüpfe über characters-Tabelle
+      params.push(roleId)
+      joins.push(`JOIN scene_characters ${alias} ON ${alias}.scene_identity_id = si.id AND ${alias}.character_id = $${params.length}`)
+    })
+
+    // --- Rollen-Filter via Namen (aus scene_characters) ---
+    rolleNameList.forEach((roleName, i) => {
+      const alias = `sc_name_${i}`
+      params.push(roleName)
+      joins.push(`JOIN scene_characters ${alias} ON ${alias}.scene_identity_id = si.id AND LOWER(${alias}.name) = LOWER($${params.length})`)
+    })
+
+    // --- Motiv-Filter ---
+    if (motivIdList.length > 0) {
+      params.push(motivIdList)
+      conditions.push(`si.motiv_id = ANY($${params.length}::uuid[])`)
+    }
+
+    // --- I/A-Filter ---
+    if (ia && ia !== '') {
+      const iaLower = ia.toLowerCase()
+      // Normalisiere: innen/interior → 'I', außen/exterior → 'A'
+      if (iaLower.startsWith('i') || iaLower === 'int') {
+        conditions.push(`LOWER(COALESCE(si.innen_aussen, '')) IN ('i', 'innen', 'int', 'interior')`)
+      } else if (iaLower.startsWith('a') || iaLower.startsWith('e') || iaLower === 'ext') {
+        conditions.push(`LOWER(COALESCE(si.innen_aussen, '')) IN ('a', 'außen', 'aussen', 'ext', 'exterior')`)
+      }
+    }
+
+    // --- DT-Filter ---
+    if (dt && dt !== '') {
+      const dtLower = dt.toLowerCase()
+      if (dtLower === 'tag' || dtLower === 'day' || dtLower === 't') {
+        conditions.push(`LOWER(COALESCE(si.tag_nacht, '')) IN ('t', 'tag', 'day', 'tagüber')`)
+      } else if (dtLower === 'nacht' || dtLower === 'night' || dtLower === 'n') {
+        conditions.push(`LOWER(COALESCE(si.tag_nacht, '')) IN ('n', 'nacht', 'night')`)
+      }
+    }
+
+    const whereStr = conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : ''
+    const joinsStr = joins.join('\n')
+
+    // Werkstufen-Priorität
+    const prefTyp = werkstufe_typ || 'drehbuch'
+    params.push(prefTyp)
+    const prefTypIdx = params.length
+
+    // Hauptquery: latest_werkstufen CTE + JOIN
+    const sql = `
+      WITH latest_werkstufen AS (
+        SELECT w.id AS werkstufe_id, w.folge_id, w.typ, w.version_nummer,
+               f.folge_nummer, f.produktion_id, f.ist_frei,
+               ROW_NUMBER() OVER (
+                 PARTITION BY w.folge_id
+                 ORDER BY
+                   CASE WHEN w.typ = 'drehbuch' THEN 2 WHEN w.typ = 'storyline' THEN 1 ELSE 0 END DESC,
+                   w.version_nummer DESC
+               ) AS rn
+        FROM werkstufen w
+        JOIN folgen f ON f.id = w.folge_id
+        WHERE f.produktion_id = $1
+          ${freiFilter}
+          ${effectiveScope === 'episode' ? `AND w.id = $2` : ''}
+      )
+      SELECT DISTINCT
+        si.id AS scene_identity_id,
+        si.scene_nummer,
+        COALESCE(si.ort_name, '') AS ort_name,
+        COALESCE(si.innen_aussen, '') AS innen_aussen,
+        COALESCE(si.tag_nacht, '') AS tag_nacht,
+        si.stoppzeit_sek,
+        si.motiv_id,
+        lw.werkstufe_id,
+        lw.typ AS werkstufe_typ,
+        lw.version_nummer,
+        lw.folge_id,
+        lw.folge_nummer,
+        lw.ist_frei,
+        CASE WHEN lw.typ != $${prefTypIdx} THEN true ELSE false END AS is_fallback,
+        CASE WHEN el.id IS NOT NULL THEN true ELSE false END AS is_locked,
+        el.user_name AS locked_by,
+        ds.id AS dokument_szene_id,
+        ds.sort_order,
+        -- Rollen dieser Szene (aggregiert)
+        (SELECT COALESCE(json_agg(json_build_object('name', scc.name) ORDER BY scc.sort_order NULLS LAST), '[]')
+         FROM scene_characters scc WHERE scc.scene_identity_id = si.id
+         LIMIT 20) AS rollen
+      FROM latest_werkstufen lw
+      JOIN scene_identities si ON si.werkstufe_id = lw.werkstufe_id AND (si.geloescht IS NULL OR si.geloescht = false)
+      ${joinsStr}
+      JOIN dokument_szenen ds ON ds.scene_identity_id = si.id AND ds.werkstufe_id = lw.werkstufe_id AND ds.geloescht = false
+      LEFT JOIN episode_locks el ON el.produktion_id = lw.produktion_id
+        AND el.folge_nummer = lw.folge_nummer
+        AND (el.expires_at IS NULL OR el.expires_at > NOW())
+      WHERE lw.rn = 1
+        ${whereStr}
+      ORDER BY lw.folge_nummer, si.scene_nummer NULLS LAST, ds.sort_order
+      LIMIT 500
+    `
+
+    const rows = await query(sql, params)
+
+    // Wenn freitext angegeben: zusätzlich Content-Filter
+    let filtered = rows
+    if (freitext && freitext.trim().length > 0) {
+      const searchRegex = buildSearchRegex(freitext.trim(), { case_sensitive: false })
+      filtered = rows.filter((row: any) => {
+        // Content wird nicht geladen für Szenen-Suche (Performance)
+        // Freitext-Filter nur über ort_name und andere Metadaten
+        // Für echtes Content-Filtering: separater searchBackend-Call
+        return true // Freitext-Filter im Frontend via Snippet-Overlay
+      })
+    }
+
+    res.json({
+      szenen: filtered,
+      total: filtered.length,
+      has_freitext: !!freitext,
+    })
+  } catch (err) {
+    console.error('Szenen-search error:', err)
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/search/replace-rollenname — Ersetzt Rollenname in Character-Nodes
+// ══════════════════════════════════════════════════════════════════════════════
+searchRouter.post('/replace-rollenname', async (req, res) => {
+  const { old_name, new_name, produktion_id } = req.body
+  if (!old_name || !new_name || !produktion_id) {
+    return res.status(400).json({ error: 'old_name, new_name, produktion_id erforderlich' })
+  }
+
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // 1. characters-Tabelle aktualisieren
+    const charResult = await client.query(
+      `UPDATE characters SET name = $1
+       WHERE LOWER(name) = LOWER($2)
+         AND id IN (
+           SELECT character_id FROM character_productions WHERE produktion_id = $3
+         )`,
+      [new_name, old_name, produktion_id]
+    )
+    const charactersUpdated = charResult.rowCount ?? 0
+
+    // 2. scene_characters-Tabelle aktualisieren
+    const scResult = await client.query(
+      `UPDATE scene_characters SET name = $1
+       WHERE LOWER(name) = LOWER($2)
+         AND scene_identity_id IN (
+           SELECT si.id FROM scene_identities si
+           JOIN werkstufen w ON w.id = si.werkstufe_id
+           JOIN folgen f ON f.id = w.folge_id
+           WHERE f.produktion_id = $3
+         )`,
+      [new_name, old_name, produktion_id]
+    )
+    const sceneCharactersUpdated = scResult.rowCount ?? 0
+
+    // 3. Tiptap character-Nodes in dokument_szenen aktualisieren
+    // Lade alle relevanten Szenen
+    const szenenRows = await client.query(
+      `SELECT ds.id, ds.content
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE f.produktion_id = $1
+         AND ds.geloescht = false`,
+      [produktion_id]
+    )
+
+    let contentNodesUpdated = 0
+    for (const row of szenenRows.rows) {
+      if (!row.content) continue
+      const { content: newContent, count } = replaceCharacterNodes(row.content, old_name, new_name)
+      if (count > 0) {
+        await client.query(
+          `UPDATE dokument_szenen SET content = $1, bearbeitet_von = $2, bearbeitet_am = NOW() WHERE id = $3`,
+          [JSON.stringify(newContent), req.user!.user_id, row.id]
+        )
+        contentNodesUpdated += count
+      }
+    }
+
+    await client.query('COMMIT')
+
+    res.json({
+      characters_updated: charactersUpdated,
+      scene_characters_updated: sceneCharactersUpdated,
+      content_nodes_updated: contentNodesUpdated,
+      total: charactersUpdated + sceneCharactersUpdated + contentNodesUpdated,
+    })
+  } catch (err) {
+    await client.query('ROLLBACK')
+    console.error('Replace-rollenname error:', err)
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
+  }
+})
 
 export default searchRouter
