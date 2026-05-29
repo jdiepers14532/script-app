@@ -52,7 +52,7 @@ export default function SceneList({
   allCharacters,
 }: SceneListProps) {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-  const { sceneKuerzel } = useAppSettings()
+  const { sceneKuerzel, suffixSettings } = useAppSettings()
   const { tweaks, set: setTweak } = useTweaks()
   const [hoverPopup, setHoverPopup] = useState<{ id: string | number; x: number; y: number } | null>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -87,6 +87,9 @@ export default function SceneList({
   const [straenge, setStraenge] = useState<any[]>([])
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
+  const [oneWayDialog, setOneWayDialog] = useState<{ sceneId: string | number; currentNotiz: string } | null>(null)
+  const [oneWayPartner, setOneWayPartner] = useState('')
+  const [oneWaySaving, setOneWaySaving] = useState(false)
   const [selectionAnchor, setSelectionAnchor] = useState<string | null>(null)
   const [bulkPanelPos, setBulkPanelPos] = useState<{ left: number; top: number } | null>(null)
   const scenesRef = useRef<HTMLDivElement | null>(null)
@@ -155,6 +158,43 @@ export default function SceneList({
       setStimmungWarnings(map)
     }).catch(() => setStimmungWarnings({}))
   }, [werkstufId, szenen])
+
+  // ONE-WAY-Warnung: Szenen mit (ONE-WAY)-Figur aber ohne NT-Partner in Notiz
+  const oneWayWarnIds = useMemo(() => {
+    const result = new Set<string | number>()
+    if (!suffixSettings.suffix_oneway_enabled) return result
+    for (const s of szenen) {
+      if (!s.content) continue
+      const contentStr = typeof s.content === 'string' ? s.content : JSON.stringify(s.content)
+      if (!/ONE-WAY/i.test(contentStr)) continue
+      const notiz = (s.notiz ?? '').toLowerCase()
+      if (!/\bnt\b/.test(notiz)) {
+        result.add(s.id)
+      }
+    }
+    return result
+  }, [szenen, suffixSettings.suffix_oneway_enabled])
+
+  const handleOneWayConfirm = async () => {
+    if (!oneWayDialog || !oneWayPartner.trim()) return
+    setOneWaySaving(true)
+    try {
+      const scene = szenen.find(s => s.id === oneWayDialog.sceneId)
+      const currentNotiz = (scene?.notiz ?? '').trim()
+      const entry = `NT ${oneWayPartner.trim()}`
+      const newNotiz = currentNotiz ? `${currentNotiz}\n${entry}` : entry
+      await api.updateDokumentSzene(String(oneWayDialog.sceneId), { notiz: newNotiz })
+      // Lokal updaten damit die Warnung verschwindet
+      const idx = szenen.findIndex(s => s.id === oneWayDialog.sceneId)
+      if (idx !== -1 && onSzenesReordered) {
+        const updated = [...szenen]
+        updated[idx] = { ...updated[idx], notiz: newNotiz }
+        onSzenesReordered(updated)
+      }
+      setOneWayDialog(null)
+      setOneWayPartner('')
+    } catch { } finally { setOneWaySaving(false) }
+  }
 
   const handleBulkAssign = async (strangId: string) => {
     if (selectedIds.size === 0) return
@@ -862,6 +902,14 @@ export default function SceneList({
                       <span style={{ color: '#FF9500', fontSize: 11, cursor: 'default' }}>⚠</span>
                     </Tooltip>
                   )}
+                  {oneWayWarnIds.has(scene.id) && (
+                    <Tooltip text={'ONE-WAY-Telefonat:\nTelefonpartner noch nicht angegeben'} placement="right">
+                      <span
+                        style={{ color: '#FF9500', fontSize: 11, cursor: 'pointer' }}
+                        onClick={e => { e.stopPropagation(); setOneWayPartner(''); setOneWayDialog({ sceneId: scene.id, currentNotiz: scene.notiz ?? '' }) }}
+                      >☎⚠</span>
+                    </Tooltip>
+                  )}
                   {scene.is_locked && <Lock size={11} className="lock-ico" />}
                 </div>
                 {/* Context menu trigger */}
@@ -1163,6 +1211,58 @@ export default function SceneList({
           document.body
         )
       })()}
+
+      {/* ── ONE-WAY-Partner-Dialog ── */}
+      {oneWayDialog && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => { if (!oneWaySaving) setOneWayDialog(null) }}
+        >
+          <div style={{ background: 'var(--bg-surface, #fff)', borderRadius: 12, padding: '24px 28px', minWidth: 340, maxWidth: 440, boxShadow: '0 16px 48px rgba(0,0,0,0.3)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6 }}>☎ ONE-WAY — Telefonpartner</div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+              Diese Szene enthält eine ONE-WAY-Figur. Der Telefonpartner ist NT (Nur Ton) und muss geplant werden.
+              Trage den Namen des NT-Partners ein — er wird als „NT [Name]" in die Szenennotiz geschrieben.
+            </p>
+            <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--text-secondary)' }}>NT-Partner</div>
+            {allCharacters && allCharacters.length > 0 ? (
+              <select
+                value={oneWayPartner}
+                onChange={e => setOneWayPartner(e.target.value)}
+                disabled={oneWaySaving}
+                style={{ width: '100%', fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', marginBottom: 10 }}
+              >
+                <option value="">— Figur wählen oder Name eingeben —</option>
+                {allCharacters.map((c: any) => (
+                  <option key={c.id} value={c.name}>{c.name}</option>
+                ))}
+              </select>
+            ) : null}
+            <input
+              type="text"
+              placeholder="Name des NT-Partners..."
+              value={oneWayPartner}
+              onChange={e => setOneWayPartner(e.target.value)}
+              disabled={oneWaySaving}
+              onKeyDown={e => e.key === 'Enter' && !oneWaySaving && handleOneWayConfirm()}
+              style={{ width: '100%', fontSize: 13, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button onClick={() => setOneWayDialog(null)} disabled={oneWaySaving}
+                style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13 }}>
+                Abbrechen
+              </button>
+              <button onClick={handleOneWayConfirm} disabled={!oneWayPartner.trim() || oneWaySaving}
+                style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: '#007AFF', color: '#fff', cursor: !oneWayPartner.trim() ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 500, opacity: !oneWayPartner.trim() ? 0.5 : 1 }}>
+                {oneWaySaving ? 'Speichern…' : 'NT-Partner speichern'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
