@@ -712,7 +712,7 @@ searchRouter.get('/szenen', async (req, res) => {
         WHERE f.produktion_id = $1
           ${freiFilter}
       )
-      SELECT DISTINCT
+      SELECT DISTINCT ON (ds.id)
         si.id AS scene_identity_id,
         ds.scene_nummer,
         COALESCE(ds.ort_name, '') AS ort_name,
@@ -741,7 +741,7 @@ searchRouter.get('/szenen', async (req, res) => {
       ${joinsStr}
       WHERE lw.rn = 1
         ${whereStr}
-      ORDER BY lw.folge_nummer, ds.scene_nummer NULLS LAST, ds.sort_order
+      ORDER BY ds.id, lw.folge_nummer, ds.scene_nummer NULLS LAST, ds.sort_order
       LIMIT 500
     `
 
