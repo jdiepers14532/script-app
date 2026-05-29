@@ -41,6 +41,7 @@ export interface SceneCard {
   innen_aussen: string
   tag_nacht: string
   stoppzeit_sek: number | null
+  spieltag: number | null
   folge_id: number
   folge_nummer: number
   werkstufe_id: string

@@ -2,9 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Search, X, AlertTriangle, Lock, ChevronUp, ChevronDown,
   Plus, User, MapPin, Sun, Moon, Type, Check, SkipForward,
-  RefreshCw, ChevronRight, Layers,
+  RefreshCw, ChevronRight, Layers, Maximize2,
 } from 'lucide-react'
-import { useTerminologie } from '../sw-ui/TerminologieContext'
 import { useAppSettings } from '../contexts'
 import type {
   SearchScope, SearchOptions, SearchResult, SceneCard, EntityChip,
@@ -114,7 +113,6 @@ export default function SearchReplaceDialog({
   rollennameMode, onReplaceRollenname,
   onNavigateToScene,
 }: Props) {
-  const { t } = useTerminologie()
   const { treatmentLabel } = useAppSettings()
   const inputRef = useRef<HTMLInputElement>(null)
   const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent)
@@ -242,7 +240,7 @@ export default function SearchReplaceDialog({
     scope === 'produktion' && selectedStaffel === 'alle' ? 'alle' : scope
 
   const prodLabel = (p: { title: string; staffelnummer?: number; projektnummer?: string }) => {
-    const base = p.staffelnummer ? `${p.title} ${t('staffel')} ${p.staffelnummer}` : p.title
+    const base = p.staffelnummer ? `${p.title} ${'Staffel'} ${p.staffelnummer}` : p.title
     return p.projektnummer ? `${p.projektnummer} · ${base}` : base
   }
 
@@ -332,7 +330,7 @@ export default function SearchReplaceDialog({
               type="text"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder={chips.length > 0 ? 'Zusätzlicher Text...' : `In ${t('szene', 'p')} suchen...`}
+              placeholder={chips.length > 0 ? 'Zusätzlicher Text...' : `In ${'Szenen'} suchen...`}
               style={{
                 width: '100%', padding: '8px 12px', paddingRight: 100,
                 border: '1px solid var(--border)', borderRadius: 8,
@@ -419,10 +417,10 @@ export default function SearchReplaceDialog({
           </div>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {([
-              { key: 'szene', label: `Akt. ${t('szene')}` },
-              { key: 'episode', label: t('episode') },
+              { key: 'szene', label: `Akt. ${'Szene'}` },
+              { key: 'episode', label: 'Folge' },
               { key: 'block', label: 'Block' },
-              { key: 'produktion', label: t('staffel') },
+              { key: 'produktion', label: 'Staffel' },
             ] as { key: SearchScope; label: string }[]).map(({ key, label }) => (
               <button
                 key={key}
@@ -448,7 +446,7 @@ export default function SearchReplaceDialog({
               {productions.filter(p => p.is_active).map(p => (
                 <option key={p.id} value={p.id}>{prodLabel(p)}{p.id === currentProduktionId ? ' (aktuell)' : ''}</option>
               ))}
-              <option value="alle">Alle {t('staffel', 'p')}</option>
+              <option value="alle">Alle {'Staffeln'}</option>
               {productions.some(p => !p.is_active) && (
                 <optgroup label="Archiviert">
                   {productions.filter(p => !p.is_active).map(p => (
@@ -467,7 +465,7 @@ export default function SearchReplaceDialog({
               <option value="">Block wählen...</option>
               {bloecke.map(b => (
                 <option key={b.block_nummer} value={String(b.block_nummer)}>
-                  Block {b.block_nummer} ({t('episode')} {b.folge_von}–{b.folge_bis})
+                  Block {b.block_nummer} ({'Folge'} {b.folge_von}–{b.folge_bis})
                 </option>
               ))}
             </select>
@@ -580,8 +578,8 @@ export default function SearchReplaceDialog({
                 scenes={sceneResults}
                 total={sceneTotal}
                 onNavigate={onNavigateToScene}
-                episodeLabel={t('episode')}
-                szeneLabel={t('szene')}
+                episodeLabel={'Folge'}
+                szeneLabel={'Szene'}
               />
             ) : (
               <SnippetResults
@@ -593,8 +591,8 @@ export default function SearchReplaceDialog({
                 query={query}
                 searchMode={searchMode}
                 reviewStatus={reviewStatus}
-                episodeLabel={t('episode')}
-                szeneLabel={t('szene')}
+                episodeLabel={'Folge'}
+                szeneLabel={'Szene'}
                 onNavigate={onNavigateToScene}
                 onAcceptMatch={onAcceptMatch}
                 onSkipMatch={onSkipMatch}
@@ -636,8 +634,8 @@ export default function SearchReplaceDialog({
             <span style={{ flex: 1 }} />
             <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
               {isSceneMode
-                ? (sceneTotal > 0 ? `${sceneTotal} ${t('szene', 'p')}` : '')
-                : (backendTotal > 0 ? `${backendTotal} Treffer in ${backendTotalScenes} ${t('szene', 'p')}` : '')
+                ? (sceneTotal > 0 ? `${sceneTotal} ${'Szenen'}` : '')
+                : (backendTotal > 0 ? `${backendTotal} Treffer in ${backendTotalScenes} ${'Szenen'}` : '')
               }
             </span>
           </>
@@ -1215,6 +1213,8 @@ function SceneGroup({ folgeNummer, scenes, onNavigate, episodeLabel, szeneLabel 
   episodeLabel: string; szeneLabel: string
 }) {
   const [expanded, setExpanded] = useState(true)
+  const first = scenes[0]
+  const werkLabel = first ? `${first.werkstufe_typ.charAt(0).toUpperCase() + first.werkstufe_typ.slice(1)} v${first.version_nummer}${first.is_fallback ? ' ↑' : ''}` : ''
 
   return (
     <div style={{ marginBottom: 8 }}>
@@ -1226,6 +1226,14 @@ function SceneGroup({ folgeNummer, scenes, onNavigate, episodeLabel, szeneLabel 
       }}>
         <span style={{ fontSize: 10 }}>{expanded ? '▼' : '▶'}</span>
         {episodeLabel} {folgeNummer}
+        {werkLabel && (
+          <span style={{
+            fontSize: 10, fontWeight: 400, padding: '1px 6px', borderRadius: 4,
+            background: first?.is_fallback ? '#FF950018' : '#007AFF12',
+            color: first?.is_fallback ? '#FF9500' : '#007AFF',
+            marginLeft: 4,
+          }}>{werkLabel}</span>
+        )}
         <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 'auto', fontSize: 11 }}>
           {scenes.length} {szeneLabel}n
         </span>
@@ -1250,16 +1258,16 @@ function SceneCardItem({ scene, szeneLabel, onNavigate }: {
   scene: SceneCard; szeneLabel: string
   onNavigate: (szeneId: string, folgeId: number) => void
 }) {
-  const iaStr = scene.innen_aussen ? scene.innen_aussen.toUpperCase().slice(0, 3) : ''
-  const dtStr = scene.tag_nacht ? scene.tag_nacht.toUpperCase().slice(0, 1) : ''
-  const min = scene.stoppzeit_sek ? Math.floor(scene.stoppzeit_sek / 60) : null
-  const sec = scene.stoppzeit_sek ? scene.stoppzeit_sek % 60 : null
+  // Metadaten-Tags kompakt
+  const ia = scene.innen_aussen ? scene.innen_aussen.toUpperCase().replace('INTERIOR', 'INT').replace('EXTERIOR', 'EXT').replace('INNEN', 'INT').replace('AUSSEN', 'EXT').slice(0, 3) : null
+  const dt = scene.tag_nacht ? scene.tag_nacht.charAt(0).toUpperCase() + scene.tag_nacht.slice(1, 4).toLowerCase() : null
+  const stoppStr = scene.stoppzeit_sek ? `${Math.floor(scene.stoppzeit_sek / 60)}:${String(scene.stoppzeit_sek % 60).padStart(2, '0')}` : null
 
   return (
     <div
       onClick={() => !scene.is_locked && onNavigate(scene.dokument_szene_id, scene.folge_id)}
       style={{
-        padding: '8px 10px', borderRadius: 8, fontSize: 12,
+        padding: '7px 10px', borderRadius: 8, fontSize: 12,
         border: '1px solid var(--border)',
         background: 'var(--bg-surface)',
         cursor: scene.is_locked ? 'default' : 'pointer',
@@ -1269,25 +1277,28 @@ function SceneCardItem({ scene, szeneLabel, onNavigate }: {
       onMouseEnter={e => { if (!scene.is_locked) (e.currentTarget as HTMLElement).style.borderColor = '#007AFF55' }}
       onMouseLeave={e => (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+      {/* Zeile 1: Sz.-Nr. · Motiv · I/A · DT · Spieltag */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
         {scene.is_locked && <Lock size={11} style={{ color: '#FF9500' }} />}
-        <strong style={{ fontSize: 12 }}>{szeneLabel} {scene.scene_nummer}</strong>
-        {iaStr && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#FF950018', color: '#FF9500', fontWeight: 600 }}>{iaStr}</span>}
-        {dtStr && <span style={{ fontSize: 10, padding: '1px 5px', borderRadius: 4, background: '#AF52DE18', color: '#AF52DE', fontWeight: 600 }}>{dtStr}</span>}
-        <span style={{
-          marginLeft: 'auto', fontSize: 10, padding: '1px 5px', borderRadius: 4,
-          background: scene.is_fallback ? '#FF950018' : 'var(--bg-subtle)',
-          color: scene.is_fallback ? '#FF9500' : 'var(--text-secondary)',
-        }}>
-          [{scene.werkstufe_typ}{scene.is_fallback ? ' ↑' : ''}]
-        </span>
+        <strong style={{ fontSize: 12, minWidth: 0 }}>
+          {szeneLabel} {scene.scene_nummer}
+        </strong>
+        {scene.ort_name && (
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 40 }}>
+            {scene.ort_name}
+          </span>
+        )}
+        <div style={{ display: 'flex', gap: 3, marginLeft: 'auto', flexShrink: 0 }}>
+          {ia && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#FF950018', color: '#FF9500', fontWeight: 700 }}>{ia}</span>}
+          {dt && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#AF52DE18', color: '#AF52DE', fontWeight: 700 }}>{dt}</span>}
+          {scene.spieltag != null && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-secondary)', fontWeight: 600 }}>Tag {scene.spieltag}</span>}
+          {stoppStr && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>⏱{stoppStr}</span>}
+        </div>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: scene.rollen?.length > 0 ? 4 : 0 }}>
-        {scene.ort_name || '–'}
-      </div>
+      {/* Zeile 2: Rollen-Chips */}
       {scene.rollen && scene.rollen.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-          {scene.rollen.slice(0, 6).map((r, i) => (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
+          {scene.rollen.slice(0, 8).map((r, i) => (
             <span key={i} style={{
               fontSize: 10, padding: '1px 6px', borderRadius: 99,
               background: '#007AFF15', color: '#007AFF', fontWeight: 500,
@@ -1295,16 +1306,11 @@ function SceneCardItem({ scene, szeneLabel, onNavigate }: {
               {r.name}
             </span>
           ))}
-          {scene.rollen.length > 6 && (
+          {scene.rollen.length > 8 && (
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', padding: '1px 4px' }}>
-              +{scene.rollen.length - 6}
+              +{scene.rollen.length - 8}
             </span>
           )}
-        </div>
-      )}
-      {min !== null && (
-        <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginTop: 3 }}>
-          ⏱ {min}:{String(sec).padStart(2, '0')}
         </div>
       )}
     </div>

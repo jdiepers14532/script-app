@@ -27,6 +27,7 @@ const AutorenplanHilfeTab  = lazy(() => import('./hilfe/AutorenplanHilfeTab'))
 const FreieDokumenteTab    = lazy(() => import('./hilfe/FreieDokumenteTab'))
 const VerlaufUndoTab       = lazy(() => import('./hilfe/VerlaufUndoTab'))
 const ThemeAnpassenHilfeTab = lazy(() => import('./hilfe/ThemeAnpassenHilfeTab'))
+const CharakterSuffixeTab  = lazy(() => import('./hilfe/CharakterSuffixeTab'))
 const SearchResultsView    = lazy(() => import('./hilfe/SearchResultsView'))
 // Admin-only
 const DatenmodellTab       = lazy(() => import('./hilfe/DatenmodellTab'))
@@ -93,6 +94,8 @@ const NAV_ITEMS = [
     keywords: 'autorenplan autor plan kalender woche einsatz future terminplanung' },
   { id: 'freie-dokumente',      label: 'Freie Dokumente',           icon: '📂',
     keywords: 'freie dokumente schattenbuch casting szene spin-off sonstiges folge ohne nummer sichtbarkeit privat verknüpfen' },
+  { id: 'charakter-suffixe',    label: 'OFF / NT / ONE-WAY',        icon: '📞',
+    keywords: 'off nt one-way oneway suffix charakter figur telefonat nur ton voice over action grossbuchstaben drehplan disposition' },
   { id: 'theme-anpassen',       label: 'Theme & Farben',            icon: '🎨',
     keywords: 'theme farben farbe anpassen light hell dark tokens css custom property hintergrund text border button farbschema' },
   // Admin-only
@@ -183,6 +186,7 @@ function HilfePage() {
       case 'team-work':          return <TeamWorkTab />
       case 'autorenplan':        return <AutorenplanHilfeTab />
       case 'freie-dokumente':    return <FreieDokumenteTab />
+      case 'charakter-suffixe':  return <CharakterSuffixeTab />
       case 'theme-anpassen':     return <ThemeAnpassenHilfeTab />
       case 'datenmodell':        return <DatenmodellTab />
       case 'datensicherheit':    return <DatensicherheitTab />

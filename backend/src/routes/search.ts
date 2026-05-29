@@ -719,6 +719,7 @@ searchRouter.get('/szenen', async (req, res) => {
         COALESCE(ds.int_ext, '') AS innen_aussen,
         COALESCE(ds.tageszeit, '') AS tag_nacht,
         ds.stoppzeit_sek,
+        ds.spieltag,
         ds.motiv_id,
         lw.werkstufe_id,
         lw.typ AS werkstufe_typ,
