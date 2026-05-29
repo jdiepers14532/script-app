@@ -30,7 +30,7 @@ import { SearchHighlightExtension } from '../../tiptap/SearchHighlightExtension'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
-import { useUserPrefs, useFocus, useAppSettings, useTweaks, useSelectedProduction } from '../../contexts'
+import { useUserPrefs, useFocus, useAppSettings, useTweaks, useSelectedProduction, useToast } from '../../contexts'
 // Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
 import { LineNumberOverlay } from './LineNumberOverlay'
@@ -311,6 +311,7 @@ export default function UniversalEditor({
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { tweaks } = useTweaks()
   const { selectedId: selectedProdId } = useSelectedProduction()
+  const { showToast } = useToast()
   const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
   // Tabellen-Cursor-Erkennung + Rahmen-Toggle
@@ -482,8 +483,16 @@ export default function UniversalEditor({
   const acActiveRef = useRef(false)
   const acSuggestionsRef = useRef<string[]>([])
   const acSelectedIndexRef = useRef(0)
+  const acNewNameRef = useRef<string | null>(null)
   useEffect(() => { acSuggestionsRef.current = acSuggestions }, [acSuggestions])
   useEffect(() => { acSelectedIndexRef.current = acSelectedIndex }, [acSelectedIndex])
+
+  // "Neu anlegen"-Name wenn kein Treffer in DB
+  const [acNewName, setAcNewName] = useState<string | null>(null)
+  useEffect(() => { acNewNameRef.current = acNewName }, [acNewName])
+
+  // Dialog-State für Charakter-Anlegen-Bestätigung
+  const [newCharDialog, setNewCharDialog] = useState<{ name: string; loading: boolean } | null>(null)
 
   // Debounced DB-Suche für "alle"-Modus
   const acDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -731,6 +740,7 @@ export default function UniversalEditor({
       if (!acActiveRef.current) return
       acActiveRef.current = false
       setAcSuggestions([])
+      setAcNewName(null)
       setAcPos(null)
       if (acDbTimerRef.current) { clearTimeout(acDbTimerRef.current); acDbTimerRef.current = null }
     }
@@ -778,8 +788,25 @@ export default function UniversalEditor({
             const stillInCharNode = curNode.type.name === 'absatz' && charFormatIds.includes(curNode.attrs.format_id)
             if (!stillInCharNode) return
 
-            if (names.length === 0) { dismiss(); return }
+            if (names.length === 0) {
+              if (query.trim().length > 0) {
+                // Name nicht in DB — "Neu anlegen" anbieten
+                acActiveRef.current = true
+                const newName = query.trim().toUpperCase()
+                acNewNameRef.current = newName
+                setAcNewName(newName)
+                setAcSuggestions([])
+                setAcSelectedIndex(0)
+                setAcPos({ x: coords.left, y: coords.bottom + 4 })
+              } else {
+                dismiss()
+              }
+              return
+            }
 
+            // Treffer gefunden — "Neu anlegen" zurücksetzen
+            acNewNameRef.current = null
+            setAcNewName(null)
             acActiveRef.current = true
             setAcSuggestions(names)
             setAcSelectedIndex(0)
@@ -803,9 +830,24 @@ export default function UniversalEditor({
   useEffect(() => {
     acHandlersRef.current = {
       onArrowUp: () => setAcSelectedIndex(prev => Math.max(0, prev - 1)),
-      onArrowDown: () => setAcSelectedIndex(prev => Math.min(acSuggestionsRef.current.length - 1, prev + 1)),
+      onArrowDown: () => {
+        const maxIdx = acSuggestionsRef.current.length - 1 + (acNewNameRef.current ? 1 : 0)
+        setAcSelectedIndex(prev => Math.min(maxIdx, prev + 1))
+      },
       onAccept: () => {
-        const name = acSuggestionsRef.current[acSelectedIndexRef.current]
+        const suggestions = acSuggestionsRef.current
+        const idx = acSelectedIndexRef.current
+        const newName = acNewNameRef.current
+        // "Neu anlegen" — kein Treffer oder letzter Eintrag ist "Neu anlegen"
+        if (idx >= suggestions.length && newName) {
+          acActiveRef.current = false
+          setAcSuggestions([])
+          setAcNewName(null)
+          setAcPos(null)
+          setNewCharDialog({ name: newName, loading: false })
+          return
+        }
+        const name = suggestions[idx]
         if (!name || !editor) return
         const { state } = editor
         const { $from } = state.selection
@@ -820,11 +862,13 @@ export default function UniversalEditor({
         }
         acActiveRef.current = false
         setAcSuggestions([])
+        setAcNewName(null)
         setAcPos(null)
       },
       onDismiss: () => {
         acActiveRef.current = false
         setAcSuggestions([])
+        setAcNewName(null)
         setAcPos(null)
       },
     }
@@ -1018,8 +1062,75 @@ export default function UniversalEditor({
 
   if (!editor) return null
 
+  // Charakter anlegen + Freigabe-Anfrage stellen
+  const handleCreateChar = async (name: string) => {
+    if (!selectedProdId) return
+    setNewCharDialog(prev => prev ? { ...prev, loading: true } : null)
+    try {
+      const createRes = await fetch('/api/characters', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, produktion_id: selectedProdId }),
+      })
+      if (!createRes.ok) {
+        const err = await createRes.json()
+        showToast(err.error || 'Charakter konnte nicht angelegt werden', 'error')
+        setNewCharDialog(null)
+        return
+      }
+      const char = await createRes.json()
+
+      // Freigabe-Anfrage versuchen (optional — ignoriere Fehler wenn nicht konfiguriert)
+      let freigabeGestartet = false
+      try {
+        const fRes = await fetch(`/api/rollen-freigabe/${selectedProdId}/anfragen`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ character_id: char.id }),
+        })
+        if (fRes.ok) {
+          const fData = await fRes.json()
+          freigabeGestartet = fData.status === 'ausstehend'
+        }
+      } catch { /* Freigabe nicht konfiguriert — ignorieren */ }
+
+      // Name in Editor einfügen
+      const { $from } = editor.state.selection
+      const start = $from.start()
+      const end = $from.end()
+      const chain = editor.chain().focus()
+      if (start < end) {
+        chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
+      } else {
+        chain.insertContentAt(start, name).run()
+      }
+
+      showToast(
+        freigabeGestartet
+          ? `${name} wurde angelegt. Freigabe-Anfrage gesendet.`
+          : `${name} wurde angelegt.`,
+        'success'
+      )
+      setNewCharDialog(null)
+    } catch {
+      showToast('Fehler beim Anlegen des Charakters', 'error')
+      setNewCharDialog(null)
+    }
+  }
+
   // Direkte AC-Accept-Funktion für Klick im Dropdown (nach editor-Guard)
   const acceptAcByIndex = (i: number) => {
+    if (i >= acSuggestions.length && acNewName) {
+      // Klick auf "Neu anlegen"
+      acActiveRef.current = false
+      setAcSuggestions([])
+      setAcNewName(null)
+      setAcPos(null)
+      setNewCharDialog({ name: acNewName, loading: false })
+      return
+    }
     const name = acSuggestions[i]
     if (!name) return
     const { state } = editor
@@ -1035,6 +1146,7 @@ export default function UniversalEditor({
     }
     acActiveRef.current = false
     setAcSuggestions([])
+    setAcNewName(null)
     setAcPos(null)
   }
 
@@ -1462,7 +1574,7 @@ export default function UniversalEditor({
       </div>
 
       {/* Charakter-Autovervollständigung Dropdown */}
-      {acPos && acSuggestions.length > 0 && createPortal(
+      {acPos && (acSuggestions.length > 0 || acNewName) && createPortal(
         <div
           style={{
             position: 'fixed',
@@ -1473,8 +1585,8 @@ export default function UniversalEditor({
             border: '1px solid var(--border, #ddd)',
             borderRadius: 8,
             boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-            minWidth: 160,
-            maxWidth: 280,
+            minWidth: 180,
+            maxWidth: 300,
             overflow: 'hidden',
             fontSize: 12,
           }}
@@ -1497,8 +1609,65 @@ export default function UniversalEditor({
               {name}
             </div>
           ))}
+          {acNewName && (
+            <div
+              onClick={() => acceptAcByIndex(acSuggestions.length)}
+              onMouseEnter={() => setAcSelectedIndex(acSuggestions.length)}
+              style={{
+                padding: '7px 12px',
+                background: acSuggestions.length === acSelectedIndex ? '#007AFF' : 'transparent',
+                color: acSuggestions.length === acSelectedIndex ? '#fff' : 'var(--text-primary, #111)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                borderTop: acSuggestions.length > 0 ? '1px solid var(--border-subtle, #eee)' : undefined,
+              }}
+            >
+              <span style={{ fontSize: 13 }}>+</span>
+              <span style={{ fontFamily: "'Courier Prime', monospace", letterSpacing: '0.03em' }}>
+                «{acNewName}» anlegen
+              </span>
+            </div>
+          )}
           <div style={{ padding: '4px 12px', borderTop: '1px solid var(--border-subtle, #eee)', fontSize: 10, color: 'var(--text-muted, #999)' }}>
             ↑↓ navigieren · Tab/Enter übernehmen · Esc schließen
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Neuen Charakter anlegen — Bestätigungsdialog */}
+      {newCharDialog && createPortal(
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => { if (!newCharDialog.loading) setNewCharDialog(null) }}
+        >
+          <div
+            style={{ background: 'var(--bg-surface, #fff)', borderRadius: 12, padding: '24px 28px', minWidth: 320, maxWidth: 440, boxShadow: '0 16px 48px rgba(0,0,0,0.3)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Neuen Charakter anlegen?</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+              <strong>{newCharDialog.name}</strong> existiert noch nicht in der Rollendatenbank.
+              Soll der Charakter angelegt und eine Freigabe-Anfrage gesendet werden?
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setNewCharDialog(null)}
+                disabled={newCharDialog.loading}
+                style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13 }}
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={() => handleCreateChar(newCharDialog.name)}
+                disabled={newCharDialog.loading}
+                style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: '#007AFF', color: '#fff', cursor: newCharDialog.loading ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500 }}
+              >
+                {newCharDialog.loading ? 'Wird angelegt…' : 'Anlegen & Freigabe anfragen'}
+              </button>
+            </div>
           </div>
         </div>,
         document.body
