@@ -632,13 +632,17 @@ searchRouter.get('/szenen', async (req, res) => {
 
     if (effectiveScope === 'episode' && scope_id) {
       params.push(scope_id)
-      conditions.push(`w.id = $${params.length}`)
+      conditions.push(`lw.folge_id = $${params.length}`)
+    } else if (effectiveScope === 'szene' && scope_id) {
+      // scope=szene: scene_identity_id → zugehörige folge via si join
+      params.push(scope_id)
+      conditions.push(`si.id = $${params.length}`)
     } else if (effectiveScope === 'block' && scope_id) {
       const parts = scope_id.split(':')
       if (parts.length === 3) {
-        const [prodId, vonStr, bisStr] = parts
-        params.push(prodId, parseInt(vonStr), parseInt(bisStr))
-        conditions.push(`f.produktion_id = $${params.length - 2} AND f.folge_nummer BETWEEN $${params.length - 1} AND $${params.length}`)
+        const [, vonStr, bisStr] = parts
+        params.push(parseInt(vonStr), parseInt(bisStr))
+        conditions.push(`lw.folge_nummer BETWEEN $${params.length - 1} AND $${params.length}`)
       }
     }
 
@@ -707,7 +711,6 @@ searchRouter.get('/szenen', async (req, res) => {
         JOIN folgen f ON f.id = w.folge_id
         WHERE f.produktion_id = $1
           ${freiFilter}
-          ${effectiveScope === 'episode' ? `AND w.id = $2` : ''}
       )
       SELECT DISTINCT
         si.id AS scene_identity_id,
@@ -733,9 +736,9 @@ searchRouter.get('/szenen', async (req, res) => {
          FROM scene_characters scc WHERE scc.scene_identity_id = si.id
          LIMIT 20) AS rollen
       FROM latest_werkstufen lw
-      JOIN scene_identities si ON si.werkstufe_id = lw.werkstufe_id AND (si.geloescht IS NULL OR si.geloescht = false)
+      JOIN dokument_szenen ds ON ds.werkstufe_id = lw.werkstufe_id AND ds.geloescht = false
+      JOIN scene_identities si ON si.id = ds.scene_identity_id AND (si.geloescht IS NULL OR si.geloescht = false)
       ${joinsStr}
-      JOIN dokument_szenen ds ON ds.scene_identity_id = si.id AND ds.werkstufe_id = lw.werkstufe_id AND ds.geloescht = false
       LEFT JOIN episode_locks el ON el.produktion_id = lw.produktion_id
         AND el.folge_nummer = lw.folge_nummer
         AND (el.expires_at IS NULL OR el.expires_at > NOW())
