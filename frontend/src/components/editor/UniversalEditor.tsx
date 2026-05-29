@@ -376,6 +376,7 @@ export default function UniversalEditor({
   const { tweaks } = useTweaks()
   const { selectedId: selectedProdId } = useSelectedProduction()
   const { showToast } = useToast()
+  const { lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert } = useAppSettings()
   const { focus, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
   // Tabellen-Cursor-Erkennung + Rahmen-Toggle
@@ -752,7 +753,6 @@ export default function UniversalEditor({
   }, [editor])
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
-  const { lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert } = useAppSettings()
   // Stabile Ref für suffixSettings (für AC-Closure)
   const suffixSettingsRef = useRef(suffixSettings)
   useEffect(() => { suffixSettingsRef.current = suffixSettings }, [suffixSettings])
