@@ -23,7 +23,7 @@ function loadCollapsed(): Record<string, boolean> {
 
 export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpassenClick }: { onClose: () => void; onFarbschemaClick?: () => void; onThemeAnpassenClick?: () => void }) {
   const { tweaks, set, reset } = useTweaks()
-  const { treatmentLabel } = useAppSettings()
+  const { treatmentLabel, figurenLabel } = useAppSettings()
   const { t } = useTerminologie()
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef = useRef<HTMLInputElement>(null)
@@ -247,7 +247,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
 
             {/* Autovervollständigung — Überschrift */}
             <div style={{ padding: '6px 0 2px', borderTop: '1px solid var(--border-subtle, #f0f0f0)', marginTop: 2 }}>
-              <Tooltip text="Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein Charakter-Format.">
+              <Tooltip text={`Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein ${figurenLabel}-Format.`}>
                 <span style={{ ...labelStyle, fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
                   Autovervollständigung
                 </span>
@@ -260,7 +260,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                 <Tooltip text="Nur Rollen/Komparsen aus dem Szenenkopf vorschlagen">
                   <button className={tweaks.nurCharAusSzenenkopf === 'szenenkopf' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'szenenkopf')}>Nur Szenenkopf</button>
                 </Tooltip>
-                <Tooltip text="Alle Charaktere der Produktion vorschlagen (mit Neu-Anlegen-Option)">
+                <Tooltip text={`Alle ${figurenLabel} der Produktion vorschlagen (mit Neu-Anlegen-Option)`}>
                   <button className={tweaks.nurCharAusSzenenkopf === 'alle' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'alle')}>Alle</button>
                 </Tooltip>
                 <Tooltip text="Autovervollständigung deaktivieren">

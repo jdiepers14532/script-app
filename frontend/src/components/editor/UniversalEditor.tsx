@@ -897,9 +897,10 @@ export default function UniversalEditor({
 
         if (bestMatch) {
           const suffix = bestMatch.slice(query.length) // Groß-/Kleinschreibung des Originals
-          inlineGhostAcceptNameRef.current = bestMatch
+          inlineGhostAcceptNameRef.current = suffix.length > 0 ? bestMatch : null
           inlineGhostNoMatchNameRef.current = null
-          inlineGhostActiveRef.current = true
+          // Nur aktiv wenn Ghost-Text sichtbar (suffix nicht leer) — sonst Enter frei
+          inlineGhostActiveRef.current = suffix.length > 0
           setGhost(suffix, nodeEndPos)
         } else {
           // Kein Treffer — kein Ghost-Text, aber Tab/Enter → Neu anlegen (nur im "alle"-Modus)
