@@ -81,6 +81,21 @@ const InlineGhostExtension = Extension.create({
   addProseMirrorPlugins() { return [inlineGhostPlugin] },
 })
 
+// ── Charakter-Suffix-Parsing (OFF / NT / ONE-WAY) ────────────────────────────
+const CHAR_SUFFIX_PATTERNS: Array<{ pattern: RegExp; canonical: string }> = [
+  { pattern: /\s*\(?\s*one[-\s]?way\s*\)?$/i, canonical: '(ONE-WAY)' },
+  { pattern: /\s*\(?\s*n\.?t\.?\s*\)?$/i, canonical: '(NT)' },
+  { pattern: /\s*\(?\s*(?:off|o\.s\.?)\s*\)?$/i, canonical: '(OFF)' },
+]
+function parseSuffix(text: string): { name: string; suffix: string | null } {
+  for (const { pattern, canonical } of CHAR_SUFFIX_PATTERNS) {
+    if (pattern.test(text)) {
+      return { name: text.replace(pattern, '').trim(), suffix: canonical }
+    }
+  }
+  return { name: text, suffix: null }
+}
+
 // ── Platform detection ──────────────────────────────────────────────────────
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? '\u2318' : 'Ctrl'
@@ -350,7 +365,7 @@ export default function UniversalEditor({
   const { tweaks } = useTweaks()
   const { selectedId: selectedProdId } = useSelectedProduction()
   const { showToast } = useToast()
-  const { focus, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
+  const { focus, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
   // Tabellen-Cursor-Erkennung + Rahmen-Toggle
   const [isInTable, setIsInTable] = useState(false)
@@ -530,7 +545,9 @@ export default function UniversalEditor({
   useEffect(() => { acNewNameRef.current = acNewName }, [acNewName])
 
   // Dialog-State für Charakter-Anlegen-Bestätigung
-  const [newCharDialog, setNewCharDialog] = useState<{ name: string; loading: boolean } | null>(null)
+  const [newCharDialog, setNewCharDialog] = useState<{ name: string; suffix?: string | null; loading: boolean } | null>(null)
+  // Erkannter Suffix (OFF/NT/ONE-WAY) aus letzter AC-Eingabe — wird beim Einfügen angehängt
+  const detectedSuffixRef = useRef<string | null>(null)
 
   // Debounced DB-Suche für "alle"-Modus (nicht mehr verwendet — durch Cache ersetzt)
   const acDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -878,7 +895,10 @@ export default function UniversalEditor({
       if (!isCharNode) { dismiss(); return }
 
       const query = node.textContent
-      const queryUpper = query.trim().toUpperCase()
+      // Suffix erkennen (OFF / NT / ONE-WAY) — Suche läuft auf dem bereinigten Namen
+      const { name: queryClean, suffix: querySuffix } = parseSuffix(query.trim())
+      detectedSuffixRef.current = querySuffix
+      const queryUpper = queryClean.toUpperCase()
       const coords = view.coordsAtPos($from.pos)
       const nodeEndPos = $from.end()
 
@@ -890,34 +910,33 @@ export default function UniversalEditor({
 
       if (style === 'inline') {
         // ── Inline Ghost Text ─────────────────────────────────────────────
-        if (!query.trim()) { resetInline(); return }
+        if (!queryClean) { resetInline(); return }
 
         // Bester Treffer: startsWith, alphabetisch erster Treffer
         const bestMatch = pool.find(n => n.toUpperCase().startsWith(queryUpper))
 
         if (bestMatch) {
-          const suffix = bestMatch.slice(query.length) // Groß-/Kleinschreibung des Originals
-          inlineGhostAcceptNameRef.current = suffix.length > 0 ? bestMatch : null
+          const ghostSuffix = bestMatch.slice(queryClean.length) // Name-Vervollständigung
+          inlineGhostAcceptNameRef.current = bestMatch
           inlineGhostNoMatchNameRef.current = null
-          // Nur aktiv wenn Ghost-Text sichtbar (suffix nicht leer) — sonst Enter frei
-          inlineGhostActiveRef.current = suffix.length > 0
-          setGhost(suffix, nodeEndPos)
+          // Aktiv wenn Ghost-Text sichtbar ODER Suffix erkannt (Enter soll normalisieren)
+          inlineGhostActiveRef.current = ghostSuffix.length > 0 || !!querySuffix
+          setGhost(ghostSuffix, nodeEndPos)
         } else {
-          // Kein Treffer — kein Ghost-Text, aber Tab/Enter → Neu anlegen (nur im "alle"-Modus)
+          // Kein Treffer — Neu anlegen (nur im "alle"-Modus)
           inlineGhostAcceptNameRef.current = null
           inlineGhostNoMatchNameRef.current = modus === 'alle' ? queryUpper : null
           inlineGhostActiveRef.current = modus === 'alle' && queryUpper.length > 0
-          clearGhostDecoration() // nur Dekoration löschen, Refs oben bereits korrekt gesetzt
+          clearGhostDecoration()
         }
       } else {
         // ── Dropdown-Menü ─────────────────────────────────────────────────
-        clearGhostDecoration() // sicher stellen dass kein Ghost-Text im Menü-Modus
+        clearGhostDecoration()
         acActiveRef.current = true
 
         if (modus === 'szenenkopf') {
-          // Nur Szenenkopf-Charaktere (startsWith)
           const filtered = pool.filter(n =>
-            !query || n.toUpperCase().startsWith(queryUpper)
+            !queryClean || n.toUpperCase().startsWith(queryUpper)
           ).slice(0, 8)
 
           if (filtered.length === 0) { dismiss(); return }
@@ -929,18 +948,19 @@ export default function UniversalEditor({
           setAcPos({ x: coords.left, y: coords.top })
         } else {
           // Alle — lokaler Cache, includes-Suche, «Neu anlegen» als erster Eintrag
-          const filtered = query.trim()
+          const filtered = queryClean
             ? pool.filter(n => n.toUpperCase().includes(queryUpper)).slice(0, 9)
             : pool.slice(0, 10)
 
-          const newName = query.trim() ? queryUpper : null
+          // Neu-anlegen zeigt den bereinigten Namen (ohne Suffix)
+          const newName = queryClean ? queryUpper : null
           acNewNameRef.current = newName
           setAcNewName(newName)
 
           if (filtered.length === 0 && !newName) { dismiss(); return }
 
           setAcSuggestions(filtered)
-          setAcSelectedIndex(newName ? 0 : 0)
+          setAcSelectedIndex(0)
           setAcPos({ x: coords.left, y: coords.top })
         }
       }
@@ -957,17 +977,18 @@ export default function UniversalEditor({
   }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
-  const insertNameIntoEditor = useCallback((name: string) => {
+  const insertNameIntoEditor = useCallback((name: string, suffix?: string | null) => {
     if (!editor) return
     const { $from } = editor.state.selection
     if ($from.node().type.name !== 'absatz') return
     const start = $from.start()
     const end = $from.end()
+    const fullText = suffix ? `${name} ${suffix}` : name
     const chain = editor.chain().focus()
     if (start < end) {
-      chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
+      chain.deleteRange({ from: start, to: end }).insertContentAt(start, fullText).run()
     } else {
-      chain.insertContentAt(start, name).run()
+      chain.insertContentAt(start, fullText).run()
     }
   }, [editor])
 
@@ -992,9 +1013,12 @@ export default function UniversalEditor({
             dispatchingGhostRef.current = false
           }
           if (acceptName) {
-            insertNameIntoEditor(acceptName)
+            const sfx = detectedSuffixRef.current
+            detectedSuffixRef.current = null
+            insertNameIntoEditor(acceptName, sfx)
           } else if (noMatchName) {
-            setNewCharDialog({ name: noMatchName, loading: false })
+            setNewCharDialog({ name: noMatchName, suffix: detectedSuffixRef.current, loading: false })
+            detectedSuffixRef.current = null
           }
           return
         }
@@ -1008,14 +1032,17 @@ export default function UniversalEditor({
           setAcSuggestions([])
           setAcNewName(null)
           setAcPos(null)
-          setNewCharDialog({ name: newName, loading: false })
+          setNewCharDialog({ name: newName, suffix: detectedSuffixRef.current, loading: false })
+          detectedSuffixRef.current = null
           return
         }
         // Suggestion-Index: wenn newName vorhanden, verschieben um 1
         const suggestionIdx = newName ? idx - 1 : idx
         const name = suggestions[suggestionIdx]
         if (!name) return
-        insertNameIntoEditor(name)
+        const sfx = detectedSuffixRef.current
+        detectedSuffixRef.current = null
+        insertNameIntoEditor(name, sfx)
         acActiveRef.current = false
         setAcSuggestions([])
         setAcNewName(null)
@@ -1263,15 +1290,17 @@ export default function UniversalEditor({
         }
       } catch { /* Freigabe nicht konfiguriert — ignorieren */ }
 
-      // Name in Editor einfügen
+      // Name + ggf. Suffix in Editor einfügen
+      const sfx = newCharDialog?.suffix ?? null
+      const fullInsertName = sfx ? `${name} ${sfx}` : name
       const { $from } = editor.state.selection
       const start = $from.start()
       const end = $from.end()
       const chain = editor.chain().focus()
       if (start < end) {
-        chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
+        chain.deleteRange({ from: start, to: end }).insertContentAt(start, fullInsertName).run()
       } else {
-        chain.insertContentAt(start, name).run()
+        chain.insertContentAt(start, fullInsertName).run()
       }
 
       showToast(
@@ -1296,14 +1325,17 @@ export default function UniversalEditor({
       setAcSuggestions([])
       setAcNewName(null)
       setAcPos(null)
-      setNewCharDialog({ name: acNewName, loading: false })
+      setNewCharDialog({ name: acNewName, suffix: detectedSuffixRef.current, loading: false })
+      detectedSuffixRef.current = null
       return
     }
     // Suggestions sind um 1 verschoben wenn acNewName vorhanden
     const suggestionIdx = acNewName ? i - 1 : i
     const name = acSuggestions[suggestionIdx]
     if (!name) return
-    insertNameIntoEditor(name)
+    const sfx = detectedSuffixRef.current
+    detectedSuffixRef.current = null
+    insertNameIntoEditor(name, sfx)
     acActiveRef.current = false
     setAcSuggestions([])
     setAcNewName(null)
@@ -1715,7 +1747,7 @@ export default function UniversalEditor({
           className="focus-hover-strip"
           onMouseEnter={() => { if (focus) setHoverOpen(true) }}
           onMouseLeave={() => { if (focus) setHoverOpen(false) }}
-          onTouchStart={() => { if (focus) setHoverOpen(v => !v) }}
+          onTouchStart={() => { if (focus) setHoverOpen(!hoverOpen) }}
         />
         <PageWrapper className={kategorie === 'drehbuch' ? 'page' : 'page page-notiz'} seitenformat={seitenformat} showShadow={showShadow} pageMargins={pageMargins}>
           <EditorContent
