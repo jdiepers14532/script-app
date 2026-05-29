@@ -930,10 +930,11 @@ function FigurenTab() {
   const [newKat, setNewKat] = useState({ name: '', typ: 'rolle' as 'rolle' | 'komparse' })
   const [katSaving, setKatSaving] = useState(false)
 
-  // Suffix-Settings (P4)
+  // Suffix-Settings (P4 + VO)
   const [suffixOff, setSuffixOff] = useState(true)
   const [suffixNt, setSuffixNt] = useState(true)
   const [suffixOneway, setSuffixOneway] = useState(true)
+  const [suffixVo, setSuffixVo] = useState(true)
   const [offFigurenImSzenenkopf, setOffFigurenImSzenenkopf] = useState(false)
   const [actionAcEnabled, setActionAcEnabled] = useState(true)
   const [actionAcTriggerChars, setActionAcTriggerChars] = useState(4)
@@ -951,6 +952,7 @@ function FigurenTab() {
             if (s.suffix_off_enabled !== undefined) setSuffixOff(s.suffix_off_enabled)
             if (s.suffix_nt_enabled !== undefined) setSuffixNt(s.suffix_nt_enabled)
             if (s.suffix_oneway_enabled !== undefined) setSuffixOneway(s.suffix_oneway_enabled)
+            if (s.suffix_vo_enabled !== undefined) setSuffixVo(s.suffix_vo_enabled)
             if (s.off_figuren_im_szenenkopf !== undefined) setOffFigurenImSzenenkopf(s.off_figuren_im_szenenkopf)
             if (s.action_ac_enabled !== undefined) setActionAcEnabled(s.action_ac_enabled)
             if (s.action_ac_trigger_chars !== undefined) setActionAcTriggerChars(s.action_ac_trigger_chars)
@@ -967,6 +969,7 @@ function FigurenTab() {
       suffix_off_enabled: suffixOff,
       suffix_nt_enabled: suffixNt,
       suffix_oneway_enabled: suffixOneway,
+      suffix_vo_enabled: suffixVo,
       off_figuren_im_szenenkopf: offFigurenImSzenenkopf,
       action_ac_enabled: actionAcEnabled,
       action_ac_trigger_chars: actionAcTriggerChars,
@@ -1181,6 +1184,7 @@ function FigurenTab() {
               { label: 'OFF / O.S. erkennen', value: suffixOff, key: 'suffix_off_enabled', set: setSuffixOff },
               { label: 'NT (Nur Ton) erkennen', value: suffixNt, key: 'suffix_nt_enabled', set: setSuffixNt },
               { label: 'ONE-WAY erkennen', value: suffixOneway, key: 'suffix_oneway_enabled', set: setSuffixOneway },
+              { label: 'VO / V.O. (Voice Over) erkennen', value: suffixVo, key: 'suffix_vo_enabled', set: setSuffixVo },
             ] as const).map(row => (
               <label key={row.key} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                 <input type="checkbox" checked={row.value} disabled={suffixSaving} onChange={e => {

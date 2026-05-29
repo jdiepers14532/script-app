@@ -602,20 +602,33 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     // Bereits im Szenenkopf? Überspringen
     if (sceneChars.some((c: any) => String(c.character_id) === String(char.id))) return
 
-    const isOffOrNt = suffix === '(OFF)' || suffix === '(NT)'
+    // Suffix-Logik:
+    // OFF → nicht in Rollen, Notiz "Name im Off"
+    // NT → nicht in Rollen, Notiz "NT Name"
+    // VO → IN Rollen (Figur ist sichtbar), ZUSÄTZLICH Notiz "NT Name (VO)"
+    // ONE-WAY → in Rollen (sichtbare Figur); Notiz-Text für den Partner wird separat im ONE-WAY-Dialog gesetzt
+    const goesInNotiz = suffix === '(OFF)' || suffix === '(NT)' || suffix === '(VO)'
+    const goesInRollen = suffix !== '(OFF)' && suffix !== '(NT)'
 
-    if (isOffOrNt) {
-      // OFF/NT: Figur NICHT in Rollen — stattdessen Notiz-Eintrag
-      const notizEntry = suffix === '(NT)' ? `NT ${name}` : `${name} im Off`
+    if (goesInNotiz) {
+      const notizEntry = suffix === '(NT)'
+        ? `NT ${name}`
+        : suffix === '(VO)'
+          ? `NT ${name} (VO)`
+          : `${name} im Off`
       const currentNotiz = scene.notiz ? scene.notiz.trim() : ''
       if (!currentNotiz.includes(notizEntry)) {
         const newNotiz = currentNotiz ? `${currentNotiz}\n${notizEntry}` : notizEntry
         saveScene({ notiz: newNotiz }).then((s: any) => { if (s) setScene(s) }).catch(() => {})
       }
-    } else {
-      // Normal: Figur in Rollen aufnehmen (Kategorie aus allCharacters oder Rolle als Default)
-      const katId = char.kategorie_typ === 'komparse' ? komparseKatId : rolleKatId
-      handleAddCharacter(char, katId)
+    }
+
+    if (goesInRollen) {
+      // Normal oder VO: Figur in Rollen aufnehmen
+      if (!sceneChars.some((c: any) => String(c.character_id) === String(char.id))) {
+        const katId = char.kategorie_typ === 'komparse' ? komparseKatId : rolleKatId
+        handleAddCharacter(char, katId)
+      }
     }
   }, [addCharTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 

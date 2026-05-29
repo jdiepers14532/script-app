@@ -66,6 +66,7 @@ import { runPrivatModusWorker } from './workers/privatModusWorker'
 import analysisRouter from './routes/analysis'
 import { privateDokumenteRouter } from './routes/private-dokumente'
 import { rollenFreigabeRouter, rollenFreigabePublicRouter } from './routes/rollen-freigabe'
+import { ntEintraegeRouter } from './routes/nt-eintraege'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -196,6 +197,9 @@ app.use('/api/dk/private-dokumente', privateDokumenteRouter)
 
 // Rollen-Freigabe
 app.use('/api/rollen-freigabe', rollenFreigabeRouter)
+
+// NT-Eintraege (P8)
+app.use('/api/nt-eintraege', ntEintraegeRouter)
 
 // Autorenplan
 app.use('/api/autorenplan', autorenplanRouter)
@@ -373,6 +377,7 @@ async function runMigrations() {
     'v131_seitenzahlen.sql',
     'v132_rollen_freigabe.sql',
     'v133_glossar_off_erklaerung.sql',
+    'v134_nt_eintraege.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

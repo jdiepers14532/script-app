@@ -26,6 +26,7 @@ export default function StatistikPage() {
   const [werkstufTyp, setWerkstufTyp] = useState('drehbuch')
   const [report, setReport] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [ntStats, setNtStats] = useState<any>(null)
 
   // Load folgen + bloecke
   useEffect(() => {
@@ -60,12 +61,15 @@ export default function StatistikPage() {
 
   // Load report
   useEffect(() => {
-    if (!produktionId || selectedFolgeIds.length === 0) { setReport(null); return }
+    if (!produktionId || selectedFolgeIds.length === 0) { setReport(null); setNtStats(null); return }
     setLoading(true)
     api.getStatReport(produktionId, selectedFolgeIds, werkstufTyp)
       .then(setReport)
       .catch(() => setReport(null))
       .finally(() => setLoading(false))
+    api.getNtStatistik(produktionId, selectedFolgeIds)
+      .then(setNtStats)
+      .catch(() => setNtStats(null))
   }, [produktionId, selectedFolgeIds, werkstufTyp])
 
   // Title for the report header
@@ -171,7 +175,7 @@ export default function StatistikPage() {
               {selectedFolgeIds.length === 0 ? `Bitte Block oder ${t('episode')} wählen` : 'Keine Daten'}
             </div>
           ) : (
-            <ReportView report={report} title={reportTitle} />
+            <ReportView report={report} title={reportTitle} ntStats={ntStats} />
           )}
         </div>
       </div>
@@ -180,7 +184,7 @@ export default function StatistikPage() {
 }
 
 // ── Report View ────────────────────────────────────────────────────────────
-function ReportView({ report, title }: { report: any; title: string }) {
+function ReportView({ report, title, ntStats }: { report: any; title: string; ntStats?: any | null }) {
   const { t } = useTerminologie()
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', fontFamily: 'Inter, system-ui, sans-serif' }}>
@@ -296,6 +300,53 @@ function ReportView({ report, title }: { report: any; title: string }) {
               <span><span style={countBadge}>{d.scene_count}x</span> {d.name}</span>
             </div>
           ))}
+        </Section>
+      )}
+
+      {/* NT-Figuren */}
+      {ntStats && Number(ntStats.totals?.gesamt) > 0 && (
+        <Section title="NT / Nur Ton">
+          <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+            {[
+              { label: 'NT-Einträge', value: ntStats.totals.gesamt, color: '#007AFF' },
+              { label: 'Figuren', value: ntStats.totals.figuren_count, color: '#111' },
+              { label: 'Szenen', value: ntStats.totals.szenen_count, color: '#111' },
+              { label: 'Nur Ton', value: ntStats.totals.stimme, color: '#007AFF' },
+              { label: 'Telefonat', value: ntStats.totals.telefon, color: '#FF9500' },
+              { label: 'Voice Over', value: ntStats.totals.vo, color: '#AF52DE' },
+            ].map(s => (
+              <div key={s.label} style={{ textAlign: 'center', minWidth: 70 }}>
+                <div style={{ fontSize: 20, fontWeight: 700, color: s.color, fontVariantNumeric: 'tabular-nums' }}>{s.value ?? 0}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+          {ntStats.figuren?.length > 0 && (
+            <table style={tableStyle}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Figur</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>NT-Szenen</th>
+                  <th style={thStyle}>Typen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ntStats.figuren.map((f: any) => (
+                  <tr key={f.id}>
+                    <td style={tdStyle}>{f.name}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{f.szenen_count}</td>
+                    <td style={{ ...tdStyle, fontSize: 11 }}>
+                      {(f.typen as string[] ?? []).map((typ: string) => (
+                        <span key={typ} style={{ marginRight: 6, padding: '1px 6px', borderRadius: 8, background: typ === 'stimme' ? '#007AFF22' : typ === 'telefon' ? '#FF950022' : '#AF52DE22', color: typ === 'stimme' ? '#007AFF' : typ === 'telefon' ? '#FF9500' : '#AF52DE', fontSize: 11 }}>
+                          {typ === 'stimme' ? 'Nur Ton' : typ === 'telefon' ? 'Telefonat' : 'VO'}
+                        </span>
+                      ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </Section>
       )}
     </div>

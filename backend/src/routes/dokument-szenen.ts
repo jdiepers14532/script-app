@@ -4,6 +4,7 @@ import { authMiddleware } from '../auth'
 import { recalcSceneStats, updateReplikCount } from '../utils/recalcRepliken'
 import { calcPageLength } from '../utils/calcPageLength'
 import { recalcPageNumbers } from '../utils/recalcPageNumbers'
+import { autoUpsertNtEintraege } from './nt-eintraege'
 
 // ── Einzelne Dokument-Szene Router ───────────────────────────────────────────
 // Mounted at /api/dokument-szenen/:id
@@ -253,6 +254,11 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     // Seitenzahlen neu berechnen (async, non-blocking)
     if (row.werkstufe_id) {
       recalcPageNumbers(row.werkstufe_id).catch(() => {})
+    }
+
+    // NT-Eintraege auto-upsert (async, non-blocking, P8)
+    if (effectiveContent) {
+      autoUpsertNtEintraege(req.params.id, effectiveContent).catch(() => {})
     }
 
     res.json(row)

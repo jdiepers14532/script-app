@@ -15,6 +15,7 @@ import BesetzungPage from './pages/BesetzungPage'
 import PrivatModeTokenPage from './pages/PrivatModeTokenPage'
 import AnalysisPage from './pages/AnalysisPage'
 import FreieDokumentePage from './pages/FreieDokumentePage'
+import NtListePage from './pages/NtListePage'
 import ThemeAnpassenPage from './pages/ThemeAnpassenPage'
 import FreigabenPage from './pages/FreigabenPage'
 import FreigabePublicPage from './pages/FreigabePublicPage'
@@ -158,6 +159,7 @@ export default function App() {
               <Route path="/drehbuchkoordination" element={<DrehbuchkoordinationPage />} />
               <Route path="/analysis" element={<AnalysisPage />} />
               <Route path="/freie-dokumente" element={<FreieDokumentePage />} />
+              <Route path="/nt-liste" element={<NtListePage />} />
               <Route path="/privat-mode-token/:token" element={<PrivatModeTokenPage />} />
               <Route path="/theme-anpassen" element={<ThemeAnpassenPage />} />
               <Route path="/freigaben" element={<FreigabenPage />} />

@@ -68,6 +68,7 @@ export interface SuffixSettings {
   suffix_off_enabled: boolean
   suffix_nt_enabled: boolean
   suffix_oneway_enabled: boolean
+  suffix_vo_enabled: boolean
   off_figuren_im_szenenkopf: boolean
   action_ac_enabled: boolean
   action_ac_trigger_chars: number
@@ -77,6 +78,7 @@ export const SUFFIX_SETTINGS_DEFAULTS: SuffixSettings = {
   suffix_off_enabled: true,
   suffix_nt_enabled: true,
   suffix_oneway_enabled: true,
+  suffix_vo_enabled: true,
   off_figuren_im_szenenkopf: false,
   action_ac_enabled: true,
   action_ac_trigger_chars: 4,

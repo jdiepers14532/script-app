@@ -81,9 +81,10 @@ const InlineGhostExtension = Extension.create({
   addProseMirrorPlugins() { return [inlineGhostPlugin] },
 })
 
-// ── Charakter-Suffix-Parsing (OFF / NT / ONE-WAY) ────────────────────────────
+// ── Charakter-Suffix-Parsing (OFF / NT / ONE-WAY / VO) ───────────────────────
 const CHAR_SUFFIX_PATTERNS: Array<{ pattern: RegExp; canonical: string }> = [
   { pattern: /\s*\(?\s*one[-\s]?way\s*\)?$/i, canonical: '(ONE-WAY)' },
+  { pattern: /\s*\(?\s*v\.?o\.?\s*\)?$/i, canonical: '(VO)' },
   { pattern: /\s*\(?\s*n\.?t\.?\s*\)?$/i, canonical: '(NT)' },
   { pattern: /\s*\(?\s*(?:off|o\.s\.?)\s*\)?$/i, canonical: '(OFF)' },
 ]
@@ -962,12 +963,13 @@ export default function UniversalEditor({
 
       actionAcModeRef.current = false
       const query = node.textContent
-      // Suffix erkennen (OFF / NT / ONE-WAY) — Suche läuft auf dem bereinigten Namen
+      // Suffix erkennen (OFF / NT / ONE-WAY / VO) — Suche läuft auf dem bereinigten Namen
       const { name: queryClean, suffix: rawSuffix } = parseSuffix(query.trim())
       const ss = suffixSettingsRef.current
       const querySuffix = rawSuffix === '(OFF)' && !ss.suffix_off_enabled ? null
         : rawSuffix === '(NT)' && !ss.suffix_nt_enabled ? null
         : rawSuffix === '(ONE-WAY)' && !ss.suffix_oneway_enabled ? null
+        : rawSuffix === '(VO)' && !ss.suffix_vo_enabled ? null
         : rawSuffix
       const queryUpper = queryClean.toUpperCase()
       // Memory-Suffix: letzter bekannter Suffix dieser Figur in der aktuellen Szene

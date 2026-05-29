@@ -672,6 +672,13 @@ export const api = {
   deleteStatVorlage: (id: number) =>
     request<void>('DELETE', `/statistik/vorlagen/${id}`),
 
+  // ── NT-Eintraege ───────────────────────────────────────────────────────────
+  getNtStatistik: (produktionId: string, folgeIds: number[]) => {
+    const p = new URLSearchParams({ produktion_id: produktionId })
+    if (folgeIds.length > 0) p.set('folge_ids', folgeIds.join(','))
+    return request<any>('GET', `/nt-eintraege/statistik/overview?${p}`)
+  },
+
   // ── Suchen & Ersetzen ──────────────────────────────────────────────────────
 
   search: (params: {

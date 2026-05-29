@@ -168,7 +168,8 @@ export default function SceneList({
       const contentStr = typeof s.content === 'string' ? s.content : JSON.stringify(s.content)
       if (!/ONE-WAY/i.test(contentStr)) continue
       const notiz = (s.notiz ?? '').toLowerCase()
-      if (!/\bnt\b/.test(notiz)) {
+      // Warnung zeigen wenn kein Partner eingetragen: weder "oneway telefonat mit" noch legacy "nt"
+      if (!/oneway telefonat mit/i.test(notiz) && !/\bnt\b/.test(notiz)) {
         result.add(s.id)
       }
     }
@@ -181,7 +182,7 @@ export default function SceneList({
     try {
       const scene = szenen.find(s => s.id === oneWayDialog.sceneId)
       const currentNotiz = (scene?.notiz ?? '').trim()
-      const entry = `NT ${oneWayPartner.trim()}`
+      const entry = `Oneway Telefonat mit ${oneWayPartner.trim()}`
       const newNotiz = currentNotiz ? `${currentNotiz}\n${entry}` : entry
       await api.updateDokumentSzene(String(oneWayDialog.sceneId), { notiz: newNotiz })
       // Lokal updaten damit die Warnung verschwindet
@@ -931,6 +932,7 @@ export default function SceneList({
                         </button>
                       ))}
                       <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Dokument</button>
+                      <button className="scene-ctx-item" onClick={e => { e.stopPropagation(); window.location.href = `/nt-liste?szene_id=${scene.id}` }}>NT-Liste</button>
                       <button className="scene-ctx-item danger" onClick={e => handleDelete(e, scene.id)}>Löschen</button>
                     </div>
                   )}

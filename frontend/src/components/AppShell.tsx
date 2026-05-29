@@ -6,7 +6,7 @@ import {
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone, Trash2, Zap,
   Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
-  Clapperboard, Tv, FolderOpen, ShieldCheck,
+  Clapperboard, Tv, FolderOpen, ShieldCheck, MicOff,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext, ToastContext } from '../contexts'
 import type { TweakState, ToastType } from '../contexts'
@@ -1445,6 +1445,7 @@ export default function AppShell({
               { to: null,                    label: 'Export',              icon: <Download size={14} />,        shortcut: 'navExport',   action: () => { setNavMenuOpen(false); window.dispatchEvent(new CustomEvent('open-export-dialog')) } },
               { to: '/import',              label: 'Import',              icon: <FileUp size={14} /> },
               { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} />,      shortcut: 'navFreieDokumente' },
+              { to: '/nt-liste',            label: 'NT-Liste',            icon: <MicOff size={14} /> },
               ...(hasDkAccess ? [{
                 to: '/freigaben',
                 label: 'Freigaben',
