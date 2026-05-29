@@ -1079,21 +1079,24 @@ function SnippetListModal({ results, total, totalScenes, lockedCount, query,
         </button>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
-        {Object.entries(grouped).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([folgeNr, scenes]) => (
-          <SnippetGroup
-            key={folgeNr}
-            folgeNummer={parseInt(folgeNr)}
-            scenes={scenes}
-            query={query}
-            episodeLabel={episodeLabel}
-            szeneLabel={szeneLabel}
-            searchMode={searchMode}
-            reviewStatus={reviewStatus}
-            onNavigate={onNavigate}
-            onAccept={onAcceptMatch}
-            onSkip={onSkipMatch}
-          />
-        ))}
+        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+          {Object.entries(grouped).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([folgeNr, scenes]) => (
+            <SnippetGroup
+              key={folgeNr}
+              folgeNummer={parseInt(folgeNr)}
+              scenes={scenes}
+              query={query}
+              episodeLabel={episodeLabel}
+              szeneLabel={szeneLabel}
+              searchMode={searchMode}
+              reviewStatus={reviewStatus}
+              onNavigate={onNavigate}
+              onAccept={onAcceptMatch}
+              onSkip={onSkipMatch}
+              expanded
+            />
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -1177,11 +1180,12 @@ function SnippetResults({ results, total, totalScenes, lockedCount, loading, que
 }
 
 function SnippetGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel,
-  searchMode, reviewStatus, onNavigate, onAccept, onSkip }: {
+  searchMode, reviewStatus, onNavigate, onAccept, onSkip, expanded }: {
   folgeNummer: number; scenes: SearchResult[]; query: string
   episodeLabel: string; szeneLabel: string; searchMode: SearchMode; reviewStatus: ReviewStatus
   onNavigate: (szeneId: string, folgeId: number) => void
   onAccept: (m: SearchResult) => Promise<void>; onSkip: (m: SearchResult) => void
+  expanded?: boolean
 }) {
   const [groupExpanded, setGroupExpanded] = useState(true)
   const [accepting, setAccepting] = useState<string | null>(null)
@@ -1238,7 +1242,14 @@ function SnippetGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel,
                     [{scene.werkstufe_typ}{scene.is_fallback ? ' ↑' : ''}]
                   </span>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <div style={expanded ? {
+                  fontFamily: "'Courier Prime', 'Courier New', monospace",
+                  fontSize: 14, lineHeight: 1.8, whiteSpace: 'pre-wrap',
+                  padding: '12px 16px', background: 'var(--bg-subtle)', borderRadius: 6, marginTop: 6,
+                  color: 'var(--text-primary)',
+                } : {
+                  fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
                   {highlightSnippet(scene.snippet, query)}
                 </div>
                 {showReviewButtons && !scene.is_locked && (
@@ -1246,13 +1257,13 @@ function SnippetGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel,
                     <button
                       onClick={async e => { e.stopPropagation(); setAccepting(key); onNavigate(scene.dokument_szene_id, scene.folge_id); await onAccept(scene); setAccepting(null) }}
                       disabled={isAccepting}
-                      style={{ ...primBtnStyle, fontSize: 11, padding: '3px 10px', flex: 1 }}
+                      style={{ ...primBtnStyle, fontSize: 11, padding: '3px 10px' }}
                     >
                       <Check size={11} /> {isAccepting ? '...' : 'Annehmen'}
                     </button>
                     <button
                       onClick={e => { e.stopPropagation(); onSkip(scene) }}
-                      style={{ ...secBtnStyle, fontSize: 11, padding: '3px 10px', flex: 1 }}
+                      style={{ ...secBtnStyle, fontSize: 11, padding: '3px 10px' }}
                     >
                       <SkipForward size={11} /> Überspringen
                     </button>
