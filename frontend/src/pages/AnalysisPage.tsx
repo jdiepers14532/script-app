@@ -332,7 +332,7 @@ const METHODEN_INFO: Record<string, { was: string; wie: string; quelle: string; 
     was: 'Emotionaler Verlauf jedes Story-Strangs. +5 = Höhepunkt (Glück, Erfolg, Liebe, Verbindung) · 0 = neutral · −5 = Tiefpunkt (Verlust, Scheitern, Schmerz, Trennung). Markierte Punkte auf der Linie sind dramaturgische Wendepunkte.',
     wie: 'Basiert auf Kurt Vonneguts Konzept „Shape of Stories" (Vortrag 1973). Reagan et al. (2016) haben durch Sentiment-Analyse an über 1.700 Texten gezeigt: Arcs mit mehreren Wendepunkten (z.B. Cinderella, Oedipus) erzeugen stärkeres emotionales Engagement als lineare Verläufe.',
     quelle: 'Vonnegut, K. (1973): Vortrag "Shape of Stories". Reagan, A.J. et al. (2016): PLOS ONE 11(12).',
-    link: 'https://doi.org/10.1371/journal.pone.0165498',
+    link: 'https://storytellingedge.substack.com/p/the-simple-shapes-of-great-stories',
   },
 }
 
@@ -391,7 +391,7 @@ function VisualisierungsHeader({ method }: { method: string }) {
             {info.link && (
               <a href={info.link} target="_blank" rel="noopener noreferrer"
                 style={{ marginLeft: 8, color: '#007AFF', textDecoration: 'none', fontWeight: 500 }}>
-                Studie öffnen →
+                Weitere Information
               </a>
             )}
           </div>
@@ -500,7 +500,7 @@ function GlossarLeiste({ markdown }: { markdown: string }) {
                   rel="noopener noreferrer"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginTop: 5, color: mc!.color, textDecoration: 'none', fontSize: 10 }}
                 >
-                  Studie öffnen →
+                  Weitere Information
                 </a>
               )}
             </div>
