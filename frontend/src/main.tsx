@@ -48,6 +48,14 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       // Neuer SW hat übernommen → Update-Banner zeigen
       window.dispatchEvent(new CustomEvent('sw-update-waiting'))
     })
+
+    // SW_ACTIVATED-Broadcast vom neuen Service Worker empfangen (sw.ts sendet diesen)
+    const swUpdateBc = new BroadcastChannel('sw-update')
+    swUpdateBc.addEventListener('message', (event) => {
+      if (event.data?.type === 'SW_ACTIVATED' && navigator.serviceWorker.controller) {
+        window.dispatchEvent(new CustomEvent('sw-update-waiting'))
+      }
+    })
   })
 }
 
