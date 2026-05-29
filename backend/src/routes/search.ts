@@ -661,30 +661,29 @@ searchRouter.get('/szenen', async (req, res) => {
       joins.push(`JOIN scene_characters ${alias} ON ${alias}.scene_identity_id = si.id AND LOWER(${alias}.name) = LOWER($${params.length})`)
     })
 
-    // --- Motiv-Filter ---
+    // --- Motiv-Filter (motiv_id liegt auf dokument_szenen = ds) ---
     if (motivIdList.length > 0) {
       params.push(motivIdList)
-      conditions.push(`si.motiv_id = ANY($${params.length}::uuid[])`)
+      conditions.push(`ds.motiv_id = ANY($${params.length}::uuid[])`)
     }
 
-    // --- I/A-Filter ---
+    // --- I/A-Filter (ds.int_ext: 'INT'/'EXT'/'I-A'/...) ---
     if (ia && ia !== '') {
       const iaLower = ia.toLowerCase()
-      // Normalisiere: innen/interior → 'I', außen/exterior → 'A'
       if (iaLower.startsWith('i') || iaLower === 'int') {
-        conditions.push(`LOWER(COALESCE(si.innen_aussen, '')) IN ('i', 'innen', 'int', 'interior')`)
+        conditions.push(`UPPER(COALESCE(ds.int_ext, '')) IN ('I', 'INT', 'INNEN', 'INTERIOR', 'I-A')`)
       } else if (iaLower.startsWith('a') || iaLower.startsWith('e') || iaLower === 'ext') {
-        conditions.push(`LOWER(COALESCE(si.innen_aussen, '')) IN ('a', 'außen', 'aussen', 'ext', 'exterior')`)
+        conditions.push(`UPPER(COALESCE(ds.int_ext, '')) IN ('A', 'EXT', 'AUSSEN', 'EXTERIOR', 'AUSSEN')`)
       }
     }
 
-    // --- DT-Filter ---
+    // --- DT-Filter (ds.tageszeit: 'TAG'/'NACHT'/...) ---
     if (dt && dt !== '') {
       const dtLower = dt.toLowerCase()
       if (dtLower === 'tag' || dtLower === 'day' || dtLower === 't') {
-        conditions.push(`LOWER(COALESCE(si.tag_nacht, '')) IN ('t', 'tag', 'day', 'tagüber')`)
+        conditions.push(`UPPER(COALESCE(ds.tageszeit, '')) IN ('T', 'TAG', 'DAY', 'TAGÜBER')`)
       } else if (dtLower === 'nacht' || dtLower === 'night' || dtLower === 'n') {
-        conditions.push(`LOWER(COALESCE(si.tag_nacht, '')) IN ('n', 'nacht', 'night')`)
+        conditions.push(`UPPER(COALESCE(ds.tageszeit, '')) IN ('N', 'NACHT', 'NIGHT')`)
       }
     }
 
@@ -714,12 +713,12 @@ searchRouter.get('/szenen', async (req, res) => {
       )
       SELECT DISTINCT
         si.id AS scene_identity_id,
-        si.scene_nummer,
-        COALESCE(si.ort_name, '') AS ort_name,
-        COALESCE(si.innen_aussen, '') AS innen_aussen,
-        COALESCE(si.tag_nacht, '') AS tag_nacht,
-        si.stoppzeit_sek,
-        si.motiv_id,
+        ds.scene_nummer,
+        COALESCE(ds.ort_name, '') AS ort_name,
+        COALESCE(ds.int_ext, '') AS innen_aussen,
+        COALESCE(ds.tageszeit, '') AS tag_nacht,
+        ds.stoppzeit_sek,
+        ds.motiv_id,
         lw.werkstufe_id,
         lw.typ AS werkstufe_typ,
         lw.version_nummer,
@@ -727,8 +726,6 @@ searchRouter.get('/szenen', async (req, res) => {
         lw.folge_nummer,
         lw.ist_frei,
         CASE WHEN lw.typ != $${prefTypIdx} THEN true ELSE false END AS is_fallback,
-        CASE WHEN el.id IS NOT NULL THEN true ELSE false END AS is_locked,
-        el.user_name AS locked_by,
         ds.id AS dokument_szene_id,
         ds.sort_order,
         -- Rollen dieser Szene (aggregiert)
@@ -736,15 +733,12 @@ searchRouter.get('/szenen', async (req, res) => {
          FROM scene_characters scc WHERE scc.scene_identity_id = si.id
          LIMIT 20) AS rollen
       FROM latest_werkstufen lw
-      JOIN dokument_szenen ds ON ds.werkstufe_id = lw.werkstufe_id AND ds.geloescht = false
-      JOIN scene_identities si ON si.id = ds.scene_identity_id AND (si.geloescht IS NULL OR si.geloescht = false)
+      JOIN dokument_szenen ds ON ds.werkstufe_id = lw.werkstufe_id AND ds.geloescht = false AND ds.element_type = 'scene'
+      JOIN scene_identities si ON si.id = ds.scene_identity_id
       ${joinsStr}
-      LEFT JOIN episode_locks el ON el.produktion_id = lw.produktion_id
-        AND el.folge_nummer = lw.folge_nummer
-        AND (el.expires_at IS NULL OR el.expires_at > NOW())
       WHERE lw.rn = 1
         ${whereStr}
-      ORDER BY lw.folge_nummer, si.scene_nummer NULLS LAST, ds.sort_order
+      ORDER BY lw.folge_nummer, ds.scene_nummer NULLS LAST, ds.sort_order
       LIMIT 500
     `
 
