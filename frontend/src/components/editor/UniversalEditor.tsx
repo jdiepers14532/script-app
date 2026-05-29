@@ -1680,7 +1680,7 @@ export default function UniversalEditor({
       {/* Page area */}
       <div
         ref={scrollContainerRef}
-        style={{ flex: 1, overflow: 'auto', position: 'relative' }}
+        style={{ flex: 1, overflow: 'auto', position: 'relative', scrollPaddingBottom: '180px' }}
         onWheelCapture={handleScrollWheel}
         onClick={e => {
           if (focus && e.altKey) {

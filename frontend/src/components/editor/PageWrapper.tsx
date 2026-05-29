@@ -36,10 +36,10 @@ export default function PageWrapper({
   const ptRight  = Math.round(pageMargins.rechts * MM_TO_PX)
 
   // ── Blatt-Modus: dynamische Seitenhöhe ───────────────────────────────────
-  // minHeight wird auf das nächste ganzzahlige A4/Letter-Vielfache gerundet,
-  // damit jede angefangene Seite als vollständiges Blatt erscheint.
-  // Wir messen die echte ProseMirror-Höhe (nicht die Container-Höhe, die durch
-  // minHeight aufgeblasen wäre) → kein zirkulärer ResizeObserver-Loop.
+  // minHeight wird auf das nächste ganzzahlige A4/Letter-Vielfache gerundet.
+  // Wir beobachten ProseMirror direkt (nicht den Container), damit der Observer
+  // auch bei schrumpfendem Inhalt feuert — der Container bleibt sonst durch
+  // minHeight auf alter Größe und würde nie resizen.
   const [pageMinHeight, setPageMinHeight] = useState(dim.height)
   const pageRef = useRef<HTMLDivElement>(null)
 
@@ -47,29 +47,74 @@ export default function PageWrapper({
     if (!showShadow) return
     const el = pageRef.current
     if (!el) return
+    const contentMinH = dim.height - ptTop - ptBottom
 
-    const update = () => {
-      const pm = el.querySelector('.ProseMirror') as HTMLElement | null
-      // ProseMirror soll immer mind. eine volle Inhaltsseite hoch sein —
-      // direkt setzen (vor dem Messen), damit getBoundingClientRect korrekt ist.
-      if (pm) pm.style.minHeight = `${dim.height - ptTop - ptBottom}px`
-      const contentH = pm ? pm.getBoundingClientRect().height : 0
-      const totalH = contentH + ptTop + ptBottom
-      const pages = Math.max(1, Math.ceil(totalH / dim.height))
+    const applyHeight = (pmH: number) => {
+      const pages = Math.max(1, Math.ceil(Math.max(pmH, 1) / dim.height))
       setPageMinHeight(pages * dim.height)
     }
 
-    const ro = new ResizeObserver(update)
+    const ro = new ResizeObserver(() => {
+      const pm = el.querySelector('.ProseMirror') as HTMLElement | null
+      if (pm) applyHeight(ptTop + pm.getBoundingClientRect().height + ptBottom)
+    })
+    const roPm = new ResizeObserver(() => {
+      const pm = el.querySelector('.ProseMirror') as HTMLElement | null
+      if (pm) {
+        pm.style.minHeight = `${contentMinH}px`
+        applyHeight(ptTop + pm.getBoundingClientRect().height + ptBottom)
+      }
+    })
+
     ro.observe(el)
-    // Initial run (ProseMirror ist beim ersten Tick noch nicht im DOM)
-    const raf = requestAnimationFrame(update)
-    return () => { ro.disconnect(); cancelAnimationFrame(raf) }
+    const raf = requestAnimationFrame(() => {
+      const pm = el.querySelector('.ProseMirror') as HTMLElement | null
+      if (pm) {
+        pm.style.minHeight = `${contentMinH}px`
+        roPm.observe(pm)
+        applyHeight(ptTop + pm.getBoundingClientRect().height + ptBottom)
+      }
+    })
+    return () => { ro.disconnect(); roPm.disconnect(); cancelAnimationFrame(raf) }
   }, [showShadow, dim.height, ptTop, ptBottom])
 
   // dim/seitenformat wechselt → auf 1 Seite zurücksetzen, neu messen
   useEffect(() => {
     setPageMinHeight(dim.height)
   }, [dim.height])
+
+  // ── Fließtext-Modus: letzte Seite bis zur nächsten A4-Grenze auffüllen ──
+  // Ohne minHeight endet der Container exakt mit dem ProseMirror-Inhalt,
+  // backgroundClip:content-box schneidet die letzte Trennlinie ab.
+  const flowRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (showShadow) return
+    const el = flowRef.current
+    if (!el) return
+    const contentH = dim.height - ptTop - ptBottom
+
+    const update = () => {
+      const pm = el.querySelector('.ProseMirror') as HTMLElement | null
+      const pmH = pm ? pm.getBoundingClientRect().height : 0
+      const pages = Math.max(1, Math.ceil((pmH || 1) / contentH))
+      const h = `${pages * contentH + ptTop + ptBottom}px`
+      if (el.style.minHeight !== h) el.style.minHeight = h
+    }
+
+    const ro  = new ResizeObserver(update)
+    const roPm = new ResizeObserver(update)
+    ro.observe(el)
+    const raf = requestAnimationFrame(() => {
+      update()
+      const pm = el.querySelector('.ProseMirror') as HTMLElement | null
+      if (pm) roPm.observe(pm)
+    })
+    return () => {
+      ro.disconnect(); roPm.disconnect(); cancelAnimationFrame(raf)
+      el.style.minHeight = ''
+    }
+  }, [showShadow, dim.height, ptTop, ptBottom])
 
   if (showShadow) {
     // ── Blatt-Modus: weißes Blatt mit Schatten, sichtbare Seitentrennlinie ──
@@ -130,6 +175,7 @@ export default function PageWrapper({
   return (
     <div className="pw-outer" style={{ background: 'var(--bg-page)', padding: '0 32px', minHeight: '100%' }}>
       <div
+        ref={flowRef}
         className={className}
         style={{
           '--page-padding': `${ptLeft}px`,
@@ -138,10 +184,11 @@ export default function PageWrapper({
           margin: '0 auto',
           background: 'transparent',
           paddingLeft: ptLeft, paddingRight: ptRight,
-          paddingTop: ptTop, paddingBottom: 0,
+          paddingTop: ptTop, paddingBottom: ptBottom,
           position: 'relative',
-          // Trennlinie exakt an Druckseiten-Ende — Gradient relativ zum Content-Box-Rand,
-          // damit oberer Seitenrand (paddingTop) korrekt ausgespart bleibt
+          // Trennlinie exakt an Druckseiten-Ende — Gradient relativ zum Content-Box-Rand.
+          // paddingBottom = unterer Seitenrand; minHeight (per ResizeObserver gesetzt) rundet
+          // auf das nächste volle A4/Letter-Vielfache auf, damit die letzte Trennlinie sichtbar ist.
           backgroundImage: `repeating-linear-gradient(
             transparent 0,
             transparent ${contentHeight - 1}px,
