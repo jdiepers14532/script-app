@@ -38,6 +38,7 @@ interface Props {
   onNewWerkCreated?: (newWerkId: string, oldWerkId: string | null) => void
   onSzenesNeedReload?: () => void
   sceneCharNames?: string[]
+  onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
 }
 
 export default function EditorPanel({
@@ -45,7 +46,7 @@ export default function EditorPanel({
   defaultTyp, selectedSzeneId, sceneIdentityId, useDokumentSzenen, activateWerkId,
   onCreateWerkstufe, onReloadWerkstufen,
   onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated, onSzenesNeedReload,
-  sceneCharNames,
+  sceneCharNames, onCharInserted,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
@@ -928,6 +929,7 @@ export default function EditorPanel({
               revisionColor={revisionColor}
               editorRef={editorRef}
               sceneCharNames={sceneCharNames}
+              onCharInserted={onCharInserted}
             />
           </Suspense>
         )}

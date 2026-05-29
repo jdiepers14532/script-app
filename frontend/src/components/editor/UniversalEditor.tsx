@@ -322,6 +322,8 @@ interface UniversalEditorProps {
   editorRef?: React.MutableRefObject<any>
   /** Charakternamen aus dem Szenenkopf (Rollen + Komparsen) für Autovervollständigung */
   sceneCharNames?: string[]
+  /** Callback wenn Charakter über AC eingefügt wurde — für automatischen Szenenkopf-Eintrag */
+  onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
 }
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -353,6 +355,7 @@ export default function UniversalEditor({
   revisionColor = null,
   editorRef,
   sceneCharNames,
+  onCharInserted,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
@@ -552,8 +555,8 @@ export default function UniversalEditor({
   // Debounced DB-Suche für "alle"-Modus (nicht mehr verwendet — durch Cache ersetzt)
   const acDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Cache aller Produktions-Charakternamen für "alle"-Modus (max ~40 Namen, lokal gefiltert)
-  const allCharNamesRef = useRef<string[]>([])
+  // Cache aller Produktions-Charaktere für "alle"-Modus (max ~40 Einträge, lokal gefiltert)
+  const allCharObjsRef = useRef<{ id: string; name: string }[]>([])
 
   // Sync charAcStyle für Keyboard-Extension (stabile Ref)
   const charAcStyleRef = useRef<'inline' | 'menu'>('menu')
@@ -574,13 +577,13 @@ export default function UniversalEditor({
   // Map<NAME_UPPER, '(OFF)'|'(NT)'|'(ONE-WAY)'>
   const sceneSuffixMemoryRef = useRef<Map<string, string>>(new Map())
 
-  // Charakter-Cache: alle Produktions-Namen laden wenn Produktion wechselt
+  // Charakter-Cache: alle Produktions-Charaktere laden wenn Produktion wechselt
   useEffect(() => {
-    allCharNamesRef.current = []
+    allCharObjsRef.current = []
     if (!selectedProdId || tweaks.nurCharAusSzenenkopf === 'aus') return
     fetch(`/api/characters?produktion_id=${selectedProdId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
-      .then((rows: any[]) => { allCharNamesRef.current = rows.map(r => String(r.name)) })
+      .then((rows: any[]) => { allCharObjsRef.current = rows.map(r => ({ id: String(r.id), name: String(r.name) })) })
       .catch(() => {})
   }, [selectedProdId, tweaks.nurCharAusSzenenkopf])
 
@@ -915,7 +918,7 @@ export default function UniversalEditor({
       const pool: string[] =
         modus === 'szenenkopf'
           ? (sceneCharNames ?? [])
-          : allCharNamesRef.current
+          : allCharObjsRef.current.map(o => o.name)
 
       if (style === 'inline') {
         // ── Inline Ghost Text ─────────────────────────────────────────────
@@ -1005,6 +1008,9 @@ export default function UniversalEditor({
   }, [editor, charFormatIds])
 
   // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
+  const onCharInsertedRef = useRef(onCharInserted)
+  onCharInsertedRef.current = onCharInserted
+
   const insertNameIntoEditor = useCallback((name: string, suffix?: string | null) => {
     if (!editor) return
     const { $from } = editor.state.selection
@@ -1019,6 +1025,13 @@ export default function UniversalEditor({
       chain.insertContentAt(start, fullText).run()
     }
   }, [editor])
+
+  // Wrapper: Charakter einfügen + Szenenkopf-Callback auslösen
+  const acceptCharIntoEditor = useCallback((name: string, sfx: string | null) => {
+    const charId = allCharObjsRef.current.find(o => o.name.toUpperCase() === name.toUpperCase())?.id ?? null
+    insertNameIntoEditor(name, sfx)
+    onCharInsertedRef.current?.(name, charId, sfx)
+  }, [insertNameIntoEditor])
 
   useEffect(() => {
     acHandlersRef.current = {
@@ -1043,7 +1056,7 @@ export default function UniversalEditor({
           if (acceptName) {
             const sfx = detectedSuffixRef.current
             detectedSuffixRef.current = null
-            insertNameIntoEditor(acceptName, sfx)
+            acceptCharIntoEditor(acceptName, sfx)
           } else if (noMatchName) {
             setNewCharDialog({ name: noMatchName, suffix: detectedSuffixRef.current, loading: false })
             detectedSuffixRef.current = null
@@ -1070,7 +1083,7 @@ export default function UniversalEditor({
         if (!name) return
         const sfx = detectedSuffixRef.current
         detectedSuffixRef.current = null
-        insertNameIntoEditor(name, sfx)
+        acceptCharIntoEditor(name, sfx)
         acActiveRef.current = false
         setAcSuggestions([])
         setAcNewName(null)
@@ -1331,6 +1344,10 @@ export default function UniversalEditor({
         chain.insertContentAt(start, fullInsertName).run()
       }
 
+      // Cache aktualisieren + Szenenkopf-Callback mit bekannter ID
+      allCharObjsRef.current = [...allCharObjsRef.current, { id: String(char.id), name }]
+      onCharInsertedRef.current?.(name, String(char.id), sfx)
+
       showToast(
         freigabeGestartet
           ? `${name} wurde angelegt. Freigabe-Anfrage gesendet.`
@@ -1363,7 +1380,7 @@ export default function UniversalEditor({
     if (!name) return
     const sfx = detectedSuffixRef.current
     detectedSuffixRef.current = null
-    insertNameIntoEditor(name, sfx)
+    acceptCharIntoEditor(name, sfx)
     acActiveRef.current = false
     setAcSuggestions([])
     setAcNewName(null)

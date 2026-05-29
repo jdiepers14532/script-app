@@ -24,6 +24,8 @@ interface SceneEditorProps {
   onNavigateNext?: () => void
   onMarkCommentsRead?: (szeneId: number) => void
   onCharsChange?: (chars: { name: string }[]) => void
+  /** Wenn Editor einen Charakter via AC einfügt → automatisch in Szenenkopf aufnehmen */
+  addCharTrigger?: { name: string; characterId: string | null; suffix: string | null; key: number } | null
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -49,7 +51,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
 }
 
 
-export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange, addCharTrigger }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -585,6 +587,37 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   useEffect(() => {
     onCharsChange?.(sceneChars)
   }, [sceneChars]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Charakter aus Editor → automatisch in Szenenkopf aufnehmen
+  useEffect(() => {
+    if (!addCharTrigger || !scene?.scene_identity_id) return
+    const { name, characterId, suffix } = addCharTrigger
+
+    // Figur in allCharacters suchen (nach ID oder Name)
+    const char = characterId
+      ? (allCharacters.find((c: any) => String(c.id) === String(characterId)) ?? { id: characterId, name, kategorie_typ: 'rolle' })
+      : allCharacters.find((c: any) => c.name.toUpperCase() === name.toUpperCase())
+    if (!char) return
+
+    // Bereits im Szenenkopf? Überspringen
+    if (sceneChars.some((c: any) => String(c.character_id) === String(char.id))) return
+
+    const isOffOrNt = suffix === '(OFF)' || suffix === '(NT)'
+
+    if (isOffOrNt) {
+      // OFF/NT: Figur NICHT in Rollen — stattdessen Notiz-Eintrag
+      const notizEntry = suffix === '(NT)' ? `NT ${name}` : `${name} im Off`
+      const currentNotiz = scene.notiz ? scene.notiz.trim() : ''
+      if (!currentNotiz.includes(notizEntry)) {
+        const newNotiz = currentNotiz ? `${currentNotiz}\n${notizEntry}` : notizEntry
+        saveScene({ notiz: newNotiz }).then((s: any) => { if (s) setScene(s) }).catch(() => {})
+      }
+    } else {
+      // Normal: Figur in Rollen aufnehmen (Kategorie aus allCharacters oder Rolle als Default)
+      const katId = char.kategorie_typ === 'komparse' ? komparseKatId : rolleKatId
+      handleAddCharacter(char, katId)
+    }
+  }, [addCharTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMotivSelect = useCallback(async (parentMotiv: any) => {
     setMotivDropdownOpen(false)

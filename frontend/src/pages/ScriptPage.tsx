@@ -66,6 +66,12 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
   // Reset when scene changes
   useEffect(() => { setSceneCharNames([]) }, [selectedSzeneId])
 
+  // Charakter-aus-Editor → SceneEditor-Szenenkopf-Automatik
+  const [charToAdd, setCharToAdd] = useState<{ name: string; characterId: string | null; suffix: string | null; key: number } | null>(null)
+  const handleCharInserted = useCallback((name: string, characterId: string | null, suffix: string | null) => {
+    setCharToAdd({ name, characterId, suffix, key: Date.now() })
+  }, [])
+
   // Propagate dominant werkId + typ to parent — synchronisiert SceneList mit aktivem EditorPanel
   useEffect(() => {
     const dominant = rightWerkId ?? leftWerkId
@@ -146,6 +152,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
           onNavigateNext={onNavigateNext}
           onMarkCommentsRead={onMarkCommentsRead}
           onCharsChange={handleCharsChange}
+          addCharTrigger={charToAdd}
         />
       )}
       <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -192,6 +199,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             onNewWerkCreated={handleNewWerkCreated}
             onSzenesNeedReload={onSzenesNeedReload}
             sceneCharNames={sceneCharNames}
+            onCharInserted={handleCharInserted}
           />
         </div>
       )}
@@ -254,6 +262,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             onNewWerkCreated={handleNewWerkCreated}
             onSzenesNeedReload={onSzenesNeedReload}
             sceneCharNames={sceneCharNames}
+            onCharInserted={handleCharInserted}
           />
         </div>
       )}
