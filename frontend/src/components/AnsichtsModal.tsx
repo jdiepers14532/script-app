@@ -247,7 +247,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
 
             <div style={rowStyle}>
               <Tooltip text="Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein Charakter-Format.">
-                <span style={labelStyle}>Charakter-Autovervollständigung</span>
+                <span style={labelStyle}>Charakter-AC — Quellenpool</span>
               </Tooltip>
               <div className="seg">
                 <Tooltip text="Nur Rollen/Komparsen aus dem Szenenkopf vorschlagen">
@@ -261,6 +261,22 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                 </Tooltip>
               </div>
             </div>
+
+            {tweaks.nurCharAusSzenenkopf !== 'aus' && (
+              <div style={rowStyle}>
+                <Tooltip text={tweaks.charAcStyle === 'inline' ? 'Tab übernimmt den Vorschlag · Enter = neue Zeile (ignoriert Vorschlag)' : 'Dropdown-Liste mit Vorschlägen · ↑↓ navigieren · Tab/Enter übernehmen'}>
+                  <span style={labelStyle}>Charakter-AC — Darstellung</span>
+                </Tooltip>
+                <div className="seg">
+                  <Tooltip text="Bester Treffer wird grau im Editor vervollständigt · Tab = übernehmen">
+                    <button className={tweaks.charAcStyle === 'inline' ? 'on' : ''} onClick={() => set('charAcStyle', 'inline')}>Inline</button>
+                  </Tooltip>
+                  <Tooltip text="Klassisches Dropdown-Menü mit allen Treffern">
+                    <button className={tweaks.charAcStyle === 'menu' ? 'on' : ''} onClick={() => set('charAcStyle', 'menu')}>Menü</button>
+                  </Tooltip>
+                </div>
+              </div>
+            )}
 
             <div style={rowStyle}>
               <span style={labelStyle}>Automatische Stimmungsanpassung</span>

@@ -43,6 +43,44 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 
+// ── Inline Ghost Text — ProseMirror Plugin (Modul-Ebene) ─────────────────────
+const inlineGhostKey = new PluginKey<{ suffix: string; pos: number }>('inlineGhostText')
+const inlineGhostPlugin = new Plugin({
+  key: inlineGhostKey,
+  state: {
+    init: () => ({ suffix: '', pos: 0 }),
+    apply(tr, prev) {
+      const meta = tr.getMeta(inlineGhostKey)
+      if (meta !== undefined) return { suffix: meta.suffix ?? '', pos: meta.pos ?? 0 }
+      if (tr.docChanged) return { suffix: '', pos: 0 } // bei Eingabe automatisch löschen
+      return prev
+    },
+  },
+  props: {
+    decorations(state) {
+      const g = inlineGhostKey.getState(state)
+      if (!g?.suffix || g.pos === 0) return DecorationSet.empty
+      try {
+        const widget = Decoration.widget(
+          g.pos,
+          () => {
+            const span = document.createElement('span')
+            span.textContent = g.suffix
+            span.style.cssText = 'color:var(--text-secondary,#aaa);pointer-events:none;user-select:none;'
+            return span
+          },
+          { side: 1, key: 'inline-ghost' }
+        )
+        return DecorationSet.create(state.doc, [widget])
+      } catch { return DecorationSet.empty }
+    },
+  },
+})
+const InlineGhostExtension = Extension.create({
+  name: 'inlineGhostText',
+  addProseMirrorPlugins() { return [inlineGhostPlugin] },
+})
+
 // ── Platform detection ──────────────────────────────────────────────────────
 const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
 const modKey = isMac ? '\u2318' : 'Ctrl'
@@ -494,14 +532,36 @@ export default function UniversalEditor({
   // Dialog-State für Charakter-Anlegen-Bestätigung
   const [newCharDialog, setNewCharDialog] = useState<{ name: string; loading: boolean } | null>(null)
 
-  // Debounced DB-Suche für "alle"-Modus
+  // Debounced DB-Suche für "alle"-Modus (nicht mehr verwendet — durch Cache ersetzt)
   const acDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cache aller Produktions-Charakternamen für "alle"-Modus (max ~40 Namen, lokal gefiltert)
+  const allCharNamesRef = useRef<string[]>([])
+
+  // Sync charAcStyle für Keyboard-Extension (stabile Ref)
+  const charAcStyleRef = useRef<'inline' | 'menu'>('menu')
+  useEffect(() => { charAcStyleRef.current = tweaks.charAcStyle }, [tweaks.charAcStyle])
+
+  // Inline-Modus: aktueller Vorschlag-Name (zum Einfügen) oder kein-Treffer-Name (für Neu-Anlegen)
+  const inlineGhostAcceptNameRef = useRef<string | null>(null)
+  const inlineGhostNoMatchNameRef = useRef<string | null>(null)
+  const inlineGhostActiveRef = useRef(false)
 
   // IDs der "Character"-Absatzformate
   const charFormatIds = useMemo(
     () => absatzformate.filter(f => f.name.toLowerCase() === 'character').map(f => f.id),
     [absatzformate]
   )
+
+  // Charakter-Cache: alle Produktions-Namen laden wenn Produktion wechselt
+  useEffect(() => {
+    allCharNamesRef.current = []
+    if (!selectedProdId || tweaks.nurCharAusSzenenkopf === 'aus') return
+    fetch(`/api/characters?produktion_id=${selectedProdId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => { allCharNamesRef.current = rows.map(r => String(r.name)) })
+      .catch(() => {})
+  }, [selectedProdId, tweaks.nurCharAusSzenenkopf])
 
   // Keyboard-Handler via mutable ref (lesen von Refs für frische Werte)
   const acHandlersRef = useRef({
@@ -517,11 +577,35 @@ export default function UniversalEditor({
     name: 'charAcKey',
     addKeyboardShortcuts() {
       return {
-        ArrowUp:  () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowUp();  return true },
-        ArrowDown:() => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowDown(); return true },
-        Tab:      () => { if (!acActiveRef.current) return false; acHandlersRef.current.onAccept();    return true },
-        Enter:    () => { if (!acActiveRef.current) return false; acHandlersRef.current.onAccept();    return true },
-        Escape:   () => { if (!acActiveRef.current) return false; acHandlersRef.current.onDismiss();   return true },
+        ArrowUp:   () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowUp();  return true },
+        ArrowDown: () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowDown(); return true },
+        Tab: () => {
+          if (charAcStyleRef.current === 'inline') {
+            if (!inlineGhostActiveRef.current) return false
+            acHandlersRef.current.onAccept()
+            return true
+          }
+          if (!acActiveRef.current) return false
+          acHandlersRef.current.onAccept()
+          return true
+        },
+        Enter: () => {
+          // Inline-Modus: Enter ignoriert immer den Ghosttext (neue Zeile)
+          if (charAcStyleRef.current === 'inline') return false
+          if (!acActiveRef.current) return false
+          acHandlersRef.current.onAccept()
+          return true
+        },
+        Escape: () => {
+          if (charAcStyleRef.current === 'inline') {
+            if (!inlineGhostActiveRef.current) return false
+            acHandlersRef.current.onDismiss()
+            return true
+          }
+          if (!acActiveRef.current) return false
+          acHandlersRef.current.onDismiss()
+          return true
+        },
       }
     },
   }), []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -569,6 +653,7 @@ export default function UniversalEditor({
       DocumentBoundsShortcuts,
       AnnotationMark,
       SearchHighlightExtension,
+      InlineGhostExtension,
       PlaceholderChipExtension,
       ParagraphStyleExtension,
       Table.configure({ resizable: false }),
@@ -730,24 +815,52 @@ export default function UniversalEditor({
     }
   }, [editor, getCurrentFormat, getCurrentElementType])
 
+  // Guard gegen eigene Ghost-Text-Dispatches (verhindert Endlosschleife)
+  const dispatchingGhostRef = useRef(false)
+
   // ── Charakter-AC: State-Tracking (Cursor in Character-Node?) ───────────────
   useEffect(() => {
     if (!editor) return
     const modus = tweaks.nurCharAusSzenenkopf
+    const style = charAcStyleRef.current
     const noFormats = charFormatIds.length === 0
 
+    const clearGhost = () => {
+      if (dispatchingGhostRef.current) return
+      inlineGhostAcceptNameRef.current = null
+      inlineGhostNoMatchNameRef.current = null
+      inlineGhostActiveRef.current = false
+      const cur = inlineGhostKey.getState(editor.state)
+      if (cur?.suffix) {
+        dispatchingGhostRef.current = true
+        editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix: '', pos: 0 }))
+        dispatchingGhostRef.current = false
+      }
+    }
+
+    const setGhost = (suffix: string, pos: number) => {
+      if (dispatchingGhostRef.current) return
+      const cur = inlineGhostKey.getState(editor.state)
+      if (cur?.suffix === suffix && cur?.pos === pos) return
+      dispatchingGhostRef.current = true
+      editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix, pos }))
+      dispatchingGhostRef.current = false
+    }
+
     const dismiss = () => {
-      if (!acActiveRef.current) return
-      acActiveRef.current = false
-      setAcSuggestions([])
-      setAcNewName(null)
-      setAcPos(null)
-      if (acDbTimerRef.current) { clearTimeout(acDbTimerRef.current); acDbTimerRef.current = null }
+      if (acActiveRef.current) {
+        acActiveRef.current = false
+        setAcSuggestions([])
+        setAcNewName(null)
+        setAcPos(null)
+      }
+      clearGhost()
     }
 
     if (modus === 'aus' || noFormats) { dismiss(); return }
 
     const update = () => {
+      if (dispatchingGhostRef.current) return // Ghost-Dispatch — ignorieren
       const { state, view } = editor
       const { $from } = state.selection
       const node = $from.node()
@@ -756,63 +869,70 @@ export default function UniversalEditor({
       if (!isCharNode) { dismiss(); return }
 
       const query = node.textContent
+      const queryUpper = query.trim().toUpperCase()
       const coords = view.coordsAtPos($from.pos)
+      const nodeEndPos = $from.end()
 
-      if (modus === 'szenenkopf') {
-        // Nur Szenenkopf-Charaktere
-        const filtered = (sceneCharNames ?? []).filter(name =>
-          !query || name.toUpperCase().startsWith(query.toUpperCase())
-        ).slice(0, 8)
+      // Welcher Namens-Pool?
+      const pool: string[] =
+        modus === 'szenenkopf'
+          ? (sceneCharNames ?? [])
+          : allCharNamesRef.current
 
-        if (filtered.length === 0) { dismiss(); return }
+      if (style === 'inline') {
+        // ── Inline Ghost Text ─────────────────────────────────────────────
+        if (!query.trim()) { clearGhost(); return }
 
+        // Bester Treffer: startsWith, alphabetisch erster Treffer
+        const bestMatch = pool.find(n => n.toUpperCase().startsWith(queryUpper))
+
+        if (bestMatch) {
+          const suffix = bestMatch.slice(query.length) // Groß-/Kleinschreibung des Originals
+          inlineGhostAcceptNameRef.current = bestMatch
+          inlineGhostNoMatchNameRef.current = null
+          inlineGhostActiveRef.current = true
+          setGhost(suffix, nodeEndPos)
+        } else {
+          // Kein Treffer — kein Ghost-Text, aber Tab → Neu anlegen (nur im "alle"-Modus)
+          inlineGhostAcceptNameRef.current = null
+          inlineGhostNoMatchNameRef.current = modus === 'alle' ? queryUpper : null
+          inlineGhostActiveRef.current = modus === 'alle' && queryUpper.length > 0
+          clearGhost()
+        }
+      } else {
+        // ── Dropdown-Menü ─────────────────────────────────────────────────
+        clearGhost() // sicher stellen dass kein Ghost-Text im Menü-Modus
         acActiveRef.current = true
-        setAcSuggestions(filtered)
-        setAcSelectedIndex(0)
-        setAcPos({ x: coords.left, y: coords.bottom + 4 })
-      } else if (modus === 'alle' && selectedProdId) {
-        // Alle Charaktere der Produktion — debounced API-Suche
-        if (acDbTimerRef.current) clearTimeout(acDbTimerRef.current)
-        acDbTimerRef.current = setTimeout(async () => {
-          try {
-            const r = await fetch(`/api/autocomplete/characters?produktion_id=${selectedProdId}&q=${encodeURIComponent(query)}`, { credentials: 'include' })
-            if (!r.ok) return
-            const data = await r.json()
-            const names: string[] = [
-              ...(data.own ?? []).map((c: any) => c.name),
-              ...(data.cross ?? []).map((c: any) => c.name),
-            ].slice(0, 10)
 
-            if (!editor) return
-            const curNode = editor.state.selection.$from.node()
-            const stillInCharNode = curNode.type.name === 'absatz' && charFormatIds.includes(curNode.attrs.format_id)
-            if (!stillInCharNode) return
+        if (modus === 'szenenkopf') {
+          // Nur Szenenkopf-Charaktere (startsWith)
+          const filtered = pool.filter(n =>
+            !query || n.toUpperCase().startsWith(queryUpper)
+          ).slice(0, 8)
 
-            if (names.length === 0) {
-              if (query.trim().length > 0) {
-                // Name nicht in DB — "Neu anlegen" anbieten
-                acActiveRef.current = true
-                const newName = query.trim().toUpperCase()
-                acNewNameRef.current = newName
-                setAcNewName(newName)
-                setAcSuggestions([])
-                setAcSelectedIndex(0)
-                setAcPos({ x: coords.left, y: coords.bottom + 4 })
-              } else {
-                dismiss()
-              }
-              return
-            }
+          if (filtered.length === 0) { dismiss(); return }
 
-            // Treffer gefunden — "Neu anlegen" zurücksetzen
-            acNewNameRef.current = null
-            setAcNewName(null)
-            acActiveRef.current = true
-            setAcSuggestions(names)
-            setAcSelectedIndex(0)
-            setAcPos({ x: coords.left, y: coords.bottom + 4 })
-          } catch { /* ignore */ }
-        }, 200)
+          setAcSuggestions(filtered)
+          acNewNameRef.current = null
+          setAcNewName(null)
+          setAcSelectedIndex(0)
+          setAcPos({ x: coords.left, y: coords.bottom + 4 })
+        } else {
+          // Alle — lokaler Cache, includes-Suche, «Neu anlegen» als erster Eintrag
+          const filtered = query.trim()
+            ? pool.filter(n => n.toUpperCase().includes(queryUpper)).slice(0, 9)
+            : pool.slice(0, 10)
+
+          const newName = query.trim() ? queryUpper : null
+          acNewNameRef.current = newName
+          setAcNewName(newName)
+
+          if (filtered.length === 0 && !newName) { dismiss(); return }
+
+          setAcSuggestions(filtered)
+          setAcSelectedIndex(newName ? 0 : 0)
+          setAcPos({ x: coords.left, y: coords.bottom + 4 })
+        }
       }
     }
 
@@ -822,24 +942,58 @@ export default function UniversalEditor({
       editor.off('selectionUpdate', update)
       editor.off('update', update)
       acActiveRef.current = false
-      if (acDbTimerRef.current) { clearTimeout(acDbTimerRef.current); acDbTimerRef.current = null }
+      inlineGhostActiveRef.current = false
     }
-  }, [editor, tweaks.nurCharAusSzenenkopf, sceneCharNames, charFormatIds, selectedProdId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
+  const insertNameIntoEditor = useCallback((name: string) => {
+    if (!editor) return
+    const { $from } = editor.state.selection
+    if ($from.node().type.name !== 'absatz') return
+    const start = $from.start()
+    const end = $from.end()
+    const chain = editor.chain().focus()
+    if (start < end) {
+      chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
+    } else {
+      chain.insertContentAt(start, name).run()
+    }
+  }, [editor])
+
   useEffect(() => {
     acHandlersRef.current = {
       onArrowUp: () => setAcSelectedIndex(prev => Math.max(0, prev - 1)),
       onArrowDown: () => {
         const maxIdx = acSuggestionsRef.current.length - 1 + (acNewNameRef.current ? 1 : 0)
-        setAcSelectedIndex(prev => Math.min(maxIdx, prev + 1))
+        setAcSelectedIndex(prev => Math.min(Math.max(maxIdx, 0), prev + 1))
       },
       onAccept: () => {
+        if (charAcStyleRef.current === 'inline') {
+          // ── Inline-Modus ──────────────────────────────────────────────
+          const acceptName = inlineGhostAcceptNameRef.current
+          const noMatchName = inlineGhostNoMatchNameRef.current
+          inlineGhostActiveRef.current = false
+          inlineGhostAcceptNameRef.current = null
+          inlineGhostNoMatchNameRef.current = null
+          if (editor) {
+            dispatchingGhostRef.current = true
+            editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix: '', pos: 0 }))
+            dispatchingGhostRef.current = false
+          }
+          if (acceptName) {
+            insertNameIntoEditor(acceptName)
+          } else if (noMatchName) {
+            setNewCharDialog({ name: noMatchName, loading: false })
+          }
+          return
+        }
+        // ── Dropdown-Menü-Modus ────────────────────────────────────────
         const suggestions = acSuggestionsRef.current
         const idx = acSelectedIndexRef.current
         const newName = acNewNameRef.current
-        // "Neu anlegen" — kein Treffer oder letzter Eintrag ist "Neu anlegen"
-        if (idx >= suggestions.length && newName) {
+        // Index 0 mit newName = "Neu anlegen" (erste Position)
+        if (idx === 0 && newName) {
           acActiveRef.current = false
           setAcSuggestions([])
           setAcNewName(null)
@@ -847,32 +1001,35 @@ export default function UniversalEditor({
           setNewCharDialog({ name: newName, loading: false })
           return
         }
-        const name = suggestions[idx]
-        if (!name || !editor) return
-        const { state } = editor
-        const { $from } = state.selection
-        if ($from.node().type.name !== 'absatz') return
-        const start = $from.start()
-        const end = $from.end()
-        const chain = editor.chain().focus()
-        if (start < end) {
-          chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
-        } else {
-          chain.insertContentAt(start, name).run()
-        }
+        // Suggestion-Index: wenn newName vorhanden, verschieben um 1
+        const suggestionIdx = newName ? idx - 1 : idx
+        const name = suggestions[suggestionIdx]
+        if (!name) return
+        insertNameIntoEditor(name)
         acActiveRef.current = false
         setAcSuggestions([])
         setAcNewName(null)
         setAcPos(null)
       },
       onDismiss: () => {
-        acActiveRef.current = false
-        setAcSuggestions([])
-        setAcNewName(null)
-        setAcPos(null)
+        if (charAcStyleRef.current === 'inline') {
+          inlineGhostActiveRef.current = false
+          inlineGhostAcceptNameRef.current = null
+          inlineGhostNoMatchNameRef.current = null
+          if (editor) {
+            dispatchingGhostRef.current = true
+            editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix: '', pos: 0 }))
+            dispatchingGhostRef.current = false
+          }
+        } else {
+          acActiveRef.current = false
+          setAcSuggestions([])
+          setAcNewName(null)
+          setAcPos(null)
+        }
       },
     }
-  }, [editor, acSuggestions, acSelectedIndex]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, insertNameIntoEditor, acSuggestions, acSelectedIndex]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Image upload handler
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1121,9 +1278,10 @@ export default function UniversalEditor({
   }
 
   // Direkte AC-Accept-Funktion für Klick im Dropdown (nach editor-Guard)
+  // i=0 mit acNewName = "Neu anlegen" (erste Position), i=1..n = Suggestions[0..n-1]
   const acceptAcByIndex = (i: number) => {
-    if (i >= acSuggestions.length && acNewName) {
-      // Klick auf "Neu anlegen"
+    if (i === 0 && acNewName) {
+      // Klick auf "Neu anlegen" (erster Eintrag)
       acActiveRef.current = false
       setAcSuggestions([])
       setAcNewName(null)
@@ -1131,19 +1289,11 @@ export default function UniversalEditor({
       setNewCharDialog({ name: acNewName, loading: false })
       return
     }
-    const name = acSuggestions[i]
+    // Suggestions sind um 1 verschoben wenn acNewName vorhanden
+    const suggestionIdx = acNewName ? i - 1 : i
+    const name = acSuggestions[suggestionIdx]
     if (!name) return
-    const { state } = editor
-    const { $from } = state.selection
-    if ($from.node().type.name !== 'absatz') return
-    const start = $from.start()
-    const end = $from.end()
-    const chain = editor.chain().focus()
-    if (start < end) {
-      chain.deleteRange({ from: start, to: end }).insertContentAt(start, name).run()
-    } else {
-      chain.insertContentAt(start, name).run()
-    }
+    insertNameIntoEditor(name)
     acActiveRef.current = false
     setAcSuggestions([])
     setAcNewName(null)
@@ -1592,44 +1742,49 @@ export default function UniversalEditor({
           }}
           onMouseDown={e => e.preventDefault()} // Fokus im Editor behalten
         >
-          {acSuggestions.map((name, i) => (
-            <div
-              key={name}
-              onClick={() => acceptAcByIndex(i)}
-              onMouseEnter={() => setAcSelectedIndex(i)}
-              style={{
-                padding: '7px 12px',
-                background: i === acSelectedIndex ? '#007AFF' : 'transparent',
-                color: i === acSelectedIndex ? '#fff' : 'var(--text-primary, #111)',
-                cursor: 'pointer',
-                fontFamily: "'Courier Prime', monospace",
-                letterSpacing: '0.03em',
-              }}
-            >
-              {name}
-            </div>
-          ))}
+          {/* "Neu anlegen" IMMER als erster Eintrag wenn Query vorhanden (Index 0) */}
           {acNewName && (
             <div
-              onClick={() => acceptAcByIndex(acSuggestions.length)}
-              onMouseEnter={() => setAcSelectedIndex(acSuggestions.length)}
+              onClick={() => acceptAcByIndex(0)}
+              onMouseEnter={() => setAcSelectedIndex(0)}
               style={{
                 padding: '7px 12px',
-                background: acSuggestions.length === acSelectedIndex ? '#007AFF' : 'transparent',
-                color: acSuggestions.length === acSelectedIndex ? '#fff' : 'var(--text-primary, #111)',
+                background: acSelectedIndex === 0 ? '#007AFF' : 'transparent',
+                color: acSelectedIndex === 0 ? '#fff' : 'var(--text-primary, #111)',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 6,
-                borderTop: acSuggestions.length > 0 ? '1px solid var(--border-subtle, #eee)' : undefined,
+                borderBottom: acSuggestions.length > 0 ? '1px solid var(--border-subtle, #eee)' : undefined,
               }}
             >
-              <span style={{ fontSize: 13 }}>+</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>+</span>
               <span style={{ fontFamily: "'Courier Prime', monospace", letterSpacing: '0.03em' }}>
                 «{acNewName}» anlegen
               </span>
             </div>
           )}
+          {/* Bestehende Treffer — Index beginnt bei 1 wenn acNewName vorhanden */}
+          {acSuggestions.map((name, i) => {
+            const displayIdx = acNewName ? i + 1 : i
+            return (
+              <div
+                key={name}
+                onClick={() => acceptAcByIndex(displayIdx)}
+                onMouseEnter={() => setAcSelectedIndex(displayIdx)}
+                style={{
+                  padding: '7px 12px',
+                  background: displayIdx === acSelectedIndex ? '#007AFF' : 'transparent',
+                  color: displayIdx === acSelectedIndex ? '#fff' : 'var(--text-primary, #111)',
+                  cursor: 'pointer',
+                  fontFamily: "'Courier Prime', monospace",
+                  letterSpacing: '0.03em',
+                }}
+              >
+                {name}
+              </div>
+            )
+          })}
           <div style={{ padding: '4px 12px', borderTop: '1px solid var(--border-subtle, #eee)', fontSize: 10, color: 'var(--text-muted, #999)' }}>
             ↑↓ navigieren · Tab/Enter übernehmen · Esc schließen
           </div>

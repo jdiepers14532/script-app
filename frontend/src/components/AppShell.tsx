@@ -116,6 +116,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   sceneListSeitenzahlen: true,
   activeColorSchemeId: 'default',
   nurCharAusSzenenkopf: 'szenenkopf',
+  charAcStyle: 'menu',
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -628,6 +629,7 @@ export default function AppShell({
           sceneListSeitenzahlen: typeof s.sceneListSeitenzahlen === 'boolean' ? s.sceneListSeitenzahlen : true,
           activeColorSchemeId: typeof s.activeColorSchemeId === 'string' ? s.activeColorSchemeId : 'default',
           nurCharAusSzenenkopf: (['szenenkopf', 'alle', 'aus'] as const).includes(s.nurCharAusSzenenkopf) ? s.nurCharAusSzenenkopf : (s.nurCharAusSzenenkopf === false ? 'aus' : 'szenenkopf'),
+          charAcStyle: (['inline', 'menu'] as const).includes(s.charAcStyle) ? s.charAcStyle : 'menu',
         }))
       }
     }).catch(() => {}).finally(() => {

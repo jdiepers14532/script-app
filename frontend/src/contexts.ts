@@ -79,7 +79,7 @@ interface UserPrefsContextType {
 }
 export const UserPrefsContext = createContext<UserPrefsContextType>({
   scrollNavDelay: 1000, showPageShadow: true, showTooltips: true, spellcheck: 'off',
-  keyboardLayout: 'qwertz', spellcheckLang: 'de-DE',
+  keyboardLayout: 'qwertz', spellcheckLang: 'de-DE', charAcStyle: 'menu',
 })
 export function useUserPrefs() { return useContext(UserPrefsContext) }
 
@@ -124,6 +124,8 @@ export interface TweakState {
   activeColorSchemeId: string
   /** Charakter-Autovervollständigung: 'szenenkopf' | 'alle' | 'aus' */
   nurCharAusSzenenkopf: 'szenenkopf' | 'alle' | 'aus'
+  /** Darstellung der Charakter-AC: Inline-Ghosttext oder Dropdown-Menü */
+  charAcStyle: 'inline' | 'menu'
 }
 interface TweaksContextType {
   tweaks: TweakState
