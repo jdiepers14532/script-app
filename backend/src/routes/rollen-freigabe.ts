@@ -27,6 +27,7 @@ import { pool, query, queryOne } from '../db'
 import { authMiddleware, requireDkAccess } from '../auth'
 import nodemailer from 'nodemailer'
 import crypto from 'crypto'
+import { getCompanyName } from '../utils/companyInfo'
 
 // APP_URL ist ein Wert der sich nicht ändert, kann statisch sein
 const APP_URL = process.env.APP_URL ?? 'https://script.serienwerft.studio'
@@ -55,6 +56,24 @@ function getTransporter(): nodemailer.Transporter | null {
 
 // ── Email-Templates ──────────────────────────────────────────────────────────
 
+interface SzeneKontext {
+  folge_nummer?: number | null
+  arbeitstitel?: string | null
+  werkstufe_typ?: string | null
+  werkstufe_version?: number | null
+  scene_nummer?: string | null
+  int_ext?: string | null
+  ort_name?: string | null
+  szene_id?: string
+}
+
+function werkstufeTyptLabel(typ: string | null | undefined): string {
+  if (typ === 'drehbuch') return 'Drehbuch'
+  if (typ === 'storyline') return 'Storyline'
+  if (typ === 'notiz') return 'Dokument'
+  return typ ?? ''
+}
+
 async function sendFreigabeAnfrageEmail(opts: {
   toName: string
   toEmail: string
@@ -63,11 +82,26 @@ async function sendFreigabeAnfrageEmail(opts: {
   beantragtVon: string
   freigebenUrl: string
   ablehnenUrl: string
+  szeneKontext?: SzeneKontext | null
+  szeneUrl?: string | null
 }) {
   const t = getTransporter()
   if (!t) { console.log('[rollenFreigabe] Kein SMTP — Email übersprungen:', opts.toEmail); return }
+  const companyName = await getCompanyName()
+  const ctx = opts.szeneKontext
+
+  const szeneBlock = ctx ? [
+    ctx.folge_nummer != null ? `<strong>Folge:</strong> ${ctx.folge_nummer}${ctx.arbeitstitel ? ' · ' + ctx.arbeitstitel : ''}<br>` : '',
+    ctx.werkstufe_typ ? `<strong>Werkstufe:</strong> ${werkstufeTyptLabel(ctx.werkstufe_typ)} v${ctx.werkstufe_version ?? 1}<br>` : '',
+    ctx.scene_nummer != null ? `<strong>Szene:</strong> ${ctx.scene_nummer}${ctx.int_ext ? ' · ' + ctx.int_ext : ''}${ctx.ort_name ? ' · ' + ctx.ort_name : ''}<br>` : '',
+  ].join('') : ''
+
+  const szeneLink = opts.szeneUrl
+    ? `<a href="${opts.szeneUrl}" style="display:inline-block;margin-top:12px;font-size:12px;color:#007AFF;text-decoration:none;">→ Szene in Script-App öffnen</a>`
+    : ''
+
   await t.sendMail({
-    from: `"Script · Serienwerft" <${process.env.SMTP_USER}>`,
+    from: `"Script · ${companyName}" <${process.env.SMTP_USER}>`,
     to: opts.toEmail,
     subject: `Freigabe erbeten: Neue Rolle „${opts.rollenName}"`,
     html: `
@@ -94,8 +128,9 @@ body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margi
   <div class="info">
     <strong>Neue Rolle:</strong> ${opts.rollenName}<br>
     <strong>Produktion:</strong> ${opts.produktionTitel}<br>
-    <strong>Beantragt von:</strong> ${opts.beantragtVon}
+    ${szeneBlock}<strong>Beantragt von:</strong> ${opts.beantragtVon}
   </div>
+  ${szeneLink}
   <div class="btns">
     <a href="${opts.freigebenUrl}" class="btn btn-ok">Rolle freigeben</a>
     <a href="${opts.ablehnenUrl}" class="btn btn-no">Ablehnen</a>
@@ -105,7 +140,7 @@ body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margi
     Freigeben: ${opts.freigebenUrl}<br>
     Ablehnen: ${opts.ablehnenUrl}
   </p>
-  <div class="footer">Studio Hamburg Serienwerft · Script-App · Diese E-Mail wurde automatisch generiert.</div>
+  <div class="footer">${companyName} · Script-App · Diese E-Mail wurde automatisch generiert.</div>
 </div></body></html>`,
   })
 }
@@ -120,8 +155,9 @@ async function sendErinnerungEmail(opts: {
 }) {
   const t = getTransporter()
   if (!t) { console.log('[rollenFreigabe] Kein SMTP — Erinnerung übersprungen:', opts.toEmail); return }
+  const companyName = await getCompanyName()
   await t.sendMail({
-    from: `"Script · Serienwerft" <${process.env.SMTP_USER}>`,
+    from: `"Script · ${companyName}" <${process.env.SMTP_USER}>`,
     to: opts.toEmail,
     subject: `Erinnerung: Freigabe für Rolle „${opts.rollenName}" steht noch aus`,
     html: `
@@ -148,7 +184,7 @@ body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margi
     <a href="${opts.freigebenUrl}" class="btn btn-ok">Rolle freigeben</a>
     <a href="${opts.ablehnenUrl}" class="btn btn-no">Ablehnen</a>
   </div>
-  <div class="footer">Studio Hamburg Serienwerft · Script-App · Diese E-Mail wurde automatisch generiert.</div>
+  <div class="footer">${companyName} · Script-App · Diese E-Mail wurde automatisch generiert.</div>
 </div></body></html>`,
   })
 }
@@ -328,7 +364,7 @@ rollenFreigabeRouter.get('/:productionId/anfragen', async (req: any, res) => {
 // POST /api/rollen-freigabe/:productionId/anfragen — Neue Anfrage stellen
 rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
   try {
-    const { character_id } = req.body
+    const { character_id, szene_id } = req.body
     if (!character_id) return res.status(400).json({ error: 'character_id erforderlich' })
 
     const config = await queryOne(
@@ -377,6 +413,35 @@ rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
     const prod = await queryOne(`SELECT titel FROM produktionen WHERE id = $1`, [req.params.productionId])
     const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [character_id])
 
+    // Szene-Kontext (optional)
+    let szeneKontext: SzeneKontext | null = null
+    let szeneUrl: string | null = null
+    if (szene_id) {
+      const szRow = await queryOne(
+        `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit,
+                w.typ AS werkstufe_typ, w.version_nummer AS werkstufe_version,
+                f.folge_nummer, f.folgen_titel AS arbeitstitel
+         FROM dokument_szenen ds
+         JOIN werkstufen w ON w.id = ds.werkstufe_id
+         JOIN folgen f ON f.id = w.folge_id
+         WHERE ds.id = $1`,
+        [szene_id]
+      )
+      if (szRow) {
+        szeneKontext = {
+          folge_nummer: szRow.folge_nummer,
+          arbeitstitel: szRow.arbeitstitel,
+          werkstufe_typ: szRow.werkstufe_typ,
+          werkstufe_version: szRow.werkstufe_version,
+          scene_nummer: szRow.scene_nummer != null ? String(szRow.scene_nummer) : null,
+          int_ext: szRow.int_ext,
+          ort_name: szRow.ort_name,
+          szene_id,
+        }
+        szeneUrl = `${APP_URL}/?szene=${szene_id}`
+      }
+    }
+
     // Token + Email pro Genehmiger
     const now = new Date()
     const gueltigBis = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
@@ -405,6 +470,8 @@ rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
         beantragtVon: req.user.name ?? req.user.user_id,
         freigebenUrl: `${APP_URL}/freigabe/${tokenFreigeben}`,
         ablehnenUrl:  `${APP_URL}/freigabe/${tokenAblehnen}`,
+        szeneKontext,
+        szeneUrl,
       })
     }
 

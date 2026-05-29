@@ -12,23 +12,24 @@
 
 import nodemailer from 'nodemailer'
 import { pool } from '../db'
+import { getCompanyName } from '../utils/companyInfo'
 
-const SMTP_HOST = process.env.SMTP_HOST ?? 'smtp.ionos.de'
-const SMTP_PORT = parseInt(process.env.SMTP_PORT ?? '587')
-const SMTP_USER = process.env.SMTP_USER ?? ''
-const SMTP_PASS = process.env.SMTP_PASS ?? ''
+// APP_URL ändert sich nicht → statisch OK
 const APP_URL = process.env.APP_URL ?? 'https://script.serienwerft.studio'
 
+// SMTP lazy lesen (NACH dotenv.config() in index.ts)
 let transporter: nodemailer.Transporter | null = null
 
 function getTransporter(): nodemailer.Transporter | null {
-  if (!SMTP_USER || !SMTP_PASS) return null
+  const smtpUser = process.env.SMTP_USER ?? ''
+  const smtpPass = process.env.SMTP_PASS ?? ''
+  if (!smtpUser || !smtpPass) return null
   if (!transporter) {
     transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
+      host: process.env.SMTP_HOST ?? 'smtp.ionos.de',
+      port: parseInt(process.env.SMTP_PORT ?? '587'),
       secure: false,
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
+      auth: { user: smtpUser, pass: smtpPass },
       tls: { rejectUnauthorized: true },
     })
   }
@@ -47,8 +48,9 @@ async function sendPrivatAblaufEmail(opts: {
     console.log('[privatModus] Kein SMTP konfiguriert — Email übersprungen für:', opts.email)
     return
   }
+  const companyName = await getCompanyName()
   await t.sendMail({
-    from: `"Script · Serienwerft" <${SMTP_USER}>`,
+    from: `"Script · ${companyName}" <${process.env.SMTP_USER}>`,
     to: opts.email,
     subject: `Privat-Modus läuft ab: ${opts.werkstufeName}`,
     html: `

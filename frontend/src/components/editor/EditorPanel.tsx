@@ -930,6 +930,7 @@ export default function EditorPanel({
               editorRef={editorRef}
               sceneCharNames={sceneCharNames}
               onCharInserted={onCharInserted}
+              szeneId={currentSzene?.id ? String(currentSzene.id) : undefined}
             />
           </Suspense>
         )}

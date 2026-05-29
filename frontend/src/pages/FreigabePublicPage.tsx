@@ -6,6 +6,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+const AUTH_URL = 'https://auth.serienwerft.studio'
+
 type TokenInfo = {
   rollen_name: string
   prod_titel: string
@@ -23,6 +25,14 @@ export default function FreigabePublicPage() {
   const [error, setError] = useState<string | null>(null)
   const [submitted, setSubmitted] = useState(false)
   const [submitLoading, setSubmitLoading] = useState(false)
+  const [companyName, setCompanyName] = useState('Serienwerft')
+
+  useEffect(() => {
+    fetch(`${AUTH_URL}/api/public/company-info`)
+      .then(r => r.json())
+      .then((d: any) => { if (d?.company_name) setCompanyName(d.company_name) })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!token) return
@@ -71,7 +81,7 @@ export default function FreigabePublicPage() {
       }}>
         {/* Logo / Header */}
         <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 13, color: '#757575', marginBottom: 4 }}>Script-App · Serienwerft</div>
+          <div style={{ fontSize: 13, color: '#757575', marginBottom: 4 }}>Script-App · {companyName}</div>
           <div style={{ fontSize: 22, fontWeight: 700 }}>Rollen-Freigabe</div>
         </div>
 
@@ -158,7 +168,7 @@ export default function FreigabePublicPage() {
         )}
 
         <div style={{ marginTop: 32, paddingTop: 16, borderTop: '1px solid #eee', fontSize: 11, color: '#bbb' }}>
-          Studio Hamburg Serienwerft · Script-App
+          {companyName} · Script-App
         </div>
       </div>
     </div>

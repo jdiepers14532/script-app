@@ -325,6 +325,8 @@ interface UniversalEditorProps {
   sceneCharNames?: string[]
   /** Callback wenn Charakter über AC eingefügt wurde — für automatischen Szenenkopf-Eintrag */
   onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
+  /** ID der aktuellen Szene — wird in Freigabe-Emails als Kontext mitgeschickt */
+  szeneId?: string | null
 }
 
 // Rollenname aus Großbuchstaben normalisieren (CSS text-transform verhindert korrekte Schreibweise)
@@ -361,6 +363,7 @@ export default function UniversalEditor({
   editorRef,
   sceneCharNames,
   onCharInserted,
+  szeneId,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
@@ -1458,7 +1461,7 @@ export default function UniversalEditor({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ character_id: char.id }),
+          body: JSON.stringify({ character_id: char.id, szene_id: szeneId ?? undefined }),
         })
         if (fRes.ok) {
           const fData = await fRes.json()
