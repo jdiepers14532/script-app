@@ -30,7 +30,7 @@ charactersRouter.get('/', async (req, res) => {
        FROM characters c
        JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $1
        LEFT JOIN character_kategorien ck ON ck.id = cp.kategorie_id
-       ORDER BY ck.typ, cp.rollen_nummer NULLS LAST, cp.komparsen_nummer NULLS LAST, c.name`,
+       ORDER BY CASE WHEN ck.typ = 'komparse' THEN 2 ELSE 1 END, cp.rollen_nummer NULLS LAST, cp.komparsen_nummer NULLS LAST, c.name`,
       [produktion_id]
     )
     res.json(rows)

@@ -237,7 +237,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
               </div>
             </div>
 
-            <div style={rowStyle}>
+            <div style={{ ...rowStyle, borderBottom: 'none' }}>
               <span style={labelStyle}>Replikennummern</span>
               <div className="seg">
                 <Tooltip text="Fortlaufende Nummern pro Replik anzeigen"><button className={tweaks.showReplikNumbers ? 'on' : ''} onClick={() => set('showReplikNumbers', true)}>An</button></Tooltip>
@@ -246,7 +246,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
             </div>
 
             {/* Autovervollständigung — Überschrift */}
-            <div style={{ padding: '6px 0 2px' }}>
+            <div style={{ padding: '6px 0 2px', borderTop: '1px solid var(--border-subtle)' }}>
               <Tooltip text={`Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein ${figurenLabel}-Format.`}>
                 <span style={{ ...labelStyle, fontWeight: 600, fontSize: 12, color: 'var(--text)' }}>
                   {figurenLabel} — Autovervollständigung

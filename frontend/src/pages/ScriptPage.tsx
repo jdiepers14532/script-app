@@ -58,8 +58,10 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
 
   // Scene characters from SceneEditor header → passed to EditorPanels for autocomplete
   const [sceneCharNames, setSceneCharNames] = useState<string[]>([])
-  const handleCharsChange = useCallback((chars: { name: string }[]) => {
-    setSceneCharNames(chars.map(c => c.name))
+  const handleCharsChange = useCallback((chars: { name: string; kategorie_typ?: string }[]) => {
+    const rollen = chars.filter(c => c.kategorie_typ !== 'komparse').map(c => c.name)
+    const komparsen = chars.filter(c => c.kategorie_typ === 'komparse').map(c => c.name)
+    setSceneCharNames([...rollen, ...komparsen])
   }, [])
   // Reset when scene changes
   useEffect(() => { setSceneCharNames([]) }, [selectedSzeneId])
