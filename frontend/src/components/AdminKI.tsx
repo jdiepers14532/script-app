@@ -50,6 +50,7 @@ const FUNKTION_META: Record<string, { label: string; description: string; Icon: 
   synopsis:            { label: 'Episode-Synopse',      description: 'Generiert eine Episoden-Synopse aus allen Szenen.',         Icon: Layers      },
   consistency_check:   { label: 'Konsistenz-Prüfung',   description: 'Prüft Widersprüche in Handlung und Figurenkonstanz.',       Icon: AlertTriangle},
   rollenprofil_import: { label: 'Rollenprofil-Import',  description: 'Intelligenter PDF-Import via Mistral OCR + Parsing.',       Icon: Upload      },
+  query_expand:        { label: 'KI-Suchanfrage',       description: 'Analysiert natürlichsprachliche Suchanfragen und extrahiert Charaktere und Schlüsselwörter.', Icon: Search },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Search, X, AlertTriangle, Lock, ChevronUp, ChevronDown,
   Plus, User, MapPin, Sun, Moon, Type, Check, SkipForward,
-  RefreshCw, ChevronRight, Layers, Maximize2,
+  RefreshCw, ChevronRight, Layers, Maximize2, Zap,
 } from 'lucide-react'
 import { useAppSettings } from '../contexts'
 import type {
@@ -133,6 +133,8 @@ export default function SearchReplaceDialog({
   const [rollennameReplaceType, setRollennameReplaceType] = useState<'nur_rollennamen' | 'volltext'>('nur_rollennamen')
   const [showChipAdder, setShowChipAdder] = useState<ChipType | null>(null)
   const [chipInput, setChipInput] = useState('')
+  const [kiExpanding, setKiExpanding] = useState(false)
+  const [kiMsg, setKiMsg] = useState<string | null>(null)
 
   // Sync selectedStaffel when production changes
   useEffect(() => {
@@ -250,6 +252,44 @@ export default function SearchReplaceDialog({
   const showWerkstufenSelector = scope === 'block' || scope === 'produktion'
   const showFreiOptionen = (scope === 'produktion' || scope === 'alle') && !isSzeneScope
 
+  const handleKiExpand = async () => {
+    if (!query.trim() || !currentProduktionId || kiExpanding) return
+    setKiExpanding(true)
+    setKiMsg(null)
+    try {
+      const resp = await fetch('/api/ki/query-expand', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query.trim(), produktion_id: currentProduktionId }),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || 'Fehler')
+
+      const addedNames: string[] = []
+      for (const char of (data.characters || [])) {
+        onAddChip({ id: char.id, type: 'rolle', label: char.name, value: char.name, entityId: char.id })
+        addedNames.push(char.name)
+      }
+      // Verbleibende Keywords als Textquery behalten
+      setQuery((data.keywords || []).join(' '))
+
+      if (addedNames.length > 0) {
+        const unres = (data.unresolved_names || []).length > 0 ? ` · nicht gefunden: ${data.unresolved_names.join(', ')}` : ''
+        setKiMsg(`Erkannt: ${addedNames.join(', ')}${unres}`)
+      } else if ((data.unresolved_names || []).length > 0) {
+        setKiMsg(`Keine bekannten Rollen: ${data.unresolved_names.join(', ')}`)
+      } else {
+        setKiMsg('Keine Entitäten erkannt')
+      }
+    } catch (err: any) {
+      setKiMsg(`Fehler: ${err.message}`)
+    } finally {
+      setKiExpanding(false)
+      setTimeout(() => setKiMsg(null), 5000)
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose()
     if (e.key === 'Enter' && !e.shiftKey && isSzeneScope) { e.preventDefault(); onFindNext() }
@@ -365,6 +405,31 @@ export default function SearchReplaceDialog({
             onAddChip={onAddChip}
             query={query}
           />
+        )}
+
+        {/* KI-Suche: bei mehrwortiger Anfrage + globalem Scope */}
+        {query.trim().split(/\s+/).length >= 2 && !isSzeneScope && currentProduktionId && (
+          <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button
+              onClick={handleKiExpand}
+              disabled={kiExpanding}
+              style={{
+                fontSize: 11, padding: '4px 10px', borderRadius: 6,
+                border: '1px solid var(--border)', background: kiExpanding ? 'var(--bg-subtle)' : 'var(--bg-surface)',
+                cursor: kiExpanding ? 'default' : 'pointer',
+                color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5,
+                opacity: kiExpanding ? 0.6 : 1,
+              }}
+            >
+              <Zap size={11} />
+              {kiExpanding ? 'Analysiere...' : 'KI-Analyse'}
+            </button>
+            {kiMsg && (
+              <span style={{ fontSize: 11, color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {kiMsg}
+              </span>
+            )}
+          </div>
         )}
 
         {/* Ersetzen-Feld */}

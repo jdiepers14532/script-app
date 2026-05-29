@@ -148,6 +148,42 @@ kiAdminRouter.put('/:funktion', async (req, res) => {
 
 router.use(authMiddleware)
 
+async function callMistral(apiKey: string, model: string, messages: { role: string; content: string }[]): Promise<string> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 20000)
+  try {
+    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages, max_tokens: 300, temperature: 0.1 }),
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(`Mistral HTTP ${res.status}`)
+    const data = await res.json() as any
+    return data.choices?.[0]?.message?.content || ''
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function callClaude(apiKey: string, model: string, system: string, userMsg: string): Promise<string> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 20000)
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model, max_tokens: 300, system, messages: [{ role: 'user', content: userMsg }] }),
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(`Claude HTTP ${res.status}`)
+    const data = await res.json() as any
+    return data.content?.[0]?.text || ''
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 async function callOllama(model: string, prompt: string): Promise<string> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30000)
@@ -283,6 +319,89 @@ router.post('/synopsis', async (req, res) => {
     const apiKey = await getProviderApiKey(setting.provider)
     if (!apiKey) return res.json({ synopsis: `Kein API-Key für ${setting.provider} konfiguriert` })
     res.json({ synopsis: 'Synopse-Generierung noch nicht implementiert' })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/ki/query-expand
+// Analysiert eine natürlichsprachliche Suchanfrage via LLM und extrahiert
+// Charakternamen (mit DB-Lookup auf character_productions) und Schlüsselwörter.
+router.post('/query-expand', async (req, res) => {
+  try {
+    const { query: searchQuery, produktion_id } = req.body
+    if (!searchQuery) return res.status(400).json({ error: 'query erforderlich' })
+
+    const setting = await getKiSetting('query_expand')
+    let extractedCharacters: string[] = []
+    let keywords: string[] = []
+    let provider = 'regex-fallback'
+
+    if (setting?.enabled) {
+      const apiKey = setting.provider !== 'ollama' ? await getProviderApiKey(setting.provider) : null
+      const hasProvider = setting.provider === 'ollama' || !!apiKey
+
+      if (hasProvider) {
+        const system = `Du analysierst Suchanfragen für ein deutsches TV-Drehbuch-Archiv. Extrahiere Charakternamen und Stichwörter. Antworte NUR mit JSON, ohne Erklärung.`
+        const userMsg = `Suchanfrage: "${searchQuery}"\n\nExtrahiere:\n- characters: Eigennamen von Personen/Charakteren\n- keywords: sonstige relevante Stichwörter (keine Stoppwörter)\n\nJSON: {"characters":["Name1"],"keywords":["wort1"]}`
+
+        try {
+          let response: string
+          if (setting.provider === 'ollama') {
+            response = await callOllama(setting.model_name, system + '\n\n' + userMsg)
+          } else if (setting.provider === 'mistral') {
+            response = await callMistral(apiKey!, setting.model_name,
+              [{ role: 'system', content: system }, { role: 'user', content: userMsg }])
+          } else {
+            response = await callClaude(apiKey!, setting.model_name, system, userMsg)
+          }
+          const match = response.match(/\{[\s\S]*\}/)
+          if (match) {
+            const parsed = JSON.parse(match[0])
+            extractedCharacters = (parsed.characters || []).map((s: string) => s.trim()).filter(Boolean)
+            keywords = (parsed.keywords || []).map((s: string) => s.trim()).filter(Boolean)
+          }
+          await recordUsage(setting.provider, setting.model_name || '',
+            Math.ceil(userMsg.length / 4), Math.ceil(response.length / 4))
+          provider = setting.provider
+        } catch {
+          // Fallback unten
+        }
+      }
+    }
+
+    // Regex-Fallback: Großgeschriebene Wörter = Charaktere, Rest = Keywords
+    if (extractedCharacters.length === 0 && keywords.length === 0) {
+      const stopwords = new Set(['auf', 'und', 'oder', 'mit', 'in', 'an', 'die', 'der', 'das', 'ein', 'eine', 'einer',
+        'trifft', 'geht', 'kommt', 'ist', 'sind', 'hat', 'haben', 'wird', 'wird', 'wenn', 'aber', 'weil'])
+      const words = searchQuery.split(/\s+/).filter((w: string) => w.length >= 3 && !stopwords.has(w.toLowerCase()))
+      extractedCharacters = words.filter((w: string) => /^[A-ZÄÖÜ]/.test(w))
+      keywords = words.filter((w: string) => !/^[A-ZÄÖÜ]/.test(w))
+    }
+
+    // Charaktere in der Produktions-DB nachschlagen
+    let resolvedCharacters: { id: string; name: string }[] = []
+    if (extractedCharacters.length > 0 && produktion_id) {
+      const nameLower = extractedCharacters.map((n: string) => n.toLowerCase())
+      const rows = await query(
+        `SELECT DISTINCT c.id::text, c.name
+         FROM characters c
+         JOIN character_productions cp ON cp.character_id = c.id
+         WHERE cp.produktion_id = $1
+           AND LOWER(c.name) = ANY($2::text[])`,
+        [produktion_id, nameLower]
+      )
+      resolvedCharacters = rows.map((r: any) => ({ id: r.id, name: r.name }))
+    }
+
+    res.json({
+      characters: resolvedCharacters,
+      unresolved_names: extractedCharacters.filter(
+        n => !resolvedCharacters.find(r => r.name.toLowerCase() === n.toLowerCase())
+      ),
+      keywords,
+      provider,
+    })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

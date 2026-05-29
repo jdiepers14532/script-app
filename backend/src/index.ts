@@ -378,6 +378,7 @@ async function runMigrations() {
     'v132_rollen_freigabe.sql',
     'v133_glossar_off_erklaerung.sql',
     'v134_nt_eintraege.sql',
+    'v135_query_expand.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
