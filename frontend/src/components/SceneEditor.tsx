@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useContext, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap } from 'lucide-react'
+import { MessageSquare, Send, ExternalLink, X, Plus, Trash2, Pin, PinOff, Zap, AlertTriangle, CheckCircle2 } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api, peekCache } from '../api/client'
@@ -156,6 +156,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [compactHoverPos, setCompactHoverPos] = useState<React.CSSProperties>({})
   const [compactCharDropdown, setCompactCharDropdown] = useState(false)
   const [compactCharSearch, setCompactCharSearch] = useState('')
+  const [checkResults, setCheckResults] = useState<any[]>([])
+  const [checkPanelOpen, setCheckPanelOpen] = useState(false)
+  const [checksRunning, setChecksRunning] = useState(false)
   const compactCharRef = useRef<HTMLDivElement | null>(null)
   const compactHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const detailHeadRef = useRef<HTMLDivElement | null>(null)
@@ -489,6 +492,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           if (data?.id) {
             api.getWechselschnittBeteiligt(data.id).then(setWsBeteiligt).catch(() => setWsBeteiligt([]))
           }
+          // Drehbuch-Checks: load persisted results
+          if (data?.id) {
+            api.getCheckResults(data.id).then(setCheckResults).catch(() => setCheckResults([]))
+          }
         }
       })
       .catch(e => setError(e.message))
@@ -550,6 +557,15 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           }).catch(() => {})
         }
         setSaveMsg('Gespeichert')
+        // Drehbuch-Checks: after autosave, run auto-checks in background
+        if (saved?.id) {
+          api.runChecksAuto(saved.id).then(res => {
+            setCheckResults(res.results ?? [])
+            window.dispatchEvent(new CustomEvent('sz-checks-updated', {
+              detail: { szeneId: saved.id, count: res.issues ?? 0 }
+            }))
+          }).catch(() => {})
+        }
       } catch {
         setSaveMsg('Fehler beim Speichern')
       } finally {
@@ -989,6 +1005,18 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
                     {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
+                    {checkResults.length > 0 && (
+                      <Tooltip text={`${checkResults.length} Hinweis${checkResults.length > 1 ? 'e' : ''} — klicken zum Anzeigen`} placement="bottom">
+                        <button
+                          className="btn ghost"
+                          style={{ color: '#FF9500', padding: '0 2px' }}
+                          onClick={() => setCheckPanelOpen(p => !p)}
+                        >
+                          <AlertTriangle size={12} />
+                          <span style={{ fontSize: 10, fontWeight: 600, marginLeft: 1 }}>{checkResults.length}</span>
+                        </button>
+                      </Tooltip>
+                    )}
                     <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
                       <button
                         className={`btn ghost${showAnnotations ? ' active' : ''}`}
@@ -1562,6 +1590,77 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           document.body
         )}
       </div>}
+
+      {/* Drehbuch-Check Panel */}
+      {checkPanelOpen && checkResults.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-surface)', padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#FF9500', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <AlertTriangle size={12} /> Drehbuch-Checks · {checkResults.length} Hinweis{checkResults.length > 1 ? 'e' : ''}
+            </span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {scene?.id && (
+                <button
+                  className="btn ghost"
+                  style={{ fontSize: 11, color: 'var(--text-secondary)' }}
+                  disabled={checksRunning}
+                  onClick={async () => {
+                    if (!scene?.id) return
+                    setChecksRunning(true)
+                    try {
+                      const res = await api.runChecksManual(scene.id)
+                      setCheckResults(res.results ?? [])
+                      window.dispatchEvent(new CustomEvent('sz-checks-updated', {
+                        detail: { szeneId: scene.id, count: res.issues ?? 0 }
+                      }))
+                    } catch {} finally {
+                      setChecksRunning(false)
+                    }
+                  }}
+                >
+                  {checksRunning ? '…' : 'Neu prüfen'}
+                </button>
+              )}
+              <button className="btn ghost" style={{ fontSize: 11 }} onClick={() => setCheckPanelOpen(false)}>
+                <X size={12} />
+              </button>
+            </div>
+          </div>
+          {checkResults.map((r: any) => (
+            <div key={r.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px' }}>
+              <span style={{ fontSize: 10, color: '#FF9500', marginTop: 1, flexShrink: 0 }}>⚠</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{r.meldung}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{
+                  r.check_typ === 'rollen_konsistenz' ? 'Rollen-Konsistenz' :
+                  r.check_typ === 'sondertyp_wechselschnitt' ? 'Sondertyp/Wechselschnitt' :
+                  r.check_typ === 'strang_zuordnung' ? 'Strang-Zuordnung' :
+                  r.check_typ === 'motiv_leer' ? 'Motiv' :
+                  r.check_typ === 'duplikat_motiv' ? 'Duplikat-Motiv' :
+                  r.check_typ === 'stoppzeit_plausibilitaet' ? 'Stoppzeit' : r.check_typ
+                }</div>
+              </div>
+              {r.id && (
+                <button
+                  className="btn ghost"
+                  style={{ fontSize: 10, color: 'var(--sw-green)', flexShrink: 0 }}
+                  title="Als behoben markieren"
+                  onClick={async () => {
+                    await api.markCheckBehoben(r.id).catch(() => {})
+                    const next = checkResults.filter((x: any) => x.id !== r.id)
+                    setCheckResults(next)
+                    window.dispatchEvent(new CustomEvent('sz-checks-updated', {
+                      detail: { szeneId: scene?.id, count: next.length }
+                    }))
+                  }}
+                >
+                  <CheckCircle2 size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Imported content (read-only display of textelemente from import, hidden in compact) */}
       {!compact && contentTextelemente.length > 0 && (

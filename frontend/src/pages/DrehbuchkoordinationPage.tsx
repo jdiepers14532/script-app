@@ -31,6 +31,7 @@ const DK_TABS = [
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
   { id: 'autorenplan',            label: 'Autorenplan' },
   { id: 'rollen-freigabe',        label: 'Rollen-Freigabe' },
+  { id: 'drehbuch-checks',        label: 'Drehbuch-Checks' },
 ]
 
 const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates', 'freie-dok-labels', 'sonstige-dokumente']
@@ -4661,6 +4662,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <AutorenplanTab produktionDbId={produktionId} /> : <NoProduction />
       case 'rollen-freigabe':
         return produktionId ? <RollenFreigabeTab produktionId={produktionId} /> : <NoProduction />
+      case 'drehbuch-checks':
+        return produktionId ? <DrehbuchChecksTab produktionId={produktionId} /> : <NoProduction />
       case 'private-dokumente':
         return <PrivateDokumenteTab produktionId={produktionId} />
       default:
@@ -6947,6 +6950,140 @@ function FreieDokLabelsTab({ produktionId }: { produktionId: string }) {
           Hinzufügen
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Tab: Drehbuch-Checks ─────────────────────────────────────────────────────
+
+const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean; defaultEnabled: boolean }> = {
+  motiv_leer:               { label: 'Motiv angegeben?',           auto: true,  ki: false, defaultEnabled: true  },
+  rollen_konsistenz:        { label: 'Rollen-Konsistenz',          auto: true,  ki: false, defaultEnabled: true  },
+  sondertyp_wechselschnitt: { label: 'Sondertypen & Wechselschnitte', auto: true, ki: false, defaultEnabled: true },
+  strang_zuordnung:         { label: 'Strang-Zuordnung',           auto: true,  ki: false, defaultEnabled: true  },
+  duplikat_motiv:           { label: 'Duplikat-Motiv im Block',    auto: true,  ki: false, defaultEnabled: true  },
+  stoppzeit_plausibilitaet: { label: 'Stoppzeit-Plausibilität',    auto: false, ki: false, defaultEnabled: false },
+  oneliner_qualitaet:       { label: 'Oneliner-Qualität',          auto: false, ki: true,  defaultEnabled: false },
+}
+
+function DrehbuchChecksTab({ produktionId }: { produktionId: string }) {
+  const [config, setConfig] = useState<Record<string, { enabled: boolean; auto: boolean }>>({})
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(s => {
+        if (s?.drehbuch_checks) {
+          try {
+            const v = typeof s.drehbuch_checks === 'string' ? JSON.parse(s.drehbuch_checks) : s.drehbuch_checks
+            // Merge with defaults
+            const merged: Record<string, { enabled: boolean; auto: boolean }> = {}
+            for (const [key, meta] of Object.entries(CHECK_DEFAULTS)) {
+              merged[key] = { enabled: meta.defaultEnabled, auto: meta.auto, ...v[key] }
+            }
+            setConfig(merged)
+          } catch { setConfig({}) }
+        } else {
+          const defaults: Record<string, { enabled: boolean; auto: boolean }> = {}
+          for (const [key, meta] of Object.entries(CHECK_DEFAULTS)) {
+            defaults[key] = { enabled: meta.defaultEnabled, auto: meta.auto }
+          }
+          setConfig(defaults)
+        }
+      })
+      .catch(() => {})
+  }, [produktionId])
+
+  const save = async (next: Record<string, { enabled: boolean; auto: boolean }>) => {
+    setSaving(true)
+    try {
+      await fetch(`/api/dk-settings/${produktionId}/app-settings/drehbuch_checks`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(next) }),
+      })
+      setMsg('Gespeichert')
+      setTimeout(() => setMsg(null), 2000)
+    } catch { setMsg('Fehler') } finally { setSaving(false) }
+  }
+
+  const toggle = (key: string, field: 'enabled' | 'auto') => {
+    const next = { ...config, [key]: { ...config[key], [field]: !config[key]?.[field] } }
+    setConfig(next)
+    save(next)
+  }
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+    borderBottom: '1px solid var(--border)', fontSize: 13,
+  }
+  const labelStyle: React.CSSProperties = { flex: 1, color: 'var(--text-primary)' }
+  const tagStyle = (color: string): React.CSSProperties => ({
+    fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999,
+    background: `${color}20`, border: `1px solid ${color}60`, color,
+  })
+
+  return (
+    <div style={{ maxWidth: 600 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+        Steuert, welche Qualitätschecks beim Autosave (Auto-Check) oder manuell per Kontextmenü ausgeführt werden.
+        KI-Checks ✨ werden nur manuell ausgeführt und verursachen API-Kosten.
+      </p>
+
+      <div style={{ marginBottom: 8, display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 8, fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+        <span>Check</span>
+        <span style={{ textAlign: 'center' }}>Aktiv</span>
+        <span style={{ textAlign: 'center' }}>Auto</span>
+      </div>
+
+      {Object.entries(CHECK_DEFAULTS).map(([key, meta]) => {
+        const cfg = config[key] ?? { enabled: meta.defaultEnabled, auto: meta.auto }
+        return (
+          <div key={key} style={rowStyle}>
+            <div style={labelStyle}>
+              <span>{meta.label}</span>
+              {meta.ki && <span style={{ ...tagStyle('#AF52DE'), marginLeft: 6 }}>✨ KI</span>}
+              {!meta.auto && !meta.ki && <span style={{ ...tagStyle('#757575'), marginLeft: 6 }}>nur manuell</span>}
+            </div>
+            {/* Aktiv-Toggle */}
+            <div style={{ width: 80, textAlign: 'center' }}>
+              <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={cfg.enabled}
+                  onChange={() => toggle(key, 'enabled')}
+                  style={{ accentColor: '#007AFF', width: 16, height: 16 }}
+                />
+              </label>
+            </div>
+            {/* Auto-Toggle — KI-Checks sind immer nur manuell */}
+            <div style={{ width: 80, textAlign: 'center' }}>
+              {meta.ki ? (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
+              ) : (
+                <label style={{ cursor: cfg.enabled ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', opacity: cfg.enabled ? 1 : 0.4 }}>
+                  <input
+                    type="checkbox"
+                    checked={cfg.auto}
+                    disabled={!cfg.enabled}
+                    onChange={() => toggle(key, 'auto')}
+                    style={{ accentColor: '#007AFF', width: 16, height: 16 }}
+                  />
+                </label>
+              )}
+            </div>
+          </div>
+        )
+      })}
+
+      {(saving || msg) && (
+        <div style={{ marginTop: 12, fontSize: 12, color: msg === 'Gespeichert' ? 'var(--sw-green)' : msg ? 'var(--sw-danger)' : 'var(--text-muted)' }}>
+          {saving ? 'Wird gespeichert…' : msg}
+        </div>
+      )}
     </div>
   )
 }

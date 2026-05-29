@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown } from 'lucide-react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown, AlertTriangle } from 'lucide-react'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api, clearCacheByPrefix } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
@@ -87,6 +87,12 @@ export default function SceneList({
   const [straenge, setStraenge] = useState<any[]>([])
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
+  const [checkBadges, setCheckBadges] = useState<Record<string, { count: number; has_fehler: boolean }>>({})
+
+  const loadCheckBadges = useCallback(() => {
+    if (!werkstufId) { setCheckBadges({}); return }
+    api.getCheckBadges(werkstufId).then(setCheckBadges).catch(() => setCheckBadges({}))
+  }, [werkstufId])
   const [oneWayDialog, setOneWayDialog] = useState<{ sceneId: string | number; currentNotiz: string } | null>(null)
   const [oneWayPartner, setOneWayPartner] = useState('')
   const [oneWaySaving, setOneWaySaving] = useState(false)
@@ -158,6 +164,28 @@ export default function SceneList({
       setStimmungWarnings(map)
     }).catch(() => setStimmungWarnings({}))
   }, [werkstufId, szenen])
+
+  // Drehbuch-Check Badges: beim Laden + auf Custom-Event-Updates reagieren
+  useEffect(() => {
+    loadCheckBadges()
+  }, [loadCheckBadges])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { szeneId, count } = (e as CustomEvent).detail ?? {}
+      if (!szeneId) return
+      setCheckBadges(prev => {
+        if (count === 0) {
+          const next = { ...prev }
+          delete next[szeneId]
+          return next
+        }
+        return { ...prev, [szeneId]: { count, has_fehler: false } }
+      })
+    }
+    window.addEventListener('sz-checks-updated', handler)
+    return () => window.removeEventListener('sz-checks-updated', handler)
+  }, [])
 
   // ONE-WAY-Warnung: Szenen mit (ONE-WAY)-Figur aber ohne NT-Partner in Notiz
   const oneWayWarnIds = useMemo(() => {
@@ -903,6 +931,14 @@ export default function SceneList({
                       <span style={{ color: '#FF9500', fontSize: 11, cursor: 'default' }}>⚠</span>
                     </Tooltip>
                   )}
+                  {checkBadges[scene.id] && (
+                    <Tooltip text={`${checkBadges[scene.id].count} Drehbuch-Hinweis${checkBadges[scene.id].count > 1 ? 'e' : ''} — Szene öffnen für Details`} placement="right">
+                      <span style={{ color: '#FF9500', fontSize: 11, cursor: 'default', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AlertTriangle size={10} />
+                        <span style={{ fontSize: 9, fontWeight: 600 }}>{checkBadges[scene.id].count}</span>
+                      </span>
+                    </Tooltip>
+                  )}
                   {oneWayWarnIds.has(scene.id) && (
                     <Tooltip text={'ONE-WAY-Telefonat:\nTelefonpartner noch nicht angegeben'} placement="right">
                       <span
@@ -933,6 +969,17 @@ export default function SceneList({
                       ))}
                       <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Dokument</button>
                       <button className="scene-ctx-item" onClick={e => { e.stopPropagation(); window.location.href = `/nt-liste?szene_id=${scene.id}` }}>NT-Liste</button>
+                      <CategoryDivider label="Verwalten" />
+                      <button className="scene-ctx-item" onClick={async e => {
+                        e.stopPropagation()
+                        setMenuOpenId(null)
+                        try {
+                          const res = await api.runChecksManual(String(scene.id))
+                          window.dispatchEvent(new CustomEvent('sz-checks-updated', {
+                            detail: { szeneId: String(scene.id), count: res.issues ?? 0 }
+                          }))
+                        } catch {}
+                      }}>Checks ausführen</button>
                       <button className="scene-ctx-item danger" onClick={e => handleDelete(e, scene.id)}>Löschen</button>
                     </div>
                   )}

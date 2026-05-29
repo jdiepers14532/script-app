@@ -914,6 +914,20 @@ export const api = {
   deleteNotification: (id: string) =>
     request<void>('DELETE', `/notifications/${id}`),
 
+  // ── Drehbuch-Checks ───────────────────────────────────────────────────────
+  runChecksAuto: (szeneId: string) =>
+    request<{ ok: boolean; issues: number; results: any[] }>('POST', `/checks/szene/${szeneId}/auto`),
+  runChecksManual: (szeneId: string) =>
+    request<{ ok: boolean; issues: number; results: any[] }>('POST', `/checks/szene/${szeneId}/manual`),
+  runChecksBatch: (werkstufId: string) =>
+    request<{ ok: boolean; scenes_checked: number; total_issues: number }>('POST', `/checks/werkstufe/${werkstufId}/batch`),
+  getCheckResults: (szeneId: string) =>
+    request<any[]>('GET', `/checks/szene/${szeneId}`),
+  getCheckBadges: (werkstufId: string) =>
+    request<Record<string, { count: number; has_fehler: boolean }>>('GET', `/checks/werkstufe/${werkstufId}/badges`),
+  markCheckBehoben: (checkId: string) =>
+    request<{ ok: boolean }>('PATCH', `/checks/${checkId}/behoben`),
+
   // ── Generic helpers ───────────────────────────────────────────────────────
   get: (path: string) => request<any>('GET', path),
   post: (path: string, body?: any) => request<any>('POST', path, body),
