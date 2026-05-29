@@ -958,7 +958,8 @@ export default function UniversalEditor({
           const filtered2 = actionPool.filter(n => n.toUpperCase().startsWith(actionQueryUpper)).slice(0, 9)
           if (filtered2.length === 0 && modus !== 'alle') { actionAcModeRef.current = false; dismiss(); return }
           setAcSuggestions(filtered2)
-          setAcNewName(modus === 'alle' ? toRollenName(actionQueryUpper) : null)
+          const exactMatch2 = filtered2.some(n => n.toUpperCase() === actionQueryUpper)
+          setAcNewName(modus === 'alle' && !exactMatch2 ? toRollenName(actionQueryUpper) : null)
           setAcSelectedIndex(0)
           setAcPos({ x: actionCoords.left, y: actionCoords.top })
         }
@@ -1035,8 +1036,9 @@ export default function UniversalEditor({
             ? pool.filter(n => n.toUpperCase().includes(queryUpper)).slice(0, 9)
             : pool.slice(0, 10)
 
-          // Neu-anlegen zeigt den bereinigten Namen (ohne Suffix)
-          const newName = queryClean ? toRollenName(queryClean) : null
+          // Neu-anlegen nur wenn kein exakter Treffer vorhanden
+          const exactMatch = filtered.some(n => n.toUpperCase() === queryUpper)
+          const newName = queryClean && !exactMatch ? toRollenName(queryClean) : null
           acNewNameRef.current = newName
           setAcNewName(newName)
 
