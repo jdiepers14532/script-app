@@ -116,8 +116,39 @@ export default function PageWrapper({
     }
   }, [showShadow, dim.height, ptTop, ptBottom])
 
+  // ── Seitentrennlinie: nur im Randbereich, Text bleibt ungestört ──────────
+  // Links:  ─── S.X     (Linie + Seitennummer im linken Rand)
+  // Mitte:  (kein Dekor im Textbereich)
+  // Rechts: A4 ───      (Format + Linie im rechten Rand)
+  const pageSep = (i: number, top: number) => (
+    <div
+      key={i}
+      style={{
+        position: 'absolute',
+        left: 0,
+        top,
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+      }}
+    >
+      {/* Linker Rand: Linie → S.X */}
+      <div style={{ width: ptLeft, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, paddingRight: 7 }}>
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+        <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap', opacity: 0.8, fontVariantNumeric: 'tabular-nums' }}>S.{i + 2}</span>
+      </div>
+      {/* Textbereich: keine Linie */}
+      <div style={{ flex: 1 }} />
+      {/* Rechter Rand: A4/LETTER → Linie */}
+      <div style={{ width: ptRight, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, paddingLeft: 7 }}>
+        <span style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap', opacity: 0.8, letterSpacing: '0.3px' }}>{seitenformat.toUpperCase()}</span>
+        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      </div>
+    </div>
+  )
+
   if (showShadow) {
-    // ── Blatt-Modus: weißes Blatt mit Schatten, sichtbare Seitentrennlinie ──
+    // ── Blatt-Modus: weißes Blatt mit Schatten ───────────────────────────────
     const contentMinHeight = dim.height - ptTop - ptBottom
     return (
       <div className="pw-outer" style={{ background: 'var(--bg-subtle)', padding: '32px 24px', minHeight: '100%', overflowX: 'auto' }}>
@@ -139,28 +170,8 @@ export default function PageWrapper({
             position: 'relative',
           } as React.CSSProperties}
         >
-          {/* Seitennummer-Labels — wie im Fließtext-Modus, aber an absoluten Seitengrenzen */}
           <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 1 }}>
-            {Array.from({ length: 30 }, (_, i) => (
-              <div
-                key={i}
-                style={{
-                  position: 'absolute',
-                  left: 0,
-                  top: (i + 1) * dim.height,
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', whiteSpace: 'nowrap', padding: '2px 6px', background: 'var(--bg-surface)', borderRadius: 4 }}>
-                  S.{i + 2} · {seitenformat.toUpperCase()}
-                </span>
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              </div>
-            ))}
+            {Array.from({ length: 30 }, (_, i) => pageSep(i, (i + 1) * dim.height))}
           </div>
           {children}
         </div>
@@ -168,8 +179,9 @@ export default function PageWrapper({
     )
   }
 
-  // ── Fließtext-Modus: kein Blatt, druckgenaue Seitentrennlinie ────────
-  // contentHeight = nutzbare Höhe pro Seite (ohne oberer + unterer Rand)
+  // ── Fließtext-Modus: kein Blatt, Seitenmarkierung nur im Randbereich ──────
+  // contentHeight = nutzbare Höhe pro Seite (ohne oberer + unterer Rand).
+  // Kein CSS-Gradient mehr — die pageSep-Overlays übernehmen die Markierung.
   const contentHeight = dim.height - ptTop - ptBottom
 
   return (
@@ -186,43 +198,12 @@ export default function PageWrapper({
           paddingLeft: ptLeft, paddingRight: ptRight,
           paddingTop: ptTop, paddingBottom: ptBottom,
           position: 'relative',
-          // Trennlinie exakt an Druckseiten-Ende — Gradient relativ zum Content-Box-Rand.
-          // paddingBottom = unterer Seitenrand; minHeight (per ResizeObserver gesetzt) rundet
-          // auf das nächste volle A4/Letter-Vielfache auf, damit die letzte Trennlinie sichtbar ist.
-          backgroundImage: `repeating-linear-gradient(
-            transparent 0,
-            transparent ${contentHeight - 1}px,
-            var(--border) ${contentHeight - 1}px,
-            var(--border) ${contentHeight}px
-          )`,
-          backgroundSize: `100% ${contentHeight}px`,
-          backgroundOrigin: 'content-box',
-          backgroundClip: 'content-box',
         } as React.CSSProperties}
       >
-        {/* Seitennummer-Labels — in overflow:hidden Container, damit sie nicht über den
-            tatsächlichen Inhalt hinaus ragen und scrollHeight aufblähen */}
+        {/* Seitentrennlinien nur im Randbereich; overflow:hidden verhindert
+            Überlauf über die tatsächliche Containerhöhe */}
         <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 1 }}>
-          {Array.from({ length: 30 }, (_, i) => (
-            <div
-              key={i}
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: ptTop + contentHeight * (i + 1),
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
-            >
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              <span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.5px', whiteSpace: 'nowrap', padding: '2px 6px', background: 'var(--bg-page)', borderRadius: 4 }}>
-                S.{i + 2} · {seitenformat.toUpperCase()}
-              </span>
-              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-            </div>
-          ))}
+          {Array.from({ length: 30 }, (_, i) => pageSep(i, ptTop + contentHeight * (i + 1)))}
         </div>
         {children}
       </div>
