@@ -182,7 +182,7 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
         {nr != null ? nr : '—'}
       </span>
       <span style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
-        <span style={{ fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {entity.name}
           {entity.freigabe_status === 'ausstehend' && (
             <span title="Freigabe ausstehend" style={{ width: 7, height: 7, borderRadius: '50%', background: '#FFCC00', flexShrink: 0, display: 'inline-block' }} />

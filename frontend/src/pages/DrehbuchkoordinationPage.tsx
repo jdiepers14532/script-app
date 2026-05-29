@@ -5354,7 +5354,7 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
             onClick={() => config && saveConfig({ ...config, freigabe_aktiv: true })}
             disabled={saving}
             style={{
-              padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
               fontSize: 13, fontWeight: 600,
               background: config?.freigabe_aktiv ? '#000' : 'var(--bg-surface)',
               color: config?.freigabe_aktiv ? '#fff' : 'var(--text-secondary)',
