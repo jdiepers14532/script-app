@@ -548,7 +548,7 @@ export default function UniversalEditor({
   useEffect(() => { acNewNameRef.current = acNewName }, [acNewName])
 
   // Dialog-State für Charakter-Anlegen-Bestätigung
-  const [newCharDialog, setNewCharDialog] = useState<{ name: string; suffix?: string | null; loading: boolean } | null>(null)
+  const [newCharDialog, setNewCharDialog] = useState<{ name: string; suffix?: string | null; isKomparse: boolean; loading: boolean } | null>(null)
   // Erkannter Suffix (OFF/NT/ONE-WAY) aus letzter AC-Eingabe — wird beim Einfügen angehängt
   const detectedSuffixRef = useRef<string | null>(null)
   // Stabile Ref für suffixSettings (für AC-Closure)
@@ -1066,7 +1066,7 @@ export default function UniversalEditor({
             detectedSuffixRef.current = null
             acceptCharIntoEditor(acceptName, sfx)
           } else if (noMatchName) {
-            setNewCharDialog({ name: noMatchName, suffix: detectedSuffixRef.current, loading: false })
+            setNewCharDialog({ name: noMatchName, suffix: detectedSuffixRef.current, isKomparse: false, loading: false })
             detectedSuffixRef.current = null
           }
           return
@@ -1081,7 +1081,7 @@ export default function UniversalEditor({
           setAcSuggestions([])
           setAcNewName(null)
           setAcPos(null)
-          setNewCharDialog({ name: newName, suffix: detectedSuffixRef.current, loading: false })
+          setNewCharDialog({ name: newName, suffix: detectedSuffixRef.current, isKomparse: false, loading: false })
           detectedSuffixRef.current = null
           return
         }
@@ -1314,7 +1314,7 @@ export default function UniversalEditor({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name, produktion_id: selectedProdId }),
+        body: JSON.stringify({ name, produktion_id: selectedProdId, is_komparse: newCharDialog?.isKomparse ?? false }),
       })
       if (!createRes.ok) {
         const err = await createRes.json()
@@ -1378,7 +1378,7 @@ export default function UniversalEditor({
       setAcSuggestions([])
       setAcNewName(null)
       setAcPos(null)
-      setNewCharDialog({ name: acNewName, suffix: detectedSuffixRef.current, loading: false })
+      setNewCharDialog({ name: acNewName, suffix: detectedSuffixRef.current, isKomparse: false, loading: false })
       detectedSuffixRef.current = null
       return
     }
@@ -1900,10 +1900,24 @@ export default function UniversalEditor({
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Neuen Charakter anlegen?</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
               <strong>{newCharDialog.name}</strong> existiert noch nicht in der Rollendatenbank.
               Soll der Charakter angelegt und eine Freigabe-Anfrage gesendet werden?
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={newCharDialog.isKomparse}
+                disabled={newCharDialog.loading}
+                onChange={e => setNewCharDialog(prev => prev ? { ...prev, isKomparse: e.target.checked } : null)}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>Ist Komparse</div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  Komparsen erhalten eine Komparsen-Nummer statt einer Rollen-Nummer.
+                </div>
+              </div>
+            </label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setNewCharDialog(null)}

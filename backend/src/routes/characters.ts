@@ -41,7 +41,7 @@ charactersRouter.get('/', async (req, res) => {
 
 // POST /api/characters — create global character + optional production link
 charactersRouter.post('/', async (req, res) => {
-  const { name, meta_json, produktion_id, rollen_nummer, komparsen_nummer, kategorie_id } = req.body
+  const { name, meta_json, produktion_id, rollen_nummer, komparsen_nummer, kategorie_id, is_komparse } = req.body
   if (!name) return res.status(400).json({ error: 'name required' })
   try {
     const char = await queryOne(
@@ -49,10 +49,19 @@ charactersRouter.post('/', async (req, res) => {
       [name, meta_json ?? {}]
     )
     if (produktion_id) {
+      // Bei is_komparse: erste Komparse-Kategorie der Produktion suchen
+      let resolvedKatId = kategorie_id ?? null
+      if (is_komparse && !resolvedKatId) {
+        const katRow = await queryOne(
+          `SELECT id FROM character_kategorien WHERE produktion_id = $1 AND typ = 'komparse' ORDER BY sort_order, id LIMIT 1`,
+          [produktion_id]
+        )
+        resolvedKatId = katRow?.id ?? null
+      }
       await queryOne(
         `INSERT INTO character_productions (character_id, produktion_id, rollen_nummer, komparsen_nummer, kategorie_id)
          VALUES ($1, $2, $3, $4, $5)`,
-        [char.id, produktion_id, rollen_nummer ?? null, komparsen_nummer ?? null, kategorie_id ?? null]
+        [char.id, produktion_id, rollen_nummer ?? null, komparsen_nummer ?? null, resolvedKatId]
       )
     }
     res.status(201).json(char)
