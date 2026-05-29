@@ -654,11 +654,12 @@ searchRouter.get('/szenen', async (req, res) => {
       joins.push(`JOIN scene_characters ${alias} ON ${alias}.scene_identity_id = si.id AND ${alias}.character_id = $${params.length}`)
     })
 
-    // --- Rollen-Filter via Namen (aus scene_characters) ---
+    // --- Rollen-Filter via Namen (via characters-Tabelle) ---
     rolleNameList.forEach((roleName, i) => {
-      const alias = `sc_name_${i}`
+      const scAlias = `sc_name_${i}`
+      const cAlias = `c_name_${i}`
       params.push(roleName)
-      joins.push(`JOIN scene_characters ${alias} ON ${alias}.scene_identity_id = si.id AND LOWER(${alias}.name) = LOWER($${params.length})`)
+      joins.push(`JOIN scene_characters ${scAlias} ON ${scAlias}.scene_identity_id = si.id JOIN characters ${cAlias} ON ${cAlias}.id = ${scAlias}.character_id AND LOWER(${cAlias}.name) = LOWER($${params.length})`)
     })
 
     // --- Motiv-Filter (motiv_id liegt auf dokument_szenen = ds) ---
@@ -728,9 +729,11 @@ searchRouter.get('/szenen', async (req, res) => {
         CASE WHEN lw.typ != $${prefTypIdx} THEN true ELSE false END AS is_fallback,
         ds.id AS dokument_szene_id,
         ds.sort_order,
-        -- Rollen dieser Szene (aggregiert)
-        (SELECT COALESCE(json_agg(json_build_object('name', scc.name) ORDER BY scc.sort_order NULLS LAST), '[]')
-         FROM scene_characters scc WHERE scc.scene_identity_id = si.id
+        -- Rollen dieser Szene (aggregiert, Name via characters-Tabelle)
+        (SELECT COALESCE(json_agg(json_build_object('name', ch.name) ORDER BY scc.repliken_anzahl DESC NULLS LAST), '[]')
+         FROM scene_characters scc
+         JOIN characters ch ON ch.id = scc.character_id
+         WHERE scc.scene_identity_id = si.id
          LIMIT 20) AS rollen
       FROM latest_werkstufen lw
       JOIN dokument_szenen ds ON ds.werkstufe_id = lw.werkstufe_id AND ds.geloescht = false AND ds.element_type = 'scene'
