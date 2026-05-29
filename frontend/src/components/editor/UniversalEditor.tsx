@@ -926,7 +926,7 @@ export default function UniversalEditor({
           acNewNameRef.current = null
           setAcNewName(null)
           setAcSelectedIndex(0)
-          setAcPos({ x: coords.left, y: coords.bottom + 4 })
+          setAcPos({ x: coords.left, y: coords.top })
         } else {
           // Alle — lokaler Cache, includes-Suche, «Neu anlegen» als erster Eintrag
           const filtered = query.trim()
@@ -941,7 +941,7 @@ export default function UniversalEditor({
 
           setAcSuggestions(filtered)
           setAcSelectedIndex(newName ? 0 : 0)
-          setAcPos({ x: coords.left, y: coords.bottom + 4 })
+          setAcPos({ x: coords.left, y: coords.top })
         }
       }
     }
@@ -1733,68 +1733,70 @@ export default function UniversalEditor({
         </PageWrapper>
       </div>
 
-      {/* Charakter-Autovervollständigung Dropdown */}
+      {/* Charakter-Autovervollständigung Dropdown — öffnet nach oben */}
       {acPos && (acSuggestions.length > 0 || acNewName) && createPortal(
         <div
           style={{
             position: 'fixed',
             left: acPos.x,
-            top: acPos.y,
+            bottom: window.innerHeight - acPos.y + 4,
             zIndex: 99990,
             background: 'var(--bg-surface, #fff)',
             border: '1px solid var(--border, #ddd)',
             borderRadius: 8,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.18)',
             minWidth: 180,
             maxWidth: 300,
-            overflow: 'hidden',
             fontSize: 12,
           }}
-          onMouseDown={e => e.preventDefault()} // Fokus im Editor behalten
+          onMouseDown={e => e.preventDefault()}
         >
-          {/* "Neu anlegen" IMMER als erster Eintrag wenn Query vorhanden (Index 0) */}
-          {acNewName && (
-            <div
-              onClick={() => acceptAcByIndex(0)}
-              onMouseEnter={() => setAcSelectedIndex(0)}
-              style={{
-                padding: '7px 12px',
-                background: acSelectedIndex === 0 ? '#007AFF' : 'transparent',
-                color: acSelectedIndex === 0 ? '#fff' : 'var(--text-primary, #111)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                borderBottom: acSuggestions.length > 0 ? '1px solid var(--border-subtle, #eee)' : undefined,
-              }}
-            >
-              <span style={{ fontSize: 13, fontWeight: 600 }}>+</span>
-              <span style={{ fontFamily: "'Courier Prime', monospace", letterSpacing: '0.03em' }}>
-                «{acNewName}» anlegen
-              </span>
-            </div>
-          )}
-          {/* Bestehende Treffer — Index beginnt bei 1 wenn acNewName vorhanden */}
-          {acSuggestions.map((name, i) => {
-            const displayIdx = acNewName ? i + 1 : i
-            return (
+          {/* Scrollbarer Bereich — max. 4 Einträge à ~32px sichtbar */}
+          <div style={{ maxHeight: 128, overflowY: 'auto' }}>
+            {/* "Neu anlegen" als erster Eintrag (Index 0) */}
+            {acNewName && (
               <div
-                key={name}
-                onClick={() => acceptAcByIndex(displayIdx)}
-                onMouseEnter={() => setAcSelectedIndex(displayIdx)}
+                onClick={() => acceptAcByIndex(0)}
+                onMouseEnter={() => setAcSelectedIndex(0)}
                 style={{
                   padding: '7px 12px',
-                  background: displayIdx === acSelectedIndex ? '#007AFF' : 'transparent',
-                  color: displayIdx === acSelectedIndex ? '#fff' : 'var(--text-primary, #111)',
+                  background: acSelectedIndex === 0 ? '#007AFF' : 'transparent',
+                  color: acSelectedIndex === 0 ? '#fff' : 'var(--text-primary, #111)',
                   cursor: 'pointer',
-                  fontFamily: "'Courier Prime', monospace",
-                  letterSpacing: '0.03em',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  borderBottom: acSuggestions.length > 0 ? '1px solid var(--border-subtle, #eee)' : undefined,
                 }}
               >
-                {name}
+                <span style={{ fontSize: 13, fontWeight: 600 }}>+</span>
+                <span style={{ fontFamily: "'Courier Prime', monospace", letterSpacing: '0.03em' }}>
+                  «{acNewName}» anlegen
+                </span>
               </div>
-            )
-          })}
+            )}
+            {/* Bestehende Treffer — Index beginnt bei 1 wenn acNewName vorhanden */}
+            {acSuggestions.map((name, i) => {
+              const displayIdx = acNewName ? i + 1 : i
+              return (
+                <div
+                  key={name}
+                  onClick={() => acceptAcByIndex(displayIdx)}
+                  onMouseEnter={() => setAcSelectedIndex(displayIdx)}
+                  style={{
+                    padding: '7px 12px',
+                    background: displayIdx === acSelectedIndex ? '#007AFF' : 'transparent',
+                    color: displayIdx === acSelectedIndex ? '#fff' : 'var(--text-primary, #111)',
+                    cursor: 'pointer',
+                    fontFamily: "'Courier Prime', monospace",
+                    letterSpacing: '0.03em',
+                  }}
+                >
+                  {name}
+                </div>
+              )
+            })}
+          </div>
           <div style={{ padding: '4px 12px', borderTop: '1px solid var(--border-subtle, #eee)', fontSize: 10, color: 'var(--text-muted, #999)' }}>
             ↑↓ navigieren · Tab/Enter übernehmen · Esc schließen
           </div>
