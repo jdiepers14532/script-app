@@ -50,6 +50,7 @@ export interface SceneCard {
   is_fallback: boolean
   is_locked: boolean
   locked_by: string | null
+  zusammenfassung: string | null
   rollen: { name: string }[]
 }
 

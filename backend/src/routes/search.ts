@@ -720,6 +720,7 @@ searchRouter.get('/szenen', async (req, res) => {
         COALESCE(ds.tageszeit, '') AS tag_nacht,
         ds.stoppzeit_sek,
         ds.spieltag,
+        ds.zusammenfassung,
         ds.motiv_id,
         lw.werkstufe_id,
         lw.typ AS werkstufe_typ,

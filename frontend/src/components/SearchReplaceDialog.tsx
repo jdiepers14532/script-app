@@ -1044,10 +1044,16 @@ function ReviewStatusBar({ status, accepted, skipped, remaining, onAcceptAll, on
 // Snippet-Ergebnisse (Text-Suche)
 // ══════════════════════════════════════════════════════════════════════════════
 
-// ── Snippet Expand Modal ──────────────────────────────────────────────────────
-function SnippetExpandModal({ result, query, episodeLabel, szeneLabel, onClose, onNavigate }: {
-  result: SearchResult; query: string; episodeLabel: string; szeneLabel: string
-  onClose: () => void; onNavigate: (szeneId: string, folgeId: number) => void
+// ── Snippet List Modal (Vollbild-Ansicht der gesamten Ergebnisliste) ──────────
+function SnippetListModal({ results, total, totalScenes, lockedCount, query,
+  searchMode, reviewStatus, episodeLabel, szeneLabel, onNavigate, onAcceptMatch, onSkipMatch, onClose }: {
+  results: SearchResult[]; total: number; totalScenes: number; lockedCount: number
+  query: string; searchMode: SearchMode; reviewStatus: ReviewStatus
+  episodeLabel: string; szeneLabel: string
+  onNavigate: (szeneId: string, folgeId: number) => void
+  onAcceptMatch: (m: SearchResult) => Promise<void>
+  onSkipMatch: (m: SearchResult) => void
+  onClose: () => void
 }) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -1055,60 +1061,39 @@ function SnippetExpandModal({ result, query, episodeLabel, szeneLabel, onClose, 
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
+  const grouped: Record<number, SearchResult[]> = {}
+  for (const r of results) {
+    if (!grouped[r.folge_nummer]) grouped[r.folge_nummer] = []
+    grouped[r.folge_nummer].push(r)
+  }
+
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 99999,
-        background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          background: 'var(--bg-surface)', borderRadius: 12, padding: 24,
-          maxWidth: 780, width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.35)',
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>
-              {episodeLabel} {result.folge_nummer} · {szeneLabel} {result.scene_nummer}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-              {result.ort_name && <span style={{ marginRight: 8 }}>{result.ort_name}</span>}
-              <span style={{
-                fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                background: result.is_fallback ? '#FF950018' : '#007AFF12',
-                color: result.is_fallback ? '#FF9500' : '#007AFF',
-              }}>
-                {result.werkstufe_typ} v{result.werkstufe_version}{result.is_fallback ? ' ↑' : ''}
-              </span>
-            </div>
-          </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => { onNavigate(result.dokument_szene_id, result.folge_id); onClose() }}
-              style={{ ...primBtnStyle, fontSize: 12 }}
-            >
-              Zur Szene
-            </button>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 4 }}>
-              <X size={18} />
-            </button>
-          </div>
-        </div>
-        {/* Snippet-Text */}
-        <div style={{
-          flex: 1, overflow: 'auto', fontSize: 15, lineHeight: 1.8,
-          color: 'var(--text-primary)', padding: '12px 0',
-          borderTop: '1px solid var(--border)',
-        }}>
-          {highlightSnippet(result.snippet, query)}
-        </div>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'var(--bg-surface)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <Search size={14} />
+        <span style={{ fontWeight: 600, fontSize: 13 }}>„{query}"</span>
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>— {total} Treffer in {totalScenes} {szeneLabel}n</span>
+        {lockedCount > 0 && <span style={{ fontSize: 11, color: '#FF9500' }}><Lock size={10} style={{ verticalAlign: -1 }} /> {lockedCount} gesperrt</span>}
+        <button onClick={onClose} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: 4 }}>
+          <X size={18} />
+        </button>
+      </div>
+      <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+        {Object.entries(grouped).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([folgeNr, scenes]) => (
+          <SnippetGroup
+            key={folgeNr}
+            folgeNummer={parseInt(folgeNr)}
+            scenes={scenes}
+            query={query}
+            episodeLabel={episodeLabel}
+            szeneLabel={szeneLabel}
+            searchMode={searchMode}
+            reviewStatus={reviewStatus}
+            onNavigate={onNavigate}
+            onAccept={onAcceptMatch}
+            onSkip={onSkipMatch}
+          />
+        ))}
       </div>
     </div>
   )
@@ -1123,7 +1108,7 @@ function SnippetResults({ results, total, totalScenes, lockedCount, loading, que
   onAcceptMatch: (m: SearchResult) => Promise<void>
   onSkipMatch: (m: SearchResult) => void
 }) {
-  const [expanded, setExpanded] = useState<SearchResult | null>(null)
+  const [listExpanded, setListExpanded] = useState(false)
 
   if (loading && results.length === 0) {
     return <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '16px 0', textAlign: 'center' }}>Suche läuft...</div>
@@ -1142,19 +1127,35 @@ function SnippetResults({ results, total, totalScenes, lockedCount, loading, que
 
   return (
     <div>
-      {expanded && (
-        <SnippetExpandModal
-          result={expanded}
+      {listExpanded && (
+        <SnippetListModal
+          results={results}
+          total={total}
+          totalScenes={totalScenes}
+          lockedCount={lockedCount}
           query={query}
           episodeLabel={episodeLabel}
           szeneLabel={szeneLabel}
-          onClose={() => setExpanded(null)}
+          searchMode={searchMode}
+          reviewStatus={reviewStatus}
           onNavigate={onNavigate}
+          onAcceptMatch={onAcceptMatch}
+          onSkipMatch={onSkipMatch}
+          onClose={() => setListExpanded(false)}
         />
       )}
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>{total} Treffer in {totalScenes} {szeneLabel}n</span>
-        {lockedCount > 0 && <span style={{ color: '#FF9500' }}><Lock size={10} style={{ verticalAlign: -1 }} /> {lockedCount} gesperrt</span>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {lockedCount > 0 && <span style={{ color: '#FF9500' }}><Lock size={10} style={{ verticalAlign: -1 }} /> {lockedCount} gesperrt</span>}
+          <button
+            onClick={() => setListExpanded(true)}
+            title="Ergebnisliste vergrößern"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-secondary)', lineHeight: 1 }}
+          >
+            <Maximize2 size={12} />
+          </button>
+        </div>
       </div>
       {Object.entries(grouped).sort(([a], [b]) => parseInt(a) - parseInt(b)).map(([folgeNr, scenes]) => (
         <SnippetGroup
@@ -1169,7 +1170,6 @@ function SnippetResults({ results, total, totalScenes, lockedCount, loading, que
           onNavigate={onNavigate}
           onAccept={onAcceptMatch}
           onSkip={onSkipMatch}
-          onExpand={r => setExpanded(r)}
         />
       ))}
     </div>
@@ -1177,12 +1177,11 @@ function SnippetResults({ results, total, totalScenes, lockedCount, loading, que
 }
 
 function SnippetGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel,
-  searchMode, reviewStatus, onNavigate, onAccept, onSkip, onExpand }: {
+  searchMode, reviewStatus, onNavigate, onAccept, onSkip }: {
   folgeNummer: number; scenes: SearchResult[]; query: string
   episodeLabel: string; szeneLabel: string; searchMode: SearchMode; reviewStatus: ReviewStatus
   onNavigate: (szeneId: string, folgeId: number) => void
   onAccept: (m: SearchResult) => Promise<void>; onSkip: (m: SearchResult) => void
-  onExpand: (r: SearchResult) => void
 }) {
   const [groupExpanded, setGroupExpanded] = useState(true)
   const [accepting, setAccepting] = useState<string | null>(null)
@@ -1238,14 +1237,6 @@ function SnippetGroup({ folgeNummer, scenes, query, episodeLabel, szeneLabel,
                   }}>
                     [{scene.werkstufe_typ}{scene.is_fallback ? ' ↑' : ''}]
                   </span>
-                  {/* Expand-Button */}
-                  <button
-                    onClick={e => { e.stopPropagation(); onExpand(scene) }}
-                    title="Vollbild lesen"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 3px', color: 'var(--text-secondary)', marginLeft: 2, lineHeight: 1 }}
-                  >
-                    <Maximize2 size={11} />
-                  </button>
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {highlightSnippet(scene.snippet, query)}
@@ -1394,7 +1385,13 @@ function SceneCardItem({ scene, szeneLabel, onNavigate }: {
           {stoppStr && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'var(--bg-subtle)', color: 'var(--text-secondary)' }}>⏱{stoppStr}</span>}
         </div>
       </div>
-      {/* Zeile 2: Rollen-Chips */}
+      {/* Zeile 2: Oneliner */}
+      {scene.zusammenfassung && (
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.4, fontStyle: 'italic' }}>
+          {scene.zusammenfassung}
+        </div>
+      )}
+      {/* Zeile 3: Rollen-Chips */}
       {scene.rollen && scene.rollen.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 5 }}>
           {scene.rollen.slice(0, 8).map((r, i) => (
