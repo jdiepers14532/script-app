@@ -327,6 +327,10 @@ interface UniversalEditorProps {
   onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
 }
 
+// Rollenname aus Großbuchstaben normalisieren (CSS text-transform verhindert korrekte Schreibweise)
+const toRollenName = (s: string) =>
+  s.toLowerCase().replace(/(?:^|\s)\S/g, c => c.toUpperCase())
+
 // ── Component ───────────────────────────────────────────────────────────────
 
 export default function UniversalEditor({
@@ -944,7 +948,7 @@ export default function UniversalEditor({
             setGhost(restUpper, $from.pos)
           } else {
             inlineGhostAcceptNameRef.current = null
-            inlineGhostNoMatchNameRef.current = modus === 'alle' ? actionQueryUpper : null
+            inlineGhostNoMatchNameRef.current = modus === 'alle' ? toRollenName(actionQueryUpper) : null
             inlineGhostActiveRef.current = modus === 'alle'
             clearGhostDecoration()
           }
@@ -954,7 +958,7 @@ export default function UniversalEditor({
           const filtered2 = actionPool.filter(n => n.toUpperCase().startsWith(actionQueryUpper)).slice(0, 9)
           if (filtered2.length === 0 && modus !== 'alle') { actionAcModeRef.current = false; dismiss(); return }
           setAcSuggestions(filtered2)
-          setAcNewName(modus === 'alle' ? actionQueryUpper : null)
+          setAcNewName(modus === 'alle' ? toRollenName(actionQueryUpper) : null)
           setAcSelectedIndex(0)
           setAcPos({ x: actionCoords.left, y: actionCoords.top })
         }
@@ -1004,8 +1008,8 @@ export default function UniversalEditor({
         } else {
           // Kein Treffer — Neu anlegen (nur im "alle"-Modus)
           inlineGhostAcceptNameRef.current = null
-          inlineGhostNoMatchNameRef.current = modus === 'alle' ? queryUpper : null
-          inlineGhostActiveRef.current = modus === 'alle' && queryUpper.length > 0
+          inlineGhostNoMatchNameRef.current = modus === 'alle' ? toRollenName(queryClean) : null
+          inlineGhostActiveRef.current = modus === 'alle' && queryClean.length > 0
           clearGhostDecoration()
         }
       } else {
@@ -1032,7 +1036,7 @@ export default function UniversalEditor({
             : pool.slice(0, 10)
 
           // Neu-anlegen zeigt den bereinigten Namen (ohne Suffix)
-          const newName = queryClean ? queryUpper : null
+          const newName = queryClean ? toRollenName(queryClean) : null
           acNewNameRef.current = newName
           setAcNewName(newName)
 
