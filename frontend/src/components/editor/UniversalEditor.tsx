@@ -570,6 +570,10 @@ export default function UniversalEditor({
     [absatzformate]
   )
 
+  // Szenen-Suffix-Memory: speichert den zuletzt benutzten Suffix pro CHARACTER-Name in dieser Szene
+  // Map<NAME_UPPER, '(OFF)'|'(NT)'|'(ONE-WAY)'>
+  const sceneSuffixMemoryRef = useRef<Map<string, string>>(new Map())
+
   // Charakter-Cache: alle Produktions-Namen laden wenn Produktion wechselt
   useEffect(() => {
     allCharNamesRef.current = []
@@ -897,8 +901,13 @@ export default function UniversalEditor({
       const query = node.textContent
       // Suffix erkennen (OFF / NT / ONE-WAY) — Suche läuft auf dem bereinigten Namen
       const { name: queryClean, suffix: querySuffix } = parseSuffix(query.trim())
-      detectedSuffixRef.current = querySuffix
       const queryUpper = queryClean.toUpperCase()
+      // Memory-Suffix: letzter bekannter Suffix dieser Figur in der aktuellen Szene
+      const memorySuffix = !querySuffix
+        ? (sceneSuffixMemoryRef.current.get(queryUpper) ?? null)
+        : null
+      const effectiveSuffix = querySuffix ?? memorySuffix
+      detectedSuffixRef.current = effectiveSuffix
       const coords = view.coordsAtPos($from.pos)
       const nodeEndPos = $from.end()
 
@@ -919,8 +928,8 @@ export default function UniversalEditor({
           const ghostSuffix = bestMatch.slice(queryClean.length) // Name-Vervollständigung
           inlineGhostAcceptNameRef.current = bestMatch
           inlineGhostNoMatchNameRef.current = null
-          // Aktiv wenn Ghost-Text sichtbar ODER Suffix erkannt (Enter soll normalisieren)
-          inlineGhostActiveRef.current = ghostSuffix.length > 0 || !!querySuffix
+          // Aktiv wenn Ghost-Text sichtbar ODER Suffix bekannt (explizit oder aus Memory)
+          inlineGhostActiveRef.current = ghostSuffix.length > 0 || !!effectiveSuffix
           setGhost(ghostSuffix, nodeEndPos)
         } else {
           // Kein Treffer — Neu anlegen (nur im "alle"-Modus)
@@ -975,6 +984,25 @@ export default function UniversalEditor({
       inlineGhostActiveRef.current = false
     }
   }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Suffix-Memory aufbauen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
+  useEffect(() => {
+    if (!editor || charFormatIds.length === 0) return
+    const rebuildSuffixMemory = () => {
+      const memory = new Map<string, string>()
+      editor.state.doc.descendants((node: any) => {
+        if (node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)) {
+          const { name, suffix } = parseSuffix(node.textContent ?? '')
+          const key = name.trim().toUpperCase()
+          if (key && suffix) memory.set(key, suffix)
+        }
+      })
+      sceneSuffixMemoryRef.current = memory
+    }
+    editor.on('update', rebuildSuffixMemory)
+    rebuildSuffixMemory() // initialer Scan
+    return () => { editor.off('update', rebuildSuffixMemory) }
+  }, [editor, charFormatIds])
 
   // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
   const insertNameIntoEditor = useCallback((name: string, suffix?: string | null) => {
