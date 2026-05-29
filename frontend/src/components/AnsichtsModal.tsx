@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import {
   Columns2, PanelLeft, PanelRight, BookOpen, AlignLeft, X,
-  Minimize2, Maximize2, Square,
+  Minimize2, Maximize2, Square, ChevronDown,
 } from 'lucide-react'
 import {
   LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS,
@@ -11,12 +11,32 @@ import { useTweaks, useAppSettings } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
 
+const LS_COLLAPSED_KEY = 'ansichtsmodal-collapsed-v1'
+
+function loadCollapsed(): Record<string, boolean> {
+  try {
+    const stored = localStorage.getItem(LS_COLLAPSED_KEY)
+    if (stored) return JSON.parse(stored)
+  } catch {}
+  return { sprache: true, schrift: true }
+}
+
 export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpassenClick }: { onClose: () => void; onFarbschemaClick?: () => void; onThemeAnpassenClick?: () => void }) {
   const { tweaks, set, reset } = useTweaks()
   const { treatmentLabel } = useAppSettings()
   const { t } = useTerminologie()
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef = useRef<HTMLInputElement>(null)
+
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed)
+
+  function toggleSection(key: string) {
+    setCollapsed(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem(LS_COLLAPSED_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -55,6 +75,24 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
   const activeIdx = isDark ? tweaks.darkBgIndex : tweaks.lightBgIndex
   const customColor = isDark ? tweaks.darkCustomBg : tweaks.lightCustomBg
 
+  // Summary-Text für eingeklappte Sektionen
+  const spellcheckLabel: Record<string, string> = { off: 'Aus', browser: 'Browser', languagetool: 'LanguageTool' }
+  function shortFont(fonts: { name: string; value: string }[], value: string): string {
+    const f = fonts.find(f => f.value === value)
+    return f ? f.name.replace(' (Standard)', '') : value.split(',')[0].replace(/['"]/g, '').trim()
+  }
+  const spracheSummary = [
+    spellcheckLabel[tweaks.spellcheck] ?? tweaks.spellcheck,
+    tweaks.spellcheckLang,
+    tweaks.keyboardLayout.toUpperCase(),
+  ].join(' · ')
+  const schriftSummary = [
+    shortFont(INTERFACE_FONTS, tweaks.interfaceFont),
+    `${tweaks.interfaceFontSize}px`,
+    shortFont(SCRIPT_FONTS, tweaks.scriptFont),
+    `${tweaks.fontSize}px`,
+  ].join(' · ')
+
   const fieldsetStyle: React.CSSProperties = {
     marginBottom: 8,
     padding: '0px 12px 6px',
@@ -77,6 +115,14 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
   }
   const labelStyle: React.CSSProperties = {
     color: 'var(--text-secondary)', fontSize: 12, minWidth: 150,
+  }
+  const collapsFieldsetStyle: React.CSSProperties = {
+    marginBottom: 8,
+    background: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 10,
+    minWidth: 0,
+    overflow: 'hidden',
   }
 
   return (
@@ -322,102 +368,140 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
             </div>
           </fieldset>
 
-          {/* Sprache */}
-          <fieldset style={fieldsetStyle}>
-            <legend style={legendStyle}>Sprache</legend>
+          {/* Sprache — einklappbar */}
+          <div style={collapsFieldsetStyle}>
+            <div
+              onClick={() => toggleSection('sprache')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 12px 5px', cursor: 'pointer', userSelect: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Sprache</span>
+                {collapsed.sprache && (
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {spracheSummary}
+                  </span>
+                )}
+              </div>
+              <ChevronDown size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginLeft: 8, transform: collapsed.sprache ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+            </div>
+            <div style={{ maxHeight: collapsed.sprache ? 0 : 500, overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+              <div style={{ padding: '0 12px 6px' }}>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Rechtschreibprüfung</span>
+                  <div className="seg">
+                    <Tooltip text="Aus"><button className={tweaks.spellcheck === 'off' ? 'on' : ''} onClick={() => set('spellcheck', 'off')}>Aus</button></Tooltip>
+                    <Tooltip text="Browser-Spellcheck (rote Wellenlinien)"><button className={tweaks.spellcheck === 'browser' ? 'on' : ''} onClick={() => set('spellcheck', 'browser')}>Browser</button></Tooltip>
+                    <Tooltip text="LanguageTool (Grammatik + Stil)"><button className={tweaks.spellcheck === 'languagetool' ? 'on' : ''} onClick={() => set('spellcheck', 'languagetool')}>LanguageTool</button></Tooltip>
+                  </div>
+                </div>
 
-            <div style={rowStyle}>
-              <span style={labelStyle}>Rechtschreibprüfung</span>
-              <div className="seg">
-                <Tooltip text="Aus"><button className={tweaks.spellcheck === 'off' ? 'on' : ''} onClick={() => set('spellcheck', 'off')}>Aus</button></Tooltip>
-                <Tooltip text="Browser-Spellcheck (rote Wellenlinien)"><button className={tweaks.spellcheck === 'browser' ? 'on' : ''} onClick={() => set('spellcheck', 'browser')}>Browser</button></Tooltip>
-                <Tooltip text="LanguageTool (Grammatik + Stil)"><button className={tweaks.spellcheck === 'languagetool' ? 'on' : ''} onClick={() => set('spellcheck', 'languagetool')}>LanguageTool</button></Tooltip>
+                <div style={rowStyle}>
+                  <Tooltip text="Sprache für LanguageTool und Spellcheck-Korrekturen">
+                    <span style={labelStyle}>Sprache</span>
+                  </Tooltip>
+                  <div className="seg">
+                    <Tooltip text="Deutsch (Deutschland)"><button className={tweaks.spellcheckLang === 'de-DE' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-DE')}>de-DE</button></Tooltip>
+                    <Tooltip text="Deutsch (Österreich)"><button className={tweaks.spellcheckLang === 'de-AT' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-AT')}>de-AT</button></Tooltip>
+                    <Tooltip text="Englisch (UK)"><button className={tweaks.spellcheckLang === 'en-GB' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-GB')}>en-GB</button></Tooltip>
+                    <Tooltip text="Englisch (US)"><button className={tweaks.spellcheckLang === 'en-US' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-US')}>en-US</button></Tooltip>
+                  </div>
+                </div>
+
+                <div style={{ ...rowStyle, borderBottom: 'none' }}>
+                  <Tooltip text="Tastaturlayout — beeinflusst Anzeige der Tastaturkürzel in Tooltips und Hilfe">
+                    <span style={labelStyle}>Tastaturlayout</span>
+                  </Tooltip>
+                  <div className="seg">
+                    <Tooltip text="QWERTZ — Deutsch, Österreich, Schweiz"><button className={tweaks.keyboardLayout === 'qwertz' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwertz')}>QWERTZ</button></Tooltip>
+                    <Tooltip text="QWERTY — Englisch, US, International"><button className={tweaks.keyboardLayout === 'qwerty' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwerty')}>QWERTY</button></Tooltip>
+                  </div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div style={rowStyle}>
-              <Tooltip text="Sprache für LanguageTool und Spellcheck-Korrekturen">
-                <span style={labelStyle}>Sprache</span>
-              </Tooltip>
-              <div className="seg">
-                <Tooltip text="Deutsch (Deutschland)"><button className={tweaks.spellcheckLang === 'de-DE' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-DE')}>de-DE</button></Tooltip>
-                <Tooltip text="Deutsch (Österreich)"><button className={tweaks.spellcheckLang === 'de-AT' ? 'on' : ''} onClick={() => set('spellcheckLang', 'de-AT')}>de-AT</button></Tooltip>
-                <Tooltip text="Englisch (UK)"><button className={tweaks.spellcheckLang === 'en-GB' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-GB')}>en-GB</button></Tooltip>
-                <Tooltip text="Englisch (US)"><button className={tweaks.spellcheckLang === 'en-US' ? 'on' : ''} onClick={() => set('spellcheckLang', 'en-US')}>en-US</button></Tooltip>
+          {/* Schrift — einklappbar */}
+          <div style={collapsFieldsetStyle}>
+            <div
+              onClick={() => toggleSection('schrift')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '6px 12px 5px', cursor: 'pointer', userSelect: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+                <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>Schrift</span>
+                {collapsed.schrift && (
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', opacity: 0.55, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {schriftSummary}
+                  </span>
+                )}
+              </div>
+              <ChevronDown size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0, marginLeft: 8, transform: collapsed.schrift ? 'rotate(-90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }} />
+            </div>
+            <div style={{ maxHeight: collapsed.schrift ? 0 : 400, overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+              <div style={{ padding: '0 12px 6px' }}>
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Interface-Schrift</span>
+                  <select
+                    value={tweaks.interfaceFont}
+                    onChange={e => set('interfaceFont', e.target.value)}
+                    style={{
+                      fontSize: 11, padding: '3px 6px', borderRadius: 5,
+                      border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                      color: 'var(--text-primary)', fontFamily: 'inherit',
+                    }}
+                  >
+                    {INTERFACE_FONTS.map(f => (
+                      <option key={f.value} value={f.value}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Interface-Schriftgrosse</span>
+                  <div className="seg">
+                    {INTERFACE_FONT_SIZES.map(s => (
+                      <button key={s} className={tweaks.interfaceFontSize === s ? 'on' : ''} onClick={() => set('interfaceFontSize', s)}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={rowStyle}>
+                  <span style={labelStyle}>Drehbuch-Schrift</span>
+                  <select
+                    value={tweaks.scriptFont}
+                    onChange={e => set('scriptFont', e.target.value)}
+                    style={{
+                      fontSize: 11, padding: '3px 6px', borderRadius: 5,
+                      border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+                      color: 'var(--text-primary)', fontFamily: tweaks.scriptFont,
+                    }}
+                  >
+                    {SCRIPT_FONTS.map(f => (
+                      <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div style={{ ...rowStyle, borderBottom: 'none' }}>
+                  <span style={labelStyle}>Drehbuch-Schriftgrosse</span>
+                  <div className="seg">
+                    {FONT_SIZES.map(s => (
+                      <button key={s} className={tweaks.fontSize === s ? 'on' : ''} onClick={() => set('fontSize', s)}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
-
-            <div style={{ ...rowStyle, borderBottom: 'none' }}>
-              <Tooltip text="Tastaturlayout — beeinflusst Anzeige der Tastaturkürzel in Tooltips und Hilfe">
-                <span style={labelStyle}>Tastaturlayout</span>
-              </Tooltip>
-              <div className="seg">
-                <Tooltip text="QWERTZ — Deutsch, Österreich, Schweiz"><button className={tweaks.keyboardLayout === 'qwertz' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwertz')}>QWERTZ</button></Tooltip>
-                <Tooltip text="QWERTY — Englisch, US, International"><button className={tweaks.keyboardLayout === 'qwerty' ? 'on' : ''} onClick={() => set('keyboardLayout', 'qwerty')}>QWERTY</button></Tooltip>
-              </div>
-            </div>
-          </fieldset>
-
-          {/* Schrift */}
-          <fieldset style={fieldsetStyle}>
-            <legend style={legendStyle}>Schrift</legend>
-
-            <div style={rowStyle}>
-              <span style={labelStyle}>Interface-Schrift</span>
-              <select
-                value={tweaks.interfaceFont}
-                onChange={e => set('interfaceFont', e.target.value)}
-                style={{
-                  fontSize: 11, padding: '3px 6px', borderRadius: 5,
-                  border: '1px solid var(--border)', background: 'var(--bg-subtle)',
-                  color: 'var(--text-primary)', fontFamily: 'inherit',
-                }}
-              >
-                {INTERFACE_FONTS.map(f => (
-                  <option key={f.value} value={f.value}>{f.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={rowStyle}>
-              <span style={labelStyle}>Interface-Schriftgrosse</span>
-              <div className="seg">
-                {INTERFACE_FONT_SIZES.map(s => (
-                  <button key={s} className={tweaks.interfaceFontSize === s ? 'on' : ''} onClick={() => set('interfaceFontSize', s)}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={rowStyle}>
-              <span style={labelStyle}>Drehbuch-Schrift</span>
-              <select
-                value={tweaks.scriptFont}
-                onChange={e => set('scriptFont', e.target.value)}
-                style={{
-                  fontSize: 11, padding: '3px 6px', borderRadius: 5,
-                  border: '1px solid var(--border)', background: 'var(--bg-subtle)',
-                  color: 'var(--text-primary)', fontFamily: tweaks.scriptFont,
-                }}
-              >
-                {SCRIPT_FONTS.map(f => (
-                  <option key={f.value} value={f.value} style={{ fontFamily: f.value }}>{f.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ ...rowStyle, borderBottom: 'none' }}>
-              <span style={labelStyle}>Drehbuch-Schriftgrosse</span>
-              <div className="seg">
-                {FONT_SIZES.map(s => (
-                  <button key={s} className={tweaks.fontSize === s ? 'on' : ''} onClick={() => set('fontSize', s)}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </fieldset>
+          </div>
 
           {/* Reset */}
           <div style={{ textAlign: 'center', paddingBottom: 4 }}>
