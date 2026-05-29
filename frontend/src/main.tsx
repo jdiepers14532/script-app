@@ -34,6 +34,20 @@ if ('serviceWorker' in navigator && import.meta.env.PROD) {
       .catch((err) => {
         console.warn('[SW] Registrierung fehlgeschlagen:', err)
       })
+
+    // controllerchange feuert garantiert wenn der neue SW (via skipWaiting) übernimmt.
+    // Mit skipWaiting() kann 'installed'-statechange verpasst werden — dieser Handler
+    // ist die zuverlässige Fallback-Erkennung für SW-Updates.
+    let isFirstController = !navigator.serviceWorker.controller
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (isFirstController) {
+        // Erster Install (kein alter Controller) → kein Reload nötig
+        isFirstController = false
+        return
+      }
+      // Neuer SW hat übernommen → Update-Banner zeigen
+      window.dispatchEvent(new CustomEvent('sw-update-waiting'))
+    })
   })
 }
 
