@@ -590,8 +590,11 @@ export default function UniversalEditor({
           return true
         },
         Enter: () => {
-          // Inline-Modus: Enter ignoriert immer den Ghosttext (neue Zeile)
-          if (charAcStyleRef.current === 'inline') return false
+          if (charAcStyleRef.current === 'inline') {
+            if (!inlineGhostActiveRef.current) return false
+            acHandlersRef.current.onAccept()
+            return true
+          }
           if (!acActiveRef.current) return false
           acHandlersRef.current.onAccept()
           return true
@@ -825,17 +828,23 @@ export default function UniversalEditor({
     const style = charAcStyleRef.current
     const noFormats = charFormatIds.length === 0
 
-    const clearGhost = () => {
+    // Nur die ProseMirror-Dekoration löschen — Refs NICHT anfassen
+    const clearGhostDecoration = () => {
       if (dispatchingGhostRef.current) return
-      inlineGhostAcceptNameRef.current = null
-      inlineGhostNoMatchNameRef.current = null
-      inlineGhostActiveRef.current = false
       const cur = inlineGhostKey.getState(editor.state)
       if (cur?.suffix) {
         dispatchingGhostRef.current = true
         editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix: '', pos: 0 }))
         dispatchingGhostRef.current = false
       }
+    }
+
+    // Alle Inline-Refs + Dekoration zurücksetzen (bei dismiss / Cursor weg)
+    const resetInline = () => {
+      inlineGhostAcceptNameRef.current = null
+      inlineGhostNoMatchNameRef.current = null
+      inlineGhostActiveRef.current = false
+      clearGhostDecoration()
     }
 
     const setGhost = (suffix: string, pos: number) => {
@@ -854,7 +863,7 @@ export default function UniversalEditor({
         setAcNewName(null)
         setAcPos(null)
       }
-      clearGhost()
+      resetInline()
     }
 
     if (modus === 'aus' || noFormats) { dismiss(); return }
@@ -881,7 +890,7 @@ export default function UniversalEditor({
 
       if (style === 'inline') {
         // ── Inline Ghost Text ─────────────────────────────────────────────
-        if (!query.trim()) { clearGhost(); return }
+        if (!query.trim()) { resetInline(); return }
 
         // Bester Treffer: startsWith, alphabetisch erster Treffer
         const bestMatch = pool.find(n => n.toUpperCase().startsWith(queryUpper))
@@ -893,15 +902,15 @@ export default function UniversalEditor({
           inlineGhostActiveRef.current = true
           setGhost(suffix, nodeEndPos)
         } else {
-          // Kein Treffer — kein Ghost-Text, aber Tab → Neu anlegen (nur im "alle"-Modus)
+          // Kein Treffer — kein Ghost-Text, aber Tab/Enter → Neu anlegen (nur im "alle"-Modus)
           inlineGhostAcceptNameRef.current = null
           inlineGhostNoMatchNameRef.current = modus === 'alle' ? queryUpper : null
           inlineGhostActiveRef.current = modus === 'alle' && queryUpper.length > 0
-          clearGhost()
+          clearGhostDecoration() // nur Dekoration löschen, Refs oben bereits korrekt gesetzt
         }
       } else {
         // ── Dropdown-Menü ─────────────────────────────────────────────────
-        clearGhost() // sicher stellen dass kein Ghost-Text im Menü-Modus
+        clearGhostDecoration() // sicher stellen dass kein Ghost-Text im Menü-Modus
         acActiveRef.current = true
 
         if (modus === 'szenenkopf') {

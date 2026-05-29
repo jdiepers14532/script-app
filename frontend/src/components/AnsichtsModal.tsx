@@ -245,10 +245,17 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
               </div>
             </div>
 
-            <div style={rowStyle}>
+            {/* Autovervollständigung — Überschrift */}
+            <div style={{ padding: '6px 0 2px', borderTop: '1px solid var(--border-subtle, #f0f0f0)', marginTop: 2 }}>
               <Tooltip text="Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein Charakter-Format.">
-                <span style={labelStyle}>Charakter-AC — Quellenpool</span>
+                <span style={{ ...labelStyle, fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
+                  Autovervollständigung
+                </span>
               </Tooltip>
+            </div>
+
+            <div style={{ ...rowStyle, paddingLeft: 8 }}>
+              <span style={labelStyle}>Quellenpool</span>
               <div className="seg">
                 <Tooltip text="Nur Rollen/Komparsen aus dem Szenenkopf vorschlagen">
                   <button className={tweaks.nurCharAusSzenenkopf === 'szenenkopf' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'szenenkopf')}>Nur Szenenkopf</button>
@@ -263,12 +270,12 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
             </div>
 
             {tweaks.nurCharAusSzenenkopf !== 'aus' && (
-              <div style={rowStyle}>
-                <Tooltip text={tweaks.charAcStyle === 'inline' ? 'Tab übernimmt den Vorschlag · Enter = neue Zeile (ignoriert Vorschlag)' : 'Dropdown-Liste mit Vorschlägen · ↑↓ navigieren · Tab/Enter übernehmen'}>
-                  <span style={labelStyle}>Charakter-AC — Darstellung</span>
+              <div style={{ ...rowStyle, paddingLeft: 8 }}>
+                <Tooltip text={tweaks.charAcStyle === 'inline' ? 'Bester Treffer wird grau im Editor vervollständigt · Tab/Enter = übernehmen oder Neu anlegen' : 'Dropdown-Liste mit Vorschlägen · ↑↓ navigieren · Tab/Enter übernehmen'}>
+                  <span style={labelStyle}>Darstellung</span>
                 </Tooltip>
                 <div className="seg">
-                  <Tooltip text="Bester Treffer wird grau im Editor vervollständigt · Tab = übernehmen">
+                  <Tooltip text="Bester Treffer wird grau im Editor vervollständigt · Tab/Enter = übernehmen">
                     <button className={tweaks.charAcStyle === 'inline' ? 'on' : ''} onClick={() => set('charAcStyle', 'inline')}>Inline</button>
                   </Tooltip>
                   <Tooltip text="Klassisches Dropdown-Menü mit allen Treffern">
