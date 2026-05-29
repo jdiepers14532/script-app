@@ -20,8 +20,12 @@ const LINES_PER_PAGE_A4     = 59
 const LINES_PER_PAGE_LETTER = 56
 const EIGHTHS_PER_PAGE = 8
 
-// Approximate characters per line for different element types
-const CHARS_PER_LINE_DIALOGUE = 35
+// Approximate characters per line for different element types.
+// Dialogue column width: A4 210mm − 30mm left − 30mm right page margin
+//   − 3.2cm absatzformat margin_left − 2.0cm margin_right = 98mm
+//   Courier Prime 12pt at 10 cpi → 98mm / 2.54mm = 38.6 → floor = 38.
+// Action column: 150mm / 2.54mm ≈ 59 → 60 (slight conservative rounding).
+const CHARS_PER_LINE_DIALOGUE = 38
 const CHARS_PER_LINE_ACTION = 60
 
 function getTextFromNode(node: any): string {
