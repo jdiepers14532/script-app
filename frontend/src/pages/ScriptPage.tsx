@@ -386,20 +386,29 @@ export default function ScriptPage() {
     return () => window.removeEventListener('script-import-complete', handler)
   }, [])
 
-  // Parse deep-link URL params once on init (?scene=<id> from Messenger-App links)
-  const [deepLink] = useState<{ produktionId?: string; folgeNummer?: number; stageId?: number; szeneId?: number } | null>(() => {
+  // Parse deep-link URL params once on init
+  // Supports ?scene=<int> (Messenger-App, old) and ?szene=<uuid> (Email-Links, NT-Liste)
+  const [deepLink] = useState<{
+    produktionId?: string; folgeNummer?: number; stageId?: number
+    szeneId?: number; szeneUuid?: string
+  } | null>(() => {
     const params = new URLSearchParams(window.location.search)
     const scene = params.get('scene')
-    if (!scene) return null
+    const szene = params.get('szene')
+    if (!scene && !szene) return null
     const produktion = params.get('produktion') || params.get('staffel')
     const folge = params.get('folge')
     const stage = params.get('stage')
     // Clean URL immediately
     window.history.replaceState({}, '', window.location.pathname)
-    if (produktion && folge && stage) {
-      return { produktionId: produktion, folgeNummer: parseInt(folge), stageId: parseInt(stage), szeneId: parseInt(scene) }
+    if (szene) {
+      // UUID deep-link (new system) — resolve folge_nummer async later
+      return { szeneUuid: szene }
     }
-    return { szeneId: parseInt(scene) }
+    if (produktion && folge && stage) {
+      return { produktionId: produktion, folgeNummer: parseInt(folge), stageId: parseInt(stage), szeneId: parseInt(scene!) }
+    }
+    return { szeneId: parseInt(scene!) }
   })
 
   // Freies Dokument: aus URL-Param ?freidok_id=<id> laden
@@ -507,7 +516,11 @@ export default function ScriptPage() {
   const dragStartX = useRef(0)
   const dragStartWidth = useRef(0)
   // Holds saved nav values during initial cascading restore; cleared after use
-  const pendingNav = useRef<{ produktionId?: string; folgeNummer?: number; stageId?: number; szeneId?: number }>({})
+  const pendingNav = useRef<{
+    produktionId?: string; folgeNummer?: number; stageId?: number
+    szeneId?: number | string    // number (old) or UUID string (new system)
+    sceneIdentityId?: string     // fallback match when szeneId doesn't exist in werkSzenen
+  }>({})
   const navRestored = useRef(false)
 
   // Throttle timestamp for keyboard navigation (max 1 navigation per interval)
@@ -534,7 +547,20 @@ export default function ScriptPage() {
   // Re-reads settings when refreshKey changes (e.g. after import)
   useEffect(() => {
     if (deepLink && !deepLink.produktionId) {
-      // Minimal deep-link — only scene ID, need to resolve staffel/folge/stage via API
+      if (deepLink.szeneUuid) {
+        // UUID deep-link (new dokument_szenen system) — resolve via nav endpoint
+        api.getDokumentSzeneNav(deepLink.szeneUuid).then(ctx => {
+          pendingNav.current = {
+            produktionId: ctx.produktion_id,
+            folgeNummer: ctx.folge_nummer,
+            szeneId: deepLink.szeneUuid,
+            sceneIdentityId: ctx.scene_identity_id,
+          }
+          setSettingsLoaded(true)
+        }).catch(() => setSettingsLoaded(true))
+        return
+      }
+      // Minimal deep-link (old system) — only scene ID, need to resolve staffel/folge/stage via API
       api.getSzene(deepLink.szeneId!).then(scene =>
         api.getStage(scene.stage_id).then(stage => {
           pendingNav.current = {
@@ -820,7 +846,10 @@ export default function ScriptPage() {
           setSzenen(werkSzenen)
           setUseDokumentSzenen(true)
           const savedSzene = pendingNav.current.szeneId
-          const match = savedSzene && werkSzenen.find((s: any) => s.id === savedSzene)
+          const savedSceneIdentityId = pendingNav.current.sceneIdentityId
+          const match = (savedSzene && werkSzenen.find((s: any) => s.id === savedSzene))
+            || (savedSceneIdentityId && werkSzenen.find((s: any) => s.scene_identity_id === savedSceneIdentityId))
+            || null
           setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
           delete pendingNav.current.szeneId
           navRestored.current = true

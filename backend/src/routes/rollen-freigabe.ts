@@ -645,6 +645,7 @@ rollenFreigabePublicRouter.get('/:token', async (req, res) => {
 rollenFreigabePublicRouter.post('/:token/entscheiden', async (req, res) => {
   try {
     const { token } = req.params
+    const { ablehnungsgrund } = req.body ?? {}
 
     const gsRow = await queryOne(
       `SELECT gs.*, gs.token AS raw_token
@@ -679,6 +680,14 @@ rollenFreigabePublicRouter.post('/:token/entscheiden', async (req, res) => {
        WHERE id = $2`,
       [entschiedenWert, gsRow.id]
     )
+
+    // Ablehnungsgrund in anfrage.notiz speichern (falls angegeben)
+    if (entschiedenWert === 'abgelehnt' && ablehnungsgrund?.trim()) {
+      await pool.query(
+        `UPDATE rollen_freigabe_anfragen SET notiz = $1 WHERE id = $2`,
+        [ablehnungsgrund.trim(), gsRow.anfrage_id]
+      )
+    }
 
     // Gesamtstatus neu berechnen
     const neuerStatus = await recalcAnfrageStatus(gsRow.anfrage_id)

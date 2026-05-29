@@ -102,6 +102,7 @@ export const api = {
   getFassungsSzenen: (fassungId: string) =>
     request<any[]>('GET', `/fassungen/${fassungId}/szenen`),
   getDokumentSzene: (id: string) => request<any>('GET', `/dokument-szenen/${id}`),
+  getDokumentSzeneNav: (id: string) => request<{ szene_id: string; scene_identity_id: string; produktion_id: string; folge_nummer: number }>('GET', `/dokument-szenen/${id}/nav`),
   resolveDokumentSzene: (werkstufId: string, sceneIdentityId: string) =>
     request<any>('GET', `/dokument-szenen/resolve?werkstufe_id=${encodeURIComponent(werkstufId)}&scene_identity_id=${encodeURIComponent(sceneIdentityId)}`),
   updateDokumentSzene: (id: string, data: any) => request<any>('PUT', `/dokument-szenen/${id}`, data),
@@ -243,6 +244,7 @@ export const api = {
   getCharacters: (produktionId: string) =>
     request<any[]>('GET', `/characters?produktion_id=${encodeURIComponent(produktionId)}`),
   createCharacter: (data: any) => request<any>('POST', '/characters', data),
+  deleteCharacter: (id: string) => request<void>('DELETE', `/characters/${id}`),
   updateCharacter: (id: string, data: any) => request<any>('PUT', `/characters/${id}`, data),
   getCharKategorien: (produktionId: string) =>
     request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/character-kategorien`),

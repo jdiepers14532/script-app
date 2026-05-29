@@ -4,7 +4,7 @@
  * Zugang: DK (full) + Produktion/Herstellungsleitung (read-only)
  */
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, XCircle, Clock, Bell, ExternalLink, RefreshCw } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Bell, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import Tooltip from '../components/Tooltip'
 import { api } from '../api/client'
@@ -143,6 +143,15 @@ export default function FreigabenPage() {
     setActionLoading(id)
     try {
       await api.post(`/rollen-freigabe/${selectedProductionId}/anfragen/${id}/zurueckziehen`, {})
+      await load()
+    } finally { setActionLoading(null) }
+  }
+
+  async function handleRolleLoeschen(anfrage: Anfrage) {
+    if (!confirm(`Rolle „${anfrage.rollen_name}" endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.`)) return
+    setActionLoading(anfrage.id)
+    try {
+      await api.deleteCharacter(String(anfrage.character_id))
       await load()
     } finally { setActionLoading(null) }
   }
@@ -322,8 +331,8 @@ export default function FreigabenPage() {
                   </div>
                 )}
 
-                {/* Link zur Rollendatenbank */}
-                <div style={{ marginTop: 8 }}>
+                {/* Link zur Rollendatenbank + Löschen (bei abgelehnt) */}
+                <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                   <a
                     href={`/rollen?id=${a.character_id}`}
                     style={{ fontSize: 12, color: '#007AFF', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
@@ -331,6 +340,21 @@ export default function FreigabenPage() {
                     <ExternalLink size={11} />
                     In Rollendatenbank öffnen
                   </a>
+                  {a.status === 'abgelehnt' && (
+                    <Tooltip text="Abgelehnte Rolle endgültig aus dem System entfernen">
+                      <button
+                        onClick={() => handleRolleLoeschen(a)}
+                        disabled={actionLoading === a.id}
+                        style={{
+                          padding: '3px 8px', borderRadius: 5, fontSize: 12,
+                          border: '1px solid #FF3B30', background: 'transparent',
+                          color: '#FF3B30', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}
+                      >
+                        <Trash2 size={11} /> Rolle löschen
+                      </button>
+                    </Tooltip>
+                  )}
                 </div>
               </div>
             ))}

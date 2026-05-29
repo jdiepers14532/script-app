@@ -126,6 +126,27 @@ dokumentSzenenRouter.get('/:id', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/dokument-szenen/:id/nav — navigation context for deep-linking
+// ══════════════════════════════════════════════════════════════════════════════
+dokumentSzenenRouter.get('/:id/nav', async (req, res) => {
+  try {
+    const row = await queryOne(
+      `SELECT ds.id AS szene_id, ds.scene_identity_id,
+              f.produktion_id, f.folge_nummer
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.id = $1`,
+      [req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // PUT /api/dokument-szenen/:id — update scene header
 // ══════════════════════════════════════════════════════════════════════════════
 dokumentSzenenRouter.put('/:id', async (req, res) => {
