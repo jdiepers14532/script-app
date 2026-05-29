@@ -246,10 +246,10 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
             </div>
 
             {/* Autovervollständigung — Überschrift */}
-            <div style={{ padding: '6px 0 2px', borderTop: '1px solid var(--border-subtle, #f0f0f0)', marginTop: 2 }}>
+            <div style={{ padding: '6px 0 2px' }}>
               <Tooltip text={`Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein ${figurenLabel}-Format.`}>
-                <span style={{ ...labelStyle, fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)' }}>
-                  Autovervollständigung
+                <span style={{ ...labelStyle, fontWeight: 600, fontSize: 12, color: 'var(--text)' }}>
+                  {figurenLabel} — Autovervollständigung
                 </span>
               </Tooltip>
             </div>
