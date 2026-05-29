@@ -551,9 +551,6 @@ export default function UniversalEditor({
   const [newCharDialog, setNewCharDialog] = useState<{ name: string; suffix?: string | null; isKomparse: boolean; loading: boolean } | null>(null)
   // Erkannter Suffix (OFF/NT/ONE-WAY) aus letzter AC-Eingabe — wird beim Einfügen angehängt
   const detectedSuffixRef = useRef<string | null>(null)
-  // Stabile Ref für suffixSettings (für AC-Closure)
-  const suffixSettingsRef = useRef(suffixSettings)
-  useEffect(() => { suffixSettingsRef.current = suffixSettings }, [suffixSettings])
 
   // Debounced DB-Suche für "alle"-Modus (nicht mehr verwendet — durch Cache ersetzt)
   const acDbTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -573,6 +570,11 @@ export default function UniversalEditor({
   // IDs der "Character"-Absatzformate
   const charFormatIds = useMemo(
     () => absatzformate.filter(f => f.name.toLowerCase() === 'character').map(f => f.id),
+    [absatzformate]
+  )
+  // IDs der "Action"-Absatzformate
+  const actionFormatIds = useMemo(
+    () => absatzformate.filter(f => f.name.toLowerCase() === 'action').map(f => f.id),
     [absatzformate]
   )
 
@@ -743,6 +745,9 @@ export default function UniversalEditor({
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
   const { lnSettings, pageMargins, replikSettings, suffixSettings } = useAppSettings()
+  // Stabile Ref für suffixSettings (für AC-Closure)
+  const suffixSettingsRef = useRef(suffixSettings)
+  useEffect(() => { suffixSettingsRef.current = suffixSettings }, [suffixSettings])
 
   // ── Replik number plugin ──────────────────────────────────────────────────
   useEffect(() => {
@@ -847,6 +852,8 @@ export default function UniversalEditor({
 
   // Guard gegen eigene Ghost-Text-Dispatches (verhindert Endlosschleife)
   const dispatchingGhostRef = useRef(false)
+  // Flag: AC läuft gerade für eine Action-Zeile (nicht CHARACTER)
+  const actionAcModeRef = useRef(false)
 
   // ── Charakter-AC: State-Tracking (Cursor in Character-Node?) ───────────────
   useEffect(() => {
@@ -902,8 +909,58 @@ export default function UniversalEditor({
       const node = $from.node()
       const isCharNode = node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)
 
-      if (!isCharNode) { dismiss(); return }
+      if (!isCharNode) {
+        // Action-AC: Großbuchstaben-Wort in Action-Zeilen?
+        const ss2 = suffixSettingsRef.current
+        const isActionNode = ss2.action_ac_enabled
+          && node.type.name === 'absatz'
+          && actionFormatIds.includes(node.attrs.format_id)
+        if (!isActionNode) { actionAcModeRef.current = false; dismiss(); return }
 
+        const nodeStart2 = $from.start()
+        const cursorOffset2 = $from.pos - nodeStart2
+        const textBefore2 = node.textContent.slice(0, cursorOffset2)
+        const capsMatch = textBefore2.match(/[A-ZÄÖÜ]+$/)
+        if (!capsMatch || capsMatch[0].length < ss2.action_ac_trigger_chars) {
+          actionAcModeRef.current = false; dismiss(); return
+        }
+
+        actionAcModeRef.current = true
+        detectedSuffixRef.current = null
+        const actionQueryUpper = capsMatch[0]
+        const actionPool: string[] = modus === 'szenenkopf'
+          ? (sceneCharNames ?? [])
+          : allCharObjsRef.current.map(o => o.name)
+        const actionCoords = view.coordsAtPos($from.pos)
+
+        if (style === 'inline') {
+          const bestMatch2 = actionPool.find(n => n.toUpperCase().startsWith(actionQueryUpper))
+          if (bestMatch2) {
+            const restUpper = bestMatch2.toUpperCase().slice(actionQueryUpper.length)
+            inlineGhostAcceptNameRef.current = bestMatch2
+            inlineGhostNoMatchNameRef.current = null
+            inlineGhostActiveRef.current = restUpper.length > 0
+            setGhost(restUpper, $from.pos)
+          } else {
+            inlineGhostAcceptNameRef.current = null
+            inlineGhostNoMatchNameRef.current = modus === 'alle' ? actionQueryUpper : null
+            inlineGhostActiveRef.current = modus === 'alle'
+            clearGhostDecoration()
+          }
+        } else {
+          clearGhostDecoration()
+          acActiveRef.current = true
+          const filtered2 = actionPool.filter(n => n.toUpperCase().startsWith(actionQueryUpper)).slice(0, 9)
+          if (filtered2.length === 0 && modus !== 'alle') { actionAcModeRef.current = false; dismiss(); return }
+          setAcSuggestions(filtered2)
+          setAcNewName(modus === 'alle' ? actionQueryUpper : null)
+          setAcSelectedIndex(0)
+          setAcPos({ x: actionCoords.left, y: actionCoords.top })
+        }
+        return
+      }
+
+      actionAcModeRef.current = false
       const query = node.textContent
       // Suffix erkennen (OFF / NT / ONE-WAY) — Suche läuft auf dem bereinigten Namen
       const { name: queryClean, suffix: rawSuffix } = parseSuffix(query.trim())
@@ -994,7 +1051,7 @@ export default function UniversalEditor({
       acActiveRef.current = false
       inlineGhostActiveRef.current = false
     }
-  }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds, actionFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Suffix-Memory aufbauen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
   useEffect(() => {
@@ -1041,6 +1098,27 @@ export default function UniversalEditor({
     onCharInsertedRef.current?.(name, charId, sfx)
   }, [insertNameIntoEditor])
 
+  // Action-AC: ersetzt das getippte CAPS-Wort durch den akzeptierten Namen
+  const acceptActionCharIntoEditor = useCallback((name: string) => {
+    if (!editor) return
+    const { $from } = editor.state.selection
+    const node = $from.node()
+    if (node.type.name !== 'absatz') return
+    const nodeStart = $from.start()
+    const cursorOffset = $from.pos - nodeStart
+    const textBefore = node.textContent.slice(0, cursorOffset)
+    const match = textBefore.match(/[A-ZÄÖÜ]+$/)
+    if (!match) return
+    const wordStart = nodeStart + cursorOffset - match[0].length
+    const wordEnd = nodeStart + cursorOffset
+    const insertName = suffixSettingsRef.current.action_auto_caps ? name.toUpperCase() : name
+    const charId = allCharObjsRef.current.find(o => o.name.toUpperCase() === name.toUpperCase())?.id ?? null
+    editor.chain().focus().deleteRange({ from: wordStart, to: wordEnd }).insertContentAt(wordStart, insertName).run()
+    onCharInsertedRef.current?.(name, charId, null)
+  }, [editor])
+  const acceptActionCharIntoEditorRef = useRef(acceptActionCharIntoEditor)
+  useEffect(() => { acceptActionCharIntoEditorRef.current = acceptActionCharIntoEditor }, [acceptActionCharIntoEditor])
+
   useEffect(() => {
     acHandlersRef.current = {
       onArrowUp: () => setAcSelectedIndex(prev => Math.max(0, prev - 1)),
@@ -1049,6 +1127,47 @@ export default function UniversalEditor({
         setAcSelectedIndex(prev => Math.min(Math.max(maxIdx, 0), prev + 1))
       },
       onAccept: () => {
+        // ── Action-AC-Modus ────────────────────────────────────────────
+        if (actionAcModeRef.current) {
+          if (charAcStyleRef.current === 'inline') {
+            const acceptName = inlineGhostAcceptNameRef.current
+            const noMatchName = inlineGhostNoMatchNameRef.current
+            inlineGhostActiveRef.current = false
+            inlineGhostAcceptNameRef.current = null
+            inlineGhostNoMatchNameRef.current = null
+            if (editor) {
+              dispatchingGhostRef.current = true
+              editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix: '', pos: 0 }))
+              dispatchingGhostRef.current = false
+            }
+            if (acceptName) {
+              acceptActionCharIntoEditorRef.current(acceptName)
+            } else if (noMatchName) {
+              setNewCharDialog({ name: noMatchName, suffix: null, isKomparse: false, loading: false })
+            }
+            return
+          }
+          const suggestions = acSuggestionsRef.current
+          const idx = acSelectedIndexRef.current
+          const newName = acNewNameRef.current
+          if (idx === 0 && newName) {
+            acActiveRef.current = false
+            setAcSuggestions([])
+            setAcNewName(null)
+            setAcPos(null)
+            setNewCharDialog({ name: newName, suffix: null, isKomparse: false, loading: false })
+            return
+          }
+          const suggestionIdx2 = newName ? idx - 1 : idx
+          const actionName = suggestions[suggestionIdx2]
+          if (!actionName) return
+          acceptActionCharIntoEditorRef.current(actionName)
+          acActiveRef.current = false
+          setAcSuggestions([])
+          setAcNewName(null)
+          setAcPos(null)
+          return
+        }
         if (charAcStyleRef.current === 'inline') {
           // ── Inline-Modus ──────────────────────────────────────────────
           const acceptName = inlineGhostAcceptNameRef.current
@@ -1386,9 +1505,13 @@ export default function UniversalEditor({
     const suggestionIdx = acNewName ? i - 1 : i
     const name = acSuggestions[suggestionIdx]
     if (!name) return
-    const sfx = detectedSuffixRef.current
-    detectedSuffixRef.current = null
-    acceptCharIntoEditor(name, sfx)
+    if (actionAcModeRef.current) {
+      acceptActionCharIntoEditorRef.current(name)
+    } else {
+      const sfx = detectedSuffixRef.current
+      detectedSuffixRef.current = null
+      acceptCharIntoEditor(name, sfx)
+    }
     acActiveRef.current = false
     setAcSuggestions([])
     setAcNewName(null)
