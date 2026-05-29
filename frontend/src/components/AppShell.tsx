@@ -628,7 +628,7 @@ export default function AppShell({
           sceneListNurSzenen: typeof s.sceneListNurSzenen === 'boolean' ? s.sceneListNurSzenen : false,
           sceneListSeitenzahlen: typeof s.sceneListSeitenzahlen === 'boolean' ? s.sceneListSeitenzahlen : true,
           activeColorSchemeId: typeof s.activeColorSchemeId === 'string' ? s.activeColorSchemeId : 'default',
-          nurCharAusSzenenkopf: (['szenenkopf', 'alle', 'aus'] as const).includes(s.nurCharAusSzenenkopf) ? s.nurCharAusSzenenkopf : (s.nurCharAusSzenenkopf === false ? 'aus' : 'szenenkopf'),
+          nurCharAusSzenenkopf: (['szenenkopf', 'alle'] as const).includes(s.nurCharAusSzenenkopf) ? s.nurCharAusSzenenkopf : 'szenenkopf',
           charAcStyle: (['inline', 'menu'] as const).includes(s.charAcStyle) ? s.charAcStyle : 'menu',
         }))
       }

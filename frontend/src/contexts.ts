@@ -69,6 +69,8 @@ export interface SuffixSettings {
   suffix_nt_enabled: boolean
   suffix_oneway_enabled: boolean
   suffix_vo_enabled: boolean
+  char_ac_deaktiviert: boolean
+  char_ac_alle_erlaubt: boolean
   off_figuren_im_szenenkopf: boolean
   action_ac_enabled: boolean
   action_ac_trigger_chars: number
@@ -79,13 +81,15 @@ export const SUFFIX_SETTINGS_DEFAULTS: SuffixSettings = {
   suffix_nt_enabled: true,
   suffix_oneway_enabled: true,
   suffix_vo_enabled: true,
+  char_ac_deaktiviert: false,
+  char_ac_alle_erlaubt: true,
   off_figuren_im_szenenkopf: false,
   action_ac_enabled: true,
   action_ac_trigger_chars: 4,
   action_auto_caps: true,
 }
-interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings; suffixSettings: SuffixSettings }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS, suffixSettings: SUFFIX_SETTINGS_DEFAULTS })
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings; suffixSettings: SuffixSettings; charAcDeaktiviert: boolean; charAcAlleErlaubt: boolean }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS, suffixSettings: SUFFIX_SETTINGS_DEFAULTS, charAcDeaktiviert: false, charAcAlleErlaubt: true })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context
@@ -142,8 +146,8 @@ export interface TweakState {
   sceneListSeitenzahlen: boolean
   /** Aktives Farbschema — ID aus BUILTIN_COLOR_SCHEMES oder benutzerdefiniert */
   activeColorSchemeId: string
-  /** Charakter-Autovervollständigung: 'szenenkopf' | 'alle' | 'aus' */
-  nurCharAusSzenenkopf: 'szenenkopf' | 'alle' | 'aus'
+  /** Charakter-Autovervollständigung: 'szenenkopf' | 'alle' */
+  nurCharAusSzenenkopf: 'szenenkopf' | 'alle'
   /** Darstellung der Charakter-AC: Inline-Ghosttext oder Dropdown-Menü */
   charAcStyle: 'inline' | 'menu'
 }

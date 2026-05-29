@@ -939,6 +939,8 @@ function FigurenTab() {
   const [actionAcEnabled, setActionAcEnabled] = useState(true)
   const [actionAcTriggerChars, setActionAcTriggerChars] = useState(4)
   const [actionAutoCaps, setActionAutoCaps] = useState(true)
+  const [charAcDeaktiviert, setCharAcDeaktiviert] = useState(false)
+  const [charAcAlleErlaubt, setCharAcAlleErlaubt] = useState(true)
   const [suffixSaving, setSuffixSaving] = useState(false)
 
   useEffect(() => {
@@ -957,6 +959,8 @@ function FigurenTab() {
             if (s.action_ac_enabled !== undefined) setActionAcEnabled(s.action_ac_enabled)
             if (s.action_ac_trigger_chars !== undefined) setActionAcTriggerChars(s.action_ac_trigger_chars)
             if (s.action_auto_caps !== undefined) setActionAutoCaps(s.action_auto_caps)
+            if (s.char_ac_deaktiviert !== undefined) setCharAcDeaktiviert(s.char_ac_deaktiviert)
+            if (s.char_ac_alle_erlaubt !== undefined) setCharAcAlleErlaubt(s.char_ac_alle_erlaubt)
           } catch {}
         }
       })
@@ -974,6 +978,8 @@ function FigurenTab() {
       action_ac_enabled: actionAcEnabled,
       action_ac_trigger_chars: actionAcTriggerChars,
       action_auto_caps: actionAutoCaps,
+      char_ac_deaktiviert: charAcDeaktiviert,
+      char_ac_alle_erlaubt: charAcAlleErlaubt,
       ...patch,
     }
     try {
@@ -1238,6 +1244,25 @@ function FigurenTab() {
                 saveSuffixSettings({ action_auto_caps: e.target.checked })
               }} />
               <span style={{ fontSize: 13 }}>Namen in Action-Zeilen nach Einfügen großschreiben</span>
+            </label>
+          </div>
+
+          {/* Figuren-AC */}
+          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>Autovervollständigung für {figurenLabel}</p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={charAcDeaktiviert} disabled={suffixSaving} onChange={e => {
+                setCharAcDeaktiviert(e.target.checked)
+                saveSuffixSettings({ char_ac_deaktiviert: e.target.checked })
+              }} />
+              <span style={{ fontSize: 13 }}>Deaktiviert (kein Quellenpool-Wechsel für alle User)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={charAcAlleErlaubt} disabled={suffixSaving || charAcDeaktiviert} onChange={e => {
+                setCharAcAlleErlaubt(e.target.checked)
+                saveSuffixSettings({ char_ac_alle_erlaubt: e.target.checked })
+              }} />
+              <span style={{ fontSize: 13 }}>Option „Alle {figurenLabel}" im Quellenpool anzeigen</span>
             </label>
           </div>
         </section>

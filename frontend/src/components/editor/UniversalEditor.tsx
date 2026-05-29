@@ -593,12 +593,12 @@ export default function UniversalEditor({
   // Charakter-Cache: alle Produktions-Charaktere laden wenn Produktion wechselt
   useEffect(() => {
     allCharObjsRef.current = []
-    if (!selectedProdId || tweaks.nurCharAusSzenenkopf === 'aus') return
+    if (!selectedProdId || charAcDeaktiviert) return
     fetch(`/api/characters?produktion_id=${selectedProdId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then((rows: any[]) => { allCharObjsRef.current = rows.map(r => ({ id: String(r.id), name: String(r.name) })) })
       .catch(() => {})
-  }, [selectedProdId, tweaks.nurCharAusSzenenkopf])
+  }, [selectedProdId, tweaks.nurCharAusSzenenkopf, charAcDeaktiviert])
 
   // Keyboard-Handler via mutable ref (lesen von Refs für frische Werte)
   const acHandlersRef = useRef({
@@ -752,7 +752,7 @@ export default function UniversalEditor({
   }, [editor])
 
   // ── Line number settings (used by overlay rendered in PageWrapper) ────────
-  const { lnSettings, pageMargins, replikSettings, suffixSettings } = useAppSettings()
+  const { lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert } = useAppSettings()
   // Stabile Ref für suffixSettings (für AC-Closure)
   const suffixSettingsRef = useRef(suffixSettings)
   useEffect(() => { suffixSettingsRef.current = suffixSettings }, [suffixSettings])
@@ -908,7 +908,7 @@ export default function UniversalEditor({
       resetInline()
     }
 
-    if (modus === 'aus' || noFormats) { dismiss(); return }
+    if (charAcDeaktiviert || noFormats) { dismiss(); return }
 
     const update = () => {
       if (dispatchingGhostRef.current) return // Ghost-Dispatch — ignorieren
@@ -1062,7 +1062,7 @@ export default function UniversalEditor({
       acActiveRef.current = false
       inlineGhostActiveRef.current = false
     }
-  }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds, actionFormatIds]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds, actionFormatIds, charAcDeaktiviert]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Suffix-Memory aufbauen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
   useEffect(() => {

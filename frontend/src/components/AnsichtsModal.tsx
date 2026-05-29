@@ -23,7 +23,7 @@ function loadCollapsed(): Record<string, boolean> {
 
 export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpassenClick }: { onClose: () => void; onFarbschemaClick?: () => void; onThemeAnpassenClick?: () => void }) {
   const { tweaks, set, reset } = useTweaks()
-  const { treatmentLabel, figurenLabel } = useAppSettings()
+  const { treatmentLabel, figurenLabel, charAcDeaktiviert, charAcAlleErlaubt } = useAppSettings()
   const { t } = useTerminologie()
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef = useRef<HTMLInputElement>(null)
@@ -254,35 +254,40 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
               </Tooltip>
             </div>
 
-            <div style={{ ...rowStyle, paddingLeft: 8 }}>
-              <span style={labelStyle}>Quellenpool</span>
-              <div className="seg">
-                <Tooltip text="Nur Rollen/Komparsen aus dem Szenenkopf vorschlagen">
-                  <button className={tweaks.nurCharAusSzenenkopf === 'szenenkopf' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'szenenkopf')}>Nur Szenenkopf</button>
-                </Tooltip>
-                <Tooltip text={`Alle ${figurenLabel} der Produktion vorschlagen (mit Neu-Anlegen-Option)`}>
-                  <button className={tweaks.nurCharAusSzenenkopf === 'alle' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'alle')}>Alle</button>
-                </Tooltip>
-                <Tooltip text="Autovervollständigung deaktivieren">
-                  <button className={tweaks.nurCharAusSzenenkopf === 'aus' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'aus')}>Aus</button>
-                </Tooltip>
-              </div>
-            </div>
-
-            {tweaks.nurCharAusSzenenkopf !== 'aus' && (
+            {charAcDeaktiviert ? (
               <div style={{ ...rowStyle, paddingLeft: 8 }}>
-                <Tooltip text={tweaks.charAcStyle === 'inline' ? 'Bester Treffer wird grau im Editor vervollständigt · Tab/Enter = übernehmen oder Neu anlegen' : 'Dropdown-Liste mit Vorschlägen · ↑↓ navigieren · Tab/Enter übernehmen'}>
-                  <span style={labelStyle}>Darstellung</span>
-                </Tooltip>
-                <div className="seg">
-                  <Tooltip text="Bester Treffer wird grau im Editor vervollständigt · Tab/Enter = übernehmen">
-                    <button className={tweaks.charAcStyle === 'inline' ? 'on' : ''} onClick={() => set('charAcStyle', 'inline')}>Inline</button>
-                  </Tooltip>
-                  <Tooltip text="Klassisches Dropdown-Menü mit allen Treffern">
-                    <button className={tweaks.charAcStyle === 'menu' ? 'on' : ''} onClick={() => set('charAcStyle', 'menu')}>Menü</button>
-                  </Tooltip>
-                </div>
+                <span style={{ ...labelStyle, color: 'var(--text-secondary)', fontStyle: 'italic' }}>Von der Drehbuchkoordination deaktiviert</span>
               </div>
+            ) : (
+              <>
+                <div style={{ ...rowStyle, paddingLeft: 8 }}>
+                  <span style={labelStyle}>Quellenpool</span>
+                  <div className="seg">
+                    <Tooltip text="Nur Rollen/Komparsen aus dem Szenenkopf vorschlagen">
+                      <button className={tweaks.nurCharAusSzenenkopf === 'szenenkopf' || (!charAcAlleErlaubt && tweaks.nurCharAusSzenenkopf === 'alle') ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'szenenkopf')}>Nur Szenenkopf</button>
+                    </Tooltip>
+                    {charAcAlleErlaubt && (
+                      <Tooltip text={`Alle ${figurenLabel} der Produktion vorschlagen (mit Neu-Anlegen-Option)`}>
+                        <button className={tweaks.nurCharAusSzenenkopf === 'alle' ? 'on' : ''} onClick={() => set('nurCharAusSzenenkopf', 'alle')}>Alle</button>
+                      </Tooltip>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ ...rowStyle, paddingLeft: 8 }}>
+                  <Tooltip text={tweaks.charAcStyle === 'inline' ? 'Bester Treffer wird grau im Editor vervollständigt · Tab/Enter = übernehmen oder Neu anlegen' : 'Dropdown-Liste mit Vorschlägen · ↑↓ navigieren · Tab/Enter übernehmen'}>
+                    <span style={labelStyle}>Darstellung</span>
+                  </Tooltip>
+                  <div className="seg">
+                    <Tooltip text="Bester Treffer wird grau im Editor vervollständigt · Tab/Enter = übernehmen">
+                      <button className={tweaks.charAcStyle === 'inline' ? 'on' : ''} onClick={() => set('charAcStyle', 'inline')}>Inline</button>
+                    </Tooltip>
+                    <Tooltip text="Klassisches Dropdown-Menü mit allen Treffern">
+                      <button className={tweaks.charAcStyle === 'menu' ? 'on' : ''} onClick={() => set('charAcStyle', 'menu')}>Menü</button>
+                    </Tooltip>
+                  </div>
+                </div>
+              </>
             )}
 
             <div style={rowStyle}>

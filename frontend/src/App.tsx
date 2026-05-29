@@ -51,6 +51,8 @@ export default function App() {
   const [pageMargins, setPageMargins] = useState<PageMargins>(DEFAULT_PAGE_MARGINS)
   const [replikSettings, setReplikSettings] = useState<ReplikSettings>(REPLIK_SETTINGS_DEFAULTS)
   const [suffixSettings, setSuffixSettings] = useState<SuffixSettings>(SUFFIX_SETTINGS_DEFAULTS)
+  const [charAcDeaktiviert, setCharAcDeaktiviert] = useState(false)
+  const [charAcAlleErlaubt, setCharAcAlleErlaubt] = useState(true)
 
   useEffect(() => {
     const loadSettings = (e?: Event) => {
@@ -106,6 +108,8 @@ export default function App() {
             try {
               const parsed = JSON.parse(data.suffix_settings)
               setSuffixSettings({ ...SUFFIX_SETTINGS_DEFAULTS, ...parsed })
+              if (parsed.char_ac_deaktiviert !== undefined) setCharAcDeaktiviert(!!parsed.char_ac_deaktiviert)
+              if (parsed.char_ac_alle_erlaubt !== undefined) setCharAcAlleErlaubt(!!parsed.char_ac_alle_erlaubt)
             } catch {}
           }
           // PWA Admin-Steuerung (v67): einmalig ausführen, dann sofort zurücksetzen
@@ -140,7 +144,7 @@ export default function App() {
   return (
     <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert, charAcAlleErlaubt }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>
