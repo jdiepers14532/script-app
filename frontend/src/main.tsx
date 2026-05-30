@@ -4,6 +4,14 @@ import App from './App.tsx'
 import './styles/tokens.css'
 import './styles/app.css'
 
+// ── Stale-Chunk-Schutz nach Deploy ────────────────────────────────────────
+// Vite 5 feuert dieses Event wenn ein lazy-importierter Chunk nicht geladen
+// werden kann (404 nach neuem Deploy). Wir laden die Seite neu, damit der
+// Browser die aktuelle index.html und alle neuen Chunks bekommt.
+window.addEventListener('vite:preloadError', () => {
+  window.location.reload()
+})
+
 // ── Service Worker registrieren (nur in Production) ────────────────────────
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
