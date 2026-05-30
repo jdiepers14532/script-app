@@ -13,11 +13,12 @@ import { createPortal } from 'react-dom'
 import {
   X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle,
   Eye, WifiOff, GripVertical, BarChart2, Settings, BookOpen, Filter,
-  ChevronDown, Table2, List,
+  ChevronDown, Table2, List, Save,
 } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
 import Tooltip from '../Tooltip'
+import { useSelectedProduction } from '../../contexts'
 import StatistikModal, {
   DEFAULT_SECTIONS,
   type StatModalSection,
@@ -64,6 +65,58 @@ interface ExportPreset {
   synopse_mode?: 'folge' | 'block'
 }
 
+// ── Dateiname-Builder ──────────────────────────────────────────────────────────
+
+type FilenameChipKey = 'titel' | 'staffel' | 'folge' | 'werkstufe' | 'fassung' | 'label' | 'datum'
+
+interface FilenameChip {
+  key: FilenameChipKey
+  label: string
+  enabled: boolean
+}
+
+const FILENAME_CHIP_DEFAULTS: FilenameChip[] = [
+  { key: 'titel',     label: 'Titel',     enabled: true },
+  { key: 'staffel',   label: 'Staffel',   enabled: true },
+  { key: 'folge',     label: 'Folge',     enabled: true },
+  { key: 'werkstufe', label: 'Werkstufe', enabled: true },
+  { key: 'fassung',   label: 'Fassung',   enabled: true },
+  { key: 'label',     label: 'Label',     enabled: true },
+  { key: 'datum',     label: 'Datum',     enabled: true },
+]
+
+function formatDatumForFilename(isoDate: string | null | undefined, fmt: 'de' | 'en'): string {
+  const s = isoDate ? String(isoDate).slice(0, 10) : new Date().toISOString().slice(0, 10)
+  const [y, m, d] = s.split('-')
+  if (!y || !m || !d) return s
+  return fmt === 'de' ? `${d}.${m}.${y}` : `${m}-${d}-${y}`
+}
+
+function assembleFilename(
+  chips: FilenameChip[],
+  werk: WerkstufeMeta | null,
+  folgeNummer: number,
+  produktionTitel: string,
+  staffelnummer: number | null,
+  datumsformat: 'de' | 'en',
+  ext: string,
+): string {
+  if (!werk) return `export.${ext}`
+  const typLabel = werk.typ === 'drehbuch' ? 'Drehbuch'
+    : werk.typ === 'storyline' ? 'Storyline' : 'Notiz'
+  const values: Record<FilenameChipKey, string> = {
+    titel:     produktionTitel,
+    staffel:   staffelnummer != null ? `S${staffelnummer}` : '',
+    folge:     String(folgeNummer),
+    werkstufe: typLabel,
+    fassung:   `V${werk.version_nummer}`,
+    label:     werk.label ?? '',
+    datum:     formatDatumForFilename(werk.stand_datum ?? werk.erstellt_am, datumsformat),
+  }
+  const parts = chips.filter(c => c.enabled).map(c => values[c.key]).filter(Boolean)
+  return (parts.join(' - ').replace(/[/\\:*?"<>|]/g, '_') || 'export') + `.${ext}`
+}
+
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
 
 function genId() { return `item-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
@@ -87,6 +140,8 @@ const SEC: React.CSSProperties = {
 // ── Haupt-Komponente ───────────────────────────────────────────────────────────
 
 export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen, produktionId, folgeNummer }: Props) {
+  const { selectedProduction } = useSelectedProduction()
+
   // Basis
   const [format, setFormat]                       = useState<ExportFormat>('pdf')
   const [isOnline, setIsOnline]                   = useState(navigator.onLine)
@@ -94,6 +149,12 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [jobStatus, setJobStatus]                 = useState<JobStatus>('idle')
   const [progress, setProgress]                   = useState(0)
   const [errorMsg, setErrorMsg]                   = useState<string | null>(null)
+
+  // Dateiname-Builder
+  const [filenameChips, setFilenameChips]         = useState<FilenameChip[]>(FILENAME_CHIP_DEFAULTS)
+  const [chipDragIdx, setChipDragIdx]             = useState<number | null>(null)
+  const [datumsformat, setDatumsformat]           = useState<'de' | 'en'>('de')
+  const saveAsModeRef                             = useRef(false)
 
   // Offene Wasserzeichen
   const [wzKleinAktiv, setWzKleinAktiv]           = useState(false)
@@ -243,6 +304,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         motive:    data.motive    ?? [],
       }))
       .catch(() => setFilterOptions({ rollen: [], komparsen: [], motive: [] }))
+
+    // Datumsformat für Dateiname-Builder laden
+    api.get(`/dk-settings/${encodeURIComponent(produktionId)}/app-settings`)
+      .then((data: any) => { if (data?.datumsformat === 'en') setDatumsformat('en') })
+      .catch(() => {})
   }, [isOpen, selectedWerk?.id])
 
   // Polling beim Schließen NICHT stoppen — Hintergrund-Export läuft weiter
@@ -435,6 +501,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   }
 
   async function triggerDownload(jobId: string) {
+    if (saveAsModeRef.current) {
+      saveAsModeRef.current = false
+      return triggerSaveAs(jobId)
+    }
     try {
       const res = await fetch(`/api/export/job/${jobId}/download`, { credentials: 'include' })
       if (!res.ok) {
@@ -444,14 +514,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
         return
       }
       const blob = await res.blob()
-      const disposition = res.headers.get('Content-Disposition') ?? ''
-      const match = disposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i)
-      const filename = match ? decodeURIComponent(match[1].replace(/"/g, '').trim()) : 'export.pdf'
       // octet-stream verhindert, dass der Browser die PDF automatisch öffnet
       const downloadBlob = new Blob([await blob.arrayBuffer()], { type: 'application/octet-stream' })
       const url = URL.createObjectURL(downloadBlob)
       const a = document.createElement('a')
-      a.href = url; a.download = filename
+      a.href = url; a.download = customFilename
       document.body.appendChild(a); a.click(); document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(url), 10000)
     } catch {
@@ -511,6 +578,60 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       const fallback = `/api/export/preview?werkstufId=${selectedWerk.id}`
       if (win) win.location.href = fallback
       else window.open(fallback, '_blank')
+    }
+  }
+
+  // ── Dateiname-Builder ─────────────────────────────────────────────────────
+
+  const extForFormat: Record<ExportFormat, string> = { pdf: 'pdf', docx: 'docx', fountain: 'fountain', fdx: 'fdx' }
+
+  const customFilename = useMemo(() => assembleFilename(
+    filenameChips,
+    selectedWerk,
+    folgeNummer,
+    selectedProduction?.title ?? '',
+    selectedProduction?.staffelnummer ?? null,
+    datumsformat,
+    extForFormat[format],
+  ), [filenameChips, selectedWerk, folgeNummer, selectedProduction, datumsformat, format])
+
+  async function triggerSaveAs(jobId: string) {
+    try {
+      const res = await fetch(`/api/export/job/${jobId}/download`, { credentials: 'include' })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setJobStatus('error'); setErrorMsg(err.error || `Download fehlgeschlagen (${res.status})`); return
+      }
+      const blob = await res.blob()
+      if ('showSaveFilePicker' in window) {
+        try {
+          const mimeTypes: Record<ExportFormat, Record<string, string[]>> = {
+            pdf: { 'application/pdf': ['.pdf'] },
+            docx: { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] },
+            fountain: { 'text/plain': ['.fountain'] },
+            fdx: { 'text/xml': ['.fdx'] },
+          }
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: customFilename,
+            types: [{ description: 'Dokument', accept: mimeTypes[format] }],
+          })
+          const writable = await handle.createWritable()
+          await writable.write(blob)
+          await writable.close()
+          return
+        } catch (e: any) {
+          if (e.name === 'AbortError') return // Nutzer hat abgebrochen
+          // Fallback auf normalen Download
+        }
+      }
+      const downloadBlob = new Blob([await blob.arrayBuffer()], { type: 'application/octet-stream' })
+      const url = URL.createObjectURL(downloadBlob)
+      const a = document.createElement('a')
+      a.href = url; a.download = customFilename
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+    } catch {
+      setJobStatus('error'); setErrorMsg('Download fehlgeschlagen')
     }
   }
 
@@ -984,6 +1105,74 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* ── Dateiname-Builder ── */}
+            <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+              <span style={SEC}>Dateiname</span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                {/* Chip-Zeile */}
+                <div style={{
+                  flex: 1, display: 'flex', flexWrap: 'wrap', gap: 4,
+                  padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 8,
+                  minHeight: 34, alignItems: 'center', background: 'var(--bg-canvas)',
+                }}>
+                  {filenameChips.map((chip, i) => (
+                    <div
+                      key={chip.key}
+                      draggable
+                      onDragStart={() => setChipDragIdx(i)}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={() => {
+                        if (chipDragIdx === null || chipDragIdx === i) { setChipDragIdx(null); return }
+                        setFilenameChips(prev => {
+                          const next = [...prev]
+                          const [moved] = next.splice(chipDragIdx, 1)
+                          next.splice(i, 0, moved)
+                          return next
+                        })
+                        setChipDragIdx(null)
+                      }}
+                      onDragEnd={() => setChipDragIdx(null)}
+                      onClick={() => setFilenameChips(prev => prev.map((c, j) => j === i ? { ...c, enabled: !c.enabled } : c))}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '2px 7px', borderRadius: 10, fontSize: 10, fontWeight: 600,
+                        cursor: 'grab', userSelect: 'none', transition: 'opacity 0.15s',
+                        background: chip.enabled ? 'var(--text-primary)' : 'var(--border)',
+                        color: chip.enabled ? 'var(--bg, #fff)' : 'var(--text-muted)',
+                        opacity: chip.enabled ? 1 : 0.55,
+                        outline: chipDragIdx === i ? '2px solid #007AFF' : 'none',
+                      }}
+                    >
+                      <GripVertical size={9} style={{ opacity: 0.5, flexShrink: 0 }} />
+                      {chip.label}
+                    </div>
+                  ))}
+                </div>
+                {/* Speichern unter Button */}
+                <Tooltip placement="top" text={blockedByOffline ? 'PDF-Export erfordert Internetverbindung' : 'Export starten und Speicherort wählen'}>
+                  <button
+                    onClick={() => { saveAsModeRef.current = true; startExport() }}
+                    disabled={isRunning || isDisabledFormat(currentFormatDef) || blockedByOffline}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                      padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                      fontFamily: 'inherit', cursor: (isRunning || blockedByOffline) ? 'not-allowed' : 'pointer',
+                      border: '1px solid var(--border)',
+                      background: (isRunning || blockedByOffline) ? 'var(--bg-subtle)' : 'transparent',
+                      color: (isRunning || blockedByOffline) ? 'var(--text-muted)' : 'var(--text-primary)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Save size={12} />Speichern unter
+                  </button>
+                </Tooltip>
+              </div>
+              {/* Vorschau des Dateinamens */}
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {customFilename}
               </div>
             </div>
           )}
