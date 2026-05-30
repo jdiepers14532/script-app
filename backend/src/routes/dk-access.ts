@@ -164,6 +164,163 @@ router.delete('/:productionId/glossar/:id',
   }
 )
 
+// ── Stimmungen (Tageszeit) CRUD ───────────────────────────────────────────────
+
+const DEFAULT_STIMMUNGEN = [
+  { name: 'TAG',   kuerzel: 'T', position: 0 },
+  { name: 'ABEND', kuerzel: 'A', position: 1 },
+  { name: 'NACHT', kuerzel: 'N', position: 2 },
+]
+
+export async function getStimmungen(productionId: string) {
+  const { rows } = await pool.query(
+    `SELECT id, name, kuerzel, position FROM tageszeit_stimmungen
+     WHERE production_id = $1 ORDER BY position ASC`,
+    [productionId]
+  )
+  if (rows.length === 0) return DEFAULT_STIMMUNGEN.map(s => ({ ...s, id: null }))
+  return rows
+}
+
+// GET /api/dk-settings/:productionId/stimmungen
+router.get('/:productionId/stimmungen',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      res.json(await getStimmungen(req.params.productionId))
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// POST /api/dk-settings/:productionId/stimmungen — neuen Eintrag am Anfang einfügen
+router.post('/:productionId/stimmungen',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const pid = req.params.productionId
+      const { name, kuerzel } = req.body
+      if (!name?.trim() || !kuerzel?.trim()) return res.status(400).json({ error: 'name und kuerzel erforderlich' })
+
+      // Sicherstellen dass Defaults existieren bevor wir einfügen
+      await ensureDefaultStimmungen(pid)
+
+      // Alle vorhandenen Positionen um 1 erhöhen (neuer Eintrag kommt an Position 0)
+      await pool.query(
+        `UPDATE tageszeit_stimmungen SET position = position + 1 WHERE production_id = $1`,
+        [pid]
+      )
+      const { rows } = await pool.query(
+        `INSERT INTO tageszeit_stimmungen (production_id, name, kuerzel, position)
+         VALUES ($1, $2, $3, 0)
+         ON CONFLICT (production_id, name) DO NOTHING
+         RETURNING id, name, kuerzel, position`,
+        [pid, name.trim(), kuerzel.trim().substring(0, 3)]
+      )
+      if (!rows[0]) return res.status(409).json({ error: 'Stimmung mit diesem Namen existiert bereits' })
+      res.json(rows[0])
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// PUT /api/dk-settings/:productionId/stimmungen/reorder — [{id, position}]
+router.put('/:productionId/stimmungen/reorder',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const pid = req.params.productionId
+      const entries: { id: number; position: number }[] = req.body
+      if (!Array.isArray(entries)) return res.status(400).json({ error: 'Array erforderlich' })
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        for (const e of entries) {
+          await client.query(
+            `UPDATE tageszeit_stimmungen SET position = $1 WHERE id = $2 AND production_id = $3`,
+            [e.position, e.id, pid]
+          )
+        }
+        await client.query('COMMIT')
+      } catch (e) {
+        await client.query('ROLLBACK')
+        throw e
+      } finally {
+        client.release()
+      }
+      res.json(await getStimmungen(pid))
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// PUT /api/dk-settings/:productionId/stimmungen/:id
+router.put('/:productionId/stimmungen/:id',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const { name, kuerzel } = req.body
+      const { rows } = await pool.query(
+        `UPDATE tageszeit_stimmungen SET name = $1, kuerzel = $2
+         WHERE id = $3 AND production_id = $4
+         RETURNING id, name, kuerzel, position`,
+        [name.trim(), kuerzel.trim().substring(0, 3), req.params.id, req.params.productionId]
+      )
+      if (!rows[0]) return res.status(404).json({ error: 'Nicht gefunden' })
+      res.json(rows[0])
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// DELETE /api/dk-settings/:productionId/stimmungen/:id
+router.delete('/:productionId/stimmungen/:id',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const pid = req.params.productionId
+      const { rows } = await pool.query(
+        `DELETE FROM tageszeit_stimmungen WHERE id = $1 AND production_id = $2 RETURNING position`,
+        [req.params.id, pid]
+      )
+      if (!rows[0]) return res.status(404).json({ error: 'Nicht gefunden' })
+      // Positionen neu kompaktieren
+      await pool.query(
+        `UPDATE tageszeit_stimmungen SET position = sub.new_pos
+         FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY position) - 1 AS new_pos
+               FROM tageszeit_stimmungen WHERE production_id = $1) sub
+         WHERE tageszeit_stimmungen.id = sub.id AND tageszeit_stimmungen.production_id = $1`,
+        [pid]
+      )
+      res.json(await getStimmungen(pid))
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// Hilfsfunktion: Defaults in DB schreiben wenn noch keine Einträge vorhanden
+async function ensureDefaultStimmungen(productionId: string) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM tageszeit_stimmungen WHERE production_id = $1`,
+    [productionId]
+  )
+  if (parseInt(rows[0].cnt) > 0) return
+  for (const s of DEFAULT_STIMMUNGEN) {
+    await pool.query(
+      `INSERT INTO tageszeit_stimmungen (production_id, name, kuerzel, position)
+       VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+      [productionId, s.name, s.kuerzel, s.position]
+    )
+  }
+}
+
+export { ensureDefaultStimmungen }
+
 // ── Admin: DK-Zugriffsverwaltung ──────────────────────────────────────────────
 
 const adminRouter = Router()

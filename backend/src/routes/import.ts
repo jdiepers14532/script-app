@@ -5,6 +5,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { getStimmungen, ensureDefaultStimmungen } from './dk-access'
 import { detectFormat, parseScript, ParseOptions } from '../importers'
 import { stripWatermark, decodeWatermarkFromText } from '../utils/watermark'
 import { parseFilename } from '../importers/roteRosen'
@@ -1202,6 +1203,37 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       ).catch(() => {})
     }
 
+    // ── Unbekannte Stimmungen auto-registrieren ──
+    let unbekannteStimmungen: string[] = []
+    try {
+      await ensureDefaultStimmungen(produktion_id)
+      const vorhandene = await getStimmungen(produktion_id)
+      const vorhandeneNamen = new Set(vorhandene.map((s: any) => s.name))
+
+      // Alle tageszeit-Werte der importierten Szenen sammeln
+      const importierteTageszeiten = new Set<string>()
+      for (const sd of sceneDataList) {
+        if (sd.tageszeit) importierteTageszeiten.add(sd.tageszeit)
+      }
+
+      const neueListe = [...importierteTageszeiten].filter(tz => !vorhandeneNamen.has(tz))
+      for (const tz of neueListe) {
+        // Position 0 — alle vorhandenen hochschieben
+        await pool.query(
+          `UPDATE tageszeit_stimmungen SET position = position + 1 WHERE production_id = $1`,
+          [produktion_id]
+        )
+        await pool.query(
+          `INSERT INTO tageszeit_stimmungen (production_id, name, kuerzel, position)
+           VALUES ($1, $2, $3, 0) ON CONFLICT (production_id, name) DO NOTHING`,
+          [produktion_id, tz, tz.charAt(0).toUpperCase()]
+        )
+        unbekannteStimmungen.push(tz)
+      }
+    } catch (e) {
+      console.error('[Import] Stimmungen auto-add failed (non-fatal):', e)
+    }
+
     res.json({
       folge_id: folgeId,
       folge_nummer,
@@ -1213,6 +1245,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       motive_created: motiveCreated,
       warnings: result.meta.warnings,
       metadata_saved: saveMetadata && Object.keys(fileMeta).length > 0,
+      unbekannte_stimmungen: unbekannteStimmungen,
     })
   } catch (err) {
     console.error('Import commit error:', err)

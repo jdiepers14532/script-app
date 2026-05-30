@@ -159,6 +159,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [checkResults, setCheckResults] = useState<any[]>([])
   const [checkPanelOpen, setCheckPanelOpen] = useState(false)
   const [checksRunning, setChecksRunning] = useState(false)
+  const [stimmungenList, setStimmungenList] = useState<{ id: number | null; name: string; kuerzel: string; position: number }[]>([])
   const compactCharRef = useRef<HTMLDivElement | null>(null)
   const compactHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const detailHeadRef = useRef<HTMLDivElement | null>(null)
@@ -216,7 +217,13 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   }, [scene, szeneId, onSzeneUpdated])
 
   const ieAbbr = (ie: string) => ie === 'int' ? 'I' : 'A'
-  const tzAbbr = (tz: string) => ({ TAG: 'T', NACHT: 'N', ABEND: 'A' }[tz] ?? 'T')
+  const tzAbbr = (tz: string) => {
+    if (stimmungenList.length > 0) {
+      const found = stimmungenList.find(s => s.name === tz)
+      if (found) return found.kuerzel
+    }
+    return ({ TAG: 'T', NACHT: 'N', ABEND: 'A' }[tz] ?? tz.charAt(0))
+  }
 
   const handlePbodyWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const el = e.currentTarget
@@ -272,6 +279,20 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     api.getCharacters(produktionId).then(setAllCharacters).catch(() => setAllCharacters([]))
     api.getCharKategorien(produktionId).then(setCharKategorien).catch(() => setCharKategorien([]))
     api.getStraenge(produktionId).then(setAllStraenge).catch(() => setAllStraenge([]))
+    api.getStimmungen(produktionId).then(setStimmungenList).catch(() => {})
+  }, [produktionId])
+
+  // Stimmungen bei externen Änderungen (DK-Settings) neu laden
+  useEffect(() => {
+    if (!produktionId) return
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      if (detail?.productionId === produktionId) {
+        api.getStimmungen(produktionId).then(setStimmungenList).catch(() => {})
+      }
+    }
+    window.addEventListener('stimmungen-changed', handler)
+    return () => window.removeEventListener('stimmungen-changed', handler)
   }, [produktionId])
 
   // Load stockshot templates when sondertyp is 'stockshot'
@@ -414,15 +435,19 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   }, [szeneId, useDokumentSzenen, werkstufId, sceneIdentityId, scene])
 
   const cycleTageszeit = useCallback(async () => {
-    const order = ['TAG', 'NACHT', 'ABEND']
-    const prev = scene?.tageszeit ?? 'TAG'
+    const defaultOrder = ['TAG', 'NACHT', 'ABEND']
+    const order = stimmungenList.length > 0
+      ? stimmungenList.slice().sort((a, b) => a.position - b.position).map(s => s.name)
+      : defaultOrder
+    const lastInOrder = order[order.length - 1]
+    const prev = scene?.tageszeit ?? order[0]
     const idx = order.indexOf(prev)
     const next = order[(idx + 1) % order.length]
     try {
       const updated = await saveScene({ tageszeit: next })
       setScene(updated); onSzeneUpdated?.(updated)
       if (tweaks.autoStimmungPropagation && scene?.id) {
-        const isNewDay = prev === 'NACHT' && (next === 'TAG' || next === 'MORGEN')
+        const isNewDay = prev === lastInOrder && next !== lastInOrder
         const result = await api.bulkTageszeitPropagate(scene.id, { tageszeit: next, increment_spieltag: isNewDay })
         if (result.updated_count > 0) {
           showToast(`Stimmung: ${result.updated_count} folgende Szene${result.updated_count > 1 ? 'n' : ''} auf ${next} gesetzt`, 'info')

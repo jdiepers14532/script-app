@@ -148,6 +148,8 @@ function FeldListe({ felder, onDelete, deleteConfirm, onConfirmDelete, onCancelD
 
 // ── Tab: Allgemein (production-specific endpoints) ───────────────────────────────
 
+type Stimmung = { id: number | null; name: string; kuerzel: string; position: number }
+
 function AllgemeinTab({ productionId }: { productionId: string }) {
   const { t } = useTerminologie()
   const [datumsformat, setDatumsformat] = useState<'de' | 'en'>('de')
@@ -155,6 +157,15 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [kuerzel, setKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
   const [roles, setRoles] = useState<string[] | null>(null)
   const [kuerzelSaving, setKuerzelSaving] = useState(false)
+
+  // Stimmungen
+  const [stimmungen, setStimmungen] = useState<Stimmung[]>([])
+  const [stimmungenLoading, setStimmungenLoading] = useState(true)
+  const [newStimmungName, setNewStimmungName] = useState('')
+  const [newStimmungKuerzel, setNewStimmungKuerzel] = useState('')
+  const [stimmungAddError, setStimmungAddError] = useState('')
+  const dragIndex = useRef<number | null>(null)
+  const dragOverIndex = useRef<number | null>(null)
   const [envColors, setEnvColors] = useState<Record<EnvKey, EnvColor>>({ ...DEFAULT_ENV_COLORS })
   const [envColorsDark, setEnvColorsDark] = useState<Record<EnvKey, EnvColor>>({ ...DEFAULT_ENV_COLORS_DARK })
   const [envColorsSaving, setEnvColorsSaving] = useState(false)
@@ -166,6 +177,13 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   const [replikColor, setReplikColor] = useState('#000000')
   const [replikMode, setReplikMode] = useState<'continuous' | 'per_scene'>('continuous')
   const [replikSaving, setReplikSaving] = useState(false)
+
+  useEffect(() => {
+    api.getStimmungen(productionId)
+      .then(data => setStimmungen(data))
+      .catch(() => {})
+      .finally(() => setStimmungenLoading(false))
+  }, [productionId])
 
   useEffect(() => {
     fetch(`/api/dk-settings/${productionId}/app-settings`, { credentials: 'include' })
@@ -314,8 +332,164 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
     setReplikSaving(false)
   }
 
+  const addStimmung = async () => {
+    if (!newStimmungName.trim() || !newStimmungKuerzel.trim()) {
+      setStimmungAddError('Name und Kürzel erforderlich')
+      return
+    }
+    setStimmungAddError('')
+    try {
+      const created = await api.createStimmung(productionId, newStimmungName.trim(), newStimmungKuerzel.trim())
+      setStimmungen(prev => [created, ...prev.map(s => ({ ...s, position: s.position + 1 }))])
+      setNewStimmungName('')
+      setNewStimmungKuerzel('')
+      window.dispatchEvent(new CustomEvent('stimmungen-changed', { detail: { productionId } }))
+    } catch {
+      setStimmungAddError('Fehler beim Anlegen — Name evtl. bereits vorhanden')
+    }
+  }
+
+  const deleteStimmung = async (id: number) => {
+    if (stimmungen.length <= 1) return
+    try {
+      const updated = await api.deleteStimmung(productionId, id)
+      setStimmungen(Array.isArray(updated) ? updated : stimmungen.filter(s => s.id !== id))
+      window.dispatchEvent(new CustomEvent('stimmungen-changed', { detail: { productionId } }))
+    } catch {}
+  }
+
+  const updateStimmungField = async (id: number, name: string, kuerzel: string) => {
+    try {
+      const updated = await api.updateStimmung(productionId, id, name, kuerzel)
+      setStimmungen(prev => prev.map(s => s.id === id ? { ...s, ...updated } : s))
+      window.dispatchEvent(new CustomEvent('stimmungen-changed', { detail: { productionId } }))
+    } catch {}
+  }
+
+  const onDragStart = (i: number) => { dragIndex.current = i }
+  const onDragOver = (e: React.DragEvent, i: number) => { e.preventDefault(); dragOverIndex.current = i }
+  const onDrop = async () => {
+    const from = dragIndex.current
+    const to = dragOverIndex.current
+    if (from === null || to === null || from === to) return
+    const reordered = [...stimmungen]
+    const [moved] = reordered.splice(from, 1)
+    reordered.splice(to, 0, moved)
+    const withPos = reordered.map((s, i) => ({ ...s, position: i }))
+    setStimmungen(withPos)
+    dragIndex.current = null
+    dragOverIndex.current = null
+    const entries = withPos.filter(s => s.id !== null).map(s => ({ id: s.id as number, position: s.position }))
+    if (entries.length > 0) {
+      try {
+        await api.reorderStimmungen(productionId, entries)
+        window.dispatchEvent(new CustomEvent('stimmungen-changed', { detail: { productionId } }))
+      } catch {}
+    }
+  }
+
   return (
     <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 32 }}>
+
+      {/* ── Stimmungen (Tageszeit) ── */}
+      <section>
+        <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Stimmungen (Tageszeit)</h3>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 16px', lineHeight: 1.6 }}>
+          Definiert die möglichen Tageszeiten und ihre Reihenfolge im Verlauf des Tages.
+          Die <strong>letzte Stimmung</strong> in der Liste markiert das Ende des Tages —
+          danach beginnt ein neuer Spieltag.
+        </p>
+        {stimmungenLoading ? (
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt...</span>
+        ) : (
+          <>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+              {stimmungen.map((s, i) => {
+                const isLast = i === stimmungen.length - 1
+                return (
+                  <div
+                    key={s.id ?? s.name}
+                    draggable
+                    onDragStart={() => onDragStart(i)}
+                    onDragOver={e => onDragOver(e, i)}
+                    onDrop={onDrop}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '6px 10px', borderRadius: 8,
+                      border: `1px solid ${isLast ? 'var(--sw-info, #007AFF)' : 'var(--border)'}`,
+                      background: isLast ? 'color-mix(in srgb, var(--sw-info, #007AFF) 6%, var(--bg))' : 'var(--bg-surface)',
+                      cursor: 'grab',
+                    }}
+                  >
+                    {/* Drag-Handle */}
+                    <span style={{ color: 'var(--text-muted)', fontSize: 12, cursor: 'grab', userSelect: 'none', minWidth: 16 }}>⠿</span>
+
+                    {/* Name */}
+                    <input
+                      defaultValue={s.name}
+                      onBlur={e => { if (s.id && e.target.value.trim() !== s.name) updateStimmungField(s.id, e.target.value.trim(), s.kuerzel) }}
+                      style={{ flex: 1, fontSize: 13, fontWeight: 500, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 5, background: 'var(--bg)', color: 'var(--text-primary)', minWidth: 0 }}
+                    />
+
+                    {/* Kürzel */}
+                    <input
+                      defaultValue={s.kuerzel}
+                      maxLength={3}
+                      onBlur={e => { if (s.id && e.target.value.trim() !== s.kuerzel) updateStimmungField(s.id, s.name, e.target.value.trim()) }}
+                      style={{ width: 44, fontSize: 13, fontWeight: 600, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 5, background: 'var(--bg)', color: 'var(--text-primary)', textAlign: 'center', textTransform: 'uppercase' }}
+                    />
+
+                    {/* Tageswechsel-Badge */}
+                    {isLast ? (
+                      <Tooltip text="Letzte Stimmung des Tages — danach beginnt ein neuer Spieltag" placement="top">
+                        <span style={{ fontSize: 11, color: 'var(--sw-info, #007AFF)', fontWeight: 600, whiteSpace: 'nowrap', minWidth: 24, textAlign: 'center' }}>☽</span>
+                      </Tooltip>
+                    ) : (
+                      <span style={{ minWidth: 24 }} />
+                    )}
+
+                    {/* Löschen */}
+                    <button
+                      onClick={() => s.id && deleteStimmung(s.id)}
+                      disabled={stimmungen.length <= 1}
+                      title="Löschen"
+                      style={{ padding: '3px 7px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: stimmungen.length <= 1 ? 'not-allowed' : 'pointer', opacity: stimmungen.length <= 1 ? 0.4 : 1 }}
+                    >✕</button>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Neue Stimmung hinzufügen */}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                value={newStimmungName}
+                onChange={e => setNewStimmungName(e.target.value)}
+                placeholder="Name (z.B. DÄMMERUNG)"
+                onKeyDown={e => e.key === 'Enter' && addStimmung()}
+                style={{ flex: 1, minWidth: 120, fontSize: 12, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-subtle)', color: 'var(--text-primary)' }}
+              />
+              <input
+                value={newStimmungKuerzel}
+                onChange={e => setNewStimmungKuerzel(e.target.value.toUpperCase())}
+                placeholder="Kürzel"
+                maxLength={3}
+                onKeyDown={e => e.key === 'Enter' && addStimmung()}
+                style={{ width: 60, fontSize: 12, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-subtle)', color: 'var(--text-primary)', textAlign: 'center', textTransform: 'uppercase' }}
+              />
+              <button
+                onClick={addStimmung}
+                style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >+ Stimmung hinzufügen</button>
+            </div>
+            {stimmungAddError && <p style={{ fontSize: 11, color: 'var(--sw-danger, #FF3B30)', margin: '6px 0 0' }}>{stimmungAddError}</p>}
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0', lineHeight: 1.5 }}>
+              Reihenfolge per Drag &amp; Drop ändern. Neue Stimmungen werden oben eingefügt.
+              Die Abkürzungen (max. 3 Zeichen) erscheinen im Szenenkopf.
+            </p>
+          </>
+        )}
+      </section>
 
       <section>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Zugriff</h3>

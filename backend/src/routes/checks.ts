@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool } from '../db'
 import { authMiddleware } from '../auth'
+import { getStimmungen, ensureDefaultStimmungen } from './dk-access'
 
 const router = Router()
 router.use(authMiddleware)
@@ -28,6 +29,7 @@ const DEFAULT_CONFIG: Record<string, { enabled: boolean; auto: boolean }> = {
   strang_zuordnung:          { enabled: true,  auto: true  },
   duplikat_motiv:            { enabled: true,  auto: true  },
   stoppzeit_plausibilitaet:  { enabled: false, auto: false },
+  spieltag_inkonsistent:     { enabled: true,  auto: false },
   // KI-Checks — immer auto:false
   oneliner_qualitaet:        { enabled: false, auto: false },
 }
@@ -366,6 +368,235 @@ router.patch('/:id/behoben', async (req, res) => {
     )
     res.json({ ok: true })
   } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── Spieltag-Check (cross-Folgen) ─────────────────────────────────────────────
+// Lädt alle Folgen einer Produktion, nimmt die beste Werkstufe pro Folge,
+// und prüft ob spieltag-Werte mit der konfigurierten Stimmungs-Reihenfolge übereinstimmen.
+
+async function getBestWerkstufe(folgeId: number): Promise<string | null> {
+  // Beste Werkstufe: drehbuch > storyline > andere, dann höchste version_nummer
+  const { rows } = await pool.query<any>(`
+    SELECT id FROM werkstufen
+    WHERE folge_id = $1 AND abgegeben IS NOT TRUE
+    ORDER BY
+      CASE typ WHEN 'drehbuch' THEN 0 WHEN 'storyline' THEN 1 ELSE 2 END,
+      version_nummer DESC
+    LIMIT 1
+  `, [folgeId])
+  return rows[0]?.id ?? null
+}
+
+async function runSpieltagCheck(produktionId: string): Promise<{
+  issues: Array<{ szene_id: string; werkstufe_id: string; meldung: string; expected: number | null; actual: number | null }>
+  total_scenes: number
+}> {
+  const stimmungen = await getStimmungen(produktionId)
+  const maxPosition = stimmungen.length > 0 ? Math.max(...stimmungen.map((s: any) => s.position)) : 2
+  const lastStimmungName = stimmungen.find((s: any) => s.position === maxPosition)?.name ?? 'NACHT'
+
+  // Alle Folgen der Produktion
+  const { rows: folgen } = await pool.query<any>(
+    `SELECT f.id, f.folge_nummer FROM folgen f
+     JOIN produktionen p ON p.id = f.produktion_id
+     WHERE p.id = $1 ORDER BY f.folge_nummer ASC`,
+    [produktionId]
+  )
+
+  // Szenen aller besten Werkstufen sammeln
+  const allSzenen: any[] = []
+  for (const folge of folgen) {
+    const wsId = await getBestWerkstufe(folge.id)
+    if (!wsId) continue
+    const { rows: szenen } = await pool.query<any>(`
+      SELECT id, werkstufe_id, scene_nummer, tageszeit, spieltag, sort_order
+      FROM dokument_szenen
+      WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
+      ORDER BY sort_order ASC
+    `, [wsId])
+    for (const s of szenen) allSzenen.push({ ...s, folge_nummer: folge.folge_nummer })
+  }
+
+  const issues: Array<{ szene_id: string; werkstufe_id: string; meldung: string; expected: number | null; actual: number | null }> = []
+  let expectedSpieltag: number | null = null
+
+  for (let i = 0; i < allSzenen.length; i++) {
+    const curr = allSzenen[i]
+    const prev = i > 0 ? allSzenen[i - 1] : null
+
+    if (i === 0) {
+      // Erste Szene: spieltag sollte 1 sein (oder gesetzt sein)
+      expectedSpieltag = curr.spieltag ?? 1
+    } else if (prev) {
+      const prevIsLast = prev.tageszeit === lastStimmungName
+      const currIsFirst = curr.tageszeit !== lastStimmungName
+      const isNewDay = prevIsLast && currIsFirst
+
+      // Stimmungs-Position-basierte Logik für Grenzfälle
+      const prevPos = stimmungen.find((s: any) => s.name === prev.tageszeit)?.position ?? 0
+      const currPos = stimmungen.find((s: any) => s.name === curr.tageszeit)?.position ?? 0
+      const positionBasedNewDay = prevPos >= maxPosition && currPos < maxPosition
+
+      if (isNewDay || positionBasedNewDay) {
+        expectedSpieltag = (expectedSpieltag ?? 1) + 1
+      }
+    }
+
+    if (curr.spieltag != null && expectedSpieltag != null && curr.spieltag !== expectedSpieltag) {
+      const prevInfo = prev ? `Sz.${prev.scene_nummer} (${prev.tageszeit ?? '?'}) → ` : ''
+      issues.push({
+        szene_id: curr.id,
+        werkstufe_id: curr.werkstufe_id,
+        meldung: `Spieltag SP${expectedSpieltag} erwartet — hat SP${curr.spieltag}. ${prevInfo}Sz.${curr.scene_nummer} (${curr.tageszeit ?? '?'})`,
+        expected: expectedSpieltag,
+        actual: curr.spieltag,
+      })
+    }
+
+    // expectedSpieltag an tatsächlichem Wert ausrichten um Folgefehler zu vermeiden
+    if (curr.spieltag != null) expectedSpieltag = curr.spieltag
+  }
+
+  return { issues, total_scenes: allSzenen.length }
+}
+
+// POST /api/checks/produktion/:pid/spieltag — Cross-Folgen Spieltag-Check
+router.post('/produktion/:pid/spieltag', async (req: any, res) => {
+  try {
+    const { pid } = req.params
+    const { issues, total_scenes } = await runSpieltagCheck(pid)
+
+    // Ergebnisse persistieren
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      // Alte spieltag-Ergebnisse für diese Produktion löschen
+      await client.query(`
+        DELETE FROM szenen_check_ergebnisse
+        WHERE check_typ = 'spieltag_inkonsistent'
+          AND dokument_szene_id IN (
+            SELECT ds.id FROM dokument_szenen ds
+            JOIN werkstufen w ON w.id = ds.werkstufe_id
+            JOIN folgen f ON f.id = w.folge_id
+            JOIN produktionen p ON p.id = f.produktion_id
+            WHERE p.id = $1
+          )
+      `, [pid])
+      for (const issue of issues) {
+        await client.query(
+          `INSERT INTO szenen_check_ergebnisse (dokument_szene_id, werkstufe_id, check_typ, schwere, meldung)
+           VALUES ($1, $2, 'spieltag_inkonsistent', 'hinweis', $3)`,
+          [issue.szene_id, issue.werkstufe_id, issue.meldung]
+        )
+      }
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+
+    res.json({ ok: true, total_scenes, issues_found: issues.length, issues })
+  } catch (err) {
+    console.error('spieltag-check error:', err)
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/checks/produktion/:pid/spieltag/fix — Auto-Korrektur mit Bestätigung
+router.post('/produktion/:pid/spieltag/fix', async (req: any, res) => {
+  try {
+    const { pid } = req.params
+    const confirm = req.query.confirm === 'true'
+
+    const stimmungen = await getStimmungen(pid)
+    const maxPosition = stimmungen.length > 0 ? Math.max(...stimmungen.map((s: any) => s.position)) : 2
+    const lastStimmungName = stimmungen.find((s: any) => s.name === stimmungen.find((x: any) => x.position === maxPosition)?.name)?.name ?? 'NACHT'
+
+    const { rows: folgen } = await pool.query<any>(
+      `SELECT f.id, f.folge_nummer FROM folgen f
+       JOIN produktionen p ON p.id = f.produktion_id
+       WHERE p.id = $1 ORDER BY f.folge_nummer ASC`,
+      [pid]
+    )
+
+    const allSzenen: any[] = []
+    for (const folge of folgen) {
+      const wsId = await getBestWerkstufe(folge.id)
+      if (!wsId) continue
+      const { rows } = await pool.query<any>(`
+        SELECT id, werkstufe_id, tageszeit, spieltag, sort_order, scene_nummer
+        FROM dokument_szenen
+        WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
+        ORDER BY sort_order ASC
+      `, [wsId])
+      for (const s of rows) allSzenen.push({ ...s, folge_nummer: folge.folge_nummer })
+    }
+
+    // Korrekten Spieltag berechnen
+    const corrections: Array<{ id: string; werkstufe_id: string; new_spieltag: number }> = []
+    let expectedSpieltag = 1
+
+    for (let i = 0; i < allSzenen.length; i++) {
+      const curr = allSzenen[i]
+      const prev = i > 0 ? allSzenen[i - 1] : null
+
+      if (i === 0) {
+        expectedSpieltag = curr.spieltag ?? 1
+      } else if (prev) {
+        const prevPos = stimmungen.find((s: any) => s.name === prev.tageszeit)?.position ?? 0
+        const currPos = stimmungen.find((s: any) => s.name === curr.tageszeit)?.position ?? 0
+        if (prevPos >= maxPosition && currPos < maxPosition) {
+          expectedSpieltag++
+        }
+      }
+
+      if (curr.spieltag != null && curr.spieltag !== expectedSpieltag) {
+        corrections.push({ id: curr.id, werkstufe_id: curr.werkstufe_id, new_spieltag: expectedSpieltag })
+      }
+    }
+
+    if (!confirm) {
+      // Nur Scope zurückgeben
+      const folgenAffected = new Set(corrections.map(c => c.werkstufe_id)).size
+      return res.json({
+        scenes_affected: corrections.length,
+        folgen_affected: folgenAffected,
+        total_scenes: allSzenen.length,
+        confirmed: false,
+      })
+    }
+
+    // Korrekturen anwenden
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      for (const c of corrections) {
+        await client.query(
+          `UPDATE dokument_szenen SET spieltag = $1 WHERE id = $2`,
+          [c.new_spieltag, c.id]
+        )
+      }
+      // Check-Ergebnisse löschen
+      await client.query(`
+        DELETE FROM szenen_check_ergebnisse
+        WHERE check_typ = 'spieltag_inkonsistent'
+          AND dokument_szene_id = ANY($1::uuid[])
+      `, [corrections.map(c => c.id)])
+      await client.query('COMMIT')
+    } catch (e) {
+      await client.query('ROLLBACK')
+      throw e
+    } finally {
+      client.release()
+    }
+
+    res.json({ ok: true, scenes_corrected: corrections.length, confirmed: true })
+  } catch (err) {
+    console.error('spieltag-fix error:', err)
     res.status(500).json({ error: String(err) })
   }
 })

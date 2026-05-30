@@ -72,6 +72,7 @@ interface CommitResult {
   komparsen_created: number
   motive_created: number
   warnings: string[]
+  unbekannte_stimmungen?: string[]
 }
 
 export default function ImportPage() {
@@ -350,7 +351,7 @@ export default function ImportPage() {
       }
       const data = await res.json()
       setCommitResult(data)
-      // Save last navigation state and go directly to the imported episode
+      // Save last navigation state
       await api.updateSettings({
         ui_settings: {
           last_produktion_id: selectedId,
@@ -359,9 +360,13 @@ export default function ImportPage() {
           last_szene_id: null,
         },
       }).catch(() => {})
-      // Dispatch event to force ScriptPage data refresh (works if already mounted via SPA)
       window.dispatchEvent(new Event('script-import-complete'))
-      navigate('/?imported=' + Date.now())
+      if (data.unbekannte_stimmungen?.length) {
+        // Unbekannte Stimmungen → Step 3 zeigen mit Hinweis
+        setStep(3)
+      } else {
+        navigate('/?imported=' + Date.now())
+      }
     } catch (err) {
       setError(String(err))
     } finally {
@@ -1191,6 +1196,33 @@ export default function ImportPage() {
               {commitResult.komparsen_created > 0 && `, ${commitResult.komparsen_created} ${t('komparse', 'p')} angelegt`}
               {commitResult.motive_created > 0 && `, ${commitResult.motive_created} ${t('motiv', 'p')} angelegt`}
             </p>
+
+            {(commitResult.unbekannte_stimmungen?.length ?? 0) > 0 && (
+              <div style={{
+                background: '#fff8e1', border: '1px solid #f59e0b', borderRadius: 8,
+                padding: 16, marginBottom: 24, textAlign: 'left',
+              }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 8 }}>
+                  <AlertTriangle size={16} color="#b45309" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <strong style={{ fontSize: 13, color: '#92400e' }}>
+                    {commitResult.unbekannte_stimmungen!.length} unbekannte Stimmung{commitResult.unbekannte_stimmungen!.length > 1 ? 'en' : ''} importiert
+                  </strong>
+                </div>
+                <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 8px', lineHeight: 1.6 }}>
+                  Folgende Stimmungen wurden in die DK-Settings aufgenommen, aber noch nicht in die Tagesreihenfolge eingeordnet:{' '}
+                  <strong>{commitResult.unbekannte_stimmungen!.join(', ')}</strong>
+                </p>
+                <p style={{ fontSize: 12, color: '#78350f', margin: '0 0 12px', lineHeight: 1.6 }}>
+                  Bitte in <strong>DK-Settings › Allgemein</strong> die Reihenfolge prüfen und festlegen, welche Stimmung die letzte des Tages ist (Tageswechsel-Trigger).
+                </p>
+                <a
+                  href="/drehbuchkoordination"
+                  style={{ fontSize: 12, fontWeight: 600, color: '#92400e', textDecoration: 'underline' }}
+                >
+                  Zu DK-Settings › Allgemein
+                </a>
+              </div>
+            )}
 
             {commitResult.warnings.length > 0 && (
               <div style={{
