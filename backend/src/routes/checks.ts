@@ -19,6 +19,7 @@ interface CheckResult {
   check_typ: string
   schwere: Schwere
   meldung: string
+  meta?: any
 }
 
 // Default check config (all auto-checks on, KI-checks off)
@@ -69,8 +70,15 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
   if (!sceneRes.rows[0]) return results
   const s = sceneRes.rows[0]
   const content: any[] = Array.isArray(s.content) ? s.content : []
+
+  // Notiz-Dokumente haben keine Szenenstruktur — keine Checks
+  if (s.format === 'notiz') return results
+
   const plaintext = content.map(extractText).join(' ')
   const plaintextUpper = plaintext.toUpperCase()
+  // Für Rollen-Konsistenz: Absatz-Nodes ausschließen (Erwähnung ≠ Auftreten in Szene)
+  const plaintextForRollen = content.filter((n: any) => n.type !== 'absatz').map(extractText).join(' ')
+  const plaintextForRollenUpper = plaintextForRollen.toUpperCase()
 
   const cfg = await getCheckConfig(s.produktion_id)
 
@@ -108,14 +116,13 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     const allChars = charsRes.rows
     const sceneCharIds = new Set<string>(sceneCharsRes.rows.map((r: any) => String(r.character_id)))
 
-    // Check which production characters appear UPPERCASE in text
+    // Nur Non-Absatz-Text prüfen: Absatz = Erwähnung/Rede über jmd., keine Szenen-Beteiligung
     const foundInText = allChars.filter((c: any) => {
       const upper = c.name.toUpperCase()
-      const idx = plaintextUpper.indexOf(upper)
+      const idx = plaintextForRollenUpper.indexOf(upper)
       if (idx === -1) return false
-      // Word-boundary: char before and after must be non-letter
-      const before = idx > 0 ? plaintextUpper[idx - 1] : ' '
-      const after = idx + upper.length < plaintextUpper.length ? plaintextUpper[idx + upper.length] : ' '
+      const before = idx > 0 ? plaintextForRollenUpper[idx - 1] : ' '
+      const after = idx + upper.length < plaintextForRollenUpper.length ? plaintextForRollenUpper[idx + upper.length] : ' '
       return /[^A-ZÄÖÜa-zäöü]/.test(before) && /[^A-ZÄÖÜa-zäöü]/.test(after)
     })
     const foundInTextIds = new Set<string>(foundInText.map((c: any) => String(c.id)))
@@ -128,6 +135,10 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
         check_typ: 'rollen_konsistenz',
         schwere: 'hinweis',
         meldung: `${missing.map((c: any) => c.name.toUpperCase()).join(', ')} im Text, aber nicht in Rollen eingetragen`,
+        meta: {
+          missing_chars: missing.map((c: any) => ({ id: String(c.id), name: c.name })),
+          scene_identity_id: s.scene_identity_id,
+        },
       })
     }
     if (unused.length > 0) {
@@ -167,20 +178,47 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
 
   // ── 4. Strang-Zuordnung ──────────────────────────────────────────────────
   if (run('strang_zuordnung')) {
-    const strangCountRes = await pool.query<any>(
-      `SELECT COUNT(*) FROM straenge WHERE produktion_id = $1`,
+    const strangeRes = await pool.query<any>(
+      `SELECT id, name, farbe FROM straenge WHERE produktion_id = $1 AND status = 'aktiv' ORDER BY sort_order`,
       [s.produktion_id]
     )
-    if (parseInt(strangCountRes.rows[0].count) > 0) {
+    if (strangeRes.rows.length > 0) {
       const assignRes = await pool.query<any>(
         `SELECT COUNT(*) FROM dokument_szenen_straenge WHERE dokument_szene_id = $1`,
         [szeneId]
       )
       if (parseInt(assignRes.rows[0].count) === 0) {
+        // Szenen-Charaktere für Matching laden
+        const sceneCharRes = await pool.query<any>(
+          `SELECT c.id, c.name FROM scene_characters sc JOIN characters c ON c.id = sc.character_id WHERE sc.scene_identity_id = $1`,
+          [s.scene_identity_id]
+        )
+        const sceneCharNamesUpper = sceneCharRes.rows.map((r: any) => r.name.toUpperCase())
+        const zusammenfassungUpper = (s.zusammenfassung ?? '').toUpperCase()
+
+        // Strang-Vorschläge: Strang dessen Charaktere in Rollen, Text oder Zusammenfassung auftauchen
+        const vorschlaege: { id: string; name: string; farbe: string }[] = []
+        for (const strang of strangeRes.rows) {
+          const strangCharsRes = await pool.query<any>(
+            `SELECT c.name FROM strang_charaktere sc JOIN characters c ON c.id = sc.character_id WHERE sc.strang_id = $1`,
+            [strang.id]
+          )
+          const strangCharNamesUpper = strangCharsRes.rows.map((r: any) => r.name.toUpperCase())
+          const matches = strangCharNamesUpper.some((name: string) =>
+            sceneCharNamesUpper.includes(name) ||
+            plaintextUpper.includes(name) ||
+            zusammenfassungUpper.includes(name)
+          )
+          if (matches) vorschlaege.push({ id: strang.id, name: strang.name, farbe: strang.farbe })
+        }
+
         results.push({
           check_typ: 'strang_zuordnung',
           schwere: 'hinweis',
-          meldung: 'Szene ist keinem Story-Strang zugeordnet',
+          meldung: vorschlaege.length > 0
+            ? `Keine Strang-Zuordnung — Vorschlag: ${vorschlaege.map(v => v.name).join(', ')}`
+            : 'Szene ist keinem Story-Strang zugeordnet',
+          meta: vorschlaege.length > 0 ? { strang_vorschlaege: vorschlaege } : undefined,
         })
       }
     }
@@ -246,9 +284,9 @@ async function persistResults(szeneId: string, werkstufeId: string, results: Che
     )
     for (const r of results) {
       await client.query(
-        `INSERT INTO szenen_check_ergebnisse (dokument_szene_id, werkstufe_id, check_typ, schwere, meldung)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [szeneId, werkstufeId, r.check_typ, r.schwere, r.meldung]
+        `INSERT INTO szenen_check_ergebnisse (dokument_szene_id, werkstufe_id, check_typ, schwere, meldung, meta)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [szeneId, werkstufeId, r.check_typ, r.schwere, r.meldung, r.meta ? JSON.stringify(r.meta) : null]
       )
     }
     await client.query('COMMIT')
@@ -357,7 +395,7 @@ router.get('/config/:produktionId', async (req, res) => {
 router.get('/szene/:id', async (req, res) => {
   try {
     const { rows } = await pool.query<any>(
-      `SELECT id, check_typ, schwere, meldung, behoben, erstellt_am
+      `SELECT id, check_typ, schwere, meldung, meta, behoben, erstellt_am
        FROM szenen_check_ergebnisse
        WHERE dokument_szene_id = $1
        ORDER BY schwere DESC, check_typ`,

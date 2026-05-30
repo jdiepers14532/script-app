@@ -1625,6 +1625,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           anchorRect={checkModalAnchor}
           produktionId={produktionId ?? null}
           szeneId={scene?.id ?? null}
+          sceneNummer={scene?.scene_nummer ?? null}
           onClose={() => setCheckModalAnchor(null)}
           onChecksChanged={next => {
             setCheckResults(next)

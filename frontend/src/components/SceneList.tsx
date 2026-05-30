@@ -89,7 +89,7 @@ export default function SceneList({
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
   const [checkBadges, setCheckBadges] = useState<Record<string, { count: number; has_fehler: boolean }>>({})
-  const [checkModal, setCheckModal] = useState<{ szeneId: string | number; checks: any[]; anchorRect: DOMRect } | null>(null)
+  const [checkModal, setCheckModal] = useState<{ szeneId: string | number; checks: any[]; anchorRect: DOMRect; sceneNummer?: number | null } | null>(null)
   const checkHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadCheckBadges = useCallback(() => {
@@ -943,7 +943,7 @@ export default function SceneList({
                         if (checkHoverTimer.current) clearTimeout(checkHoverTimer.current)
                         checkHoverTimer.current = setTimeout(async () => {
                           const checks = await api.getCheckResults(String(scene.id)).catch(() => [] as any[])
-                          if (checks.length > 0) setCheckModal({ szeneId: scene.id, checks, anchorRect: rect })
+                          if (checks.length > 0) setCheckModal({ szeneId: scene.id, checks, anchorRect: rect, sceneNummer: scene.scene_nummer })
                         }, 200)
                       }}
                       onMouseLeave={() => { if (checkHoverTimer.current) clearTimeout(checkHoverTimer.current) }}
@@ -952,7 +952,7 @@ export default function SceneList({
                         if (checkHoverTimer.current) clearTimeout(checkHoverTimer.current)
                         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                         const checks = await api.getCheckResults(String(scene.id)).catch(() => [] as any[])
-                        if (checks.length > 0) setCheckModal({ szeneId: scene.id, checks, anchorRect: rect })
+                        if (checks.length > 0) setCheckModal({ szeneId: scene.id, checks, anchorRect: rect, sceneNummer: scene.scene_nummer })
                       }}
                     >
                       <AlertTriangle size={13} fill="rgba(255,204,0,0.2)" strokeWidth={1.8} />
@@ -1339,6 +1339,7 @@ export default function SceneList({
           anchorRect={checkModal.anchorRect}
           produktionId={produktionId}
           szeneId={checkModal.szeneId}
+          sceneNummer={checkModal.sceneNummer}
           onClose={() => setCheckModal(null)}
           onChecksChanged={next => {
             if (next.length === 0) {
