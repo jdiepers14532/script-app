@@ -388,6 +388,7 @@ async function runMigrations() {
     'v140_werkstufen_snapshots.sql',
     'v141_synopsis_300.sql',
     'v142_synopsis_felder.sql',
+    'v143_ki_prompts_synopsis.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

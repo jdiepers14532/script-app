@@ -499,17 +499,12 @@ router.post('/synopsen/titel', async (req, res) => {
     )
     const vorhandeneListe = vorhandene.map((r: any) => r.folgen_titel).join('\n')
 
-    const prompt = `Du bist Redakteur einer deutschen TV-Soap (ARD Soap).
-Schlage genau 5 verschiedene Episodentitel für Folge ${data.werkstufe.folge_nummer} vor.
-
-REGELN:
-- Genau 5 Titel, einer pro Zeile, keine Nummerierung
-- Keinerlei Erklärungen, Kommentare oder Formatierungszeichen
-- Jeder Titel: 2-5 Wörter, prägnant, kein Spoiler
-- Stil einer deutschen TV-Soap${vorhandeneListe ? `\n\nBEREITS VERWENDETE TITEL (nicht wiederholen):\n${vorhandeneListe.substring(0, 2000)}` : ''}
-
-SZENEN-ZUSAMMENFASSUNGEN:
-${data.szenenListe}`
+    const promptTemplate = effectivePrompt(setting) ||
+      'Du bist Redakteur einer deutschen TV-Soap (ARD Soap).\nSchlage genau 5 verschiedene Episodentitel für Folge {{folge_nummer}} vor.\n\nREGELN:\n- Genau 5 Titel, einer pro Zeile, keine Nummerierung\n- Keinerlei Erklärungen, Kommentare oder Formatierungszeichen\n- Jeder Titel: 2-5 Wörter, prägnant, kein Spoiler\n- Stil einer deutschen TV-Soap\n\nSZENEN-ZUSAMMENFASSUNGEN:\n{{szenen_liste}}'
+    const prompt = applyPromptTemplate(promptTemplate, {
+      folge_nummer: String(data.werkstufe.folge_nummer),
+      szenen_liste: data.szenenListe,
+    }) + (vorhandeneListe ? `\n\nBEREITS VERWENDETE TITEL (nicht wiederholen):\n${vorhandeneListe.substring(0, 2000)}` : '')
 
     const raw = await callProvider(setting, [
       { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte ausschließlich mit den 5 Titeln, einen pro Zeile.' },
@@ -538,19 +533,12 @@ router.post('/synopsen/kurz', async (req, res) => {
     const data = await loadSzenenFuerFolge(folge_id)
     if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
 
-    const prompt = `Du bist Redakteur einer deutschen TV-Soap (ARD Soap).
-Schreibe eine kurze Episodensynopse für das Fernsehprogramm (Folge ${data.werkstufe.folge_nummer}).
-Zielgruppe: Zuschauende.
-
-REGELN:
-- Maximal 300 Wörter, Präsens
-- KEINE Überschrift, kein Titel, kein Vorspann
-- KEINERLEI Formatierungszeichen: kein *, kein **, kein #, keine Sternchen
-- Fließtext, spannend und neugierig machend
-- Kein Spoiler zur Cliffhanger-Auflösung
-
-SZENEN-ZUSAMMENFASSUNGEN:
-${data.szenenListe}`
+    const promptTemplate = effectivePrompt(setting) ||
+      'Du bist Redakteur einer deutschen TV-Soap (ARD Soap).\nSchreibe eine kurze Episodensynopse für das Fernsehprogramm (Folge {{folge_nummer}}).\nZielgruppe: Zuschauende.\n\nREGELN:\n- Maximal 300 Wörter, Präsens\n- KEINE Überschrift, kein Titel, kein Vorspann\n- KEINERLEI Formatierungszeichen: kein *, kein **, kein #, keine Sternchen\n- Fließtext, spannend und neugierig machend\n- Kein Spoiler zur Cliffhanger-Auflösung\n\nSZENEN-ZUSAMMENFASSUNGEN:\n{{szenen_liste}}'
+    const prompt = applyPromptTemplate(promptTemplate, {
+      folge_nummer: String(data.werkstufe.folge_nummer),
+      szenen_liste: data.szenenListe,
+    })
 
     const raw = await callProvider(setting, [
       { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte nur mit der Synopsis, ohne Kommentare oder Formatierung.' },
@@ -576,22 +564,12 @@ router.post('/synopsen/lang', async (req, res) => {
     const data = await loadSzenenFuerFolge(folge_id)
     if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
 
-    const prompt = `Du bist Dramaturg einer deutschen TV-Soap (ARD Soap).
-Schreibe eine ausführliche dramaturgische Episodensynopse für die interne Redaktion (Folge ${data.werkstufe.folge_nummer}).
-Zielgruppe: Autoren, Redaktion und Produktionsleitung.
-
-REGELN:
-- 400-600 Wörter, Präsens
-- KEINE Überschrift, kein Titel, kein Vorspann
-- KEINERLEI Formatierungszeichen: kein *, kein **, kein #, keine Sternchen, kein Markdown
-- Rollennamen ausschließlich in GROSSBUCHSTABEN (z.B. LOU, DANIEL, BRITTA)
-- Ein Absatz pro Handlungsstrang
-- Strukturmarker am Absatzanfang: CLIFF für Cliffhanger-Strang, PEN für Pending-Strang
-- Kann Spoiler enthalten
-- Dramaturgisch aufgebaut
-
-SZENEN-ZUSAMMENFASSUNGEN:
-${data.szenenListe}`
+    const promptTemplate = effectivePrompt(setting) ||
+      'Du bist Dramaturg einer deutschen TV-Soap (ARD Soap).\nSchreibe eine ausführliche dramaturgische Episodensynopse für die interne Redaktion (Folge {{folge_nummer}}).\nZielgruppe: Autoren, Redaktion und Produktionsleitung.\n\nREGELN:\n- 400-600 Wörter, Präsens\n- KEINE Überschrift, kein Titel, kein Vorspann\n- KEINERLEI Formatierungszeichen: kein *, kein **, kein #, keine Sternchen, kein Markdown\n- Rollennamen ausschließlich in GROSSBUCHSTABEN (z.B. LOU, DANIEL, BRITTA)\n- Ein Absatz pro Handlungsstrang\n- Strukturmarker am Absatzanfang: CLIFF für Cliffhanger-Strang, PEN für Pending-Strang\n- Kann Spoiler enthalten\n- Dramaturgisch aufgebaut\n\nSZENEN-ZUSAMMENFASSUNGEN:\n{{szenen_liste}}'
+    const prompt = applyPromptTemplate(promptTemplate, {
+      folge_nummer: String(data.werkstufe.folge_nummer),
+      szenen_liste: data.szenenListe,
+    })
 
     const raw = await callProvider(setting, [
       { role: 'system', content: 'Du bist Dramaturg einer deutschen TV-Soap. Antworte nur mit der Synopsis. Rollennamen IMMER in GROSSBUCHSTABEN. Keine Formatierung außer Absätze.' },
@@ -629,37 +607,12 @@ router.post('/synopsen/generiere-alle', async (req, res) => {
 
     const systemPrompt = `Du bist ein professioneller Dramaturg und Redakteur einer deutschen Daily-Soap (ARD, Rote Rosen). Antworte AUSSCHLIESSLICH mit den angeforderten Abschnitten in exakt dem vorgegebenen Format. Keine Einleitung, keine Erklärungen.`
 
-    const userPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${data.werkstufe.folge_nummer} ===
-${data.szenenListe}
-${titelListe ? `\n=== BISHERIGE EPISODENTITEL (Stilreferenz — kurz und prägnant wie diese) ===\n${titelListe}` : ''}
-
-Erstelle folgende 5 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER### getrennt):
-
-###TITEL###
-[Titel 1: 1-3 Wörter, NICHT beschreibend, am Stil der bisherigen Titel orientiert]
-[Titel 2]
-[Titel 3]
-[Titel 4]
-[Titel 5]
-
-###KURZINHALT###
-**Haupthandlung:**
-[2-3 Sätze zur zentralen Handlung, Präsens, keine Markdown-Artefakte]
-
-**Nebenhandlungen:**
-[1-2 Sätze pro Nebenstrang, Präsens]
-
-**Cliffhanger:**
-[1 kurzer Satz, Spannung aufbauen ohne Auflösung zu verraten]
-
-###REDAKTION###
-[Dramaturgische Inhaltsangabe. Kein blumiger Stil. Rollennamen IMMER in GROSSBUCHSTABEN. Fokus: Was wollen die Figuren konkret (Want), was brauchen sie wirklich (Need)? Entscheidende Wendepunkte benennen. Cause-and-Effect zwischen Strands. Ein Absatz pro Strang. Strangmarkierung am Absatzanfang: CLIFF für Cliffhanger-Strang, PEN für Pending-Strang. Präsens, aktiv, 300-500 Wörter. Keine Sternchen oder Markdown.]
-
-###PRESSE###
-[60-80 Wörter. Fließend, werblich, Neugier weckend. Keine Wendungen oder Cliffhanger verraten. Kein Spoiler. Keine Markdown-Formatierung.]
-
-###STRAENGE###
-[Pro Handlungsstrang eine Zeile: "FIGURENNAME: Kurzbeschreibung" — maximal 100 Zeichen pro Zeile. Keine Markdown-Formatierung.]`
+    const promptTemplate = effectivePrompt(setting) ||
+      '=== SZENEN-ZUSAMMENFASSUNGEN FOLGE {{folge_nummer}} ===\n{{szenen_liste}}\n\nErstelle folgende 5 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER### getrennt):\n\n###TITEL###\n[Titel 1: 1-3 Wörter, NICHT beschreibend, am Stil der bisherigen Titel orientiert]\n[Titel 2]\n[Titel 3]\n[Titel 4]\n[Titel 5]\n\n###KURZINHALT###\n**Haupthandlung:**\n[2-3 Sätze zur zentralen Handlung, Präsens, keine Markdown-Artefakte]\n\n**Nebenhandlungen:**\n[1-2 Sätze pro Nebenstrang, Präsens]\n\n**Cliffhanger:**\n[1 kurzer Satz, Spannung aufbauen ohne Auflösung zu verraten]\n\n###REDAKTION###\n[Dramaturgische Inhaltsangabe. Kein blumiger Stil. Rollennamen IMMER in GROSSBUCHSTABEN. Fokus: Was wollen die Figuren konkret (Want), was brauchen sie wirklich (Need)? Entscheidende Wendepunkte benennen. Cause-and-Effect zwischen Strands. Ein Absatz pro Strang. Strangmarkierung am Absatzanfang: CLIFF für Cliffhanger-Strang, PEN für Pending-Strang. Präsens, aktiv, 300-500 Wörter. Keine Sternchen oder Markdown.]\n\n###PRESSE###\n[60-80 Wörter. Fließend, werblich, Neugier weckend. Kein Spoiler. Keine Markdown-Formatierung.]\n\n###STRAENGE###\n[Pro Handlungsstrang eine Zeile: "FIGURENNAME: Kurzbeschreibung" — maximal 100 Zeichen pro Zeile. Keine Markdown-Formatierung.]'
+    const userPrompt = applyPromptTemplate(promptTemplate, {
+      folge_nummer: String(data.werkstufe.folge_nummer),
+      szenen_liste: data.szenenListe,
+    }) + (titelListe ? `\n\n=== BISHERIGE EPISODENTITEL (Stilreferenz — kurz und prägnant wie diese) ===\n${titelListe}` : '')
 
     const raw = await callProvider(setting, [
       { role: 'system', content: systemPrompt },
