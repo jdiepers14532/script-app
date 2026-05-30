@@ -257,7 +257,13 @@ function parseKiSections(raw: string): Record<string, string> {
 
 /** Entfernt KI-Markdown-Artefakte aus Text */
 function cleanKiText(s: string): string {
-  return s.replace(/\*{1,3}/g, '').replace(/^#{1,6}\s*/gm, '').replace(/^>\s*/gm, '').replace(/^-{3,}$/gm, '').trim()
+  return s
+    .replace(/\*{1,3}/g, '')
+    .replace(/_{1,2}([^_\n]+)_{1,2}/g, '$1')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/^>\s*/gm, '')
+    .replace(/^-{3,}$/gm, '')
+    .trim()
 }
 
 /** Effektiver Prompt: eigener prompt (aus DB) oder default_prompt */
@@ -610,7 +616,7 @@ router.post('/synopsen/generiere-alle', async (req, res) => {
     const presseMax     = dk.presse_max_woerter     ?? 80
     const pressetextMin = dk.pressetext_min_zeichen ?? 280
     const pressetextMax = dk.pressetext_max_zeichen ?? 330
-    const strangMax     = dk.strang_max_zeichen     ?? 100
+    const strangMax     = dk.strang_max_zeichen     ?? 300
 
     // Handlungsstränge der Folge laden
     const strangRows = await query(
@@ -677,9 +683,10 @@ WICHTIG: Führe ALLE erkannten Handlungsstränge auf, auch wenn sie keinem bekan
 [Programm-Presse-Text. Fließend, neugierig machend, kein Spoiler. Kein Markdown. Ziel: 300–450 Zeichen.]
 
 ###PRESSETEXT###
-[Exakt ${pressetextMin}-${pressetextMax} Zeichen (zähle genau!). Sachlich, knapp, kein werblicher Ton. Kein Spoiler. Kein Markdown. Kein Zeilenumbruch.]`
+[Exakt ${pressetextMin}-${pressetextMax} Zeichen (zähle genau!). Sachlich, knapp, kein werblicher Ton. Kein Spoiler. Kein Markdown. Kein Zeilenumbruch.
+PFLICHT: Verwende AUSSCHLIESSLICH Figurennamen aus den Szenen — KEINE Schauspieler- oder Darsteller-Namen. Füge KEINE Informationen hinzu, die nicht explizit aus den Szenen stammen. Eine erfundene oder falsche Information ist 1000-mal schlimmer als eine ausgelassene.]`
 
-    const systemPrompt = `Du bist Dramaturg und Redakteur einer deutschen Daily-Soap (ARD, Rote Rosen). Antworte AUSSCHLIESSLICH mit den angeforderten Abschnitten im exakt vorgegebenen Format. Keine Einleitung, keine Erklärungen.`
+    const systemPrompt = `Du bist Dramaturg und Redakteur einer deutschen Daily-Soap (ARD, Rote Rosen). Antworte AUSSCHLIESSLICH mit den angeforderten Abschnitten im exakt vorgegebenen Format. Keine Einleitung, keine Erklärungen. KEINERLEI Markdown-Formatierung: kein **, kein *, kein _, kein #.`
 
     const lektorPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${folgeNr} ===
 ${szenenListe}
@@ -712,7 +719,7 @@ Je Strang eine Zeile — STRANGNAME${strangNamen.length > 0 ? ` (bekannte Namen:
         { role: 'user', content: contentPrompt },
       ], 2200, tempStruktur),
       callProvider(setting, [
-        { role: 'system', content: 'Du bist Lektor und Dramaturg einer deutschen Daily-Soap. Erstelle strukturierte Inhaltsangaben mit dramaturgischen Referenzen. Rollennamen IMMER in GROSSBUCHSTABEN.' },
+        { role: 'system', content: 'Du bist Lektor und Dramaturg einer deutschen Daily-Soap. Erstelle strukturierte Inhaltsangaben mit dramaturgischen Referenzen. Rollennamen IMMER in GROSSBUCHSTABEN. Verwende AUSSCHLIESSLICH **Text:** für Abschnittsköpfe (allein auf einer Zeile). Sonst KEINERLEI Markdown: kein *, kein _, kein #.' },
         { role: 'user', content: lektorPrompt },
       ], 1800, tempStruktur),
     ])

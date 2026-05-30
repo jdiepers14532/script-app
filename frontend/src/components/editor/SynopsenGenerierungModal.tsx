@@ -31,13 +31,20 @@ function kurzinhaltToHtml(raw: string): string {
   for (const line of lines) {
     const trimmed = line.trim()
     if (!trimmed) { flushPara(); continue }
+    // Line that is ONLY a **heading:** → convert to bold paragraph
     const headMatch = trimmed.match(/^\*\*(.+?)\*\*:?\s*$/)
     if (headMatch) {
       flushPara()
       result.push(`<p><strong>${headMatch[1]}:</strong></p>`)
       continue
     }
-    currentPara.push(trimmed)
+    // Strip inline markdown from regular text lines
+    const cleaned = trimmed
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/_(.+?)_/g, '$1')
+    currentPara.push(cleaned)
   }
   flushPara()
   return result.join('') || '<p></p>'
@@ -103,46 +110,56 @@ function PreCheckDialog({ data, folgeNummer, onLoad, onNew, onAbort }: {
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 10, borderRadius: 16,
-      background: 'linear-gradient(160deg, #1a0a2e 0%, #120820 50%, #0d0518 100%)',
-      display: 'flex', flexDirection: 'column', justifyContent: 'center',
-      padding: '28px 28px 24px', overflowY: 'auto',
+      background: 'rgba(10,4,20,0.85)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <Wand2 size={16} color="#D18AFF" />
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
-          Folge {folgeNummer} hat bereits Synopsen-Daten
-        </span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 22 }}>
-        {data.folgen_titel && (
-          <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '8px 12px' }}>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>TITEL</div>
-            <div style={{ fontSize: 13, color: '#f0f0f0', fontWeight: 600 }}>{data.folgen_titel}</div>
-          </div>
-        )}
-        {[
-          { label: 'KURZINHALT', v: data.synopsis_kurzinhalt || data.synopsis_300 },
-          { label: 'REDAKTION', v: data.synopsis },
-          { label: 'PRESSE', v: data.synopsis_presse },
-          { label: 'PRESSETEXT', v: data.synopsis_pressetext },
-          { label: 'STRÄNGE', v: data.synopsis_straenge },
-        ].filter(x => x.v).map(({ label, v }) => (
-          <div key={label} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '8px 12px' }}>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>{label}</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>{preview(v)}</div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <button onClick={onLoad} style={dlgBtn('#AF52DE', true)}>
-          <Check size={13} /> Vorhandene Daten anzeigen
-        </button>
-        <button onClick={onNew} style={dlgBtn('rgba(255,255,255,0.1)', false)}>
-          <RefreshCw size={13} /> Neu generieren &amp; überschreiben
-        </button>
-        <button onClick={onAbort} style={{ ...dlgBtn('transparent', false), color: 'rgba(255,255,255,0.4)' }}>
-          Abbrechen
-        </button>
+      <div style={{
+        width: 480, maxWidth: 'calc(100% - 32px)', maxHeight: '80%',
+        background: 'linear-gradient(160deg, #1a0a2e 0%, #120820 50%, #0d0518 100%)',
+        border: '1px solid rgba(175,82,222,0.35)',
+        borderRadius: 12, padding: '24px',
+        overflowY: 'auto',
+        boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
+        display: 'flex', flexDirection: 'column',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+          <Wand2 size={16} color="#D18AFF" />
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+            Folge {folgeNummer} hat bereits Synopsen-Daten
+          </span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginBottom: 22 }}>
+          {data.folgen_titel && (
+            <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '8px 12px' }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>TITEL</div>
+              <div style={{ fontSize: 13, color: '#f0f0f0', fontWeight: 600 }}>{data.folgen_titel}</div>
+            </div>
+          )}
+          {[
+            { label: 'KURZINHALT', v: data.synopsis_kurzinhalt || data.synopsis_300 },
+            { label: 'REDAKTION', v: data.synopsis },
+            { label: 'PROGRAMMPRESSE', v: data.synopsis_presse },
+            { label: 'PRESSETEXT', v: data.synopsis_pressetext },
+            { label: 'STRÄNGE', v: data.synopsis_straenge },
+            { label: 'LEKTOR', v: data.synopsis_lektor },
+          ].filter(x => x.v).map(({ label, v }) => (
+            <div key={label} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '8px 12px' }}>
+              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', marginBottom: 2 }}>{label}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>{preview(v)}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <button onClick={onLoad} style={dlgBtn('#AF52DE', true)}>
+            <Check size={13} /> Vorhandene Daten anzeigen
+          </button>
+          <button onClick={onNew} style={dlgBtn('rgba(255,255,255,0.1)', false)}>
+            <RefreshCw size={13} /> Neu generieren &amp; überschreiben
+          </button>
+          <button onClick={onAbort} style={{ ...dlgBtn('transparent', false), color: 'rgba(255,255,255,0.4)' }}>
+            Abbrechen
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -167,7 +184,7 @@ const TABS: { id: Tab; label: string; desc: string }[] = [
   { id: 'kurzinhalt',    label: 'Kurzinhalt',    desc: 'strukturiert' },
   { id: 'redaktion',     label: 'Redaktion',     desc: '300–500 Wörter' },
   { id: 'lektor',        label: 'Lektor',        desc: 'Want·Akte·Stränge' },
-  { id: 'strang',        label: 'Strang',        desc: '≤100 Zeichen' },
+  { id: 'strang',        label: 'Strang',        desc: '≤300 Zeichen' },
   { id: 'programmpresse', label: 'Programmpresse', desc: '300–450 Zeichen' },
   { id: 'pressetext',   label: 'Pressetext',    desc: '280–330 Zeichen' },
 ]
@@ -717,7 +734,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               <div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                   <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
-                    Je Handlungsstrang eine Zeile · Format: STRANGNAME: Inhalt · Ziel 50–100 Zeichen
+                    Je Handlungsstrang eine Zeile · Format: STRANGNAME: Inhalt · max. 300 Zeichen
                   </span>
                   {strangText && (
                     <span style={{ fontSize:12, color:'rgba(255,255,255,0.65)' }}>
@@ -734,22 +751,6 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   placeholder={"LOU: Entscheidung über München und Trennung von Richard\nBRITTA: Ehrenamt im Krankenhaus, Job-Angebot\nMO/JULIUS: Aussprache und Annäherung"}
                   spellCheck={false}
                 />
-                {strangText && (
-                  <div style={{ marginTop:6, display:'flex', flexDirection:'column', gap:2 }}>
-                    {strangText.split('\n').filter(Boolean).map((line, i) => {
-                      const len = line.length
-                      const color = len > 100 ? '#FF3B30' : len < 50 ? '#FF9500' : 'rgba(255,255,255,0.55)'
-                      return (
-                        <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color }}>
-                          <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            {line.substring(0, 60)}{line.length > 60 ? '…' : ''}
-                          </span>
-                          <span style={{ flexShrink:0, marginLeft:8 }}>{len}/100</span>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
               </div>
             )}
 
