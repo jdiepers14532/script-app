@@ -879,9 +879,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                       <button
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px 0', color: '#FF9500', display: 'flex', alignItems: 'center', gap: 4, lineHeight: 1 }}
                         onClick={e => setCheckModalAnchor((e.currentTarget as HTMLElement).getBoundingClientRect())}
-                        title={`${checkResults.length} Drehbuch-Hinweis${checkResults.length > 1 ? 'e' : ''}`}
+                        onMouseEnter={e => { if (!checkModalAnchor) setCheckModalAnchor((e.currentTarget as HTMLElement).getBoundingClientRect()) }}
                       >
-                        <AlertTriangle size={20} fill="rgba(255,204,0,0.25)" strokeWidth={1.8} />
+                        <AlertTriangle size={24} fill="rgba(255,204,0,0.22)" strokeWidth={1.6} />
                         <span style={{ fontSize: 11, fontWeight: 700 }}>{checkResults.length}</span>
                       </button>
                     )}

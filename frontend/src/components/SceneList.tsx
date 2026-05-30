@@ -90,6 +90,7 @@ export default function SceneList({
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
   const [checkBadges, setCheckBadges] = useState<Record<string, { count: number; has_fehler: boolean }>>({})
   const [checkModal, setCheckModal] = useState<{ szeneId: string | number; checks: any[]; anchorRect: DOMRect } | null>(null)
+  const checkHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const loadCheckBadges = useCallback(() => {
     if (!werkstufId) { setCheckBadges({}); return }
@@ -935,10 +936,20 @@ export default function SceneList({
                   )}
                   {checkBadges[scene.id] && (
                     <button
-                      title={`${checkBadges[scene.id].count} Drehbuch-Hinweis${checkBadges[scene.id].count > 1 ? 'e' : ''} — klicken für Details`}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px 2px', color: '#FF9500', display: 'flex', alignItems: 'center', gap: 2, lineHeight: 1 }}
+                      onMouseEnter={e => {
+                        if (checkModal?.szeneId === scene.id) return
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                        if (checkHoverTimer.current) clearTimeout(checkHoverTimer.current)
+                        checkHoverTimer.current = setTimeout(async () => {
+                          const checks = await api.getCheckResults(String(scene.id)).catch(() => [] as any[])
+                          if (checks.length > 0) setCheckModal({ szeneId: scene.id, checks, anchorRect: rect })
+                        }, 200)
+                      }}
+                      onMouseLeave={() => { if (checkHoverTimer.current) clearTimeout(checkHoverTimer.current) }}
                       onClick={async e => {
                         e.stopPropagation()
+                        if (checkHoverTimer.current) clearTimeout(checkHoverTimer.current)
                         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                         const checks = await api.getCheckResults(String(scene.id)).catch(() => [] as any[])
                         if (checks.length > 0) setCheckModal({ szeneId: scene.id, checks, anchorRect: rect })

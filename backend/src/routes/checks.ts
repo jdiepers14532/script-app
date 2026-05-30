@@ -56,7 +56,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean): Promise<CheckResul
 
   // Load scene + production info
   const sceneRes = await pool.query<any>(`
-    SELECT ds.id, ds.scene_identity_id, ds.werkstufe_id, ds.motiv, ds.int_ext,
+    SELECT ds.id, ds.scene_identity_id, ds.werkstufe_id, ds.ort_name, ds.int_ext,
            ds.tageszeit, ds.stoppzeit_sek, ds.sondertyp, ds.content, ds.format,
            ds.scene_nummer, si.produktion_id,
            (SELECT f.folge_nummer
@@ -81,7 +81,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean): Promise<CheckResul
 
   // ── 1. Motiv leer ────────────────────────────────────────────────────────
   if (run('motiv_leer')) {
-    if (!s.motiv?.trim()) {
+    if (!s.ort_name?.trim()) {
       results.push({ check_typ: 'motiv_leer', schwere: 'hinweis', meldung: 'Kein Motiv angegeben' })
     }
   }
@@ -185,7 +185,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean): Promise<CheckResul
   }
 
   // ── 5. Duplikat-Motiv ────────────────────────────────────────────────────
-  if (run('duplikat_motiv') && s.motiv?.trim() && s.folge_nummer != null) {
+  if (run('duplikat_motiv') && s.ort_name?.trim() && s.folge_nummer != null) {
     const dupRes = await pool.query<any>(`
       SELECT ds.scene_nummer
       FROM dokument_szenen ds
@@ -193,16 +193,16 @@ async function runChecks(szeneId: string, onlyAuto: boolean): Promise<CheckResul
       JOIN folgen f ON f.id = w.folge_id
       WHERE ds.werkstufe_id = $1
         AND f.folge_nummer = $2
-        AND ds.motiv = $3
+        AND ds.ort_name = $3
         AND ds.int_ext IS NOT DISTINCT FROM $4
         AND ds.tageszeit IS NOT DISTINCT FROM $5
         AND ds.id != $6
         AND ds.geloescht IS NOT TRUE
-    `, [s.werkstufe_id, s.folge_nummer, s.motiv, s.int_ext, s.tageszeit, szeneId])
+    `, [s.werkstufe_id, s.folge_nummer, s.ort_name, s.int_ext, s.tageszeit, szeneId])
 
     if (dupRes.rows.length > 0) {
       const nrs = dupRes.rows.map((r: any) => r.scene_nummer).filter(Boolean).join(', ')
-      const motif = `${(s.int_ext ?? '?').toUpperCase()}. ${s.motiv} - ${s.tageszeit ?? '?'}`
+      const motif = `${(s.int_ext ?? '?').toUpperCase()}. ${s.ort_name} - ${s.tageszeit ?? '?'}`
       results.push({
         check_typ: 'duplikat_motiv',
         schwere: 'hinweis',
