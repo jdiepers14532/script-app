@@ -355,6 +355,9 @@ function GotoSzeneDialog({ szenen, onNavigate, onClose }: {
   )
 }
 
+// localStorage-Key für die letzte Szene pro Episode (synchrone Initialisierung → kein Race mit loadWerkstufen)
+const LS_KEY_LAST_SCENE = 'script_letzte_szene_pro_episode'
+
 // ── TweaksSync — reads useTweaks() inside AppShell context ───────────────────
 // useTweaks() darf NICHT in ScriptPage selbst aufgerufen werden (ScriptPage
 // rendert AppShell, der TweaksContext existiert erst darin).
@@ -379,7 +382,11 @@ function TweaksSync({
   useEffect(() => {
     api.getSettings().then((s: any) => {
       const map = s?.ui_settings?.letzte_szene_pro_episode
-      if (map && typeof map === 'object') lastSeenMapRef.current = map
+      if (map && typeof map === 'object') {
+        lastSeenMapRef.current = map
+        // Backend → localStorage synchronisieren, damit nach erneutem Mount sofort verfügbar
+        try { localStorage.setItem(LS_KEY_LAST_SCENE, JSON.stringify(map)) } catch {}
+      }
     }).catch(() => {})
   }, [lastSeenMapRef])
 
@@ -389,14 +396,15 @@ function TweaksSync({
     // Nur speichern wenn der User explizit navigiert hat (navRestored=true) — verhindert, dass
     // die auto-gewählte Startszene (Titelseite/ersteSzene-Fallback) als "letzte Szene" gespeichert wird
     if (!navRestoredRef.current) return
-    // Sofort in-memory aktualisieren — damit bei schnellem Seitenwechsel der Timer-Abbruch
-    // keine veralteten Daten hinterlässt (in-memory ist der Primär-Cache für diese Session)
-    lastSeenMapRef.current = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
+    const newMap = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
+    lastSeenMapRef.current = newMap
+    // Sofort in localStorage speichern (kein Debounce) — überlebt Unmount + schnellen Seitenwechsel
+    try { localStorage.setItem(LS_KEY_LAST_SCENE, JSON.stringify(newMap)) } catch {}
+    // Backend debounced speichern — KEIN cleanup-return, damit der Timer auch nach Unmount feuert
     if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current)
     saveLastSeenTimerRef.current = setTimeout(() => {
       api.updateSettings({ ui_settings: { letzte_szene_pro_episode: lastSeenMapRef.current } }).catch(() => {})
     }, 1000)
-    return () => { if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current) }
   }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken, lastSeenMapRef, saveLastSeenTimerRef, navRestoredRef])
 
   return null
@@ -570,8 +578,14 @@ export default function ScriptPage() {
   }>({})
   const navRestored = useRef(false)
 
-  // Letzte-Szene-Merken: Map folge_id → szene_id (geladen aus Backend-UserSettings)
-  const lastSeenMapRef = useRef<Record<string, number | string>>({})
+  // Letzte-Szene-Merken: Map folge_id → szene_id
+  // Synchron aus localStorage initialisieren → kein Race mit loadWerkstufen (Backend-Load ist async)
+  const lastSeenMapRef = useRef<Record<string, number | string>>((() => {
+    try {
+      const stored = localStorage.getItem(LS_KEY_LAST_SCENE)
+      return stored ? JSON.parse(stored) : {}
+    } catch { return {} }
+  })())
   // Stabile Tweaks-Ref für async-Closures (loadWerkstufen) — wird von TweaksSync befüllt
   const tweaksRef = useRef<TweakState>(DEFAULT_TWEAKS)
   // Debounce-Timer für Speichern der letzten Szene
