@@ -12,7 +12,7 @@ import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
-import { Clock, Zap, Download } from 'lucide-react'
+import { Clock, Wand2, Download } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
@@ -577,7 +577,7 @@ export default function EditorPanel({
                   cursor: kiSynopsisLoading ? 'not-allowed' : 'pointer',
                 }}
               >
-                <Zap size={12} />
+                <Wand2 size={12} />
               </button>
             </Tooltip>
           )}
@@ -626,7 +626,7 @@ export default function EditorPanel({
           display: 'flex', alignItems: 'center', gap: 8,
           color: kiSynopsisMsg.startsWith('Fehler') || kiSynopsisMsg.includes('nicht aktiviert') || kiSynopsisMsg.includes('Keine') ? '#FF9500' : '#AF52DE',
         }}>
-          <Zap size={11} />
+          <Wand2 size={11} />
           {kiSynopsisMsg}
           <button onClick={() => setKiSynopsisMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'inherit', padding: 0, opacity: 0.6 }}>✕</button>
         </div>
