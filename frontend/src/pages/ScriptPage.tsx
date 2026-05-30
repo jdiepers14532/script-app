@@ -360,6 +360,7 @@ export default function ScriptPage() {
   const { focus } = useFocus()
   const location = useLocation()
   const { selectedProduction, productions, loading } = useSelectedProduction()
+  const { tweaks } = useTweaks()
   const [bloecke, setBloecke] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
   const [selectedWerkstufeTyp, setSelectedWerkstufeTyp] = useState<string | null>(null)
@@ -385,6 +386,26 @@ export default function ScriptPage() {
     }
     return () => window.removeEventListener('script-import-complete', handler)
   }, [])
+
+  // Letzte-Szene-Merken: beim Mount die gespeicherte Map aus dem Backend laden
+  useEffect(() => {
+    api.getSettings().then((s: any) => {
+      const map = s?.ui_settings?.letzte_szene_pro_episode
+      if (map && typeof map === 'object') lastSeenMapRef.current = map
+    }).catch(() => {})
+  }, [])
+
+  // Letzte-Szene-Merken: bei Szenen-Wechsel debounced in Backend speichern
+  useEffect(() => {
+    if (!tweaks.letzteSzeneProEpisodeMerken) return
+    if (!selectedFolgeId || !selectedSzeneId) return
+    if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current)
+    saveLastSeenTimerRef.current = setTimeout(() => {
+      lastSeenMapRef.current = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
+      api.updateSettings({ ui_settings: { letzte_szene_pro_episode: lastSeenMapRef.current } }).catch(() => {})
+    }, 1000)
+    return () => { if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current) }
+  }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken])
 
   // Parse deep-link URL params once on init
   // Supports ?scene=<int> (Messenger-App, old) and ?szene=<uuid> (Email-Links, NT-Liste)
@@ -522,6 +543,14 @@ export default function ScriptPage() {
     sceneIdentityId?: string     // fallback match when szeneId doesn't exist in werkSzenen
   }>({})
   const navRestored = useRef(false)
+
+  // Letzte-Szene-Merken: Map folge_id → szene_id (geladen aus Backend-UserSettings)
+  const lastSeenMapRef = useRef<Record<string, number | string>>({})
+  // Stabile Tweaks-Ref für async-Closures (loadWerkstufen)
+  const tweaksRef = useRef(tweaks)
+  tweaksRef.current = tweaks
+  // Debounce-Timer für Speichern der letzten Szene
+  const saveLastSeenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Throttle timestamp for keyboard navigation (max 1 navigation per interval)
   const kbSzeneLastFire = useRef(0)
@@ -847,12 +876,35 @@ export default function ScriptPage() {
           setUseDokumentSzenen(true)
           const savedSzene = pendingNav.current.szeneId
           const savedSceneIdentityId = pendingNav.current.sceneIdentityId
-          const match = (savedSzene && werkSzenen.find((s: any) => s.id === savedSzene))
+          // Priorität 1: Deep-Link / pendingNav
+          const deepLinkMatch = (savedSzene && werkSzenen.find((s: any) => s.id === savedSzene))
             || (savedSceneIdentityId && werkSzenen.find((s: any) => s.scene_identity_id === savedSceneIdentityId))
             || null
-          setSelectedSzeneId(match ? match.id : werkSzenen[0].id)
-          delete pendingNav.current.szeneId
-          navRestored.current = true
+          let targetId: number | string
+          if (deepLinkMatch) {
+            targetId = deepLinkMatch.id
+            delete pendingNav.current.szeneId
+            navRestored.current = true
+          } else {
+            // Priorität 2: letzte gesehene Szene (wenn Toggle aktiv)
+            const currentTweaks = tweaksRef.current
+            let resolvedFromLastSeen = false
+            if (currentTweaks.letzteSzeneProEpisodeMerken && folge.id != null) {
+              const lastId = lastSeenMapRef.current[String(folge.id)]
+              const lastMatch = lastId ? werkSzenen.find((s: any) => String(s.id) === String(lastId)) : null
+              if (lastMatch) { targetId = lastMatch.id; resolvedFromLastSeen = true }
+            }
+            if (!resolvedFromLastSeen) {
+              // Priorität 3: erste echte Szene (wenn Toggle aktiv), sonst erstes Element
+              if (currentTweaks.episodenWechselErsteSzene || currentTweaks.letzteSzeneProEpisodeMerken) {
+                const firstReal = werkSzenen.find((s: any) => s.format !== 'notiz' && s.scene_nummer != null && s.scene_nummer !== 0)
+                targetId = (firstReal ?? werkSzenen[0]).id
+              } else {
+                targetId = werkSzenen[0].id
+              }
+            }
+          }
+          setSelectedSzeneId(targetId!)
           // Preload all scenes in background so switching is instant throughout the Folge
           preloadAllScenes(werkSzenen)
         } else {

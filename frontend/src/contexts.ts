@@ -150,6 +150,10 @@ export interface TweakState {
   nurCharAusSzenenkopf: 'szenenkopf' | 'alle'
   /** Darstellung der Charakter-AC: Inline-Ghosttext oder Dropdown-Menü */
   charAcStyle: 'inline' | 'menu'
+  /** Bei Episodenwechsel zur ersten echten Szene (nicht Titelseite) springen */
+  episodenWechselErsteSzene: boolean
+  /** Letzte gesehene Szene pro Episode im Backend merken und beim Zurückkehren wiederherstellen */
+  letzteSzeneProEpisodeMerken: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState

@@ -117,6 +117,8 @@ export const DEFAULT_TWEAKS: TweakState = {
   activeColorSchemeId: 'default',
   nurCharAusSzenenkopf: 'szenenkopf',
   charAcStyle: 'menu',
+  episodenWechselErsteSzene: true,
+  letzteSzeneProEpisodeMerken: false,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -630,6 +632,8 @@ export default function AppShell({
           activeColorSchemeId: typeof s.activeColorSchemeId === 'string' ? s.activeColorSchemeId : 'default',
           nurCharAusSzenenkopf: (['szenenkopf', 'alle'] as const).includes(s.nurCharAusSzenenkopf) ? s.nurCharAusSzenenkopf : 'szenenkopf',
           charAcStyle: (['inline', 'menu'] as const).includes(s.charAcStyle) ? s.charAcStyle : 'menu',
+          episodenWechselErsteSzene: typeof s.episodenWechselErsteSzene === 'boolean' ? s.episodenWechselErsteSzene : true,
+          letzteSzeneProEpisodeMerken: typeof s.letzteSzeneProEpisodeMerken === 'boolean' ? s.letzteSzeneProEpisodeMerken : false,
         }))
       }
     }).catch(() => {}).finally(() => {

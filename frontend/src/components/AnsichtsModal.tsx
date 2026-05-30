@@ -298,7 +298,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
               </div>
             </div>
 
-            <div style={{ ...rowStyle, borderBottom: 'none' }}>
+            <div style={rowStyle}>
               <span style={labelStyle}>Scroll-Nav Verzögerung</span>
               <div className="seg">
                 {[500, 1000, 1500, 2000, 3000].map(ms => (
@@ -308,6 +308,34 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                     </button>
                   </Tooltip>
                 ))}
+              </div>
+            </div>
+
+            <div style={rowStyle}>
+              <Tooltip text="Beim Öffnen einer Episode zur ersten echten Szene springen — nicht zur Titelseite">
+                <span style={labelStyle}>Episodenwechsel</span>
+              </Tooltip>
+              <div className="seg">
+                <Tooltip text="Zur ersten Szene springen (überspringt Titelseite u.ä.)">
+                  <button className={tweaks.episodenWechselErsteSzene ? 'on' : ''} onClick={() => set('episodenWechselErsteSzene', true)}>Erste Szene</button>
+                </Tooltip>
+                <Tooltip text="Zum ersten Element springen (ggf. Titelseite)">
+                  <button className={!tweaks.episodenWechselErsteSzene ? 'on' : ''} onClick={() => set('episodenWechselErsteSzene', false)}>Erstes Element</button>
+                </Tooltip>
+              </div>
+            </div>
+
+            <div style={{ ...rowStyle, borderBottom: 'none' }}>
+              <Tooltip text="Merkt sich pro Episode die zuletzt geöffnete Szene und kehrt beim nächsten Besuch dorthin zurück">
+                <span style={labelStyle}>Letzte Szene merken</span>
+              </Tooltip>
+              <div className="seg">
+                <Tooltip text="Beim Zurückkehren zur Episode die zuletzt gesehene Szene öffnen">
+                  <button className={tweaks.letzteSzeneProEpisodeMerken ? 'on' : ''} onClick={() => set('letzteSzeneProEpisodeMerken', true)}>An</button>
+                </Tooltip>
+                <Tooltip text="Beim Öffnen immer zur ersten Szene / erstem Element">
+                  <button className={!tweaks.letzteSzeneProEpisodeMerken ? 'on' : ''} onClick={() => set('letzteSzeneProEpisodeMerken', false)}>Aus</button>
+                </Tooltip>
               </div>
             </div>
           </fieldset>
