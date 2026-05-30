@@ -408,6 +408,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
               {stimmungen.map((s, i) => {
                 const isLast = i === stimmungen.length - 1
+                const isFirst = i === 0
                 return (
                   <div
                     key={s.id ?? s.name}
@@ -418,8 +419,8 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '6px 10px', borderRadius: 8,
-                      border: `1px solid ${isLast ? 'var(--sw-info, #007AFF)' : 'var(--border)'}`,
-                      background: isLast ? 'color-mix(in srgb, var(--sw-info, #007AFF) 6%, var(--bg))' : 'var(--bg-surface)',
+                      border: `1px solid ${isLast ? 'var(--sw-info, #007AFF)' : isFirst ? 'var(--sw-warning, #FF9500)' : 'var(--border)'}`,
+                      background: isLast ? 'color-mix(in srgb, var(--sw-info, #007AFF) 6%, var(--bg))' : isFirst ? 'color-mix(in srgb, var(--sw-warning, #FF9500) 6%, var(--bg))' : 'var(--bg-surface)',
                       cursor: 'grab',
                     }}
                   >
@@ -442,7 +443,11 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
                     />
 
                     {/* Tageswechsel-Badge */}
-                    {isLast ? (
+                    {isFirst ? (
+                      <Tooltip text="Erste Stimmung des Tages — hier beginnt ein neuer Spieltag" placement="top">
+                        <span style={{ fontSize: 13, whiteSpace: 'nowrap', minWidth: 24, textAlign: 'center' }}>🐓</span>
+                      </Tooltip>
+                    ) : isLast ? (
                       <Tooltip text="Letzte Stimmung des Tages — danach beginnt ein neuer Spieltag" placement="top">
                         <span style={{ fontSize: 11, color: 'var(--sw-info, #007AFF)', fontWeight: 600, whiteSpace: 'nowrap', minWidth: 24, textAlign: 'center' }}>☽</span>
                       </Tooltip>
