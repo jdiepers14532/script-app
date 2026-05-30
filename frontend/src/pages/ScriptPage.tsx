@@ -362,12 +362,14 @@ function TweaksSync({
   tweaksRef,
   lastSeenMapRef,
   saveLastSeenTimerRef,
+  navRestoredRef,
   selectedFolgeId,
   selectedSzeneId,
 }: {
   tweaksRef: React.MutableRefObject<TweakState>
   lastSeenMapRef: React.MutableRefObject<Record<string, number | string>>
   saveLastSeenTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  navRestoredRef: React.MutableRefObject<boolean>
   selectedFolgeId: number | null
   selectedSzeneId: number | string | null
 }) {
@@ -384,15 +386,18 @@ function TweaksSync({
   useEffect(() => {
     if (!tweaks.letzteSzeneProEpisodeMerken) return
     if (!selectedFolgeId || !selectedSzeneId) return
-    // Sofort in-memory aktualisieren (damit loadWerkstufen beim nächsten Mount den korrekten Stand liest,
-    // auch wenn der Backend-Save noch aussteht oder der Timer abgebrochen wurde)
+    // Nur speichern wenn der User explizit navigiert hat (navRestored=true) — verhindert, dass
+    // die auto-gewählte Startszene (Titelseite/ersteSzene-Fallback) als "letzte Szene" gespeichert wird
+    if (!navRestoredRef.current) return
+    // Sofort in-memory aktualisieren — damit bei schnellem Seitenwechsel der Timer-Abbruch
+    // keine veralteten Daten hinterlässt (in-memory ist der Primär-Cache für diese Session)
     lastSeenMapRef.current = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
     if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current)
     saveLastSeenTimerRef.current = setTimeout(() => {
       api.updateSettings({ ui_settings: { letzte_szene_pro_episode: lastSeenMapRef.current } }).catch(() => {})
     }, 1000)
     return () => { if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current) }
-  }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken, lastSeenMapRef, saveLastSeenTimerRef])
+  }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken, lastSeenMapRef, saveLastSeenTimerRef, navRestoredRef])
 
   return null
 }
@@ -691,7 +696,8 @@ export default function ScriptPage() {
     if (nextIdx < 0 || nextIdx >= currentSzenen.length) return
     const nextSzene = currentSzenen[nextIdx]
     setSelectedSzeneId(nextSzene.id)
-    if (navRestored.current && produktionId)
+    navRestored.current = true  // Tastaturnavigation = explizite User-Aktion
+    if (produktionId)
       api.updateSettings({ ui_settings: {
         last_produktion_id: produktionId,
         last_folge_nummer: currentFolge,
@@ -904,6 +910,7 @@ export default function ScriptPage() {
           if (deepLinkMatch) {
             targetId = deepLinkMatch.id
             delete pendingNav.current.szeneId
+            navRestored.current = true  // gespeicherte Position exakt gefunden
           } else {
             // Priorität 2: letzte gesehene Szene (wenn Toggle aktiv)
             const currentTweaks = tweaksRef.current
@@ -911,10 +918,11 @@ export default function ScriptPage() {
             if (currentTweaks.letzteSzeneProEpisodeMerken && folge.id != null) {
               const lastId = lastSeenMapRef.current[String(folge.id)]
               const lastMatch = lastId ? werkSzenen.find((s: any) => String(s.id) === String(lastId)) : null
-              if (lastMatch) { targetId = lastMatch.id; resolvedFromLastSeen = true }
+              if (lastMatch) { targetId = lastMatch.id; resolvedFromLastSeen = true; navRestored.current = true }
             }
             if (!resolvedFromLastSeen) {
               // Priorität 3: erste echte Szene (wenn Toggle aktiv), sonst erstes Element
+              // navRestored bleibt false — Fallback, nicht vom User ausgewählt; wird erst durch Klick/Tastatur gesetzt
               if (currentTweaks.episodenWechselErsteSzene || currentTweaks.letzteSzeneProEpisodeMerken) {
                 const firstReal = werkSzenen.find((s: any) => s.format !== 'notiz' && s.scene_nummer != null && s.scene_nummer !== 0)
                 targetId = (firstReal ?? werkSzenen[0]).id
@@ -923,8 +931,6 @@ export default function ScriptPage() {
               }
             }
           }
-          // Immer als "wiederhergestellt" markieren — ermöglicht saveNavPosition für alle künftigen Szenwechsel
-          navRestored.current = true
           setSelectedSzeneId(targetId!)
           // Preload all scenes in background so switching is instant throughout the Folge
           preloadAllScenes(werkSzenen)
@@ -989,6 +995,7 @@ export default function ScriptPage() {
         tweaksRef={tweaksRef}
         lastSeenMapRef={lastSeenMapRef}
         saveLastSeenTimerRef={saveLastSeenTimerRef}
+        navRestoredRef={navRestored}
         selectedFolgeId={selectedFolgeId}
         selectedSzeneId={selectedSzeneId}
       />
@@ -1002,7 +1009,8 @@ export default function ScriptPage() {
               selectedSzeneId={selectedSzeneId}
               onSelectSzene={(id) => {
                 setSelectedSzeneId(id)
-                if (navRestored.current && selectedProduktionId)
+                navRestored.current = true  // User hat explizit navigiert — ab jetzt speichern
+                if (selectedProduktionId)
                   api.updateSettings({ ui_settings: {
                     last_produktion_id: selectedProduktionId,
                     last_folge_nummer: selectedFolgeNummer,
