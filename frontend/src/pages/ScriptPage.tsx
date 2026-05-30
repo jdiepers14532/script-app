@@ -381,11 +381,14 @@ function TweaksSync({
 
   useEffect(() => {
     api.getSettings().then((s: any) => {
-      const map = s?.ui_settings?.letzte_szene_pro_episode
-      if (map && typeof map === 'object') {
-        lastSeenMapRef.current = map
-        // Backend → localStorage synchronisieren, damit nach erneutem Mount sofort verfügbar
-        try { localStorage.setItem(LS_KEY_LAST_SCENE, JSON.stringify(map)) } catch {}
+      const backendMap = s?.ui_settings?.letzte_szene_pro_episode
+      // Nur mergen wenn Backend tatsächlich Daten hat — niemals mit leerem Backend
+      // den localStorage-Initialwert überschreiben (der ist aktueller als nie gespeichertes Backend)
+      if (backendMap && typeof backendMap === 'object' && Object.keys(backendMap).length > 0) {
+        // Backend hat Vorrang bei Konflikten (multi-device sync); lokale Einträge bleiben erhalten
+        const merged = { ...lastSeenMapRef.current, ...backendMap }
+        lastSeenMapRef.current = merged
+        try { localStorage.setItem(LS_KEY_LAST_SCENE, JSON.stringify(merged)) } catch {}
       }
     }).catch(() => {})
   }, [lastSeenMapRef])

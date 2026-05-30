@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown, AlertTriangle } from 'lucide-react'
+import CheckHinweisModal from './CheckHinweisModal'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api, clearCacheByPrefix } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
@@ -88,6 +89,7 @@ export default function SceneList({
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
   const [checkBadges, setCheckBadges] = useState<Record<string, { count: number; has_fehler: boolean }>>({})
+  const [checkModal, setCheckModal] = useState<{ szeneId: string | number; checks: any[]; anchorRect: DOMRect } | null>(null)
 
   const loadCheckBadges = useCallback(() => {
     if (!werkstufId) { setCheckBadges({}); return }
@@ -932,12 +934,19 @@ export default function SceneList({
                     </Tooltip>
                   )}
                   {checkBadges[scene.id] && (
-                    <Tooltip text={`${checkBadges[scene.id].count} Drehbuch-Hinweis${checkBadges[scene.id].count > 1 ? 'e' : ''} — Szene öffnen für Details`} placement="right">
-                      <span style={{ color: '#FF9500', fontSize: 11, cursor: 'default', display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AlertTriangle size={10} />
-                        <span style={{ fontSize: 9, fontWeight: 600 }}>{checkBadges[scene.id].count}</span>
-                      </span>
-                    </Tooltip>
+                    <button
+                      title={`${checkBadges[scene.id].count} Drehbuch-Hinweis${checkBadges[scene.id].count > 1 ? 'e' : ''} — klicken für Details`}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '1px 2px', color: '#FF9500', display: 'flex', alignItems: 'center', gap: 2, lineHeight: 1 }}
+                      onClick={async e => {
+                        e.stopPropagation()
+                        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                        const checks = await api.getCheckResults(String(scene.id)).catch(() => [] as any[])
+                        if (checks.length > 0) setCheckModal({ szeneId: scene.id, checks, anchorRect: rect })
+                      }}
+                    >
+                      <AlertTriangle size={13} fill="rgba(255,204,0,0.2)" strokeWidth={1.8} />
+                      <span style={{ fontSize: 9, fontWeight: 700 }}>{checkBadges[scene.id].count}</span>
+                    </button>
                   )}
                   {oneWayWarnIds.has(scene.id) && (
                     <Tooltip text={'ONE-WAY-Telefonat:\nTelefonpartner noch nicht angegeben'} placement="right">
@@ -1311,6 +1320,40 @@ export default function SceneList({
           </div>
         </div>,
         document.body
+      )}
+      {/* Drehbuch-Check schwebendes Modal — createPortal, Position egal */}
+      {checkModal && checkModal.checks.length > 0 && (
+        <CheckHinweisModal
+          checks={checkModal.checks}
+          anchorRect={checkModal.anchorRect}
+          produktionId={produktionId}
+          szeneId={checkModal.szeneId}
+          onClose={() => setCheckModal(null)}
+          onChecksChanged={next => {
+            if (next.length === 0) {
+              setCheckBadges(prev => { const n = { ...prev }; delete n[String(checkModal.szeneId)]; return n })
+            } else {
+              setCheckBadges(prev => ({ ...prev, [String(checkModal.szeneId)]: { count: next.length, has_fehler: false } }))
+            }
+            setCheckModal(prev => prev ? { ...prev, checks: next } : null)
+            window.dispatchEvent(new CustomEvent('sz-checks-updated', {
+              detail: { szeneId: String(checkModal.szeneId), count: next.length }
+            }))
+          }}
+          onRerun={async () => {
+            const res = await api.runChecksManual(String(checkModal.szeneId))
+            const next = res.results ?? []
+            setCheckModal(prev => prev ? { ...prev, checks: next } : null)
+            if (next.length === 0) {
+              setCheckBadges(prev => { const n = { ...prev }; delete n[String(checkModal.szeneId)]; return n })
+            } else {
+              setCheckBadges(prev => ({ ...prev, [String(checkModal.szeneId)]: { count: next.length, has_fehler: false } }))
+            }
+            window.dispatchEvent(new CustomEvent('sz-checks-updated', {
+              detail: { szeneId: String(checkModal.szeneId), count: next.length }
+            }))
+          }}
+        />
       )}
     </div>
   )
