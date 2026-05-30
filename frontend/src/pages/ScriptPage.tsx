@@ -384,9 +384,11 @@ function TweaksSync({
   useEffect(() => {
     if (!tweaks.letzteSzeneProEpisodeMerken) return
     if (!selectedFolgeId || !selectedSzeneId) return
+    // Sofort in-memory aktualisieren (damit loadWerkstufen beim nächsten Mount den korrekten Stand liest,
+    // auch wenn der Backend-Save noch aussteht oder der Timer abgebrochen wurde)
+    lastSeenMapRef.current = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
     if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current)
     saveLastSeenTimerRef.current = setTimeout(() => {
-      lastSeenMapRef.current = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
       api.updateSettings({ ui_settings: { letzte_szene_pro_episode: lastSeenMapRef.current } }).catch(() => {})
     }, 1000)
     return () => { if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current) }
@@ -902,7 +904,6 @@ export default function ScriptPage() {
           if (deepLinkMatch) {
             targetId = deepLinkMatch.id
             delete pendingNav.current.szeneId
-            navRestored.current = true
           } else {
             // Priorität 2: letzte gesehene Szene (wenn Toggle aktiv)
             const currentTweaks = tweaksRef.current
@@ -922,6 +923,8 @@ export default function ScriptPage() {
               }
             }
           }
+          // Immer als "wiederhergestellt" markieren — ermöglicht saveNavPosition für alle künftigen Szenwechsel
+          navRestored.current = true
           setSelectedSzeneId(targetId!)
           // Preload all scenes in background so switching is instant throughout the Folge
           preloadAllScenes(werkSzenen)
