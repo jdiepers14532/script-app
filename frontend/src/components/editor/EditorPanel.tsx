@@ -1031,6 +1031,13 @@ export default function EditorPanel({
           onClose={() => setSynopsenOpen(false)}
           folgeId={folgeId}
           folgeNummer={folgeNummer}
+          onUebernehmen={(html) => {
+            if (editorRef.current) {
+              editorRef.current.commands.focus()
+              editorRef.current.commands.insertContent(html)
+            }
+            setSynopsenOpen(false)
+          }}
         />
       )}
 

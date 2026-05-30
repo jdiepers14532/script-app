@@ -6176,6 +6176,11 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
     firmen_email:        previewMeta.firmenEmail ?? undefined,
     firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
     druckauswahl:        'Auswahl: Szenen 1–10',
+    synopsis_kurzinhalt:  'Haupthandlung: LOU trifft eine schwere Entscheidung über ihren Neustart. Nebenhandlungen: BRITTA engagiert sich im Ehrenamt. Cliffhanger: Ein unerwarteter Brief verändert alles.',
+    synopsis_redaktion:   'LOU steht vor einer Weichenstellung: Soll sie für einen beruflichen Neustart nach München gehen? Als RICHARD sich einmischt, eskaliert der Konflikt zwischen Hoffnung und Abschied. BRITTA findet im Ehrenamt unerwartet neue Kraft.',
+    synopsis_presse:      'Wird LOU ihr Leben komplett auf den Kopf stellen? Eine überraschende Begegnung zwingt sie zu einer Entscheidung – mit weitreichenden Folgen für alle Beteiligten.',
+    synopsis_pressetext:  'LOU steht vor einer Entscheidung, die ihr Leben für immer verändern könnte. BRITTA findet unterdessen neue Kraft im Ehrenamt.',
+    synopsis_straenge:    'LOU: Entscheidung München / Trennung von Richard\nBRITTA: Ehrenamt Krankenhaus, Job-Angebot',
   }
 
   // KZ/FZ-Einstellungen laden — seiten_layout wird als externalSeitenLayout für den Vorlagen-Editor verwendet
@@ -6859,6 +6864,11 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
     firmen_email:        previewMeta.firmenEmail ?? undefined,
     firmen_telefon:      previewMeta.firmenTelefon ?? undefined,
     druckauswahl:        'Auswahl: Szenen 1–10',
+    synopsis_kurzinhalt:  'Haupthandlung: LOU trifft eine schwere Entscheidung über ihren Neustart. Nebenhandlungen: BRITTA engagiert sich im Ehrenamt. Cliffhanger: Ein unerwarteter Brief verändert alles.',
+    synopsis_redaktion:   'LOU steht vor einer Weichenstellung: Soll sie für einen beruflichen Neustart nach München gehen? Als RICHARD sich einmischt, eskaliert der Konflikt.',
+    synopsis_presse:      'Wird LOU ihr Leben komplett auf den Kopf stellen? Eine überraschende Begegnung zwingt sie zu einer Entscheidung.',
+    synopsis_pressetext:  'LOU steht vor einer Entscheidung, die ihr Leben für immer verändern könnte.',
+    synopsis_straenge:    'LOU: Entscheidung München / Trennung von Richard\nBRITTA: Ehrenamt Krankenhaus',
   }
   // activeTyp = der im Editor angezeigte Typ (Quelle); syncTypen = alle die Änderungen empfangen
   const [activeTyp, setActiveTyp] = useState<string>('drehbuch')

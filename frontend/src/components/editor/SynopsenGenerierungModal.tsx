@@ -178,9 +178,10 @@ interface Props {
   onClose: () => void
   folgeId: number
   folgeNummer: number
+  onUebernehmen?: (html: string) => void
 }
 
-export default function SynopsenGenerierungModal({ open, onClose, folgeId, folgeNummer }: Props) {
+export default function SynopsenGenerierungModal({ open, onClose, folgeId, folgeNummer, onUebernehmen }: Props) {
   const [visible, setVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('titel')
 
@@ -367,6 +368,25 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     onClose()
   }
 
+  function getCurrentTabHtml(): string {
+    switch (activeTab) {
+      case 'titel':      return selectedTitel ? `<p>${selectedTitel}</p>` : ''
+      case 'kurzinhalt': return kurzEditor?.getHTML() ?? ''
+      case 'redaktion':  return redaktionEditor?.getHTML() ?? ''
+      case 'strang':     return strangText ? strangText.split('\n').filter(Boolean).map(l => `<p>${l}</p>`).join('') : ''
+      case 'presse':     return presseEditor?.getHTML() ?? ''
+      case 'pressetext': return pressetextEditor?.getHTML() ?? ''
+      default:           return ''
+    }
+  }
+
+  async function handleUebernehmen() {
+    await save()
+    const html = getCurrentTabHtml()
+    if (html && onUebernehmen) onUebernehmen(html)
+    onClose()
+  }
+
   if (!open) return null
 
   const isLoading = checking || generating
@@ -483,10 +503,10 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                 disabled={isLoading}
                 style={{
                   display:'flex', alignItems:'center', gap:5,
-                  padding:'5px 10px', borderRadius:7,
-                  background:'transparent', border:'1px solid rgba(175,82,222,0.35)',
-                  color:'rgba(175,82,222,0.8)', cursor: isLoading ? 'not-allowed' : 'pointer',
-                  fontSize:11, fontWeight:600, opacity: isLoading ? 0.4 : 1,
+                  padding:'6px 12px', borderRadius:7,
+                  background:'rgba(175,82,222,0.12)', border:'1px solid rgba(175,82,222,0.55)',
+                  color:'#D18AFF', cursor: isLoading ? 'not-allowed' : 'pointer',
+                  fontSize:12, fontWeight:700, opacity: isLoading ? 0.4 : 1,
                 }}
               >
                 <RotateCcw size={11} />
@@ -541,7 +561,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
                     <label style={{ fontSize:10, color:'rgba(255,255,255,0.45)' }}>GEWÄHLTER TITEL</label>
                     {selectedTitel && (
-                      <span style={{ fontSize:10, color: selectedTitel.trim().split(/\s+/).length > 3 ? '#FF9500' : 'rgba(255,255,255,0.3)' }}>
+                      <span style={{ fontSize:12, fontWeight:600, color: selectedTitel.trim().split(/\s+/).length > 3 ? '#FF9500' : 'rgba(255,255,255,0.65)' }}>
                         {selectedTitel.trim().split(/\s+/).length} {selectedTitel.trim().split(/\s+/).length === 1 ? 'Wort' : 'Wörter'}
                         {selectedTitel.trim().split(/\s+/).length > 3 && ' — besser 1–3 Wörter'}
                       </span>
@@ -581,7 +601,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                       >
                         {selectedTitel === t && <Check size={12} color="#AF52DE" style={{flexShrink:0}}/>}
                         {t}
-                        <span style={{ marginLeft:'auto', fontSize:9, color:'rgba(255,255,255,0.2)' }}>
+                        <span style={{ marginLeft:'auto', fontSize:11, fontWeight:600, color: t.trim().split(/\s+/).length > 3 ? '#FF9500' : 'rgba(255,255,255,0.55)' }}>
                           {t.trim().split(/\s+/).length}W
                         </span>
                       </button>
@@ -618,7 +638,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                     Format: <strong style={{color:'rgba(255,255,255,0.65)'}}>Haupthandlung</strong> · <strong style={{color:'rgba(255,255,255,0.65)'}}>Nebenhandlungen</strong> · <strong style={{color:'rgba(255,255,255,0.65)'}}>Cliffhanger</strong>
                   </span>
                   {kurzEditor && kurzEditor.getText().length > 5 && (
-                    <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>
+                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.65)' }}>
                       {wordCount(kurzEditor.getHTML())} Wörter
                     </span>
                   )}
@@ -637,7 +657,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   {redaktionEditor && redaktionEditor.getText().length > 5 && (() => {
                     const wc = wordCount(redaktionEditor.getHTML())
                     return (
-                      <span style={{ fontSize:10, color: (wc < 300 || wc > 500) ? '#FF9500' : 'rgba(255,255,255,0.25)' }}>
+                      <span style={{ fontSize:12, fontWeight:600, color: (wc < 300 || wc > 500) ? '#FF9500' : 'rgba(255,255,255,0.65)' }}>
                         {wc} Wörter {(wc < 300 || wc > 500) ? '(Ziel: 300–500)' : ''}
                       </span>
                     )
@@ -655,7 +675,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                     Je Handlungsstrang eine Zeile · Format: STRANGNAME: Inhalt · Ziel 50–100 Zeichen
                   </span>
                   {strangText && (
-                    <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>
+                    <span style={{ fontSize:12, color:'rgba(255,255,255,0.65)' }}>
                       {strangText.split('\n').filter(Boolean).length} Stränge
                     </span>
                   )}
@@ -672,9 +692,9 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   <div style={{ marginTop:6, display:'flex', flexDirection:'column', gap:2 }}>
                     {strangText.split('\n').filter(Boolean).map((line, i) => {
                       const len = line.length
-                      const color = len > 100 ? '#FF3B30' : len < 50 ? '#FF9500' : 'rgba(255,255,255,0.2)'
+                      const color = len > 100 ? '#FF3B30' : len < 50 ? '#FF9500' : 'rgba(255,255,255,0.55)'
                       return (
-                        <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:10, color }}>
+                        <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:11, color }}>
                           <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                             {line.substring(0, 60)}{line.length > 60 ? '…' : ''}
                           </span>
@@ -697,7 +717,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   {presseEditor && presseEditor.getText().length > 5 && (() => {
                     const wc = wordCount(presseEditor.getHTML())
                     return (
-                      <span style={{ fontSize:10, color: (wc < 50 || wc > 90) ? '#FF9500' : 'rgba(255,255,255,0.25)' }}>
+                      <span style={{ fontSize:12, fontWeight:600, color: (wc < 50 || wc > 90) ? '#FF9500' : 'rgba(255,255,255,0.65)' }}>
                         {wc} Wörter {(wc < 50 || wc > 90) ? '(Ziel: 60–80)' : ''}
                       </span>
                     )
@@ -764,15 +784,31 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               </span>
             )}
             <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
-              <span style={{ fontSize:10, color:'rgba(255,255,255,0.2)' }}>
-                Aktiv: Folge {folgeNummer}
+              <span style={{ fontSize:11, color:'rgba(255,255,255,0.45)' }}>
+                Folge {folgeNummer}
               </span>
+              {onUebernehmen && (
+                <button
+                  onClick={handleUebernehmen}
+                  disabled={saveLoading || isLoading}
+                  style={{
+                    display:'inline-flex', alignItems:'center', gap:6,
+                    padding:'7px 16px', borderRadius:7,
+                    background:'rgba(175,82,222,0.18)', border:'1px solid #AF52DE88',
+                    color:'#D18AFF', cursor:(saveLoading || isLoading) ? 'not-allowed' : 'pointer',
+                    fontSize:12, fontWeight:700, opacity:(saveLoading || isLoading) ? 0.6 : 1,
+                  }}
+                >
+                  <Wand2 size={12}/>
+                  Übernehmen — {TABS.find(t => t.id === activeTab)?.label}
+                </button>
+              )}
               <button
                 onClick={handleClose}
                 style={{
                   padding:'7px 14px', borderRadius:7,
-                  background:'transparent', border:'1px solid rgba(255,255,255,0.12)',
-                  color:'rgba(255,255,255,0.5)', cursor:'pointer', fontSize:12,
+                  background:'transparent', border:'1px solid rgba(255,255,255,0.2)',
+                  color:'rgba(255,255,255,0.7)', cursor:'pointer', fontSize:12,
                 }}
               >
                 Schließen &amp; Autosave

@@ -193,6 +193,31 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'Export-Optionen \u00b7 szenenAuswahl + filterRollen + filterMotive + filterKomparsen',
   },
   {
+    key: '{{synopsis_kurzinhalt}}', label: 'Kurzinhalt', zone: 'alle', color: '#AF52DE',
+    beschreibung: 'Strukturierter Kurzinhalt der Folge (Haupthandlung \u00b7 Nebenhandlungen \u00b7 Cliffhanger).',
+    quelle: 'script_db \u00b7 folgen.synopsis_kurzinhalt',
+  },
+  {
+    key: '{{synopsis_redaktion}}', label: 'Synopse Redaktion', zone: 'alle', color: '#AF52DE',
+    beschreibung: 'Dramaturgische Inhaltsangabe f\u00fcr die interne Redaktion (300\u2013500 W\u00f6rter).',
+    quelle: 'script_db \u00b7 folgen.synopsis',
+  },
+  {
+    key: '{{synopsis_presse}}', label: 'Presse-Synopse', zone: 'alle', color: '#AF52DE',
+    beschreibung: 'Kurze, werbliche Episodenbeschreibung f\u00fcr die Programm-Presse (60\u201380 W\u00f6rter).',
+    quelle: 'script_db \u00b7 folgen.synopsis_presse',
+  },
+  {
+    key: '{{synopsis_pressetext}}', label: 'Pressetext', zone: 'alle', color: '#AF52DE',
+    beschreibung: 'Sachlicher Kurztext f\u00fcr Pressemitteilungen (280\u2013330 Zeichen).',
+    quelle: 'script_db \u00b7 folgen.synopsis_pressetext',
+  },
+  {
+    key: '{{synopsis_straenge}}', label: 'Handlungsstr\u00e4nge', zone: 'alle', color: '#AF52DE',
+    beschreibung: 'Zeilenweise \u00dcbersicht der Handlungsstr\u00e4nge (STRANGNAME: Kurzbeschreibung).',
+    quelle: 'script_db \u00b7 folgen.synopsis_straenge',
+  },
+  {
     key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#34C759',
     beschreibung: 'Aktuelle Seitenzahl. Nur in Fu\u00dfzeilen verf\u00fcgbar.',
     quelle: 'Berechnet beim PDF-Export',

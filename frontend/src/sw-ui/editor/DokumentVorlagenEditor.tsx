@@ -131,6 +131,11 @@ export interface PreviewContext {
   tel_produktion?:      string
   notiz_inhalt?:        string
   druckauswahl?:        string
+  synopsis_kurzinhalt?:  string
+  synopsis_redaktion?:   string
+  synopsis_presse?:      string
+  synopsis_pressetext?:  string
+  synopsis_straenge?:    string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -1088,6 +1093,11 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{tel_produktion}}':      'tel_produktion',
   '{{notiz_inhalt}}':        'notiz_inhalt',
   '{{druckauswahl}}':        'druckauswahl',
+  '{{synopsis_kurzinhalt}}':  'synopsis_kurzinhalt',
+  '{{synopsis_redaktion}}':   'synopsis_redaktion',
+  '{{synopsis_presse}}':      'synopsis_presse',
+  '{{synopsis_pressetext}}':  'synopsis_pressetext',
+  '{{synopsis_straenge}}':    'synopsis_straenge',
 }
 
 function escHtml(s: string): string {
