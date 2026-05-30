@@ -1013,7 +1013,7 @@ export default function EditorPanel({
       <MagicFunktionenModal
         open={magicOpen}
         onClose={() => setMagicOpen(false)}
-        werktyp={selectedWerk?.typ}
+        sceneFormat={sceneFormat}
         folgeId={folgeId}
         onInsert={handleMagicInsert}
         onStatusMsg={setMagicStatusMsg}

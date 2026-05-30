@@ -5,7 +5,7 @@ import { api } from '../../api/client'
 interface Props {
   open: boolean
   onClose: () => void
-  werktyp: string | undefined
+  sceneFormat: string | undefined | null
   folgeId: number | null
   onInsert: (doc: any, statusMsg: string) => void
   onStatusMsg: (msg: string) => void
@@ -30,7 +30,7 @@ const STARS = [
   { x: 45, y: 90, delay: 2.0, size: 2 }, { x: 20, y: 42, delay: 1.2, size: 2 },
 ]
 
-export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, onInsert, onStatusMsg }: Props) {
+export default function MagicFunktionenModal({ open, onClose, sceneFormat, folgeId, onInsert, onStatusMsg }: Props) {
   const [synopsisLoading, setSynopsisLoading] = useState(false)
   const [visible, setVisible] = useState(false)
 
@@ -49,7 +49,7 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
 
   if (!open) return null
 
-  const synopsisAvailable = werktyp === 'notiz' && folgeId != null
+  const synopsisAvailable = sceneFormat === 'notiz' && folgeId != null
 
   async function handleSynopsis(e: React.MouseEvent) {
     e.stopPropagation()
