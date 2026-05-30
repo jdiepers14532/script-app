@@ -2,8 +2,45 @@ import { useState, useEffect, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import { Wand2, X, Sparkles, Bold, Italic, Underline as UnderlineIcon, Check, RefreshCw, RotateCcw, AlertTriangle } from 'lucide-react'
+import { Wand2, X, Sparkles, Bold, Italic, Underline as UnderlineIcon, Check, RefreshCw, RotateCcw, AlertTriangle, ChevronUp, Shield } from 'lucide-react'
 import { api } from '../../api/client'
+
+// ── Deskriptoren types & constants ─────────────────────────────────────────────
+
+type DeskriptorStufe = 'leicht' | 'mittel' | 'stark'
+interface DeskriptorItem {
+  kategorie: string
+  stufe: DeskriptorStufe
+  beschreibung: string
+}
+
+const FSK_LEVELS = ['0', '6', '12', '16', '18']
+const FSK_COLORS: Record<string, string> = {
+  '0': '#00C853', '6': '#00C853', '12': '#FF9500', '16': '#FF6B00', '18': '#FF3B30'
+}
+const STUFE_COLORS: Record<DeskriptorStufe, string> = { leicht: '#00C853', mittel: '#FF9500', stark: '#FF3B30' }
+const DESKRIPTOR_KATEGORIEN: string[] = [
+  'GEWALT', 'SEXUELLE_INHALTE', 'ALKOHOL_DROGEN', 'ANGST', 'DISKRIMINIERUNG', 'THEMATISCH_BELASTEND', 'SPRACHE'
+]
+
+function renderSceneRefs(
+  text: string,
+  onSceneClick?: (nr: string) => void
+): React.ReactNode[] {
+  const parts = text.split(/(\(Sz\. \d+\))/g)
+  return parts.map((part, i) => {
+    const m = part.match(/\(Sz\. (\d+)\)/)
+    if (m && onSceneClick) {
+      return (
+        <span key={i} onClick={() => onSceneClick(m[1])}
+          style={{ color: '#AF52DE', cursor: 'pointer', textDecoration: 'underline dotted', fontWeight: 600 }}>
+          {part}
+        </span>
+      )
+    }
+    return <span key={i}>{part}</span>
+  })
+}
 
 // ── Text utilities ─────────────────────────────────────────────────────────────
 
@@ -177,16 +214,18 @@ function dlgBtn(bg: string, primary: boolean): React.CSSProperties {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'lektor' | 'strang' | 'programmpresse' | 'pressetext'
+type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'lektor' | 'strang' | 'programmpresse' | 'pressetext' | 'deskriptoren' | 'fsk'
 
 const TABS: { id: Tab; label: string; desc: string }[] = [
-  { id: 'titel',         label: 'Titel',         desc: '1–3 Wörter' },
-  { id: 'kurzinhalt',    label: 'Kurzinhalt',    desc: 'strukturiert' },
-  { id: 'redaktion',     label: 'Redaktion',     desc: '300–500 Wörter' },
-  { id: 'lektor',        label: 'Lektor',        desc: 'chronol. · Marker' },
-  { id: 'strang',        label: 'Strang',        desc: '≤300 Zeichen' },
+  { id: 'titel',          label: 'Titel',          desc: '1–3 Wörter' },
+  { id: 'kurzinhalt',     label: 'Kurzinhalt',     desc: 'strukturiert' },
+  { id: 'redaktion',      label: 'Redaktion',      desc: '300–500 Wörter' },
+  { id: 'lektor',         label: 'Lektor',         desc: 'chronol. · Marker' },
+  { id: 'strang',         label: 'Strang',         desc: '≤300 Zeichen' },
   { id: 'programmpresse', label: 'Programmpresse', desc: '300–450 Zeichen' },
-  { id: 'pressetext',   label: 'Pressetext',    desc: '280–330 Zeichen' },
+  { id: 'pressetext',     label: 'Pressetext',     desc: '280–330 Zeichen' },
+  { id: 'deskriptoren',   label: 'Deskriptoren',   desc: 'JuSchG' },
+  { id: 'fsk',            label: 'FSK',            desc: 'Altersfreigabe' },
 ]
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -197,11 +236,13 @@ interface Props {
   folgeId: number
   folgeNummer: number
   onUebernehmen?: (html: string) => void
+  onNavigateToScene?: (sceneNummer: string) => void
 }
 
-export default function SynopsenGenerierungModal({ open, onClose, folgeId, folgeNummer, onUebernehmen }: Props) {
+export default function SynopsenGenerierungModal({ open, onClose, folgeId, folgeNummer, onUebernehmen, onNavigateToScene }: Props) {
   const [visible, setVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('titel')
+  const [minimized, setMinimized] = useState(false)
 
   // Pre-check
   const [checking, setChecking] = useState(false)
@@ -221,6 +262,11 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
 
   // Strang (plain textarea)
   const [strangText, setStrangText] = useState('')
+
+  // Deskriptoren + FSK
+  const [deskriptoren, setDeskriptoren] = useState<DeskriptorItem[]>([])
+  const [fskRating, setFskRating] = useState('12')
+  const [fskBegruendung, setFskBegruendung] = useState('')
 
   // Race condition fix: KI result stored until editors are ready
   const [pendingKiResult, setPendingKiResult] = useState<{
@@ -269,6 +315,16 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     presseEditor.commands.setContent(d.synopsis_presse || '<p></p>')
     pressetextEditor.commands.setContent(d.synopsis_pressetext || '<p></p>')
     if (d.synopsis_straenge) setStrangText(d.synopsis_straenge)
+    if (d.synopsis_deskriptoren) {
+      try { setDeskriptoren(JSON.parse(d.synopsis_deskriptoren)) } catch {}
+    }
+    if (d.synopsis_fsk) {
+      try {
+        const fsk = JSON.parse(d.synopsis_fsk)
+        if (fsk.rating) setFskRating(fsk.rating)
+        if (fsk.begruendung !== undefined) setFskBegruendung(fsk.begruendung)
+      } catch {}
+    }
     setPendingLoadData(null)
   }, [pendingLoadData, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor])
 
@@ -286,6 +342,10 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     setSelectedTitel('')
     setTitelMehrMsg(null)
     setStrangText('')
+    setDeskriptoren([])
+    setFskRating('12')
+    setFskBegruendung('')
+    setMinimized(false)
     setGenError(null)
     setMissingSections([])
     setSaveMsg(null)
@@ -317,6 +377,9 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     setTitelOptions([])
     setSelectedTitel('')
     setStrangText('')
+    setDeskriptoren([])
+    setFskRating('12')
+    setFskBegruendung('')
     kurzEditor?.commands.setContent('<p></p>')
     redaktionEditor?.commands.setContent('<p></p>')
     lektorEditor?.commands.setContent('<p></p>')
@@ -330,6 +393,9 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
       }
       if (r.titel?.length) setTitelOptions(r.titel)
       if (r.straenge)      setStrangText(r.straenge)
+      if (r.deskriptoren)  setDeskriptoren(r.deskriptoren)
+      if (r.fsk_rating)    setFskRating(r.fsk_rating)
+      if (r.fsk_begruendung !== undefined) setFskBegruendung(r.fsk_begruendung)
       if (r.missing_sections?.length) setMissingSections(r.missing_sections)
       // Store result — apply via useEffect (race condition fix)
       setPendingKiResult({
@@ -386,14 +452,18 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
       const presseHtml     = presseEditor?.getHTML()
       const pressetextHtml = pressetextEditor?.getHTML()
       const isEmpty = (h: string | undefined) => !h || h === '<p></p>'
+      const deskriptorenJson = deskriptoren.length > 0 ? JSON.stringify(deskriptoren) : null
+      const fskJson = (fskRating || fskBegruendung.trim()) ? JSON.stringify({ rating: fskRating, begruendung: fskBegruendung }) : null
       await api.saveFolgenSynopsen(folgeId, {
-        folgen_titel:        selectedTitel.trim() || null,
-        synopsis_kurzinhalt: isEmpty(kurzHtml)       ? null : kurzHtml!,
-        synopsis:            isEmpty(redaktionHtml)  ? null : redaktionHtml!,
-        synopsis_lektor:     isEmpty(lektorHtml)     ? null : lektorHtml!,
-        synopsis_presse:     isEmpty(presseHtml)     ? null : presseHtml!,
-        synopsis_pressetext: isEmpty(pressetextHtml) ? null : pressetextHtml!,
-        synopsis_straenge:   strangText.trim() || null,
+        folgen_titel:           selectedTitel.trim() || null,
+        synopsis_kurzinhalt:    isEmpty(kurzHtml)       ? null : kurzHtml!,
+        synopsis:               isEmpty(redaktionHtml)  ? null : redaktionHtml!,
+        synopsis_lektor:        isEmpty(lektorHtml)     ? null : lektorHtml!,
+        synopsis_presse:        isEmpty(presseHtml)     ? null : presseHtml!,
+        synopsis_pressetext:    isEmpty(pressetextHtml) ? null : pressetextHtml!,
+        synopsis_straenge:      strangText.trim() || null,
+        synopsis_deskriptoren:  deskriptorenJson,
+        synopsis_fsk:           fskJson,
       })
       setSaveMsg('Gespeichert.')
       return true
@@ -419,6 +489,8 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
       case 'strang':         return strangText ? strangText.split('\n').filter(Boolean).map(l => `<p>${l}</p>`).join('') : ''
       case 'programmpresse': return presseEditor?.getHTML() ?? ''
       case 'pressetext':     return pressetextEditor?.getHTML() ?? ''
+      case 'deskriptoren':   return deskriptoren.length ? deskriptoren.map(d => `<p><strong>${d.kategorie}</strong> (${d.stufe}): ${d.beschreibung}</p>`).join('') : ''
+      case 'fsk':            return fskRating ? `<p>FSK ${fskRating}${fskBegruendung ? ': ' + fskBegruendung : ''}</p>` : ''
       default:               return ''
     }
   }
@@ -431,6 +503,28 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   }
 
   if (!open) return null
+
+  // Minimized: only floating widget, no backdrop
+  if (minimized) {
+    return (
+      <div
+        onClick={() => setMinimized(false)}
+        style={{
+          position:'fixed', bottom:24, right:24, zIndex:10002,
+          background:'linear-gradient(135deg,#1a0a2e,#0d0518)',
+          border:'1.5px solid #AF52DE77', borderRadius:12,
+          padding:'10px 16px', cursor:'pointer',
+          boxShadow:'0 4px 24px rgba(0,0,0,0.7)',
+          display:'flex', alignItems:'center', gap:8,
+          animation:'syn-glow 3s ease-in-out infinite',
+        }}
+      >
+        <Wand2 size={14} color="#D18AFF" />
+        <span style={{ fontSize:12, color:'#D18AFF', fontWeight:700 }}>Folge {folgeNummer} · Synopsen</span>
+        <ChevronUp size={12} color="#AF52DE77" />
+      </div>
+    )
+  }
 
   const isLoading = checking || generating
 
@@ -513,7 +607,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               <span style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>
                 {checking ? 'Prüfe vorhandene Daten…' : 'KI generiert alle Synopsen…'}
               </span>
-              <span style={{ fontSize:11, color:'rgba(255,255,255,0.3)' }}>Szenen werden einmalig analysiert · zwei parallele Calls</span>
+              <span style={{ fontSize:11, color:'rgba(255,255,255,0.3)' }}>Szenen werden einmalig analysiert · vier parallele KI-Calls</span>
             </div>
           )}
 
@@ -730,8 +824,8 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   {lektorEditor && lektorEditor.getText().length > 5 && (() => {
                     const wc = wordCount(lektorEditor.getHTML())
                     return (
-                      <span style={{ fontSize:12, fontWeight:600, color: (wc < 400 || wc > 800) ? '#FF9500' : 'rgba(255,255,255,0.65)' }}>
-                        {wc} Wörter {(wc < 400 || wc > 800) ? '(Ziel: 500–700)' : ''}
+                      <span style={{ fontSize:12, fontWeight:600, color: (wc < 300 || wc > 400) ? '#FF9500' : 'rgba(255,255,255,0.65)' }}>
+                        {wc} Wörter {(wc < 300 || wc > 400) ? '(Ziel: 300–400)' : ''}
                       </span>
                     )
                   })()}
@@ -859,6 +953,134 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                     {pressetextChars < 280
                       ? `Noch ${280 - pressetextChars} Zeichen fehlen.`
                       : `${pressetextChars - 330} Zeichen zu viel — bitte kürzen.`}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Deskriptoren ── */}
+            {activeTab === 'deskriptoren' && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    Jugendschutz-Inhaltsdeskriptoren (JuSchG) · Kategorien und Schweregrade
+                  </span>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.45)' }}>
+                    {deskriptoren.length} {deskriptoren.length === 1 ? 'Deskriptor' : 'Deskriptoren'}
+                  </span>
+                </div>
+                {deskriptoren.length === 0 ? (
+                  <div style={{ textAlign:'center', padding:'40px 0', fontSize:13, color:'rgba(255,255,255,0.25)', fontStyle:'italic' }}>
+                    Keine jugendschutzrelevanten Inhalte erkannt
+                  </div>
+                ) : (
+                  <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:14 }}>
+                    {deskriptoren.map((d, i) => (
+                      <div key={i} style={{
+                        background:'rgba(255,107,0,0.08)', border:'1px solid rgba(255,107,0,0.25)',
+                        borderRadius:9, padding:'10px 12px',
+                      }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+                          <select
+                            value={d.kategorie}
+                            onChange={e => setDeskriptoren(prev => { const n=[...prev]; n[i]={...n[i],kategorie:e.target.value}; return n })}
+                            style={{ background:'rgba(0,0,0,0.5)', border:'1px solid rgba(255,107,0,0.4)', borderRadius:5, color:'#FF9500', fontWeight:700, fontSize:12, padding:'2px 6px', cursor:'pointer' }}
+                          >
+                            {DESKRIPTOR_KATEGORIEN.map(k => <option key={k} value={k}>{k.replace(/_/g,' ')}</option>)}
+                          </select>
+                          <div style={{ display:'flex', gap:5 }}>
+                            {(['leicht','mittel','stark'] as DeskriptorStufe[]).map(s => (
+                              <button
+                                key={s}
+                                onClick={() => setDeskriptoren(prev => { const n=[...prev]; n[i]={...n[i],stufe:s}; return n })}
+                                style={{
+                                  padding:'2px 8px', borderRadius:4, fontSize:11, fontWeight:600, cursor:'pointer', border:'none',
+                                  background: d.stufe===s ? `${STUFE_COLORS[s]}33` : 'rgba(255,255,255,0.06)',
+                                  color: d.stufe===s ? STUFE_COLORS[s] : 'rgba(255,255,255,0.4)',
+                                  outline: d.stufe===s ? `1.5px solid ${STUFE_COLORS[s]}88` : '1.5px solid transparent',
+                                }}
+                              >{s}</button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setDeskriptoren(prev => prev.filter((_,j)=>j!==i))}
+                            style={{ marginLeft:'auto', background:'none', border:'none', color:'rgba(255,255,255,0.25)', cursor:'pointer', fontSize:16, padding:'0 4px' }}
+                          >×</button>
+                        </div>
+                        <input
+                          value={d.beschreibung}
+                          onChange={e => setDeskriptoren(prev => { const n=[...prev]; n[i]={...n[i],beschreibung:e.target.value}; return n })}
+                          placeholder="Kurzbeschreibung mit Szenenreferenz (Sz. X)…"
+                          style={{
+                            width:'100%', boxSizing:'border-box', background:'transparent', border:'none', outline:'none',
+                            color:'rgba(255,255,255,0.8)', fontSize:12, lineHeight:1.6,
+                          }}
+                        />
+                        {d.beschreibung && onNavigateToScene && (
+                          <div style={{ marginTop:5, fontSize:11, color:'rgba(255,255,255,0.5)', lineHeight:1.6 }}>
+                            {renderSceneRefs(d.beschreibung, (nr) => { setMinimized(true); onNavigateToScene(nr) })}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => setDeskriptoren(prev => [...prev, { kategorie:'GEWALT', stufe:'leicht', beschreibung:'' }])}
+                  style={{ background:'none', border:'none', color:'rgba(255,107,0,0.65)', cursor:'pointer', fontSize:12, fontWeight:600, padding:0 }}
+                >
+                  + Deskriptor hinzufügen
+                </button>
+              </div>
+            )}
+
+            {/* ── FSK ── */}
+            {activeTab === 'fsk' && (
+              <div>
+                <div style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginBottom:14 }}>
+                  FSK-Altersfreigabe-Einschätzung — Auswahl + Begründung mit Szenenreferenzen
+                </div>
+                <div style={{ display:'flex', gap:10, marginBottom:16 }}>
+                  {FSK_LEVELS.map(lvl => (
+                    <button
+                      key={lvl}
+                      onClick={() => setFskRating(lvl)}
+                      style={{
+                        width:56, height:56, borderRadius:10, cursor:'pointer',
+                        border: `2px solid ${fskRating===lvl ? FSK_COLORS[lvl] : 'rgba(255,255,255,0.12)'}`,
+                        background: fskRating===lvl ? `${FSK_COLORS[lvl]}22` : 'rgba(0,0,0,0.3)',
+                        color: fskRating===lvl ? FSK_COLORS[lvl] : 'rgba(255,255,255,0.45)',
+                        fontSize:20, fontWeight:800, transition:'border-color 0.15s, background 0.15s',
+                      }}
+                    >{lvl}</button>
+                  ))}
+                </div>
+                {fskRating && (
+                  <div style={{
+                    marginBottom:14, padding:'8px 14px', borderRadius:8,
+                    background:`${FSK_COLORS[fskRating]}15`, border:`1px solid ${FSK_COLORS[fskRating]}44`,
+                    fontSize:14, color:FSK_COLORS[fskRating], fontWeight:700,
+                    display:'flex', alignItems:'center', gap:7,
+                  }}>
+                    <Shield size={14} />
+                    FSK {fskRating}
+                  </div>
+                )}
+                <label style={{ fontSize:11, color:'rgba(255,255,255,0.4)', display:'block', marginBottom:6 }}>BEGRÜNDUNG</label>
+                <textarea
+                  value={fskBegruendung}
+                  onChange={e => setFskBegruendung(e.target.value)}
+                  placeholder="Begründung für die FSK-Einschätzung, mit Szenenreferenzen (Sz. X)…"
+                  style={{
+                    width:'100%', boxSizing:'border-box', minHeight:160, padding:'10px 12px', borderRadius:8,
+                    border:'1px solid rgba(255,255,255,0.15)', background:'rgba(0,0,0,0.35)',
+                    color:'#f0f0f0', fontSize:Math.round(13 * editorZoom), lineHeight:1.7,
+                    outline:'none', resize:'vertical', fontFamily:'inherit',
+                  }}
+                />
+                {fskBegruendung && onNavigateToScene && (
+                  <div style={{ marginTop:8, fontSize:12, color:'rgba(255,255,255,0.55)', lineHeight:1.7 }}>
+                    {renderSceneRefs(fskBegruendung, (nr) => { setMinimized(true); onNavigateToScene(nr) })}
                   </div>
                 )}
               </div>

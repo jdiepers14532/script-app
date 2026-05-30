@@ -245,6 +245,36 @@ async function callProvider(setting: any, messages: { role: string; content: str
   throw new Error(`Unbekannter Provider: ${setting.provider}`)
 }
 
+/** Parst Deskriptoren-Rohtext → strukturiertes Objekt */
+function parseDeskriptorenData(raw: string): { deskriptoren: any[] } {
+  const lines = raw.split('\n').map((l: string) => l.trim()).filter(Boolean)
+  if (!lines.length || (lines.length === 1 && lines[0].toUpperCase() === 'KEINE')) {
+    return { deskriptoren: [] }
+  }
+  const valide = ['leicht', 'mittel', 'stark']
+  const deskriptoren = lines.map((line: string) => {
+    const parts = line.split('|')
+    if (parts.length < 3) return null
+    const stufe = parts[1].trim().toLowerCase()
+    return {
+      kategorie: parts[0].trim().replace(/^[*\-\s]+/, '').toUpperCase(),
+      stufe: valide.includes(stufe) ? stufe : 'leicht',
+      beschreibung: parts.slice(2).join('|').trim(),
+    }
+  }).filter(Boolean)
+  return { deskriptoren }
+}
+
+/** Parst FSK-Rohtext → { rating, begruendung } */
+function parseFskData(raw: string): { rating: string; begruendung: string } {
+  const lines = raw.split('\n').map((l: string) => l.trim()).filter(Boolean)
+  const firstLine = lines[0] ?? ''
+  const match = firstLine.match(/\b(0|6|12|16|18)\b/)
+  const rating = match ? match[1] : '12'
+  const begruendung = (match ? lines.slice(1) : lines).join('\n').trim()
+  return { rating, begruendung }
+}
+
 /** Parst ###SECTION###-Marker aus KI-Antwort → Record<sectionName, content> */
 function parseKiSections(raw: string): Record<string, string> {
   const sections: Record<string, string> = {}
@@ -477,11 +507,11 @@ router.get('/synopsen/check', async (req, res) => {
     const { folge_id } = req.query
     if (!folge_id) return res.status(400).json({ error: 'folge_id fehlt' })
     const row = await queryOne(
-      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext, synopsis_lektor FROM folgen WHERE id = $1`,
+      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext, synopsis_lektor, synopsis_deskriptoren, synopsis_fsk FROM folgen WHERE id = $1`,
       [folge_id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
-    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300 || row.synopsis_kurzinhalt || row.synopsis_presse || row.synopsis_straenge || row.synopsis_pressetext || row.synopsis_lektor)
+    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300 || row.synopsis_kurzinhalt || row.synopsis_presse || row.synopsis_straenge || row.synopsis_pressetext || row.synopsis_lektor || row.synopsis_deskriptoren || row.synopsis_fsk)
     res.json({ hasData, ...row })
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -691,7 +721,7 @@ PFLICHT: Verwende AUSSCHLIESSLICH Figurennamen aus den Szenen — KEINE Schauspi
     const lektorPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${folgeNr} ===
 ${szenenListe}
 ${strangHinweis}
-Erstelle eine CHRONOLOGISCHE Inhaltsangabe der Folge als Fließtext. Rollennamen IMMER in GROSSBUCHSTABEN. Präsens. 500–700 Wörter. Keine Kapitelüberschriften, keine Abschnittstruktur, kein Markdown.
+Erstelle eine CHRONOLOGISCHE Inhaltsangabe der Folge als Fließtext. Rollennamen IMMER in GROSSBUCHSTABEN. Präsens. 300–400 Wörter. Keine Kapitelüberschriften, keine Abschnittstruktur, kein Markdown.
 
 Füge direkt hinter relevante Sätze folgende Marker ein — nur den Marker, kein Kommentar:
 - (Sz. X) — bei jeder konkreten Behauptung als Szenenreferenz
@@ -706,8 +736,27 @@ Beispiel-Stil:
 
 Schreibe die gesamte Folge in diesem Stil — chronologisch, ein durchgehender Fließtext.`
 
-    // Drei Calls parallel
-    const [titelRaw, contentRaw, lektorRaw] = await Promise.all([
+    // ── Call 4: Inhaltsdeskriptoren + FSK ────────────────────────────────────
+    const deskriptorenPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${folgeNr} ===
+${szenenListe}
+
+Analysiere die Folge auf jugendschutzrelevante Inhalte.
+
+###DESKRIPTOREN###
+Liste ALLE zutreffenden Kategorien im Format: KATEGORIE|STUFE|Kurzbeschreibung mit Szenenreferenz (Sz. X)
+Stufen: leicht, mittel, stark
+Kategorien: GEWALT, SEXUELLE_INHALTE, ALKOHOL_DROGEN, ANGST, DISKRIMINIERUNG, THEMATISCH_BELASTEND, SPRACHE
+Beispiel:
+GEWALT|leicht|Verbale Auseinandersetzung zwischen LOU und RICHARD (Sz. 5)
+ANGST|mittel|BRITTA erfährt Diagnose, reagiert mit Panikattacke (Sz. 12)
+Wenn keine Deskriptoren zutreffen: "KEINE"
+
+###FSK###
+Erste Zeile: empfohlene FSK-Altersfreigabe (eine Zahl: 0, 6, 12, 16 oder 18)
+Danach: kurze Begründung (2-4 Sätze) mit konkreten Szenenreferenzen (Sz. X)`
+
+    // Vier Calls parallel
+    const [titelRaw, contentRaw, lektorRaw, deskRaw] = await Promise.all([
       callProvider(setting, [
         { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte ausschließlich mit den 5 Titeln, einen pro Zeile. Maximal 3 Wörter pro Titel.' },
         { role: 'user', content: titelPrompt },
@@ -719,12 +768,16 @@ Schreibe die gesamte Folge in diesem Stil — chronologisch, ein durchgehender F
       callProvider(setting, [
         { role: 'system', content: 'Du bist Lektor und Dramaturg einer deutschen Daily-Soap. Erstelle eine chronologische Fließtext-Inhaltsangabe mit eingebetteten Markern [Want], [Need], [Akt X Ende], [Cliff], [Pen] und Szenenreferenzen (Sz. X). Rollennamen IMMER in GROSSBUCHSTABEN. Kein Markdown, keine Abschnittsüberschriften, nur Fließtext.' },
         { role: 'user', content: lektorPrompt },
-      ], 1800, tempStruktur),
+      ], 1200, tempStruktur),
+      callProvider(setting, [
+        { role: 'system', content: 'Du bist Jugendschutzbeauftragter einer deutschen TV-Produktionsfirma. Analysiere Episodeninhalte sachlich und vollständig. Antworte nur mit den angeforderten Abschnitten im exakten Format. Kein Markdown.' },
+        { role: 'user', content: deskriptorenPrompt },
+      ], 800, tempStruktur),
     ])
 
     await recordUsage(setting.provider, setting.model_name || '',
-      Math.ceil((titelPrompt.length + contentPrompt.length + lektorPrompt.length) / 4),
-      Math.ceil((titelRaw.length + contentRaw.length + lektorRaw.length) / 4))
+      Math.ceil((titelPrompt.length + contentPrompt.length + lektorPrompt.length + deskriptorenPrompt.length) / 4),
+      Math.ceil((titelRaw.length + contentRaw.length + lektorRaw.length + deskRaw.length) / 4))
 
     const titel = titelRaw.split('\n')
       .map((t: string) => t.replace(/^[\d\.\-\*\[\]\s]+/, '').replace(/[*#"„"[\]]/g, '').trim())
@@ -732,17 +785,23 @@ Schreibe die gesamte Folge in diesem Stil — chronologisch, ein durchgehender F
       .slice(0, 5)
 
     const sections = parseKiSections(contentRaw)
+    const deskSections = parseKiSections(deskRaw)
+    const deskriptoren = parseDeskriptorenData(deskSections['DESKRIPTOREN'] || deskRaw.split('###FSK###')[0] || '')
+    const fsk = parseFskData(deskSections['FSK'] || '')
     const missingSections = ['KURZINHALT', 'REDAKTION', 'STRANG', 'PROGRAMMPRESSE', 'PRESSETEXT']
       .filter(k => !sections[k])
 
     res.json({
       titel,
-      kurzinhalt:  sections['KURZINHALT']       || '',
-      redaktion:   cleanKiText(sections['REDAKTION']        || ''),
-      straenge:    cleanKiText(sections['STRANG']           || ''),
-      presse:      cleanKiText(sections['PROGRAMMPRESSE']   || ''),
-      pressetext:  cleanKiText(sections['PRESSETEXT']       || ''),
-      lektor:      lektorRaw.trim(),
+      kurzinhalt:    sections['KURZINHALT']       || '',
+      redaktion:     cleanKiText(sections['REDAKTION']        || ''),
+      straenge:      cleanKiText(sections['STRANG']           || ''),
+      presse:        cleanKiText(sections['PROGRAMMPRESSE']   || ''),
+      pressetext:    cleanKiText(sections['PRESSETEXT']       || ''),
+      lektor:        lektorRaw.trim(),
+      deskriptoren:  deskriptoren.deskriptoren,
+      fsk_rating:    fsk.rating,
+      fsk_begruendung: fsk.begruendung,
       folge_id,
       folge_nummer: data.werkstufe.folge_nummer,
       szenen_count: data.szenen.length,

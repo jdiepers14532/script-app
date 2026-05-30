@@ -223,6 +223,16 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'script_db \u00b7 folgen.synopsis_straenge',
   },
   {
+    key: '{{synopsis_deskriptoren}}', label: 'Inhaltsdeskriptoren', zone: 'alle', color: '#FF6B00',
+    beschreibung: 'Jugendschutz-Inhaltsdeskriptoren der Folge (JuSchG) — z.\u202fB. GEWALT\u00b7mittel, ANGST\u00b7leicht. Formatiert als kommagetrennte Liste.',
+    quelle: 'script_db \u00b7 folgen.synopsis_deskriptoren',
+  },
+  {
+    key: '{{synopsis_fsk}}', label: 'FSK-Einsch\u00e4tzung', zone: 'alle', color: '#FF6B00',
+    beschreibung: 'FSK-Altersfreigabe-Einsch\u00e4tzung der Folge inkl. Begr\u00fcndung, z.\u202fB. \u201eFSK\u202f12: \u2026\u201c.',
+    quelle: 'script_db \u00b7 folgen.synopsis_fsk',
+  },
+  {
     key: '{{seite}}', label: 'Seitenzahl', zone: 'fusszeile', color: '#34C759',
     beschreibung: 'Aktuelle Seitenzahl. Nur in Fu\u00dfzeilen verf\u00fcgbar.',
     quelle: 'Berechnet beim PDF-Export',
