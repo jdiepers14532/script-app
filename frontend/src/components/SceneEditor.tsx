@@ -473,8 +473,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         const updated = await api.stoppzeitAuto(resolvedId)
         if (updated) { setScene(updated); onSzeneUpdated?.(updated) }
       }
-    } catch { /* ignore — API returns error message */ }
-    finally { setStoppzeitAutoLoading(false) }
+    } catch (err: any) {
+      showToast(err?.message || 'Stoppzeit-Berechnung fehlgeschlagen', 'error')
+    } finally { setStoppzeitAutoLoading(false) }
   }, [scene, werkstufId, loadScene, onSzeneUpdated])
 
   // Load scene when szeneId changes
