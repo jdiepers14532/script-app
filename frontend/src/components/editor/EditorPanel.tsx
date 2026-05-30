@@ -12,7 +12,7 @@ import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
-import { Clock, Wand2, Download } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import MagicFunktionenModal from './MagicFunktionenModal'
 import SynopsenGenerierungModal from './SynopsenGenerierungModal'
@@ -136,12 +136,12 @@ export default function EditorPanel({
     api.createWerkstufenSnapshot(werkId, 'auto').catch(() => {})
   }, [])
 
-  // Bei Werkstufen-Wechsel: vorherige Werkstufe sichern
+  // Bei Werkstufen-Wechsel: vorherige Werkstufe sichern (wenn aktiviert)
   useEffect(() => {
     const prev = prevWerkIdRef.current
-    if (prev && prev !== selectedWerkId) fireDokSnapshot(prev)
+    if (prev && prev !== selectedWerkId && snapshotSettings.werkOnSwitch) fireDokSnapshot(prev)
     prevWerkIdRef.current = selectedWerkId ?? null
-  }, [selectedWerkId, fireDokSnapshot])
+  }, [selectedWerkId, fireDokSnapshot, snapshotSettings.werkOnSwitch])
 
   // Auto-Snapshot der aktiven Werkstufe (Intervall aus DK-Einstellungen)
   useEffect(() => {
@@ -338,8 +338,8 @@ export default function EditorPanel({
     if (snapshotTimerRef.current) clearTimeout(snapshotTimerRef.current)
     snapshotTimerRef.current = setTimeout(() => {
       if (pendingSnapshotContentRef.current) fireSnapshot(pendingSnapshotContentRef.current)
-    }, 5 * 60 * 1000)
-  }, [canSnapshot, fireSnapshot])
+    }, snapshotSettings.szenenIntervalMin * 60 * 1000)
+  }, [canSnapshot, fireSnapshot, snapshotSettings.szenenIntervalMin])
 
   // On scene change: flush snapshot for previous scene if content changed
   const prevSzeneIdRef = useRef<string | null>(null)

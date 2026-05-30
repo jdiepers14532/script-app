@@ -367,6 +367,9 @@ export default function UniversalEditor({
   sceneCharNames,
   onCharInserted,
   szeneId,
+  onMagicOpen,
+  onExportOpen,
+  exportOpen = false,
 }: UniversalEditorProps) {
   injectScreenplayCSS()
   loadCourierPrime()
@@ -1815,6 +1818,22 @@ export default function UniversalEditor({
               >
                 <ImageIcon size={13} />
               </ToolbarBtn>
+
+              {onMagicOpen && (
+                <ToolbarBtn onClick={onMagicOpen} tooltip={"Magic-Funktionen\nCtrl+M"}>
+                  <Wand2 size={13} style={{ color: '#AF52DE' }} />
+                </ToolbarBtn>
+              )}
+
+              {onExportOpen && (
+                <ToolbarBtn
+                  onClick={onExportOpen}
+                  tooltip="Exportieren (PDF, DOCX, Fountain, FDX)"
+                  active={exportOpen}
+                >
+                  <Download size={13} />
+                </ToolbarBtn>
+              )}
 
               <div style={{ flex: 1 }} />
 
