@@ -691,22 +691,20 @@ PFLICHT: Verwende AUSSCHLIESSLICH Figurennamen aus den Szenen — KEINE Schauspi
     const lektorPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${folgeNr} ===
 ${szenenListe}
 ${strangHinweis}
-Erstelle eine strukturierte Lektor-Inhaltsangabe. Rollennamen IMMER in GROSSBUCHSTABEN. Präsens. 500–700 Wörter.
-Verwende folgende Abschnitte (Abschnittskopf mit **Fettdruck:**):
+Erstelle eine CHRONOLOGISCHE Inhaltsangabe der Folge als Fließtext. Rollennamen IMMER in GROSSBUCHSTABEN. Präsens. 500–700 Wörter. Keine Kapitelüberschriften, keine Abschnittstruktur, kein Markdown.
 
-**Want & Need:**
-Je Hauptfigur eine Zeile — FIGURENNAME: Want: [äußeres Ziel dieser Folge] / Need: [innere Notwendigkeit] (Sz. X)
+Füge direkt hinter relevante Sätze folgende Marker ein — nur den Marker, kein Kommentar:
+- (Sz. X) — bei jeder konkreten Behauptung als Szenenreferenz
+- [Want] — wenn der Satz ein äußeres Ziel einer Figur ausdrückt
+- [Need] — wenn der Satz eine innere Notwendigkeit ausdrückt
+- [Akt 1 Ende] / [Akt 2 Ende] — genau an der Stelle im Fließtext wo ein Akt endet
+- [Cliff] — am Ende eines Cliffhanger-Strangs
+- [Pen] — bei einem offenen Pending-Ende
 
-**Wendepunkte:**
-Nummerierte Liste — 1. [Wendepunkt] (Sz. X): Beschreibung
+Beispiel-Stil:
+"LOU trifft RICHARD im Café (Sz. 3). Sie möchte wissen, ob er nach München zieht [Want]. RICHARD weicht aus und lügt sie an (Sz. 5). LOU spürt, dass etwas nicht stimmt (Sz. 6) [Need]. [Akt 1 Ende] BRITTA meldet sich für das Ehrenamt im Krankenhaus an (Sz. 9) [Want]. Am Abend wartet LOU vergeblich auf eine Nachricht (Sz. 21) [Cliff]."
 
-**Akt-Struktur:**
-Akt 1 (Sz. 1–X): Ausgangssituation und Konfliktanlage
-Akt 2 (Sz. X–Y): Zuspitzung und Konfrontation
-Akt 3 (Sz. Y–Ende): Auflösung / offene Enden
-
-**Handlungsstränge:**
-Je Strang eine Zeile — STRANGNAME${strangNamen.length > 0 ? ` (bekannte Namen: ${strangNamen.join(', ')})` : ''}: Verlauf mit CLIFF: / PEN: Verweisen. Szenenreferenzen in Klammern (Sz. X, Y).`
+Schreibe die gesamte Folge in diesem Stil — chronologisch, ein durchgehender Fließtext.`
 
     // Drei Calls parallel
     const [titelRaw, contentRaw, lektorRaw] = await Promise.all([
@@ -719,7 +717,7 @@ Je Strang eine Zeile — STRANGNAME${strangNamen.length > 0 ? ` (bekannte Namen:
         { role: 'user', content: contentPrompt },
       ], 2200, tempStruktur),
       callProvider(setting, [
-        { role: 'system', content: 'Du bist Lektor und Dramaturg einer deutschen Daily-Soap. Erstelle strukturierte Inhaltsangaben mit dramaturgischen Referenzen. Rollennamen IMMER in GROSSBUCHSTABEN. Verwende AUSSCHLIESSLICH **Text:** für Abschnittsköpfe (allein auf einer Zeile). Sonst KEINERLEI Markdown: kein *, kein _, kein #.' },
+        { role: 'system', content: 'Du bist Lektor und Dramaturg einer deutschen Daily-Soap. Erstelle eine chronologische Fließtext-Inhaltsangabe mit eingebetteten Markern [Want], [Need], [Akt X Ende], [Cliff], [Pen] und Szenenreferenzen (Sz. X). Rollennamen IMMER in GROSSBUCHSTABEN. Kein Markdown, keine Abschnittsüberschriften, nur Fließtext.' },
         { role: 'user', content: lektorPrompt },
       ], 1800, tempStruktur),
     ])

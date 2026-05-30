@@ -183,7 +183,7 @@ const TABS: { id: Tab; label: string; desc: string }[] = [
   { id: 'titel',         label: 'Titel',         desc: '1–3 Wörter' },
   { id: 'kurzinhalt',    label: 'Kurzinhalt',    desc: 'strukturiert' },
   { id: 'redaktion',     label: 'Redaktion',     desc: '300–500 Wörter' },
-  { id: 'lektor',        label: 'Lektor',        desc: 'Want·Akte·Stränge' },
+  { id: 'lektor',        label: 'Lektor',        desc: 'chronol. · Marker' },
   { id: 'strang',        label: 'Strang',        desc: '≤300 Zeichen' },
   { id: 'programmpresse', label: 'Programmpresse', desc: '300–450 Zeichen' },
   { id: 'pressetext',   label: 'Pressetext',    desc: '280–330 Zeichen' },
@@ -453,8 +453,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
         .syn-m .ProseMirror p:last-child { margin-bottom: 0; }
         .syn-tab:hover:not(.syn-tab-active) { background: rgba(255,255,255,0.07) !important; }
         .syn-titel-card:hover { border-color: #AF52DE88 !important; background: #AF52DE18 !important; }
-        .syn-strang-ta { resize: vertical; background: rgba(0,0,0,0.3); color: #f0f0f0; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px 12px; line-height: 1.7; font-family: 'JetBrains Mono', 'Fira Code', monospace; width: 100%; box-sizing: border-box; outline: none; }
-        .syn-strang-ta:focus { border-color: rgba(175,82,222,0.5); }
+        .syn-strang-row input::placeholder { color: rgba(255,255,255,0.2); }
       `}</style>
 
       <div
@@ -726,7 +725,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               <div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                   <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
-                    Want &amp; Need · Wendepunkte · Akt-Struktur · Stränge mit CLIFF/PEN und Szenenreferenzen
+                    Chronologischer Fließtext · [Want] [Need] [Akt X Ende] [Cliff] [Pen] · (Sz. X) Referenzen
                   </span>
                   {lektorEditor && lektorEditor.getText().length > 5 && (() => {
                     const wc = wordCount(lektorEditor.getHTML())
@@ -746,23 +745,71 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               <div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                   <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
-                    Je Handlungsstrang eine Zeile · Format: STRANGNAME: Inhalt · max. 300 Zeichen
+                    Je Handlungsstrang eine Zeile · max. 300 Zeichen
                   </span>
-                  {strangText && (
+                  {strangText.trim() && (
                     <span style={{ fontSize:12, color:'rgba(255,255,255,0.65)' }}>
                       {strangText.split('\n').filter(Boolean).length} Stränge
                     </span>
                   )}
                 </div>
-                <textarea
-                  className="syn-strang-ta"
-                  value={strangText}
-                  onChange={e => setStrangText(e.target.value)}
-                  style={{ fontSize: Math.round(13 * editorZoom) }}
-                  rows={10}
-                  placeholder={"LOU: Entscheidung über München und Trennung von Richard\nBRITTA: Ehrenamt im Krankenhaus, Job-Angebot\nMO/JULIUS: Aussprache und Annäherung"}
-                  spellCheck={false}
-                />
+                <div style={{ border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, overflow:'hidden', background:'rgba(0,0,0,0.3)' }}>
+                  {strangText.split('\n').filter(Boolean).map((line, i, arr) => {
+                    const ci = line.indexOf(':')
+                    const name = (ci >= 0 ? line.slice(0, ci) : line).trim()
+                    const content = ci >= 0 ? line.slice(ci + 1).trim() : ''
+                    const updateLine = (newName: string, newContent: string) => {
+                      const lines = strangText.split('\n').filter(Boolean)
+                      lines[i] = newContent ? `${newName}: ${newContent}` : newName
+                      setStrangText(lines.join('\n'))
+                    }
+                    return (
+                      <div key={i} style={{
+                        display:'flex', alignItems:'center', gap:4,
+                        padding:'7px 10px 7px 12px',
+                        borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.07)' : 'none',
+                      }}>
+                        <input
+                          value={name}
+                          onChange={e => updateLine(e.target.value, content)}
+                          placeholder="STRANG"
+                          style={{
+                            background:'transparent', border:'none', outline:'none',
+                            fontWeight:700, color:'#D18AFF',
+                            fontSize: Math.round(13 * editorZoom),
+                            width:'28%', minWidth:60,
+                          }}
+                        />
+                        <span style={{ color:'rgba(255,255,255,0.35)', fontWeight:700, flexShrink:0, fontSize: Math.round(13 * editorZoom) }}>:</span>
+                        <input
+                          value={content}
+                          onChange={e => updateLine(name, e.target.value)}
+                          placeholder="Kurzbeschreibung…"
+                          style={{
+                            flex:1, background:'transparent', border:'none', outline:'none',
+                            color:'#f0f0f0', fontSize: Math.round(13 * editorZoom), lineHeight:1.7,
+                          }}
+                        />
+                        <button
+                          onMouseDown={() => {
+                            const lines = strangText.split('\n').filter(Boolean)
+                            lines.splice(i, 1)
+                            setStrangText(lines.join('\n'))
+                          }}
+                          style={{ background:'none', border:'none', color:'rgba(255,255,255,0.2)', cursor:'pointer', padding:'2px 6px', fontSize:16, flexShrink:0 }}
+                        >×</button>
+                      </div>
+                    )
+                  })}
+                  <div style={{ padding:'6px 12px', borderTop: strangText.trim() ? '1px solid rgba(255,255,255,0.07)' : 'none' }}>
+                    <button
+                      onMouseDown={() => setStrangText(prev => (prev.trim() ? prev.trimEnd() + '\n: ' : ': '))}
+                      style={{ background:'none', border:'none', color:'rgba(175,82,222,0.6)', cursor:'pointer', fontSize:11, padding:0, fontWeight:600 }}
+                    >
+                      + Strang hinzufügen
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
