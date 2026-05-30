@@ -685,7 +685,7 @@ werkstufenRouter.get('/:id/flashback-szenen', async (req, res) => {
 werkstufenRouter.get('/:id/laenge', async (req, res) => {
   try {
     const werkId = req.params.id
-    const row = await queryOne<{ stoppzeit_total_sek: string | null }>(
+    const row = await queryOne(
       `SELECT COALESCE(SUM(stoppzeit_sek), 0)::text AS stoppzeit_total_sek
        FROM dokument_szenen
        WHERE werkstufe_id = $1 AND geloescht = false`,
