@@ -617,7 +617,7 @@ router.post('/synopsen/generiere-alle', async (req, res) => {
       `SELECT DISTINCT s.name
        FROM straenge s
        JOIN dokument_szenen_straenge dss ON dss.strang_id = s.id
-       JOIN dokument_szenen ds ON ds.id = dss.szene_id
+       JOIN dokument_szenen ds ON ds.id = dss.dokument_szene_id
        WHERE ds.werkstufe_id = $1
        ORDER BY s.name`,
       [data.werkstufe.id]
