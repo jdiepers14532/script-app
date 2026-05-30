@@ -15,6 +15,7 @@ import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
 import { Clock } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import MagicFunktionenModal from './MagicFunktionenModal'
+import BatchCheckModal from '../BatchCheckModal'
 import SynopsenGenerierungModal from './SynopsenGenerierungModal'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
@@ -73,6 +74,7 @@ export default function EditorPanel({
   // ── Magic-Funktionen ──────────────────────────────────────────────────────
   const [magicOpen, setMagicOpen] = useState(false)
   const [synopsenOpen, setSynopsenOpen] = useState(false)
+  const [batchCheckOpen, setBatchCheckOpen] = useState(false)
 
   // Ctrl+M öffnet Magic-Funktionen
   useEffect(() => {
@@ -1007,8 +1009,19 @@ export default function EditorPanel({
         sceneFormat={sceneFormat}
         folgeId={folgeId}
         folgeNummer={folgeNummer}
+        werkstufId={selectedWerkId}
+        werkstufTyp={selectedWerk?.typ}
         onSynopseClick={() => { setMagicOpen(false); setSynopsenOpen(true) }}
+        onDrehbuchChecksClick={() => { setMagicOpen(false); setBatchCheckOpen(true) }}
       />
+
+      {batchCheckOpen && selectedWerkId && (
+        <BatchCheckModal
+          werkstufId={selectedWerkId}
+          produktionId={produktionId}
+          onClose={() => setBatchCheckOpen(false)}
+        />
+      )}
 
       {/* Synopsen-Generierung Modal */}
       {synopsenOpen && folgeId != null && (

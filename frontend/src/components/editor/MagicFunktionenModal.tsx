@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Wand2, X, Sparkles } from 'lucide-react'
+import { Wand2, X, Sparkles, CheckSquare } from 'lucide-react'
 
 interface Props {
   open: boolean
@@ -7,7 +7,10 @@ interface Props {
   sceneFormat: string | undefined | null
   folgeId: number | null
   folgeNummer: number
+  werkstufId?: string | null
+  werkstufTyp?: string | null
   onSynopseClick?: () => void
+  onDrehbuchChecksClick?: () => void
 }
 
 function Star({ x, y, delay, size }: { x: number; y: number; delay: number; size: number }) {
@@ -29,7 +32,7 @@ const STARS = [
   { x: 45, y: 90, delay: 2.0, size: 2 }, { x: 20, y: 42, delay: 1.2, size: 2 },
 ]
 
-export default function MagicFunktionenModal({ open, onClose, sceneFormat, folgeId, folgeNummer, onSynopseClick }: Props) {
+export default function MagicFunktionenModal({ open, onClose, sceneFormat, folgeId, folgeNummer, werkstufId, werkstufTyp, onSynopseClick, onDrehbuchChecksClick }: Props) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -198,6 +201,47 @@ export default function MagicFunktionenModal({ open, onClose, sceneFormat, folge
                       >
                         <Wand2 size={12} />
                         Synopse generieren
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Drehbuch-Checks — nur wenn Drehbuch/Storyline-Werkstufe aktiv */}
+              {werkstufId && werkstufTyp !== 'notiz' && (
+                <div style={{
+                  border: '1.5px solid rgba(0,200,83,0.35)',
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  background: 'linear-gradient(135deg, rgba(0,200,83,0.08), rgba(0,200,83,0.04))',
+                }}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <CheckSquare size={15} color="#00C853" style={{ marginTop: 1, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+                        Drehbuch-Checks
+                      </div>
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 14 }}>
+                        Alle Szenen dieser Werkstufe auf Konsistenz, Struktur und Dramaturgie prüfen.
+                        Wähle aus welche Checks ausgeführt werden sollen.
+                      </div>
+                      <button
+                        onClick={() => { onDrehbuchChecksClick?.(); onClose() }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 7,
+                          padding: '7px 16px', borderRadius: 8,
+                          background: 'linear-gradient(135deg, #00C853, #00a844)',
+                          color: '#fff',
+                          border: '1px solid #00C853',
+                          cursor: 'pointer',
+                          fontSize: 12, fontWeight: 700, letterSpacing: 0.2,
+                          transition: 'transform 0.12s, box-shadow 0.12s',
+                        }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 20px rgba(0,200,83,0.4)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = '' }}
+                      >
+                        <CheckSquare size={12} />
+                        Checks ausführen
                       </button>
                     </div>
                   </div>
