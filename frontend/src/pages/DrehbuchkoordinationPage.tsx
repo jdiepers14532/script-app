@@ -6030,6 +6030,23 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
   const [activeEditor, setActiveEditor] = useState<any>(null)
   const [showPreview, setShowPreview] = useState(false)
   const sidebarFileRef = useRef<HTMLInputElement>(null)
+  const rightPanelRef = useRef<HTMLDivElement>(null)
+  const zoomAutoFitDone = useRef(false)
+
+  // Auto-fit zoom: once on first template open, scale A4 (794px) to fit the panel
+  useEffect(() => {
+    if (!editId || zoomAutoFitDone.current) return
+    const raf = requestAnimationFrame(() => {
+      const el = rightPanelRef.current
+      if (!el) return
+      const availW = el.clientWidth - 96 // 48px padding × 2
+      if (availW > 0 && availW < 794) {
+        setZoom(Math.max(0.5, Math.round((availW / 794) * 20) / 20))
+      }
+      zoomAutoFitDone.current = true
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [editId])
 
   const handleSidebarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -6299,7 +6316,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
         </div>
 
         {/* ── Right: A4 area ── */}
-        <div style={{ flex: 1, background: '#bebebe', padding: '40px 48px', minHeight: '100vh', overflowX: 'auto' }}>
+        <div ref={rightPanelRef} style={{ flex: 1, background: '#bebebe', padding: '40px 48px', minHeight: '100vh', overflowX: 'auto' }}>
           <input ref={sidebarFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleSidebarFile} />
           <DokumentVorlagenEditor
             key={`edit-${editId}-${editorKey}`}
