@@ -870,6 +870,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           folgen={folgenForStat}
           bloecke={bloeckeForStat}
           sections={statSections}
+          initialFolgeNummer={selectedWerk?.folge_nummer ?? null}
           onExportUebernehmen={handleStatistikUebernehmen}
         />
       )}
@@ -879,6 +880,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           title={statConfigItemType === 'onliner' ? 'Onliner konfigurieren' : 'Synopsen konfigurieren'}
           folgen={folgenForStat}
           bloecke={bloeckeForStat}
+          initialFolgeNummer={selectedWerk?.folge_nummer ?? null}
           onConfirm={handleStatistikUebernehmen}
           onClose={() => setStatConfigItemId(null)}
         />
@@ -1014,11 +1016,12 @@ function FilterPickerButton({ label, count, onClick }: { label: string; count: n
 // ── FolgePickerModal — minimaler Folgen/Block-Picker für Onliner & Synopsen ────
 
 function FolgePickerModal({
-  title, folgen, bloecke, onConfirm, onClose,
+  title, folgen, bloecke, initialFolgeNummer, onConfirm, onClose,
 }: {
   title: string
   folgen: any[]
   bloecke: any[]
+  initialFolgeNummer?: number | null
   onConfirm: (config: StatistikExportConfig) => void
   onClose: () => void
 }) {
@@ -1031,9 +1034,14 @@ function FolgePickerModal({
     [folgen]
   )
   const [mode, setMode] = useState<'folge' | 'block'>('folge')
-  const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(
-    wsFolgen.length ? wsFolgen[0].id : (folgen.length ? folgen[0].id : null)
-  )
+  const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(() => {
+    const pool = wsFolgen.length ? wsFolgen : folgen
+    if (initialFolgeNummer != null) {
+      const match = pool.find((f: any) => f.folge_nummer === initialFolgeNummer)
+      if (match) return match.id
+    }
+    return pool.length ? pool[0].id : null
+  })
   const [selectedBlockIdx, setSelectedBlockIdx] = useState(0)
 
   const selectedFolgeIds = useMemo(() => {
