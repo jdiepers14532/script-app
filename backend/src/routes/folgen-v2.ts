@@ -416,7 +416,8 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
         [neueWerkstufe!.id, neueSi!.id, sz.sort_order, sz.scene_nummer, sz.scene_nummer_suffix,
          sz.ort_name, sz.int_ext, sz.tageszeit, sz.spieltag, sz.zusammenfassung, sz.spielzeit, sz.szeneninfo,
-         sz.seiten, sz.content, sz.format, sz.stoppzeit_sek, sz.element_type, sz.notiz, sz.motiv_id,
+         sz.seiten, sz.content != null ? JSON.stringify(sz.content) : null,
+         sz.format, sz.stoppzeit_sek, sz.element_type, sz.notiz, sz.motiv_id,
          sz.sondertyp, sz.stockshot_kategorie, sz.stockshot_neu_drehen,
          sz.flashback_referenz_id, sz.flashback_ganze_szene, sz.flashback_referenz_freitext,
          sz.ws_spezifikation, sz.vorlage_id]
