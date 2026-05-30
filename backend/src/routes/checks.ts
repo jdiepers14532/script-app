@@ -58,12 +58,11 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
   const sceneRes = await pool.query<any>(`
     SELECT ds.id, ds.scene_identity_id, ds.werkstufe_id, ds.ort_name, ds.int_ext,
            ds.tageszeit, ds.stoppzeit_sek, ds.sondertyp, ds.content, ds.format,
-           ds.scene_nummer, si.produktion_id,
-           (SELECT f.folge_nummer
-            FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
-            WHERE w.id = ds.werkstufe_id LIMIT 1) AS folge_nummer
+           ds.scene_nummer, f.produktion_id,
+           f.folge_nummer
     FROM dokument_szenen ds
     JOIN scene_identities si ON si.id = ds.scene_identity_id
+    JOIN folgen f ON f.id = si.folge_id
     WHERE ds.id = $1 AND ds.geloescht IS NOT TRUE
   `, [szeneId])
 
@@ -325,8 +324,9 @@ router.post('/werkstufe/:id/batch', async (req, res) => {
     if (runSpieltagCross) {
       // Get produktion_id from werkstufe
       const prodRes = await pool.query<any>(
-        `SELECT si.produktion_id FROM dokument_szenen ds
+        `SELECT f.produktion_id FROM dokument_szenen ds
          JOIN scene_identities si ON si.id = ds.scene_identity_id
+         JOIN folgen f ON f.id = si.folge_id
          WHERE ds.werkstufe_id = $1 LIMIT 1`,
         [werkstufId]
       )
