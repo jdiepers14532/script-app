@@ -744,7 +744,8 @@ async function buildSynopsenHtml(
   config: StatistikExportConfig,
   szenenkopfTemplate: any,
   kuerzel: Record<string, string>,
-  bodyMarginLeftCm: number
+  bodyMarginLeftCm: number,
+  pageContentHeightMm = 257  // A4 minus Standardränder oben/unten
 ): Promise<string> {
   const { folge_ids: folgeIds } = config
   if (!folgeIds.length) {
@@ -810,7 +811,24 @@ async function buildSynopsenHtml(
     charRes.rows.map((r: any) => [r.scene_identity_id, r.rollen])
   )
 
-  const headings: string[] = []
+  // ── Server-seitige Seitenumbruch-Berechnung ────────────────────────────────
+  // Statt CSS break-inside:avoid (Chrome 130 Bug bei Tabellen) oder DOM-Messung
+  // (fragile Puppeteer-Koordinaten) zählen wir die Zeilen jedes Szenenkopfes aus
+  // dem gerenderten HTML und berechnen Seitenumbrüche vorab.
+  //
+  // Jede Zeile entspricht einem <p>-Element (einspaltig) oder <div style="display:flex">
+  // (mehrspaltig mit Tab-Stops) aus renderSKParagraph, plus <hr>-Elemente.
+  // Standard: font-size 11pt × line-height 1.2 = 13.2pt/Zeile + 18pt Randabstände pro Szenenkopf.
+  //
+  // Kein CSS break-inside:avoid auf der äußeren <div> (Backup für Chrome) + expliziter
+  // page-break-before wenn die Seite voll ist (primärer Mechanismus).
+
+  const LINE_HEIGHT_PT = 13.2   // 11pt × 1.2 (renderSKParagraph-Defaults)
+  const HEAD_MARGIN_PT = 18     // 14pt margin-top + 4pt margin-bottom
+  const pageHeightPt   = Math.max(100, pageContentHeightMm) * (72 / 25.4)
+  let   accumPt        = 0
+  const parts: string[] = []
+
   for (const row of scenesRes.rows) {
     const sceneRow: SceneRow = {
       scene_nummer:        row.scene_nummer,
@@ -831,13 +849,30 @@ async function buildSynopsenHtml(
       vorlage_name:        null,
     }
     const html = renderSzenenkopf(szenenkopfTemplate, sceneRow, row.folge_nummer, false, bodyMarginLeftCm, kuerzel)
-    if (html) headings.push(
-      `<tr class="synopse-row" style="vertical-align:top"><td style="padding:0">${html}</td></tr>`
+    if (!html) continue
+
+    // Zeilen zählen: <p ...> = einspaltige Zeile, display:flex = mehrspaltige Zeile, <hr = Trennlinie
+    const lineCount = Math.max(1,
+      (html.match(/<p /g)              ?? []).length +
+      (html.match(/display:flex/g)     ?? []).length +
+      (html.match(/<hr /g)             ?? []).length
     )
+    const scenePt = HEAD_MARGIN_PT + lineCount * LINE_HEIGHT_PT
+
+    // Neue Seite wenn Szenenkopf nicht mehr passt (aber nie ganz am Anfang)
+    if (accumPt > 0 && accumPt + scenePt > pageHeightPt) {
+      parts.push('<div style="page-break-before:always;height:0;overflow:hidden;margin:0;padding:0"></div>')
+      accumPt = 0
+    }
+    accumPt += scenePt
+
+    // <div> statt <tr>: vermeidet Chrome 130 Tabellen-Fragmentierungsbug.
+    // break-inside:avoid als CSS-Backup gegen unerwartetes Splitting.
+    parts.push(`<div style="break-inside:avoid;page-break-inside:avoid">${html}</div>`)
   }
 
-  if (!headings.length) return '<div style="color:#888;font-size:9pt">Keine Szenen gefunden.</div>'
-  return `<table style="width:100%;border-collapse:collapse;table-layout:fixed"><tbody>${headings.join('\n')}</tbody></table>`
+  if (!parts.length) return '<div style="color:#888;font-size:9pt">Keine Szenen gefunden.</div>'
+  return `<div>${parts.join('\n')}</div>`
 }
 
 /** Rendert eine Notiz-Werkstufe (ohne strukturierte Szenenköpfe) */
@@ -1246,6 +1281,16 @@ async function assembleHtml(
     // ── 8. Geordnete Pre-/Post-Sektionen aufbauen ─────────────────────────────
     setProgress(30)
 
+    // Nutzbare Seitenhöhe für server-seitige Seitenumbruch-Berechnung (Synopsen).
+    // Gleiche Logik wie pageMarginTop/Bottom weiter unten — aber früh berechnet
+    // damit buildSynopsenHtml die Werte nutzen kann (closure-Zugriff).
+    const _sl0     = kzFz?.seiten_layout ?? {} as Record<string, number | undefined>
+    const _hasKz   = !!(kzFz?.kopfzeile_aktiv && kzFz?.kopfzeile_content)
+    const _hasFz   = !!(kzFz?.fusszeile_aktiv && kzFz?.fusszeile_content)
+    const _pmt0    = _hasKz ? Math.max(bodyMargins.oben,  (_sl0.header_abstand_rand ?? 10) + 14 + 4) : bodyMargins.oben
+    const _pmb0    = _hasFz ? Math.max(bodyMargins.unten, (_sl0.footer_abstand_rand ?? 10) + 10 + 4) : bodyMargins.unten
+    const pageContentHeightMm = Math.max(100, 297 - _pmt0 - _pmb0)
+
     /** Rendert ein einzelnes OrderedExportItem zu HTML */
     async function renderOrderedItem(item: OrderedExportItem): Promise<string | null> {
       if (!item.enabled) return null
@@ -1286,7 +1331,8 @@ async function assembleHtml(
           const rendered = row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : null
           if (!rendered) return null
           // Unsichtbare Notiz-Elemente überspringen (verhindert leere Seite 1)
-          if (!rendered.replace(/<[^>]*>/g, '').trim()) return null
+          // &nbsp; und andere HTML-Entities werden explizit entfernt
+          if (!rendered.replace(/<[^>]*>/g, '').replace(/&[a-zA-Z#][a-zA-Z0-9]+;/g, ' ').trim()) return null
           const bookmarkH2 = item.label
             ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
             : ''
@@ -1327,7 +1373,7 @@ async function assembleHtml(
         const bookmarkH2 = item.label
           ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
           : ''
-        return `${bookmarkH2}${await buildSynopsenHtml(client, item.statistikConfig, szenenkopfTemplate, sceneKuerzel, bodyMargins.links / 10)}`
+        return `${bookmarkH2}${await buildSynopsenHtml(client, item.statistikConfig, szenenkopfTemplate, sceneKuerzel, bodyMargins.links / 10, pageContentHeightMm)}`
       }
       return null
     }
@@ -1392,7 +1438,11 @@ async function assembleHtml(
         }
       }
       const html = await renderOrderedItem(item)
-      if (html) preSections.push(html)
+      // Leerinhalt-Guard: HTML-Entities (&nbsp; etc.) werden entfernt bevor auf sichtbaren Text geprüft wird.
+      // Verhindert dass eine Notiz-Sektion mit nur unsichtbarem Inhalt eine leere Seite 1 erzeugt.
+      if (html && html.replace(/<[^>]*>/g, '').replace(/&[a-zA-Z#][a-zA-Z0-9]+;/g, ' ').trim()) {
+        preSections.push(html)
+      }
     }
     const titelseiteHtml = titelseiteHtmlParts.length > 0
       ? titelseiteHtmlParts.join('\n')
@@ -1401,7 +1451,9 @@ async function assembleHtml(
     const postSections: string[] = []
     for (const item of resolvedPostItems) {
       const html = await renderOrderedItem(item)
-      if (html) postSections.push(html)
+      if (html && html.replace(/<[^>]*>/g, '').replace(/&[a-zA-Z#][a-zA-Z0-9]+;/g, ' ').trim()) {
+        postSections.push(html)
+      }
     }
 
     // ── 8. Hauptszenen laden ──────────────────────────────────────────────────
@@ -1627,44 +1679,6 @@ async function renderHtmlToPdf(
   }
 }
 
-/**
- * Berechnet Synopsen-Seitenumbrüche per JavaScript (Chrome 130 break-inside:avoid Bug).
- * Chrome 130 ignoriert break-inside:avoid auf <tr>-Elementen und dupliziert den Inhalt.
- * Lösung: break-inside entfernen, stattdessen per JS explizite page-break-before:always setzen.
- * Muss nach page.setContent() und vor page.pdf() aufgerufen werden.
- */
-async function applySynopsenBreaks(
-  page: any,
-  topMm: number,
-  bottomMm: number,
-  leftMm: number,
-  rightMm: number
-): Promise<void> {
-  await page.emulateMediaType('print')
-  // Browser-Code als String-Template — vermeidet TypeScript-Fehler durch fehlende dom-lib
-  await page.evaluate(`
-    (function() {
-      var style = document.createElement('style');
-      style.textContent = '@page { size: A4; margin: ${topMm}mm ${rightMm}mm ${bottomMm}mm ${leftMm}mm }';
-      document.head.appendChild(style);
-      var pageH = 297 * 96 / 25.4;
-      var rows = Array.from(document.querySelectorAll('tr.synopse-row'));
-      for (var i = 0; i < rows.length; i++) {
-        rows[i].style.breakInside = 'auto';
-        rows[i].style.pageBreakInside = 'auto';
-        if (i > 0) {
-          var r = rows[i].getBoundingClientRect();
-          var tp = Math.floor(r.top / pageH);
-          var bp = Math.floor(Math.max(0, r.bottom - 0.5) / pageH);
-          if (tp < bp) {
-            rows[i].style.breakBefore = 'page';
-            rows[i].style.pageBreakBefore = 'always';
-          }
-        }
-      }
-    })()
-  `)
-}
 
 /** Fügt zwei PDFs zusammen: alle Seiten von a, dann alle Seiten von b. */
 async function mergePdfs(a: Uint8Array, b: Uint8Array): Promise<Uint8Array> {
@@ -1784,7 +1798,6 @@ export async function assemblePdf(
     : '<div style="font-size:0"></div>'
 
   const pdfBookmarks = input.options.pdfBookmarks === true
-  const hasSynopse = [...(input.options.preItems ?? []), ...(input.options.postItems ?? [])].some(it => it.type === 'synopse')
 
   let pdfBytes: Uint8Array
 
@@ -1833,7 +1846,6 @@ export async function assemblePdf(
         left:   `${bml}mm`,
         right:  `${bmr}mm`,
       },
-      onBeforePdf: hasSynopse ? (p: any) => applySynopsenBreaks(p, pageMarginTop, pageMarginBottom, bml, bmr) : undefined,
     })
     setProgress(85)
 
@@ -1859,7 +1871,6 @@ export async function assemblePdf(
     const page = await browser.newPage()
     try {
       await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
-      if (hasSynopse) await applySynopsenBreaks(page, pageMarginTop, pageMarginBottom, bml, bmr)
       setProgress(75)
 
       // outline:true → Chrome generiert PDF-Lesezeichen nativ aus <h2>-Tags.
