@@ -14,9 +14,10 @@ function VerlaufUndoTab() {
       }}>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Verlauf, Rückgängig & Auto-Sicherung</div>
         <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
-          Die Script-App schützt deinen Text auf zwei Ebenen: Erstens mit dem gewohnten <strong>Ctrl+Z / Ctrl+Y</strong> für spontane
-          Korrekturen (wie jede andere Textverarbeitung), und zweitens mit einem automatischen <strong>Verlauf</strong>,
-          der alle 5 Minuten eine Sicherungskopie anlegt — auch über Browser-Neustarts und Verbindungsabbrüche hinweg.
+          Die Script-App schützt deinen Text auf <strong>drei Ebenen</strong>: Erstens mit dem gewohnten <strong>Ctrl+Z / Ctrl+Y</strong> für
+          spontane Korrekturen, zweitens mit einem <strong>Szenen-Verlauf</strong> (alle 5 Minuten, pro Szene)
+          und drittens mit einem <strong>Dokument-Verlauf</strong> (beim Werkstufen-Wechsel oder auf Knopfdruck),
+          der alle Szenen der Werkstufe auf einmal sichert — und vor jeder Wiederherstellung automatisch eine Undo-Sicherung anlegt.
         </div>
       </div>
 
@@ -48,11 +49,6 @@ function VerlaufUndoTab() {
           ))}
         </div>
 
-        <p style={{ fontSize: 12, color: C.muted, marginBottom: 12, lineHeight: 1.6 }}>
-          In der Textformate-Leiste findest du außerdem Schaltflächen ↩ (Rückgängig) und ↪ (Wiederholen), die ausgegraut
-          erscheinen, wenn keine weiteren Schritte mehr vorhanden sind.
-        </p>
-
         <InfoBox title="Kollaborativer Modus" color={C.blue}>
           Wenn mehrere Personen gleichzeitig an einer Werkstufe arbeiten,
           gilt ein Ctrl+Z nur für deine eigenen Eingaben — nicht für die Änderungen von Kolleginnen.
@@ -68,74 +64,79 @@ function VerlaufUndoTab() {
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 2. Automatischer Verlauf */}
+      {/* 2. Das Verlauf-Panel — Toggle */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <Section title="2. Automatischer Verlauf (Uhren-Icon)">
+      <Section title="2. Das Verlauf-Panel öffnen">
         <p style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
-          Die App legt automatisch Sicherungskopien an — ähnlich der Versionshistorie in Google Docs.
-          Du erkennst die Funktion am <strong>Uhren-Icon</strong> rechts in der Werkstufen-Leiste, direkt neben dem Speicher-Status.
+          Das <strong>Uhren-Icon</strong> rechts in der Werkstufen-Leiste öffnet das Verlauf-Panel.
+          Oben im Panel wählst du zwischen zwei Modi:
         </p>
 
-        {/* Visual: Header bar mockup */}
+        {/* Toggle-Mockup */}
         <div style={{
           background: 'var(--bg-subtle)',
           border: `1px solid ${C.border}`,
           borderRadius: 8,
-          padding: '8px 14px',
+          padding: '12px 16px',
           marginBottom: 20,
-          display: 'flex', alignItems: 'center', gap: 8,
-          fontSize: 12,
+          display: 'flex', flexDirection: 'column', gap: 10,
         }}>
-          <span style={{ color: C.muted, fontSize: 11 }}>Drehbuch v1</span>
-          <div style={{ flex: 1 }} />
-          <span style={{ color: C.green, fontSize: 11 }}>● Gespeichert</span>
-          <div style={{
-            width: 24, height: 24, borderRadius: 5,
-            border: `1px solid ${C.blue}`,
-            background: C.blue + '15',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: C.blue, fontSize: 12,
-          }}>⏱</div>
-          <span style={{ fontSize: 10, color: C.muted }}>← Uhren-Icon</span>
+          {/* Simulierter Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+            <span style={{ fontSize: 11 }}>⏱</span>
+            <strong style={{ fontSize: 13 }}>Verlauf</strong>
+            <div style={{ flex: 1 }} />
+            <span style={{ fontSize: 11, color: C.muted }}>✕</span>
+          </div>
+          {/* Simulierter Toggle */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {[
+              { label: '📄 Diese Szene', active: true },
+              { label: '📚 Dokument', active: false },
+            ].map(({ label, active }) => (
+              <div key={label} style={{
+                flex: 1, textAlign: 'center',
+                padding: '5px 8px', borderRadius: 6, fontSize: 11, fontWeight: active ? 700 : 400,
+                background: active ? C.border : 'transparent',
+                color: active ? C.text : C.muted,
+                border: `1px solid ${active ? C.border : 'transparent'}`,
+              }}>{label}</div>
+            ))}
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-          {[
-            { icon: '⏱', label: 'Wann wird gespeichert?', desc: '5 Minuten nach der letzten Änderung und beim Wechsel zu einer anderen Szene' },
-            { icon: '📋', label: 'Wie viele Versionen?', desc: 'Die letzten 50 Versionen je Szene — ältere werden automatisch gelöscht' },
-            { icon: '🔁', label: 'Wiederherstellen?', desc: 'Klick auf einen Eintrag → "Wiederherstellen" → Inhalt der Szene wird sofort ersetzt und gespeichert' },
-            { icon: '📴', label: 'Offline?', desc: 'Sicherungen werden gespeichert, sobald du wieder online bist' },
-          ].map(({ icon, label, desc }) => (
-            <div key={label} style={{
-              background: 'var(--bg-surface)',
-              border: `1px solid ${C.border}`,
-              borderRadius: 8, padding: '12px 14px',
-            }}>
-              <div style={{ fontSize: 16, marginBottom: 6 }}>{icon}</div>
-              <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4 }}>{label}</div>
-              <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.5 }}>{desc}</div>
-            </div>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={{ background: 'var(--bg-surface)', border: `1px solid ${C.border}`, borderRadius: 8, padding: '14px' }}>
+            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6 }}>📄 Diese Szene</div>
+            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+              <li>Sicherungen nur für die aktuell geöffnete Szene</li>
+              <li>Auto alle 5 Minuten nach letzter Änderung</li>
+              <li>Maximal 50 Einträge je Szene</li>
+              <li>Andere Szenen bleiben beim Wiederherstellen unverändert</li>
+            </ul>
+          </div>
+          <div style={{ background: 'var(--bg-surface)', border: `1px solid ${C.blue}33`, borderRadius: 8, padding: '14px' }}>
+            <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 6, color: C.blue }}>📚 Dokument</div>
+            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 11, color: C.muted, lineHeight: 1.7 }}>
+              <li>Snapshot aller Szenen der Werkstufe</li>
+              <li>Auto beim Werkstufen-Wechsel + alle 30 Minuten</li>
+              <li>Manuell: „Jetzt Dokument sichern"-Button</li>
+              <li>Maximal 30 Einträge je Werkstufe</li>
+            </ul>
+          </div>
         </div>
-
-        <InfoBox title="Persistenz über Sitzungen hinweg" color={C.green}>
-          Im Gegensatz zu Ctrl+Z bleibt der Verlauf über Seitenreloads und Browser-Neustarts erhalten.
-          Wenn du gestern Abend versehentlich einen Absatz gelöscht hast und das heute merkst, findest
-          du die Version trotzdem noch im Verlauf — solange nicht mehr als 50 Sicherungen darüber liegen.
-        </InfoBox>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 3. Verlauf-Panel bedienen */}
+      {/* 3. Szenen-Verlauf */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <Section title="3. Das Verlauf-Panel bedienen">
+      <Section title="3. Szenen-Verlauf nutzen">
         <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[
             { step: 'Szene öffnen', desc: 'Wähle die Szene aus, deren Verlauf du sehen möchtest.' },
-            { step: 'Uhren-Icon anklicken', desc: 'Das Verlauf-Panel öffnet sich rechts neben dem Editor und zeigt eine Zeitlinie.' },
-            { step: 'Eintrag auswählen', desc: 'Klicke auf einen Zeitstempel, um den Eintrag zu erweitern. Du siehst eine kurze Textvorschau.' },
-            { step: '"Wiederherstellen" anklicken', desc: 'Ein Bestätigungsdialog erscheint. Bestätige mit "Ja, wiederherstellen" — der aktuelle Inhalt wird ersetzt.' },
-            { step: 'Weiterarbeiten', desc: 'Der wiederhergestellte Inhalt ist sofort gespeichert. Du kannst danach wieder normal schreiben.' },
+            { step: 'Uhren-Icon → Modus „Diese Szene"', desc: 'Das Panel zeigt die Verlaufseinträge der aktuellen Szene (andere Szenen sind nicht betroffen).' },
+            { step: 'Eintrag auswählen', desc: 'Klicke auf einen Zeitstempel, um ihn zu erweitern. Du siehst Autor, Uhrzeit und Textvorschau.' },
+            { step: '"Auf diesen Stand zurückgehen"', desc: 'Ein Bestätigungsdialog erscheint — bestätige mit „Ja, wiederherstellen". Die Szene wird sofort aktualisiert und gespeichert.' },
           ].map(({ step, desc }, i) => (
             <li key={step} style={{ paddingLeft: 8, fontSize: 12, lineHeight: 1.6 }}>
               <strong style={{ color: C.blue }}>Schritt {i + 1}: {step}</strong>
@@ -145,23 +146,78 @@ function VerlaufUndoTab() {
           ))}
         </ol>
 
-        <div style={{ marginTop: 20 }}>
-          <WarnBox title="Achtung">
-            Das Wiederherstellen überschreibt den aktuellen Szeneninhalt unwiderruflich.
-            Falls du unsicher bist, kopiere den aktuellen Text erst in ein externes Dokument, bevor du wiederherstellst.
-          </WarnBox>
+        <div style={{ marginTop: 16 }}>
+          <InfoBox title="Fremde Änderung erkannt" color={C.orange}>
+            Wenn jemand anderes die Szene nach dem gewählten Sicherungspunkt bearbeitet hat, erscheint ein
+            oranges Warnsymbol. Du kannst die Wiederherstellung trotzdem durchführen — die App zeigt dir, wessen Änderungen überschrieben werden.
+          </InfoBox>
         </div>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      {/* 4. Übersicht: zwei Schutzebenen */}
+      {/* 4. Dokument-Verlauf */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
-      <Section title="4. Zwei Schutzebenen im Vergleich">
+      <Section title="4. Dokument-Verlauf nutzen">
+        <p style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.6 }}>
+          Der Dokument-Verlauf sichert alle Szenen der Werkstufe gleichzeitig — ideal wenn du den Zustand
+          des gesamten Drehbuchs zu einem bestimmten Zeitpunkt wiederherstellen möchtest.
+        </p>
+
+        <ol style={{ paddingLeft: 20, margin: 0, display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+          {[
+            { step: 'Uhren-Icon → Modus „Dokument"', desc: 'Die Liste zeigt alle Dokument-Snapshots der aktuellen Werkstufe.' },
+            { step: 'Manuell sichern (optional)', desc: 'Mit „Jetzt Dokument sichern" legst du sofort einen Snapshot aller Szenen an — z.B. vor einer größeren Überarbeitung.' },
+            { step: 'Eintrag auswählen und erweitern', desc: 'Jeder Eintrag zeigt Zeitstempel, Typ (Auto / Manuell / Vor Wiederherstellung), Anzahl der Szenen und Autor.' },
+            { step: '"Auf diesen Stand zurückgehen"', desc: 'Der aktuelle Zustand aller Szenen wird zunächst automatisch als neue Sicherung gespeichert (damit kannst du rückgängig machen). Dann werden alle Szenen mit dem Snapshot-Inhalt überschrieben.' },
+            { step: 'Editor aktualisiert sich', desc: 'Die aktuell geöffnete Szene zeigt sofort den wiederhergestellten Inhalt. Alle anderen Szenen werden beim nächsten Öffnen korrekt geladen.' },
+          ].map(({ step, desc }, i) => (
+            <li key={step} style={{ paddingLeft: 8, fontSize: 12, lineHeight: 1.6 }}>
+              <strong style={{ color: C.blue }}>Schritt {i + 1}: {step}</strong>
+              <br />
+              <span style={{ color: C.muted }}>{desc}</span>
+            </li>
+          ))}
+        </ol>
+
+        {/* Typ-Erklärung */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10 }}>Eintrags-Typen im Dokument-Verlauf</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[
+              { badge: 'Auto', color: C.muted, desc: 'Automatisch angelegt — beim Werkstufen-Wechsel oder nach 30 Minuten aktiver Arbeit.' },
+              { badge: 'Manuell', color: C.blue, desc: 'Von dir per Knopfdruck angelegt — z.B. vor einer größeren Umstrukturierung.' },
+              { badge: 'Vor Wiederherstellung', color: '#fb923c', desc: 'Automatisch angelegt, bevor eine Wiederherstellung durchgeführt wurde. Dient als Undo — wenn die Wiederherstellung nicht das gewünschte Ergebnis hatte, kannst du diesen Eintrag nutzen, um zum vorherigen Stand zurückzukehren.' },
+            ].map(({ badge, color, desc }) => (
+              <div key={badge} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <span style={{
+                  flexShrink: 0, fontSize: 9, fontWeight: 700,
+                  color, background: color + '20',
+                  borderRadius: 3, padding: '2px 6px', letterSpacing: '0.04em',
+                  textTransform: 'uppercase', marginTop: 1,
+                }}>{badge}</span>
+                <span style={{ fontSize: 11, color: C.muted, lineHeight: 1.6 }}>{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <InfoBox title="Sicherheitsnetz: Undo für die Wiederherstellung" color={C.green}>
+          Vor jeder Dokument-Wiederherstellung sichert die App automatisch den aktuellen Stand.
+          Du erkennst diese Einträge am Badge <strong style={{ color: '#fb923c' }}>Vor Wiederherstellung</strong> (orange).
+          Das gibt dir ein vollständiges Undo: Wenn das Ergebnis nicht stimmt, kannst du im selben Panel
+          diesen Eintrag nutzen und den Stand von vor der Wiederherstellung zurückbringen.
+        </InfoBox>
+      </Section>
+
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      {/* 5. Drei Schutzebenen im Vergleich */}
+      {/* ══════════════════════════════════════════════════════════════════════ */}
+      <Section title="5. Drei Schutzebenen im Vergleich">
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <thead>
               <tr>
-                {['Szenario', 'Ctrl+Z', 'Verlauf (Uhren-Icon)'].map(h => (
+                {['Szenario', 'Ctrl+Z', 'Szenen-Verlauf', 'Dokument-Verlauf'].map(h => (
                   <th key={h} style={{
                     textAlign: 'left', padding: '8px 12px',
                     borderBottom: `2px solid ${C.border}`,
@@ -172,17 +228,20 @@ function VerlaufUndoTab() {
             </thead>
             <tbody>
               {[
-                ['Fehler beim Tippen — selbe Sitzung', '✅ Sofort', '– (nicht nötig)'],
-                ['Absatz gelöscht, 10 Min. her, kein Reload', '✅ Im Stack', '✅ Snapshot vorhanden'],
-                ['Seite neu geladen, dann Fehler bemerkt', '❌ Stack weg', '✅ Snapshot vorhanden'],
-                ['Browser-Absturz oder Stromausfall', '❌ Stack weg', '✅ Snapshot vorhanden'],
-                ['Gestern gelöscht, heute bemerkt', '❌ Stack weg', '✅ Snapshot vorhanden'],
-                ['Kollege hat was überschrieben', '❌ Eigener Stack', '✅ Snapshot vorhanden'],
-              ].map(([scenario, undo, snap]) => (
+                ['Fehler beim Tippen — selbe Sitzung', '✅ Sofort', '– (nicht nötig)', '– (nicht nötig)'],
+                ['Absatz gelöscht, 10 Min. her', '✅ Im Stack', '✅ Snapshot', '✅ falls innerhalb 30 Min.'],
+                ['Seite neu geladen, dann Fehler bemerkt', '❌ Stack weg', '✅ Snapshot', '✅ Snapshot'],
+                ['Browser-Absturz oder Stromausfall', '❌ Stack weg', '✅ Snapshot', '✅ Snapshot'],
+                ['Gestern gelöscht, heute bemerkt', '❌ Stack weg', '✅ Snapshot', '✅ Snapshot'],
+                ['Kollege hat eine Szene überschrieben', '❌ Eigener Stack', '✅ Szenen-Snapshot', '✅ Dokument-Snapshot'],
+                ['Mehrere Szenen gleichzeitig zurücksetzen', '❌ Nicht möglich', '❌ Nur eine Szene', '✅ Alle Szenen'],
+                ['Ganzes Drehbuch auf früheren Stand', '❌ Nicht möglich', '❌ Nur eine Szene', '✅ Dokument-Snapshot'],
+              ].map(([scenario, undo, szene, dok]) => (
                 <tr key={scenario} style={{ borderBottom: `1px solid ${C.border}` }}>
                   <td style={{ padding: '8px 12px', color: C.text }}>{scenario}</td>
                   <td style={{ padding: '8px 12px', color: undo.startsWith('✅') ? C.green : C.orange }}>{undo}</td>
-                  <td style={{ padding: '8px 12px', color: snap.startsWith('✅') ? C.green : C.muted }}>{snap}</td>
+                  <td style={{ padding: '8px 12px', color: szene.startsWith('✅') ? C.green : szene.startsWith('❌') ? C.orange : C.muted }}>{szene}</td>
+                  <td style={{ padding: '8px 12px', color: dok.startsWith('✅') ? C.green : dok.startsWith('❌') ? C.orange : C.muted }}>{dok}</td>
                 </tr>
               ))}
             </tbody>
@@ -194,11 +253,14 @@ function VerlaufUndoTab() {
       {/* FAQ */}
       {/* ══════════════════════════════════════════════════════════════════════ */}
       <Section title="Häufige Fragen">
-        <FaqItem q="Ich sehe kein Uhren-Icon — warum?" a="Das Uhren-Icon erscheint nur bei Drehbuch- und Storyline-Szenen im neuen Werkstufen-Modell, nicht bei Legacy-Szenen. Außerdem erscheint es erst, wenn eine Szene ausgewählt ist." />
-        <FaqItem q="Wie oft wird eine Sicherung angelegt?" a="Genau 5 Minuten nach der letzten Änderung — und zusätzlich beim Wechsel zu einer anderen Szene, falls seitdem nicht schon gespeichert wurde. Der Timer startet immer neu, wenn du weiter schreibst." />
-        <FaqItem q="Was passiert, wenn ich offline bin?" a="Änderungen werden weiterhin lokal gespeichert (Offline-Modus). Die Sicherung im Verlauf-Panel wird erst angelegt, wenn du wieder online bist. Ctrl+Z funktioniert immer, unabhängig von der Verbindung." />
-        <FaqItem q="Kann ich eine Sicherung für eine andere Szene öffnen?" a="Nein — der Verlauf ist immer an die aktuell geöffnete Szene gebunden. Wechsle zuerst zur gewünschten Szene, dann öffne das Verlauf-Panel." />
-        <FaqItem q="Wird auch der Szenenkopf (Motiv, Rollen etc.) gesichert?" a="Nein — der automatische Verlauf sichert nur den Textinhalt (Drehbuch- oder Storyline-Text). Der Szenenkopf wird separat und sofort gespeichert; er benötigt keine Sicherung." />
+        <FaqItem q="Ich sehe kein Uhren-Icon — warum?" a="Das Uhren-Icon erscheint nur bei Drehbuch- und Storyline-Szenen im Werkstufen-Modell, nicht bei Legacy-Szenen. Außerdem erscheint es erst, wenn eine Szene ausgewählt ist." />
+        <FaqItem q="Wie oft wird der Szenen-Verlauf gespeichert?" a="Genau 5 Minuten nach der letzten Änderung — und zusätzlich beim Wechsel zu einer anderen Szene. Der Timer startet immer neu, wenn du weiter schreibst." />
+        <FaqItem q="Wann wird ein Dokument-Snapshot angelegt?" a="Automatisch wenn du die Werkstufe wechselst (vorherige Werkstufe wird gesichert) sowie alle 30 Minuten während aktiver Arbeit. Du kannst auch jederzeit manuell im Dokument-Modus des Verlauf-Panels einen anlegen." />
+        <FaqItem q="Was passiert genau beim Dokument-Wiederherstellen?" a="Zuerst sichert die App den aktuellen Stand aller Szenen automatisch (erkennbar am Badge 'Vor Wiederherstellung'). Danach werden alle Szenen der Werkstufe mit dem Snapshot-Inhalt überschrieben. Die aktuell geöffnete Szene wird sofort im Editor aktualisiert." />
+        <FaqItem q="Kann ich eine Dokument-Wiederherstellung rückgängig machen?" a="Ja — direkt im Dokument-Verlauf. Jede Wiederherstellung erzeugt automatisch einen Eintrag 'Vor Wiederherstellung' (orange Badge). Diesen kannst du wiederherstellen, um zum Stand vor der Wiederherstellung zurückzukehren." />
+        <FaqItem q="Was passiert, wenn ich offline bin?" a="Änderungen werden lokal gespeichert. Verlaufs-Snapshots (Szene und Dokument) werden erst angelegt, wenn du wieder online bist. Ctrl+Z funktioniert immer, unabhängig von der Verbindung." />
+        <FaqItem q="Wird auch der Szenenkopf (Motiv, Rollen etc.) gesichert?" a="Der Szenen-Verlauf sichert nur den Textinhalt. Der Dokument-Verlauf ebenfalls nur den Textinhalt je Szene — Szenenkopf-Daten (Motiv, Rollen, Stoppzeit) werden separat und sofort gespeichert und benötigen keine Sicherung." />
+        <FaqItem q="Kann ich die Intervalle (5 Min / 30 Min) anpassen?" a="Diese Einstellungen werden in den Drehbuchkoordinations-Einstellungen konfigurierbar sein. Bis dahin gelten die Standard-Intervalle." />
       </Section>
 
     </div>
