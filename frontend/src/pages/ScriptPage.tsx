@@ -355,11 +355,8 @@ function GotoSzeneDialog({ szenen, onNavigate, onClose }: {
   )
 }
 
-// localStorage-Keys (synchrone Initialisierung → kein Race mit loadWerkstufen / AppShell-getSettings)
+// localStorage-Key für letzte-Szene-Map (schneller lokaler Cache, kein Source of Truth)
 const LS_KEY_LAST_SCENE = 'script_letzte_szene_pro_episode'
-// Cached: ob das Toggle aktiv ist — damit tweaksRef synchron korrekt initialisiert wird,
-// bevor AppShell seine async-Einstellungen geladen hat.
-const LS_KEY_LETZTE_SZENE_TOGGLE = 'script_letzte_szene_toggle'
 
 // ── TweaksSync — reads useTweaks() inside AppShell context ───────────────────
 // useTweaks() darf NICHT in ScriptPage selbst aufgerufen werden (ScriptPage
@@ -381,38 +378,6 @@ function TweaksSync({
 }) {
   const { tweaks } = useTweaks()
   tweaksRef.current = tweaks
-
-  // Toggle-Wert in localStorage cachen — aber NUR wenn wir wissen, dass AppShell geladen hat.
-  // Problem: DEFAULT_TWEAKS hat letzteSzeneProEpisodeMerken=false. Wenn wir auf dem ersten
-  // Render sofort 'false' schreiben, wird der korrekte gespeicherte Wert ('true') zerstört,
-  // bevor loadWerkstufen ihn lesen kann.
-  // Lösung: nur 'true' schreiben (AppShell hat geladen oder User hat aktiviert);
-  //         'false' nur schreiben wenn wir vorher 'true' gesehen haben (= echte Deaktivierung).
-  const _toggleCacheLoadedRef = useRef(false)
-  useEffect(() => {
-    if (tweaks.letzteSzeneProEpisodeMerken) {
-      _toggleCacheLoadedRef.current = true
-      try { localStorage.setItem(LS_KEY_LETZTE_SZENE_TOGGLE, 'true') } catch {}
-    } else if (_toggleCacheLoadedRef.current) {
-      // Vorher true gesehen → jetzt false = User hat Feature deaktiviert → localStorage leeren
-      try { localStorage.setItem(LS_KEY_LETZTE_SZENE_TOGGLE, 'false') } catch {}
-    }
-    // Falls immer false (Feature war nie aktiv auf diesem Gerät): nichts schreiben
-  }, [tweaks.letzteSzeneProEpisodeMerken])
-
-  useEffect(() => {
-    api.getSettings().then((s: any) => {
-      const backendMap = s?.ui_settings?.letzte_szene_pro_episode
-      // Nur mergen wenn Backend tatsächlich Daten hat — niemals mit leerem Backend
-      // den localStorage-Initialwert überschreiben (der ist aktueller als nie gespeichertes Backend)
-      if (backendMap && typeof backendMap === 'object' && Object.keys(backendMap).length > 0) {
-        // Backend hat Vorrang bei Konflikten (multi-device sync); lokale Einträge bleiben erhalten
-        const merged = { ...lastSeenMapRef.current, ...backendMap }
-        lastSeenMapRef.current = merged
-        try { localStorage.setItem(LS_KEY_LAST_SCENE, JSON.stringify(merged)) } catch {}
-      }
-    }).catch(() => {})
-  }, [lastSeenMapRef])
 
   useEffect(() => {
     if (!tweaks.letzteSzeneProEpisodeMerken) return
@@ -610,9 +575,10 @@ export default function ScriptPage() {
     } catch { return {} }
   })())
   // Stabile Tweaks-Ref für async-Closures (loadWerkstufen) — wird von TweaksSync befüllt.
-  // HINWEIS: wird sofort von TweaksSync.render() mit tweaks (zunächst DEFAULT_TWEAKS) überschrieben.
-  // loadWerkstufen liest letzteSzeneProEpisodeMerken daher direkt aus localStorage (LS_KEY_LETZTE_SZENE_TOGGLE).
   const tweaksRef = useRef<TweakState>(DEFAULT_TWEAKS)
+  // Letzte-Szene-Restore: befüllt aus ScriptPage's eigenem getSettings()-Aufruf (vor loadWerkstufen).
+  // Kein Race mit AppShell — ScriptPage liest toggle + map synchron bevor settingsLoaded=true gesetzt wird.
+  const letzteSzeneRestoreRef = useRef<{ enabled: boolean; map: Record<string, number | string> }>({ enabled: false, map: {} })
   // Debounce-Timer für Speichern der letzten Szene
   const saveLastSeenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -682,6 +648,19 @@ export default function ScriptPage() {
         if (ui.last_folge_nummer)  pendingNav.current.folgeNummer = ui.last_folge_nummer
         if (ui.last_stage_id)      pendingNav.current.stageId     = ui.last_stage_id
         if (ui.last_szene_id)      pendingNav.current.szeneId     = ui.last_szene_id
+      }
+      // Letzte-Szene-Merken: toggle + map aus demselben Settings-Aufruf lesen —
+      // garantiert vor loadWerkstufen verfügbar (keine Race-Condition mit AppShell).
+      if (ui.letzteSzeneProEpisodeMerken) {
+        const backendMap = (ui.letzte_szene_pro_episode && typeof ui.letzte_szene_pro_episode === 'object')
+          ? ui.letzte_szene_pro_episode : {}
+        // Lokale Map mit Backend-Daten mergen (Backend hat Vorrang bei Konflikten)
+        const merged = { ...lastSeenMapRef.current, ...backendMap }
+        lastSeenMapRef.current = merged
+        try { localStorage.setItem(LS_KEY_LAST_SCENE, JSON.stringify(merged)) } catch {}
+        letzteSzeneRestoreRef.current = { enabled: true, map: merged }
+      } else {
+        letzteSzeneRestoreRef.current = { enabled: false, map: {} }
       }
       setSettingsLoaded(true)
     }).catch(() => setSettingsLoaded(true))
@@ -952,23 +931,20 @@ export default function ScriptPage() {
             navRestored.current = true  // gespeicherte Position exakt gefunden
           } else {
             // Priorität 2: letzte gesehene Szene (wenn Toggle aktiv)
+            // letzteSzeneRestoreRef wird in ScriptPage's eigenem getSettings()-Aufruf befüllt —
+            // garantiert vor loadWerkstufen verfügbar, kein Race mit AppShell.
+            const restore = letzteSzeneRestoreRef.current
             const currentTweaks = tweaksRef.current
-            // letzteSzeneProEpisodeMerken aus localStorage lesen — tweaksRef.current hat beim ersten
-            // Aufruf noch DEFAULT_TWEAKS (false), weil TweaksSync ihn sofort überschreibt und
-            // AppShell seine Settings async lädt. localStorage ist synchron und zuverlässig.
-            const letzteSzeneAktiv = (() => {
-              try { return localStorage.getItem(LS_KEY_LETZTE_SZENE_TOGGLE) === 'true' } catch { return false }
-            })() || currentTweaks.letzteSzeneProEpisodeMerken
             let resolvedFromLastSeen = false
-            if (letzteSzeneAktiv && folge.id != null) {
-              const lastId = lastSeenMapRef.current[String(folge.id)]
+            if (restore.enabled && folge.id != null) {
+              const lastId = restore.map[String(folge.id)]
               const lastMatch = lastId ? werkSzenen.find((s: any) => String(s.id) === String(lastId)) : null
               if (lastMatch) { targetId = lastMatch.id; resolvedFromLastSeen = true; navRestored.current = true }
             }
             if (!resolvedFromLastSeen) {
               // Priorität 3: erste echte Szene (wenn Toggle aktiv), sonst erstes Element
               // navRestored bleibt false — Fallback, nicht vom User ausgewählt; wird erst durch Klick/Tastatur gesetzt
-              if (currentTweaks.episodenWechselErsteSzene || letzteSzeneAktiv) {
+              if (currentTweaks.episodenWechselErsteSzene || restore.enabled) {
                 const firstReal = werkSzenen.find((s: any) => s.format !== 'notiz' && s.scene_nummer != null && s.scene_nummer !== 0)
                 targetId = (firstReal ?? werkSzenen[0]).id
               } else {
