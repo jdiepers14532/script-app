@@ -23,7 +23,7 @@ function loadCollapsed(): Record<string, boolean> {
 
 export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpassenClick }: { onClose: () => void; onFarbschemaClick?: () => void; onThemeAnpassenClick?: () => void }) {
   const { tweaks, set, reset } = useTweaks()
-  const { treatmentLabel, figurenLabel, charAcDeaktiviert, charAcAlleErlaubt } = useAppSettings()
+  const { treatmentLabel, figurenLabel, acAlleDeaktiviert, charAcDeaktiviert, charAcAlleErlaubt } = useAppSettings()
   const { t } = useTerminologie()
   const lightColorRef = useRef<HTMLInputElement>(null)
   const darkColorRef = useRef<HTMLInputElement>(null)
@@ -254,7 +254,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
               </Tooltip>
             </div>
 
-            {charAcDeaktiviert ? (
+            {(acAlleDeaktiviert || charAcDeaktiviert) ? (
               <div style={{ ...rowStyle, paddingLeft: 8 }}>
                 <span style={{ ...labelStyle, color: 'var(--text-secondary)', fontStyle: 'italic' }}>Von der Drehbuchkoordination deaktiviert</span>
               </div>

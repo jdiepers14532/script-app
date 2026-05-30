@@ -55,6 +55,7 @@ export default function App() {
   const [pageMargins, setPageMargins] = useState<PageMargins>(DEFAULT_PAGE_MARGINS)
   const [replikSettings, setReplikSettings] = useState<ReplikSettings>(REPLIK_SETTINGS_DEFAULTS)
   const [suffixSettings, setSuffixSettings] = useState<SuffixSettings>(SUFFIX_SETTINGS_DEFAULTS)
+  const [acAlleDeaktiviert, setAcAlleDeaktiviert] = useState(false)
   const [charAcDeaktiviert, setCharAcDeaktiviert] = useState(false)
   const [charAcAlleErlaubt, setCharAcAlleErlaubt] = useState(true)
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettings>(SNAPSHOT_SETTINGS_DEFAULTS)
@@ -129,6 +130,7 @@ export default function App() {
             try {
               const parsed = JSON.parse(data.suffix_settings)
               setSuffixSettings({ ...SUFFIX_SETTINGS_DEFAULTS, ...parsed })
+              if (parsed.ac_alle_deaktiviert !== undefined) setAcAlleDeaktiviert(!!parsed.ac_alle_deaktiviert)
               if (parsed.char_ac_deaktiviert !== undefined) setCharAcDeaktiviert(!!parsed.char_ac_deaktiviert)
               if (parsed.char_ac_alle_erlaubt !== undefined) setCharAcAlleErlaubt(!!parsed.char_ac_alle_erlaubt)
             } catch {}
@@ -180,7 +182,7 @@ export default function App() {
   return (
     <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, stimmungKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert, charAcAlleErlaubt, snapshotSettings }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, stimmungKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings, acAlleDeaktiviert, charAcDeaktiviert, charAcAlleErlaubt, snapshotSettings }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>

@@ -1108,6 +1108,7 @@ function FigurenTab() {
   const [suffixOneway, setSuffixOneway] = useState(true)
   const [suffixVo, setSuffixVo] = useState(true)
   const [offFigurenImSzenenkopf, setOffFigurenImSzenenkopf] = useState(false)
+  const [acAlleDeaktiviert, setAcAlleDeaktiviert] = useState(false)
   const [actionAcEnabled, setActionAcEnabled] = useState(true)
   const [actionAcTriggerChars, setActionAcTriggerChars] = useState(4)
   const [actionAutoCaps, setActionAutoCaps] = useState(true)
@@ -1128,6 +1129,7 @@ function FigurenTab() {
             if (s.suffix_oneway_enabled !== undefined) setSuffixOneway(s.suffix_oneway_enabled)
             if (s.suffix_vo_enabled !== undefined) setSuffixVo(s.suffix_vo_enabled)
             if (s.off_figuren_im_szenenkopf !== undefined) setOffFigurenImSzenenkopf(s.off_figuren_im_szenenkopf)
+            if (s.ac_alle_deaktiviert !== undefined) setAcAlleDeaktiviert(s.ac_alle_deaktiviert)
             if (s.action_ac_enabled !== undefined) setActionAcEnabled(s.action_ac_enabled)
             if (s.action_ac_trigger_chars !== undefined) setActionAcTriggerChars(s.action_ac_trigger_chars)
             if (s.action_auto_caps !== undefined) setActionAutoCaps(s.action_auto_caps)
@@ -1147,6 +1149,7 @@ function FigurenTab() {
       suffix_oneway_enabled: suffixOneway,
       suffix_vo_enabled: suffixVo,
       off_figuren_im_szenenkopf: offFigurenImSzenenkopf,
+      ac_alle_deaktiviert: acAlleDeaktiviert,
       action_ac_enabled: actionAcEnabled,
       action_ac_trigger_chars: actionAcTriggerChars,
       action_auto_caps: actionAutoCaps,
@@ -1391,11 +1394,22 @@ function FigurenTab() {
             </label>
           </div>
 
+          {/* Master-Toggle: Alles deaktivieren */}
+          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+              <input type="checkbox" checked={acAlleDeaktiviert} disabled={suffixSaving} onChange={e => {
+                setAcAlleDeaktiviert(e.target.checked)
+                saveSuffixSettings({ ac_alle_deaktiviert: e.target.checked })
+              }} />
+              <span style={{ fontSize: 13, fontWeight: 600 }}>Gesamte Autovervollständigung deaktivieren (für alle User)</span>
+            </label>
+          </div>
+
           {/* Autovervollständigung Action */}
-          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10, opacity: acAlleDeaktiviert ? 0.4 : 1 }}>
             <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>Autovervollständigung in Action-Zeilen</p>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input type="checkbox" checked={actionAcEnabled} disabled={suffixSaving} onChange={e => {
+              <input type="checkbox" checked={actionAcEnabled} disabled={suffixSaving || acAlleDeaktiviert} onChange={e => {
                 setActionAcEnabled(e.target.checked)
                 saveSuffixSettings({ action_ac_enabled: e.target.checked })
               }} />
@@ -1403,7 +1417,7 @@ function FigurenTab() {
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 13, minWidth: 220 }}>Mindestlänge Großbuchstaben-Wort</span>
-              <input type="number" min={2} max={10} value={actionAcTriggerChars} disabled={suffixSaving || !actionAcEnabled}
+              <input type="number" min={2} max={10} value={actionAcTriggerChars} disabled={suffixSaving || acAlleDeaktiviert || !actionAcEnabled}
                 style={{ width: 56, fontSize: 13, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)' }}
                 onChange={e => setActionAcTriggerChars(Number(e.target.value))}
                 onBlur={e => saveSuffixSettings({ action_ac_trigger_chars: Number(e.target.value) })}
@@ -1411,7 +1425,7 @@ function FigurenTab() {
               <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Zeichen</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input type="checkbox" checked={actionAutoCaps} disabled={suffixSaving || !actionAcEnabled} onChange={e => {
+              <input type="checkbox" checked={actionAutoCaps} disabled={suffixSaving || acAlleDeaktiviert || !actionAcEnabled} onChange={e => {
                 setActionAutoCaps(e.target.checked)
                 saveSuffixSettings({ action_auto_caps: e.target.checked })
               }} />
@@ -1420,17 +1434,17 @@ function FigurenTab() {
           </div>
 
           {/* Figuren-AC */}
-          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10, opacity: acAlleDeaktiviert ? 0.4 : 1 }}>
             <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>Autovervollständigung für {figurenLabel}</p>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input type="checkbox" checked={charAcDeaktiviert} disabled={suffixSaving} onChange={e => {
+              <input type="checkbox" checked={charAcDeaktiviert} disabled={suffixSaving || acAlleDeaktiviert} onChange={e => {
                 setCharAcDeaktiviert(e.target.checked)
                 saveSuffixSettings({ char_ac_deaktiviert: e.target.checked })
               }} />
               <span style={{ fontSize: 13 }}>Deaktiviert (kein Quellenpool-Wechsel für alle User)</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input type="checkbox" checked={charAcAlleErlaubt} disabled={suffixSaving || charAcDeaktiviert} onChange={e => {
+              <input type="checkbox" checked={charAcAlleErlaubt} disabled={suffixSaving || acAlleDeaktiviert || charAcDeaktiviert} onChange={e => {
                 setCharAcAlleErlaubt(e.target.checked)
                 saveSuffixSettings({ char_ac_alle_erlaubt: e.target.checked })
               }} />

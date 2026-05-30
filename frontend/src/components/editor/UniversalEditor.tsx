@@ -382,7 +382,7 @@ export default function UniversalEditor({
   const { tweaks } = useTweaks()
   const { selectedId: selectedProdId } = useSelectedProduction()
   const { showToast } = useToast()
-  const { lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert } = useAppSettings()
+  const { lnSettings, pageMargins, replikSettings, suffixSettings, acAlleDeaktiviert, charAcDeaktiviert } = useAppSettings()
   const { focus, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocus()
 
   // Tabellen-Cursor-Erkennung + Rahmen-Toggle
@@ -600,12 +600,12 @@ export default function UniversalEditor({
   // Charakter-Cache: alle Produktions-Charaktere laden wenn Produktion wechselt
   useEffect(() => {
     allCharObjsRef.current = []
-    if (!selectedProdId || charAcDeaktiviert) return
+    if (!selectedProdId || acAlleDeaktiviert || charAcDeaktiviert) return
     fetch(`/api/characters?produktion_id=${selectedProdId}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : [])
       .then((rows: any[]) => { allCharObjsRef.current = rows.map(r => ({ id: String(r.id), name: String(r.name) })) })
       .catch(() => {})
-  }, [selectedProdId, tweaks.nurCharAusSzenenkopf, charAcDeaktiviert])
+  }, [selectedProdId, tweaks.nurCharAusSzenenkopf, acAlleDeaktiviert, charAcDeaktiviert])
 
   // Keyboard-Handler via mutable ref (lesen von Refs für frische Werte)
   const acHandlersRef = useRef({
@@ -914,7 +914,7 @@ export default function UniversalEditor({
       resetInline()
     }
 
-    if (charAcDeaktiviert || noFormats) { dismiss(); return }
+    if (acAlleDeaktiviert || charAcDeaktiviert || noFormats) { dismiss(); return }
 
     const update = () => {
       if (dispatchingGhostRef.current) return // Ghost-Dispatch — ignorieren
@@ -927,6 +927,7 @@ export default function UniversalEditor({
         // Action-AC: Großbuchstaben-Wort in Action-Zeilen?
         const ss2 = suffixSettingsRef.current
         const isActionNode = ss2.action_ac_enabled
+          && !ss2.ac_alle_deaktiviert
           && node.type.name === 'absatz'
           && actionFormatIds.includes(node.attrs.format_id)
         if (!isActionNode) { actionAcModeRef.current = false; dismiss(); return }
@@ -1068,7 +1069,7 @@ export default function UniversalEditor({
       acActiveRef.current = false
       inlineGhostActiveRef.current = false
     }
-  }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds, actionFormatIds, charAcDeaktiviert]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds, actionFormatIds, acAlleDeaktiviert, charAcDeaktiviert]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Suffix-Memory aufbauen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
   useEffect(() => {

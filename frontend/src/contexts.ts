@@ -69,6 +69,7 @@ export interface SuffixSettings {
   suffix_nt_enabled: boolean
   suffix_oneway_enabled: boolean
   suffix_vo_enabled: boolean
+  ac_alle_deaktiviert: boolean
   char_ac_deaktiviert: boolean
   char_ac_alle_erlaubt: boolean
   off_figuren_im_szenenkopf: boolean
@@ -81,6 +82,7 @@ export const SUFFIX_SETTINGS_DEFAULTS: SuffixSettings = {
   suffix_nt_enabled: true,
   suffix_oneway_enabled: true,
   suffix_vo_enabled: true,
+  ac_alle_deaktiviert: false,
   char_ac_deaktiviert: false,
   char_ac_alle_erlaubt: true,
   off_figuren_im_szenenkopf: false,
@@ -90,8 +92,8 @@ export const SUFFIX_SETTINGS_DEFAULTS: SuffixSettings = {
 }
 export interface SnapshotSettings { szenenIntervalMin: number; werkIntervalMin: number; werkOnSwitch: boolean; szenenMax: number; werkMax: number }
 export const SNAPSHOT_SETTINGS_DEFAULTS: SnapshotSettings = { szenenIntervalMin: 5, werkIntervalMin: 30, werkOnSwitch: true, szenenMax: 50, werkMax: 30 }
-interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; stimmungKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings; suffixSettings: SuffixSettings; charAcDeaktiviert: boolean; charAcAlleErlaubt: boolean; snapshotSettings: SnapshotSettings }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, stimmungKuerzel: {}, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS, suffixSettings: SUFFIX_SETTINGS_DEFAULTS, charAcDeaktiviert: false, charAcAlleErlaubt: true, snapshotSettings: SNAPSHOT_SETTINGS_DEFAULTS })
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; stimmungKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings; suffixSettings: SuffixSettings; acAlleDeaktiviert: boolean; charAcDeaktiviert: boolean; charAcAlleErlaubt: boolean; snapshotSettings: SnapshotSettings }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, stimmungKuerzel: {}, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS, suffixSettings: SUFFIX_SETTINGS_DEFAULTS, acAlleDeaktiviert: false, charAcDeaktiviert: false, charAcAlleErlaubt: true, snapshotSettings: SNAPSHOT_SETTINGS_DEFAULTS })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context
