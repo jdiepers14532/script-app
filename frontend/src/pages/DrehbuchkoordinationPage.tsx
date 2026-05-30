@@ -32,6 +32,7 @@ const DK_TABS = [
   { id: 'autorenplan',            label: 'Autorenplan',            badge: 'beta/bald' },
   { id: 'rollen-freigabe',        label: 'Rollen-Freigabe' },
   { id: 'drehbuch-checks',        label: 'Drehbuch-Checks' },
+  { id: 'verlauf-sicherung',      label: 'Verlauf & Sicherung' },
 ]
 
 const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates', 'freie-dok-labels', 'sonstige-dokumente']
@@ -4838,6 +4839,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <RollenFreigabeTab produktionId={produktionId} /> : <NoProduction />
       case 'drehbuch-checks':
         return produktionId ? <DrehbuchChecksTab produktionId={produktionId} /> : <NoProduction />
+      case 'verlauf-sicherung':
+        return <VerlaufSicherungTab produktionId={produktionId} />
       case 'private-dokumente':
         return <PrivateDokumenteTab produktionId={produktionId} />
       default:
@@ -7327,6 +7330,184 @@ function NoProduction() {
   return (
     <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
       Keine Produktion ausgewählt. Wähle eine Produktion im Header aus.
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Verlauf & Sicherung Tab
+// Konfiguriert Snapshot-Intervalle für Szenen- und Dokument-Verlauf
+// ══════════════════════════════════════════════════════════════════════════════
+function VerlaufSicherungTab({ produktionId }: { produktionId: string | null }) {
+  const DEFAULTS = { szenenIntervalMin: 5, werkIntervalMin: 30, werkOnSwitch: true, szenenMax: 50, werkMax: 30 }
+  const [cfg, setCfg] = useState(DEFAULTS)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    const url = produktionId
+      ? `/api/dk-settings/${encodeURIComponent(produktionId)}/app-settings`
+      : '/api/admin/app-settings'
+    fetch(url, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => {
+        if (d?.snapshot_settings) {
+          try { setCfg({ ...DEFAULTS, ...JSON.parse(d.snapshot_settings) }) } catch {}
+        }
+        setLoaded(true)
+      })
+      .catch(() => setLoaded(true))
+  }, [produktionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = async (next: typeof DEFAULTS) => {
+    setSaving(true)
+    setSaved(false)
+    const url = produktionId
+      ? `/api/dk-settings/${encodeURIComponent(produktionId)}/app-settings/snapshot_settings`
+      : '/api/admin/app-settings/snapshot_settings'
+    await fetch(url, {
+      method: 'PUT', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: JSON.stringify(next) }),
+    }).catch(() => {})
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+    window.dispatchEvent(new CustomEvent('app-settings-changed'))
+  }
+
+  const update = (patch: Partial<typeof DEFAULTS>) => {
+    const next = { ...cfg, ...patch }
+    setCfg(next)
+    save(next)
+  }
+
+  if (!loaded) return <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Laden…</p>
+
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 600, marginBottom: 3 }
+  const descStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }
+  const numInput: React.CSSProperties = {
+    padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
+    background: 'var(--bg-subtle)', fontSize: 13, fontFamily: 'var(--font-sans)',
+    width: 80, color: 'var(--text-primary)',
+  }
+  const toggle = (val: boolean, onChange: (v: boolean) => void) => (
+    <button
+      onClick={() => onChange(!val)}
+      style={{
+        width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
+        background: val ? 'var(--sw-green, #00C853)' : 'var(--border)',
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 2, left: val ? 20 : 2,
+        width: 18, height: 18, borderRadius: '50%', background: '#fff',
+        transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }} />
+    </button>
+  )
+
+  return (
+    <div style={{ maxWidth: 520 }}>
+      <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>Verlauf & Auto-Sicherung</h3>
+      <p style={{ ...descStyle, marginBottom: 24 }}>
+        Steuert, wie oft die App automatisch Sicherungen anlegt. Änderungen gelten sofort und werden
+        für {produktionId ? 'diese Produktion' : 'alle Produktionen'} gespeichert.
+      </p>
+
+      {/* ── Szenen-Verlauf ── */}
+      <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 20, marginBottom: 20 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+          Szenen-Verlauf
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <div style={labelStyle}>Auto-Sicherung alle … Minuten</div>
+            <p style={descStyle}>Nach der letzten Änderung in einer Szene. 0 = deaktiviert.</p>
+            <input
+              type="number" min={0} max={60} step={1}
+              value={cfg.szenenIntervalMin}
+              onChange={e => update({ szenenIntervalMin: Math.max(0, Math.min(60, parseInt(e.target.value) || 0)) })}
+              style={numInput}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>Min. (Standard: 5)</span>
+          </div>
+
+          <div>
+            <div style={labelStyle}>Max. Einträge je Szene</div>
+            <p style={descStyle}>Älteste Sicherungen werden automatisch gelöscht wenn das Limit erreicht ist.</p>
+            <input
+              type="number" min={10} max={200} step={5}
+              value={cfg.szenenMax}
+              onChange={e => update({ szenenMax: Math.max(10, Math.min(200, parseInt(e.target.value) || 50)) })}
+              style={numInput}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>Einträge (Standard: 50)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Dokument-Verlauf ── */}
+      <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: 20, marginBottom: 24 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 14 }}>
+          Dokument-Verlauf (alle Szenen der Werkstufe)
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <div style={labelStyle}>Auto-Sicherung alle … Minuten</div>
+            <p style={descStyle}>Während aktiver Arbeit in der Werkstufe. 0 = deaktiviert.</p>
+            <input
+              type="number" min={0} max={480} step={5}
+              value={cfg.werkIntervalMin}
+              onChange={e => update({ werkIntervalMin: Math.max(0, Math.min(480, parseInt(e.target.value) || 0)) })}
+              style={numInput}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>Min. (Standard: 30)</span>
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              {toggle(cfg.werkOnSwitch, v => update({ werkOnSwitch: v }))}
+              <span style={{ ...labelStyle, marginBottom: 0 }}>Bei Werkstufen-Wechsel sichern</span>
+            </div>
+            <p style={{ ...descStyle, marginBottom: 0 }}>
+              Legt automatisch einen Snapshot der aktuellen Werkstufe an, wenn du zu einer anderen Werkstufe wechselst.
+            </p>
+          </div>
+
+          <div>
+            <div style={labelStyle}>Max. Einträge je Werkstufe</div>
+            <p style={descStyle}>Älteste Einträge werden automatisch gelöscht. Einträge vom Typ "Vor Wiederherstellung" zählen mit.</p>
+            <input
+              type="number" min={5} max={100} step={5}
+              value={cfg.werkMax}
+              onChange={e => update({ werkMax: Math.max(5, Math.min(100, parseInt(e.target.value) || 30)) })}
+              style={numInput}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', marginLeft: 8 }}>Einträge (Standard: 30)</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Status */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {saving && <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Speichert…</span>}
+        {saved && !saving && <span style={{ fontSize: 12, color: '#00C853', fontWeight: 600 }}>✓ Gespeichert</span>}
+        <button
+          onClick={() => { setCfg(DEFAULTS); save(DEFAULTS) }}
+          style={{
+            padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)',
+            background: 'transparent', cursor: 'pointer', fontSize: 12,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          Auf Standard zurücksetzen
+        </button>
+      </div>
     </div>
   )
 }
