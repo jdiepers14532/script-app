@@ -2,13 +2,13 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { api, preloadScene, preloadAllScenes, clearCacheByPrefix } from '../api/client'
-import AppShell from '../components/AppShell'
+import AppShell, { DEFAULT_TWEAKS } from '../components/AppShell'
 import SceneList from '../components/SceneList'
 import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
 import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
-import { useFocus, useSelectedProduction, PanelModeContext, useTweaks, usePanelMode } from '../contexts'
+import { useFocus, useSelectedProduction, PanelModeContext, useTweaks, usePanelMode, type TweakState } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import { useWerkstufe } from '../hooks/useDokument'
 import SearchReplaceDialog from '../components/SearchReplaceDialog'
@@ -355,12 +355,51 @@ function GotoSzeneDialog({ szenen, onNavigate, onClose }: {
   )
 }
 
+// ── TweaksSync — reads useTweaks() inside AppShell context ───────────────────
+// useTweaks() darf NICHT in ScriptPage selbst aufgerufen werden (ScriptPage
+// rendert AppShell, der TweaksContext existiert erst darin).
+function TweaksSync({
+  tweaksRef,
+  lastSeenMapRef,
+  saveLastSeenTimerRef,
+  selectedFolgeId,
+  selectedSzeneId,
+}: {
+  tweaksRef: React.MutableRefObject<TweakState>
+  lastSeenMapRef: React.MutableRefObject<Record<string, number | string>>
+  saveLastSeenTimerRef: React.MutableRefObject<ReturnType<typeof setTimeout> | null>
+  selectedFolgeId: number | null
+  selectedSzeneId: number | string | null
+}) {
+  const { tweaks } = useTweaks()
+  tweaksRef.current = tweaks
+
+  useEffect(() => {
+    api.getSettings().then((s: any) => {
+      const map = s?.ui_settings?.letzte_szene_pro_episode
+      if (map && typeof map === 'object') lastSeenMapRef.current = map
+    }).catch(() => {})
+  }, [lastSeenMapRef])
+
+  useEffect(() => {
+    if (!tweaks.letzteSzeneProEpisodeMerken) return
+    if (!selectedFolgeId || !selectedSzeneId) return
+    if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current)
+    saveLastSeenTimerRef.current = setTimeout(() => {
+      lastSeenMapRef.current = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
+      api.updateSettings({ ui_settings: { letzte_szene_pro_episode: lastSeenMapRef.current } }).catch(() => {})
+    }, 1000)
+    return () => { if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current) }
+  }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken, lastSeenMapRef, saveLastSeenTimerRef])
+
+  return null
+}
+
 export default function ScriptPage() {
   const { t } = useTerminologie()
   const { focus } = useFocus()
   const location = useLocation()
   const { selectedProduction, productions, loading } = useSelectedProduction()
-  const { tweaks } = useTweaks()
   const [bloecke, setBloecke] = useState<any[]>([])
   const [szenen, setSzenen] = useState<any[]>([])
   const [selectedWerkstufeTyp, setSelectedWerkstufeTyp] = useState<string | null>(null)
@@ -386,26 +425,6 @@ export default function ScriptPage() {
     }
     return () => window.removeEventListener('script-import-complete', handler)
   }, [])
-
-  // Letzte-Szene-Merken: beim Mount die gespeicherte Map aus dem Backend laden
-  useEffect(() => {
-    api.getSettings().then((s: any) => {
-      const map = s?.ui_settings?.letzte_szene_pro_episode
-      if (map && typeof map === 'object') lastSeenMapRef.current = map
-    }).catch(() => {})
-  }, [])
-
-  // Letzte-Szene-Merken: bei Szenen-Wechsel debounced in Backend speichern
-  useEffect(() => {
-    if (!tweaks.letzteSzeneProEpisodeMerken) return
-    if (!selectedFolgeId || !selectedSzeneId) return
-    if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current)
-    saveLastSeenTimerRef.current = setTimeout(() => {
-      lastSeenMapRef.current = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
-      api.updateSettings({ ui_settings: { letzte_szene_pro_episode: lastSeenMapRef.current } }).catch(() => {})
-    }, 1000)
-    return () => { if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current) }
-  }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken])
 
   // Parse deep-link URL params once on init
   // Supports ?scene=<int> (Messenger-App, old) and ?szene=<uuid> (Email-Links, NT-Liste)
@@ -546,9 +565,8 @@ export default function ScriptPage() {
 
   // Letzte-Szene-Merken: Map folge_id → szene_id (geladen aus Backend-UserSettings)
   const lastSeenMapRef = useRef<Record<string, number | string>>({})
-  // Stabile Tweaks-Ref für async-Closures (loadWerkstufen)
-  const tweaksRef = useRef(tweaks)
-  tweaksRef.current = tweaks
+  // Stabile Tweaks-Ref für async-Closures (loadWerkstufen) — wird von TweaksSync befüllt
+  const tweaksRef = useRef<TweakState>(DEFAULT_TWEAKS)
   // Debounce-Timer für Speichern der letzten Szene
   const saveLastSeenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -964,6 +982,13 @@ export default function ScriptPage() {
       freiDokTitel={freiDokTitel}
       freiDokLabel={freiDokLabel}
     >
+      <TweaksSync
+        tweaksRef={tweaksRef}
+        lastSeenMapRef={lastSeenMapRef}
+        saveLastSeenTimerRef={saveLastSeenTimerRef}
+        selectedFolgeId={selectedFolgeId}
+        selectedSzeneId={selectedSzeneId}
+      />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
 
         {/* Collapsible + resizable scene list */}
