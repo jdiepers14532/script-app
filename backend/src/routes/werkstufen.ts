@@ -680,6 +680,28 @@ werkstufenRouter.get('/:id/flashback-szenen', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/werkstufen/:id/laenge — Summe aller Stoppzeiten einer Werkstufe
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.get('/:id/laenge', async (req, res) => {
+  try {
+    const werkId = req.params.id
+    const row = await queryOne<{ stoppzeit_total_sek: string | null }>(
+      `SELECT COALESCE(SUM(stoppzeit_sek), 0)::text AS stoppzeit_total_sek
+       FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht = false`,
+      [werkId]
+    )
+    const totalSek = parseInt(row?.stoppzeit_total_sek ?? '0', 10) || 0
+    const formatted = totalSek > 0
+      ? `${Math.floor(totalSek / 60)}:${String(totalSek % 60).padStart(2, '0')}`
+      : null
+    res.json({ stoppzeit_total_sek: totalSek, formatted })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // Werkstufen-Szenen Router
 // Mounted at /api/werkstufen/:werkId/szenen
 // ══════════════════════════════════════════════════════════════════════════════

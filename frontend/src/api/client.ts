@@ -487,6 +487,26 @@ export const api = {
   updateDkAppSetting: (productionId: string, key: string, value: string) =>
     request<any>('PUT', `/dk-settings/${encodeURIComponent(productionId)}/app-settings/${encodeURIComponent(key)}`, { value }),
 
+  // ── Stimmungen (Tageszeit) ────────────────────────────────────────────────
+  getStimmungen: (productionId: string) =>
+    request<{ id: number | null; name: string; kuerzel: string; position: number }[]>('GET', `/dk-settings/${encodeURIComponent(productionId)}/stimmungen`),
+  createStimmung: (productionId: string, name: string, kuerzel: string) =>
+    request<any>('POST', `/dk-settings/${encodeURIComponent(productionId)}/stimmungen`, { name, kuerzel }),
+  updateStimmung: (productionId: string, id: number, name: string, kuerzel: string) =>
+    request<any>('PUT', `/dk-settings/${encodeURIComponent(productionId)}/stimmungen/${id}`, { name, kuerzel }),
+  reorderStimmungen: (productionId: string, entries: { id: number; position: number }[]) =>
+    request<any>('PUT', `/dk-settings/${encodeURIComponent(productionId)}/stimmungen/reorder`, entries),
+  deleteStimmung: (productionId: string, id: number) =>
+    request<any>('DELETE', `/dk-settings/${encodeURIComponent(productionId)}/stimmungen/${id}`),
+
+  // ── Spieltag-Check ────────────────────────────────────────────────────────
+  runSpieltagCheck: (produktionId: string) =>
+    request<{ ok: boolean; total_scenes: number; issues_found: number; issues: any[] }>('POST', `/checks/produktion/${encodeURIComponent(produktionId)}/spieltag`),
+  getSpieltagFixScope: (produktionId: string) =>
+    request<{ scenes_affected: number; folgen_affected: number; total_scenes: number; confirmed: boolean }>('POST', `/checks/produktion/${encodeURIComponent(produktionId)}/spieltag/fix`),
+  applySpieltagFix: (produktionId: string) =>
+    request<{ ok: boolean; scenes_corrected: number; confirmed: boolean }>('POST', `/checks/produktion/${encodeURIComponent(produktionId)}/spieltag/fix?confirm=true`),
+
   // ── DK-Zugriffsverwaltung (Admin) ───────────────────────────────────────
   getDkAccess: (productionId: string) =>
     request<any[]>('GET', `/admin/dk-access/${encodeURIComponent(productionId)}`),
@@ -563,7 +583,7 @@ export const api = {
     request<{ ok: boolean; inserted: number }>('POST', `/werkstufen/${werkId}/apply-vorlage`, { vorlage_id: vorlageId }),
 
   getWerkstufeLaenge: (werkId: string) =>
-    request<{ stoppzeit_total_sek: number; formatted: string | null }>('GET', `/werkstufe/${werkId}/laenge`),
+    request<{ stoppzeit_total_sek: number; formatted: string | null }>('GET', `/werkstufen/${werkId}/laenge`),
 
   // Dokument-Vorlagen (Templates)
   getDokumentVorlagen: (produktionId: string) =>
