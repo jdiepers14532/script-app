@@ -229,14 +229,14 @@ function applyPromptTemplate(template: string, vars: Record<string, string>): st
 }
 
 /** Ruft das konfigurierte LLM auf (Ollama / Mistral / Claude) */
-async function callProvider(setting: any, messages: { role: string; content: string }[], maxTokens = 300): Promise<string> {
+async function callProvider(setting: any, messages: { role: string; content: string }[], maxTokens = 300, temperature?: number): Promise<string> {
   if (setting.provider === 'ollama') {
     const prompt = messages.map(m => m.content).join('\n\n')
     return callOllama(setting.model_name, prompt)
   }
   const apiKey = await getProviderApiKey(setting.provider)
   if (!apiKey) throw new Error(`Kein API-Key für ${setting.provider}`)
-  if (setting.provider === 'mistral') return callMistral(apiKey, setting.model_name, messages, maxTokens)
+  if (setting.provider === 'mistral') return callMistral(apiKey, setting.model_name, messages, maxTokens, temperature)
   if (setting.provider === 'claude') {
     const system = messages.find(m => m.role === 'system')?.content ?? ''
     const user = messages.find(m => m.role === 'user')?.content ?? ''
@@ -471,11 +471,11 @@ router.get('/synopsen/check', async (req, res) => {
     const { folge_id } = req.query
     if (!folge_id) return res.status(400).json({ error: 'folge_id fehlt' })
     const row = await queryOne(
-      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_presse, synopsis_straenge FROM folgen WHERE id = $1`,
+      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext FROM folgen WHERE id = $1`,
       [folge_id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
-    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300 || row.synopsis_presse || row.synopsis_straenge)
+    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300 || row.synopsis_kurzinhalt || row.synopsis_presse || row.synopsis_straenge || row.synopsis_pressetext)
     res.json({ hasData, ...row })
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -584,7 +584,7 @@ router.post('/synopsen/lang', async (req, res) => {
   }
 })
 
-// POST /api/ki/synopsen/generiere-alle — kombinierter Call (alle Synopsen in einem Request)
+// POST /api/ki/synopsen/generiere-alle — kombinierter Call (alle 6 Synopsen in zwei Requests)
 router.post('/synopsen/generiere-alle', async (req, res) => {
   try {
     const { folge_id } = req.body
@@ -596,7 +596,35 @@ router.post('/synopsen/generiere-alle', async (req, res) => {
     const data = await loadSzenenFuerFolge(folge_id)
     if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
 
-    // Bisherige Titel dieser Produktion als Stil-Referenz
+    // DK-Einstellungen für Synopsen (Temperatur + Limiten)
+    const dkRow = await queryOne(
+      `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'synopsis_settings'`,
+      [data.werkstufe.produktion_id]
+    )
+    const dk = dkRow?.value ? JSON.parse(dkRow.value) : {}
+    const tempTitel     = dk.temp_titel            ?? 0.65
+    const tempStruktur  = dk.temp_struktur          ?? 0.35
+    const titelMaxW     = dk.titel_max_woerter      ?? 3
+    const redaktionMin  = dk.redaktion_min_woerter  ?? 300
+    const redaktionMax  = dk.redaktion_max_woerter  ?? 500
+    const presseMax     = dk.presse_max_woerter     ?? 80
+    const pressetextMin = dk.pressetext_min_zeichen ?? 280
+    const pressetextMax = dk.pressetext_max_zeichen ?? 330
+    const strangMax     = dk.strang_max_zeichen     ?? 100
+
+    // Handlungsstränge der Folge laden
+    const strangRows = await query(
+      `SELECT DISTINCT s.name
+       FROM straenge s
+       JOIN dokument_szenen_straenge dss ON dss.strang_id = s.id
+       JOIN dokument_szenen ds ON ds.id = dss.szene_id
+       WHERE ds.werkstufe_id = $1
+       ORDER BY s.name`,
+      [data.werkstufe.id]
+    )
+    const strangNamen: string[] = strangRows.map((r: any) => r.name)
+
+    // Bisherige Titel als Stil-Referenz
     const vorhandeneTitelRows = await query(
       `SELECT folgen_titel FROM folgen
        WHERE produktion_id = $1 AND id != $2 AND folgen_titel IS NOT NULL AND folgen_titel != ''
@@ -605,42 +633,90 @@ router.post('/synopsen/generiere-alle', async (req, res) => {
     )
     const titelListe = vorhandeneTitelRows.map((r: any) => r.folgen_titel).join('\n')
 
-    const systemPrompt = `Du bist ein professioneller Dramaturg und Redakteur einer deutschen Daily-Soap (ARD, Rote Rosen). Antworte AUSSCHLIESSLICH mit den angeforderten Abschnitten in exakt dem vorgegebenen Format. Keine Einleitung, keine Erklärungen.`
+    const szenenListe = data.szenenListe
+    const folgeNr = String(data.werkstufe.folge_nummer)
+    const strangHinweis = strangNamen.length > 0
+      ? `\nDIE FOLGE HAT FOLGENDE HANDLUNGSSTRÄNGE: ${strangNamen.join(', ')}\n`
+      : ''
 
-    const promptTemplate = effectivePrompt(setting) ||
-      '=== SZENEN-ZUSAMMENFASSUNGEN FOLGE {{folge_nummer}} ===\n{{szenen_liste}}\n\nErstelle folgende 5 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER### getrennt):\n\n###TITEL###\n[Titel 1: 1-3 Wörter, NICHT beschreibend, am Stil der bisherigen Titel orientiert]\n[Titel 2]\n[Titel 3]\n[Titel 4]\n[Titel 5]\n\n###KURZINHALT###\n**Haupthandlung:**\n[2-3 Sätze zur zentralen Handlung, Präsens, keine Markdown-Artefakte]\n\n**Nebenhandlungen:**\n[1-2 Sätze pro Nebenstrang, Präsens]\n\n**Cliffhanger:**\n[1 kurzer Satz, Spannung aufbauen ohne Auflösung zu verraten]\n\n###REDAKTION###\n[Dramaturgische Inhaltsangabe. Kein blumiger Stil. Rollennamen IMMER in GROSSBUCHSTABEN. Fokus: Was wollen die Figuren konkret (Want), was brauchen sie wirklich (Need)? Entscheidende Wendepunkte benennen. Cause-and-Effect zwischen Strands. Ein Absatz pro Strang. Strangmarkierung am Absatzanfang: CLIFF für Cliffhanger-Strang, PEN für Pending-Strang. Präsens, aktiv, 300-500 Wörter. Keine Sternchen oder Markdown.]\n\n###PRESSE###\n[60-80 Wörter. Fließend, werblich, Neugier weckend. Kein Spoiler. Keine Markdown-Formatierung.]\n\n###STRAENGE###\n[Pro Handlungsstrang eine Zeile: "FIGURENNAME: Kurzbeschreibung" — maximal 100 Zeichen pro Zeile. Keine Markdown-Formatierung.]'
-    const userPrompt = applyPromptTemplate(promptTemplate, {
-      folge_nummer: String(data.werkstufe.folge_nummer),
-      szenen_liste: data.szenenListe,
-    }) + (titelListe ? `\n\n=== BISHERIGE EPISODENTITEL (Stilreferenz — kurz und prägnant wie diese) ===\n${titelListe}` : '')
+    // ── Call 1: Titel (temp_titel, kreativ) ──────────────────────────────────
+    const titelPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${folgeNr} ===
+${szenenListe}
+${titelListe ? `\n=== BISHERIGE EPISODENTITEL (Stilreferenz) ===\n${titelListe}\n` : ''}
+Schlage 5 verschiedene Episodentitel vor.
 
-    const raw = await callProvider(setting, [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ], 2000)
+REGELN:
+- Maximal ${titelMaxW} Wörter, prägnant, NICHT beschreibend
+- Am Stil der bisherigen Titel orientieren
+- Keinerlei Nummerierung, kein Kommentar — NUR die Titel, einer pro Zeile`
+
+    // ── Call 2: Inhalts-Synopsen (temp_struktur, präzise) ────────────────────
+    const contentPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${folgeNr} ===
+${szenenListe}
+${strangHinweis}
+Erstelle folgende 4 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER### getrennt):
+
+###KURZINHALT###
+**Haupthandlung:**
+[2-3 Sätze zur zentralen Handlung, Präsens, kein Markdown außer **Fettdruck** für Abschnittsköpfe]
+
+**Nebenhandlungen:**
+[1-2 Sätze pro Nebenstrang, Präsens]
+
+**Cliffhanger:**
+[1 kurzer Satz, Spannung aufbauen ohne Auflösung]
+
+###REDAKTION###
+[Dramaturgische Inhaltsangabe. Rollennamen IMMER in GROSSBUCHSTABEN. Sachlicher, präziser Stil — keine Metakommentare, kein "Want und Need" als Label. CLIFF für Cliffhanger-Strang, PEN für Pending-Strang. Ein Absatz pro Strang. Präsens, aktiv. ${redaktionMin}-${redaktionMax} Wörter. Kein Markdown.]
+
+###STRANG###
+[Je Handlungsstrang eine Zeile: "${strangNamen.length > 0 ? strangNamen[0] : 'FIGURENNAME'}: Kurzbeschreibung" — maximal ${strangMax} Zeichen pro Zeile. Kein Markdown.${strangNamen.length > 0 ? ` Verwende diese Strang-Namen: ${strangNamen.join(', ')}` : ''}]
+
+###PRESSE###
+[Maximal ${presseMax} Wörter. Fließend, neugierig machend, kein Spoiler. Kein Markdown.]
+
+###PRESSETEXT###
+[Exakt ${pressetextMin}-${pressetextMax} Zeichen (zähle genau!). Sachlich, knapp, kein werblicher Ton. Kein Spoiler. Kein Markdown. Kein Zeilenumbruch.]`
+
+    const systemPrompt = `Du bist Dramaturg und Redakteur einer deutschen Daily-Soap (ARD, Rote Rosen). Antworte AUSSCHLIESSLICH mit den angeforderten Abschnitten im exakt vorgegebenen Format. Keine Einleitung, keine Erklärungen.`
+
+    // Beide Calls parallel
+    const [titelRaw, contentRaw] = await Promise.all([
+      callProvider(setting, [
+        { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte ausschließlich mit den 5 Titeln, einen pro Zeile. Maximal 3 Wörter pro Titel.' },
+        { role: 'user', content: titelPrompt },
+      ], 200, tempTitel),
+      callProvider(setting, [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: contentPrompt },
+      ], 2200, tempStruktur),
+    ])
 
     await recordUsage(setting.provider, setting.model_name || '',
-      Math.ceil(userPrompt.length / 4), Math.ceil(raw.length / 4))
+      Math.ceil((titelPrompt.length + contentPrompt.length) / 4),
+      Math.ceil((titelRaw.length + contentRaw.length) / 4))
 
-    const sections = parseKiSections(raw)
-
-    // Titel parsen (liste von Zeilen)
-    const titelRaw = sections['TITEL'] || ''
     const titel = titelRaw.split('\n')
       .map((t: string) => t.replace(/^[\d\.\-\*\[\]\s]+/, '').replace(/[*#"„"[\]]/g, '').trim())
-      .filter((t: string) => t.length > 0 && t.length <= 60)
+      .filter((t: string) => t.length > 0 && t.length <= 80)
       .slice(0, 5)
+
+    const sections = parseKiSections(contentRaw)
+    const missingSections = ['KURZINHALT', 'REDAKTION', 'STRANG', 'PRESSE', 'PRESSETEXT']
+      .filter(k => !sections[k])
 
     res.json({
       titel,
-      kurzinhalt: sections['KURZINHALT'] || '',
-      redaktion: cleanKiText(sections['REDAKTION'] || ''),
-      presse: cleanKiText(sections['PRESSE'] || ''),
-      straenge: cleanKiText(sections['STRAENGE'] || ''),
+      kurzinhalt:  sections['KURZINHALT']  || '',
+      redaktion:   cleanKiText(sections['REDAKTION']   || ''),
+      straenge:    cleanKiText(sections['STRANG']      || ''),
+      presse:      cleanKiText(sections['PRESSE']      || ''),
+      pressetext:  cleanKiText(sections['PRESSETEXT']  || ''),
       folge_id,
       folge_nummer: data.werkstufe.folge_nummer,
       szenen_count: data.szenen.length,
       provider: setting.provider,
+      ...(missingSections.length > 0 ? { missing_sections: missingSections } : {}),
     })
   } catch (err) {
     res.status(500).json({ error: String(err) })

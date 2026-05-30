@@ -82,3 +82,12 @@ Erstelle folgende 5 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER#
 ###STRAENGE###
 [Pro Handlungsstrang eine Zeile: "FIGURENNAME: Kurzbeschreibung" — maximal 100 Zeichen pro Zeile. Keine Markdown-Formatierung.]'
 WHERE funktion = 'synopsis_alle' AND (default_prompt IS NULL OR default_prompt = '');
+
+-- Neue Synopsen-Spalten
+ALTER TABLE folgen ADD COLUMN IF NOT EXISTS synopsis_kurzinhalt TEXT;
+ALTER TABLE folgen ADD COLUMN IF NOT EXISTS synopsis_pressetext TEXT;
+
+-- KI-Funktion Pressetext (sachlicher Kurztext 280-330 Zeichen)
+INSERT INTO ki_settings (funktion, provider, model_name, enabled, default_prompt)
+VALUES ('synopsis_pressetext', 'mistral', 'mistral-medium-latest', true, '')
+ON CONFLICT (funktion) DO NOTHING;

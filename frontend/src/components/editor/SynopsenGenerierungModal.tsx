@@ -2,12 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import { Wand2, X, Sparkles, Bold, Italic, Underline as UnderlineIcon, Check, RefreshCw, RotateCcw } from 'lucide-react'
+import { Wand2, X, Sparkles, Bold, Italic, Underline as UnderlineIcon, Check, RefreshCw, RotateCcw, AlertTriangle } from 'lucide-react'
 import { api } from '../../api/client'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Text utilities ─────────────────────────────────────────────────────────────
 
-/** Wandelt rohen KI-Text in HTML um. boldAllCaps boldet GROSSBUCHSTABEN-Wörter. */
 function kiTextToHtml(raw: string, boldAllCaps = false): string {
   const paras = raw.split(/\n{2,}/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean)
   if (!paras.length) return '<p></p>'
@@ -19,23 +18,19 @@ function kiTextToHtml(raw: string, boldAllCaps = false): string {
   }).join('')
 }
 
-/** Wandelt Kurzinhalt-Text (mit **Markdown**-Headings) in HTML mit <strong>-Headings um */
 function kurzinhaltToHtml(raw: string): string {
   const lines = raw.split('\n')
   const result: string[] = []
   let currentPara: string[] = []
-
   const flushPara = () => {
     if (currentPara.length > 0) {
       result.push(`<p>${currentPara.join(' ').trim()}</p>`)
       currentPara = []
     }
   }
-
   for (const line of lines) {
     const trimmed = line.trim()
     if (!trimmed) { flushPara(); continue }
-    // **Heading:** → <p><strong>Heading:</strong></p>
     const headMatch = trimmed.match(/^\*\*(.+?)\*\*:?\s*$/)
     if (headMatch) {
       flushPara()
@@ -52,7 +47,11 @@ function wordCount(html: string): number {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).length
 }
 
-// ── Minimal Toolbar ───────────────────────────────────────────────────────────
+function charCount(html: string): number {
+  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().length
+}
+
+// ── Minimal Rich Toolbar ───────────────────────────────────────────────────────
 
 function RichToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   if (!editor) return null
@@ -89,10 +88,8 @@ function RichEditor({ editor, minHeight = 140 }: { editor: ReturnType<typeof use
 
 // ── Pre-Check Dialog ──────────────────────────────────────────────────────────
 
-function PreCheckDialog({
-  data, folgeNummer, onLoad, onNew, onAbort,
-}: {
-  data: { folgen_titel?: string; synopsis?: string; synopsis_300?: string; synopsis_presse?: string; synopsis_straenge?: string }
+function PreCheckDialog({ data, folgeNummer, onLoad, onNew, onAbort }: {
+  data: { folgen_titel?: string; synopsis?: string; synopsis_kurzinhalt?: string; synopsis_300?: string; synopsis_presse?: string; synopsis_straenge?: string; synopsis_pressetext?: string }
   folgeNummer: number
   onLoad: () => void
   onNew: () => void
@@ -103,7 +100,6 @@ function PreCheckDialog({
     const plain = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
     return plain.substring(0, n) + (plain.length > n ? '…' : '')
   }
-
   return (
     <div style={{
       position: 'absolute', inset: 0, zIndex: 10, borderRadius: 16,
@@ -125,9 +121,10 @@ function PreCheckDialog({
           </div>
         )}
         {[
-          { label: 'KURZINHALT', v: data.synopsis_300 },
+          { label: 'KURZINHALT', v: data.synopsis_kurzinhalt || data.synopsis_300 },
           { label: 'REDAKTION', v: data.synopsis },
           { label: 'PRESSE', v: data.synopsis_presse },
+          { label: 'PRESSETEXT', v: data.synopsis_pressetext },
           { label: 'STRÄNGE', v: data.synopsis_straenge },
         ].filter(x => x.v).map(({ label, v }) => (
           <div key={label} style={{ background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: '8px 12px' }}>
@@ -161,9 +158,20 @@ function dlgBtn(bg: string, primary: boolean): React.CSSProperties {
   }
 }
 
-// ── Haupt-Modal ───────────────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'strang' | 'presse'
+type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'strang' | 'presse' | 'pressetext'
+
+const TABS: { id: Tab; label: string; desc: string }[] = [
+  { id: 'titel',      label: 'Titel',       desc: '1–3 Wörter' },
+  { id: 'kurzinhalt', label: 'Kurzinhalt',  desc: 'strukturiert' },
+  { id: 'redaktion',  label: 'Redaktion',   desc: 'dramaturgisch' },
+  { id: 'strang',     label: 'Strang',      desc: '≤100 Zeichen' },
+  { id: 'presse',     label: 'Presse',      desc: '60–80 Wörter' },
+  { id: 'pressetext', label: 'Pressetext',  desc: '280–330 Zeichen' },
+]
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   open: boolean
@@ -171,14 +179,6 @@ interface Props {
   folgeId: number
   folgeNummer: number
 }
-
-const TABS: { id: Tab; label: string; desc: string }[] = [
-  { id: 'titel',      label: 'Titel',       desc: '1–3 Wörter' },
-  { id: 'kurzinhalt', label: 'Kurzinhalt',  desc: 'strukturiert' },
-  { id: 'redaktion',  label: 'Redaktion',   desc: 'dramaturgisch' },
-  { id: 'strang',     label: 'Strang',      desc: '≤100 Zeichen' },
-  { id: 'presse',     label: 'Presse',      desc: 'werblich' },
-]
 
 export default function SynopsenGenerierungModal({ open, onClose, folgeId, folgeNummer }: Props) {
   const [visible, setVisible] = useState(false)
@@ -192,6 +192,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   // Generierung
   const [generating, setGenerating] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [missingSections, setMissingSections] = useState<string[]>([])
 
   // Titel
   const [titelOptions, setTitelOptions] = useState<string[]>([])
@@ -199,25 +200,42 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   const [titelMehrLoading, setTitelMehrLoading] = useState(false)
   const [titelMehrMsg, setTitelMehrMsg] = useState<string | null>(null)
 
-  // Strang (plain textarea, kein rich editor)
+  // Strang (plain textarea)
   const [strangText, setStrangText] = useState('')
 
-  // Tiptap Editoren
-  const kurzEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
-  const redaktionEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
-  const presseEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  // Race condition fix: KI result stored until editors are ready
+  const [pendingKiResult, setPendingKiResult] = useState<{
+    kurzinhalt?: string; redaktion?: string; presse?: string; pressetext?: string
+  } | null>(null)
 
-  // Save state
+  // Tiptap editors
+  const kurzEditor      = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const redaktionEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const presseEditor    = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const pressetextEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+
+  // Save
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
 
-  // ── Visible-Fade ─────────────────────────────────────────────────────────────
+  // ── Apply pending KI result when editors ready ────────────────────────────
+  useEffect(() => {
+    if (!pendingKiResult) return
+    if (!kurzEditor || !redaktionEditor || !presseEditor || !pressetextEditor) return
+    if (pendingKiResult.kurzinhalt)  kurzEditor.commands.setContent(kurzinhaltToHtml(pendingKiResult.kurzinhalt))
+    if (pendingKiResult.redaktion)   redaktionEditor.commands.setContent(kiTextToHtml(pendingKiResult.redaktion, true))
+    if (pendingKiResult.presse)      presseEditor.commands.setContent(kiTextToHtml(pendingKiResult.presse, false))
+    if (pendingKiResult.pressetext)  pressetextEditor.commands.setContent(kiTextToHtml(pendingKiResult.pressetext, false))
+    setPendingKiResult(null)
+  }, [pendingKiResult, kurzEditor, redaktionEditor, presseEditor, pressetextEditor])
+
+  // ── Visible fade ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (open) setTimeout(() => setVisible(true), 10)
     else setVisible(false)
   }, [open])
 
-  // ── Reset + Pre-Check beim Öffnen ────────────────────────────────────────────
+  // ── Reset + Pre-Check on open ─────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
     setActiveTab('titel')
@@ -226,10 +244,12 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     setTitelMehrMsg(null)
     setStrangText('')
     setGenError(null)
+    setMissingSections([])
     setSaveMsg(null)
     kurzEditor?.commands.setContent('<p></p>')
     redaktionEditor?.commands.setContent('<p></p>')
     presseEditor?.commands.setContent('<p></p>')
+    pressetextEditor?.commands.setContent('<p></p>')
 
     setChecking(true)
     api.kiSynopsenCheck(folgeId)
@@ -238,7 +258,6 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
           setPreCheckData(data)
           setShowPreCheck(true)
         } else {
-          // Keine vorhandenen Daten → direkt generieren
           triggerGenerate()
         }
       })
@@ -246,16 +265,18 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
       .finally(() => setChecking(false))
   }, [open, folgeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── KI-Generierung (kombiniert) ──────────────────────────────────────────────
+  // ── Generate all synopses ─────────────────────────────────────────────────
   const triggerGenerate = useCallback(async () => {
     setGenerating(true)
     setGenError(null)
+    setMissingSections([])
     setTitelOptions([])
     setSelectedTitel('')
     setStrangText('')
     kurzEditor?.commands.setContent('<p></p>')
     redaktionEditor?.commands.setContent('<p></p>')
     presseEditor?.commands.setContent('<p></p>')
+    pressetextEditor?.commands.setContent('<p></p>')
     try {
       const r = await api.kiSynopsenGeneriereAlle(folgeId)
       if (r.disabled) {
@@ -263,28 +284,36 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
         return
       }
       if (r.titel?.length) setTitelOptions(r.titel)
-      if (r.kurzinhalt) kurzEditor?.commands.setContent(kurzinhaltToHtml(r.kurzinhalt))
-      if (r.redaktion)  redaktionEditor?.commands.setContent(kiTextToHtml(r.redaktion, true))
-      if (r.presse)     presseEditor?.commands.setContent(kiTextToHtml(r.presse, false))
-      if (r.straenge)   setStrangText(r.straenge)
+      if (r.straenge)      setStrangText(r.straenge)
+      if (r.missing_sections?.length) setMissingSections(r.missing_sections)
+      // Store result — apply via useEffect (race condition fix)
+      setPendingKiResult({
+        kurzinhalt:  r.kurzinhalt  || undefined,
+        redaktion:   r.redaktion   || undefined,
+        presse:      r.presse      || undefined,
+        pressetext:  r.pressetext  || undefined,
+      })
     } catch (e: any) {
       setGenError('Generierungsfehler: ' + (e?.message ?? String(e)))
     } finally {
       setGenerating(false)
     }
-  }, [folgeId, kurzEditor, redaktionEditor, presseEditor]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [folgeId, kurzEditor, redaktionEditor, presseEditor, pressetextEditor]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Load existing data ────────────────────────────────────────────────────
   const loadExisting = useCallback(() => {
     if (!preCheckData) return
     if (preCheckData.folgen_titel) setSelectedTitel(preCheckData.folgen_titel)
-    if (preCheckData.synopsis_300 && kurzEditor)    kurzEditor.commands.setContent(preCheckData.synopsis_300)
-    if (preCheckData.synopsis     && redaktionEditor) redaktionEditor.commands.setContent(preCheckData.synopsis)
-    if (preCheckData.synopsis_presse  && presseEditor)   presseEditor.commands.setContent(preCheckData.synopsis_presse)
+    const kurzHtml = preCheckData.synopsis_kurzinhalt || preCheckData.synopsis_300 || '<p></p>'
+    if (kurzEditor)       kurzEditor.commands.setContent(kurzHtml)
+    if (redaktionEditor)  redaktionEditor.commands.setContent(preCheckData.synopsis || '<p></p>')
+    if (presseEditor)     presseEditor.commands.setContent(preCheckData.synopsis_presse || '<p></p>')
+    if (pressetextEditor) pressetextEditor.commands.setContent(preCheckData.synopsis_pressetext || '<p></p>')
     if (preCheckData.synopsis_straenge) setStrangText(preCheckData.synopsis_straenge)
     setShowPreCheck(false)
-  }, [preCheckData, kurzEditor, redaktionEditor, presseEditor])
+  }, [preCheckData, kurzEditor, redaktionEditor, presseEditor, pressetextEditor])
 
-  // ── Escape ────────────────────────────────────────────────────────────────────
+  // ── Escape ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) return
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
@@ -292,7 +321,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     return () => window.removeEventListener('keydown', handler)
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Weitere 5 Titel ──────────────────────────────────────────────────────────
+  // ── Weitere 5 Titel ───────────────────────────────────────────────────────
   async function handleTitelMehr() {
     setTitelMehrLoading(true); setTitelMehrMsg(null)
     try {
@@ -300,23 +329,28 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
       if (r.disabled) { setTitelMehrMsg('KI nicht aktiviert'); return }
       if (!r.titel?.length) { setTitelMehrMsg('Keine neuen Titel generiert.'); return }
       setTitelOptions(prev => [...prev, ...r.titel])
-    } catch (e: any) { setTitelMehrMsg('Fehler: ' + (e?.message ?? String(e))) }
-    finally { setTitelMehrLoading(false) }
+    } catch (e: any) {
+      setTitelMehrMsg('Fehler: ' + (e?.message ?? String(e)))
+    } finally {
+      setTitelMehrLoading(false)
+    }
   }
 
-  // ── Speichern ────────────────────────────────────────────────────────────────
+  // ── Save ──────────────────────────────────────────────────────────────────
   const save = useCallback(async (): Promise<boolean> => {
     setSaveLoading(true); setSaveMsg(null)
     try {
-      const kurzHtml = kurzEditor?.getHTML()
+      const kurzHtml      = kurzEditor?.getHTML()
       const redaktionHtml = redaktionEditor?.getHTML()
-      const presseHtml = presseEditor?.getHTML()
+      const presseHtml    = presseEditor?.getHTML()
+      const pressetextHtml = pressetextEditor?.getHTML()
       await api.saveFolgenSynopsen(folgeId, {
-        folgen_titel:      selectedTitel.trim() || null,
-        synopsis_300:      (kurzHtml && kurzHtml !== '<p></p>') ? kurzHtml : null,
-        synopsis:          (redaktionHtml && redaktionHtml !== '<p></p>') ? redaktionHtml : null,
-        synopsis_presse:   (presseHtml && presseHtml !== '<p></p>') ? presseHtml : null,
-        synopsis_straenge: strangText.trim() || null,
+        folgen_titel:        selectedTitel.trim() || null,
+        synopsis_kurzinhalt: (kurzHtml && kurzHtml !== '<p></p>')      ? kurzHtml : null,
+        synopsis:            (redaktionHtml && redaktionHtml !== '<p></p>') ? redaktionHtml : null,
+        synopsis_presse:     (presseHtml && presseHtml !== '<p></p>')  ? presseHtml : null,
+        synopsis_pressetext: (pressetextHtml && pressetextHtml !== '<p></p>') ? pressetextHtml : null,
+        synopsis_straenge:   strangText.trim() || null,
       })
       setSaveMsg('Gespeichert.')
       return true
@@ -326,7 +360,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     } finally {
       setSaveLoading(false)
     }
-  }, [folgeId, selectedTitel, kurzEditor, redaktionEditor, presseEditor, strangText])
+  }, [folgeId, selectedTitel, kurzEditor, redaktionEditor, presseEditor, pressetextEditor, strangText])
 
   async function handleClose() {
     await save()
@@ -336,6 +370,10 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   if (!open) return null
 
   const isLoading = checking || generating
+
+  // ── Char/Word counters ────────────────────────────────────────────────────
+  const pressetextChars = pressetextEditor ? charCount(pressetextEditor.getHTML()) : 0
+  const pressetextInRange = pressetextChars >= 280 && pressetextChars <= 330
 
   return (
     <>
@@ -350,7 +388,6 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
         .syn-m .ProseMirror p:last-child { margin-bottom: 0; }
         .syn-tab:hover:not(.syn-tab-active) { background: rgba(255,255,255,0.07) !important; }
         .syn-titel-card:hover { border-color: #AF52DE88 !important; background: #AF52DE18 !important; }
-        .syn-gen-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 4px 16px #AF52DE55; }
         .syn-strang-ta { resize: vertical; background: rgba(0,0,0,0.3); color: #f0f0f0; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.7; font-family: 'JetBrains Mono', 'Fira Code', monospace; width: 100%; box-sizing: border-box; outline: none; }
         .syn-strang-ta:focus { border-color: rgba(175,82,222,0.5); }
       `}</style>
@@ -360,7 +397,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
         style={{
           position: 'fixed', inset: 0, zIndex: 10001,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          background: 'rgba(5,0,20,0.75)', backdropFilter: 'blur(5px)',
+          background: 'rgba(5,0,20,0.82)', backdropFilter: 'blur(6px)',
           opacity: visible ? 1 : 0, transition: 'opacity 0.25s',
         }}
       >
@@ -369,14 +406,18 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
           onMouseDown={e => e.stopPropagation()}
           style={{
             position: 'relative',
-            width: 580, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100vh - 40px)',
+            width: 'calc(100vw - 32px)',
+            height: 'calc(100vh - 32px)',
             background: 'linear-gradient(160deg, #1a0a2e 0%, #120820 50%, #0d0518 100%)',
-            borderRadius: 16, border: '1.5px solid #AF52DE55', overflow: 'hidden',
-            display: 'flex', flexDirection: 'column',
+            borderRadius: 16,
+            border: '1.5px solid #AF52DE55',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
             animation: visible ? 'syn-glow 3s ease-in-out infinite, syn-fade-in 0.28s ease-out forwards' : 'none',
           }}
         >
-          {/* Animated stars */}
+          {/* Stars */}
           {[[12,8],[85,15],[50,5],[92,40],[8,60],[72,75],[25,85],[88,80],[45,92],[18,45]].map(([x,y], i) => (
             <div key={i} style={{
               position:'absolute', left:`${x}%`, top:`${y}%`,
@@ -397,7 +438,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
             />
           )}
 
-          {/* Full-screen loading */}
+          {/* Loading overlay */}
           {isLoading && !showPreCheck && (
             <div style={{
               position:'absolute', inset:0, zIndex:5, borderRadius:16,
@@ -408,12 +449,12 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               <span style={{ fontSize:13, color:'rgba(255,255,255,0.6)' }}>
                 {checking ? 'Prüfe vorhandene Daten…' : 'KI generiert alle Synopsen…'}
               </span>
-              <span style={{ fontSize:11, color:'rgba(255,255,255,0.3)' }}>Szenen werden einmalig analysiert</span>
+              <span style={{ fontSize:11, color:'rgba(255,255,255,0.3)' }}>Szenen werden einmalig analysiert · zwei parallele Calls</span>
             </div>
           )}
 
           {/* Header */}
-          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'18px 20px 12px', flexShrink:0, position:'relative', zIndex:1 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'16px 20px 10px', flexShrink:0, position:'relative', zIndex:1 }}>
             <div style={{
               width:36, height:36, borderRadius:10, flexShrink:0,
               background:'linear-gradient(135deg,#AF52DE33,#7b2fa055)',
@@ -432,11 +473,10 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                 Episoden-Synopsen — Folge {folgeNummer}
               </div>
               <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:1 }}>
-                KI-Generierung · einmalige Analyse · alle Felder bearbeitbar
+                KI-Generierung · 6 Formate · alle Felder bearbeitbar · Autosave beim Schließen
               </div>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
-              {/* Neu generieren Button */}
               <button
                 title="Alle Felder neu generieren"
                 onClick={() => triggerGenerate()}
@@ -458,25 +498,26 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
             </div>
           </div>
 
-          {/* Divider */}
+          {/* Gradient divider */}
           <div style={{ height:1, background:'linear-gradient(90deg,transparent,#AF52DE44,transparent)', flexShrink:0 }}/>
 
-          {/* Error banner */}
-          {genError && (
-            <div style={{ padding:'8px 20px', background:'rgba(255,149,0,0.1)', borderBottom:'1px solid rgba(255,149,0,0.25)', fontSize:11, color:'#FF9500', flexShrink:0 }}>
-              {genError}
+          {/* Error / warning banner */}
+          {(genError || missingSections.length > 0) && (
+            <div style={{ padding:'7px 20px', background: genError ? 'rgba(255,149,0,0.1)' : 'rgba(255,204,0,0.08)', borderBottom:'1px solid rgba(255,149,0,0.2)', fontSize:11, color: genError ? '#FF9500' : '#FFCC00', flexShrink:0, display:'flex', alignItems:'center', gap:6 }}>
+              <AlertTriangle size={12} />
+              {genError || `Fehlende Abschnitte: ${missingSections.join(', ')} — KI-Antwort unvollständig. Neu generieren?`}
             </div>
           )}
 
           {/* Tabs */}
-          <div style={{ display:'flex', padding:'10px 16px 0', flexShrink:0, gap:2 }}>
+          <div style={{ display:'flex', flexWrap:'wrap', padding:'10px 16px 0', flexShrink:0, gap:2 }}>
             {TABS.map(t => (
               <button
                 key={t.id}
                 className={`syn-tab${activeTab===t.id ? ' syn-tab-active' : ''}`}
                 onClick={() => setActiveTab(t.id)}
                 style={{
-                  flex:1, padding:'7px 4px', borderRadius:'7px 7px 0 0',
+                  flex:'0 0 auto', minWidth: 90, padding:'7px 14px', borderRadius:'7px 7px 0 0',
                   border:`1px solid ${activeTab===t.id ? '#AF52DE55' : 'rgba(255,255,255,0.08)'}`,
                   borderBottom: activeTab===t.id ? '1px solid #120820' : '1px solid rgba(255,255,255,0.08)',
                   background: activeTab===t.id ? 'rgba(175,82,222,0.12)' : 'transparent',
@@ -497,7 +538,15 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
             {activeTab === 'titel' && (
               <div>
                 <div style={{ marginBottom:12 }}>
-                  <label style={{ fontSize:10, color:'rgba(255,255,255,0.45)', display:'block', marginBottom:5 }}>GEWÄHLTER TITEL</label>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                    <label style={{ fontSize:10, color:'rgba(255,255,255,0.45)' }}>GEWÄHLTER TITEL</label>
+                    {selectedTitel && (
+                      <span style={{ fontSize:10, color: selectedTitel.trim().split(/\s+/).length > 3 ? '#FF9500' : 'rgba(255,255,255,0.3)' }}>
+                        {selectedTitel.trim().split(/\s+/).length} {selectedTitel.trim().split(/\s+/).length === 1 ? 'Wort' : 'Wörter'}
+                        {selectedTitel.trim().split(/\s+/).length > 3 && ' — besser 1–3 Wörter'}
+                      </span>
+                    )}
+                  </div>
                   <input
                     value={selectedTitel}
                     onChange={e => setSelectedTitel(e.target.value)}
@@ -510,14 +559,6 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                       outline:'none',
                     }}
                   />
-                  {selectedTitel && (
-                    <div style={{ fontSize:10, color:'rgba(255,255,255,0.3)', marginTop:4 }}>
-                      {selectedTitel.trim().split(/\s+/).length} {selectedTitel.trim().split(/\s+/).length === 1 ? 'Wort' : 'Wörter'}
-                      {selectedTitel.trim().split(/\s+/).length > 3 && (
-                        <span style={{ color:'#FF9500' }}> — Titel sollten 1–3 Wörter haben</span>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {titelOptions.length > 0 && (
@@ -550,17 +591,15 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
 
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <button
-                    className="syn-gen-btn"
                     onClick={handleTitelMehr}
                     disabled={titelMehrLoading || isLoading}
                     style={{
                       display:'inline-flex', alignItems:'center', gap:6,
                       padding:'7px 14px', borderRadius:7,
-                      background: titelMehrLoading ? 'rgba(175,82,222,0.1)' : 'rgba(175,82,222,0.18)',
-                      color:'#D18AFF', border:'1px solid rgba(175,82,222,0.35)',
+                      background:'rgba(175,82,222,0.18)', color:'#D18AFF',
+                      border:'1px solid rgba(175,82,222,0.35)',
                       cursor: (titelMehrLoading || isLoading) ? 'not-allowed' : 'pointer',
                       fontSize:11, fontWeight:600, opacity: (titelMehrLoading || isLoading) ? 0.5 : 1,
-                      transition:'transform 0.12s, box-shadow 0.12s',
                     }}
                   >
                     <Sparkles size={11}/>
@@ -571,57 +610,74 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               </div>
             )}
 
-            {/* ── Kurzinhalt-strukturiert ── */}
+            {/* ── Kurzinhalt ── */}
             {activeTab === 'kurzinhalt' && (
               <div>
-                <div style={{ marginBottom:10, fontSize:11, color:'rgba(255,255,255,0.4)', lineHeight:1.5 }}>
-                  Format: <strong style={{color:'rgba(255,255,255,0.65)'}}>Haupthandlung</strong> · <strong style={{color:'rgba(255,255,255,0.65)'}}>Nebenhandlungen</strong> · <strong style={{color:'rgba(255,255,255,0.65)'}}>Cliffhanger</strong>
-                </div>
-                <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    Format: <strong style={{color:'rgba(255,255,255,0.65)'}}>Haupthandlung</strong> · <strong style={{color:'rgba(255,255,255,0.65)'}}>Nebenhandlungen</strong> · <strong style={{color:'rgba(255,255,255,0.65)'}}>Cliffhanger</strong>
+                  </span>
                   {kurzEditor && kurzEditor.getText().length > 5 && (
-                    <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>{wordCount(kurzEditor.getHTML())} Wörter</span>
+                    <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>
+                      {wordCount(kurzEditor.getHTML())} Wörter
+                    </span>
                   )}
                 </div>
-                <RichEditor editor={kurzEditor} minHeight={200} />
+                <RichEditor editor={kurzEditor} minHeight={300} />
               </div>
             )}
 
             {/* ── Redaktion ── */}
             {activeTab === 'redaktion' && (
               <div>
-                <div style={{ marginBottom:10, fontSize:11, color:'rgba(255,255,255,0.4)', lineHeight:1.5 }}>
-                  Dramaturgisch · Wants &amp; Needs · Wendepunkte · Rollennamen in CAPS · ein Absatz pro Strang
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    Dramaturgisch · Wendepunkte · Rollennamen in CAPS · ein Absatz pro Strang
+                  </span>
+                  {redaktionEditor && redaktionEditor.getText().length > 5 && (() => {
+                    const wc = wordCount(redaktionEditor.getHTML())
+                    return (
+                      <span style={{ fontSize:10, color: (wc < 300 || wc > 500) ? '#FF9500' : 'rgba(255,255,255,0.25)' }}>
+                        {wc} Wörter {(wc < 300 || wc > 500) ? '(Ziel: 300–500)' : ''}
+                      </span>
+                    )
+                  })()}
                 </div>
-                <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
-                  {redaktionEditor && redaktionEditor.getText().length > 5 && (
-                    <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>{wordCount(redaktionEditor.getHTML())} Wörter</span>
-                  )}
-                </div>
-                <RichEditor editor={redaktionEditor} minHeight={240} />
+                <RichEditor editor={redaktionEditor} minHeight={340} />
               </div>
             )}
 
             {/* ── Strang ── */}
             {activeTab === 'strang' && (
               <div>
-                <div style={{ marginBottom:10, fontSize:11, color:'rgba(255,255,255,0.4)', lineHeight:1.5 }}>
-                  Je Handlungsstrang eine Zeile · max. 100 Zeichen · Format: FIGUR/STRANG: Inhalt
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    Je Handlungsstrang eine Zeile · Format: STRANGNAME: Inhalt · Ziel 50–100 Zeichen
+                  </span>
+                  {strangText && (
+                    <span style={{ fontSize:10, color:'rgba(255,255,255,0.25)' }}>
+                      {strangText.split('\n').filter(Boolean).length} Stränge
+                    </span>
+                  )}
                 </div>
                 <textarea
                   className="syn-strang-ta"
                   value={strangText}
                   onChange={e => setStrangText(e.target.value)}
-                  rows={8}
-                  placeholder={"LOU: Entscheidung über München und Trennung von Richard\nBRITTA: Ehrenamt im Krankenhaus, Job-Angebot\nMO/JULIUS: Aussprache und Annäherung\nTONI: Neue Erfüllung als Grüne Dame"}
+                  rows={10}
+                  placeholder={"LOU: Entscheidung über München und Trennung von Richard\nBRITTA: Ehrenamt im Krankenhaus, Job-Angebot\nMO/JULIUS: Aussprache und Annäherung"}
                   spellCheck={false}
                 />
                 {strangText && (
                   <div style={{ marginTop:6, display:'flex', flexDirection:'column', gap:2 }}>
                     {strangText.split('\n').filter(Boolean).map((line, i) => {
                       const len = line.length
+                      const color = len > 100 ? '#FF3B30' : len < 50 ? '#FF9500' : 'rgba(255,255,255,0.2)'
                       return (
-                        <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:10, color: len > 100 ? '#FF9500' : 'rgba(255,255,255,0.2)' }}>
-                          <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{line.substring(0, 40)}{line.length > 40 ? '…' : ''}</span>
+                        <div key={i} style={{ display:'flex', justifyContent:'space-between', fontSize:10, color }}>
+                          <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                            {line.substring(0, 60)}{line.length > 60 ? '…' : ''}
+                          </span>
                           <span style={{ flexShrink:0, marginLeft:8 }}>{len}/100</span>
                         </div>
                       )
@@ -634,17 +690,49 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
             {/* ── Presse ── */}
             {activeTab === 'presse' && (
               <div>
-                <div style={{ marginBottom:10, fontSize:11, color:'rgba(255,255,255,0.4)', lineHeight:1.5 }}>
-                  Programm-Presse · fließend, werblich · keine Cliffhanger oder Wendungen verraten · ca. 60–80 Wörter
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    Programm-Presse · werblich, neugierig machend · kein Spoiler · ca. 60–80 Wörter
+                  </span>
+                  {presseEditor && presseEditor.getText().length > 5 && (() => {
+                    const wc = wordCount(presseEditor.getHTML())
+                    return (
+                      <span style={{ fontSize:10, color: (wc < 50 || wc > 90) ? '#FF9500' : 'rgba(255,255,255,0.25)' }}>
+                        {wc} Wörter {(wc < 50 || wc > 90) ? '(Ziel: 60–80)' : ''}
+                      </span>
+                    )
+                  })()}
                 </div>
-                <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:8 }}>
-                  {presseEditor && presseEditor.getText().length > 5 && (
-                    <span style={{ fontSize:10, color: wordCount(presseEditor.getHTML()) > 90 ? '#FF9500' : 'rgba(255,255,255,0.25)' }}>
-                      {wordCount(presseEditor.getHTML())} Wörter
+                <RichEditor editor={presseEditor} minHeight={160} />
+              </div>
+            )}
+
+            {/* ── Pressetext ── */}
+            {activeTab === 'pressetext' && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    Sachlicher Pressetext · knapp · kein werblicher Ton · kein Spoiler
+                  </span>
+                  {pressetextEditor && pressetextEditor.getText().length > 3 && (
+                    <span style={{
+                      fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:5,
+                      background: pressetextInRange ? 'rgba(0,200,83,0.12)' : 'rgba(255,59,48,0.12)',
+                      border: `1px solid ${pressetextInRange ? '#00C85355' : '#FF3B3055'}`,
+                      color: pressetextInRange ? '#00C853' : '#FF3B30',
+                    }}>
+                      {pressetextChars} / 280–330 Zeichen
                     </span>
                   )}
                 </div>
-                <RichEditor editor={presseEditor} minHeight={140} />
+                <RichEditor editor={pressetextEditor} minHeight={120} />
+                {pressetextEditor && pressetextEditor.getText().length > 3 && !pressetextInRange && (
+                  <div style={{ marginTop:8, fontSize:11, color:'rgba(255,255,255,0.35)' }}>
+                    {pressetextChars < 280
+                      ? `Noch ${280 - pressetextChars} Zeichen fehlen.`
+                      : `${pressetextChars - 330} Zeichen zu viel — bitte kürzen.`}
+                  </div>
+                )}
               </div>
             )}
 
@@ -652,7 +740,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
 
           {/* Footer */}
           <div style={{
-            flexShrink:0, padding:'11px 20px', borderTop:'1px solid rgba(255,255,255,0.08)',
+            flexShrink:0, padding:'10px 20px', borderTop:'1px solid rgba(255,255,255,0.08)',
             display:'flex', alignItems:'center', gap:10,
           }}>
             <button
@@ -675,16 +763,21 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                 {saveMsg}
               </span>
             )}
-            <button
-              onClick={handleClose}
-              style={{
-                marginLeft:'auto', padding:'7px 14px', borderRadius:7,
-                background:'transparent', border:'1px solid rgba(255,255,255,0.12)',
-                color:'rgba(255,255,255,0.5)', cursor:'pointer', fontSize:12,
-              }}
-            >
-              Schließen &amp; Autosave
-            </button>
+            <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:10, color:'rgba(255,255,255,0.2)' }}>
+                Aktiv: Folge {folgeNummer}
+              </span>
+              <button
+                onClick={handleClose}
+                style={{
+                  padding:'7px 14px', borderRadius:7,
+                  background:'transparent', border:'1px solid rgba(255,255,255,0.12)',
+                  color:'rgba(255,255,255,0.5)', cursor:'pointer', fontSize:12,
+                }}
+              >
+                Schließen &amp; Autosave
+              </button>
+            </div>
           </div>
         </div>
       </div>

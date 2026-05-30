@@ -32,6 +32,7 @@ const DK_TABS = [
   { id: 'autorenplan',            label: 'Autorenplan',            badge: 'beta/bald' },
   { id: 'rollen-freigabe',        label: 'Rollen-Freigabe' },
   { id: 'drehbuch-checks',        label: 'Drehbuch-Checks' },
+  { id: 'synopsen-ki',            label: 'KI-Synopsen' },
   { id: 'verlauf-sicherung',      label: 'Verlauf & Sicherung' },
 ]
 
@@ -4839,6 +4840,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <RollenFreigabeTab produktionId={produktionId} /> : <NoProduction />
       case 'drehbuch-checks':
         return produktionId ? <DrehbuchChecksTab produktionId={produktionId} /> : <NoProduction />
+      case 'synopsen-ki':
+        return produktionId ? <SynopsenKiTab produktionId={produktionId} /> : <NoProduction />
       case 'verlauf-sicherung':
         return <VerlaufSicherungTab produktionId={produktionId} />
       case 'private-dokumente':
@@ -7508,6 +7511,127 @@ function VerlaufSicherungTab({ produktionId }: { produktionId: string | null }) 
           Auf Standard zurücksetzen
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Tab: KI-Synopsen-Einstellungen ──────────────────────────────────────────────
+
+const SYNOPSIS_DEFAULTS = {
+  temp_titel:             0.65,
+  temp_struktur:          0.35,
+  titel_max_woerter:      3,
+  redaktion_min_woerter:  300,
+  redaktion_max_woerter:  500,
+  presse_max_woerter:     80,
+  pressetext_min_zeichen: 280,
+  pressetext_max_zeichen: 330,
+  strang_max_zeichen:     100,
+}
+
+function SynopsenKiTab({ produktionId }: { produktionId: string }) {
+  const [cfg, setCfg] = useState<typeof SYNOPSIS_DEFAULTS>(SYNOPSIS_DEFAULTS)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(s => {
+        if (s?.synopsis_settings) {
+          try {
+            const v = typeof s.synopsis_settings === 'string' ? JSON.parse(s.synopsis_settings) : s.synopsis_settings
+            setCfg({ ...SYNOPSIS_DEFAULTS, ...v })
+          } catch { /* use defaults */ }
+        }
+      })
+      .catch(() => {})
+  }, [produktionId])
+
+  const save = async (next: typeof SYNOPSIS_DEFAULTS) => {
+    setSaving(true); setSaved(false)
+    try {
+      await fetch(`/api/dk-settings/${produktionId}/app-settings/synopsis_settings`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(next) }),
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } catch { /* noop */ } finally { setSaving(false) }
+  }
+
+  const patch = (key: keyof typeof SYNOPSIS_DEFAULTS, val: number) => {
+    const next = { ...cfg, [key]: val }
+    setCfg(next)
+    save(next)
+  }
+
+  const numInput = (label: string, key: keyof typeof SYNOPSIS_DEFAULTS, min: number, max: number, step = 1, hint?: string) => (
+    <div style={{ display: 'grid', gridTemplateColumns: '220px 100px 1fr', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+      <div>
+        <div style={{ fontSize: 13, color: 'var(--text-primary)' }}>{label}</div>
+        {hint && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{hint}</div>}
+      </div>
+      <input
+        type="number"
+        min={min} max={max} step={step}
+        value={cfg[key]}
+        onChange={e => patch(key, Number(e.target.value))}
+        style={{
+          width: 80, padding: '5px 8px', borderRadius: 6,
+          border: '1px solid var(--border)', background: 'var(--surface)',
+          color: 'var(--text-primary)', fontSize: 13, textAlign: 'center',
+        }}
+      />
+      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+        Default: {SYNOPSIS_DEFAULTS[key]}
+      </span>
+    </div>
+  )
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
+        Steuert Temperatur und Wort-/Zeichenlimiten für die KI-Synopsen-Generierung.
+        Werte fließen direkt in die Prompts ein. Änderungen wirken sofort beim nächsten Generieren.
+      </p>
+
+      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4, marginTop: 0 }}>
+        Temperatur
+      </h3>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8, marginTop: 0 }}>
+        0.0 = deterministisch · 1.0 = sehr kreativ. Titel brauchen etwas mehr Kreativität als Inhaltstexte.
+      </p>
+      <div style={{ marginBottom: 20 }}>
+        {numInput('Titel (kreativ)', 'temp_titel', 0, 1, 0.05, 'Erster KI-Call für Titelvorschläge')}
+        {numInput('Inhaltstexte (präzise)', 'temp_struktur', 0, 1, 0.05, 'Zweiter Call: Kurzinhalt, Redaktion, Strang, Presse, Pressetext')}
+      </div>
+
+      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+        Titel
+      </h3>
+      <div style={{ marginBottom: 20 }}>
+        {numInput('Maximale Wortanzahl', 'titel_max_woerter', 1, 6, 1, 'Ziel-Länge pro Titel im Prompt')}
+      </div>
+
+      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+        Inhaltstexte
+      </h3>
+      <div style={{ marginBottom: 20 }}>
+        {numInput('Redaktion — Mindestwörter', 'redaktion_min_woerter', 100, 600, 10)}
+        {numInput('Redaktion — Maximalwörter', 'redaktion_max_woerter', 200, 800, 10)}
+        {numInput('Presse — Maximalwörter', 'presse_max_woerter', 30, 200, 5, 'Programm-Presse (werblich)')}
+        {numInput('Pressetext — Mindestzeichen', 'pressetext_min_zeichen', 100, 400, 10, 'Sachlicher Pressetext')}
+        {numInput('Pressetext — Maximalzeichen', 'pressetext_max_zeichen', 150, 500, 10)}
+        {numInput('Strang — Maximalzeichen/Zeile', 'strang_max_zeichen', 50, 200, 5, 'Per-Zeile-Limit für die Strang-Synopse')}
+      </div>
+
+      {(saving || saved) && (
+        <div style={{ fontSize: 12, color: saving ? 'var(--text-muted)' : '#00C853', fontWeight: 600 }}>
+          {saving ? 'Speichert…' : '✓ Gespeichert'}
+        </div>
+      )}
     </div>
   )
 }

@@ -184,7 +184,7 @@ export const api = {
   kiSynopsenGeneriereAlle: (folge_id: number) => request<any>('POST', '/ki/synopsen/generiere-alle', { folge_id }),
   kiSynopsenTitelMehr: (folge_id: number, ausgeschlossene_titel: string[]) => request<any>('POST', '/ki/synopsen/titel-mehr', { folge_id, ausgeschlossene_titel }),
   getFolgenSynopsen: (folge_id: number | string) => request<any>('GET', `/v2/folgen/${folge_id}/synopsen`),
-  saveFolgenSynopsen: (folge_id: number | string, data: { folgen_titel?: string | null; synopsis?: string | null; synopsis_300?: string | null; synopsis_presse?: string | null; synopsis_straenge?: string | null }) =>
+  saveFolgenSynopsen: (folge_id: number | string, data: { folgen_titel?: string | null; synopsis?: string | null; synopsis_300?: string | null; synopsis_kurzinhalt?: string | null; synopsis_presse?: string | null; synopsis_straenge?: string | null; synopsis_pressetext?: string | null }) =>
     request<any>('PUT', `/v2/folgen/${folge_id}`, data),
 
   // User settings
