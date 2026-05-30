@@ -126,6 +126,10 @@ export default function EditorPanel({
   const pendingSnapshotContentRef = useRef<any>(null) // latest editor content awaiting snapshot
   const editorRef = useRef<any>(null)                 // live Tiptap editor instance (for instant content read)
 
+  // Panel state: which werkstufe is selected (must be declared before snapshot useEffects that reference it)
+  const [selectedWerkId, setSelectedWerkId] = useState<string | null>(null)
+  const initialApplied = useRef(false)
+
   // ── Dokument-Snapshot Auto-Trigger ─────────────────────────────────────────
   // Feuert beim Werkstufen-Wechsel (vorherige Werkstufe sichern) + alle 30 min
   const prevWerkIdRef = useRef<string | null>(null)
@@ -184,10 +188,6 @@ export default function EditorPanel({
       .then(setVorlagePreviewData)
       .catch(() => setVorlagePreviewData(null))
   }, [currentSzene?.vorlage_id, produktionId])
-
-  // Panel state: which werkstufe is selected
-  const [selectedWerkId, setSelectedWerkId] = useState<string | null>(null)
-  const initialApplied = useRef(false)
 
   // Auto-select preferred werkstufe type once on first load
   // Prefer non-empty werkstufen (szenen_count > 0) among matching type, then highest version_nummer
