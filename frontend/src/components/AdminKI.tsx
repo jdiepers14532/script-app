@@ -45,14 +45,85 @@ const MODELS_BY_PROVIDER: Record<string, string[]> = {
   claude:  ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
 }
 
-const FUNKTION_META: Record<string, { label: string; description: string; Icon: typeof FileText }> = {
-  scene_summary:       { label: 'Szenen-Synopse',       description: 'Kurze Inhaltsangabe pro Szene aus Drehbuchtext.',          Icon: FileText    },
-  entity_detect:       { label: 'Entity-Erkennung',     description: 'Erkennt Charaktere, Orte und Props im Drehbuch.',           Icon: Search      },
-  style_check:         { label: 'Stil-Analyse',         description: 'Prüft Drehbuchdialoge auf Stil und Tonalität.',             Icon: CheckCircle },
-  synopsis:            { label: 'Episode-Synopse',      description: 'Generiert eine Episoden-Synopse aus allen Szenen.',         Icon: Layers      },
-  consistency_check:   { label: 'Konsistenz-Prüfung',   description: 'Prüft Widersprüche in Handlung und Figurenkonstanz.',       Icon: AlertTriangle},
-  rollenprofil_import: { label: 'Rollenprofil-Import',  description: 'Intelligenter PDF-Import via Mistral OCR + Parsing.',       Icon: Upload      },
-  query_expand:        { label: 'KI-Suchanfrage',       description: 'Analysiert natürlichsprachliche Suchanfragen und extrahiert Charaktere und Schlüsselwörter.', Icon: Search },
+const FUNKTION_META: Record<string, {
+  label: string
+  description: string
+  verwendung: string
+  placeholders: string[]
+  Icon: typeof FileText
+  notImplemented?: boolean
+}> = {
+  scene_summary: {
+    label: 'Szenen-Zusammenfassung',
+    description: 'Generiert eine kurze Inhaltsangabe pro Szene (1–2 Sätze).',
+    verwendung: 'Wird beim Speichern einer Szene im Drehbuch-Editor automatisch im Hintergrund erzeugt und im Feld „Zusammenfassung" im Szenenkopf gespeichert.',
+    placeholders: ['{{ort}}', '{{content}}'],
+    Icon: FileText,
+  },
+  entity_detect: {
+    label: 'Entity-Erkennung',
+    description: 'Erkennt Personen, Orte und Props im Drehbuchtext.',
+    verwendung: 'Wird beim Import von Drehbüchern verwendet, um Charaktere und Motive automatisch zu erkennen und zuzuordnen.',
+    placeholders: ['{{text}}'],
+    Icon: Search,
+  },
+  style_check: {
+    label: 'Stil-Analyse',
+    description: 'Analysiert Dialoge und Szenentext auf Stil und Tonalität.',
+    verwendung: 'Noch nicht implementiert — geplant als Funktion im Szenen-Editor.',
+    placeholders: [],
+    Icon: CheckCircle,
+    notImplemented: true,
+  },
+  synopsis_generate: {
+    label: 'Episodensynopse (einfach)',
+    description: 'Generiert eine einfache Episodensynopse (max. 300 Wörter) aus allen Szenen.',
+    verwendung: 'Abrufbar im Synopsen-Tab einer Folge über „Synopse generieren" — eigenständige einfache Synopsis.',
+    placeholders: ['{{folge_nummer}}', '{{szenen_liste}}', '{{werkstufe_typ}}'],
+    Icon: Layers,
+  },
+  synopsis_titel: {
+    label: 'Episodentitel-Vorschläge',
+    description: 'Schlägt 5 Episodentitel vor, stilistisch passend zu bisherigen Titeln der Produktion.',
+    verwendung: 'Im Synopsen-Generierungsdialog (Button „Titel vorschlagen") und beim kombinierten Generieren aller Synopsen. Berücksichtigt bereits vergebene Titel der Staffel.',
+    placeholders: [],
+    Icon: Zap,
+  },
+  synopsis_kurz: {
+    label: 'Kurzsynopse für Zuschauende',
+    description: 'Erstellt eine kurze Episodensynopse (max. 300 Wörter) für Programm-Vorschauen.',
+    verwendung: 'Im Synopsen-Generierungsdialog, Feld „Synopsis 300 Wörter" — für Zuschauerinnen und Zuschauer, kein Spoiler.',
+    placeholders: [],
+    Icon: FileText,
+  },
+  synopsis_lang: {
+    label: 'Redaktionssynopse (Autoren/Produktion)',
+    description: 'Erstellt eine dramaturgische Episodensynopse (400–600 Wörter) für Autoren und Redaktion.',
+    verwendung: 'Im Synopsen-Generierungsdialog, Feld „Redaktions-Synopse" — interner Gebrauch. Rollennamen in GROSSBUCHSTABEN, Strangmarkierungen CLIFF/PEN.',
+    placeholders: [],
+    Icon: Layers,
+  },
+  synopsis_alle: {
+    label: 'Alle Synopsen (kombiniert)',
+    description: 'Generiert in einem einzigen KI-Call: 5 Titel, Kurzinhalt, Redaktionssynopse, Pressetext und Strang-Übersicht.',
+    verwendung: 'Im Synopsen-Generierungsdialog über „Alle generieren" — spart API-Kosten durch einen kombinierten Aufruf statt mehrerer Einzelaufrufe. Befüllt alle Synopsen-Felder gleichzeitig.',
+    placeholders: [],
+    Icon: Zap,
+  },
+  query_expand: {
+    label: 'KI-Suchanfrage',
+    description: 'Analysiert natürlichsprachliche Suchanfragen und extrahiert Charakternamen und Schlüsselwörter.',
+    verwendung: 'In der Suchfunktion (Suchen & Ersetzen, Strg+F/H) bei aktivierter KI-Suche — ermöglicht Suche wie „Lou trifft Daniel am Hafen".',
+    placeholders: [],
+    Icon: Search,
+  },
+  rollenprofil_import: {
+    label: 'Rollenprofil-Import',
+    description: 'Liest Rollenprofile aus PDF-Dateien per Mistral OCR aus und strukturiert die Daten.',
+    verwendung: 'Im Charakterprofil-Dialog über „Rollenprofil aus PDF importieren" — extrahiert Name, Alter, Beschreibung und weitere Felder automatisch.',
+    placeholders: ['{{text}}'],
+    Icon: Upload,
+  },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -350,11 +421,18 @@ function FunctionRow({
             {(providerMissingKey || providerInactive) && func.enabled && (
               <span title={providerMissingKey ? 'Kein API-Key' : 'Anbieter inaktiv'} style={{ fontSize: 10, color: '#FFCC00' }}>⚠</span>
             )}
+            {meta.notImplemented && (
+              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#75757518', color: '#757575' }}>noch nicht aktiv</span>
+            )}
             {hasCustomPrompt && (
               <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#007AFF18', color: '#007AFF' }}>angepasst</span>
             )}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{meta.description}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 3, display: 'flex', alignItems: 'flex-start', gap: 4 }}>
+            <span style={{ color: '#007AFF', flexShrink: 0 }}>→</span>
+            <span>{meta.verwendung}</span>
+          </div>
         </div>
         <select value={func.provider} onChange={e => handleProvider(e.target.value)} style={{ fontSize: 12, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer' }}>
           {Object.entries(PROVIDER_META).map(([id, m]) => <option key={id} value={id}>{m.label}</option>)}
@@ -378,9 +456,18 @@ function FunctionRow({
           </button>
           {promptOpen && (
             <div style={{ paddingLeft: 36 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.5 }}>
-                Verfügbare Platzhalter je nach Funktion: <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{content}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{ort}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{szenen_liste}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{folge_nummer}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{query}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{text}}'}</code>
-              </div>
+              {meta.placeholders.length > 0 ? (
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.5, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span>Platzhalter:</span>
+                  {meta.placeholders.map(ph => (
+                    <code key={ph} style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{ph}</code>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                  Dieser Prompt verwendet keine Platzhalter — Szenen-Daten werden im System-Kontext übergeben.
+                </div>
+              )}
               <textarea
                 value={promptDraft}
                 onChange={e => setPromptDraft(e.target.value)}
