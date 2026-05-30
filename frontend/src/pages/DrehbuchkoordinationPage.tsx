@@ -22,14 +22,14 @@ const DK_TABS = [
   { id: 'terminologie',           label: 'Terminologie' },
   { id: 'figuren',                label: 'Figuren' },
   { id: 'produktion',            label: 'Produktion' },
-  { id: 'export-vorlagen',       label: 'Export-Vorlagen' },
-  { id: 'lock-regeln',           label: 'Lock-Regeln' },
+  { id: 'export-vorlagen',       label: 'Export-Vorlagen',        badge: 'bald' },
+  { id: 'lock-regeln',           label: 'Lock-Regeln',            badge: 'bald' },
   { id: 'dokument-typen',        label: 'Dokumenten-Formatierung' },
   { id: 'gruppen-register',      label: 'Gruppen-Register' },
 
   { id: 'statistik-panel',         label: 'Statistik-Panel' },
   { id: 'daily-regeln',            label: 'Daily-Regeln' },
-  { id: 'autorenplan',            label: 'Autorenplan' },
+  { id: 'autorenplan',            label: 'Autorenplan',            badge: 'beta/bald' },
   { id: 'rollen-freigabe',        label: 'Rollen-Freigabe' },
   { id: 'drehbuch-checks',        label: 'Drehbuch-Checks' },
 ]
@@ -4809,7 +4809,24 @@ export default function DrehbuchkoordinationPage() {
                     if (activeTab !== tab.id) e.currentTarget.style.background = 'transparent'
                   }}
                 >
-                  {tab.label}
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {tab.label}
+                    {(tab as { badge?: string }).badge && (
+                      <span style={{
+                        fontSize: 9,
+                        fontWeight: 600,
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        background: 'var(--bg-subtle)',
+                        color: 'var(--text-secondary)',
+                        letterSpacing: '0.03em',
+                        lineHeight: 1.6,
+                        flexShrink: 0,
+                      }}>
+                        {(tab as { badge?: string }).badge}
+                      </span>
+                    )}
+                  </span>
                 </button>
               ))}
             </nav>
