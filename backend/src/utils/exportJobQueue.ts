@@ -68,6 +68,12 @@ export interface ExportJobOptions {
   filterKomparsen?: string[]
   /** IANA-Timezone des Users (Browser), z.B. "Europe/Berlin" — Fallback wenn kein Land in ProdDB */
   userTimezone?: string
+  /** Offenes Wasserzeichen klein: Pers. Ausdruck zentriert in der Kopfzeile */
+  wz_klein_aktiv?: boolean
+  /** Offenes Wasserzeichen groß: Pers. Ausdruck diagonal über die Seite */
+  wz_gross_aktiv?: boolean
+  /** Farbe des großen Wasserzeichens als Hex, z.B. "#CCCCCC" */
+  wz_gross_farbe?: string
 }
 
 export interface ExportJobParams {

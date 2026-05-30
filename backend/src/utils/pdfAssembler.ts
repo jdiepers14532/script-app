@@ -1788,9 +1788,38 @@ export async function assemblePdf(
       `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">${wmText}</span></div>`
     : ''
 
-  // headerTemplate: KZ (falls vorhanden) + Wasserzeichen-Overlay
-  const headerTemplate = (inlinedHeader.trim() || wmOverlay)
-    ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wmOverlay}${inlinedHeader.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(inlinedHeader)}</div>` : ''}</div>`
+  // ── Offene Benutzer-Wasserzeichen ─────────────────────────────────────────
+  // Text = persoenlicher_ausdruck; Groß = diagonal über die Seite; Klein = Kopfzeile zentriert
+  const escWzText = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const userWzRaw   = (input.options.persoenlicher_ausdruck ?? '').trim()
+  const userWzText  = escWzText(userWzRaw)
+  const wzKleinOn   = !!(input.options.wz_klein_aktiv && userWzText)
+  const wzGrossOn   = !!(input.options.wz_gross_aktiv && userWzText)
+
+  // Schriftgröße: Text soll ¾ der A4-Diagonale (≈ 273mm = 774pt) einnehmen.
+  // Arial Bold Zeichenbreite ≈ 0.55em. Winkel: A4-Diagonale atan(297/210) ≈ 54.74°.
+  const A4_DIAG_PT  = Math.sqrt(210 * 210 + 297 * 297) * 0.75 * 2.835  // pt
+  const wzFontPt    = wzGrossOn
+    ? Math.max(8, Math.min(250, Math.round(A4_DIAG_PT / (userWzRaw.length * 0.55))))
+    : 20
+  const wzFarbe     = /^#[0-9a-fA-F]{3,6}$/.test(input.options.wz_gross_farbe ?? '')
+    ? input.options.wz_gross_farbe!
+    : '#CCCCCC'
+
+  // Groß: position:absolute relativ zum Header-Div, ragt visuell über die gesamte Seite
+  const wzUserGross = wzGrossOn
+    ? `<div style="position:absolute;top:0;left:0;width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;opacity:0.25;pointer-events:none;overflow:hidden;z-index:9998">` +
+      `<span style="font-size:${wzFontPt}pt;font-weight:bold;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-54.74deg);display:block;color:${wzFarbe}">${userWzText}</span></div>`
+    : ''
+
+  // Klein: absolut am oberen Rand des Headers, sehr klein, zentriert
+  const wzUserKlein = wzKleinOn
+    ? `<div style="position:absolute;top:2mm;left:0;width:100%;text-align:center;font-size:6.5pt;font-family:Arial,sans-serif;color:#777;pointer-events:none;z-index:9998;line-height:1">${userWzText}</div>`
+    : ''
+
+  // headerTemplate: KZ (falls vorhanden) + Admin-WZ + User-WZ
+  const headerTemplate = (inlinedHeader.trim() || wmOverlay || wzUserGross || wzUserKlein)
+    ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wmOverlay}${wzUserGross}${wzUserKlein}${inlinedHeader.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(inlinedHeader)}</div>` : ''}</div>`
     : '<div style="font-size:0"></div>'
 
   const footerTemplate = inlinedFooter.trim()
@@ -1810,7 +1839,16 @@ export async function assemblePdf(
         `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">${wmText}</span></div>`
       : ''
 
-    const titelseiteBodyHtml = wmFixedDiv + titelseiteHtml
+    // Benutzer-Wasserzeichen auf Titelseite (position:fixed, da kein headerTemplate)
+    const wzTitelGross = wzGrossOn
+      ? `<div style="position:fixed;top:0;left:0;width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;opacity:0.25;pointer-events:none;overflow:hidden;z-index:9998">` +
+        `<span style="font-size:${wzFontPt}pt;font-weight:bold;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-54.74deg);display:block;color:${wzFarbe}">${userWzText}</span></div>`
+      : ''
+    const wzTitelKlein = wzKleinOn
+      ? `<div style="position:fixed;top:3mm;left:0;width:100%;text-align:center;font-size:6.5pt;font-family:Arial,sans-serif;color:#777;pointer-events:none;z-index:9998;line-height:1">${userWzText}</div>`
+      : ''
+
+    const titelseiteBodyHtml = wmFixedDiv + wzTitelGross + wzTitelKlein + titelseiteHtml
 
     const titelseiteFullHtml = buildPdfHtml({
       title,

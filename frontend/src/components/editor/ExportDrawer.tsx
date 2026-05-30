@@ -95,6 +95,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [progress, setProgress]                   = useState(0)
   const [errorMsg, setErrorMsg]                   = useState<string | null>(null)
 
+  // Offene Wasserzeichen
+  const [wzKleinAktiv, setWzKleinAktiv]           = useState(false)
+  const [wzGrossAktiv, setWzGrossAktiv]           = useState(false)
+  const [wzGrossFarbe, setWzGrossFarbe]           = useState('#CCCCCC')
+
   // Szenen-Filter
   const [szenenAuswahl, setSzenenAuswahl]         = useState('')
   const [filterOptions, setFilterOptions]         = useState<FilterOptions | null>(null)
@@ -139,6 +144,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setSelectedRollen(new Set()); setSelectedKomparsen(new Set()); setSelectedMotive(new Set())
     setRolleAlsVermerk(false)
     setSzenenAktiv(true); setPdfBookmarks(false)
+    setWzKleinAktiv(false); setWzGrossAktiv(false); setWzGrossFarbe('#CCCCCC')
 
     // Notiz-Werkstufen als Pre-Items (gesamte Notiz-Dokumente)
     const notizWerkItems: ExportItem[] = notizWerkstufen.map(w => ({
@@ -398,6 +404,9 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           filterKomparsen: selectedKomparsen.size > 0 ? Array.from(selectedKomparsen) : undefined,
           filterMotive:    selectedMotive.size > 0 ? Array.from(selectedMotive) : undefined,
           userTimezone:    Intl.DateTimeFormat().resolvedOptions().timeZone,
+          wz_klein_aktiv:  format === 'pdf' ? (wzKleinAktiv && !!buildPersAusdruck()) : undefined,
+          wz_gross_aktiv:  format === 'pdf' ? (wzGrossAktiv && !!buildPersAusdruck()) : undefined,
+          wz_gross_farbe:  format === 'pdf' && wzGrossAktiv ? wzGrossFarbe : undefined,
         },
       }
 
@@ -480,6 +489,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           filterRollen:    selectedRollen.size > 0    ? Array.from(selectedRollen)    : undefined,
           filterKomparsen: selectedKomparsen.size > 0 ? Array.from(selectedKomparsen) : undefined,
           filterMotive:    selectedMotive.size > 0    ? Array.from(selectedMotive)    : undefined,
+          persoenlicher_ausdruck: buildPersAusdruck(),
+          wz_klein_aktiv:  wzKleinAktiv && !!buildPersAusdruck(),
+          wz_gross_aktiv:  wzGrossAktiv && !!buildPersAusdruck(),
+          wz_gross_farbe:  wzGrossAktiv ? wzGrossFarbe : undefined,
         },
       }
       const res = await fetch('/api/export/pdf-preview', {
@@ -839,7 +852,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     </Tooltip>
                     <input
                       type="text" value={persAusdruck}
-                      onChange={e => setPersAusdruck(e.target.value)}
+                      onChange={e => {
+                        const val = e.target.value
+                        setPersAusdruck(val)
+                        if (val.trim() && !wzKleinAktiv) setWzKleinAktiv(true)
+                      }}
                       placeholder="z. B. Maria Schulze"
                       style={{ width: '100%', padding: '6px 8px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
                     />
@@ -870,6 +887,53 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     </label>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, marginLeft: 21 }}>
                       Erzeugt anklickbare Bookmarks im PDF-Reader
+                    </div>
+
+                    {/* ── Offene Wasserzeichen ── */}
+                    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                      <span style={{ ...SEC, marginBottom: 6 }}>Offene Wasserzeichen</span>
+
+                      {/* Klein */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none' }}>
+                        <input
+                          type="checkbox" checked={wzKleinAktiv}
+                          onChange={e => setWzKleinAktiv(e.target.checked)}
+                          style={{ cursor: 'pointer', accentColor: '#007AFF', width: 13, height: 13 }}
+                        />
+                        <span>Klein — Kopfzeile zentriert</span>
+                      </label>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, marginLeft: 21 }}>
+                        Pers. Ausdruck als kleiner Text oben auf jeder Seite
+                      </div>
+
+                      {/* Groß */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none', marginTop: 8 }}>
+                        <input
+                          type="checkbox" checked={wzGrossAktiv}
+                          onChange={e => setWzGrossAktiv(e.target.checked)}
+                          style={{ cursor: 'pointer', accentColor: '#007AFF', width: 13, height: 13 }}
+                        />
+                        <span>Groß — diagonal über die Seite</span>
+                      </label>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, marginLeft: 21 }}>
+                        Pers. Ausdruck diagonal (unten-links → oben-rechts)
+                      </div>
+                      {wzGrossAktiv && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, marginLeft: 21 }}>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Farbe:</span>
+                          <input
+                            type="color" value={wzGrossFarbe}
+                            onChange={e => setWzGrossFarbe(e.target.value)}
+                            style={{ width: 32, height: 22, padding: 0, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'none' }}
+                          />
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{wzGrossFarbe}</span>
+                        </div>
+                      )}
+                      {!persAusdruck.trim() && (wzKleinAktiv || wzGrossAktiv) && (
+                        <div style={{ fontSize: 10, color: '#FF9500', marginTop: 6, padding: '3px 7px', background: 'rgba(255,149,0,0.08)', borderRadius: 5, border: '1px solid rgba(255,149,0,0.25)' }}>
+                          Kein Text — bitte „Pers. Ausdruck" ausfüllen
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
