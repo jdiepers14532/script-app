@@ -832,7 +832,7 @@ async function buildSynopsenHtml(
     }
     const html = renderSzenenkopf(szenenkopfTemplate, sceneRow, row.folge_nummer, false, bodyMarginLeftCm, kuerzel)
     if (html) headings.push(
-      `<tr style="break-inside:avoid;page-break-inside:avoid;vertical-align:top"><td style="padding:0">${html}</td></tr>`
+      `<tr class="synopse-row" style="vertical-align:top"><td style="padding:0">${html}</td></tr>`
     )
   }
 
@@ -1285,6 +1285,8 @@ async function assembleHtml(
           // Notiz-Szene: unsichtbares <h2> für PDF-Lesezeichen (item.label), dann Content
           const rendered = row.content ? renderDoc(row.content, fmtById, fmtByName, ctx) : null
           if (!rendered) return null
+          // Unsichtbare Notiz-Elemente überspringen (verhindert leere Seite 1)
+          if (!rendered.replace(/<[^>]*>/g, '').trim()) return null
           const bookmarkH2 = item.label
             ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
             : ''
@@ -1603,11 +1605,14 @@ async function renderHtmlToPdf(
     footerTemplate?: string
     margin: { top: string; bottom: string; left: string; right: string }
     outline?: boolean
+    /** Optionaler Hook zwischen setContent und pdf() — z.B. für JS-Seitenumbruch-Fixup */
+    onBeforePdf?: (page: any) => Promise<void>
   }
 ): Promise<Uint8Array> {
   const page = await browser.newPage()
   try {
     await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
+    if (opts.onBeforePdf) await opts.onBeforePdf(page)
     return await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -1620,6 +1625,46 @@ async function renderHtmlToPdf(
   } finally {
     await page.close()
   }
+}
+
+/**
+ * Berechnet Synopsen-Seitenumbrüche per JavaScript (Chrome 130 break-inside:avoid Bug).
+ * Chrome 130 ignoriert break-inside:avoid auf <tr>-Elementen und dupliziert den Inhalt.
+ * Lösung: break-inside entfernen, stattdessen per JS explizite page-break-before:always setzen.
+ * Muss nach page.setContent() und vor page.pdf() aufgerufen werden.
+ */
+async function applySynopsenBreaks(
+  page: any,
+  topMm: number,
+  bottomMm: number,
+  leftMm: number,
+  rightMm: number
+): Promise<void> {
+  await page.emulateMediaType('print')
+  await page.evaluate((topMm: number, bottomMm: number, leftMm: number, rightMm: number) => {
+    // @page-Margins injizieren damit getBoundingClientRect() Positionen im Print-Layout korrekt sind
+    const style = document.createElement('style')
+    style.textContent = `@page { size: A4; margin: ${topMm}mm ${rightMm}mm ${bottomMm}mm ${leftMm}mm }`
+    document.head.appendChild(style)
+    // A4-Seitenhöhe in CSS-Pixeln (96 dpi)
+    const pageH = 297 * 96 / 25.4
+    const rows = Array.from(document.querySelectorAll('tr.synopse-row')) as HTMLElement[]
+    for (let i = 0; i < rows.length; i++) {
+      // Chrome 130 Bug: break-inside:avoid auf <tr> dupliziert den Inhalt → entfernen
+      rows[i].style.breakInside = 'auto'
+      rows[i].style.pageBreakInside = 'auto'
+      if (i > 0) {
+        const r = rows[i].getBoundingClientRect()
+        const topPage    = Math.floor(r.top / pageH)
+        const bottomPage = Math.floor(Math.max(0, r.bottom - 0.5) / pageH)
+        if (topPage < bottomPage) {
+          // Zeile würde Seitengrenze überschreiten → auf nächste Seite schieben
+          rows[i].style.breakBefore = 'page'
+          rows[i].style.pageBreakBefore = 'always'
+        }
+      }
+    }
+  }, topMm, bottomMm, leftMm, rightMm)
 }
 
 /** Fügt zwei PDFs zusammen: alle Seiten von a, dann alle Seiten von b. */
@@ -1740,6 +1785,7 @@ export async function assemblePdf(
     : '<div style="font-size:0"></div>'
 
   const pdfBookmarks = input.options.pdfBookmarks === true
+  const hasSynopse = [...(input.options.preItems ?? []), ...(input.options.postItems ?? [])].some(it => it.type === 'synopse')
 
   let pdfBytes: Uint8Array
 
@@ -1788,6 +1834,7 @@ export async function assemblePdf(
         left:   `${bml}mm`,
         right:  `${bmr}mm`,
       },
+      onBeforePdf: hasSynopse ? (p: any) => applySynopsenBreaks(p, pageMarginTop, pageMarginBottom, bml, bmr) : undefined,
     })
     setProgress(85)
 
@@ -1813,6 +1860,7 @@ export async function assemblePdf(
     const page = await browser.newPage()
     try {
       await page.setContent(html, { waitUntil: 'load', timeout: 60_000 })
+      if (hasSynopse) await applySynopsenBreaks(page, pageMarginTop, pageMarginBottom, bml, bmr)
       setProgress(75)
 
       // outline:true → Chrome generiert PDF-Lesezeichen nativ aus <h2>-Tags.

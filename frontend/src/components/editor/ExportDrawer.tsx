@@ -174,7 +174,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           mode?: 'folge' | 'block'
         ): Partial<ExportItem> => {
           if (!enabled) return { enabled: false }
-          if (folgeId && mode === 'folge') {
+          if (folgeId && (mode === 'folge' || !mode)) {
             const config: StatistikExportConfig = {
               folge_ids: [folgeId], folge_nummer: folgeNummer, mode: 'folge', sections: defaultSections,
             }
