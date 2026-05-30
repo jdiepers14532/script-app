@@ -383,6 +383,7 @@ async function runMigrations() {
     'v135_query_expand.sql',
     'v136_drehbuch_checks.sql',
     'v137_ki_prompts.sql',
+    'v138_freigabe_context.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

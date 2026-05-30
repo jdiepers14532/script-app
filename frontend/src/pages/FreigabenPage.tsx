@@ -4,7 +4,7 @@
  * Zugang: DK (full) + Produktion/Herstellungsleitung (read-only)
  */
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle, XCircle, Clock, Bell, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
+import { CheckCircle, XCircle, Clock, Bell, ExternalLink, RefreshCw, Trash2, RotateCcw } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import Tooltip from '../components/Tooltip'
 import { api } from '../api/client'
@@ -25,10 +25,16 @@ type Anfrage = {
   character_id: number
   rollen_name: string
   beantragt_von_user_id: string
+  beantragt_von_name: string | null
   beantragt_am: string
   status: 'ausstehend' | 'freigegeben' | 'abgelehnt' | 'zurueckgezogen'
   entschieden_am: string | null
   notiz: string | null
+  erneut_anfrage_notiz: string | null
+  szene_id: string | null
+  folge_nummer: number | null
+  scene_nummer: string | null
+  ort_name: string | null
   genehmiger_status: GenStatus[]
 }
 
@@ -83,6 +89,8 @@ export default function FreigabenPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ausstehend')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const [ablehnNotiz, setAblehnNotiz] = useState<{ id: number; text: string } | null>(null)
+  const [erneutAnfragen, setErneutAnfragen] = useState<{ id: number; text: string } | null>(null)
+  const [erinnerungSent, setErinnerungSent] = useState<Set<number>>(new Set())
 
   const load = useCallback(async () => {
     if (!selectedProductionId) return
@@ -134,15 +142,19 @@ export default function FreigabenPage() {
     setActionLoading(id)
     try {
       await api.post(`/rollen-freigabe/${selectedProductionId}/anfragen/${id}/erinnerung`, {})
+      setErinnerungSent(prev => new Set([...prev, id]))
+      setTimeout(() => setErinnerungSent(prev => { const s = new Set(prev); s.delete(id); return s }), 3000)
     } finally { setActionLoading(null) }
   }
 
-  async function handleZurueckziehen(id: number) {
+  async function handleErneutAnfragen(id: number) {
     if (!selectedProductionId) return
-    if (!confirm('Anfrage zurückziehen? Die Rolle bleibt ohne Freigabe-Status.')) return
     setActionLoading(id)
     try {
-      await api.post(`/rollen-freigabe/${selectedProductionId}/anfragen/${id}/zurueckziehen`, {})
+      await api.erneutAnfragen(selectedProductionId, id, {
+        notiz: erneutAnfragen?.id === id ? erneutAnfragen.text : undefined,
+      })
+      setErneutAnfragen(null)
       await load()
     } finally { setActionLoading(null) }
   }
@@ -156,11 +168,16 @@ export default function FreigabenPage() {
     } finally { setActionLoading(null) }
   }
 
+  // Wer hat abgelehnt?
+  function getAblehner(a: Anfrage): GenStatus | null {
+    return (a.genehmiger_status ?? []).find(g => g.entschieden === 'abgelehnt') ?? null
+  }
+
   return (
     <AppShell title="Freigaben">
-      <div style={{ padding: '24px 24px 80px', maxWidth: 960, margin: '0 auto' }}>
+      <div style={{ padding: '24px 24px 80px' }}>
 
-        {/* Header + Stats */}
+        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Rollen-Freigaben</h1>
           <button
@@ -199,7 +216,7 @@ export default function FreigabenPage() {
           ))}
         </div>
 
-        {/* Tabelle */}
+        {/* Liste */}
         {loading ? (
           <div style={{ color: '#757575', fontSize: 14 }}>Lade...</div>
         ) : filtered.length === 0 ? (
@@ -208,156 +225,225 @@ export default function FreigabenPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filtered.map(a => (
-              <div
-                key={a.id}
-                style={{
-                  background: '#fff', borderRadius: 10,
-                  border: '1px solid #e0e0e0', padding: '14px 16px',
-                  borderLeft: `3px solid ${STATUS_COLORS[a.status] ?? '#e0e0e0'}`,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  {/* Rollenname */}
-                  <span style={{ fontWeight: 700, fontSize: 15, flex: '0 0 auto' }}>
-                    {a.rollen_name}
-                  </span>
+            {filtered.map(a => {
+              const ablehner = getAblehner(a)
+              return (
+                <div
+                  key={a.id}
+                  style={{
+                    background: '#fff', borderRadius: 10,
+                    border: '1px solid #e0e0e0', padding: '14px 16px',
+                    borderLeft: `3px solid ${STATUS_COLORS[a.status] ?? '#e0e0e0'}`,
+                  }}
+                >
+                  {/* Kopfzeile */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: 700, fontSize: 15, flex: '0 0 auto' }}>
+                      {a.rollen_name}
+                    </span>
 
-                  <StatusBadge status={a.status} />
+                    <StatusBadge status={a.status} />
 
-                  {/* Genehmiger-Icons */}
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    {(a.genehmiger_status ?? []).map(g => (
-                      <GenIcon key={g.id} g={g} />
-                    ))}
+                    {/* Genehmiger-Icons */}
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                      {(a.genehmiger_status ?? []).map(g => (
+                        <GenIcon key={g.id} g={g} />
+                      ))}
+                    </div>
+
+                    {/* Datum */}
+                    <span style={{ fontSize: 12, color: '#757575', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                      {new Date(a.beantragt_am).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
+                    </span>
                   </div>
 
-                  {/* Datum */}
-                  <span style={{ fontSize: 12, color: '#757575', marginLeft: 'auto' }}>
-                    {new Date(a.beantragt_am).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}
-                  </span>
-                </div>
-
-                {/* Notiz */}
-                {a.notiz && (
-                  <div style={{ fontSize: 12, color: '#FF3B30', marginTop: 6 }}>
-                    Ablehnungsgrund: {a.notiz}
+                  {/* Kontext-Zeile: Antragsteller + Szene/Folge */}
+                  <div style={{ display: 'flex', gap: 16, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {a.beantragt_von_name && (
+                      <span style={{ fontSize: 12, color: '#555' }}>
+                        Beantragt von <strong>{a.beantragt_von_name}</strong>
+                      </span>
+                    )}
+                    {(a.folge_nummer != null || a.scene_nummer != null) && (
+                      <span style={{ fontSize: 12, color: '#757575' }}>
+                        {a.folge_nummer != null && `Folge ${a.folge_nummer}`}
+                        {a.scene_nummer != null && ` · Szene ${a.scene_nummer}`}
+                        {a.ort_name && ` · ${a.ort_name}`}
+                      </span>
+                    )}
                   </div>
-                )}
 
-                {/* Ablehnen-Notiz-Input */}
-                {ablehnNotiz?.id === a.id && (
-                  <div style={{ marginTop: 10 }}>
-                    <input
-                      value={ablehnNotiz.text}
-                      onChange={e => setAblehnNotiz({ id: a.id, text: e.target.value })}
-                      placeholder="Ablehnungsgrund (optional)"
-                      style={{
-                        width: '100%', padding: '8px 12px', borderRadius: 6,
-                        border: '1px solid #e0e0e0', fontSize: 13,
-                      }}
-                    />
-                  </div>
-                )}
+                  {/* Ablehnungs-Audit-Trail */}
+                  {a.status === 'abgelehnt' && ablehner && (
+                    <div style={{
+                      marginTop: 8, padding: '8px 12px', borderRadius: 6,
+                      background: '#fff0f0', fontSize: 12, color: '#FF3B30',
+                    }}>
+                      Abgelehnt von <strong>{ablehner.name}</strong>
+                      {ablehner.entschieden_am && ` am ${new Date(ablehner.entschieden_am).toLocaleDateString('de-DE')}`}
+                      {a.notiz && ` · "${a.notiz}"`}
+                    </div>
+                  )}
 
-                {/* Aktionen */}
-                {a.status === 'ausstehend' && (
-                  <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => handleFreigeben(a.id)}
-                      disabled={actionLoading === a.id}
-                      style={{
-                        padding: '6px 14px', borderRadius: 6, border: 'none',
-                        background: '#000', color: '#fff', fontSize: 12,
-                        fontWeight: 600, cursor: 'pointer',
-                      }}
-                    >
-                      <CheckCircle size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                      Freigeben
-                    </button>
+                  {/* Ablehnungsnotiz ohne bekannten Genehmiger (DK-Override) */}
+                  {a.status === 'abgelehnt' && !ablehner && a.notiz && (
+                    <div style={{ fontSize: 12, color: '#FF3B30', marginTop: 6 }}>
+                      Ablehnungsgrund: {a.notiz}
+                    </div>
+                  )}
 
-                    {ablehnNotiz?.id === a.id ? (
+                  {/* Ablehnen-Notiz-Input */}
+                  {ablehnNotiz?.id === a.id && (
+                    <div style={{ marginTop: 10 }}>
+                      <input
+                        value={ablehnNotiz.text}
+                        onChange={e => setAblehnNotiz({ id: a.id, text: e.target.value })}
+                        placeholder="Ablehnungsgrund (optional)"
+                        style={{
+                          width: '100%', padding: '8px 12px', borderRadius: 6,
+                          border: '1px solid #e0e0e0', fontSize: 13, boxSizing: 'border-box',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Erneut-Anfragen-Input */}
+                  {erneutAnfragen?.id === a.id && (
+                    <div style={{ marginTop: 10 }}>
+                      <textarea
+                        value={erneutAnfragen.text}
+                        onChange={e => setErneutAnfragen({ id: a.id, text: e.target.value })}
+                        placeholder="Hinweis an die Genehmiger (optional) — wird in der E-Mail angezeigt"
+                        rows={2}
+                        style={{
+                          width: '100%', padding: '8px 12px', borderRadius: 6,
+                          border: '1px solid #FFCC00', fontSize: 13,
+                          boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit',
+                        }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Aktionen — ausstehend */}
+                  {a.status === 'ausstehend' && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                       <button
-                        onClick={() => handleAblehnen(a.id)}
+                        onClick={() => handleFreigeben(a.id)}
                         disabled={actionLoading === a.id}
                         style={{
                           padding: '6px 14px', borderRadius: 6, border: 'none',
-                          background: '#FF3B30', color: '#fff', fontSize: 12,
+                          background: '#000', color: '#fff', fontSize: 12,
                           fontWeight: 600, cursor: 'pointer',
                         }}
                       >
-                        Ablehnen bestätigen
+                        <CheckCircle size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                        Freigeben
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => setAblehnNotiz({ id: a.id, text: '' })}
-                        style={{
-                          padding: '6px 14px', borderRadius: 6, fontSize: 12,
-                          border: '1px solid #e0e0e0', background: '#fff',
-                          color: '#333', cursor: 'pointer', fontWeight: 600,
-                        }}
-                      >
-                        <XCircle size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-                        Ablehnen
-                      </button>
-                    )}
 
-                    <Tooltip text="Erinnerung an alle ausstehenden Genehmiger senden">
-                      <button
-                        onClick={() => handleErinnerung(a.id)}
-                        disabled={actionLoading === a.id}
-                        style={{
-                          padding: '6px 10px', borderRadius: 6, fontSize: 12,
-                          border: '1px solid #e0e0e0', background: '#fff',
-                          color: '#757575', cursor: 'pointer',
-                        }}
-                      >
-                        <Bell size={12} />
-                      </button>
-                    </Tooltip>
+                      {ablehnNotiz?.id === a.id ? (
+                        <button
+                          onClick={() => handleAblehnen(a.id)}
+                          disabled={actionLoading === a.id}
+                          style={{
+                            padding: '6px 14px', borderRadius: 6, border: 'none',
+                            background: '#FF3B30', color: '#fff', fontSize: 12,
+                            fontWeight: 600, cursor: 'pointer',
+                          }}
+                        >
+                          Ablehnen bestätigen
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setAblehnNotiz({ id: a.id, text: '' })}
+                          style={{
+                            padding: '6px 14px', borderRadius: 6, fontSize: 12,
+                            border: '1px solid #e0e0e0', background: '#fff',
+                            color: '#333', cursor: 'pointer', fontWeight: 600,
+                          }}
+                        >
+                          <XCircle size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                          Ablehnen
+                        </button>
+                      )}
 
-                    <Tooltip text="Anfrage zurückziehen">
-                      <button
-                        onClick={() => handleZurueckziehen(a.id)}
-                        style={{
-                          padding: '6px 10px', borderRadius: 6, fontSize: 12,
-                          border: '1px solid #e0e0e0', background: '#fff',
-                          color: '#757575', cursor: 'pointer',
-                        }}
-                      >
-                        Zurückziehen
-                      </button>
-                    </Tooltip>
-                  </div>
-                )}
-
-                {/* Link zur Rollendatenbank + Löschen (bei abgelehnt) */}
-                <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <a
-                    href={`/rollen?id=${a.character_id}`}
-                    style={{ fontSize: 12, color: '#007AFF', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                  >
-                    <ExternalLink size={11} />
-                    In Rollendatenbank öffnen
-                  </a>
-                  {a.status === 'abgelehnt' && (
-                    <Tooltip text="Abgelehnte Rolle endgültig aus dem System entfernen">
-                      <button
-                        onClick={() => handleRolleLoeschen(a)}
-                        disabled={actionLoading === a.id}
-                        style={{
-                          padding: '3px 8px', borderRadius: 5, fontSize: 12,
-                          border: '1px solid #FF3B30', background: 'transparent',
-                          color: '#FF3B30', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-                        }}
-                      >
-                        <Trash2 size={11} /> Rolle löschen
-                      </button>
-                    </Tooltip>
+                      <Tooltip text="Erinnerung an alle ausstehenden Genehmiger senden">
+                        <button
+                          onClick={() => handleErinnerung(a.id)}
+                          disabled={actionLoading === a.id}
+                          style={{
+                            padding: '6px 10px', borderRadius: 6, fontSize: 12,
+                            border: `1px solid ${erinnerungSent.has(a.id) ? '#00C853' : '#e0e0e0'}`,
+                            background: erinnerungSent.has(a.id) ? '#f0fff4' : '#fff',
+                            color: erinnerungSent.has(a.id) ? '#00C853' : '#757575',
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {erinnerungSent.has(a.id) ? <><CheckCircle size={12} /> Erinnerung gesendet</> : <Bell size={12} />}
+                        </button>
+                      </Tooltip>
+                    </div>
                   )}
+
+                  {/* Aktionen — abgelehnt */}
+                  {a.status === 'abgelehnt' && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {erneutAnfragen?.id === a.id ? (
+                        <button
+                          onClick={() => handleErneutAnfragen(a.id)}
+                          disabled={actionLoading === a.id}
+                          style={{
+                            padding: '6px 14px', borderRadius: 6, border: 'none',
+                            background: '#FFCC00', color: '#000', fontSize: 12,
+                            fontWeight: 600, cursor: 'pointer',
+                          }}
+                        >
+                          <RotateCcw size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                          Erneut anfragen bestätigen
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setErneutAnfragen({ id: a.id, text: '' })}
+                          style={{
+                            padding: '6px 14px', borderRadius: 6, fontSize: 12,
+                            border: '1px solid #FFCC00', background: '#fff',
+                            color: '#333', cursor: 'pointer', fontWeight: 600,
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                          }}
+                        >
+                          <RotateCcw size={12} /> Erneut anfragen
+                        </button>
+                      )}
+
+                      <Tooltip text="Abgelehnte Rolle endgültig aus dem System entfernen">
+                        <button
+                          onClick={() => handleRolleLoeschen(a)}
+                          disabled={actionLoading === a.id}
+                          style={{
+                            padding: '6px 8px', borderRadius: 5, fontSize: 12,
+                            border: '1px solid #FF3B30', background: 'transparent',
+                            color: '#FF3B30', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+                          }}
+                        >
+                          <Trash2 size={11} /> Rolle löschen
+                        </button>
+                      </Tooltip>
+                    </div>
+                  )}
+
+                  {/* Link zur Rollendatenbank */}
+                  <div style={{ marginTop: 8 }}>
+                    <a
+                      href={`/rollen?id=${a.character_id}`}
+                      style={{ fontSize: 12, color: '#007AFF', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <ExternalLink size={11} />
+                      In Rollendatenbank öffnen
+                    </a>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

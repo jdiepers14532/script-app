@@ -137,6 +137,18 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     altKey: true,
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+H`,
   },
+  // Alt+N → NT-Liste (N wie NT); nicht von Browsern als Navigation belegt
+  navNtListe: {
+    codes: ['KeyN'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+N`,
+  },
+  // Alt+G → Freigaben (G wie Genehmigung); nicht von Browsern als Navigation belegt
+  navFreigaben: {
+    codes: ['KeyG'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+G`,
+  },
 
   // ── Editor: Cursor Anfang/Ende der Szene ─────────────────────────────────
   editorGotoStart: {

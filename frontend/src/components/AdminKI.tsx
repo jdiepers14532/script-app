@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Shield, Eye, EyeOff, AlertTriangle,
-  FileText, Layers, Search, CheckCircle, Upload, Zap,
+  FileText, Layers, Search, CheckCircle, Upload, Zap, ChevronDown, ChevronRight, RotateCcw,
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +22,8 @@ interface KiFunction {
   provider: string
   model_name: string | null
   enabled: boolean
+  prompt: string | null
+  default_prompt: string | null
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -259,6 +261,10 @@ function FunctionRow({
   const meta = FUNKTION_META[func.funktion] ?? { label: func.funktion, description: '', Icon: Zap }
   const { Icon } = meta
   const [saving, setSaving] = useState(false)
+  const [promptOpen, setPromptOpen] = useState(false)
+  const [promptDraft, setPromptDraft] = useState(func.prompt ?? func.default_prompt ?? '')
+  const [promptSaving, setPromptSaving] = useState(false)
+  const [promptMsg, setPromptMsg] = useState('')
 
   const save = async (changes: Partial<KiFunction>) => {
     setSaving(true)
@@ -276,82 +282,135 @@ function FunctionRow({
     }
   }
 
+  const savePrompt = async () => {
+    setPromptSaving(true)
+    setPromptMsg('')
+    try {
+      const resp = await fetch(`/api/admin/ki-settings/${func.funktion}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: promptDraft }),
+      })
+      const data = await resp.json()
+      if (resp.ok) { onUpdated({ ...func, ...data }); setPromptMsg('Gespeichert') }
+      else setPromptMsg(data.error || 'Fehler')
+    } finally {
+      setPromptSaving(false)
+      setTimeout(() => setPromptMsg(''), 2000)
+    }
+  }
+
+  const resetPrompt = async () => {
+    setPromptSaving(true)
+    try {
+      const resp = await fetch(`/api/admin/ki-settings/${func.funktion}/prompt`, {
+        method: 'DELETE', credentials: 'include',
+      })
+      const data = await resp.json()
+      if (resp.ok) {
+        onUpdated({ ...func, ...data })
+        setPromptDraft(data.default_prompt ?? '')
+        setPromptMsg('Auf Standard zurückgesetzt')
+      }
+    } finally {
+      setPromptSaving(false)
+      setTimeout(() => setPromptMsg(''), 2000)
+    }
+  }
+
   const currentProvider = providers.find(p => p.provider === func.provider)
   const providerMeta = PROVIDER_META[func.provider]
   const models = MODELS_BY_PROVIDER[func.provider] ?? []
   const providerMissingKey = providerMeta?.needsKey && !currentProvider?.api_key
   const providerInactive = currentProvider && !currentProvider.is_active
+  const hasCustomPrompt = func.prompt && func.prompt !== func.default_prompt
 
   const handleToggle = () => save({ enabled: !func.enabled })
-  const handleProvider = (p: string) => {
-    const defaultModel = MODELS_BY_PROVIDER[p]?.[0] ?? ''
-    save({ provider: p, model_name: defaultModel })
-  }
+  const handleProvider = (p: string) => save({ provider: p, model_name: MODELS_BY_PROVIDER[p]?.[0] ?? '' })
   const handleModel = (m: string) => save({ model_name: m })
 
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: '36px 1fr auto auto auto',
-      alignItems: 'center',
-      gap: 12,
-      padding: '10px 0',
-      borderBottom: '1px solid var(--border)',
-      opacity: func.enabled ? 1 : 0.55,
-    }}>
-      {/* Icon */}
-      <div style={{ color: func.enabled ? 'var(--text)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={15} />
+    <div style={{ borderBottom: '1px solid var(--border)', opacity: func.enabled ? 1 : 0.55 }}>
+      {/* Hauptzeile */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '36px 1fr auto auto auto',
+        alignItems: 'center',
+        gap: 12,
+        padding: '10px 0',
+      }}>
+        <div style={{ color: func.enabled ? 'var(--text)' : 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon size={15} />
+        </div>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
+            {meta.label}
+            {saving && <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>•</span>}
+            {(providerMissingKey || providerInactive) && func.enabled && (
+              <span title={providerMissingKey ? 'Kein API-Key' : 'Anbieter inaktiv'} style={{ fontSize: 10, color: '#FFCC00' }}>⚠</span>
+            )}
+            {hasCustomPrompt && (
+              <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: '#007AFF18', color: '#007AFF' }}>angepasst</span>
+            )}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{meta.description}</div>
+        </div>
+        <select value={func.provider} onChange={e => handleProvider(e.target.value)} style={{ fontSize: 12, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer' }}>
+          {Object.entries(PROVIDER_META).map(([id, m]) => <option key={id} value={id}>{m.label}</option>)}
+        </select>
+        <select value={func.model_name ?? ''} onChange={e => handleModel(e.target.value)} style={{ fontSize: 12, padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', maxWidth: 200 }}>
+          {models.map(m => <option key={m} value={m}>{m}</option>)}
+          {func.model_name && !models.includes(func.model_name) && <option value={func.model_name}>{func.model_name}</option>}
+        </select>
+        <ToggleSwitch checked={func.enabled} onChange={handleToggle} />
       </div>
 
-      {/* Title + description */}
-      <div>
-        <div style={{ fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-          {meta.label}
-          {saving && <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>•</span>}
-          {(providerMissingKey || providerInactive) && func.enabled && (
-            <span title={providerMissingKey ? 'Kein API-Key für diesen Anbieter' : 'Anbieter inaktiv'}
-              style={{ fontSize: 10, color: '#FFCC00', cursor: 'help' }}>⚠</span>
+      {/* Prompt-Editor Toggle */}
+      {func.default_prompt && (
+        <div style={{ paddingBottom: promptOpen ? 12 : 6 }}>
+          <button
+            onClick={() => setPromptOpen(o => !o)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, padding: '0 0 4px 36px' }}
+          >
+            {promptOpen ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+            Prompt {hasCustomPrompt ? '(angepasst)' : '(Standard)'}
+          </button>
+          {promptOpen && (
+            <div style={{ paddingLeft: 36 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, lineHeight: 1.5 }}>
+                Verfügbare Platzhalter je nach Funktion: <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{content}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{ort}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{szenen_liste}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{folge_nummer}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{query}}'}</code> <code style={{ background: 'var(--bg-subtle)', padding: '1px 4px', borderRadius: 3 }}>{'{{text}}'}</code>
+              </div>
+              <textarea
+                value={promptDraft}
+                onChange={e => setPromptDraft(e.target.value)}
+                rows={6}
+                style={{
+                  width: '100%', fontSize: 12, fontFamily: 'monospace',
+                  padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6,
+                  background: 'var(--bg)', color: 'var(--text)',
+                  resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.5,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 6, alignItems: 'center' }}>
+                <button
+                  onClick={savePrompt} disabled={promptSaving}
+                  style={{ fontSize: 11, padding: '4px 12px', border: 'none', borderRadius: 5, background: 'var(--text)', color: 'var(--bg)', cursor: 'pointer', fontWeight: 500 }}
+                >
+                  {promptSaving ? '…' : 'Speichern'}
+                </button>
+                <button
+                  onClick={resetPrompt} disabled={promptSaving}
+                  style={{ fontSize: 11, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 5, background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <RotateCcw size={10} /> Standard
+                </button>
+                {promptMsg && <span style={{ fontSize: 11, color: promptMsg.includes('Fehler') ? '#FF3B30' : '#00C853' }}>{promptMsg}</span>}
+              </div>
+            </div>
           )}
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>{meta.description}</div>
-      </div>
-
-      {/* Provider select */}
-      <select
-        value={func.provider}
-        onChange={e => handleProvider(e.target.value)}
-        style={{
-          fontSize: 12, padding: '5px 8px',
-          border: '1px solid var(--border)', borderRadius: 6,
-          background: 'var(--bg)', color: 'var(--text)',
-          cursor: 'pointer',
-        }}>
-        {Object.entries(PROVIDER_META).map(([id, m]) => (
-          <option key={id} value={id}>{m.label}</option>
-        ))}
-      </select>
-
-      {/* Model select */}
-      <select
-        value={func.model_name ?? ''}
-        onChange={e => handleModel(e.target.value)}
-        style={{
-          fontSize: 12, padding: '5px 8px',
-          border: '1px solid var(--border)', borderRadius: 6,
-          background: 'var(--bg)', color: 'var(--text)',
-          cursor: 'pointer', maxWidth: 200,
-        }}>
-        {models.map(m => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-        {func.model_name && !models.includes(func.model_name) && (
-          <option value={func.model_name}>{func.model_name}</option>
-        )}
-      </select>
-
-      {/* Toggle */}
-      <ToggleSwitch checked={func.enabled} onChange={handleToggle} />
+      )}
     </div>
   )
 }

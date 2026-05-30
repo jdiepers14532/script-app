@@ -693,6 +693,8 @@ export default function AppShell({
       else if (matchesShortcut('navDrehbuchkoordination', e) && hasDkAccess) { e.preventDefault(); navigate('/drehbuchkoordination') }
       else if (matchesShortcut('navExport', e))          { e.preventDefault(); window.dispatchEvent(new CustomEvent('open-export-dialog')) }
       else if (matchesShortcut('navHandbuch', e))        { e.preventDefault(); navigate('/hilfe') }
+      else if (matchesShortcut('navNtListe', e))         { e.preventDefault(); navigate('/nt-liste') }
+      else if (matchesShortcut('navFreigaben', e) && hasDkAccess) { e.preventDefault(); navigate('/freigaben') }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
@@ -1445,13 +1447,7 @@ export default function AppShell({
               { to: null,                    label: 'Export',              icon: <Download size={14} />,        shortcut: 'navExport',   action: () => { setNavMenuOpen(false); window.dispatchEvent(new CustomEvent('open-export-dialog')) } },
               { to: '/import',              label: 'Import',              icon: <FileUp size={14} /> },
               { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} />,      shortcut: 'navFreieDokumente' },
-              { to: '/nt-liste',            label: 'NT-Liste',            icon: <MicOff size={14} /> },
-              ...(hasDkAccess ? [{
-                to: '/freigaben',
-                label: 'Freigaben',
-                icon: <ShieldCheck size={14} />,
-                badge: pendingFreigabenCount > 0 ? pendingFreigabenCount : undefined,
-              }] : []),
+              { to: '/nt-liste', label: 'NT-Liste', icon: <MicOff size={14} />, shortcut: 'navNtListe' },
               ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} />, shortcut: 'navDrehbuchkoordination' }] : []),
             ].map(item => item.action ? (
               <button
@@ -1628,6 +1624,25 @@ export default function AppShell({
                 }}>{pendingCount}</span>
               )}
             </button>
+            {hasDkAccess && (
+              <Link
+                to="/freigaben"
+                className={`um-item${location.pathname === '/freigaben' ? ' um-item-active' : ''}`}
+                style={{ textDecoration: 'none' }}
+                onClick={() => setUserMenuOpen(false)}
+              >
+                <ShieldCheck size={14} />
+                <span style={{ flex: 1 }}>Freigaben</span>
+                {pendingFreigabenCount > 0 && (
+                  <span style={{
+                    background: '#FF3B30', color: '#fff',
+                    borderRadius: 99, fontSize: 10, fontWeight: 700,
+                    padding: '1px 6px', minWidth: 16, textAlign: 'center',
+                  }}>{pendingFreigabenCount}</span>
+                )}
+                <span className="um-shortcut">{sc('navFreigaben')}</span>
+              </Link>
+            )}
             <Link
               to="/hilfe"
               className="um-item"

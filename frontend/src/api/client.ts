@@ -245,6 +245,8 @@ export const api = {
     request<any[]>('GET', `/characters?produktion_id=${encodeURIComponent(produktionId)}`),
   createCharacter: (data: any) => request<any>('POST', '/characters', data),
   deleteCharacter: (id: string) => request<void>('DELETE', `/characters/${id}`),
+  erneutAnfragen: (productionId: string, id: number, body: { notiz?: string }) =>
+    request<{ ok: boolean; status: string }>('POST', `/rollen-freigabe/${productionId}/anfragen/${id}/erneut-anfragen`, body),
   updateCharacter: (id: string, data: any) => request<any>('PUT', `/characters/${id}`, data),
   getCharKategorien: (produktionId: string) =>
     request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/character-kategorien`),
