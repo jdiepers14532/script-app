@@ -394,27 +394,32 @@ folgenV2Router.post('/:id/verknuepfe-mit-folge', async (req, res) => {
 
     // Szenen kopieren
     const szenen = await query(
-      `SELECT ds.*, si.sz_nummer, si.motiv_id, si.innen_aussen, si.tag_nacht
-       FROM dokument_szenen ds
-       JOIN scene_identities si ON si.id = ds.scene_identity_id
-       WHERE ds.werkstufe_id = $1
-       ORDER BY ds.sort_order, ds.id`,
+      `SELECT * FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND (geloescht IS NULL OR geloescht = false)
+       ORDER BY sort_order, id`,
       [quellWerkstufe.id]
     )
 
     for (const sz of szenen) {
       const neueSi = await queryOne(
-        `INSERT INTO scene_identities
-           (folge_id, sz_nummer, motiv_id, innen_aussen, tag_nacht)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [resolvedZielId, sz.sz_nummer, sz.motiv_id, sz.innen_aussen, sz.tag_nacht]
+        `INSERT INTO scene_identities (folge_id) VALUES ($1) RETURNING *`,
+        [resolvedZielId]
       )
       await query(
         `INSERT INTO dokument_szenen
-           (werkstufe_id, scene_identity_id, content, sort_order, format, stoppzeit_sek)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [neueWerkstufe!.id, neueSi!.id, sz.content, sz.sort_order, sz.format, sz.stoppzeit_sek]
+           (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+            ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit, szeneninfo,
+            seiten, content, format, stoppzeit_sek, element_type, notiz, motiv_id,
+            sondertyp, stockshot_kategorie, stockshot_neu_drehen,
+            flashback_referenz_id, flashback_ganze_szene, flashback_referenz_freitext,
+            ws_spezifikation, vorlage_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
+        [neueWerkstufe!.id, neueSi!.id, sz.sort_order, sz.scene_nummer, sz.scene_nummer_suffix,
+         sz.ort_name, sz.int_ext, sz.tageszeit, sz.spieltag, sz.zusammenfassung, sz.spielzeit, sz.szeneninfo,
+         sz.seiten, sz.content, sz.format, sz.stoppzeit_sek, sz.element_type, sz.notiz, sz.motiv_id,
+         sz.sondertyp, sz.stockshot_kategorie, sz.stockshot_neu_drehen,
+         sz.flashback_referenz_id, sz.flashback_ganze_szene, sz.flashback_referenz_freitext,
+         sz.ws_spezifikation, sz.vorlage_id]
       )
     }
 
