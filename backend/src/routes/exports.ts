@@ -370,10 +370,12 @@ router.get('/export/notiz-szenen', async (req, res) => {
   const client = await pool.connect()
   try {
     const { rows } = await client.query(
-      `SELECT id, format, scene_nummer, zusammenfassung, sort_order
-       FROM dokument_szenen
-       WHERE werkstufe_id = $1 AND geloescht = false
-       ORDER BY sort_order`,
+      `SELECT ds.id, ds.format, ds.scene_nummer, ds.zusammenfassung, ds.sort_order
+       FROM dokument_szenen ds
+       LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
+       WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
+         AND (dv.ist_titelseite IS NOT TRUE)
+       ORDER BY ds.sort_order`,
       [werkstufId]
     )
 

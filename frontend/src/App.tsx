@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import ScriptPage from './pages/ScriptPage'
 import EditorPage from './pages/EditorPage'
@@ -46,6 +46,8 @@ export default function App() {
   const productionCtx = useProduction()
   const [treatmentLabel, setTreatmentLabel] = useState('Treatment')
   const [sceneKuerzel, setSceneKuerzel] = useState<Record<string, string>>(DEFAULT_KUERZEL)
+  const [stimmungKuerzel, setStimmungKuerzel] = useState<Record<string, string>>({})
+  const lastProdIdRef = useRef<string | null>(null)
   const [figurenLabel, setFigurenLabel] = useState('Rollen')
   const [sceneEnvColors, setSceneEnvColors] = useState<Record<string, any> | null>(null)
   const [terminologie, setTerminologie] = useState<TerminologieConfig>({ ...TERM_DEFAULTS })
@@ -58,10 +60,26 @@ export default function App() {
   const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettings>(SNAPSHOT_SETTINGS_DEFAULTS)
 
   useEffect(() => {
+    const fetchStimmungen = (productionId: string) => {
+      fetch(`/api/dk-settings/${encodeURIComponent(productionId)}/stimmungen`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then((rows: any) => {
+          if (!Array.isArray(rows)) return
+          const map: Record<string, string> = {}
+          rows.forEach((s: any) => { if (s.name && s.kuerzel) map[s.name.toLowerCase()] = s.kuerzel })
+          setStimmungKuerzel(map)
+        })
+        .catch(() => {})
+    }
+
     const loadSettings = (e?: Event) => {
       // If triggered by a CustomEvent with productionId, load merged production-specific settings.
       // Otherwise fall back to global app_settings.
       const productionId = (e as CustomEvent | undefined)?.detail?.productionId
+      if (productionId) {
+        lastProdIdRef.current = productionId
+        fetchStimmungen(productionId)
+      }
       const url = productionId
         ? `/api/dk-settings/${encodeURIComponent(productionId)}/app-settings`
         : '/api/admin/app-settings'
@@ -145,15 +163,24 @@ export default function App() {
         })
         .catch(() => {})
     }
+    const onStimmungenChanged = (e: Event) => {
+      const pid = (e as CustomEvent).detail?.productionId ?? lastProdIdRef.current
+      if (pid) fetchStimmungen(pid)
+    }
+
     loadSettings()
     window.addEventListener('app-settings-changed', loadSettings)
-    return () => window.removeEventListener('app-settings-changed', loadSettings)
+    window.addEventListener('stimmungen-changed', onStimmungenChanged)
+    return () => {
+      window.removeEventListener('app-settings-changed', loadSettings)
+      window.removeEventListener('stimmungen-changed', onStimmungenChanged)
+    }
   }, [])
 
   return (
     <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert, charAcAlleErlaubt, snapshotSettings }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, stimmungKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert, charAcAlleErlaubt, snapshotSettings }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>

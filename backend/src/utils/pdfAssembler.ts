@@ -1433,6 +1433,7 @@ async function assembleHtml(
        FROM dokument_szenen ds
        LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
        WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
+         AND (dv.ist_titelseite IS NOT TRUE)
        ORDER BY ds.sort_order`,
       [werkstufId]
     )

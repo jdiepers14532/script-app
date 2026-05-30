@@ -53,7 +53,7 @@ export default function SceneList({
   allCharacters,
 }: SceneListProps) {
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
-  const { sceneKuerzel, suffixSettings } = useAppSettings()
+  const { sceneKuerzel, stimmungKuerzel, suffixSettings } = useAppSettings()
   const { tweaks, set: setTweak } = useTweaks()
   const [hoverPopup, setHoverPopup] = useState<{ id: string | number; x: number; y: number } | null>(null)
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
