@@ -1175,10 +1175,10 @@ function FigurenTab() {
           </div>
         </section>
 
-        {/* Charakter-Suffixe & Action-AC */}
+        {/* Charakter-Suffixe & Autovervollständigung */}
         <section style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Charakter-Suffixe & Action-AC</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 6px' }}>Charakter-Suffixe & Autovervollständigung</h3>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
               Steuert die automatische Erkennung von OFF-, NT- und ONE-WAY-Suffixen in CHARACTER-Zeilen sowie die Großbuchstaben-Erkennung in Action-Zeilen.
             </p>
@@ -1220,7 +1220,7 @@ function FigurenTab() {
             </label>
           </div>
 
-          {/* Action-AC */}
+          {/* Autovervollständigung Action */}
           <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)', display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>Autovervollständigung in Action-Zeilen</p>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
