@@ -1109,7 +1109,13 @@ export default function ScriptPage() {
                   api.getWerkstufenSzenen(werkId)
                     .then(scenes => {
                       setSzenen(scenes)
-                      setSelectedSzeneId(scenes.length > 0 ? scenes[0].id : null)
+                      // Nur zur ersten Szene springen wenn die aktuell angezeigte Szene nicht
+                      // in der neuen Werkstufe existiert — verhindert Überschreiben der
+                      // wiederhergestellten letzten Szene durch die Titelseite.
+                      setSelectedSzeneId(prev => {
+                        if (prev != null && scenes.find((s: any) => s.id === prev)) return prev
+                        return scenes.length > 0 ? scenes[0].id : null
+                      })
                     })
                     .catch(() => {})
                 }}
