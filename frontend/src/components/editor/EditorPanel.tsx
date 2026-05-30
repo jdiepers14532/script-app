@@ -914,12 +914,19 @@ export default function EditorPanel({
           sceneUpdatedAt={currentSzene?.updated_at ?? null}
           sceneUpdatedBy={currentSzene?.updated_by ?? null}
           onRestore={(content) => {
-            // Set restored content into editor via sceneContent state
             const nodes = Array.isArray(content) ? content : (content?.content ?? [])
-            setSceneContent(nodes.length > 0 ? { type: 'doc', content: nodes } : null)
-            setCurrentSzene((prev: any) => prev ? { ...prev, content } : prev)
-            // Persist immediately
-            api.updateDokumentSzene(selectedSzeneId as string, { content: nodes }).catch(() => {})
+            const doc = nodes.length > 0 ? { type: 'doc', content: nodes } : null
+            // Direkt in Editor schreiben — funktioniert in Solo- UND Collab-Modus,
+            // weil Tiptap-Collaboration bei setContent den YDoc mitpflegt.
+            // Ohne dies bliebe der Editor auf dem alten Stand (YDoc wird durch
+            // setSceneContent allein nicht aktualisiert).
+            if (doc && editorRef.current) editorRef.current.commands.setContent(doc, false)
+            // State-Sync + Remount-Fallback (falls editorRef noch nicht bereit)
+            setSceneContent(doc)
+            setCurrentSzene((prev: any) => prev ? { ...prev, content: nodes } : prev)
+            setContentResetCounter(c => c + 1)
+            // Sofort persistieren
+            if (nodes.length > 0) api.updateDokumentSzene(selectedSzeneId as string, { content: nodes }).catch(() => {})
             setSnapshotOpen(false)
           }}
           onClose={() => setSnapshotOpen(false)}
