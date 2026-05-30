@@ -28,6 +28,7 @@ const FreieDokumenteTab    = lazy(() => import('./hilfe/FreieDokumenteTab'))
 const VerlaufUndoTab       = lazy(() => import('./hilfe/VerlaufUndoTab'))
 const ThemeAnpassenHilfeTab = lazy(() => import('./hilfe/ThemeAnpassenHilfeTab'))
 const CharakterSuffixeTab  = lazy(() => import('./hilfe/CharakterSuffixeTab'))
+const DrehbuchChecksHilfeTab = lazy(() => import('./hilfe/DrehbuchChecksTab'))
 const SearchResultsView    = lazy(() => import('./hilfe/SearchResultsView'))
 // Admin-only
 const DatenmodellTab       = lazy(() => import('./hilfe/DatenmodellTab'))
@@ -96,6 +97,8 @@ const NAV_ITEMS = [
     keywords: 'freie dokumente schattenbuch casting szene spin-off sonstiges folge ohne nummer sichtbarkeit privat verknüpfen' },
   { id: 'charakter-suffixe',    label: 'OFF / NT / ONE-WAY',        icon: '📞',
     keywords: 'off nt one-way oneway suffix charakter figur telefonat nur ton voice over action grossbuchstaben drehplan disposition' },
+  { id: 'drehbuch-checks',      label: 'Drehbuch-Checks',           icon: '🔍',
+    keywords: 'check checks qualität autosave motiv rollen konsistenz wechselschnitt strang duplikat stoppzeit oneliner ki badge warnung hinweis fehler prüfung' },
   { id: 'theme-anpassen',       label: 'Theme & Farben',            icon: '🎨',
     keywords: 'theme farben farbe anpassen light hell dark tokens css custom property hintergrund text border button farbschema' },
   // Admin-only
@@ -187,6 +190,7 @@ function HilfePage() {
       case 'autorenplan':        return <AutorenplanHilfeTab />
       case 'freie-dokumente':    return <FreieDokumenteTab />
       case 'charakter-suffixe':  return <CharakterSuffixeTab />
+      case 'drehbuch-checks':    return <DrehbuchChecksHilfeTab />
       case 'theme-anpassen':     return <ThemeAnpassenHilfeTab />
       case 'datenmodell':        return <DatenmodellTab />
       case 'datensicherheit':    return <DatensicherheitTab />
