@@ -52,6 +52,14 @@ interface Props {
   selectedWerk: WerkstufeMeta | null
   werkstufen: WerkstufeMeta[]
   produktionId: string
+  folgeNummer: number
+}
+
+interface ExportPreset {
+  statistik_enabled: boolean
+  statistik_sections?: string[]
+  onliner_enabled: boolean
+  synopse_enabled: boolean
 }
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
@@ -76,7 +84,7 @@ const SEC: React.CSSProperties = {
 
 // ── Haupt-Komponente ───────────────────────────────────────────────────────────
 
-export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen, produktionId }: Props) {
+export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen, produktionId, folgeNummer }: Props) {
   // Basis
   const [format, setFormat]                       = useState<ExportFormat>('pdf')
   const [isOnline, setIsOnline]                   = useState(navigator.onLine)
@@ -135,11 +143,24 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       id: genId(), type: 'notiz', werkstufId: w.id,
       label: w.label || `${w.typ === 'notiz' ? 'Notiz' : 'Dokument'} V${w.version_nummer}`, enabled: true,
     }))
-    setPreItems([...notizWerkItems,
-      { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false },
-      { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false },
-      { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false },
-    ])
+
+    // Export-Preset aus User-Einstellungen laden
+    api.getSettings()
+      .then((settings: any) => {
+        const preset: Partial<ExportPreset> = settings?.ui_settings?.[`export_preset_${produktionId}`] ?? {}
+        setPreItems([...notizWerkItems,
+          { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: preset.statistik_enabled ?? false },
+          { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: preset.onliner_enabled ?? false },
+          { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: preset.synopse_enabled ?? false },
+        ])
+      })
+      .catch(() => {
+        setPreItems([...notizWerkItems,
+          { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false },
+          { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false },
+          { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false },
+        ])
+      })
     setPostItems([])
 
     // Freie Notiz-Elemente der aktuellen Werkstufe laden + VOR/NACH einordnen
@@ -217,16 +238,27 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const handleStatistikUebernehmen = useCallback((config: StatistikExportConfig) => {
     if (!statConfigItemId) return
     const suffix = config.mode === 'block' ? `Block ${config.folge_nummer}` : `Folge ${config.folge_nummer}`
+    const id = statConfigItemId
     const updateItems = (items: ExportItem[]) =>
       items.map(it => {
-        if (it.id !== statConfigItemId) return it
+        if (it.id !== id) return it
         const prefix = it.type === 'onliner' ? 'Onliner' : it.type === 'synopse' ? 'Synopsen' : 'Statistik'
         return { ...it, enabled: true, statistikConfig: config, label: `${prefix} ${suffix}` }
       })
-    setPreItems(prev => updateItems(prev))
-    setPostItems(prev => updateItems(prev))
+    const newPre = updateItems(preItems)
+    const newPost = updateItems(postItems)
+    setPreItems(newPre)
+    setPostItems(newPost)
+    // Preset speichern
+    const allItems = [...newPre, ...newPost]
+    const preset: ExportPreset = {
+      statistik_enabled: allItems.find(it => it.type === 'statistik')?.enabled ?? false,
+      onliner_enabled:   allItems.find(it => it.type === 'onliner')?.enabled ?? false,
+      synopse_enabled:   allItems.find(it => it.type === 'synopse')?.enabled ?? false,
+    }
+    api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
     setStatConfigItemId(null)
-  }, [statConfigItemId])
+  }, [statConfigItemId, preItems, postItems, produktionId])
 
   // ── DnD ─────────────────────────────────────────────────────────────────────
 
@@ -275,7 +307,20 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
   function toggleItem(zone: 'pre' | 'post', id: string) {
     const setter = zone === 'pre' ? setPreItems : setPostItems
-    setter(prev => prev.map(it => it.id === id ? { ...it, enabled: !it.enabled } : it))
+    setter(prev => {
+      const next = prev.map(it => it.id === id ? { ...it, enabled: !it.enabled } : it)
+      const changed = next.find(it => it.id === id)
+      if (changed?.type === 'statistik' || changed?.type === 'onliner' || changed?.type === 'synopse') {
+        const allItems = zone === 'pre' ? [...next, ...postItems] : [...preItems, ...next]
+        const preset: ExportPreset = {
+          statistik_enabled: allItems.find(it => it.type === 'statistik')?.enabled ?? false,
+          onliner_enabled:   allItems.find(it => it.type === 'onliner')?.enabled ?? false,
+          synopse_enabled:   allItems.find(it => it.type === 'synopse')?.enabled ?? false,
+        }
+        api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
+      }
+      return next
+    })
   }
 
   // ── Export starten ──────────────────────────────────────────────────────────
@@ -870,7 +915,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           folgen={folgenForStat}
           bloecke={bloeckeForStat}
           sections={statSections}
-          initialFolgeNummer={selectedWerk?.folge_nummer ?? null}
+          initialFolgeNummer={folgeNummer}
           onExportUebernehmen={handleStatistikUebernehmen}
         />
       )}
@@ -880,7 +925,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           title={statConfigItemType === 'onliner' ? 'Onliner konfigurieren' : 'Synopsen konfigurieren'}
           folgen={folgenForStat}
           bloecke={bloeckeForStat}
-          initialFolgeNummer={selectedWerk?.folge_nummer ?? null}
+          initialFolgeNummer={folgeNummer}
           onConfirm={handleStatistikUebernehmen}
           onClose={() => setStatConfigItemId(null)}
         />

@@ -808,7 +808,7 @@ export async function renderOnlinerHtml(config: StatistikExportConfig, format?: 
     return `${STYLES}${buildOnlinerStyles(format)}
 <div class="stat-wrap">
   ${titleHtml}
-  <div class="stat-section">
+  <div>
     <table class="onliner-table">
       <thead>
         <tr>

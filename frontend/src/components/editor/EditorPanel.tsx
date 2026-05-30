@@ -912,6 +912,7 @@ export default function EditorPanel({
         selectedWerk={selectedWerk}
         werkstufen={werkstufen}
         produktionId={produktionId}
+        folgeNummer={folgeNummer}
       />
 
       {/* ── Snapshot Drawer ── */}
