@@ -36,9 +36,10 @@ function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedE
            : x.type === 'onliner'   ? 'onliner'
            : x.type === 'synopse'   ? 'synopse'
            : 'notiz') as 'notiz' | 'statistik' | 'onliner' | 'synopse',
-      id: x.id ? String(x.id) : undefined,
-      szeneId: x.szeneId ? String(x.szeneId) : undefined,
-      label: x.label ? String(x.label) : undefined,
+      id: x.id           ? String(x.id)         : undefined,
+      szeneId: x.szeneId ? String(x.szeneId)    : undefined,
+      vorlageId: x.vorlageId ? String(x.vorlageId) : undefined,
+      label: x.label     ? String(x.label)      : undefined,
       enabled: x.enabled !== false,
       statistikConfig: x.statistikConfig && typeof x.statistikConfig === 'object'
         ? {
@@ -88,6 +89,9 @@ router.post('/export/job', async (req, res) => {
       filterMotive:             Array.isArray(options.filterMotive)   ? options.filterMotive.map(String)   : undefined,
       filterKomparsen:          Array.isArray(options.filterKomparsen) ? options.filterKomparsen.map(String) : undefined,
       userTimezone:             options.userTimezone                ? String(options.userTimezone)          : undefined,
+      wz_klein_aktiv:           options.wz_klein_aktiv === true,
+      wz_gross_aktiv:           options.wz_gross_aktiv === true,
+      wz_gross_farbe:           options.wz_gross_farbe            ? String(options.wz_gross_farbe)         : undefined,
     },
   }
 
@@ -245,13 +249,17 @@ router.post('/export/pdf-preview', async (req, res) => {
       userId:   user.user_id,
       userName: user.name,
       options: {
-        preItems:         parseOrderedItems(options.preItems),
-        postItems:        parseOrderedItems(options.postItems),
-        hauptinhaltAktiv: typeof options.hauptinhaltAktiv === 'boolean' ? options.hauptinhaltAktiv : undefined,
-        szenenAuswahl:    options.szenenAuswahl    ? String(options.szenenAuswahl)    : undefined,
-        filterRollen:     Array.isArray(options.filterRollen)    ? options.filterRollen.map(String)    : undefined,
-        filterKomparsen:  Array.isArray(options.filterKomparsen) ? options.filterKomparsen.map(String) : undefined,
-        filterMotive:     Array.isArray(options.filterMotive)    ? options.filterMotive.map(String)    : undefined,
+        preItems:               parseOrderedItems(options.preItems),
+        postItems:              parseOrderedItems(options.postItems),
+        hauptinhaltAktiv:       typeof options.hauptinhaltAktiv === 'boolean' ? options.hauptinhaltAktiv : undefined,
+        persoenlicher_ausdruck: options.persoenlicher_ausdruck ? String(options.persoenlicher_ausdruck) : undefined,
+        szenenAuswahl:          options.szenenAuswahl    ? String(options.szenenAuswahl)    : undefined,
+        filterRollen:           Array.isArray(options.filterRollen)    ? options.filterRollen.map(String)    : undefined,
+        filterKomparsen:        Array.isArray(options.filterKomparsen) ? options.filterKomparsen.map(String) : undefined,
+        filterMotive:           Array.isArray(options.filterMotive)    ? options.filterMotive.map(String)    : undefined,
+        wz_klein_aktiv:         options.wz_klein_aktiv === true,
+        wz_gross_aktiv:         options.wz_gross_aktiv === true,
+        wz_gross_farbe:         options.wz_gross_farbe ? String(options.wz_gross_farbe) : undefined,
       },
     }, () => {})
     res.setHeader('Content-Type', 'application/pdf')
@@ -279,6 +287,25 @@ router.get('/export/pdf-preview', async (req, res) => {
     res.send(result.buffer)
   } catch (err: any) {
     res.status(500).send(`<pre style="color:red">PDF-Vorschau-Fehler: ${err?.message ?? err}</pre>`)
+  }
+})
+
+// ── GET /api/export/wm-status ────────────────────────────────────────────────
+// Liefert für alle eingeloggten User ob das versteckte / sichtbare Admin-WZ aktiv ist.
+// Kein Admin-Zugang nötig — User soll wissen ob sein Export getrackt/gestempelt wird.
+
+router.get('/export/wm-status', async (_req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT key, value FROM export_admin_settings WHERE key IN ($1, $2)', ['wm_sichtbar_aktiv', 'wm_sichtbar_text'])
+    const m: Record<string, string> = {}
+    for (const r of rows) m[r.key] = r.value
+    res.json({
+      versteckt_aktiv: true,                              // ZWC-Wasserzeichen immer aktiv
+      sichtbar_aktiv:  m['wm_sichtbar_aktiv'] === 'true', // Admin-Diagonal-WZ
+      sichtbar_text:   m['wm_sichtbar_text']  ?? null,
+    })
+  } catch {
+    res.json({ versteckt_aktiv: true, sichtbar_aktiv: false, sichtbar_text: null })
   }
 })
 
