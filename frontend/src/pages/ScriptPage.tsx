@@ -947,8 +947,10 @@ export default function ScriptPage() {
               // Priorität 3: erste Szene (scene_nummer=1) wenn Toggle aktiv, sonst erstes Element (Titelseite)
               // "Erste Szene" ≠ "Erstes Element" — Erstes Element ist meist die Titelseite (werkSzenen[0])
               // navRestored bleibt false — Fallback, nicht vom User ausgewählt; wird erst durch Klick/Tastatur gesetzt
+              console.log('[P3] episodenWechselErsteSzene=', currentTweaks.episodenWechselErsteSzene, 'werkSzenen scene_nummern=', werkSzenen.map((s: any) => s.scene_nummer))
               if (currentTweaks.episodenWechselErsteSzene) {
                 const ersteEchteSzene = werkSzenen.find((s: any) => s.scene_nummer === 1)
+                console.log('[P3] ersteEchteSzene=', ersteEchteSzene?.id, 'scene_nummer=', ersteEchteSzene?.scene_nummer)
                 targetId = (ersteEchteSzene ?? werkSzenen[0]).id
               } else {
                 targetId = werkSzenen[0].id
