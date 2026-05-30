@@ -405,33 +405,10 @@ rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
       return res.json({ status: 'keine' })
     }
 
-    // Anfrage anlegen (oder bestehende zurücksetzen)
-    const anfrage = await queryOne(
-      `INSERT INTO rollen_freigabe_anfragen
-         (character_id, production_id, beantragt_von_user_id, beantragt_von_name, status, szene_id, folge_nummer)
-       VALUES ($1, $2, $3, $4, 'ausstehend', $5, $6)
-       ON CONFLICT (character_id, production_id) DO UPDATE
-         SET status = 'ausstehend', beantragt_am = NOW(),
-             beantragt_von_user_id = $3, beantragt_von_name = $4,
-             entschieden_am = NULL, entschieden_von_user_id = NULL,
-             szene_id = $5, folge_nummer = $6, notiz = NULL, erneut_anfrage_notiz = NULL
-       RETURNING id`,
-      [character_id, req.params.productionId, req.user.user_id, req.user.name ?? null,
-       szene_id ?? null, szRow?.folge_nummer ?? null]
-    )
-
-    await pool.query(
-      `UPDATE character_productions SET freigabe_status = 'ausstehend' WHERE character_id = $1 AND produktion_id = $2`,
-      [character_id, req.params.productionId]
-    )
-
-    // Produktion-Titel für Email
-    const prod = await queryOne(`SELECT titel FROM produktionen WHERE id = $1`, [req.params.productionId])
-    const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [character_id])
-
-    // Szene-Kontext (optional)
+    // Szene-Kontext vorab laden (für INSERT + Email)
     let szeneKontext: SzeneKontext | null = null
     let szeneUrl: string | null = null
+    let szeneFolgeNummer: number | null = null
     if (szene_id) {
       const szRow = await queryOne(
         `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit,
@@ -444,6 +421,7 @@ rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
         [szene_id]
       )
       if (szRow) {
+        szeneFolgeNummer = szRow.folge_nummer ?? null
         szeneKontext = {
           folge_nummer: szRow.folge_nummer,
           arbeitstitel: szRow.arbeitstitel,
@@ -457,6 +435,30 @@ rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
         szeneUrl = `${APP_URL}/?szene=${szene_id}`
       }
     }
+
+    // Anfrage anlegen (oder bestehende zurücksetzen)
+    const anfrage = await queryOne(
+      `INSERT INTO rollen_freigabe_anfragen
+         (character_id, production_id, beantragt_von_user_id, beantragt_von_name, status, szene_id, folge_nummer)
+       VALUES ($1, $2, $3, $4, 'ausstehend', $5, $6)
+       ON CONFLICT (character_id, production_id) DO UPDATE
+         SET status = 'ausstehend', beantragt_am = NOW(),
+             beantragt_von_user_id = $3, beantragt_von_name = $4,
+             entschieden_am = NULL, entschieden_von_user_id = NULL,
+             szene_id = $5, folge_nummer = $6, notiz = NULL, erneut_anfrage_notiz = NULL
+       RETURNING id`,
+      [character_id, req.params.productionId, req.user.user_id, req.user.name ?? null,
+       szene_id ?? null, szeneFolgeNummer]
+    )
+
+    await pool.query(
+      `UPDATE character_productions SET freigabe_status = 'ausstehend' WHERE character_id = $1 AND produktion_id = $2`,
+      [character_id, req.params.productionId]
+    )
+
+    // Produktion-Titel + Rollenname für Email
+    const prod = await queryOne(`SELECT titel FROM produktionen WHERE id = $1`, [req.params.productionId])
+    const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [character_id])
 
     // Token + Email pro Genehmiger
     const now = new Date()
