@@ -6956,14 +6956,35 @@ function FreieDokLabelsTab({ produktionId }: { produktionId: string }) {
 
 // ── Tab: Drehbuch-Checks ─────────────────────────────────────────────────────
 
-const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean; defaultEnabled: boolean }> = {
-  motiv_leer:               { label: 'Motiv angegeben?',           auto: true,  ki: false, defaultEnabled: true  },
-  rollen_konsistenz:        { label: 'Rollen-Konsistenz',          auto: true,  ki: false, defaultEnabled: true  },
-  sondertyp_wechselschnitt: { label: 'Sondertypen & Wechselschnitte', auto: true, ki: false, defaultEnabled: true },
-  strang_zuordnung:         { label: 'Strang-Zuordnung',           auto: true,  ki: false, defaultEnabled: true  },
-  duplikat_motiv:           { label: 'Duplikat-Motiv im Block',    auto: true,  ki: false, defaultEnabled: true  },
-  stoppzeit_plausibilitaet: { label: 'Stoppzeit-Plausibilität',    auto: false, ki: false, defaultEnabled: false },
-  oneliner_qualitaet:       { label: 'Oneliner-Qualität',          auto: false, ki: true,  defaultEnabled: false },
+const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean; defaultEnabled: boolean; tooltip: string }> = {
+  motiv_leer: {
+    label: 'Motiv angegeben?', auto: true, ki: false, defaultEnabled: true,
+    tooltip: 'Prüft ob das Motiv-Feld ausgefüllt ist.\n\nEin fehlendes Motiv verhindert korrekte Breakdowns und den Drehplan-Export. Besonders wichtig bei Szenen, die direkt nach dem Import angelegt werden.',
+  },
+  rollen_konsistenz: {
+    label: 'Rollen-Konsistenz', auto: true, ki: false, defaultEnabled: true,
+    tooltip: 'Vergleicht die Rollen im Szenenkopf mit den GROSSBUCHSTABEN-Namen im Szenentext.\n\nZwei Richtungen:\n• Name im Text → fehlt im Szenenkopf (vergessen einzutragen)\n• Name im Szenenkopf → nie im Text (eingetragen, aber nicht aufgetreten)\n\nNur Figuren aus der Figurendatenbank dieser Produktion werden geprüft.',
+  },
+  sondertyp_wechselschnitt: {
+    label: 'Sondertypen & Wechselschnitte', auto: true, ki: false, defaultEnabled: true,
+    tooltip: 'Zwei Prüfungen:\n\n① Sondertyp "Wechselschnitt" gesetzt, aber kein Telefonpartner angegeben.\n\n② Im Szenentext steht "WECHSELSCHNITT" oder "WS:", aber der Sondertyp ist nicht markiert — möglicherweise vergessen.',
+  },
+  strang_zuordnung: {
+    label: 'Strang-Zuordnung', auto: true, ki: false, defaultEnabled: true,
+    tooltip: 'Prüft ob die Szene mindestens einem Story-Strang zugeordnet ist.\n\nWird nur ausgelöst wenn für diese Produktion Stränge angelegt wurden. Szenen ohne Strang fehlen in Pacing-Analysen und im Story-Radar.\n\nHinweis: Nicht jede Szene muss einem Strang gehören (z.B. reine Produktionsszenen).',
+  },
+  duplikat_motiv: {
+    label: 'Duplikat-Motiv im Block', auto: true, ki: false, defaultEnabled: true,
+    tooltip: 'Erkennt wenn dieselbe Motivkombination (Motiv + I/A + Tageszeit) bereits in einer anderen Szene derselben Folge vorkommt.\n\nDoppelte Motive sind oft ein Hinweis auf einen Fehler beim Kopieren. Absichtliche Wiederholungen (Rahmenhandlung) können einzeln ignoriert werden.',
+  },
+  stoppzeit_plausibilitaet: {
+    label: 'Stoppzeit-Plausibilität', auto: false, ki: false, defaultEnabled: false,
+    tooltip: 'Vergleicht die eingetragene Stoppzeit mit der geschätzten Spielzeit aus der Textlänge.\n\nFaustregel: 1 Seite ≈ 1 Minute ≈ ~1.800 Zeichen. Warnung bei mehr als Faktor 4 Abweichung.\n\nNur für Drehbuch-Format. Standardmäßig deaktiviert, da die Schätzung ungenau ist.',
+  },
+  oneliner_qualitaet: {
+    label: 'Oneliner-Qualität', auto: false, ki: true, defaultEnabled: false,
+    tooltip: 'Prüft ob der Oneliner den emotionalen Kern oder Wendepunkt der Szene wiedergibt.\n\n✨ KI-Feature: Nutzt Mistral AI zur Analyse — verursacht API-Kosten. Wird deshalb nur manuell ausgeführt, nie beim Autosave.\n\nEmpfohlen nur wenn alle Szenen konsequent mit Onelinern gepflegt werden.',
+  },
 }
 
 function DrehbuchChecksTab({ produktionId }: { produktionId: string }) {
@@ -7044,7 +7065,9 @@ function DrehbuchChecksTab({ produktionId }: { produktionId: string }) {
         return (
           <div key={key} style={rowStyle}>
             <div style={labelStyle}>
-              <span>{meta.label}</span>
+              <Tooltip text={meta.tooltip} placement="right">
+                <span style={{ borderBottom: '1px dotted var(--text-muted)', cursor: 'help' }}>{meta.label}</span>
+              </Tooltip>
               {meta.ki && <span style={{ ...tagStyle('#AF52DE'), marginLeft: 6 }}>✨ KI</span>}
               {!meta.auto && !meta.ki && <span style={{ ...tagStyle('#757575'), marginLeft: 6 }}>nur manuell</span>}
             </div>
