@@ -916,7 +916,7 @@ export default function SceneList({
                 {scene.format !== 'notiz' ? (<>
                   <span className="sl-ie">{sceneKuerzel[(scene.int_ext ?? 'INT').toLowerCase()] ?? scene.int_ext}</span>
                   <span className="sl-sep">/</span>
-                  <span className="sl-tz">{{ tag: 'T', nacht: 'N', abend: 'A', morgen: 'M' }[(scene.tageszeit ?? 'TAG').toLowerCase()] ?? scene.tageszeit}</span>
+                  <span className="sl-tz">{stimmungKuerzel[(scene.tageszeit ?? '').toLowerCase()] ?? scene.tageszeit}</span>
                 </>) : (
                   <span className="sl-fmt">N</span>
                 )}

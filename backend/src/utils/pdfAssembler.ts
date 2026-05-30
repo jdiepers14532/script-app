@@ -1064,18 +1064,33 @@ async function assembleHtml(
       if (sl.margin_right  != null) bodyMargins.rechts = sl.margin_right
     }
 
-    // ── 4b. Szenen-Kürzel aus production_app_settings ─────────────────────────
+    // ── 4b. Szenen-Kürzel: INT/EXT aus production_app_settings, Tageszeiten aus tageszeit_stimmungen ──
     const kuerzelRes = await client.query(
       `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'scene_kuerzel'`,
       [w.produktion_id]
     )
-    let sceneKuerzel: Record<string, string> = { ...DEFAULT_SCENE_KUERZEL }
+    // Nur INT/EXT-Kürzel aus scene_kuerzel übernehmen
+    let sceneKuerzel: Record<string, string> = { int: DEFAULT_SCENE_KUERZEL.int, ext: DEFAULT_SCENE_KUERZEL.ext }
     if (kuerzelRes.rows.length > 0) {
       try {
         const v = kuerzelRes.rows[0].value
         const parsed = typeof v === 'string' ? JSON.parse(v) : v
-        sceneKuerzel = { ...DEFAULT_SCENE_KUERZEL, ...parsed }
+        if (parsed.int) sceneKuerzel.int = parsed.int
+        if (parsed.ext) sceneKuerzel.ext = parsed.ext
       } catch { /* defaults */ }
+    }
+    // Tageszeit-Kürzel aus tageszeit_stimmungen
+    const stimmungenKuerzelRes = await client.query(
+      `SELECT name, kuerzel FROM tageszeit_stimmungen WHERE production_id = $1`,
+      [w.produktion_id]
+    )
+    if (stimmungenKuerzelRes.rows.length > 0) {
+      for (const row of stimmungenKuerzelRes.rows) {
+        if (row.name && row.kuerzel) sceneKuerzel[row.name.toLowerCase()] = row.kuerzel
+      }
+    } else {
+      // Fallback wenn noch keine Stimmungen konfiguriert
+      Object.assign(sceneKuerzel, { tag: 'T', morgen: 'M', abend: 'A', nacht: 'N', daemmerung: 'D', dämmerung: 'D' })
     }
 
     // ── 5. Szenenkopf-Template aus aktivem Absatzformat-Preset ───────────────
