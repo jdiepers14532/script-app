@@ -190,6 +190,13 @@ export default function SceneList({
     return () => window.removeEventListener('sz-checks-updated', handler)
   }, [])
 
+  // Batch-Check abgeschlossen → alle Badges neu laden
+  useEffect(() => {
+    const handler = () => loadCheckBadges()
+    window.addEventListener('sz-batch-checks-done', handler)
+    return () => window.removeEventListener('sz-batch-checks-done', handler)
+  }, [loadCheckBadges])
+
   // ONE-WAY-Warnung: Szenen mit (ONE-WAY)-Figur aber ohne NT-Partner in Notiz
   const oneWayWarnIds = useMemo(() => {
     const result = new Set<string | number>()

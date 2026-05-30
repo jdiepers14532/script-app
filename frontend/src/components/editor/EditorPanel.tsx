@@ -1020,6 +1020,7 @@ export default function EditorPanel({
           werkstufId={selectedWerkId}
           produktionId={produktionId}
           onClose={() => setBatchCheckOpen(false)}
+          onDone={() => window.dispatchEvent(new CustomEvent('sz-batch-checks-done'))}
         />
       )}
 
