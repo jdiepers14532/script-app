@@ -88,8 +88,10 @@ export const SUFFIX_SETTINGS_DEFAULTS: SuffixSettings = {
   action_ac_trigger_chars: 4,
   action_auto_caps: true,
 }
-interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings; suffixSettings: SuffixSettings; charAcDeaktiviert: boolean; charAcAlleErlaubt: boolean }
-export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS, suffixSettings: SUFFIX_SETTINGS_DEFAULTS, charAcDeaktiviert: false, charAcAlleErlaubt: true })
+export interface SnapshotSettings { szenenIntervalMin: number; werkIntervalMin: number; werkOnSwitch: boolean; szenenMax: number; werkMax: number }
+export const SNAPSHOT_SETTINGS_DEFAULTS: SnapshotSettings = { szenenIntervalMin: 5, werkIntervalMin: 30, werkOnSwitch: true, szenenMax: 50, werkMax: 30 }
+interface AppSettingsContextType { treatmentLabel: string; sceneKuerzel: Record<string, string>; figurenLabel: string; sceneEnvColors: Record<string, any> | null; lnSettings: LnSettings; pageMargins: PageMargins; replikSettings: ReplikSettings; suffixSettings: SuffixSettings; charAcDeaktiviert: boolean; charAcAlleErlaubt: boolean; snapshotSettings: SnapshotSettings }
+export const AppSettingsContext = createContext<AppSettingsContextType>({ treatmentLabel: 'Treatment', sceneKuerzel: DEFAULT_KUERZEL, figurenLabel: 'Rollen', sceneEnvColors: null, lnSettings: LN_SETTINGS_DEFAULTS, pageMargins: DEFAULT_PAGE_MARGINS, replikSettings: REPLIK_SETTINGS_DEFAULTS, suffixSettings: SUFFIX_SETTINGS_DEFAULTS, charAcDeaktiviert: false, charAcAlleErlaubt: true, snapshotSettings: SNAPSHOT_SETTINGS_DEFAULTS })
 export function useAppSettings() { return useContext(AppSettingsContext) }
 
 // User Prefs Context

@@ -1,14 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Wand2, X, Sparkles } from 'lucide-react'
-import { api } from '../../api/client'
 
 interface Props {
   open: boolean
   onClose: () => void
   sceneFormat: string | undefined | null
   folgeId: number | null
-  onInsert: (doc: any, statusMsg: string) => void
-  onStatusMsg: (msg: string) => void
+  folgeNummer: number
+  onSynopseClick?: () => void
 }
 
 function Star({ x, y, delay, size }: { x: number; y: number; delay: number; size: number }) {
@@ -30,13 +29,12 @@ const STARS = [
   { x: 45, y: 90, delay: 2.0, size: 2 }, { x: 20, y: 42, delay: 1.2, size: 2 },
 ]
 
-export default function MagicFunktionenModal({ open, onClose, sceneFormat, folgeId, onInsert, onStatusMsg }: Props) {
-  const [synopsisLoading, setSynopsisLoading] = useState(false)
+export default function MagicFunktionenModal({ open, onClose, sceneFormat, folgeId, folgeNummer, onSynopseClick }: Props) {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
     if (open) setTimeout(() => setVisible(true), 10)
-    else { setVisible(false); setSynopsisLoading(false) }
+    else setVisible(false)
   }, [open])
 
   // Escape zum Schließen
@@ -51,33 +49,10 @@ export default function MagicFunktionenModal({ open, onClose, sceneFormat, folge
 
   const synopsisAvailable = sceneFormat === 'notiz' && folgeId != null
 
-  async function handleSynopsis(e: React.MouseEvent) {
+  function handleSynopseClick(e: React.MouseEvent) {
     e.stopPropagation()
-    if (!folgeId || synopsisLoading) return
-    setSynopsisLoading(true)
-    try {
-      const result = await api.post('/ki/synopsis', { folge_id: folgeId })
-      if (result.disabled) {
-        onStatusMsg('KI-Funktion "Episoden-Synopse" ist nicht aktiviert (Admin-Einstellungen).')
-        onClose(); return
-      }
-      if (!result.synopsis) {
-        onStatusMsg('Keine Synopse generiert. Sind Szenen und Zusammenfassungen vorhanden?')
-        onClose(); return
-      }
-      const paragraphs = result.synopsis.split(/\n\n+/).map((para: string) => ({
-        type: 'paragraph',
-        content: para.trim() ? [{ type: 'text', text: para.trim() }] : undefined,
-      })).filter((p: any) => p.content)
-      const doc = { type: 'doc', content: paragraphs.length ? paragraphs : [{ type: 'paragraph' }] }
-      onInsert(doc, `Synopse generiert (${result.szenen_count} Szenen · ${result.werkstufe_typ} V${result.version_nummer}).`)
-      onClose()
-    } catch (err: any) {
-      onStatusMsg('Fehler: ' + (err?.message ?? String(err)))
-      onClose()
-    } finally {
-      setSynopsisLoading(false)
-    }
+    onSynopseClick?.()
+    onClose()
   }
 
   return (
@@ -206,27 +181,23 @@ export default function MagicFunktionenModal({ open, onClose, sceneFormat, folge
                         Episoden-Synopse
                       </div>
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 14 }}>
-                        Erstellt automatisch eine Synopse aus den Szenen-Zusammenfassungen und fügt sie in diese Notiz ein.
+                        Titel und Synopse für Folge {folgeNummer} aus den Szenen-Zusammenfassungen generieren.
                       </div>
                       <button
                         className="magic-synopsis-btn"
-                        onClick={handleSynopsis}
-                        disabled={synopsisLoading}
+                        onClick={handleSynopseClick}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 7,
                           padding: '7px 16px', borderRadius: 8,
-                          background: synopsisLoading
-                            ? 'rgba(175,82,222,0.2)'
-                            : 'linear-gradient(135deg, #AF52DE, #7b2fa0)',
+                          background: 'linear-gradient(135deg, #AF52DE, #7b2fa0)',
                           color: '#fff',
-                          border: `1px solid ${synopsisLoading ? '#AF52DE44' : '#AF52DE'}`,
-                          cursor: synopsisLoading ? 'not-allowed' : 'pointer',
+                          border: '1px solid #AF52DE',
+                          cursor: 'pointer',
                           fontSize: 12, fontWeight: 700, letterSpacing: 0.2,
-                          opacity: synopsisLoading ? 0.6 : 1,
                         }}
                       >
                         <Wand2 size={12} />
-                        {synopsisLoading ? 'Generiere…' : 'Synopse generieren'}
+                        Synopse generieren
                       </button>
                     </div>
                   </div>

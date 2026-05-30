@@ -30,10 +30,12 @@ import {
   DEFAULT_PAGE_MARGINS,
   REPLIK_SETTINGS_DEFAULTS,
   SUFFIX_SETTINGS_DEFAULTS,
+  SNAPSHOT_SETTINGS_DEFAULTS,
   type LnSettings,
   type PageMargins,
   type ReplikSettings,
   type SuffixSettings,
+  type SnapshotSettings,
 } from './contexts'
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 import { TerminologieProvider, TERM_DEFAULTS, OfflineQueueProvider } from './sw-ui'
@@ -53,6 +55,7 @@ export default function App() {
   const [suffixSettings, setSuffixSettings] = useState<SuffixSettings>(SUFFIX_SETTINGS_DEFAULTS)
   const [charAcDeaktiviert, setCharAcDeaktiviert] = useState(false)
   const [charAcAlleErlaubt, setCharAcAlleErlaubt] = useState(true)
+  const [snapshotSettings, setSnapshotSettings] = useState<SnapshotSettings>(SNAPSHOT_SETTINGS_DEFAULTS)
 
   useEffect(() => {
     const loadSettings = (e?: Event) => {
@@ -112,6 +115,12 @@ export default function App() {
               if (parsed.char_ac_alle_erlaubt !== undefined) setCharAcAlleErlaubt(!!parsed.char_ac_alle_erlaubt)
             } catch {}
           }
+          if (data?.snapshot_settings) {
+            try {
+              const parsed = JSON.parse(data.snapshot_settings)
+              setSnapshotSettings({ ...SNAPSHOT_SETTINGS_DEFAULTS, ...parsed })
+            } catch {}
+          }
           // PWA Admin-Steuerung (v67): einmalig ausführen, dann sofort zurücksetzen
           if (data?.pwa_update_action === 'update') {
             fetch('/api/admin/app-settings/pwa_update_action', {
@@ -144,7 +153,7 @@ export default function App() {
   return (
     <OfflineQueueProvider dbName="script-offline-queue">
     <TerminologieProvider config={terminologie}>
-    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert, charAcAlleErlaubt }}>
+    <AppSettingsContext.Provider value={{ treatmentLabel, sceneKuerzel, figurenLabel, sceneEnvColors, lnSettings, pageMargins, replikSettings, suffixSettings, charAcDeaktiviert, charAcAlleErlaubt, snapshotSettings }}>
       <ProductionContext.Provider value={productionCtx}>
         <FocusContext.Provider value={{ focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia }}>
           <BrowserRouter>

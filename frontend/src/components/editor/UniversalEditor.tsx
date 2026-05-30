@@ -9,7 +9,7 @@ import {
   Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
   AlignLeft, AlignCenter, AlignRight,
   List, ListOrdered, ImageIcon, Maximize2, Minimize2, Pin, PinOff,
-  Undo2, Redo2,
+  Undo2, Redo2, Wand2, Download,
 } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import { useEditor, EditorContent, Extension } from '@tiptap/react'
@@ -327,6 +327,9 @@ interface UniversalEditorProps {
   onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
   /** ID der aktuellen Szene — wird in Freigabe-Emails als Kontext mitgeschickt */
   szeneId?: string | null
+  onMagicOpen?: () => void
+  onExportOpen?: () => void
+  exportOpen?: boolean
 }
 
 // Rollenname aus Großbuchstaben normalisieren (CSS text-transform verhindert korrekte Schreibweise)

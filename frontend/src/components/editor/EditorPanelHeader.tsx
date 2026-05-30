@@ -60,13 +60,14 @@ interface Props {
   updatedBy?: string | null
   updatedAt?: string | null
   collabSlot?: React.ReactNode
+  verlaufSlot?: React.ReactNode
   rightSlot?: React.ReactNode
 }
 
 export default function EditorPanelHeader({
   selectedWerk, werkstufen, produktionId, folgeNummer, folgeId,
   sceneFormat, onSelectWerkstufe, onCreateWerkstufe, onNeueFassungClick, onReloadWerkstufen,
-  onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot, rightSlot,
+  onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot, verlaufSlot, rightSlot,
 }: Props) {
   const [showMenu, setShowMenu] = useState(false)
   const [showLabelMenu, setShowLabelMenu] = useState(false)
@@ -393,6 +394,8 @@ export default function EditorPanelHeader({
       )}
 
       {collabSlot}
+
+      {verlaufSlot}
 
       {/* Sichtbarkeits-Badge (klickbar) */}
       {selectedWerk && !selectedWerk.abgegeben && (

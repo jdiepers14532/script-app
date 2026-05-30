@@ -15,6 +15,7 @@ import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
 import { Clock, Wand2, Download } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import MagicFunktionenModal from './MagicFunktionenModal'
+import SynopsenGenerierungModal from './SynopsenGenerierungModal'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 import ExportDrawer from './ExportDrawer'
@@ -51,7 +52,7 @@ export default function EditorPanel({
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
   const { tweaks } = useTweaks()
-  const { replikSettings } = useAppSettings()
+  const { replikSettings, snapshotSettings } = useAppSettings()
   const { enqueue } = useOfflineQueueContext()
   const { selectedProduction } = useSelectedProduction()
 
@@ -71,12 +72,7 @@ export default function EditorPanel({
 
   // ── Magic-Funktionen ──────────────────────────────────────────────────────
   const [magicOpen, setMagicOpen] = useState(false)
-  const [magicStatusMsg, setMagicStatusMsg] = useState<string | null>(null)
-
-  const handleMagicInsert = useCallback((doc: any, statusMsg: string) => {
-    editorRef.current?.commands.setContent(doc, true)
-    setMagicStatusMsg(statusMsg)
-  }, [])
+  const [synopsenOpen, setSynopsenOpen] = useState(false)
 
   // Ctrl+M öffnet Magic-Funktionen
   useEffect(() => {
@@ -147,17 +143,17 @@ export default function EditorPanel({
     prevWerkIdRef.current = selectedWerkId ?? null
   }, [selectedWerkId, fireDokSnapshot])
 
-  // 30-Minuten-Auto-Snapshot der aktiven Werkstufe
+  // Auto-Snapshot der aktiven Werkstufe (Intervall aus DK-Einstellungen)
   useEffect(() => {
     if (dokSnapshotTimerRef.current) clearInterval(dokSnapshotTimerRef.current)
-    if (!selectedWerkId) return
+    if (!selectedWerkId || snapshotSettings.werkIntervalMin <= 0) return
     dokSnapshotTimerRef.current = setInterval(() => {
       if (selectedWerkId) fireDokSnapshot(selectedWerkId)
-    }, 30 * 60 * 1000)
+    }, snapshotSettings.werkIntervalMin * 60 * 1000)
     return () => {
       if (dokSnapshotTimerRef.current) clearInterval(dokSnapshotTimerRef.current)
     }
-  }, [selectedWerkId, fireDokSnapshot])
+  }, [selectedWerkId, fireDokSnapshot, snapshotSettings.werkIntervalMin])
 
   useEffect(() => {
     if (!produktionId) return
@@ -581,39 +577,7 @@ export default function EditorPanel({
             <CollaborationPresence status={collabStatus} users={collabUsers} />
           </div>
         ) : undefined}
-        rightSlot={(
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Tooltip text={"Magic-Funktionen\nCtrl+M"} placement="bottom">
-            <button
-              onClick={() => setMagicOpen(true)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 24, height: 24, borderRadius: 5,
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                color: '#AF52DE',
-                cursor: 'pointer',
-              }}
-            >
-              <Wand2 size={12} />
-            </button>
-          </Tooltip>
-          <Tooltip text="Exportieren (PDF, DOCX, Fountain, FDX)" placement="bottom">
-            <button
-              onClick={() => setExportOpen(v => !v)}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 24, height: 24, borderRadius: 5,
-                border: `1px solid ${exportOpen ? '#007AFF' : 'var(--border)'}`,
-                background: exportOpen ? 'rgba(0,122,255,0.08)' : 'transparent',
-                color: exportOpen ? '#007AFF' : 'var(--text-muted)',
-                cursor: 'pointer',
-              }}
-            >
-              <Download size={12} />
-            </button>
-          </Tooltip>
-          {canSnapshot ? (
+        verlaufSlot={canSnapshot ? (
           <Tooltip text="Verlauf — Auto-Sicherungen">
             <button
               onClick={() => setSnapshotOpen(v => !v)}
@@ -629,25 +593,9 @@ export default function EditorPanel({
               <Clock size={12} />
             </button>
           </Tooltip>
-          ) : null}
-          </div>
-        )}
+        ) : undefined}
       />
 
-      {/* Magic-Status */}
-      {magicStatusMsg && (
-        <div style={{
-          padding: '6px 14px', fontSize: 11,
-          background: magicStatusMsg.startsWith('Fehler') || magicStatusMsg.includes('nicht aktiviert') || magicStatusMsg.includes('Keine') ? 'rgba(255,149,0,0.08)' : 'rgba(175,82,222,0.08)',
-          borderBottom: `1px solid ${magicStatusMsg.startsWith('Fehler') || magicStatusMsg.includes('nicht aktiviert') || magicStatusMsg.includes('Keine') ? 'rgba(255,149,0,0.3)' : 'rgba(175,82,222,0.3)'}`,
-          display: 'flex', alignItems: 'center', gap: 8,
-          color: magicStatusMsg.startsWith('Fehler') || magicStatusMsg.includes('nicht aktiviert') || magicStatusMsg.includes('Keine') ? '#FF9500' : '#AF52DE',
-        }}>
-          <Wand2 size={11} />
-          {magicStatusMsg}
-          <button onClick={() => setMagicStatusMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'inherit', padding: 0, opacity: 0.6 }}>✕</button>
-        </div>
-      )}
 
       {/* ── Szenario 3: Andere User aktiv auf derselben Werkstufe ── */}
       {otherActiveUsers.length > 0 && !collabEnabled && (
@@ -1032,6 +980,9 @@ export default function EditorPanel({
               sceneCharNames={sceneCharNames}
               onCharInserted={onCharInserted}
               szeneId={currentSzene?.id ? String(currentSzene.id) : undefined}
+              onMagicOpen={() => setMagicOpen(true)}
+              onExportOpen={() => setExportOpen(v => !v)}
+              exportOpen={exportOpen}
             />
           </Suspense>
         )}
@@ -1055,9 +1006,19 @@ export default function EditorPanel({
         onClose={() => setMagicOpen(false)}
         sceneFormat={sceneFormat}
         folgeId={folgeId}
-        onInsert={handleMagicInsert}
-        onStatusMsg={setMagicStatusMsg}
+        folgeNummer={folgeNummer}
+        onSynopseClick={() => { setMagicOpen(false); setSynopsenOpen(true) }}
       />
+
+      {/* Synopsen-Generierung Modal */}
+      {synopsenOpen && folgeId != null && (
+        <SynopsenGenerierungModal
+          open={synopsenOpen}
+          onClose={() => setSynopsenOpen(false)}
+          folgeId={folgeId}
+          folgeNummer={folgeNummer}
+        />
+      )}
 
       {/* Platzhalter-Szenen Dialog (after neue werkstufe creation) */}
       {platzhalterWerkId && (
