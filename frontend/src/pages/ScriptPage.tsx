@@ -947,12 +947,10 @@ export default function ScriptPage() {
               // Priorität 3: erste Szene (scene_nummer=1) wenn Toggle aktiv, sonst erstes Element (Titelseite)
               // "Erste Szene" ≠ "Erstes Element" — Erstes Element ist meist die Titelseite (werkSzenen[0])
               // navRestored bleibt false — Fallback, nicht vom User ausgewählt; wird erst durch Klick/Tastatur gesetzt
-              console.log('[P3] episodenWechselErsteSzene=', currentTweaks.episodenWechselErsteSzene, 'werkSzenen[0]=', JSON.stringify(werkSzenen[0]), 'werkSzenen[1]=', JSON.stringify(werkSzenen[1]))
               if (currentTweaks.episodenWechselErsteSzene) {
                 // Erste echte Szene = erster Datensatz mit format drehbuch oder storyline
                 // (notiz = freie Elemente / Titelseite, werden übersprungen)
                 const ersteEchteSzene = werkSzenen.find((s: any) => s.format === 'drehbuch' || s.format === 'storyline')
-                console.log('[P3] ersteEchteSzene=', ersteEchteSzene?.id, 'format=', ersteEchteSzene?.format, 'targetId=', (ersteEchteSzene ?? werkSzenen[0])?.id)
                 targetId = (ersteEchteSzene ?? werkSzenen[0]).id
               } else {
                 targetId = werkSzenen[0].id
@@ -1120,7 +1118,6 @@ export default function ScriptPage() {
                       // in der neuen Werkstufe existiert — verhindert Überschreiben der
                       // wiederhergestellten letzten Szene durch die Titelseite.
                       setSelectedSzeneId(prev => {
-                        console.log('[onActiveWerk] prev=', prev, 'found=', !!(prev != null && scenes.find((s: any) => s.id === prev)), 'scenes[0]=', scenes[0]?.id)
                         if (prev != null && scenes.find((s: any) => s.id === prev)) return prev
                         return scenes.length > 0 ? scenes[0].id : null
                       })
