@@ -1641,30 +1641,29 @@ async function applySynopsenBreaks(
   rightMm: number
 ): Promise<void> {
   await page.emulateMediaType('print')
-  await page.evaluate((topMm: number, bottomMm: number, leftMm: number, rightMm: number) => {
-    // @page-Margins injizieren damit getBoundingClientRect() Positionen im Print-Layout korrekt sind
-    const style = document.createElement('style')
-    style.textContent = `@page { size: A4; margin: ${topMm}mm ${rightMm}mm ${bottomMm}mm ${leftMm}mm }`
-    document.head.appendChild(style)
-    // A4-Seitenhöhe in CSS-Pixeln (96 dpi)
-    const pageH = 297 * 96 / 25.4
-    const rows = Array.from(document.querySelectorAll('tr.synopse-row')) as HTMLElement[]
-    for (let i = 0; i < rows.length; i++) {
-      // Chrome 130 Bug: break-inside:avoid auf <tr> dupliziert den Inhalt → entfernen
-      rows[i].style.breakInside = 'auto'
-      rows[i].style.pageBreakInside = 'auto'
-      if (i > 0) {
-        const r = rows[i].getBoundingClientRect()
-        const topPage    = Math.floor(r.top / pageH)
-        const bottomPage = Math.floor(Math.max(0, r.bottom - 0.5) / pageH)
-        if (topPage < bottomPage) {
-          // Zeile würde Seitengrenze überschreiten → auf nächste Seite schieben
-          rows[i].style.breakBefore = 'page'
-          rows[i].style.pageBreakBefore = 'always'
+  // Browser-Code als String-Template — vermeidet TypeScript-Fehler durch fehlende dom-lib
+  await page.evaluate(`
+    (function() {
+      var style = document.createElement('style');
+      style.textContent = '@page { size: A4; margin: ${topMm}mm ${rightMm}mm ${bottomMm}mm ${leftMm}mm }';
+      document.head.appendChild(style);
+      var pageH = 297 * 96 / 25.4;
+      var rows = Array.from(document.querySelectorAll('tr.synopse-row'));
+      for (var i = 0; i < rows.length; i++) {
+        rows[i].style.breakInside = 'auto';
+        rows[i].style.pageBreakInside = 'auto';
+        if (i > 0) {
+          var r = rows[i].getBoundingClientRect();
+          var tp = Math.floor(r.top / pageH);
+          var bp = Math.floor(Math.max(0, r.bottom - 0.5) / pageH);
+          if (tp < bp) {
+            rows[i].style.breakBefore = 'page';
+            rows[i].style.pageBreakBefore = 'always';
+          }
         }
       }
-    }
-  }, topMm, bottomMm, leftMm, rightMm)
+    })()
+  `)
 }
 
 /** Fügt zwei PDFs zusammen: alle Seiten von a, dann alle Seiten von b. */
