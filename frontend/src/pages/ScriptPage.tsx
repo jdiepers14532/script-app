@@ -396,19 +396,18 @@ function TweaksSync({
   useEffect(() => {
     if (!tweaks.letzteSzeneProEpisodeMerken) return
     if (!selectedFolgeId || !selectedSzeneId) return
-    // Nur speichern wenn der User explizit navigiert hat (navRestored=true) — verhindert, dass
-    // die auto-gewählte Startszene (Titelseite/ersteSzene-Fallback) als "letzte Szene" gespeichert wird
-    if (!navRestoredRef.current) return
+    // Sofort speichern — "letzte gesehene Szene" gilt für jede Szene, ob auto-selektiert oder manuell.
+    // kein navRestored-Check: die zuletzt ANGEZEIGTE Szene ist die korrekte Rückkehrposition.
     const newMap = { ...lastSeenMapRef.current, [String(selectedFolgeId)]: selectedSzeneId }
     lastSeenMapRef.current = newMap
-    // Sofort in localStorage speichern (kein Debounce) — überlebt Unmount + schnellen Seitenwechsel
+    // Sofort in localStorage — überlebt Unmount + schnellen Seitenwechsel (kein Datenverlust)
     try { localStorage.setItem(LS_KEY_LAST_SCENE, JSON.stringify(newMap)) } catch {}
-    // Backend debounced speichern — KEIN cleanup-return, damit der Timer auch nach Unmount feuert
+    // Backend debounced — KEIN cleanup-return, Timer feuert auch nach Unmount
     if (saveLastSeenTimerRef.current) clearTimeout(saveLastSeenTimerRef.current)
     saveLastSeenTimerRef.current = setTimeout(() => {
       api.updateSettings({ ui_settings: { letzte_szene_pro_episode: lastSeenMapRef.current } }).catch(() => {})
     }, 1000)
-  }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken, lastSeenMapRef, saveLastSeenTimerRef, navRestoredRef])
+  }, [selectedSzeneId, selectedFolgeId, tweaks.letzteSzeneProEpisodeMerken, lastSeenMapRef, saveLastSeenTimerRef])
 
   return null
 }
