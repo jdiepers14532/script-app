@@ -608,6 +608,7 @@ const ALL_ROLLEN = [
   'superadmin', 'geschaeftsfuehrung', 'herstellungsleitung', 'hauptbuchhaltung',
   'produktionsleitung', 'produktionsbuero', 'aufnahmeleitung', 'drehplanung',
   'vertragserstellung', 'buchhaltung_produktion',
+  'Head_Writing', 'Writer_Producing',
 ]
 
 function AutorenplanRollenConfig() {
