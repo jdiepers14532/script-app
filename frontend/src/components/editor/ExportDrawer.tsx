@@ -144,24 +144,36 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       label: w.label || `${w.typ === 'notiz' ? 'Notiz' : 'Dokument'} V${w.version_nummer}`, enabled: true,
     }))
 
-    // Export-Preset aus User-Einstellungen laden
+    // Spezial-Items synchron mit Default-Werten initialisieren —
+    // danach Preset aus User-Einstellungen nachladen und NUR die Spezial-Items updaten.
+    // Wichtig: kein setPreItems([...alle]) im async-Callback, sonst überschreibt es
+    // Notiz-Items die parallel von getExportNotizSzenen geladen wurden (Race Condition).
+    setPreItems([...notizWerkItems,
+      { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false },
+      { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false },
+      { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false },
+    ])
+    setPostItems([])
+
+    // Preset nachladen — nur enabled-Status der Spezial-Items aktualisieren
     api.getSettings()
       .then((settings: any) => {
         const preset: Partial<ExportPreset> = settings?.ui_settings?.[`export_preset_${produktionId}`] ?? {}
-        setPreItems([...notizWerkItems,
-          { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: preset.statistik_enabled ?? false },
-          { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: preset.onliner_enabled ?? false },
-          { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: preset.synopse_enabled ?? false },
-        ])
+        if (!preset.statistik_enabled && !preset.onliner_enabled && !preset.synopse_enabled) return
+        setPreItems(prev => prev.map(it => {
+          if (it.type === 'statistik') return { ...it, enabled: preset.statistik_enabled ?? false }
+          if (it.type === 'onliner')   return { ...it, enabled: preset.onliner_enabled ?? false }
+          if (it.type === 'synopse')   return { ...it, enabled: preset.synopse_enabled ?? false }
+          return it
+        }))
+        setPostItems(prev => prev.map(it => {
+          if (it.type === 'statistik') return { ...it, enabled: preset.statistik_enabled ?? false }
+          if (it.type === 'onliner')   return { ...it, enabled: preset.onliner_enabled ?? false }
+          if (it.type === 'synopse')   return { ...it, enabled: preset.synopse_enabled ?? false }
+          return it
+        }))
       })
-      .catch(() => {
-        setPreItems([...notizWerkItems,
-          { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false },
-          { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false },
-          { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false },
-        ])
-      })
-    setPostItems([])
+      .catch(() => {/* Preset nicht verfügbar — defaults behalten */})
 
     // Freie Notiz-Elemente der aktuellen Werkstufe laden + VOR/NACH einordnen
     if (selectedWerk.typ !== 'notiz') {
