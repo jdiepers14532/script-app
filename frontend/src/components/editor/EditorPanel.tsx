@@ -78,6 +78,20 @@ export default function EditorPanel({
     setMagicStatusMsg(statusMsg)
   }, [])
 
+  // Ctrl+M öffnet Magic-Funktionen
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+      if (e.ctrlKey && !e.shiftKey && !e.altKey && e.key === 'm') {
+        e.preventDefault()
+        setMagicOpen(o => !o)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
   // ── Export Drawer ─────────────────────────────────────────────────────────
   const [exportOpen, setExportOpen] = useState(false)
 
@@ -540,7 +554,7 @@ export default function EditorPanel({
         ) : undefined}
         rightSlot={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Tooltip text="Magic-Funktionen" placement="bottom">
+          <Tooltip text={"Magic-Funktionen\nCtrl+M"} placement="bottom">
             <button
               onClick={() => setMagicOpen(true)}
               style={{

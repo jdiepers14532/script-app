@@ -11,31 +11,23 @@ interface Props {
   onStatusMsg: (msg: string) => void
 }
 
-// ── Animierter Stern ──────────────────────────────────────────────────────────
 function Star({ x, y, delay, size }: { x: number; y: number; delay: number; size: number }) {
   return (
     <div style={{
       position: 'absolute', left: `${x}%`, top: `${y}%`,
       width: size, height: size, borderRadius: '50%',
-      background: '#fff',
-      opacity: 0,
+      background: '#fff', opacity: 0, pointerEvents: 'none',
       animation: `magic-star 2.4s ${delay}s ease-in-out infinite`,
-      pointerEvents: 'none',
     }} />
   )
 }
 
 const STARS = [
-  { x: 12, y: 18, delay: 0,    size: 3 },
-  { x: 82, y: 12, delay: 0.6,  size: 2 },
-  { x: 55, y: 8,  delay: 1.1,  size: 4 },
-  { x: 92, y: 35, delay: 0.3,  size: 2 },
-  { x: 7,  y: 55, delay: 1.7,  size: 3 },
-  { x: 70, y: 72, delay: 0.9,  size: 2 },
-  { x: 30, y: 80, delay: 1.4,  size: 3 },
-  { x: 88, y: 78, delay: 0.2,  size: 2 },
-  { x: 45, y: 90, delay: 2.0,  size: 2 },
-  { x: 20, y: 42, delay: 1.2,  size: 2 },
+  { x: 12, y: 18, delay: 0,   size: 3 }, { x: 82, y: 12, delay: 0.6, size: 2 },
+  { x: 55, y: 8,  delay: 1.1, size: 4 }, { x: 92, y: 35, delay: 0.3, size: 2 },
+  { x: 7,  y: 55, delay: 1.7, size: 3 }, { x: 70, y: 72, delay: 0.9, size: 2 },
+  { x: 30, y: 80, delay: 1.4, size: 3 }, { x: 88, y: 78, delay: 0.2, size: 2 },
+  { x: 45, y: 90, delay: 2.0, size: 2 }, { x: 20, y: 42, delay: 1.2, size: 2 },
 ]
 
 export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, onInsert, onStatusMsg }: Props) {
@@ -44,27 +36,34 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
 
   useEffect(() => {
     if (open) setTimeout(() => setVisible(true), 10)
-    else setVisible(false)
+    else { setVisible(false); setSynopsisLoading(false) }
   }, [open])
+
+  // Escape zum Schließen
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open, onClose])
 
   if (!open) return null
 
   const synopsisAvailable = werktyp === 'notiz' && folgeId != null
 
-  async function handleSynopsis() {
+  async function handleSynopsis(e: React.MouseEvent) {
+    e.stopPropagation()
     if (!folgeId || synopsisLoading) return
     setSynopsisLoading(true)
     try {
       const result = await api.post('/ki/synopsis', { folge_id: folgeId })
       if (result.disabled) {
         onStatusMsg('KI-Funktion "Episoden-Synopse" ist nicht aktiviert (Admin-Einstellungen).')
-        onClose()
-        return
+        onClose(); return
       }
       if (!result.synopsis) {
         onStatusMsg('Keine Synopse generiert. Sind Szenen und Zusammenfassungen vorhanden?')
-        onClose()
-        return
+        onClose(); return
       }
       const paragraphs = result.synopsis.split(/\n\n+/).map((para: string) => ({
         type: 'paragraph',
@@ -83,11 +82,10 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
 
   return (
     <>
-      {/* Animations-CSS */}
       <style>{`
         @keyframes magic-star {
           0%   { opacity: 0; transform: scale(0.5); }
-          40%  { opacity: 0.9; transform: scale(1.2); }
+          40%  { opacity: 0.85; transform: scale(1.2); }
           100% { opacity: 0; transform: scale(0.5); }
         }
         @keyframes magic-glow {
@@ -108,31 +106,26 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
           0%   { background-position: -200% center; }
           100% { background-position: 200% center; }
         }
-        .magic-btn-active {
-          transition: transform 0.15s, box-shadow 0.15s;
-        }
-        .magic-btn-active:hover {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 20px #AF52DE66;
-        }
-        .magic-btn-active:active {
-          transform: translateY(0);
-        }
+        .magic-synopsis-btn { transition: transform 0.12s, box-shadow 0.12s; }
+        .magic-synopsis-btn:not(:disabled):hover { transform: translateY(-1px); box-shadow: 0 4px 20px #AF52DE66; }
+        .magic-synopsis-btn:not(:disabled):active { transform: translateY(0); }
       `}</style>
 
-      {/* Backdrop */}
-      <div style={{
-        position: 'fixed', inset: 0, zIndex: 10000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(5,0,20,0.72)',
-        backdropFilter: 'blur(4px)',
-        opacity: visible ? 1 : 0,
-        transition: 'opacity 0.25s',
-      }} onClick={onClose}>
-
-        {/* Modal */}
+      {/* Backdrop — klick außerhalb schließt */}
+      <div
+        style={{
+          position: 'fixed', inset: 0, zIndex: 10000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(5,0,20,0.72)',
+          backdropFilter: 'blur(4px)',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 0.25s',
+        }}
+        onMouseDown={onClose}
+      >
+        {/* Modal — stoppt Propagation damit Klicks drin nicht schließen */}
         <div
-          onClick={e => e.stopPropagation()}
+          onMouseDown={e => e.stopPropagation()}
           style={{
             position: 'relative',
             width: 440, maxWidth: 'calc(100vw - 32px)',
@@ -143,7 +136,7 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
             animation: visible ? 'magic-glow 3s ease-in-out infinite, magic-fade-in 0.28s ease-out forwards' : 'none',
           }}
         >
-          {/* Sterne */}
+          {/* Sterne (hinter dem Inhalt) */}
           <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
             {STARS.map((s, i) => <Star key={i} {...s} />)}
           </div>
@@ -152,13 +145,12 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
           <div style={{ position: 'relative', zIndex: 1, padding: '26px 24px 22px' }}>
 
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
               <div style={{
-                width: 42, height: 42, borderRadius: 12,
+                width: 42, height: 42, borderRadius: 12, flexShrink: 0,
                 background: 'linear-gradient(135deg, #AF52DE33, #7b2fa055)',
                 border: '1.5px solid #AF52DE77',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
                 animation: 'magic-wand-spin 3.5s ease-in-out infinite',
               }}>
                 <Wand2 size={20} color="#D18AFF" />
@@ -174,14 +166,16 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
                 }}>
                   Magic-Funktionen
                 </div>
-                <div style={{ fontSize: 11, color: '#9b72cc', marginTop: 1 }}>KI-gestützte Helfer für diese Werkstufe</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 1 }}>
+                  KI-gestützte Helfer für diese Werkstufe
+                </div>
               </div>
               <button
                 onClick={onClose}
                 style={{
                   marginLeft: 'auto', background: 'none', border: 'none',
-                  cursor: 'pointer', color: '#9b72cc', display: 'flex', padding: 4,
-                  borderRadius: 6, transition: 'color 0.15s',
+                  cursor: 'pointer', color: 'rgba(255,255,255,0.5)',
+                  display: 'flex', padding: 4, borderRadius: 6,
                 }}
               >
                 <X size={16} />
@@ -190,84 +184,75 @@ export default function MagicFunktionenModal({ open, onClose, werktyp, folgeId, 
 
             {/* Trennlinie */}
             <div style={{
-              height: 1, marginBottom: 18,
+              height: 1, marginBottom: 16,
               background: 'linear-gradient(90deg, transparent, #AF52DE44, transparent)',
             }} />
 
             {/* Funktionen */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-              {/* Episoden-Synopse */}
-              <div style={{
-                border: `1.5px solid ${synopsisAvailable ? '#AF52DE55' : '#ffffff18'}`,
-                borderRadius: 12,
-                padding: '14px 16px',
-                background: synopsisAvailable
-                  ? 'linear-gradient(135deg, #AF52DE14, #7b2fa00a)'
-                  : 'rgba(255,255,255,0.04)',
-                opacity: synopsisAvailable ? 1 : 0.45,
-                transition: 'opacity 0.2s',
-              }}>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <Sparkles
-                    size={15}
-                    color={synopsisAvailable ? '#D18AFF' : '#9b72cc'}
-                    style={{ marginTop: 1, flexShrink: 0 }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#f0e6ff', marginBottom: 4 }}>
-                      Episoden-Synopse
-                    </div>
-                    <div style={{ fontSize: 11, color: '#bda0d8', lineHeight: 1.55, marginBottom: synopsisAvailable ? 14 : 4 }}>
-                      Erstellt automatisch eine Synopse aus den Szenen-Zusammenfassungen und fügt sie in diese Notiz ein.
-                    </div>
-                    {!synopsisAvailable && (
-                      <div style={{ fontSize: 10, color: '#9b72cc', fontStyle: 'italic' }}>
-                        {werktyp !== 'notiz'
-                          ? 'Nur in Notiz-Werkstufen verfügbar.'
-                          : 'Nur innerhalb einer Folge verfügbar.'}
+              {/* Episoden-Synopse — nur wenn notiz + folge */}
+              {synopsisAvailable && (
+                <div style={{
+                  border: '1.5px solid #AF52DE55',
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  background: 'linear-gradient(135deg, #AF52DE18, #7b2fa00c)',
+                }}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <Sparkles size={15} color="#D18AFF" style={{ marginTop: 1, flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
+                        Episoden-Synopse
                       </div>
-                    )}
-                    {synopsisAvailable && (
+                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 14 }}>
+                        Erstellt automatisch eine Synopse aus den Szenen-Zusammenfassungen und fügt sie in diese Notiz ein.
+                      </div>
                       <button
-                        className={synopsisLoading ? '' : 'magic-btn-active'}
+                        className="magic-synopsis-btn"
                         onClick={handleSynopsis}
                         disabled={synopsisLoading}
                         style={{
                           display: 'inline-flex', alignItems: 'center', gap: 7,
                           padding: '7px 16px', borderRadius: 8,
                           background: synopsisLoading
-                            ? 'rgba(175,82,222,0.15)'
+                            ? 'rgba(175,82,222,0.2)'
                             : 'linear-gradient(135deg, #AF52DE, #7b2fa0)',
-                          color: synopsisLoading ? '#9b72cc' : '#fff',
+                          color: '#fff',
                           border: `1px solid ${synopsisLoading ? '#AF52DE44' : '#AF52DE'}`,
                           cursor: synopsisLoading ? 'not-allowed' : 'pointer',
-                          fontSize: 12, fontWeight: 700,
-                          letterSpacing: 0.2,
+                          fontSize: 12, fontWeight: 700, letterSpacing: 0.2,
+                          opacity: synopsisLoading ? 0.6 : 1,
                         }}
                       >
                         <Wand2 size={12} />
                         {synopsisLoading ? 'Generiere…' : 'Synopse generieren'}
                       </button>
-                    )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Platzhalter für zukünftige Funktionen */}
+              {/* Platzhalter */}
               <div style={{
-                border: '1.5px dashed #ffffff18',
+                border: '1.5px dashed rgba(255,255,255,0.12)',
                 borderRadius: 12,
                 padding: '11px 16px',
                 display: 'flex', alignItems: 'center', gap: 10,
               }}>
-                <Sparkles size={13} color="#6b4a8a" />
-                <span style={{ fontSize: 12, color: '#6b4a8a', fontStyle: 'italic' }}>
+                <Sparkles size={13} color="rgba(255,255,255,0.25)" />
+                <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', fontStyle: 'italic' }}>
                   Weitere Magic-Funktionen folgen…
                 </span>
               </div>
 
             </div>
+
+            {/* Keyboard Hint */}
+            <div style={{ marginTop: 14, textAlign: 'right', fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>
+              Esc zum Schließen · Ctrl+M zum Öffnen
+            </div>
+
           </div>
         </div>
       </div>
