@@ -259,7 +259,7 @@ folgenV2Router.post('/', async (req, res) => {
 folgenV2Router.get('/:id/synopsen', async (req, res) => {
   try {
     const row = await queryOne(
-      `SELECT folgen_titel, synopsis, synopsis_300 FROM folgen WHERE id = $1`,
+      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_presse, synopsis_straenge FROM folgen WHERE id = $1`,
       [req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
@@ -274,7 +274,7 @@ folgenV2Router.get('/:id/synopsen', async (req, res) => {
 // Freies Dokument: + dokument_label, sichtbarkeit_frei
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.put('/:id', async (req, res) => {
-  const { folgen_titel, synopsis, synopsis_300, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
+  const { folgen_titel, synopsis, synopsis_300, synopsis_presse, synopsis_straenge, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
   const user = req.user!
   try {
     const existing = await queryOne('SELECT * FROM folgen WHERE id = $1', [req.params.id])
@@ -298,10 +298,12 @@ folgenV2Router.put('/:id', async (req, res) => {
 
     const row = await queryOne(
       `UPDATE folgen SET
-        folgen_titel     = COALESCE($1, folgen_titel),
-        synopsis         = COALESCE($2, synopsis),
-        synopsis_300     = COALESCE($6, synopsis_300),
-        dokument_label   = COALESCE($3, dokument_label),
+        folgen_titel      = COALESCE($1, folgen_titel),
+        synopsis          = COALESCE($2, synopsis),
+        synopsis_300      = COALESCE($6, synopsis_300),
+        synopsis_presse   = COALESCE($8, synopsis_presse),
+        synopsis_straenge = COALESCE($9, synopsis_straenge),
+        dokument_label    = COALESCE($3, dokument_label),
         sichtbarkeit_frei = COALESCE($4, sichtbarkeit_frei),
         sichtbarkeit_frei_geaendert_am = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE sichtbarkeit_frei_geaendert_am END,
         sichtbarkeit_frei_colab_gruppe_id = CASE
@@ -311,7 +313,8 @@ folgenV2Router.put('/:id', async (req, res) => {
         END
        WHERE id = $7 RETURNING *`,
       [folgen_titel ?? null, synopsis ?? null, dokument_label ?? null, sichtbarkeit_frei ?? null,
-       colab_gruppe_id ?? null, synopsis_300 ?? null, req.params.id]
+       colab_gruppe_id ?? null, synopsis_300 ?? null, req.params.id,
+       synopsis_presse ?? null, synopsis_straenge ?? null]
     )
     res.json(row)
   } catch (err) {

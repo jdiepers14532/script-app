@@ -164,14 +164,15 @@ kiAdminRouter.delete('/:funktion/prompt', async (req, res) => {
 
 router.use(authMiddleware)
 
-async function callMistral(apiKey: string, model: string, messages: { role: string; content: string }[]): Promise<string> {
+async function callMistral(apiKey: string, model: string, messages: { role: string; content: string }[], maxTokens = 300, temperature = 0.1): Promise<string> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 20000)
+  const timeoutMs = maxTokens > 600 ? 60000 : 20000
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({ model, messages, max_tokens: 300, temperature: 0.1 }),
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature }),
       signal: controller.signal,
     })
     if (!res.ok) throw new Error(`Mistral HTTP ${res.status}`)
@@ -228,20 +229,35 @@ function applyPromptTemplate(template: string, vars: Record<string, string>): st
 }
 
 /** Ruft das konfigurierte LLM auf (Ollama / Mistral / Claude) */
-async function callProvider(setting: any, messages: { role: string; content: string }[]): Promise<string> {
+async function callProvider(setting: any, messages: { role: string; content: string }[], maxTokens = 300): Promise<string> {
   if (setting.provider === 'ollama') {
     const prompt = messages.map(m => m.content).join('\n\n')
     return callOllama(setting.model_name, prompt)
   }
   const apiKey = await getProviderApiKey(setting.provider)
   if (!apiKey) throw new Error(`Kein API-Key für ${setting.provider}`)
-  if (setting.provider === 'mistral') return callMistral(apiKey, setting.model_name, messages)
+  if (setting.provider === 'mistral') return callMistral(apiKey, setting.model_name, messages, maxTokens)
   if (setting.provider === 'claude') {
     const system = messages.find(m => m.role === 'system')?.content ?? ''
     const user = messages.find(m => m.role === 'user')?.content ?? ''
     return callClaude(apiKey, setting.model_name, system, user)
   }
   throw new Error(`Unbekannter Provider: ${setting.provider}`)
+}
+
+/** Parst ###SECTION###-Marker aus KI-Antwort → Record<sectionName, content> */
+function parseKiSections(raw: string): Record<string, string> {
+  const sections: Record<string, string> = {}
+  const parts = raw.split(/###([A-ZÄÖÜ_]+)###/)
+  for (let i = 1; i + 1 < parts.length; i += 2) {
+    sections[parts[i].trim()] = parts[i + 1].trim()
+  }
+  return sections
+}
+
+/** Entfernt KI-Markdown-Artefakte aus Text */
+function cleanKiText(s: string): string {
+  return s.replace(/\*{1,3}/g, '').replace(/^#{1,6}\s*/gm, '').replace(/^>\s*/gm, '').replace(/^-{3,}$/gm, '').trim()
 }
 
 /** Effektiver Prompt: eigener prompt (aus DB) oder default_prompt */
@@ -455,12 +471,12 @@ router.get('/synopsen/check', async (req, res) => {
     const { folge_id } = req.query
     if (!folge_id) return res.status(400).json({ error: 'folge_id fehlt' })
     const row = await queryOne(
-      `SELECT folgen_titel, synopsis, synopsis_300 FROM folgen WHERE id = $1`,
+      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_presse, synopsis_straenge FROM folgen WHERE id = $1`,
       [folge_id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
-    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300)
-    res.json({ hasData, folgen_titel: row.folgen_titel, synopsis: row.synopsis, synopsis_300: row.synopsis_300 })
+    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300 || row.synopsis_presse || row.synopsis_straenge)
+    res.json({ hasData, ...row })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -585,6 +601,150 @@ ${data.szenenListe}`
 
     const text = raw.replace(/\*{1,3}/g, '').replace(/^#{1,6}\s*/gm, '').replace(/^>\s*/gm, '').replace(/^-{3,}$/gm, '').trim()
     res.json({ text, folge_id, szenen_count: data.szenen.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/ki/synopsen/generiere-alle — kombinierter Call (alle Synopsen in einem Request)
+router.post('/synopsen/generiere-alle', async (req, res) => {
+  try {
+    const { folge_id } = req.body
+    if (!folge_id) return res.status(400).json({ error: 'folge_id erforderlich' })
+
+    const setting = await getKiSetting('synopsis_alle')
+    if (!setting?.enabled) return res.json({ disabled: true, message: 'KI-Funktion nicht aktiviert' })
+
+    const data = await loadSzenenFuerFolge(folge_id)
+    if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
+
+    // Bisherige Titel dieser Produktion als Stil-Referenz
+    const vorhandeneTitelRows = await query(
+      `SELECT folgen_titel FROM folgen
+       WHERE produktion_id = $1 AND id != $2 AND folgen_titel IS NOT NULL AND folgen_titel != ''
+       ORDER BY folge_nummer DESC LIMIT 20`,
+      [data.werkstufe.produktion_id, folge_id]
+    )
+    const titelListe = vorhandeneTitelRows.map((r: any) => r.folgen_titel).join('\n')
+
+    const systemPrompt = `Du bist ein professioneller Dramaturg und Redakteur einer deutschen Daily-Soap (ARD, Rote Rosen). Antworte AUSSCHLIESSLICH mit den angeforderten Abschnitten in exakt dem vorgegebenen Format. Keine Einleitung, keine Erklärungen.`
+
+    const userPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${data.werkstufe.folge_nummer} ===
+${data.szenenListe}
+${titelListe ? `\n=== BISHERIGE EPISODENTITEL (Stilreferenz — kurz und prägnant wie diese) ===\n${titelListe}` : ''}
+
+Erstelle folgende 5 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER### getrennt):
+
+###TITEL###
+[Titel 1: 1-3 Wörter, NICHT beschreibend, am Stil der bisherigen Titel orientiert]
+[Titel 2]
+[Titel 3]
+[Titel 4]
+[Titel 5]
+
+###KURZINHALT###
+**Haupthandlung:**
+[2-3 Sätze zur zentralen Handlung, Präsens, keine Markdown-Artefakte]
+
+**Nebenhandlungen:**
+[1-2 Sätze pro Nebenstrang, Präsens]
+
+**Cliffhanger:**
+[1 kurzer Satz, Spannung aufbauen ohne Auflösung zu verraten]
+
+###REDAKTION###
+[Dramaturgische Inhaltsangabe. Kein blumiger Stil. Rollennamen IMMER in GROSSBUCHSTABEN. Fokus: Was wollen die Figuren konkret (Want), was brauchen sie wirklich (Need)? Entscheidende Wendepunkte benennen. Cause-and-Effect zwischen Strands. Ein Absatz pro Strang. Strangmarkierung am Absatzanfang: CLIFF für Cliffhanger-Strang, PEN für Pending-Strang. Präsens, aktiv, 300-500 Wörter. Keine Sternchen oder Markdown.]
+
+###PRESSE###
+[60-80 Wörter. Fließend, werblich, Neugier weckend. Keine Wendungen oder Cliffhanger verraten. Kein Spoiler. Keine Markdown-Formatierung.]
+
+###STRAENGE###
+[Pro Handlungsstrang eine Zeile: "FIGURENNAME: Kurzbeschreibung" — maximal 100 Zeichen pro Zeile. Keine Markdown-Formatierung.]`
+
+    const raw = await callProvider(setting, [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ], 2000)
+
+    await recordUsage(setting.provider, setting.model_name || '',
+      Math.ceil(userPrompt.length / 4), Math.ceil(raw.length / 4))
+
+    const sections = parseKiSections(raw)
+
+    // Titel parsen (liste von Zeilen)
+    const titelRaw = sections['TITEL'] || ''
+    const titel = titelRaw.split('\n')
+      .map((t: string) => t.replace(/^[\d\.\-\*\[\]\s]+/, '').replace(/[*#"„"[\]]/g, '').trim())
+      .filter((t: string) => t.length > 0 && t.length <= 60)
+      .slice(0, 5)
+
+    res.json({
+      titel,
+      kurzinhalt: sections['KURZINHALT'] || '',
+      redaktion: cleanKiText(sections['REDAKTION'] || ''),
+      presse: cleanKiText(sections['PRESSE'] || ''),
+      straenge: cleanKiText(sections['STRAENGE'] || ''),
+      folge_id,
+      folge_nummer: data.werkstufe.folge_nummer,
+      szenen_count: data.szenen.length,
+      provider: setting.provider,
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/ki/synopsen/titel-mehr — 5 weitere Titelvorschläge (mit Ausschluss)
+router.post('/synopsen/titel-mehr', async (req, res) => {
+  try {
+    const { folge_id, ausgeschlossene_titel = [] } = req.body
+    if (!folge_id) return res.status(400).json({ error: 'folge_id erforderlich' })
+
+    const setting = await getKiSetting('synopsis_titel')
+    if (!setting?.enabled) return res.json({ titel: [], disabled: true, message: 'KI-Funktion nicht aktiviert' })
+
+    const data = await loadSzenenFuerFolge(folge_id)
+    if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
+
+    const vorhandeneTitelRows = await query(
+      `SELECT folgen_titel FROM folgen WHERE produktion_id = $1 AND id != $2 AND folgen_titel IS NOT NULL AND folgen_titel != ''
+       ORDER BY folge_nummer DESC LIMIT 20`,
+      [data.werkstufe.produktion_id, folge_id]
+    )
+    const stilReferenz = vorhandeneTitelRows.map((r: any) => r.folgen_titel).join('\n')
+
+    const ausschlussListe = [
+      ...vorhandeneTitelRows.map((r: any) => r.folgen_titel),
+      ...(Array.isArray(ausgeschlossene_titel) ? ausgeschlossene_titel : []),
+    ].join('\n')
+
+    const prompt = `Du bist Redakteur einer deutschen Daily-Soap (ARD Rote Rosen).
+Schlage 5 NEUE Episodentitel für Folge ${data.werkstufe.folge_nummer} vor.
+
+REGELN:
+- Maximal 1-3 Wörter, prägnant, NICHT beschreibend
+- Am Stil dieser bisherigen Titel orientieren (kurz, treffend):
+${stilReferenz}
+- Diese Titel NICHT wiederholen oder variieren:
+${ausschlussListe.substring(0, 2000)}
+- Keine Nummerierung, keine Erklärungen, ein Titel pro Zeile
+
+SZENEN-ZUSAMMENFASSUNGEN:
+${data.szenenListe}`
+
+    const raw = await callProvider(setting, [
+      { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte ausschließlich mit 5 Titeln, einen pro Zeile. Maximal 3 Wörter pro Titel.' },
+      { role: 'user', content: prompt },
+    ], 150)
+
+    await recordUsage(setting.provider, setting.model_name || '', Math.ceil(prompt.length / 4), Math.ceil(raw.length / 4))
+
+    const titel = raw.split('\n')
+      .map((t: string) => t.replace(/^[\d\.\-\*\s]+/, '').replace(/[*#"„"]/g, '').trim())
+      .filter((t: string) => t.length > 0)
+      .slice(0, 5)
+
+    res.json({ titel, folge_id })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
