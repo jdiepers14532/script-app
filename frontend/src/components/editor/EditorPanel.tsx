@@ -126,6 +126,35 @@ export default function EditorPanel({
   const pendingSnapshotContentRef = useRef<any>(null) // latest editor content awaiting snapshot
   const editorRef = useRef<any>(null)                 // live Tiptap editor instance (for instant content read)
 
+  // ── Dokument-Snapshot Auto-Trigger ─────────────────────────────────────────
+  // Feuert beim Werkstufen-Wechsel (vorherige Werkstufe sichern) + alle 30 min
+  const prevWerkIdRef = useRef<string | null>(null)
+  const dokSnapshotTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const fireDokSnapshot = useCallback((werkId: string) => {
+    if (!werkId) return
+    api.createWerkstufenSnapshot(werkId, 'auto').catch(() => {})
+  }, [])
+
+  // Bei Werkstufen-Wechsel: vorherige Werkstufe sichern
+  useEffect(() => {
+    const prev = prevWerkIdRef.current
+    if (prev && prev !== selectedWerkId) fireDokSnapshot(prev)
+    prevWerkIdRef.current = selectedWerkId ?? null
+  }, [selectedWerkId, fireDokSnapshot])
+
+  // 30-Minuten-Auto-Snapshot der aktiven Werkstufe
+  useEffect(() => {
+    if (dokSnapshotTimerRef.current) clearInterval(dokSnapshotTimerRef.current)
+    if (!selectedWerkId) return
+    dokSnapshotTimerRef.current = setInterval(() => {
+      if (selectedWerkId) fireDokSnapshot(selectedWerkId)
+    }, 30 * 60 * 1000)
+    return () => {
+      if (dokSnapshotTimerRef.current) clearInterval(dokSnapshotTimerRef.current)
+    }
+  }, [selectedWerkId, fireDokSnapshot])
+
   useEffect(() => {
     if (!produktionId) return
     api.getAbsatzformate(produktionId)
@@ -907,6 +936,7 @@ export default function EditorPanel({
       {snapshotOpen && canSnapshot && typeof selectedSzeneId === 'string' && (
         <SnapshotDrawer
           szeneId={selectedSzeneId}
+          werkstufenId={selectedWerkId ?? null}
           szeneNummer={currentSzene?.scene_nummer != null
             ? `${currentSzene.scene_nummer}${currentSzene.scene_nummer_suffix ?? ''}`
             : null}
@@ -916,17 +946,27 @@ export default function EditorPanel({
           onRestore={(content) => {
             const nodes = Array.isArray(content) ? content : (content?.content ?? [])
             const doc = nodes.length > 0 ? { type: 'doc', content: nodes } : null
-            // Direkt in Editor schreiben — funktioniert in Solo- UND Collab-Modus,
-            // weil Tiptap-Collaboration bei setContent den YDoc mitpflegt.
-            // Ohne dies bliebe der Editor auf dem alten Stand (YDoc wird durch
-            // setSceneContent allein nicht aktualisiert).
+            // Direkt in Editor schreiben — funktioniert in Solo- UND Collab-Modus
             if (doc && editorRef.current) editorRef.current.commands.setContent(doc, false)
-            // State-Sync + Remount-Fallback (falls editorRef noch nicht bereit)
             setSceneContent(doc)
             setCurrentSzene((prev: any) => prev ? { ...prev, content: nodes } : prev)
             setContentResetCounter(c => c + 1)
-            // Sofort persistieren
             if (nodes.length > 0) api.updateDokumentSzene(selectedSzeneId as string, { content: nodes }).catch(() => {})
+            setSnapshotOpen(false)
+          }}
+          onDocRestore={(restoredSzenen) => {
+            // Aktuelle Szene im Editor sofort aktualisieren
+            const current = restoredSzenen.find(s => s.szeneId === selectedSzeneId)
+            if (current) {
+              const nodes = Array.isArray(current.content) ? current.content : (current.content?.content ?? [])
+              const doc = nodes.length > 0 ? { type: 'doc', content: nodes } : null
+              if (doc && editorRef.current) editorRef.current.commands.setContent(doc, false)
+              setSceneContent(doc)
+              setCurrentSzene((prev: any) => prev ? { ...prev, content: nodes } : prev)
+              setContentResetCounter(c => c + 1)
+            }
+            // Szenenliste neu laden (alle anderen Szenen haben neuen Inhalt)
+            onSzenesNeedReload?.()
             setSnapshotOpen(false)
           }}
           onClose={() => setSnapshotOpen(false)}

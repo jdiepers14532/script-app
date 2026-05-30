@@ -124,6 +124,13 @@ export const api = {
   createSnapshot: (szeneId: string, payload: { content: any; szene_nummer?: string | null; szene_info?: string | null; text_preview?: string | null }) =>
     request<any>('POST', `/dokument-szenen/${szeneId}/snapshots`, payload),
   restoreSnapshot: (szeneId: string, snapId: number) => request<any>('POST', `/dokument-szenen/${szeneId}/snapshots/${snapId}/restore`),
+  // Werkstufen-Dokument-Snapshots
+  getWerkstufenSnapshots: (werkId: string) => request<any[]>('GET', `/werkstufen/${werkId}/snapshots`),
+  createWerkstufenSnapshot: (werkId: string, typ: 'auto' | 'manual' | 'restore') =>
+    request<any>('POST', `/werkstufen/${werkId}/snapshots`, { typ }),
+  getWerkstufenSnapshot: (werkId: string, snapId: number) => request<any>('GET', `/werkstufen/${werkId}/snapshots/${snapId}`),
+  restoreWerkstufenSnapshot: (werkId: string, snapId: number) =>
+    request<any>('POST', `/werkstufen/${werkId}/snapshots/${snapId}/restore`),
   createDokumentSzeneRevision: (id: string, data: any) => request<any>('POST', `/dokument-szenen/${id}/revisionen`, data),
   getSceneIdentityCharacters: (id: string) => request<any[]>('GET', `/scene-identities/${id}/characters`),
   addSceneIdentityCharacter: (id: string, data: any) => request<any>('POST', `/scene-identities/${id}/characters`, data),

@@ -1038,3 +1038,229 @@ werkstufenSzenenRouter.get('/diff/:rightId', async (req, res) => {
     res.status(500).json({ error: String(err) })
   }
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Werkstufen-Dokument-Snapshots (v140)
+// Snapshot aller Szenen einer Werkstufe zu einem Zeitpunkt
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/werkstufen/:id/snapshots — Liste der letzten 30 Dokument-Snapshots
+werkstufenRouter.get('/:id/snapshots', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT id, werkstufe_id, created_by, created_by_name, created_at,
+              typ, szenen_count, text_preview, is_current
+         FROM werkstufen_snapshots
+        WHERE werkstufe_id = $1
+        ORDER BY created_at DESC
+        LIMIT 30`,
+      [req.params.id]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/werkstufen/:id/snapshots — Dokument-Snapshot anlegen
+werkstufenRouter.post('/:id/snapshots', async (req, res) => {
+  try {
+    const werkId = req.params.id
+    const { typ = 'auto' } = req.body as { typ?: string }
+
+    // Alle aktiven Szenen der Werkstufe laden
+    const szenen = await query(
+      `SELECT id, scene_nummer, scene_nummer_suffix, ort_name, content
+         FROM dokument_szenen
+        WHERE werkstufe_id = $1 AND geloescht = false
+        ORDER BY sort_order, scene_nummer`,
+      [werkId]
+    )
+    if (szenen.length === 0) return res.json({ ok: true, skipped: true, reason: 'no_scenes' })
+
+    // Text-Preview aus erster Szene
+    const extractPreview = (content: any): string => {
+      const nodes = Array.isArray(content) ? content : (content?.content ?? [])
+      const texts: string[] = []
+      const visit = (n: any) => {
+        if (typeof n?.text === 'string') texts.push(n.text)
+        if (Array.isArray(n?.content)) n.content.forEach(visit)
+      }
+      nodes.forEach(visit)
+      return texts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 150)
+    }
+    const preview = extractPreview(szenen[0].content)
+
+    // Snapshot-Metadaten anlegen
+    const snap = await queryOne(
+      `INSERT INTO werkstufen_snapshots
+         (werkstufe_id, created_by, created_by_name, typ, szenen_count, text_preview)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [werkId, req.user?.user_id ?? null, req.user?.name ?? null,
+       typ, szenen.length, preview || null]
+    )
+
+    // Szeneninhalte einfügen
+    for (const sz of szenen) {
+      const sceneNr = sz.scene_nummer != null
+        ? `${sz.scene_nummer}${sz.scene_nummer_suffix ?? ''}`
+        : null
+      await pool.query(
+        `INSERT INTO werkstufen_snapshot_szenen
+           (snapshot_id, szene_id, scene_nummer, scene_info, content)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [snap!.id, sz.id, sceneNr, sz.ort_name ?? null, JSON.stringify(sz.content ?? [])]
+      )
+    }
+
+    // Älteste Snapshots prunen (max 30 pro Werkstufe) — "restore"-Einträge werden mitgezählt
+    await pool.query(
+      `DELETE FROM werkstufen_snapshots
+        WHERE werkstufe_id = $1
+          AND id NOT IN (
+            SELECT id FROM werkstufen_snapshots
+             WHERE werkstufe_id = $1
+             ORDER BY created_at DESC
+             LIMIT 30
+          )`,
+      [werkId]
+    )
+
+    res.json(snap)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/werkstufen/:id/snapshots/:snapId — Vollinhalt eines Dokument-Snapshots
+werkstufenRouter.get('/:id/snapshots/:snapId', async (req, res) => {
+  try {
+    const snap = await queryOne(
+      `SELECT id, werkstufe_id, created_by, created_by_name, created_at, typ, szenen_count, text_preview
+         FROM werkstufen_snapshots
+        WHERE id = $1 AND werkstufe_id = $2`,
+      [req.params.snapId, req.params.id]
+    )
+    if (!snap) return res.status(404).json({ error: 'Snapshot nicht gefunden' })
+
+    const szenen = await query(
+      `SELECT szene_id, scene_nummer, scene_info, content
+         FROM werkstufen_snapshot_szenen
+        WHERE snapshot_id = $1`,
+      [req.params.snapId]
+    )
+    res.json({ ...snap, szenen })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/werkstufen/:id/snapshots/:snapId/restore
+// 1. Sichert aktuellen Stand (typ=restore) als Sicherungspunkt
+// 2. Überschreibt alle Szenen mit dem Snapshot-Inhalt
+werkstufenRouter.post('/:id/snapshots/:snapId/restore', async (req, res) => {
+  try {
+    const werkId = req.params.id
+    const snapId = req.params.snapId
+
+    // Snapshot laden
+    const snap = await queryOne(
+      `SELECT ws.*, json_agg(json_build_object(
+         'szene_id', wss.szene_id,
+         'content', wss.content
+       )) AS szenen
+       FROM werkstufen_snapshots ws
+       JOIN werkstufen_snapshot_szenen wss ON wss.snapshot_id = ws.id
+       WHERE ws.id = $1 AND ws.werkstufe_id = $2
+       GROUP BY ws.id`,
+      [snapId, werkId]
+    )
+    if (!snap) return res.status(404).json({ error: 'Snapshot nicht gefunden' })
+
+    const restoredSzenen: { szeneId: string; content: any }[] = snap.szenen ?? []
+
+    // 1. Aktuellen Stand als "restore"-Sicherung speichern
+    const szenenAktuell = await query(
+      `SELECT id, scene_nummer, scene_nummer_suffix, ort_name, content
+         FROM dokument_szenen
+        WHERE werkstufe_id = $1 AND geloescht = false
+        ORDER BY sort_order, scene_nummer`,
+      [werkId]
+    )
+
+    if (szenenAktuell.length > 0) {
+      const extractPreview = (content: any): string => {
+        const nodes = Array.isArray(content) ? content : (content?.content ?? [])
+        const texts: string[] = []
+        const visit = (n: any) => {
+          if (typeof n?.text === 'string') texts.push(n.text)
+          if (Array.isArray(n?.content)) n.content.forEach(visit)
+        }
+        nodes.forEach(visit)
+        return texts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 150)
+      }
+
+      const backupSnap = await queryOne(
+        `INSERT INTO werkstufen_snapshots
+           (werkstufe_id, created_by, created_by_name, typ, szenen_count, text_preview)
+         VALUES ($1, $2, $3, 'restore', $4, $5)
+         RETURNING *`,
+        [werkId, req.user?.user_id ?? null, req.user?.name ?? null,
+         szenenAktuell.length, extractPreview(szenenAktuell[0].content) || null]
+      )
+
+      for (const sz of szenenAktuell) {
+        const sceneNr = sz.scene_nummer != null
+          ? `${sz.scene_nummer}${sz.scene_nummer_suffix ?? ''}`
+          : null
+        await pool.query(
+          `INSERT INTO werkstufen_snapshot_szenen
+             (snapshot_id, szene_id, scene_nummer, scene_info, content)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [backupSnap!.id, sz.id, sceneNr, sz.ort_name ?? null, JSON.stringify(sz.content ?? [])]
+        )
+      }
+    }
+
+    // 2. Szenen wiederherstellen (nur existierende, nicht gelöschte)
+    const updated: { szeneId: string; content: any }[] = []
+    for (const item of restoredSzenen) {
+      const row = await queryOne(
+        `UPDATE dokument_szenen
+            SET content = $1, updated_at = now(), updated_by = $2
+          WHERE id = $3 AND geloescht = false
+          RETURNING id`,
+        [JSON.stringify(item.content), req.user?.name ?? null, item.szene_id]
+      )
+      if (row) updated.push({ szeneId: item.szene_id, content: item.content })
+    }
+
+    // 3. is_current-Marker setzen
+    await pool.query(
+      'UPDATE werkstufen_snapshots SET is_current = FALSE WHERE werkstufe_id = $1',
+      [werkId]
+    )
+    await pool.query(
+      'UPDATE werkstufen_snapshots SET is_current = TRUE WHERE id = $1',
+      [snapId]
+    )
+
+    // Pruning
+    await pool.query(
+      `DELETE FROM werkstufen_snapshots
+        WHERE werkstufe_id = $1
+          AND id NOT IN (
+            SELECT id FROM werkstufen_snapshots
+             WHERE werkstufe_id = $1
+             ORDER BY created_at DESC
+             LIMIT 30
+          )`,
+      [werkId]
+    )
+
+    res.json({ ok: true, restored_count: updated.length, szenen: updated })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})

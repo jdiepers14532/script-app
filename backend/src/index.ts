@@ -385,6 +385,7 @@ async function runMigrations() {
     'v137_ki_prompts.sql',
     'v138_freigabe_context.sql',
     'v139_tageszeit_stimmungen.sql',
+    'v140_werkstufen_snapshots.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
