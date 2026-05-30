@@ -211,14 +211,14 @@ export default function CheckHinweisModal({
         }}
       >
         <AlertTriangle size={13} style={{ color: '#FF9500', flexShrink: 0 }} />
+        {sceneNummer != null && (
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 2 }}>
+            Sz.{String(sceneNummer).padStart(2, '0')} ·
+          </span>
+        )}
         <span style={{ fontSize: 11, fontWeight: 600, color: '#FF9500', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
           Drehbuch-Checks · {localChecks.length} Hinweis{localChecks.length > 1 ? 'e' : ''}
         </span>
-        {sceneNummer != null && (
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 2 }}>
-            · Sz.{String(sceneNummer).padStart(2, '0')}
-          </span>
-        )}
         <div style={{ flex: 1 }} />
         {onRerun && (
           <button
