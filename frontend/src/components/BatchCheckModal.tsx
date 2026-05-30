@@ -220,9 +220,6 @@ export default function BatchCheckModal({ werkstufId, produktionId, onClose, onD
                             {meta.ki && (
                               <span style={{ fontSize: 9, color: '#AF52DE', fontWeight: 600, padding: '1px 5px', background: 'rgba(175,82,222,0.08)', borderRadius: 4, flexShrink: 0 }}>KI</span>
                             )}
-                            {!meta.auto && !meta.ki && (
-                              <span style={{ fontSize: 9, color: 'var(--text-muted)', flexShrink: 0 }}>manuell</span>
-                            )}
                           </div>
                         </Tooltip>
                       )

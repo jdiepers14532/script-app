@@ -636,13 +636,13 @@ export default function SceneList({
             <Lock size={11} style={{ color: 'var(--sw-warning)', display: 'block' }} />
           </span>
         )}
-        {!isNotizWerk && werkstufId && produktionId && (
-          <Tooltip placement="bottom" text="Drehbuch-Checks ausführen">
+        {!isNotizWerk && (
+          <Tooltip placement="bottom" text={werkstufId && produktionId ? 'Drehbuch-Checks ausführen' : 'Keine Werkstufe geöffnet'}>
             <button
               className="iconbtn"
-              onClick={() => setBatchCheckOpen(true)}
-              style={{ flexShrink: 0, color: 'var(--sw-green, #00C853)' }}
-              title="Drehbuch-Checks"
+              onClick={() => { if (werkstufId && produktionId) setBatchCheckOpen(true) }}
+              disabled={!werkstufId || !produktionId}
+              style={{ flexShrink: 0, color: werkstufId && produktionId ? 'var(--sw-green, #00C853)' : 'var(--text-muted)' }}
             >
               <Wand2 size={13} />
             </button>
