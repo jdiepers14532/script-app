@@ -14,6 +14,7 @@ import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
 import { Clock, Wand2, Download } from 'lucide-react'
 import Tooltip from '../Tooltip'
+import MagicFunktionenModal from './MagicFunktionenModal'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 import ExportDrawer from './ExportDrawer'
@@ -68,38 +69,14 @@ export default function EditorPanel({
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // ── KI Synopse ────────────────────────────────────────────────────────────
-  const [kiSynopsisLoading, setKiSynopsisLoading] = useState(false)
-  const [kiSynopsisMsg, setKiSynopsisMsg] = useState<string | null>(null)
+  // ── Magic-Funktionen ──────────────────────────────────────────────────────
+  const [magicOpen, setMagicOpen] = useState(false)
+  const [magicStatusMsg, setMagicStatusMsg] = useState<string | null>(null)
 
-  const handleKiSynopsis = useCallback(async () => {
-    if (!folgeId || kiSynopsisLoading) return
-    setKiSynopsisLoading(true)
-    setKiSynopsisMsg(null)
-    try {
-      const result = await api.post('/ki/synopsis', { folge_id: folgeId })
-      if (result.disabled) {
-        setKiSynopsisMsg('KI-Funktion "Episoden-Synopse" ist nicht aktiviert (Admin-Einstellungen).')
-        return
-      }
-      if (!result.synopsis) {
-        setKiSynopsisMsg('Keine Synopse generiert. Sind Szenen und Zusammenfassungen vorhanden?')
-        return
-      }
-      // Synopse als Tiptap-Dokument einfügen
-      const paragraphs = result.synopsis.split(/\n\n+/).map((para: string) => ({
-        type: 'paragraph',
-        content: para.trim() ? [{ type: 'text', text: para.trim() }] : undefined,
-      })).filter((p: any) => p.content)
-      const doc = { type: 'doc', content: paragraphs.length ? paragraphs : [{ type: 'paragraph' }] }
-      editorRef.current?.commands.setContent(doc, true)
-      setKiSynopsisMsg(`Synopse generiert (${result.szenen_count} Szenen · ${result.werkstufe_typ} V${result.version_nummer}).`)
-    } catch (err: any) {
-      setKiSynopsisMsg('Fehler: ' + (err?.message ?? String(err)))
-    } finally {
-      setKiSynopsisLoading(false)
-    }
-  }, [folgeId, kiSynopsisLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+  const handleMagicInsert = useCallback((doc: any, statusMsg: string) => {
+    editorRef.current?.commands.setContent(doc, true)
+    setMagicStatusMsg(statusMsg)
+  }, [])
 
   // ── Export Drawer ─────────────────────────────────────────────────────────
   const [exportOpen, setExportOpen] = useState(false)
@@ -563,24 +540,21 @@ export default function EditorPanel({
         ) : undefined}
         rightSlot={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {selectedWerk?.typ === 'notiz' && folgeId != null && (
-            <Tooltip text="KI Synopse generieren — ersetzt den aktuellen Inhalt" placement="bottom">
-              <button
-                onClick={handleKiSynopsis}
-                disabled={kiSynopsisLoading}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 24, height: 24, borderRadius: 5,
-                  border: '1px solid var(--border)',
-                  background: 'transparent',
-                  color: kiSynopsisLoading ? 'var(--text-muted)' : '#AF52DE',
-                  cursor: kiSynopsisLoading ? 'not-allowed' : 'pointer',
-                }}
-              >
-                <Wand2 size={12} />
-              </button>
-            </Tooltip>
-          )}
+          <Tooltip text="Magic-Funktionen" placement="bottom">
+            <button
+              onClick={() => setMagicOpen(true)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 24, height: 24, borderRadius: 5,
+                border: '1px solid var(--border)',
+                background: 'transparent',
+                color: '#AF52DE',
+                cursor: 'pointer',
+              }}
+            >
+              <Wand2 size={12} />
+            </button>
+          </Tooltip>
           <Tooltip text="Exportieren (PDF, DOCX, Fountain, FDX)" placement="bottom">
             <button
               onClick={() => setExportOpen(v => !v)}
@@ -617,18 +591,18 @@ export default function EditorPanel({
         )}
       />
 
-      {/* KI-Synopse-Status */}
-      {kiSynopsisMsg && (
+      {/* Magic-Status */}
+      {magicStatusMsg && (
         <div style={{
           padding: '6px 14px', fontSize: 11,
-          background: kiSynopsisMsg.startsWith('Fehler') || kiSynopsisMsg.includes('nicht aktiviert') || kiSynopsisMsg.includes('Keine') ? 'rgba(255,149,0,0.08)' : 'rgba(175,82,222,0.08)',
-          borderBottom: `1px solid ${kiSynopsisMsg.startsWith('Fehler') || kiSynopsisMsg.includes('nicht aktiviert') || kiSynopsisMsg.includes('Keine') ? 'rgba(255,149,0,0.3)' : 'rgba(175,82,222,0.3)'}`,
+          background: magicStatusMsg.startsWith('Fehler') || magicStatusMsg.includes('nicht aktiviert') || magicStatusMsg.includes('Keine') ? 'rgba(255,149,0,0.08)' : 'rgba(175,82,222,0.08)',
+          borderBottom: `1px solid ${magicStatusMsg.startsWith('Fehler') || magicStatusMsg.includes('nicht aktiviert') || magicStatusMsg.includes('Keine') ? 'rgba(255,149,0,0.3)' : 'rgba(175,82,222,0.3)'}`,
           display: 'flex', alignItems: 'center', gap: 8,
-          color: kiSynopsisMsg.startsWith('Fehler') || kiSynopsisMsg.includes('nicht aktiviert') || kiSynopsisMsg.includes('Keine') ? '#FF9500' : '#AF52DE',
+          color: magicStatusMsg.startsWith('Fehler') || magicStatusMsg.includes('nicht aktiviert') || magicStatusMsg.includes('Keine') ? '#FF9500' : '#AF52DE',
         }}>
           <Wand2 size={11} />
-          {kiSynopsisMsg}
-          <button onClick={() => setKiSynopsisMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'inherit', padding: 0, opacity: 0.6 }}>✕</button>
+          {magicStatusMsg}
+          <button onClick={() => setMagicStatusMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'inherit', padding: 0, opacity: 0.6 }}>✕</button>
         </div>
       )}
 
@@ -1013,6 +987,16 @@ export default function EditorPanel({
           onClose={() => setNeueFassungModal(null)}
         />
       )}
+
+      {/* Magic-Funktionen Modal */}
+      <MagicFunktionenModal
+        open={magicOpen}
+        onClose={() => setMagicOpen(false)}
+        werktyp={selectedWerk?.typ}
+        folgeId={folgeId}
+        onInsert={handleMagicInsert}
+        onStatusMsg={setMagicStatusMsg}
+      />
 
       {/* Platzhalter-Szenen Dialog (after neue werkstufe creation) */}
       {platzhalterWerkId && (

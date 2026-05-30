@@ -25,6 +25,7 @@ const DatensicherheitUserTab = lazy(() => import('./hilfe/DatensicherheitUserTab
 const TeamWorkTab          = lazy(() => import('./hilfe/TeamWorkTab'))
 const AutorenplanHilfeTab  = lazy(() => import('./hilfe/AutorenplanHilfeTab'))
 const FreieDokumenteTab    = lazy(() => import('./hilfe/FreieDokumenteTab'))
+const MagicFunktionenTab   = lazy(() => import('./hilfe/MagicFunktionenTab'))
 const VerlaufUndoTab       = lazy(() => import('./hilfe/VerlaufUndoTab'))
 const ThemeAnpassenHilfeTab = lazy(() => import('./hilfe/ThemeAnpassenHilfeTab'))
 const CharakterSuffixeTab  = lazy(() => import('./hilfe/CharakterSuffixeTab'))
@@ -99,6 +100,8 @@ const NAV_ITEMS = [
     keywords: 'off nt one-way oneway suffix charakter figur telefonat nur ton voice over action grossbuchstaben drehplan disposition' },
   { id: 'drehbuch-checks',      label: 'Drehbuch-Checks',           icon: '🔍',
     keywords: 'check checks qualität autosave motiv rollen konsistenz wechselschnitt strang duplikat stoppzeit oneliner ki badge warnung hinweis fehler prüfung' },
+  { id: 'magic-funktionen',     label: 'Magic-Funktionen',          icon: '🪄',
+    keywords: 'magic ki synopse wand zauberstab episodensynopse generieren automatisch notiz werkzeug assistent' },
   { id: 'theme-anpassen',       label: 'Theme & Farben',            icon: '🎨',
     keywords: 'theme farben farbe anpassen light hell dark tokens css custom property hintergrund text border button farbschema' },
   // Admin-only
@@ -191,6 +194,7 @@ function HilfePage() {
       case 'freie-dokumente':    return <FreieDokumenteTab />
       case 'charakter-suffixe':  return <CharakterSuffixeTab />
       case 'drehbuch-checks':    return <DrehbuchChecksHilfeTab />
+      case 'magic-funktionen':   return <MagicFunktionenTab />
       case 'theme-anpassen':     return <ThemeAnpassenHilfeTab />
       case 'datenmodell':        return <DatenmodellTab />
       case 'datensicherheit':    return <DatensicherheitTab />
