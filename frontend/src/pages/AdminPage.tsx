@@ -199,6 +199,20 @@ function WasserzeichenTab() {
 
 // ── DK-Zugriff Tab ────────────────────────────────────────────────────────────
 
+const DK_ROLLEN: { value: string; label: string }[] = [
+  { value: 'hauptbuchhaltung',    label: 'Hauptbuchhaltung' },
+  { value: 'produktionsleitung',  label: 'Produktionsleitung' },
+  { value: 'produktionsbuero',    label: 'Produktionsbüro' },
+  { value: 'aufnahmeleitung',     label: 'Aufnahmeleitung' },
+  { value: 'drehplanung',         label: 'Drehplanung' },
+  { value: 'vertragserstellung',  label: 'Vertragserstellung' },
+  { value: 'buchhaltung_produktion', label: 'Buchhaltung Produktion' },
+  { value: 'hr_manager',          label: 'HR-Manager' },
+  { value: 'redaktion',           label: 'Redaktion' },
+  { value: 'kostuemdept',         label: 'Kostüm-Department' },
+  { value: 'catering',            label: 'Catering' },
+]
+
 function DkZugriffTab() {
   const { t } = useTerminologie()
   const { productions } = useSelectedProduction()
@@ -209,6 +223,13 @@ function DkZugriffTab() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [authUsers, setAuthUsers] = useState<{ id: string; name: string; email: string }[]>([])
+
+  useEffect(() => {
+    api.getDkAccessMeta()
+      .then(d => setAuthUsers(d.users))
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!selectedProdId) { setEntries([]); return }
@@ -230,10 +251,9 @@ function DkZugriffTab() {
   }
 
   const addEntry = () => {
-    const id = newId.trim()
-    if (!id) return
-    if (entries.some(e => e.access_type === newType && e.identifier === id)) return
-    setEntries(prev => [...prev, { access_type: newType, identifier: id }])
+    if (!newId) return
+    if (entries.some(e => e.access_type === newType && e.identifier === newId)) return
+    setEntries(prev => [...prev, { access_type: newType, identifier: newId }])
     setNewId('')
   }
 
@@ -246,12 +266,25 @@ function DkZugriffTab() {
     return p.projektnummer ? `${p.projektnummer} · ${title}` : title
   }
 
+  const displayLabel = (e: { access_type: string; identifier: string }) => {
+    if (e.access_type === 'rolle') {
+      return DK_ROLLEN.find(r => r.value === e.identifier)?.label ?? e.identifier
+    }
+    return authUsers.find(u => u.id === e.identifier)?.name ?? e.identifier
+  }
+
+  const selectStyle: React.CSSProperties = {
+    flex: 1, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)',
+    fontSize: 12, background: 'var(--bg-surface)', color: 'var(--text-primary)',
+    fontFamily: 'inherit',
+  }
+
   return (
     <div style={{ padding: '28px 32px', maxWidth: 640 }}>
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 8 }}>DK-Zugriffsteuerung</h2>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 20px', lineHeight: 1.6 }}>
-        Lege fest, welche Rollen und User Zugriff auf die Drehbuchkoordinations-Settings einer Produktion haben.
-        Tier-1-Rollen (Superadmin, Geschaeftsfuehrung, Herstellungsleitung) haben immer Zugriff.
+        Lege fest, welche Rollen und Nutzer Zugriff auf die Drehbuchkoordinations-Settings einer Produktion haben.
+        Superadmin, Geschäftsführung und Herstellungsleitung haben immer Zugriff.
       </p>
 
       {/* Production selector */}
@@ -267,7 +300,7 @@ function DkZugriffTab() {
             fontFamily: 'inherit',
           }}
         >
-          <option value="">— Produktion waehlen —</option>
+          <option value="">— Produktion wählen —</option>
           {productions.filter(p => p.is_active).map(p => (
             <option key={p.id} value={p.id}>{prodLabel(p)}</option>
           ))}
@@ -282,7 +315,7 @@ function DkZugriffTab() {
       </div>
 
       {selectedProdId && loading && (
-        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Laedt…</p>
+        <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Lädt…</p>
       )}
 
       {selectedProdId && !loading && (
@@ -291,7 +324,7 @@ function DkZugriffTab() {
           <div style={{ marginBottom: 20 }}>
             {entries.length === 0 && (
               <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 8px' }}>
-                Kein zusaetzlicher Zugriff konfiguriert (nur Tier-1-Rollen).
+                Kein zusätzlicher Zugriff konfiguriert (nur Tier-1-Rollen).
               </p>
             )}
             {entries.map((e, i) => (
@@ -304,15 +337,15 @@ function DkZugriffTab() {
                   fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
                   color: e.access_type === 'rolle' ? 'var(--sw-info)' : 'var(--sw-green)',
                   background: e.access_type === 'rolle' ? 'rgba(0,122,255,0.08)' : 'rgba(0,200,83,0.08)',
-                  padding: '2px 8px', borderRadius: 99,
+                  padding: '2px 8px', borderRadius: 99, whiteSpace: 'nowrap',
                 }}>
-                  {e.access_type}
+                  {e.access_type === 'rolle' ? 'Rolle' : 'Nutzer'}
                 </span>
-                <span style={{ flex: 1, fontSize: 13 }}>{e.identifier}</span>
+                <span style={{ flex: 1, fontSize: 13 }}>{displayLabel(e)}</span>
                 <button
                   onClick={() => removeEntry(i)}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14, padding: '0 4px' }}
-                >x</button>
+                >×</button>
               </div>
             ))}
           </div>
@@ -321,37 +354,40 @@ function DkZugriffTab() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
             <select
               value={newType}
-              onChange={e => setNewType(e.target.value as any)}
-              style={{
-                padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)',
-                fontSize: 12, background: 'var(--bg-surface)', color: 'var(--text-primary)',
-                fontFamily: 'inherit',
-              }}
+              onChange={e => { setNewType(e.target.value as 'rolle' | 'user'); setNewId('') }}
+              style={{ padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', fontSize: 12, background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit' }}
             >
               <option value="rolle">Rolle</option>
-              <option value="user">User-ID</option>
+              <option value="user">Nutzer</option>
             </select>
-            <input
-              value={newId}
-              onChange={e => setNewId(e.target.value)}
-              placeholder={newType === 'rolle' ? 'z.B. produktionsleitung' : 'z.B. user-abc-123'}
-              onKeyDown={e => e.key === 'Enter' && addEntry()}
-              style={{
-                flex: 1, padding: '7px 10px', borderRadius: 7,
-                border: '1px solid var(--border)', fontSize: 12,
-                background: 'var(--bg-surface)', color: 'var(--text-primary)',
-                fontFamily: 'inherit',
-              }}
-            />
+
+            {newType === 'rolle' ? (
+              <select value={newId} onChange={e => setNewId(e.target.value)} style={selectStyle}>
+                <option value="">— Rolle wählen —</option>
+                {DK_ROLLEN
+                  .filter(r => !entries.some(e => e.access_type === 'rolle' && e.identifier === r.value))
+                  .map(r => <option key={r.value} value={r.value}>{r.label}</option>)
+                }
+              </select>
+            ) : (
+              <select value={newId} onChange={e => setNewId(e.target.value)} style={selectStyle}>
+                <option value="">— Nutzer wählen —</option>
+                {authUsers
+                  .filter(u => !entries.some(e => e.access_type === 'user' && e.identifier === u.id))
+                  .map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)
+                }
+              </select>
+            )}
+
             <button
               onClick={addEntry}
-              disabled={!newId.trim()}
+              disabled={!newId}
               style={{
                 padding: '7px 14px', borderRadius: 7, border: 'none',
-                background: newId.trim() ? 'var(--text-primary)' : 'var(--bg-subtle)',
-                color: newId.trim() ? '#fff' : 'var(--text-muted)',
-                fontSize: 12, cursor: newId.trim() ? 'pointer' : 'not-allowed',
-                fontFamily: 'inherit',
+                background: newId ? 'var(--text-primary)' : 'var(--bg-subtle)',
+                color: newId ? '#fff' : 'var(--text-muted)',
+                fontSize: 12, cursor: newId ? 'pointer' : 'not-allowed',
+                fontFamily: 'inherit', whiteSpace: 'nowrap',
               }}
             >
               + Hinzufügen

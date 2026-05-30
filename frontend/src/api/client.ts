@@ -524,6 +524,8 @@ export const api = {
     request<{ ok: boolean; scenes_corrected: number; confirmed: boolean }>('POST', `/checks/produktion/${encodeURIComponent(produktionId)}/spieltag/fix?confirm=true`),
 
   // ── DK-Zugriffsverwaltung (Admin) ───────────────────────────────────────
+  getDkAccessMeta: () =>
+    request<{ users: { id: string; name: string; email: string }[] }>('GET', '/admin/dk-access/meta'),
   getDkAccess: (productionId: string) =>
     request<any[]>('GET', `/admin/dk-access/${encodeURIComponent(productionId)}`),
   updateDkAccess: (productionId: string, entries: { access_type: string; identifier: string }[]) =>

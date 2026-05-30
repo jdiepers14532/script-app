@@ -327,6 +327,28 @@ const adminRouter = Router()
 adminRouter.use(authMiddleware)
 adminRouter.use(requireRole('superadmin', 'geschaeftsfuehrung', 'herstellungsleitung'))
 
+// GET /api/admin/dk-access/meta — Rollen + User aus Auth-Service
+adminRouter.get('/meta', async (_req, res) => {
+  try {
+    const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP'
+    const r = await fetch('http://127.0.0.1:3002/api/internal/app-users/script', {
+      headers: { 'x-internal-key': INTERNAL_KEY }
+    })
+    if (!r.ok) return res.status(502).json({ error: 'Auth-Service nicht erreichbar' })
+    const data: any = await r.json()
+    const users = (data.users || [])
+      .map((u: any) => ({
+        id: u.id,
+        name: (u.username || '').trim() || u.email.split('@')[0],
+        email: u.email,
+      }))
+      .sort((a: any, b: any) => a.name.localeCompare(b.name, 'de'))
+    res.json({ users })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // GET /api/admin/dk-access/:productionId
 adminRouter.get('/:productionId', async (req, res) => {
   try {
