@@ -832,11 +832,12 @@ async function buildSynopsenHtml(
     }
     const html = renderSzenenkopf(szenenkopfTemplate, sceneRow, row.folge_nummer, false, bodyMarginLeftCm, kuerzel)
     if (html) headings.push(
-      `<table style="width:100%;border-collapse:collapse;break-inside:avoid;page-break-inside:avoid"><tr><td style="padding:0;vertical-align:top">${html}</td></tr></table>`
+      `<tr style="break-inside:avoid;page-break-inside:avoid;vertical-align:top"><td style="padding:0">${html}</td></tr>`
     )
   }
 
-  return headings.join('\n')
+  if (!headings.length) return '<div style="color:#888;font-size:9pt">Keine Szenen gefunden.</div>'
+  return `<table style="width:100%;border-collapse:collapse;table-layout:fixed"><tbody>${headings.join('\n')}</tbody></table>`
 }
 
 /** Rendert eine Notiz-Werkstufe (ohne strukturierte Szenenköpfe) */
@@ -1635,6 +1636,60 @@ async function mergePdfs(a: Uint8Array, b: Uint8Array): Promise<Uint8Array> {
   return merged.save()
 }
 
+/**
+ * Entfernt Leerseiten aus einem Puppeteer-generierten PDF.
+ * Heuristik: komprimierter Content-Stream < 300 Byte = Leerseite.
+ * Fehler werden still ignoriert — im Zweifel bleibt das Original.
+ */
+function resolveStreamLen(obj: any, ctx: any): number | null {
+  if (!obj) return null
+  // Single stream: hat 'dict' mit 'Length'-Eintrag
+  if (typeof obj.dict?.get === 'function') {
+    const l = obj.dict.get(PDFName.of('Length'))
+    return l instanceof PDFNumber ? l.asNumber() : null
+  }
+  // PDFArray: Summe aller Teil-Streams
+  if (Array.isArray(obj.array)) {
+    let total = 0
+    for (const ref of obj.array) {
+      const s = ctx.lookup(ref)
+      const l = resolveStreamLen(s, ctx)
+      if (l === null) return null  // unbekannte Struktur → behalten
+      total += l
+    }
+    return total
+  }
+  return null
+}
+
+async function removeEmptyPages(pdfBytes: Uint8Array): Promise<Uint8Array> {
+  try {
+    const pdfDoc = await PDFDocument.load(pdfBytes)
+    if (pdfDoc.getPageCount() <= 1) return pdfBytes
+
+    const ctx = pdfDoc.context
+    const toRemove: number[] = []
+
+    for (let i = 0; i < pdfDoc.getPageCount(); i++) {
+      try {
+        const page = pdfDoc.getPage(i)
+        const contentsEntry = page.node.get(PDFName.of('Contents'))
+        if (!contentsEntry) { toRemove.push(i); continue }
+        const len = resolveStreamLen(ctx.lookup(contentsEntry as any), ctx)
+        if (len !== null && len < 300) toRemove.push(i)
+      } catch { /* Seite nicht prüfbar → behalten */ }
+    }
+
+    // Nie alle Seiten entfernen
+    if (!toRemove.length || toRemove.length >= pdfDoc.getPageCount()) return pdfBytes
+
+    for (const idx of [...toRemove].reverse()) pdfDoc.removePage(idx)
+    return await pdfDoc.save()
+  } catch {
+    return pdfBytes
+  }
+}
+
 export async function assemblePdf(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void
@@ -1781,6 +1836,9 @@ export async function assemblePdf(
       await page.close()
     }
   }
+
+  // Leerseiten entfernen (z.B. durch Seitenumbruch-Artefakte am Anfang)
+  pdfBytes = await removeEmptyPages(pdfBytes)
 
   const filename = title.replace(/\s*[-–]\s*$/, '') + '.pdf'
 

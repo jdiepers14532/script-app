@@ -57,9 +57,11 @@ interface Props {
 
 interface ExportPreset {
   statistik_enabled: boolean
-  statistik_sections?: string[]
+  statistik_mode?: 'folge' | 'block'
   onliner_enabled: boolean
+  onliner_mode?: 'folge' | 'block'
   synopse_enabled: boolean
+  synopse_mode?: 'folge' | 'block'
 }
 
 // ── Hilfsfunktionen ────────────────────────────────────────────────────────────
@@ -155,21 +157,43 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     ])
     setPostItems([])
 
-    // Preset nachladen — nur enabled-Status der Spezial-Items aktualisieren
+    // Preset nachladen — Spezial-Items updaten, bei Folge-Modus direkt auto-konfigurieren
     api.getSettings()
       .then((settings: any) => {
         const preset: Partial<ExportPreset> = settings?.ui_settings?.[`export_preset_${produktionId}`] ?? {}
         if (!preset.statistik_enabled && !preset.onliner_enabled && !preset.synopse_enabled) return
+
+        const folgeId = selectedWerk?.folge_id
+        const defaultSections = DEFAULT_SECTIONS.map((s: StatModalSection) => s.id)
+
+        // Bei mode='folge': sofort mit aktueller Folge auto-konfigurieren
+        // Bei mode='block' oder unbekannt: nur enabled setzen (Konfiguration nötig)
+        const buildAutoConfig = (
+          type: 'statistik' | 'onliner' | 'synopse',
+          enabled: boolean,
+          mode?: 'folge' | 'block'
+        ): Partial<ExportItem> => {
+          if (!enabled) return { enabled: false }
+          if (folgeId && mode === 'folge') {
+            const config: StatistikExportConfig = {
+              folge_ids: [folgeId], folge_nummer: folgeNummer, mode: 'folge', sections: defaultSections,
+            }
+            const prefix = type === 'onliner' ? 'Onliner' : type === 'synopse' ? 'Synopsen' : 'Statistik'
+            return { enabled: true, statistikConfig: config, label: `${prefix} Folge ${folgeNummer}` }
+          }
+          return { enabled: true }
+        }
+
         setPreItems(prev => prev.map(it => {
-          if (it.type === 'statistik') return { ...it, enabled: preset.statistik_enabled ?? false }
-          if (it.type === 'onliner')   return { ...it, enabled: preset.onliner_enabled ?? false }
-          if (it.type === 'synopse')   return { ...it, enabled: preset.synopse_enabled ?? false }
+          if (it.type === 'statistik') return { ...it, ...buildAutoConfig('statistik', preset.statistik_enabled ?? false, preset.statistik_mode) }
+          if (it.type === 'onliner')   return { ...it, ...buildAutoConfig('onliner',   preset.onliner_enabled ?? false,   preset.onliner_mode) }
+          if (it.type === 'synopse')   return { ...it, ...buildAutoConfig('synopse',   preset.synopse_enabled ?? false,   preset.synopse_mode) }
           return it
         }))
         setPostItems(prev => prev.map(it => {
-          if (it.type === 'statistik') return { ...it, enabled: preset.statistik_enabled ?? false }
-          if (it.type === 'onliner')   return { ...it, enabled: preset.onliner_enabled ?? false }
-          if (it.type === 'synopse')   return { ...it, enabled: preset.synopse_enabled ?? false }
+          if (it.type === 'statistik') return { ...it, ...buildAutoConfig('statistik', preset.statistik_enabled ?? false, preset.statistik_mode) }
+          if (it.type === 'onliner')   return { ...it, ...buildAutoConfig('onliner',   preset.onliner_enabled ?? false,   preset.onliner_mode) }
+          if (it.type === 'synopse')   return { ...it, ...buildAutoConfig('synopse',   preset.synopse_enabled ?? false,   preset.synopse_mode) }
           return it
         }))
       })
@@ -261,12 +285,18 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     const newPost = updateItems(postItems)
     setPreItems(newPre)
     setPostItems(newPost)
-    // Preset speichern
+    // Preset mit Mode speichern
     const allItems = [...newPre, ...newPost]
+    const stat = allItems.find(it => it.type === 'statistik')
+    const onl  = allItems.find(it => it.type === 'onliner')
+    const syn  = allItems.find(it => it.type === 'synopse')
     const preset: ExportPreset = {
-      statistik_enabled: allItems.find(it => it.type === 'statistik')?.enabled ?? false,
-      onliner_enabled:   allItems.find(it => it.type === 'onliner')?.enabled ?? false,
-      synopse_enabled:   allItems.find(it => it.type === 'synopse')?.enabled ?? false,
+      statistik_enabled: stat?.enabled ?? false,
+      statistik_mode:    stat?.statistikConfig?.mode,
+      onliner_enabled:   onl?.enabled ?? false,
+      onliner_mode:      onl?.statistikConfig?.mode,
+      synopse_enabled:   syn?.enabled ?? false,
+      synopse_mode:      syn?.statistikConfig?.mode,
     }
     api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
     setStatConfigItemId(null)
@@ -324,10 +354,16 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       const changed = next.find(it => it.id === id)
       if (changed?.type === 'statistik' || changed?.type === 'onliner' || changed?.type === 'synopse') {
         const allItems = zone === 'pre' ? [...next, ...postItems] : [...preItems, ...next]
+        const stat = allItems.find(it => it.type === 'statistik')
+        const onl  = allItems.find(it => it.type === 'onliner')
+        const syn  = allItems.find(it => it.type === 'synopse')
         const preset: ExportPreset = {
-          statistik_enabled: allItems.find(it => it.type === 'statistik')?.enabled ?? false,
-          onliner_enabled:   allItems.find(it => it.type === 'onliner')?.enabled ?? false,
-          synopse_enabled:   allItems.find(it => it.type === 'synopse')?.enabled ?? false,
+          statistik_enabled: stat?.enabled ?? false,
+          statistik_mode:    stat?.statistikConfig?.mode,
+          onliner_enabled:   onl?.enabled ?? false,
+          onliner_mode:      onl?.statistikConfig?.mode,
+          synopse_enabled:   syn?.enabled ?? false,
+          synopse_mode:      syn?.statistikConfig?.mode,
         }
         api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
       }
