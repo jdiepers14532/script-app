@@ -699,7 +699,7 @@ function renderSzenenkopf(
   // auf weißem Hintergrund wird erkannt, weil das Element gerendert wird (layout ≠ 0).
   const label = buildBookmarkLabel(scene, folgeNummer, kuerzel)
   return `<h2 style="${pbStyle}color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${label}</h2>` +
-         `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid">${parts.join('\n')}</div>`
+         `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid;break-inside:avoid;page-break-inside:avoid">${parts.join('\n')}</div>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
