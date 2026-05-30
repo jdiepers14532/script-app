@@ -227,6 +227,9 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     kurzinhalt?: string; redaktion?: string; lektor?: string; presse?: string; pressetext?: string
   } | null>(null)
 
+  // Race condition fix: existing data stored until editors are ready
+  const [pendingLoadData, setPendingLoadData] = useState<any>(null)
+
   // Zoom
   const [editorZoom, setEditorZoom] = useState(1.2)
 
@@ -252,6 +255,22 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     if (pendingKiResult.pressetext)  pressetextEditor.commands.setContent(kiTextToHtml(pendingKiResult.pressetext, false))
     setPendingKiResult(null)
   }, [pendingKiResult, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor])
+
+  // ── Apply pending load-existing data when editors ready ───────────────────
+  useEffect(() => {
+    if (!pendingLoadData) return
+    if (!kurzEditor || !redaktionEditor || !lektorEditor || !presseEditor || !pressetextEditor) return
+    const d = pendingLoadData
+    if (d.folgen_titel) setSelectedTitel(d.folgen_titel)
+    const kurzHtml = d.synopsis_kurzinhalt || d.synopsis_300 || '<p></p>'
+    kurzEditor.commands.setContent(kurzHtml)
+    redaktionEditor.commands.setContent(d.synopsis || '<p></p>')
+    lektorEditor.commands.setContent(d.synopsis_lektor || '<p></p>')
+    presseEditor.commands.setContent(d.synopsis_presse || '<p></p>')
+    pressetextEditor.commands.setContent(d.synopsis_pressetext || '<p></p>')
+    if (d.synopsis_straenge) setStrangText(d.synopsis_straenge)
+    setPendingLoadData(null)
+  }, [pendingLoadData, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor])
 
   // ── Visible fade ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -330,16 +349,9 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   // ── Load existing data ────────────────────────────────────────────────────
   const loadExisting = useCallback(() => {
     if (!preCheckData) return
-    if (preCheckData.folgen_titel) setSelectedTitel(preCheckData.folgen_titel)
-    const kurzHtml = preCheckData.synopsis_kurzinhalt || preCheckData.synopsis_300 || '<p></p>'
-    if (kurzEditor)       kurzEditor.commands.setContent(kurzHtml)
-    if (redaktionEditor)  redaktionEditor.commands.setContent(preCheckData.synopsis || '<p></p>')
-    if (lektorEditor)     lektorEditor.commands.setContent(preCheckData.synopsis_lektor || '<p></p>')
-    if (presseEditor)     presseEditor.commands.setContent(preCheckData.synopsis_presse || '<p></p>')
-    if (pressetextEditor) pressetextEditor.commands.setContent(preCheckData.synopsis_pressetext || '<p></p>')
-    if (preCheckData.synopsis_straenge) setStrangText(preCheckData.synopsis_straenge)
+    setPendingLoadData(preCheckData)
     setShowPreCheck(false)
-  }, [preCheckData, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor])
+  }, [preCheckData])
 
   // ── Escape ────────────────────────────────────────────────────────────────
   useEffect(() => {
