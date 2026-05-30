@@ -100,14 +100,14 @@ export function extractNtCharacters(
     const { suffixes, replicaTexts } = data
     const hasNt = suffixes.includes('(NT)')
     const hasVo = suffixes.includes('(VO)')
-    const allOff = suffixes.length > 0 && suffixes.every(s => s === '(OFF)')
+    const hasOff = suffixes.includes('(OFF)')
 
     if (hasVo) {
       result.push({ nameUpper, nt_typ: 'vo', replicaTexts })
     } else if (hasNt) {
       result.push({ nameUpper, nt_typ: 'stimme', replicaTexts })
-    } else if (allOff) {
-      // ALL-OFF: Figur ausschließlich im Off — wie NT behandeln
+    } else if (hasOff) {
+      // OFF: Figur (auch teilweise) im Off — NT-Aufnahme erforderlich
       result.push({ nameUpper, nt_typ: 'stimme', replicaTexts: [] })
     }
   }

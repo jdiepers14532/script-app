@@ -642,9 +642,6 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       : allCharacters.find((c: any) => c.name.toUpperCase() === name.toUpperCase())
     if (!char) return
 
-    // Bereits im Szenenkopf? Überspringen
-    if (sceneChars.some((c: any) => String(c.character_id) === String(char.id))) return
-
     // Suffix-Logik:
     // OFF → nicht in Rollen, Notiz "Name im Off"
     // NT → nicht in Rollen, Notiz "NT Name"
