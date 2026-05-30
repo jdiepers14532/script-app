@@ -136,6 +136,7 @@ export interface PreviewContext {
   synopsis_presse?:      string
   synopsis_pressetext?:  string
   synopsis_straenge?:    string
+  synopsis_lektor?:      string
 }
 
 interface DokumentVorlagenEditorProps {
@@ -1098,6 +1099,7 @@ const PREVIEW_CONTEXT_MAP: Record<string, keyof PreviewContext> = {
   '{{synopsis_presse}}':      'synopsis_presse',
   '{{synopsis_pressetext}}':  'synopsis_pressetext',
   '{{synopsis_straenge}}':    'synopsis_straenge',
+  '{{synopsis_lektor}}':      'synopsis_lektor',
 }
 
 function escHtml(s: string): string {

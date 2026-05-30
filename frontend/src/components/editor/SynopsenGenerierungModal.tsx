@@ -76,12 +76,12 @@ function RichToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   )
 }
 
-function RichEditor({ editor, minHeight = 140 }: { editor: ReturnType<typeof useEditor>; minHeight?: number }) {
+function RichEditor({ editor, minHeight = 140, zoom = 1 }: { editor: ReturnType<typeof useEditor>; minHeight?: number; zoom?: number }) {
   if (!editor) return null
   return (
     <div style={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, overflow: 'hidden', background: 'rgba(0,0,0,0.3)' }}>
       <RichToolbar editor={editor} />
-      <EditorContent editor={editor} style={{ minHeight, padding: '10px 12px', color: '#f0f0f0', fontSize: 13, lineHeight: 1.65 }} />
+      <EditorContent editor={editor} style={{ minHeight, padding: '10px 12px', color: '#f0f0f0', fontSize: Math.round(14 * zoom), lineHeight: 1.7 }} />
     </div>
   )
 }
@@ -160,15 +160,16 @@ function dlgBtn(bg: string, primary: boolean): React.CSSProperties {
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'strang' | 'presse' | 'pressetext'
+type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'lektor' | 'strang' | 'programmpresse' | 'pressetext'
 
 const TABS: { id: Tab; label: string; desc: string }[] = [
-  { id: 'titel',      label: 'Titel',       desc: '1–3 Wörter' },
-  { id: 'kurzinhalt', label: 'Kurzinhalt',  desc: 'strukturiert' },
-  { id: 'redaktion',  label: 'Redaktion',   desc: 'dramaturgisch' },
-  { id: 'strang',     label: 'Strang',      desc: '≤100 Zeichen' },
-  { id: 'presse',     label: 'Presse',      desc: '60–80 Wörter' },
-  { id: 'pressetext', label: 'Pressetext',  desc: '280–330 Zeichen' },
+  { id: 'titel',         label: 'Titel',         desc: '1–3 Wörter' },
+  { id: 'kurzinhalt',    label: 'Kurzinhalt',    desc: 'strukturiert' },
+  { id: 'redaktion',     label: 'Redaktion',     desc: '300–500 Wörter' },
+  { id: 'lektor',        label: 'Lektor',        desc: 'Want·Akte·Stränge' },
+  { id: 'strang',        label: 'Strang',        desc: '≤100 Zeichen' },
+  { id: 'programmpresse', label: 'Programmpresse', desc: '300–450 Zeichen' },
+  { id: 'pressetext',   label: 'Pressetext',    desc: '280–330 Zeichen' },
 ]
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -206,13 +207,17 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
 
   // Race condition fix: KI result stored until editors are ready
   const [pendingKiResult, setPendingKiResult] = useState<{
-    kurzinhalt?: string; redaktion?: string; presse?: string; pressetext?: string
+    kurzinhalt?: string; redaktion?: string; lektor?: string; presse?: string; pressetext?: string
   } | null>(null)
 
+  // Zoom
+  const [editorZoom, setEditorZoom] = useState(1.2)
+
   // Tiptap editors
-  const kurzEditor      = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
-  const redaktionEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
-  const presseEditor    = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const kurzEditor       = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const redaktionEditor  = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const lektorEditor     = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const presseEditor     = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
   const pressetextEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
 
   // Save
@@ -222,13 +227,14 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   // ── Apply pending KI result when editors ready ────────────────────────────
   useEffect(() => {
     if (!pendingKiResult) return
-    if (!kurzEditor || !redaktionEditor || !presseEditor || !pressetextEditor) return
+    if (!kurzEditor || !redaktionEditor || !lektorEditor || !presseEditor || !pressetextEditor) return
     if (pendingKiResult.kurzinhalt)  kurzEditor.commands.setContent(kurzinhaltToHtml(pendingKiResult.kurzinhalt))
     if (pendingKiResult.redaktion)   redaktionEditor.commands.setContent(kiTextToHtml(pendingKiResult.redaktion, true))
+    if (pendingKiResult.lektor)      lektorEditor.commands.setContent(kurzinhaltToHtml(pendingKiResult.lektor))
     if (pendingKiResult.presse)      presseEditor.commands.setContent(kiTextToHtml(pendingKiResult.presse, false))
     if (pendingKiResult.pressetext)  pressetextEditor.commands.setContent(kiTextToHtml(pendingKiResult.pressetext, false))
     setPendingKiResult(null)
-  }, [pendingKiResult, kurzEditor, redaktionEditor, presseEditor, pressetextEditor])
+  }, [pendingKiResult, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor])
 
   // ── Visible fade ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -249,6 +255,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     setSaveMsg(null)
     kurzEditor?.commands.setContent('<p></p>')
     redaktionEditor?.commands.setContent('<p></p>')
+    lektorEditor?.commands.setContent('<p></p>')
     presseEditor?.commands.setContent('<p></p>')
     pressetextEditor?.commands.setContent('<p></p>')
 
@@ -276,6 +283,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     setStrangText('')
     kurzEditor?.commands.setContent('<p></p>')
     redaktionEditor?.commands.setContent('<p></p>')
+    lektorEditor?.commands.setContent('<p></p>')
     presseEditor?.commands.setContent('<p></p>')
     pressetextEditor?.commands.setContent('<p></p>')
     try {
@@ -291,6 +299,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
       setPendingKiResult({
         kurzinhalt:  r.kurzinhalt  || undefined,
         redaktion:   r.redaktion   || undefined,
+        lektor:      r.lektor      || undefined,
         presse:      r.presse      || undefined,
         pressetext:  r.pressetext  || undefined,
       })
@@ -299,7 +308,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     } finally {
       setGenerating(false)
     }
-  }, [folgeId, kurzEditor, redaktionEditor, presseEditor, pressetextEditor]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [folgeId, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load existing data ────────────────────────────────────────────────────
   const loadExisting = useCallback(() => {
@@ -308,11 +317,12 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     const kurzHtml = preCheckData.synopsis_kurzinhalt || preCheckData.synopsis_300 || '<p></p>'
     if (kurzEditor)       kurzEditor.commands.setContent(kurzHtml)
     if (redaktionEditor)  redaktionEditor.commands.setContent(preCheckData.synopsis || '<p></p>')
+    if (lektorEditor)     lektorEditor.commands.setContent(preCheckData.synopsis_lektor || '<p></p>')
     if (presseEditor)     presseEditor.commands.setContent(preCheckData.synopsis_presse || '<p></p>')
     if (pressetextEditor) pressetextEditor.commands.setContent(preCheckData.synopsis_pressetext || '<p></p>')
     if (preCheckData.synopsis_straenge) setStrangText(preCheckData.synopsis_straenge)
     setShowPreCheck(false)
-  }, [preCheckData, kurzEditor, redaktionEditor, presseEditor, pressetextEditor])
+  }, [preCheckData, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor])
 
   // ── Escape ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -341,16 +351,19 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   const save = useCallback(async (): Promise<boolean> => {
     setSaveLoading(true); setSaveMsg(null)
     try {
-      const kurzHtml      = kurzEditor?.getHTML()
-      const redaktionHtml = redaktionEditor?.getHTML()
-      const presseHtml    = presseEditor?.getHTML()
+      const kurzHtml       = kurzEditor?.getHTML()
+      const redaktionHtml  = redaktionEditor?.getHTML()
+      const lektorHtml     = lektorEditor?.getHTML()
+      const presseHtml     = presseEditor?.getHTML()
       const pressetextHtml = pressetextEditor?.getHTML()
+      const isEmpty = (h: string | undefined) => !h || h === '<p></p>'
       await api.saveFolgenSynopsen(folgeId, {
         folgen_titel:        selectedTitel.trim() || null,
-        synopsis_kurzinhalt: (kurzHtml && kurzHtml !== '<p></p>')      ? kurzHtml : null,
-        synopsis:            (redaktionHtml && redaktionHtml !== '<p></p>') ? redaktionHtml : null,
-        synopsis_presse:     (presseHtml && presseHtml !== '<p></p>')  ? presseHtml : null,
-        synopsis_pressetext: (pressetextHtml && pressetextHtml !== '<p></p>') ? pressetextHtml : null,
+        synopsis_kurzinhalt: isEmpty(kurzHtml)       ? null : kurzHtml!,
+        synopsis:            isEmpty(redaktionHtml)  ? null : redaktionHtml!,
+        synopsis_lektor:     isEmpty(lektorHtml)     ? null : lektorHtml!,
+        synopsis_presse:     isEmpty(presseHtml)     ? null : presseHtml!,
+        synopsis_pressetext: isEmpty(pressetextHtml) ? null : pressetextHtml!,
         synopsis_straenge:   strangText.trim() || null,
       })
       setSaveMsg('Gespeichert.')
@@ -361,7 +374,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     } finally {
       setSaveLoading(false)
     }
-  }, [folgeId, selectedTitel, kurzEditor, redaktionEditor, presseEditor, pressetextEditor, strangText])
+  }, [folgeId, selectedTitel, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor, strangText])
 
   async function handleClose() {
     await save()
@@ -370,13 +383,14 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
 
   function getCurrentTabHtml(): string {
     switch (activeTab) {
-      case 'titel':      return selectedTitel ? `<p>${selectedTitel}</p>` : ''
-      case 'kurzinhalt': return kurzEditor?.getHTML() ?? ''
-      case 'redaktion':  return redaktionEditor?.getHTML() ?? ''
-      case 'strang':     return strangText ? strangText.split('\n').filter(Boolean).map(l => `<p>${l}</p>`).join('') : ''
-      case 'presse':     return presseEditor?.getHTML() ?? ''
-      case 'pressetext': return pressetextEditor?.getHTML() ?? ''
-      default:           return ''
+      case 'titel':          return selectedTitel ? `<p>${selectedTitel}</p>` : ''
+      case 'kurzinhalt':     return kurzEditor?.getHTML() ?? ''
+      case 'redaktion':      return redaktionEditor?.getHTML() ?? ''
+      case 'lektor':         return lektorEditor?.getHTML() ?? ''
+      case 'strang':         return strangText ? strangText.split('\n').filter(Boolean).map(l => `<p>${l}</p>`).join('') : ''
+      case 'programmpresse': return presseEditor?.getHTML() ?? ''
+      case 'pressetext':     return pressetextEditor?.getHTML() ?? ''
+      default:               return ''
     }
   }
 
@@ -384,7 +398,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     await save()
     const html = getCurrentTabHtml()
     if (html && onUebernehmen) onUebernehmen(html)
-    onClose()
+    if (activeTab !== 'titel') onClose()
   }
 
   if (!open) return null
@@ -394,6 +408,8 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
   // ── Char/Word counters ────────────────────────────────────────────────────
   const pressetextChars = pressetextEditor ? charCount(pressetextEditor.getHTML()) : 0
   const pressetextInRange = pressetextChars >= 280 && pressetextChars <= 330
+  const presseChars = presseEditor ? charCount(presseEditor.getHTML()) : 0
+  const presseInRange = presseChars >= 300 && presseChars <= 450
 
   return (
     <>
@@ -408,7 +424,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
         .syn-m .ProseMirror p:last-child { margin-bottom: 0; }
         .syn-tab:hover:not(.syn-tab-active) { background: rgba(255,255,255,0.07) !important; }
         .syn-titel-card:hover { border-color: #AF52DE88 !important; background: #AF52DE18 !important; }
-        .syn-strang-ta { resize: vertical; background: rgba(0,0,0,0.3); color: #f0f0f0; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px 12px; font-size: 12px; line-height: 1.7; font-family: 'JetBrains Mono', 'Fira Code', monospace; width: 100%; box-sizing: border-box; outline: none; }
+        .syn-strang-ta { resize: vertical; background: rgba(0,0,0,0.3); color: #f0f0f0; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 10px 12px; line-height: 1.7; font-family: 'JetBrains Mono', 'Fira Code', monospace; width: 100%; box-sizing: border-box; outline: none; }
         .syn-strang-ta:focus { border-color: rgba(175,82,222,0.5); }
       `}</style>
 
@@ -551,6 +567,15 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
             ))}
           </div>
 
+          {/* Zoom controls */}
+          <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 20px 0', flexShrink:0, justifyContent:'flex-end' }}>
+            <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)', marginRight:4 }}>Schrift</span>
+            <button onMouseDown={() => setEditorZoom(z => Math.max(0.7, Math.round((z - 0.1) * 10) / 10))} style={{ width:22, height:22, borderRadius:4, border:'1px solid rgba(255,255,255,0.15)', background:'transparent', color:'rgba(255,255,255,0.6)', cursor:'pointer', fontSize:13, lineHeight:'1', display:'flex', alignItems:'center', justifyContent:'center' }}>−</button>
+            <span style={{ fontSize:11, color:'rgba(255,255,255,0.65)', minWidth:34, textAlign:'center' }}>{Math.round(editorZoom * 100)}%</span>
+            <button onMouseDown={() => setEditorZoom(z => Math.min(2.0, Math.round((z + 0.1) * 10) / 10))} style={{ width:22, height:22, borderRadius:4, border:'1px solid rgba(255,255,255,0.15)', background:'transparent', color:'rgba(255,255,255,0.6)', cursor:'pointer', fontSize:13, lineHeight:'1', display:'flex', alignItems:'center', justifyContent:'center' }}>+</button>
+            <button onMouseDown={() => setEditorZoom(1.2)} style={{ fontSize:10, padding:'2px 6px', borderRadius:3, border:'1px solid rgba(255,255,255,0.12)', background: Math.round(editorZoom * 10) === 12 ? 'rgba(255,255,255,0.15)' : 'transparent', color:'rgba(255,255,255,0.5)', cursor:'pointer' }}>Standard</button>
+          </div>
+
           {/* Tab content */}
           <div style={{ flex:1, overflow:'auto', padding:'14px 20px' }}>
 
@@ -643,7 +668,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                     </span>
                   )}
                 </div>
-                <RichEditor editor={kurzEditor} minHeight={300} />
+                <RichEditor editor={kurzEditor} minHeight={300} zoom={editorZoom} />
               </div>
             )}
 
@@ -663,7 +688,27 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                     )
                   })()}
                 </div>
-                <RichEditor editor={redaktionEditor} minHeight={340} />
+                <RichEditor editor={redaktionEditor} minHeight={340} zoom={editorZoom} />
+              </div>
+            )}
+
+            {/* ── Lektor ── */}
+            {activeTab === 'lektor' && (
+              <div>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                  <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
+                    Want &amp; Need · Wendepunkte · Akt-Struktur · Stränge mit CLIFF/PEN und Szenenreferenzen
+                  </span>
+                  {lektorEditor && lektorEditor.getText().length > 5 && (() => {
+                    const wc = wordCount(lektorEditor.getHTML())
+                    return (
+                      <span style={{ fontSize:12, fontWeight:600, color: (wc < 400 || wc > 800) ? '#FF9500' : 'rgba(255,255,255,0.65)' }}>
+                        {wc} Wörter {(wc < 400 || wc > 800) ? '(Ziel: 500–700)' : ''}
+                      </span>
+                    )
+                  })()}
+                </div>
+                <RichEditor editor={lektorEditor} minHeight={400} zoom={editorZoom} />
               </div>
             )}
 
@@ -684,6 +729,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   className="syn-strang-ta"
                   value={strangText}
                   onChange={e => setStrangText(e.target.value)}
+                  style={{ fontSize: Math.round(13 * editorZoom) }}
                   rows={10}
                   placeholder={"LOU: Entscheidung über München und Trennung von Richard\nBRITTA: Ehrenamt im Krankenhaus, Job-Angebot\nMO/JULIUS: Aussprache und Annäherung"}
                   spellCheck={false}
@@ -707,23 +753,25 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
               </div>
             )}
 
-            {/* ── Presse ── */}
-            {activeTab === 'presse' && (
+            {/* ── Programmpresse ── */}
+            {activeTab === 'programmpresse' && (
               <div>
                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                   <span style={{ fontSize:11, color:'rgba(255,255,255,0.4)' }}>
-                    Programm-Presse · werblich, neugierig machend · kein Spoiler · ca. 60–80 Wörter
+                    TV-Listing / Programmpresse · werblich, neugierig machend · kein Spoiler
                   </span>
-                  {presseEditor && presseEditor.getText().length > 5 && (() => {
-                    const wc = wordCount(presseEditor.getHTML())
-                    return (
-                      <span style={{ fontSize:12, fontWeight:600, color: (wc < 50 || wc > 90) ? '#FF9500' : 'rgba(255,255,255,0.65)' }}>
-                        {wc} Wörter {(wc < 50 || wc > 90) ? '(Ziel: 60–80)' : ''}
-                      </span>
-                    )
-                  })()}
+                  {presseEditor && presseEditor.getText().length > 3 && (
+                    <span style={{
+                      fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:5,
+                      background: presseInRange ? 'rgba(0,200,83,0.12)' : 'rgba(255,149,0,0.12)',
+                      border: `1px solid ${presseInRange ? '#00C85355' : '#FF950055'}`,
+                      color: presseInRange ? '#00C853' : '#FF9500',
+                    }}>
+                      {presseChars} / 300–450 Zeichen
+                    </span>
+                  )}
                 </div>
-                <RichEditor editor={presseEditor} minHeight={160} />
+                <RichEditor editor={presseEditor} minHeight={160} zoom={editorZoom} />
               </div>
             )}
 
@@ -745,7 +793,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                     </span>
                   )}
                 </div>
-                <RichEditor editor={pressetextEditor} minHeight={120} />
+                <RichEditor editor={pressetextEditor} minHeight={120} zoom={editorZoom} />
                 {pressetextEditor && pressetextEditor.getText().length > 3 && !pressetextInRange && (
                   <div style={{ marginTop:8, fontSize:11, color:'rgba(255,255,255,0.35)' }}>
                     {pressetextChars < 280

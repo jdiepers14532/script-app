@@ -203,9 +203,14 @@ export const PLACEHOLDER_DEFS: PlaceholderDef[] = [
     quelle: 'script_db \u00b7 folgen.synopsis',
   },
   {
-    key: '{{synopsis_presse}}', label: 'Presse-Synopse', zone: 'alle', color: '#AF52DE',
-    beschreibung: 'Kurze, werbliche Episodenbeschreibung f\u00fcr die Programm-Presse (60\u201380 W\u00f6rter).',
+    key: '{{synopsis_presse}}', label: 'Programmpresse', zone: 'alle', color: '#AF52DE',
+    beschreibung: 'Programm-Presse-Text f\u00fcr TV-Listings (ca. 300\u2013450 Zeichen, werblich, kein Spoiler).',
     quelle: 'script_db \u00b7 folgen.synopsis_presse',
+  },
+  {
+    key: '{{synopsis_lektor}}', label: 'Lektor-Inhaltsangabe', zone: 'alle', color: '#AF52DE',
+    beschreibung: 'Strukturierte Inhaltsangabe f\u00fcr die Lektor-Redaktion: Want & Need, Wendepunkte, Akt-Struktur, Str\u00e4nge mit CLIFF/PEN-Verweisen und Szenenreferenzen.',
+    quelle: 'script_db \u00b7 folgen.synopsis_lektor',
   },
   {
     key: '{{synopsis_pressetext}}', label: 'Pressetext', zone: 'alle', color: '#AF52DE',

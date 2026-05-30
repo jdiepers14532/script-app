@@ -6181,6 +6181,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
     synopsis_presse:      'Wird LOU ihr Leben komplett auf den Kopf stellen? Eine überraschende Begegnung zwingt sie zu einer Entscheidung – mit weitreichenden Folgen für alle Beteiligten.',
     synopsis_pressetext:  'LOU steht vor einer Entscheidung, die ihr Leben für immer verändern könnte. BRITTA findet unterdessen neue Kraft im Ehrenamt.',
     synopsis_straenge:    'LOU: Entscheidung München / Trennung von Richard\nBRITTA: Ehrenamt Krankenhaus, Job-Angebot',
+    synopsis_lektor:      'Want & Need: LOU — Want: Neustart in München / Need: Selbstakzeptanz\nWendepunkte: 1. Richard taucht auf (Sz. 4) 2. Brief aus München (Sz. 12)\nAkt 1 (Sz. 1–5): Ausgangslage\nAkt 2 (Sz. 6–14): Eskalation CLIFF\nAkt 3 (Sz. 15–20): LOU PEN offen',
   }
 
   // KZ/FZ-Einstellungen laden — seiten_layout wird als externalSeitenLayout für den Vorlagen-Editor verwendet
@@ -6869,6 +6870,7 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
     synopsis_presse:      'Wird LOU ihr Leben komplett auf den Kopf stellen? Eine überraschende Begegnung zwingt sie zu einer Entscheidung.',
     synopsis_pressetext:  'LOU steht vor einer Entscheidung, die ihr Leben für immer verändern könnte.',
     synopsis_straenge:    'LOU: Entscheidung München / Trennung von Richard\nBRITTA: Ehrenamt Krankenhaus',
+    synopsis_lektor:      'Want & Need: LOU — Want: Neustart / Need: Selbstakzeptanz\nWendepunkte: 1. Richard taucht auf (Sz. 4)\nAkt 1 (Sz. 1–5): Ausgangslage',
   }
   // activeTyp = der im Editor angezeigte Typ (Quelle); syncTypen = alle die Änderungen empfangen
   const [activeTyp, setActiveTyp] = useState<string>('drehbuch')

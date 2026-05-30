@@ -391,6 +391,7 @@ async function runMigrations() {
     'v143_ki_prompts_synopsis.sql',
     'v144_check_meta.sql',
     'v145_synopsis_neue_spalten.sql',
+    'v146_synopsis_lektor.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

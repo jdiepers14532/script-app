@@ -471,11 +471,11 @@ router.get('/synopsen/check', async (req, res) => {
     const { folge_id } = req.query
     if (!folge_id) return res.status(400).json({ error: 'folge_id fehlt' })
     const row = await queryOne(
-      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext FROM folgen WHERE id = $1`,
+      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext, synopsis_lektor FROM folgen WHERE id = $1`,
       [folge_id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
-    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300 || row.synopsis_kurzinhalt || row.synopsis_presse || row.synopsis_straenge || row.synopsis_pressetext)
+    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300 || row.synopsis_kurzinhalt || row.synopsis_presse || row.synopsis_straenge || row.synopsis_pressetext || row.synopsis_lektor)
     res.json({ hasData, ...row })
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -670,18 +670,39 @@ Erstelle folgende 4 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER#
 [Dramaturgische Inhaltsangabe. Rollennamen IMMER in GROSSBUCHSTABEN. Sachlicher, präziser Stil — keine Metakommentare, kein "Want und Need" als Label. CLIFF für Cliffhanger-Strang, PEN für Pending-Strang. Ein Absatz pro Strang. Präsens, aktiv. ${redaktionMin}-${redaktionMax} Wörter. Kein Markdown.]
 
 ###STRANG###
-[Je Handlungsstrang eine Zeile: "${strangNamen.length > 0 ? strangNamen[0] : 'FIGURENNAME'}: Kurzbeschreibung" — maximal ${strangMax} Zeichen pro Zeile. Kein Markdown.${strangNamen.length > 0 ? ` Verwende diese Strang-Namen: ${strangNamen.join(', ')}` : ''}]
+[Je Handlungsstrang eine Zeile: "STRANGNAME: Kurzbeschreibung" — maximal ${strangMax} Zeichen pro Zeile. Kein Markdown.
+WICHTIG: Führe ALLE erkannten Handlungsstränge auf, auch wenn sie keinem bekannten Namen zugeordnet werden können.${strangNamen.length > 0 ? ` Bekannte Strang-Namen (bevorzugen wenn passend): ${strangNamen.join(', ')}.` : ' Identifiziere alle Handlungsstränge aus den Szenen.'}]
 
-###PRESSE###
-[Maximal ${presseMax} Wörter. Fließend, neugierig machend, kein Spoiler. Kein Markdown.]
+###PROGRAMMPRESSE###
+[Programm-Presse-Text. Fließend, neugierig machend, kein Spoiler. Kein Markdown. Ziel: 300–450 Zeichen.]
 
 ###PRESSETEXT###
 [Exakt ${pressetextMin}-${pressetextMax} Zeichen (zähle genau!). Sachlich, knapp, kein werblicher Ton. Kein Spoiler. Kein Markdown. Kein Zeilenumbruch.]`
 
     const systemPrompt = `Du bist Dramaturg und Redakteur einer deutschen Daily-Soap (ARD, Rote Rosen). Antworte AUSSCHLIESSLICH mit den angeforderten Abschnitten im exakt vorgegebenen Format. Keine Einleitung, keine Erklärungen.`
 
-    // Beide Calls parallel
-    const [titelRaw, contentRaw] = await Promise.all([
+    const lektorPrompt = `=== SZENEN-ZUSAMMENFASSUNGEN FOLGE ${folgeNr} ===
+${szenenListe}
+${strangHinweis}
+Erstelle eine strukturierte Lektor-Inhaltsangabe. Rollennamen IMMER in GROSSBUCHSTABEN. Präsens. 500–700 Wörter.
+Verwende folgende Abschnitte (Abschnittskopf mit **Fettdruck:**):
+
+**Want & Need:**
+Je Hauptfigur eine Zeile — FIGURENNAME: Want: [äußeres Ziel dieser Folge] / Need: [innere Notwendigkeit] (Sz. X)
+
+**Wendepunkte:**
+Nummerierte Liste — 1. [Wendepunkt] (Sz. X): Beschreibung
+
+**Akt-Struktur:**
+Akt 1 (Sz. 1–X): Ausgangssituation und Konfliktanlage
+Akt 2 (Sz. X–Y): Zuspitzung und Konfrontation
+Akt 3 (Sz. Y–Ende): Auflösung / offene Enden
+
+**Handlungsstränge:**
+Je Strang eine Zeile — STRANGNAME${strangNamen.length > 0 ? ` (bekannte Namen: ${strangNamen.join(', ')})` : ''}: Verlauf mit CLIFF: / PEN: Verweisen. Szenenreferenzen in Klammern (Sz. X, Y).`
+
+    // Drei Calls parallel
+    const [titelRaw, contentRaw, lektorRaw] = await Promise.all([
       callProvider(setting, [
         { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte ausschließlich mit den 5 Titeln, einen pro Zeile. Maximal 3 Wörter pro Titel.' },
         { role: 'user', content: titelPrompt },
@@ -690,11 +711,15 @@ Erstelle folgende 4 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER#
         { role: 'system', content: systemPrompt },
         { role: 'user', content: contentPrompt },
       ], 2200, tempStruktur),
+      callProvider(setting, [
+        { role: 'system', content: 'Du bist Lektor und Dramaturg einer deutschen Daily-Soap. Erstelle strukturierte Inhaltsangaben mit dramaturgischen Referenzen. Rollennamen IMMER in GROSSBUCHSTABEN.' },
+        { role: 'user', content: lektorPrompt },
+      ], 1800, tempStruktur),
     ])
 
     await recordUsage(setting.provider, setting.model_name || '',
-      Math.ceil((titelPrompt.length + contentPrompt.length) / 4),
-      Math.ceil((titelRaw.length + contentRaw.length) / 4))
+      Math.ceil((titelPrompt.length + contentPrompt.length + lektorPrompt.length) / 4),
+      Math.ceil((titelRaw.length + contentRaw.length + lektorRaw.length) / 4))
 
     const titel = titelRaw.split('\n')
       .map((t: string) => t.replace(/^[\d\.\-\*\[\]\s]+/, '').replace(/[*#"„"[\]]/g, '').trim())
@@ -702,16 +727,17 @@ Erstelle folgende 4 Ausgaben EXAKT in diesem Format (Abschnitte durch ###MARKER#
       .slice(0, 5)
 
     const sections = parseKiSections(contentRaw)
-    const missingSections = ['KURZINHALT', 'REDAKTION', 'STRANG', 'PRESSE', 'PRESSETEXT']
+    const missingSections = ['KURZINHALT', 'REDAKTION', 'STRANG', 'PROGRAMMPRESSE', 'PRESSETEXT']
       .filter(k => !sections[k])
 
     res.json({
       titel,
-      kurzinhalt:  sections['KURZINHALT']  || '',
-      redaktion:   cleanKiText(sections['REDAKTION']   || ''),
-      straenge:    cleanKiText(sections['STRANG']      || ''),
-      presse:      cleanKiText(sections['PRESSE']      || ''),
-      pressetext:  cleanKiText(sections['PRESSETEXT']  || ''),
+      kurzinhalt:  sections['KURZINHALT']       || '',
+      redaktion:   cleanKiText(sections['REDAKTION']        || ''),
+      straenge:    cleanKiText(sections['STRANG']           || ''),
+      presse:      cleanKiText(sections['PROGRAMMPRESSE']   || ''),
+      pressetext:  cleanKiText(sections['PRESSETEXT']       || ''),
+      lektor:      lektorRaw.trim(),
       folge_id,
       folge_nummer: data.werkstufe.folge_nummer,
       szenen_count: data.szenen.length,

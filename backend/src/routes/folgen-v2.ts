@@ -259,7 +259,7 @@ folgenV2Router.post('/', async (req, res) => {
 folgenV2Router.get('/:id/synopsen', async (req, res) => {
   try {
     const row = await queryOne(
-      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext FROM folgen WHERE id = $1`,
+      `SELECT folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext, synopsis_lektor FROM folgen WHERE id = $1`,
       [req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
@@ -274,7 +274,7 @@ folgenV2Router.get('/:id/synopsen', async (req, res) => {
 // Freies Dokument: + dokument_label, sichtbarkeit_frei
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.put('/:id', async (req, res) => {
-  const { folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
+  const { folgen_titel, synopsis, synopsis_300, synopsis_kurzinhalt, synopsis_presse, synopsis_straenge, synopsis_pressetext, synopsis_lektor, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
   const user = req.user!
   try {
     const existing = await queryOne('SELECT * FROM folgen WHERE id = $1', [req.params.id])
@@ -305,6 +305,7 @@ folgenV2Router.put('/:id', async (req, res) => {
         synopsis_presse       = COALESCE($9, synopsis_presse),
         synopsis_straenge     = COALESCE($10, synopsis_straenge),
         synopsis_pressetext   = COALESCE($11, synopsis_pressetext),
+        synopsis_lektor       = COALESCE($12, synopsis_lektor),
         dokument_label        = COALESCE($3, dokument_label),
         sichtbarkeit_frei     = COALESCE($4, sichtbarkeit_frei),
         sichtbarkeit_frei_geaendert_am = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE sichtbarkeit_frei_geaendert_am END,
@@ -316,7 +317,8 @@ folgenV2Router.put('/:id', async (req, res) => {
        WHERE id = $7 RETURNING *`,
       [folgen_titel ?? null, synopsis ?? null, dokument_label ?? null, sichtbarkeit_frei ?? null,
        colab_gruppe_id ?? null, synopsis_300 ?? null, req.params.id,
-       synopsis_kurzinhalt ?? null, synopsis_presse ?? null, synopsis_straenge ?? null, synopsis_pressetext ?? null]
+       synopsis_kurzinhalt ?? null, synopsis_presse ?? null, synopsis_straenge ?? null, synopsis_pressetext ?? null,
+       synopsis_lektor ?? null]
     )
     res.json(row)
   } catch (err) {

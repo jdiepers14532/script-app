@@ -647,7 +647,9 @@ export default function ScriptPage() {
         if (ui.last_produktion_id)    pendingNav.current.produktionId   = ui.last_produktion_id
         if (ui.last_folge_nummer)  pendingNav.current.folgeNummer = ui.last_folge_nummer
         if (ui.last_stage_id)      pendingNav.current.stageId     = ui.last_stage_id
-        if (ui.last_szene_id)      pendingNav.current.szeneId     = ui.last_szene_id
+        // last_szene_id nur nutzen wenn "letzte Szene merken" aktiv ist —
+        // sonst würde es episodenWechselErsteSzene und den deaktivierten Toggle überschreiben.
+        if (ui.last_szene_id && ui.letzteSzeneProEpisodeMerken) pendingNav.current.szeneId = ui.last_szene_id
       }
       // Letzte-Szene-Merken: toggle + map aus demselben Settings-Aufruf lesen —
       // garantiert vor loadWerkstufen verfügbar (keine Race-Condition mit AppShell).
