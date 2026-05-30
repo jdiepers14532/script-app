@@ -944,11 +944,12 @@ export default function ScriptPage() {
               if (lastMatch) { targetId = lastMatch.id; resolvedFromLastSeen = true; navRestored.current = true }
             }
             if (!resolvedFromLastSeen) {
-              // Priorität 3: erste echte Szene (wenn Toggle aktiv), sonst erstes Element
+              // Priorität 3: erste Szene (scene_nummer=1) wenn Toggle aktiv, sonst erstes Element (Titelseite)
+              // "Erste Szene" ≠ "Erstes Element" — Erstes Element ist meist die Titelseite (werkSzenen[0])
               // navRestored bleibt false — Fallback, nicht vom User ausgewählt; wird erst durch Klick/Tastatur gesetzt
-              if (currentTweaks.episodenWechselErsteSzene || restore.enabled) {
-                const firstReal = werkSzenen.find((s: any) => s.format !== 'notiz' && s.scene_nummer != null && s.scene_nummer !== 0)
-                targetId = (firstReal ?? werkSzenen[0]).id
+              if (currentTweaks.episodenWechselErsteSzene) {
+                const ersteEchteSzene = werkSzenen.find((s: any) => s.scene_nummer === 1)
+                targetId = (ersteEchteSzene ?? werkSzenen[0]).id
               } else {
                 targetId = werkSzenen[0].id
               }
