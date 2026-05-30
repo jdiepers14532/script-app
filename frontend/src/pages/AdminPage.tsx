@@ -199,20 +199,6 @@ function WasserzeichenTab() {
 
 // ── DK-Zugriff Tab ────────────────────────────────────────────────────────────
 
-const DK_ROLLEN: { value: string; label: string }[] = [
-  { value: 'hauptbuchhaltung',    label: 'Hauptbuchhaltung' },
-  { value: 'produktionsleitung',  label: 'Produktionsleitung' },
-  { value: 'produktionsbuero',    label: 'Produktionsbüro' },
-  { value: 'aufnahmeleitung',     label: 'Aufnahmeleitung' },
-  { value: 'drehplanung',         label: 'Drehplanung' },
-  { value: 'vertragserstellung',  label: 'Vertragserstellung' },
-  { value: 'buchhaltung_produktion', label: 'Buchhaltung Produktion' },
-  { value: 'hr_manager',          label: 'HR-Manager' },
-  { value: 'redaktion',           label: 'Redaktion' },
-  { value: 'kostuemdept',         label: 'Kostüm-Department' },
-  { value: 'catering',            label: 'Catering' },
-]
-
 function DkZugriffTab() {
   const { t } = useTerminologie()
   const { productions } = useSelectedProduction()
@@ -224,10 +210,11 @@ function DkZugriffTab() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [authUsers, setAuthUsers] = useState<{ id: string; name: string; email: string }[]>([])
+  const [authRoles, setAuthRoles] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     api.getDkAccessMeta()
-      .then(d => setAuthUsers(d.users))
+      .then(d => { setAuthUsers(d.users); setAuthRoles(d.roles) })
       .catch(() => {})
   }, [])
 
@@ -268,7 +255,7 @@ function DkZugriffTab() {
 
   const displayLabel = (e: { access_type: string; identifier: string }) => {
     if (e.access_type === 'rolle') {
-      return DK_ROLLEN.find(r => r.value === e.identifier)?.label ?? e.identifier
+      return authRoles.find(r => r.name === e.identifier)?.name ?? e.identifier
     }
     return authUsers.find(u => u.id === e.identifier)?.name ?? e.identifier
   }
@@ -364,9 +351,9 @@ function DkZugriffTab() {
             {newType === 'rolle' ? (
               <select value={newId} onChange={e => setNewId(e.target.value)} style={selectStyle}>
                 <option value="">— Rolle wählen —</option>
-                {DK_ROLLEN
-                  .filter(r => !entries.some(e => e.access_type === 'rolle' && e.identifier === r.value))
-                  .map(r => <option key={r.value} value={r.value}>{r.label}</option>)
+                {authRoles
+                  .filter(r => !entries.some(e => e.access_type === 'rolle' && e.identifier === r.name))
+                  .map(r => <option key={r.id} value={r.name}>{r.name}</option>)
                 }
               </select>
             ) : (

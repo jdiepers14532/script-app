@@ -331,19 +331,32 @@ adminRouter.use(requireRole('superadmin', 'geschaeftsfuehrung', 'herstellungslei
 adminRouter.get('/meta', async (_req, res) => {
   try {
     const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP'
-    const r = await fetch('http://127.0.0.1:3002/api/internal/app-users/script', {
-      headers: { 'x-internal-key': INTERNAL_KEY }
-    })
-    if (!r.ok) return res.status(502).json({ error: 'Auth-Service nicht erreichbar' })
-    const data: any = await r.json()
-    const users = (data.users || [])
-      .map((u: any) => ({
-        id: u.id,
-        name: (u.username || '').trim() || u.email.split('@')[0],
-        email: u.email,
-      }))
-      .sort((a: any, b: any) => a.name.localeCompare(b.name, 'de'))
-    res.json({ users })
+    const [usersRes, rolesRes] = await Promise.all([
+      fetch('http://127.0.0.1:3002/api/internal/app-users/script', { headers: { 'x-internal-key': INTERNAL_KEY } }),
+      fetch('http://127.0.0.1:3002/api/internal/app-roles/script', { headers: { 'x-internal-key': INTERNAL_KEY } }),
+    ])
+    if (!usersRes.ok || !rolesRes.ok) return res.status(502).json({ error: 'Auth-Service nicht erreichbar' })
+    const [usersData, rolesData]: any[] = await Promise.all([usersRes.json(), rolesRes.json()])
+
+    // Unique users (ein User kann mehrere Rollen haben → deduplizieren)
+    const userMap = new Map<string, { id: string; name: string; email: string }>()
+    for (const u of (usersData.users || [])) {
+      if (!userMap.has(u.id)) {
+        userMap.set(u.id, {
+          id: u.id,
+          name: (u.username || '').trim() || u.email.split('@')[0],
+          email: u.email,
+        })
+      }
+    }
+    const users = [...userMap.values()].sort((a, b) => a.name.localeCompare(b.name, 'de'))
+
+    const ALWAYS_ACCESS = ['superadmin', 'herstellungsleitung']
+    const roles = (rolesData.roles || [])
+      .filter((r: any) => !ALWAYS_ACCESS.includes(r.name))
+      .map((r: any) => ({ id: r.id, name: r.name }))
+
+    res.json({ users, roles })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

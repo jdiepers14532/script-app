@@ -525,7 +525,7 @@ export const api = {
 
   // ── DK-Zugriffsverwaltung (Admin) ───────────────────────────────────────
   getDkAccessMeta: () =>
-    request<{ users: { id: string; name: string; email: string }[] }>('GET', '/admin/dk-access/meta'),
+    request<{ users: { id: string; name: string; email: string }[]; roles: { id: string; name: string }[] }>('GET', '/admin/dk-access/meta'),
   getDkAccess: (productionId: string) =>
     request<any[]>('GET', `/admin/dk-access/${encodeURIComponent(productionId)}`),
   updateDkAccess: (productionId: string, entries: { access_type: string; identifier: string }[]) =>
