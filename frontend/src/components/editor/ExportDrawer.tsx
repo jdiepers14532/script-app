@@ -755,7 +755,8 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           {!selectedWerk ? (
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Keine Werkstufe ausgewählt.</p>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
               {/* ── Linke Spalte: Dokumentstruktur ── */}
               <div>
@@ -1175,6 +1176,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                 {customFilename}
               </div>
             </div>
+          </>
           )}
         </div>
 
