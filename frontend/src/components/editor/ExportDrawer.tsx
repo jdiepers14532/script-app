@@ -63,6 +63,7 @@ interface ExportPreset {
   onliner_mode?: 'folge' | 'block'
   synopse_enabled: boolean
   synopse_mode?: 'folge' | 'block'
+  titelseite_enabled?: boolean
 }
 
 // ── Dateiname-Builder ──────────────────────────────────────────────────────────
@@ -177,7 +178,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [postItems, setPostItems]                 = useState<ExportItem[]>([])
   const [szenenAktiv, setSzenenAktiv]             = useState(true)
   const [pdfBookmarks, setPdfBookmarks]           = useState(false)
-  const [titelseiteVorlagen, setTitelseiteVorlagen] = useState<{ id: string; name: string }[]>([])
 
   // Statistik / Folge-Picker Modal
   const [statConfigItemId, setStatConfigItemId]     = useState<string | null>(null)
@@ -213,10 +213,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       label: w.label || `${w.typ === 'notiz' ? 'Notiz' : 'Dokument'} V${w.version_nummer}`, enabled: true,
     }))
 
-    // Spezial-Items synchron mit Default-Werten initialisieren —
-    // danach Preset aus User-Einstellungen nachladen und NUR die Spezial-Items updaten.
-    // Wichtig: kein setPreItems([...alle]) im async-Callback, sonst überschreibt es
-    // Notiz-Items die parallel von getExportNotizSzenen geladen wurden (Race Condition).
+    // Placeholder bis alle Daten geladen sind
     setPreItems([...notizWerkItems,
       { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false },
       { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false },
@@ -224,76 +221,66 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     ])
     setPostItems([])
 
-    // Preset nachladen — Spezial-Items updaten, bei Folge-Modus direkt auto-konfigurieren
-    api.getSettings()
-      .then((settings: any) => {
-        const preset: Partial<ExportPreset> = settings?.ui_settings?.[`export_preset_${produktionId}`] ?? {}
-        if (!preset.statistik_enabled && !preset.onliner_enabled && !preset.synopse_enabled) return
+    const folgeId = selectedWerk.folge_id
+    const defaultSections = DEFAULT_SECTIONS.map((s: StatModalSection) => s.id)
 
-        const folgeId = selectedWerk?.folge_id
-        const defaultSections = DEFAULT_SECTIONS.map((s: StatModalSection) => s.id)
-
-        // Bei mode='folge': sofort mit aktueller Folge auto-konfigurieren
-        // Bei mode='block' oder unbekannt: nur enabled setzen (Konfiguration nötig)
-        const buildAutoConfig = (
-          type: 'statistik' | 'onliner' | 'synopse',
-          enabled: boolean,
-          mode?: 'folge' | 'block'
-        ): Partial<ExportItem> => {
-          if (!enabled) return { enabled: false }
-          if (folgeId && (mode === 'folge' || !mode)) {
-            const config: StatistikExportConfig = {
-              folge_ids: [folgeId], folge_nummer: folgeNummer, mode: 'folge', sections: defaultSections,
-            }
-            const prefix = type === 'onliner' ? 'Onliner' : type === 'synopse' ? 'Synopsen' : 'Statistik'
-            return { enabled: true, statistikConfig: config, label: `${prefix} Folge ${folgeNummer}` }
-          }
-          return { enabled: true }
+    const buildAutoConfig = (
+      type: 'statistik' | 'onliner' | 'synopse',
+      enabled: boolean,
+      mode?: 'folge' | 'block'
+    ): Partial<ExportItem> => {
+      if (!enabled) return { enabled: false }
+      if (folgeId && (mode === 'folge' || !mode)) {
+        const config: StatistikExportConfig = {
+          folge_ids: [folgeId], folge_nummer: folgeNummer, mode: 'folge', sections: defaultSections,
         }
-
-        setPreItems(prev => prev.map(it => {
-          if (it.type === 'statistik') return { ...it, ...buildAutoConfig('statistik', preset.statistik_enabled ?? false, preset.statistik_mode) }
-          if (it.type === 'onliner')   return { ...it, ...buildAutoConfig('onliner',   preset.onliner_enabled ?? false,   preset.onliner_mode) }
-          if (it.type === 'synopse')   return { ...it, ...buildAutoConfig('synopse',   preset.synopse_enabled ?? false,   preset.synopse_mode) }
-          return it
-        }))
-        setPostItems(prev => prev.map(it => {
-          if (it.type === 'statistik') return { ...it, ...buildAutoConfig('statistik', preset.statistik_enabled ?? false, preset.statistik_mode) }
-          if (it.type === 'onliner')   return { ...it, ...buildAutoConfig('onliner',   preset.onliner_enabled ?? false,   preset.onliner_mode) }
-          if (it.type === 'synopse')   return { ...it, ...buildAutoConfig('synopse',   preset.synopse_enabled ?? false,   preset.synopse_mode) }
-          return it
-        }))
-      })
-      .catch(() => {/* Preset nicht verfügbar — defaults behalten */})
-
-    // Freie Notiz-Elemente der aktuellen Werkstufe laden + VOR/NACH einordnen
-    if (selectedWerk.typ !== 'notiz') {
-      api.getExportNotizSzenen(selectedWerk.id)
-        .then(({ items, blockSortOrderMin, blockSortOrderMax }) => {
-          if (!items.length) return
-          const preAdd: ExportItem[] = []
-          const postAdd: ExportItem[] = []
-          for (const it of items) {
-            const item: ExportItem = {
-              id: genId(), type: 'notiz',
-              szeneId: it.id, label: it.label, enabled: true,
-            }
-            if (blockSortOrderMin == null || it.sort_order < blockSortOrderMin) {
-              preAdd.push(item)
-            } else {
-              postAdd.push(item)
-            }
-          }
-          if (preAdd.length) setPreItems(prev => [...preAdd, ...prev])
-          if (postAdd.length) setPostItems(prev => [...prev, ...postAdd])
-        })
-        .catch(() => {/* kein Fehler — Notiz-Elemente einfach weglassen */})
+        const prefix = type === 'onliner' ? 'Onliner' : type === 'synopse' ? 'Synopsen' : 'Statistik'
+        return { enabled: true, statistikConfig: config, label: `${prefix} Folge ${folgeNummer}` }
+      }
+      return { enabled: true }
     }
 
-    // Titelseite-Vorlagen laden
-    api.getExportTitelseiteVorlagen(produktionId)
-      .then(rows => setTitelseiteVorlagen(rows))
-      .catch(() => setTitelseiteVorlagen([]))
+    // Alles parallel laden — einmaliger setPreItems-Aufruf, keine Race Conditions
+    Promise.all([
+      api.getSettings().catch(() => null),
+      api.getExportTitelseiteVorlagen(produktionId).catch(() => [] as { id: string; name: string }[]),
+      selectedWerk.typ !== 'notiz'
+        ? api.getExportNotizSzenen(selectedWerk.id).catch(() => null)
+        : Promise.resolve(null),
+    ]).then(([settings, titelseiteRows, notizResult]) => {
+      const preset: Partial<ExportPreset> = (settings as any)?.ui_settings?.[`export_preset_${produktionId}`] ?? {}
+
+      // Notiz-Szenen-Items sortieren
+      const notizPreAdd: ExportItem[] = []
+      const notizPostAdd: ExportItem[] = []
+      if ((notizResult as any)?.items?.length) {
+        for (const it of (notizResult as any).items) {
+          const item: ExportItem = { id: genId(), type: 'notiz', szeneId: it.id, label: it.label, enabled: true }
+          const min = (notizResult as any).blockSortOrderMin
+          if (min == null || it.sort_order < min) notizPreAdd.push(item)
+          else notizPostAdd.push(item)
+        }
+      }
+
+      // Titelseite-Items aus Vorlagen — enabled-Status aus Preset
+      const titelseiteItems: ExportItem[] = (titelseiteRows ?? []).map(v => ({
+        id: genId(), type: 'notiz' as const, vorlageId: v.id, label: v.name,
+        enabled: preset.titelseite_enabled ?? false,
+      }))
+
+      setPreItems([
+        ...titelseiteItems,
+        ...notizPreAdd,
+        ...notizWerkItems,
+        { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false,
+          ...buildAutoConfig('statistik', preset.statistik_enabled ?? false, preset.statistik_mode) },
+        { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false,
+          ...buildAutoConfig('onliner',   preset.onliner_enabled ?? false,   preset.onliner_mode) },
+        { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false,
+          ...buildAutoConfig('synopse',   preset.synopse_enabled ?? false,   preset.synopse_mode) },
+      ])
+      if (notizPostAdd.length) setPostItems(notizPostAdd)
+    })
 
     // Filter-Optionen laden
     setFilterOptions(null)
@@ -362,6 +349,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     const stat = allItems.find(it => it.type === 'statistik')
     const onl  = allItems.find(it => it.type === 'onliner')
     const syn  = allItems.find(it => it.type === 'synopse')
+    const tit  = allItems.find(it => it.vorlageId != null)
     const preset: ExportPreset = {
       statistik_enabled: stat?.enabled ?? false,
       statistik_mode:    stat?.statistikConfig?.mode,
@@ -369,6 +357,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       onliner_mode:      onl?.statistikConfig?.mode,
       synopse_enabled:   syn?.enabled ?? false,
       synopse_mode:      syn?.statistikConfig?.mode,
+      titelseite_enabled: tit?.enabled ?? false,
     }
     api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
     setStatConfigItemId(null)
@@ -424,11 +413,15 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setter(prev => {
       const next = prev.map(it => it.id === id ? { ...it, enabled: !it.enabled } : it)
       const changed = next.find(it => it.id === id)
-      if (changed?.type === 'statistik' || changed?.type === 'onliner' || changed?.type === 'synopse') {
+      const shouldSavePreset =
+        changed?.type === 'statistik' || changed?.type === 'onliner' || changed?.type === 'synopse' ||
+        changed?.vorlageId != null
+      if (shouldSavePreset) {
         const allItems = zone === 'pre' ? [...next, ...postItems] : [...preItems, ...next]
         const stat = allItems.find(it => it.type === 'statistik')
         const onl  = allItems.find(it => it.type === 'onliner')
         const syn  = allItems.find(it => it.type === 'synopse')
+        const tit  = allItems.find(it => it.vorlageId != null)
         const preset: ExportPreset = {
           statistik_enabled: stat?.enabled ?? false,
           statistik_mode:    stat?.statistikConfig?.mode,
@@ -436,6 +429,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           onliner_mode:      onl?.statistikConfig?.mode,
           synopse_enabled:   syn?.enabled ?? false,
           synopse_mode:      syn?.statistikConfig?.mode,
+          titelseite_enabled: tit?.enabled ?? false,
         }
         api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
       }
@@ -761,40 +755,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
               {/* ── Linke Spalte: Dokumentstruktur ── */}
               <div>
                 <span style={SEC}>Dokumentstruktur</span>
-
-                {/* Titelseite-Vorlage hinzufügen */}
-                {titelseiteVorlagen.length > 0 && (
-                  <div style={{ marginBottom: 6 }}>
-                    {titelseiteVorlagen.map(v => {
-                      const already = preItems.some(i => i.vorlageId === v.id)
-                      return (
-                        <button
-                          key={v.id}
-                          disabled={already}
-                          onClick={() => {
-                            if (already) return
-                            setPreItems(prev => [
-                              { id: genId(), type: 'notiz', vorlageId: v.id, label: v.name, enabled: true },
-                              ...prev,
-                            ])
-                          }}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 5,
-                            width: '100%', padding: '5px 8px', borderRadius: 6, fontSize: 11,
-                            border: '1px dashed var(--border)',
-                            background: already ? 'var(--bg-subtle)' : 'transparent',
-                            color: already ? 'var(--text-muted)' : 'var(--text-primary)',
-                            cursor: already ? 'default' : 'pointer', fontFamily: 'inherit',
-                            opacity: already ? 0.5 : 1,
-                          }}
-                        >
-                          <FileText size={11} style={{ flexShrink: 0, color: already ? 'var(--text-muted)' : '#007AFF' }} />
-                          {already ? `${v.name} (bereits eingefügt)` : `+ ${v.name} (Titelseite) einfügen`}
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
 
               {/* VOR SZENEN Zone */}
                 <div
