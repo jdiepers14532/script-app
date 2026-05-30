@@ -386,6 +386,7 @@ async function runMigrations() {
     'v138_freigabe_context.sql',
     'v139_tageszeit_stimmungen.sql',
     'v140_werkstufen_snapshots.sql',
+    'v141_synopsis_300.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

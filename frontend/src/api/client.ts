@@ -177,6 +177,13 @@ export const api = {
   kiEntityDetect: (data: any) => request<any>('POST', '/ki/entity-detect', data),
   kiStyleCheck: (data: any) => request<any>('POST', '/ki/style-check', data),
   kiSynopsis: (data: any) => request<any>('POST', '/ki/synopsis', data),
+  kiSynopsenCheck: (folge_id: number) => request<any>('GET', `/ki/synopsen/check?folge_id=${folge_id}`),
+  kiSynopsenTitel: (folge_id: number) => request<any>('POST', '/ki/synopsen/titel', { folge_id }),
+  kiSynopsenKurz: (folge_id: number) => request<any>('POST', '/ki/synopsen/kurz', { folge_id }),
+  kiSynopsenLang: (folge_id: number) => request<any>('POST', '/ki/synopsen/lang', { folge_id }),
+  getFolgenSynopsen: (folge_id: number | string) => request<any>('GET', `/v2/folgen/${folge_id}/synopsen`),
+  saveFolgenSynopsen: (folge_id: number | string, data: { folgen_titel?: string | null; synopsis?: string | null; synopsis_300?: string | null }) =>
+    request<any>('PUT', `/v2/folgen/${folge_id}`, data),
 
   // User settings
   getSettings: () => request<any>('GET', '/me/settings'),
@@ -948,8 +955,10 @@ export const api = {
     request<{ ok: boolean; issues: number; results: any[] }>('POST', `/checks/szene/${szeneId}/auto`),
   runChecksManual: (szeneId: string) =>
     request<{ ok: boolean; issues: number; results: any[] }>('POST', `/checks/szene/${szeneId}/manual`),
-  runChecksBatch: (werkstufId: string) =>
-    request<{ ok: boolean; scenes_checked: number; total_issues: number }>('POST', `/checks/werkstufe/${werkstufId}/batch`),
+  runChecksBatch: (werkstufId: string, opts?: { checks_override?: string[] }) =>
+    request<{ ok: boolean; scenes_checked: number; total_issues: number }>('POST', `/checks/werkstufe/${werkstufId}/batch`, opts ?? {}),
+  getCheckConfig: (produktionId: string) =>
+    request<Record<string, { enabled: boolean; auto: boolean }>>('GET', `/checks/config/${encodeURIComponent(produktionId)}`),
   getCheckResults: (szeneId: string) =>
     request<any[]>('GET', `/checks/szene/${szeneId}`),
   getCheckBadges: (werkstufId: string) =>

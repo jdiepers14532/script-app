@@ -7189,6 +7189,10 @@ const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean
     label: 'Stoppzeit-Plausibilität', auto: false, ki: false, defaultEnabled: false,
     tooltip: 'Vergleicht die eingetragene Stoppzeit mit der geschätzten Spielzeit aus der Textlänge.\n\nFaustregel: 1 Seite ≈ 1 Minute ≈ ~1.800 Zeichen. Warnung bei mehr als Faktor 4 Abweichung.\n\nNur für Drehbuch-Format. Standardmäßig deaktiviert, da die Schätzung ungenau ist.',
   },
+  spieltag_inkonsistent: {
+    label: 'Dramaturgischer Tag (Spieltag)', auto: false, ki: false, defaultEnabled: true,
+    tooltip: 'Prüft ob die Spieltag-Nummern (SP1, SP2, …) über alle Folgen hinweg korrekt sind.\n\nEin Tageswechsel tritt auf wenn die letzte Stimmung des Tages (Standard: NACHT) auf eine frühere Stimmung folgt.\n\nDie Stimmungs-Reihenfolge ist in DK-Einstellungen → Allgemein konfigurierbar.\n\nDieser Check läuft immer folgenübergreifend — nicht je Szene.',
+  },
   oneliner_qualitaet: {
     label: 'Oneliner-Qualität', auto: false, ki: true, defaultEnabled: false,
     tooltip: 'Prüft ob der Oneliner den emotionalen Kern oder Wendepunkt der Szene wiedergibt.\n\n✨ KI-Feature: Nutzt Mistral AI zur Analyse — verursacht API-Kosten. Wird deshalb nur manuell ausgeführt, nie beim Autosave.\n\nEmpfohlen nur wenn alle Szenen konsequent mit Onelinern gepflegt werden.',

@@ -255,12 +255,26 @@ folgenV2Router.post('/', async (req, res) => {
   }
 })
 
+// GET /api/v2/folgen/:id/synopsen — Synopsen-Daten für Folge
+folgenV2Router.get('/:id/synopsen', async (req, res) => {
+  try {
+    const row = await queryOne(
+      `SELECT folgen_titel, synopsis, synopsis_300 FROM folgen WHERE id = $1`,
+      [req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // PUT /api/v2/folgen/:id — update Folge / freies Dokument
-// Normale Folge: folgen_titel, synopsis
+// Normale Folge: folgen_titel, synopsis, synopsis_300
 // Freies Dokument: + dokument_label, sichtbarkeit_frei
 // ══════════════════════════════════════════════════════════════════════════════
 folgenV2Router.put('/:id', async (req, res) => {
-  const { folgen_titel, synopsis, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
+  const { folgen_titel, synopsis, synopsis_300, dokument_label, sichtbarkeit_frei, colab_gruppe_id } = req.body
   const user = req.user!
   try {
     const existing = await queryOne('SELECT * FROM folgen WHERE id = $1', [req.params.id])
@@ -286,6 +300,7 @@ folgenV2Router.put('/:id', async (req, res) => {
       `UPDATE folgen SET
         folgen_titel     = COALESCE($1, folgen_titel),
         synopsis         = COALESCE($2, synopsis),
+        synopsis_300     = COALESCE($6, synopsis_300),
         dokument_label   = COALESCE($3, dokument_label),
         sichtbarkeit_frei = COALESCE($4, sichtbarkeit_frei),
         sichtbarkeit_frei_geaendert_am = CASE WHEN $4 IS NOT NULL THEN NOW() ELSE sichtbarkeit_frei_geaendert_am END,
@@ -294,9 +309,9 @@ folgenV2Router.put('/:id', async (req, res) => {
           WHEN $4 IS NOT NULL THEN NULL
           ELSE sichtbarkeit_frei_colab_gruppe_id
         END
-       WHERE id = $6 RETURNING *`,
+       WHERE id = $7 RETURNING *`,
       [folgen_titel ?? null, synopsis ?? null, dokument_label ?? null, sichtbarkeit_frei ?? null,
-       colab_gruppe_id ?? null, req.params.id]
+       colab_gruppe_id ?? null, synopsis_300 ?? null, req.params.id]
     )
     res.json(row)
   } catch (err) {

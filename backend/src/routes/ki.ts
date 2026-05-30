@@ -420,6 +420,176 @@ router.post('/synopsis', async (req, res) => {
   }
 })
 
+// ── Synopsen-Generierung (Titel / Kurz / Lang) ────────────────────────────────
+
+/** Gemeinsame Hilfsfunktion: Szenen einer Folge laden */
+async function loadSzenenFuerFolge(folge_id: number | string) {
+  const { extractText } = await import('../utils/tiptapText')
+  const werkstufe = await queryOne(
+    `SELECT w.id, w.typ, w.version_nummer, f.folge_nummer, f.produktion_id
+     FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+     WHERE w.folge_id = $1
+     ORDER BY CASE WHEN w.typ='drehbuch' THEN 3 WHEN w.typ='storyline' THEN 2 WHEN w.typ='treatment' THEN 1 ELSE 0 END DESC,
+              w.version_nummer DESC LIMIT 1`,
+    [folge_id]
+  )
+  if (!werkstufe) return null
+  const szenen = await query(
+    `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit, ds.zusammenfassung, ds.content
+     FROM dokument_szenen ds
+     WHERE ds.werkstufe_id = $1 AND ds.element_type = 'scene' AND ds.geloescht = false
+     ORDER BY ds.sort_order, ds.scene_nummer NULLS LAST`,
+    [werkstufe.id]
+  )
+  const szenenListe = szenen.map((s: any) => {
+    const header = [s.scene_nummer ? `Sz. ${s.scene_nummer}` : '', s.ort_name, s.int_ext, s.tageszeit].filter(Boolean).join(' · ')
+    const text = s.zusammenfassung || extractText(s.content)?.substring(0, 200) || ''
+    return `${header}\n${text}`
+  }).join('\n\n')
+  return { werkstufe, szenen, szenenListe: szenenListe.substring(0, 8000) }
+}
+
+// GET /api/ki/synopsen/check?folge_id=X — prüft ob Titel/Synopsen schon vorhanden
+router.get('/synopsen/check', async (req, res) => {
+  try {
+    const { folge_id } = req.query
+    if (!folge_id) return res.status(400).json({ error: 'folge_id fehlt' })
+    const row = await queryOne(
+      `SELECT folgen_titel, synopsis, synopsis_300 FROM folgen WHERE id = $1`,
+      [folge_id]
+    )
+    if (!row) return res.status(404).json({ error: 'Folge nicht gefunden' })
+    const hasData = !!(row.folgen_titel || row.synopsis || row.synopsis_300)
+    res.json({ hasData, folgen_titel: row.folgen_titel, synopsis: row.synopsis, synopsis_300: row.synopsis_300 })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/ki/synopsen/titel — 5 Titel-Vorschläge
+router.post('/synopsen/titel', async (req, res) => {
+  try {
+    const { folge_id } = req.body
+    if (!folge_id) return res.status(400).json({ error: 'folge_id erforderlich' })
+    const setting = await getKiSetting('synopsis_titel')
+    if (!setting?.enabled) return res.json({ titel: [], disabled: true, message: 'KI-Funktion nicht aktiviert' })
+    const data = await loadSzenenFuerFolge(folge_id)
+    if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
+
+    // Bereits vergebene Titel in dieser Produktion laden
+    const vorhandene = await query(
+      `SELECT folgen_titel FROM folgen WHERE produktion_id = $1 AND id != $2 AND folgen_titel IS NOT NULL AND folgen_titel != ''`,
+      [data.werkstufe.produktion_id, folge_id]
+    )
+    const vorhandeneListe = vorhandene.map((r: any) => r.folgen_titel).join('\n')
+
+    const prompt = `Du bist Redakteur einer deutschen TV-Soap (ARD Soap).
+Schlage genau 5 verschiedene Episodentitel für Folge ${data.werkstufe.folge_nummer} vor.
+
+REGELN:
+- Genau 5 Titel, einer pro Zeile, keine Nummerierung
+- Keinerlei Erklärungen, Kommentare oder Formatierungszeichen
+- Jeder Titel: 2-5 Wörter, prägnant, kein Spoiler
+- Stil einer deutschen TV-Soap${vorhandeneListe ? `\n\nBEREITS VERWENDETE TITEL (nicht wiederholen):\n${vorhandeneListe.substring(0, 2000)}` : ''}
+
+SZENEN-ZUSAMMENFASSUNGEN:
+${data.szenenListe}`
+
+    const raw = await callProvider(setting, [
+      { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte ausschließlich mit den 5 Titeln, einen pro Zeile.' },
+      { role: 'user', content: prompt },
+    ])
+    await recordUsage(setting.provider, setting.model_name || '', Math.ceil(prompt.length / 4), Math.ceil(raw.length / 4))
+
+    const titel = raw.split('\n')
+      .map((t: string) => t.replace(/^[\d\.\-\*\s]+/, '').replace(/[*#]/g, '').trim())
+      .filter((t: string) => t.length > 0)
+      .slice(0, 5)
+
+    res.json({ titel, folge_id, folge_nummer: data.werkstufe.folge_nummer })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/ki/synopsen/kurz — Synopsis 300 (Zuschauende)
+router.post('/synopsen/kurz', async (req, res) => {
+  try {
+    const { folge_id } = req.body
+    if (!folge_id) return res.status(400).json({ error: 'folge_id erforderlich' })
+    const setting = await getKiSetting('synopsis_kurz')
+    if (!setting?.enabled) return res.json({ text: null, disabled: true, message: 'KI-Funktion nicht aktiviert' })
+    const data = await loadSzenenFuerFolge(folge_id)
+    if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
+
+    const prompt = `Du bist Redakteur einer deutschen TV-Soap (ARD Soap).
+Schreibe eine kurze Episodensynopse für das Fernsehprogramm (Folge ${data.werkstufe.folge_nummer}).
+Zielgruppe: Zuschauende.
+
+REGELN:
+- Maximal 300 Wörter, Präsens
+- KEINE Überschrift, kein Titel, kein Vorspann
+- KEINERLEI Formatierungszeichen: kein *, kein **, kein #, keine Sternchen
+- Fließtext, spannend und neugierig machend
+- Kein Spoiler zur Cliffhanger-Auflösung
+
+SZENEN-ZUSAMMENFASSUNGEN:
+${data.szenenListe}`
+
+    const raw = await callProvider(setting, [
+      { role: 'system', content: 'Du bist Redakteur einer deutschen TV-Soap. Antworte nur mit der Synopsis, ohne Kommentare oder Formatierung.' },
+      { role: 'user', content: prompt },
+    ])
+    await recordUsage(setting.provider, setting.model_name || '', Math.ceil(prompt.length / 4), Math.ceil(raw.length / 4))
+
+    // KI-Formatierungsartefakte entfernen
+    const text = raw.replace(/\*{1,3}/g, '').replace(/^#{1,6}\s*/gm, '').replace(/^>\s*/gm, '').replace(/^-{3,}$/gm, '').trim()
+    res.json({ text, folge_id, szenen_count: data.szenen.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/ki/synopsen/lang — Dramaturgische Synopsis (Autoren/Produktion)
+router.post('/synopsen/lang', async (req, res) => {
+  try {
+    const { folge_id } = req.body
+    if (!folge_id) return res.status(400).json({ error: 'folge_id erforderlich' })
+    const setting = await getKiSetting('synopsis_lang')
+    if (!setting?.enabled) return res.json({ text: null, disabled: true, message: 'KI-Funktion nicht aktiviert' })
+    const data = await loadSzenenFuerFolge(folge_id)
+    if (!data) return res.status(404).json({ error: 'Keine Werkstufe gefunden' })
+
+    const prompt = `Du bist Dramaturg einer deutschen TV-Soap (ARD Soap).
+Schreibe eine ausführliche dramaturgische Episodensynopse für die interne Redaktion (Folge ${data.werkstufe.folge_nummer}).
+Zielgruppe: Autoren, Redaktion und Produktionsleitung.
+
+REGELN:
+- 400-600 Wörter, Präsens
+- KEINE Überschrift, kein Titel, kein Vorspann
+- KEINERLEI Formatierungszeichen: kein *, kein **, kein #, keine Sternchen, kein Markdown
+- Rollennamen ausschließlich in GROSSBUCHSTABEN (z.B. LOU, DANIEL, BRITTA)
+- Ein Absatz pro Handlungsstrang
+- Strukturmarker am Absatzanfang: CLIFF für Cliffhanger-Strang, PEN für Pending-Strang
+- Kann Spoiler enthalten
+- Dramaturgisch aufgebaut
+
+SZENEN-ZUSAMMENFASSUNGEN:
+${data.szenenListe}`
+
+    const raw = await callProvider(setting, [
+      { role: 'system', content: 'Du bist Dramaturg einer deutschen TV-Soap. Antworte nur mit der Synopsis. Rollennamen IMMER in GROSSBUCHSTABEN. Keine Formatierung außer Absätze.' },
+      { role: 'user', content: prompt },
+    ])
+    await recordUsage(setting.provider, setting.model_name || '', Math.ceil(prompt.length / 4), Math.ceil(raw.length / 4))
+
+    const text = raw.replace(/\*{1,3}/g, '').replace(/^#{1,6}\s*/gm, '').replace(/^>\s*/gm, '').replace(/^-{3,}$/gm, '').trim()
+    res.json({ text, folge_id, szenen_count: data.szenen.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // POST /api/ki/query-expand
 // Analysiert eine natürlichsprachliche Suchanfrage via LLM und extrahiert
 // Charakternamen (mit DB-Lookup auf character_productions) und Schlüsselwörter.

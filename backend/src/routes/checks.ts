@@ -51,7 +51,7 @@ async function getCheckConfig(produktionId: string) {
 
 // ── Core check runner ─────────────────────────────────────────────────────────
 
-async function runChecks(szeneId: string, onlyAuto: boolean): Promise<CheckResult[]> {
+async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: string[] | null): Promise<CheckResult[]> {
   const results: CheckResult[] = []
 
   // Load scene + production info
@@ -76,8 +76,11 @@ async function runChecks(szeneId: string, onlyAuto: boolean): Promise<CheckResul
   const cfg = await getCheckConfig(s.produktion_id)
 
   // Helper: should this check run?
-  const run = (key: string) =>
-    cfg[key]?.enabled && (!onlyAuto || cfg[key]?.auto)
+  // If checksOverride provided → only run listed checks (ignores DK-Settings enabled/auto)
+  const run = (key: string) => {
+    if (checksOverride) return checksOverride.includes(key)
+    return cfg[key]?.enabled && (!onlyAuto || cfg[key]?.auto)
+  }
 
   // ── 1. Motiv leer ────────────────────────────────────────────────────────
   if (run('motiv_leer')) {
@@ -301,23 +304,51 @@ router.post('/szene/:id/manual', async (req, res) => {
   }
 })
 
-// POST /api/checks/werkstufe/:id/batch — run auto-checks for all scenes in a werkstufe
+// POST /api/checks/werkstufe/:id/batch — run checks for all scenes in a werkstufe
+// Body: { checks_override?: string[] } — if provided, only run those check types
 router.post('/werkstufe/:id/batch', async (req, res) => {
   try {
     const werkstufId = req.params.id
+    const checksOverride: string[] | null = Array.isArray(req.body?.checks_override) ? req.body.checks_override : null
     const szenenRes = await pool.query<any>(
       `SELECT id FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE`,
       [werkstufId]
     )
     let total = 0
     for (const row of szenenRes.rows) {
-      const results = await runChecks(row.id, false)
+      const results = await runChecks(row.id, false, checksOverride)
       await persistResults(row.id, werkstufId, results)
       total += results.length
+    }
+    // If spieltag_inkonsistent in checks_override (or no override), run cross-Folgen spieltag check too
+    const runSpieltagCross = !checksOverride || checksOverride.includes('spieltag_inkonsistent')
+    if (runSpieltagCross) {
+      // Get produktion_id from werkstufe
+      const prodRes = await pool.query<any>(
+        `SELECT si.produktion_id FROM dokument_szenen ds
+         JOIN scene_identities si ON si.id = ds.scene_identity_id
+         WHERE ds.werkstufe_id = $1 LIMIT 1`,
+        [werkstufId]
+      )
+      if (prodRes.rows[0]) {
+        try {
+          await runSpieltagCheck(prodRes.rows[0].produktion_id)
+        } catch { /* non-fatal */ }
+      }
     }
     res.json({ ok: true, scenes_checked: szenenRes.rows.length, total_issues: total })
   } catch (err) {
     console.error('checks batch error:', err)
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/checks/config/:produktionId — merged check config for a production
+router.get('/config/:produktionId', async (req, res) => {
+  try {
+    const cfg = await getCheckConfig(req.params.produktionId)
+    res.json(cfg)
+  } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
