@@ -109,8 +109,8 @@ export default function StrangVerwaltungModal({ produktionId, open, onClose, all
     <div className="strang-panel">
       {/* Header */}
       <div className="strang-panel-head">
-        <span style={{ fontWeight: 700, fontSize: 14 }}>Str\u00e4nge verwalten</span>
-        <button className="iconbtn" onClick={onClose} title="Schlie\u00dfen"><X size={14} /></button>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>Stränge verwalten</span>
+        <button className="iconbtn" onClick={onClose} title="Schließen"><X size={14} /></button>
       </div>
 
       {/* Content */}
@@ -142,7 +142,7 @@ export default function StrangVerwaltungModal({ produktionId, open, onClose, all
                 {items.length > 0 && ` (${items.length})`}
               </div>
               {items.length === 0 && (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 4px' }}>Noch keine Str\u00e4nge angelegt.</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 4px' }}>Noch keine Stränge angelegt.</div>
               )}
               <div style={{ display: 'grid', gap: 8 }}>
                 {items.map(s => (
@@ -227,7 +227,7 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
         <div
           style={{ width: 16, height: 16, borderRadius: '50%', background: strang.farbe, cursor: 'pointer', flexShrink: 0, border: '2px solid var(--border)' }}
           onClick={onToggleFarbPicker}
-          title="Farbe \u00e4ndern"
+          title="Farbe ändern"
         />
         {isEditing ? (
           <input
@@ -376,7 +376,7 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
               {showImport && (
                 <div style={{ marginTop: 6, padding: 12, background: 'var(--bg-subtle)', borderRadius: 8, border: '1px solid var(--border)' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
-                    Jede Zeile = ein Beat. Aufz\u00e4hlungszeichen (-, *, \u2022) werden entfernt.
+                    Jede Zeile = ein Beat. Aufzählungszeichen (-, *, •) werden entfernt.
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                     <input
