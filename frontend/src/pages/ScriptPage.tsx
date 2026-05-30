@@ -382,9 +382,22 @@ function TweaksSync({
   const { tweaks } = useTweaks()
   tweaksRef.current = tweaks
 
-  // Toggle-Wert in localStorage cachen → tweaksRef kann beim nächsten Mount synchron korrekt initialisiert werden
+  // Toggle-Wert in localStorage cachen — aber NUR wenn wir wissen, dass AppShell geladen hat.
+  // Problem: DEFAULT_TWEAKS hat letzteSzeneProEpisodeMerken=false. Wenn wir auf dem ersten
+  // Render sofort 'false' schreiben, wird der korrekte gespeicherte Wert ('true') zerstört,
+  // bevor loadWerkstufen ihn lesen kann.
+  // Lösung: nur 'true' schreiben (AppShell hat geladen oder User hat aktiviert);
+  //         'false' nur schreiben wenn wir vorher 'true' gesehen haben (= echte Deaktivierung).
+  const _toggleCacheLoadedRef = useRef(false)
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY_LETZTE_SZENE_TOGGLE, String(tweaks.letzteSzeneProEpisodeMerken)) } catch {}
+    if (tweaks.letzteSzeneProEpisodeMerken) {
+      _toggleCacheLoadedRef.current = true
+      try { localStorage.setItem(LS_KEY_LETZTE_SZENE_TOGGLE, 'true') } catch {}
+    } else if (_toggleCacheLoadedRef.current) {
+      // Vorher true gesehen → jetzt false = User hat Feature deaktiviert → localStorage leeren
+      try { localStorage.setItem(LS_KEY_LETZTE_SZENE_TOGGLE, 'false') } catch {}
+    }
+    // Falls immer false (Feature war nie aktiv auf diesem Gerät): nichts schreiben
   }, [tweaks.letzteSzeneProEpisodeMerken])
 
   useEffect(() => {
@@ -597,14 +610,9 @@ export default function ScriptPage() {
     } catch { return {} }
   })())
   // Stabile Tweaks-Ref für async-Closures (loadWerkstufen) — wird von TweaksSync befüllt.
-  // letzteSzeneProEpisodeMerken wird synchron aus localStorage gelesen, damit loadWerkstufen
-  // nicht auf AppShell's async getSettings() warten muss (DEFAULT_TWEAKS hätte false).
-  const tweaksRef = useRef<TweakState>({
-    ...DEFAULT_TWEAKS,
-    letzteSzeneProEpisodeMerken: (() => {
-      try { return localStorage.getItem(LS_KEY_LETZTE_SZENE_TOGGLE) === 'true' } catch { return false }
-    })(),
-  })
+  // HINWEIS: wird sofort von TweaksSync.render() mit tweaks (zunächst DEFAULT_TWEAKS) überschrieben.
+  // loadWerkstufen liest letzteSzeneProEpisodeMerken daher direkt aus localStorage (LS_KEY_LETZTE_SZENE_TOGGLE).
+  const tweaksRef = useRef<TweakState>(DEFAULT_TWEAKS)
   // Debounce-Timer für Speichern der letzten Szene
   const saveLastSeenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -945,8 +953,14 @@ export default function ScriptPage() {
           } else {
             // Priorität 2: letzte gesehene Szene (wenn Toggle aktiv)
             const currentTweaks = tweaksRef.current
+            // letzteSzeneProEpisodeMerken aus localStorage lesen — tweaksRef.current hat beim ersten
+            // Aufruf noch DEFAULT_TWEAKS (false), weil TweaksSync ihn sofort überschreibt und
+            // AppShell seine Settings async lädt. localStorage ist synchron und zuverlässig.
+            const letzteSzeneAktiv = (() => {
+              try { return localStorage.getItem(LS_KEY_LETZTE_SZENE_TOGGLE) === 'true' } catch { return false }
+            })() || currentTweaks.letzteSzeneProEpisodeMerken
             let resolvedFromLastSeen = false
-            if (currentTweaks.letzteSzeneProEpisodeMerken && folge.id != null) {
+            if (letzteSzeneAktiv && folge.id != null) {
               const lastId = lastSeenMapRef.current[String(folge.id)]
               const lastMatch = lastId ? werkSzenen.find((s: any) => String(s.id) === String(lastId)) : null
               if (lastMatch) { targetId = lastMatch.id; resolvedFromLastSeen = true; navRestored.current = true }
@@ -954,7 +968,7 @@ export default function ScriptPage() {
             if (!resolvedFromLastSeen) {
               // Priorität 3: erste echte Szene (wenn Toggle aktiv), sonst erstes Element
               // navRestored bleibt false — Fallback, nicht vom User ausgewählt; wird erst durch Klick/Tastatur gesetzt
-              if (currentTweaks.episodenWechselErsteSzene || currentTweaks.letzteSzeneProEpisodeMerken) {
+              if (currentTweaks.episodenWechselErsteSzene || letzteSzeneAktiv) {
                 const firstReal = werkSzenen.find((s: any) => s.format !== 'notiz' && s.scene_nummer != null && s.scene_nummer !== 0)
                 targetId = (firstReal ?? werkSzenen[0]).id
               } else {
