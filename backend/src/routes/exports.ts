@@ -290,25 +290,6 @@ router.get('/export/pdf-preview', async (req, res) => {
   }
 })
 
-// ── GET /api/export/wm-status ────────────────────────────────────────────────
-// Liefert für alle eingeloggten User ob das versteckte / sichtbare Admin-WZ aktiv ist.
-// Kein Admin-Zugang nötig — User soll wissen ob sein Export getrackt/gestempelt wird.
-
-router.get('/export/wm-status', async (_req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT key, value FROM export_admin_settings WHERE key IN ($1, $2)', ['wm_sichtbar_aktiv', 'wm_sichtbar_text'])
-    const m: Record<string, string> = {}
-    for (const r of rows) m[r.key] = r.value
-    res.json({
-      versteckt_aktiv: true,                              // ZWC-Wasserzeichen immer aktiv
-      sichtbar_aktiv:  m['wm_sichtbar_aktiv'] === 'true', // Admin-Diagonal-WZ
-      sichtbar_text:   m['wm_sichtbar_text']  ?? null,
-    })
-  } catch {
-    res.json({ versteckt_aktiv: true, sichtbar_aktiv: false, sichtbar_text: null })
-  }
-})
-
 // ── GET /api/export/filter-options ───────────────────────────────────────────
 // Liefert verfügbare Rollen und Motive einer Werkstufe für die Export-Filter-UI.
 

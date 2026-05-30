@@ -46,48 +46,6 @@ router.post('/decode',
   }
 )
 
-// GET /api/admin/watermark/export-settings — Sichtbares Wasserzeichen + Export-Admin-Einstellungen
-router.get('/export-settings',
-  authMiddleware,
-  requireRole('superadmin', 'herstellungsleitung'),
-  async (req, res) => {
-    try {
-      const rows = await query('SELECT key, value FROM export_admin_settings ORDER BY key')
-      const settings: Record<string, string> = {}
-      for (const row of rows) settings[row.key] = row.value
-      res.json(settings)
-    } catch (err) {
-      res.status(500).json({ error: String(err) })
-    }
-  }
-)
-
-// PUT /api/admin/watermark/export-settings — Einstellungen schreiben
-router.put('/export-settings',
-  authMiddleware,
-  requireRole('superadmin', 'herstellungsleitung'),
-  async (req, res) => {
-    try {
-      const allowed = ['wm_sichtbar_aktiv', 'wm_sichtbar_text', 'wm_sichtbar_opazitaet']
-      const updates = Object.entries(req.body as Record<string, string>)
-        .filter(([k]) => allowed.includes(k))
-      if (!updates.length) return res.status(400).json({ error: 'Keine gültigen Felder' })
-      for (const [k, v] of updates) {
-        await query(
-          'INSERT INTO export_admin_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value',
-          [k, String(v)]
-        )
-      }
-      const rows = await query('SELECT key, value FROM export_admin_settings ORDER BY key')
-      const settings: Record<string, string> = {}
-      for (const row of rows) settings[row.key] = row.value
-      res.json(settings)
-    } catch (err) {
-      res.status(500).json({ error: String(err) })
-    }
-  }
-)
-
 // GET /api/admin/watermark/logs — Export-Log listing
 router.get('/logs',
   authMiddleware,

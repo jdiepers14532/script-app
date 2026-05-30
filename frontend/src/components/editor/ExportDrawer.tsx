@@ -99,8 +99,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [wzKleinAktiv, setWzKleinAktiv]           = useState(false)
   const [wzGrossAktiv, setWzGrossAktiv]           = useState(false)
   const [wzGrossFarbe, setWzGrossFarbe]           = useState('#CCCCCC')
-  // Admin-WZ Status (nur Anzeige, nicht änderbar)
-  const [adminWmStatus, setAdminWmStatus]         = useState<{ versteckt_aktiv: boolean; sichtbar_aktiv: boolean; sichtbar_text: string | null } | null>(null)
 
   // Szenen-Filter
   const [szenenAuswahl, setSzenenAuswahl]         = useState('')
@@ -235,11 +233,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     api.getExportTitelseiteVorlagen(produktionId)
       .then(rows => setTitelseiteVorlagen(rows))
       .catch(() => setTitelseiteVorlagen([]))
-
-    // Admin-WZ Status laden (einmalig beim Öffnen)
-    api.getExportWmStatus()
-      .then(s => setAdminWmStatus(s))
-      .catch(() => setAdminWmStatus({ versteckt_aktiv: true, sichtbar_aktiv: false, sichtbar_text: null }))
 
     // Filter-Optionen laden
     setFilterOptions(null)
@@ -903,12 +896,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default', fontSize: 12, color: 'var(--text-muted)', userSelect: 'none', opacity: 0.6 }}>
                           <input type="checkbox" checked={true} readOnly disabled style={{ width: 13, height: 13 }} />
                           Verstecktes Wasserzeichen (ZWC)
-                        </label>
-                      </Tooltip>
-                      <Tooltip text={adminWmStatus?.sichtbar_aktiv ? `Admin-Wasserzeichen aktiv: "${adminWmStatus.sichtbar_text || 'VERTRAULICH'}"` : 'Admin-Wasserzeichen inaktiv'}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default', fontSize: 12, color: 'var(--text-muted)', userSelect: 'none', marginTop: 4, opacity: 0.6 }}>
-                          <input type="checkbox" checked={adminWmStatus?.sichtbar_aktiv ?? false} readOnly disabled style={{ width: 13, height: 13 }} />
-                          Sichtbares Admin-Wasserzeichen (diagonal)
                         </label>
                       </Tooltip>
                     </div>

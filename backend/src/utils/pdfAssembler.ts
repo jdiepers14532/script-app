@@ -25,38 +25,6 @@ import {
 import { encodeWatermark, buildPayload } from './watermark'
 import { renderStatistikHtml, renderOnlinerHtml, StatistikFormatConfig, OnlinerFormatConfig, StatistikExportConfig } from './statistikHtmlRenderer'
 
-// ── Admin Wasserzeichen-Einstellungen ─────────────────────────────────────────
-
-interface WatermarkSettings {
-  aktiv: boolean
-  text: string
-  opazitaet: number  // 1–30 (%)
-}
-
-let _wmSettingsCache: WatermarkSettings | null = null
-let _wmSettingsCacheAt = 0
-const WM_CACHE_TTL_MS = 60_000  // 1 Min — Admin ändert selten
-
-async function loadWatermarkSettings(): Promise<WatermarkSettings> {
-  const now = Date.now()
-  if (_wmSettingsCache && now - _wmSettingsCacheAt < WM_CACHE_TTL_MS) return _wmSettingsCache
-
-  try {
-    const res = await pool.query('SELECT key, value FROM export_admin_settings ORDER BY key')
-    const m: Record<string, string> = {}
-    for (const r of res.rows) m[r.key] = r.value
-    _wmSettingsCache = {
-      aktiv: m['wm_sichtbar_aktiv'] === 'true',
-      text: m['wm_sichtbar_text'] ?? 'VERTRAULICH',
-      opazitaet: Math.min(30, Math.max(1, parseInt(m['wm_sichtbar_opazitaet'] ?? '8', 10) || 8)),
-    }
-    _wmSettingsCacheAt = now
-    return _wmSettingsCache
-  } catch {
-    return { aktiv: false, text: 'VERTRAULICH', opazitaet: 8 }
-  }
-}
-
 // ── Warm-Browser-Pool ─────────────────────────────────────────────────────────
 // Chromium-Instanz wird warm gehalten — spart ~1–3 Sek. Kaltstart pro Export-Job.
 
@@ -1758,9 +1726,6 @@ export async function assemblePdf(
   // ── 11. Puppeteer → PDF ───────────────────────────────────────────────────
   setProgress(55)
 
-  // Admin-Wasserzeichen-Einstellungen laden
-  const wmSettings = await loadWatermarkSettings()
-
   // Warm-Pool: bestehende Browser-Instanz wiederverwenden (kein Kaltstart)
   const browser = await getWarmBrowser()
   setProgress(60)
@@ -1779,14 +1744,6 @@ export async function assemblePdf(
 
   // Minimaler CSS-Reset für das Puppeteer-Template-Rendering
   const tplReset = '<style>*{margin:0;padding:0;box-sizing:border-box}p{line-height:1.3}</style>'
-
-  // Sichtbares Diagonal-Wasserzeichen (per-Seite overlay via headerTemplate)
-  // position:absolute + overflow:visible → überlagert den gesamten Seitenbereich ohne Platz zu belegen
-  const wmText = wmSettings.text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const wmOverlay = wmSettings.aktiv
-    ? `<div style="position:absolute;top:0;left:0;width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;opacity:${wmSettings.opazitaet / 100};pointer-events:none;overflow:hidden;z-index:9999">` +
-      `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">${wmText}</span></div>`
-    : ''
 
   // ── Offene Benutzer-Wasserzeichen ─────────────────────────────────────────
   // Text = persoenlicher_ausdruck; Groß = diagonal über die Seite; Klein = Kopfzeile zentriert
@@ -1817,9 +1774,9 @@ export async function assemblePdf(
     ? `<div style="position:absolute;top:2mm;left:0;width:100%;text-align:center;font-size:6.5pt;font-family:Arial,sans-serif;color:#777;pointer-events:none;z-index:9998;line-height:1">${userWzText}</div>`
     : ''
 
-  // headerTemplate: KZ (falls vorhanden) + Admin-WZ + User-WZ
-  const headerTemplate = (inlinedHeader.trim() || wmOverlay || wzUserGross || wzUserKlein)
-    ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wmOverlay}${wzUserGross}${wzUserKlein}${inlinedHeader.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(inlinedHeader)}</div>` : ''}</div>`
+  // headerTemplate: KZ (falls vorhanden) + User-WZ
+  const headerTemplate = (inlinedHeader.trim() || wzUserGross || wzUserKlein)
+    ? `${tplReset}<div style="position:relative;width:100%;height:${pageMarginTop}mm">${wzUserGross}${wzUserKlein}${inlinedHeader.trim() ? `<div style="display:flex;flex-direction:column;justify-content:flex-start;padding:${hmt}mm ${hmr}mm 0 ${hml}mm;font-size:9pt;font-family:'Courier New',monospace;color:#333">${toPuppeteerTpl(inlinedHeader)}</div>` : ''}</div>`
     : '<div style="font-size:0"></div>'
 
   const footerTemplate = inlinedFooter.trim()
@@ -1833,12 +1790,6 @@ export async function assemblePdf(
   // ── Titelseite-Split-Render ────────────────────────────────────────────────
   // ist_titelseite=true → separate Render (kein KZ/FZ, eigene Ränder, Wasserzeichen via position:fixed)
   if (titelseiteHtml && titelseiteMargins) {
-    // Sichtbares Wasserzeichen für Titelseite als position:fixed CSS-Div
-    const wmFixedDiv = wmSettings.aktiv
-      ? `<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;opacity:${wmSettings.opazitaet / 100};pointer-events:none;z-index:9999;overflow:hidden">` +
-        `<span style="font-size:80px;font-weight:900;color:#000;font-family:Arial,sans-serif;white-space:nowrap;transform:rotate(-45deg);display:block">${wmText}</span></div>`
-      : ''
-
     // Benutzer-Wasserzeichen auf Titelseite (position:fixed, da kein headerTemplate)
     const wzTitelGross = wzGrossOn
       ? `<div style="position:fixed;top:0;left:0;width:210mm;height:297mm;display:flex;align-items:center;justify-content:center;opacity:0.25;pointer-events:none;overflow:hidden;z-index:9998">` +
@@ -1848,7 +1799,7 @@ export async function assemblePdf(
       ? `<div style="position:fixed;top:3mm;left:0;width:100%;text-align:center;font-size:6.5pt;font-family:Arial,sans-serif;color:#777;pointer-events:none;z-index:9998;line-height:1">${userWzText}</div>`
       : ''
 
-    const titelseiteBodyHtml = wmFixedDiv + wzTitelGross + wzTitelKlein + titelseiteHtml
+    const titelseiteBodyHtml = wzTitelGross + wzTitelKlein + titelseiteHtml
 
     const titelseiteFullHtml = buildPdfHtml({
       title,
