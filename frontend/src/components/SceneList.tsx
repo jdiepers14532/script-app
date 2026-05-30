@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown, AlertTriangle, Wand2 } from 'lucide-react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown, AlertTriangle } from 'lucide-react'
 import CheckHinweisModal from './CheckHinweisModal'
-import BatchCheckModal from './BatchCheckModal'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api, clearCacheByPrefix } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
@@ -92,7 +91,6 @@ export default function SceneList({
   const [checkBadges, setCheckBadges] = useState<Record<string, { count: number; has_fehler: boolean }>>({})
   const [checkModal, setCheckModal] = useState<{ szeneId: string | number; checks: any[]; anchorRect: DOMRect } | null>(null)
   const checkHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [batchCheckOpen, setBatchCheckOpen] = useState(false)
 
   const loadCheckBadges = useCallback(() => {
     if (!werkstufId) { setCheckBadges({}); return }
@@ -635,18 +633,6 @@ export default function SceneList({
           <span title={`Gelockt von ${lock.user_name || lock.user_id}`} style={{ flexShrink: 0 }}>
             <Lock size={11} style={{ color: 'var(--sw-warning)', display: 'block' }} />
           </span>
-        )}
-        {!isNotizWerk && (
-          <Tooltip placement="bottom" text={werkstufId && produktionId ? 'Drehbuch-Checks ausführen' : 'Keine Werkstufe geöffnet'}>
-            <button
-              className="iconbtn"
-              onClick={() => { if (werkstufId && produktionId) setBatchCheckOpen(true) }}
-              disabled={!werkstufId || !produktionId}
-              style={{ flexShrink: 0, color: werkstufId && produktionId ? 'var(--sw-green, #00C853)' : 'var(--text-muted)' }}
-            >
-              <Wand2 size={13} />
-            </button>
-          </Tooltip>
         )}
         <Tooltip placement="bottom" text={isNotizWerk
           ? 'Neuer Abschnitt'
@@ -1346,17 +1332,7 @@ export default function SceneList({
         </div>,
         document.body
       )}
-      {/* Batch-Check Modal (Magic Wand) */}
-      {batchCheckOpen && werkstufId && produktionId && (
-        <BatchCheckModal
-          werkstufId={werkstufId}
-          produktionId={produktionId}
-          onClose={() => setBatchCheckOpen(false)}
-          onDone={loadCheckBadges}
-        />
-      )}
-
-      {/* Drehbuch-Check schwebendes Modal — createPortal, Position egal */}
+{/* Drehbuch-Check schwebendes Modal — createPortal, Position egal */}
       {checkModal && checkModal.checks.length > 0 && (
         <CheckHinweisModal
           checks={checkModal.checks}
