@@ -1225,7 +1225,7 @@ werkstufenRouter.post('/:id/snapshots/:snapId/restore', async (req, res) => {
 
     // 2. Szenen wiederherstellen (nur existierende, nicht gelöschte)
     const updated: { szeneId: string; content: any }[] = []
-    for (const item of restoredSzenen as { szene_id: string; content: any }[]) {
+    for (const item of (restoredSzenen as unknown as { szene_id: string; content: any }[])) {
       const row = await queryOne(
         `UPDATE dokument_szenen
             SET content = $1, updated_at = now(), updated_by = $2
