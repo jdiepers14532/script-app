@@ -12,12 +12,11 @@ import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
-import { Clock } from 'lucide-react'
+import { Clock, Zap, Download } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 import ExportDrawer from './ExportDrawer'
-import { Download } from 'lucide-react'
 
 interface Props {
   produktionId: string
@@ -68,6 +67,39 @@ export default function EditorPanel({
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── KI Synopse ────────────────────────────────────────────────────────────
+  const [kiSynopsisLoading, setKiSynopsisLoading] = useState(false)
+  const [kiSynopsisMsg, setKiSynopsisMsg] = useState<string | null>(null)
+
+  const handleKiSynopsis = useCallback(async () => {
+    if (!folgeId || kiSynopsisLoading) return
+    setKiSynopsisLoading(true)
+    setKiSynopsisMsg(null)
+    try {
+      const result = await api.post('/ki/synopsis', { folge_id: folgeId })
+      if (result.disabled) {
+        setKiSynopsisMsg('KI-Funktion "Episoden-Synopse" ist nicht aktiviert (Admin-Einstellungen).')
+        return
+      }
+      if (!result.synopsis) {
+        setKiSynopsisMsg('Keine Synopse generiert. Sind Szenen und Zusammenfassungen vorhanden?')
+        return
+      }
+      // Synopse als Tiptap-Dokument einfügen
+      const paragraphs = result.synopsis.split(/\n\n+/).map((para: string) => ({
+        type: 'paragraph',
+        content: para.trim() ? [{ type: 'text', text: para.trim() }] : undefined,
+      })).filter((p: any) => p.content)
+      const doc = { type: 'doc', content: paragraphs.length ? paragraphs : [{ type: 'paragraph' }] }
+      editorRef.current?.commands.setContent(doc, true)
+      setKiSynopsisMsg(`Synopse generiert (${result.szenen_count} Szenen · ${result.werkstufe_typ} V${result.version_nummer}).`)
+    } catch (err: any) {
+      setKiSynopsisMsg('Fehler: ' + (err?.message ?? String(err)))
+    } finally {
+      setKiSynopsisLoading(false)
+    }
+  }, [folgeId, kiSynopsisLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Export Drawer ─────────────────────────────────────────────────────────
   const [exportOpen, setExportOpen] = useState(false)
@@ -531,6 +563,24 @@ export default function EditorPanel({
         ) : undefined}
         rightSlot={(
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          {selectedWerk?.typ === 'notiz' && folgeId != null && (
+            <Tooltip text="KI Synopse generieren — ersetzt den aktuellen Inhalt" placement="bottom">
+              <button
+                onClick={handleKiSynopsis}
+                disabled={kiSynopsisLoading}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 24, height: 24, borderRadius: 5,
+                  border: '1px solid var(--border)',
+                  background: 'transparent',
+                  color: kiSynopsisLoading ? 'var(--text-muted)' : '#AF52DE',
+                  cursor: kiSynopsisLoading ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <Zap size={12} />
+              </button>
+            </Tooltip>
+          )}
           <Tooltip text="Exportieren (PDF, DOCX, Fountain, FDX)" placement="bottom">
             <button
               onClick={() => setExportOpen(v => !v)}
@@ -566,6 +616,21 @@ export default function EditorPanel({
           </div>
         )}
       />
+
+      {/* KI-Synopse-Status */}
+      {kiSynopsisMsg && (
+        <div style={{
+          padding: '6px 14px', fontSize: 11,
+          background: kiSynopsisMsg.startsWith('Fehler') || kiSynopsisMsg.includes('nicht aktiviert') || kiSynopsisMsg.includes('Keine') ? 'rgba(255,149,0,0.08)' : 'rgba(175,82,222,0.08)',
+          borderBottom: `1px solid ${kiSynopsisMsg.startsWith('Fehler') || kiSynopsisMsg.includes('nicht aktiviert') || kiSynopsisMsg.includes('Keine') ? 'rgba(255,149,0,0.3)' : 'rgba(175,82,222,0.3)'}`,
+          display: 'flex', alignItems: 'center', gap: 8,
+          color: kiSynopsisMsg.startsWith('Fehler') || kiSynopsisMsg.includes('nicht aktiviert') || kiSynopsisMsg.includes('Keine') ? '#FF9500' : '#AF52DE',
+        }}>
+          <Zap size={11} />
+          {kiSynopsisMsg}
+          <button onClick={() => setKiSynopsisMsg(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'inherit', padding: 0, opacity: 0.6 }}>✕</button>
+        </div>
+      )}
 
       {/* ── Szenario 3: Andere User aktiv auf derselben Werkstufe ── */}
       {otherActiveUsers.length > 0 && !collabEnabled && (
