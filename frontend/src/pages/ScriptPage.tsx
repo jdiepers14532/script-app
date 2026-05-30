@@ -355,8 +355,11 @@ function GotoSzeneDialog({ szenen, onNavigate, onClose }: {
   )
 }
 
-// localStorage-Key für die letzte Szene pro Episode (synchrone Initialisierung → kein Race mit loadWerkstufen)
+// localStorage-Keys (synchrone Initialisierung → kein Race mit loadWerkstufen / AppShell-getSettings)
 const LS_KEY_LAST_SCENE = 'script_letzte_szene_pro_episode'
+// Cached: ob das Toggle aktiv ist — damit tweaksRef synchron korrekt initialisiert wird,
+// bevor AppShell seine async-Einstellungen geladen hat.
+const LS_KEY_LETZTE_SZENE_TOGGLE = 'script_letzte_szene_toggle'
 
 // ── TweaksSync — reads useTweaks() inside AppShell context ───────────────────
 // useTweaks() darf NICHT in ScriptPage selbst aufgerufen werden (ScriptPage
@@ -378,6 +381,11 @@ function TweaksSync({
 }) {
   const { tweaks } = useTweaks()
   tweaksRef.current = tweaks
+
+  // Toggle-Wert in localStorage cachen → tweaksRef kann beim nächsten Mount synchron korrekt initialisiert werden
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY_LETZTE_SZENE_TOGGLE, String(tweaks.letzteSzeneProEpisodeMerken)) } catch {}
+  }, [tweaks.letzteSzeneProEpisodeMerken])
 
   useEffect(() => {
     api.getSettings().then((s: any) => {
@@ -588,8 +596,15 @@ export default function ScriptPage() {
       return stored ? JSON.parse(stored) : {}
     } catch { return {} }
   })())
-  // Stabile Tweaks-Ref für async-Closures (loadWerkstufen) — wird von TweaksSync befüllt
-  const tweaksRef = useRef<TweakState>(DEFAULT_TWEAKS)
+  // Stabile Tweaks-Ref für async-Closures (loadWerkstufen) — wird von TweaksSync befüllt.
+  // letzteSzeneProEpisodeMerken wird synchron aus localStorage gelesen, damit loadWerkstufen
+  // nicht auf AppShell's async getSettings() warten muss (DEFAULT_TWEAKS hätte false).
+  const tweaksRef = useRef<TweakState>({
+    ...DEFAULT_TWEAKS,
+    letzteSzeneProEpisodeMerken: (() => {
+      try { return localStorage.getItem(LS_KEY_LETZTE_SZENE_TOGGLE) === 'true' } catch { return false }
+    })(),
+  })
   // Debounce-Timer für Speichern der letzten Szene
   const saveLastSeenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
