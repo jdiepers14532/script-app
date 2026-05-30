@@ -831,7 +831,9 @@ async function buildSynopsenHtml(
       vorlage_name:        null,
     }
     const html = renderSzenenkopf(szenenkopfTemplate, sceneRow, row.folge_nummer, false, bodyMarginLeftCm, kuerzel)
-    if (html) headings.push(`<div style="break-inside: avoid">${html}</div>`)
+    if (html) headings.push(
+      `<table style="width:100%;border-collapse:collapse;break-inside:avoid;page-break-inside:avoid"><tr><td style="padding:0;vertical-align:top">${html}</td></tr></table>`
+    )
   }
 
   return headings.join('\n')
