@@ -465,14 +465,14 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize:14, fontWeight:800, letterSpacing:0.3,
+                fontSize:18, fontWeight:800, letterSpacing:0.3,
                 background:'linear-gradient(90deg,#fff 20%,#D18AFF 60%,#fff 80%)',
                 backgroundSize:'200% auto', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
                 animation:'syn-shimmer 4s linear infinite',
               }}>
                 Episoden-Synopsen — Folge {folgeNummer}
               </div>
-              <div style={{ fontSize:10, color:'rgba(255,255,255,0.4)', marginTop:1 }}>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,0.72)', marginTop:3 }}>
                 KI-Generierung · 6 Formate · alle Felder bearbeitbar · Autosave beim Schließen
               </div>
             </div>
@@ -517,16 +517,16 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                 className={`syn-tab${activeTab===t.id ? ' syn-tab-active' : ''}`}
                 onClick={() => setActiveTab(t.id)}
                 style={{
-                  flex:'0 0 auto', minWidth: 90, padding:'7px 14px', borderRadius:'7px 7px 0 0',
-                  border:`1px solid ${activeTab===t.id ? '#AF52DE55' : 'rgba(255,255,255,0.08)'}`,
-                  borderBottom: activeTab===t.id ? '1px solid #120820' : '1px solid rgba(255,255,255,0.08)',
-                  background: activeTab===t.id ? 'rgba(175,82,222,0.12)' : 'transparent',
+                  flex:'0 0 auto', minWidth: 105, padding:'10px 18px', borderRadius:'7px 7px 0 0',
+                  border:`1px solid ${activeTab===t.id ? '#AF52DE55' : 'rgba(255,255,255,0.12)'}`,
+                  borderBottom: activeTab===t.id ? '1px solid #120820' : '1px solid rgba(255,255,255,0.12)',
+                  background: activeTab===t.id ? 'rgba(175,82,222,0.15)' : 'rgba(255,255,255,0.04)',
                   cursor:'pointer', transition:'background 0.15s',
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:1,
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:2,
                 }}
               >
-                <span style={{ fontSize:11, fontWeight: activeTab===t.id ? 700 : 500, color: activeTab===t.id ? '#D18AFF' : 'rgba(255,255,255,0.5)' }}>{t.label}</span>
-                <span style={{ fontSize:9, color:'rgba(255,255,255,0.28)' }}>{t.desc}</span>
+                <span style={{ fontSize:13, fontWeight: activeTab===t.id ? 700 : 500, color: activeTab===t.id ? '#D18AFF' : '#fff' }}>{t.label}</span>
+                <span style={{ fontSize:10, color: activeTab===t.id ? 'rgba(209,138,255,0.7)' : 'rgba(255,255,255,0.55)' }}>{t.desc}</span>
               </button>
             ))}
           </div>
