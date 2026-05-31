@@ -27,6 +27,8 @@ interface SceneEditorProps {
   onCharsChange?: (chars: { name: string }[]) => void
   /** Wenn Editor einen Charakter via AC einfügt → automatisch in Szenenkopf aufnehmen */
   addCharTrigger?: { name: string; characterId: string | null; suffix: string | null; key: number } | null
+  /** Wenn ein Suffix entfernt wurde → Notiz-Eintrag bereinigen */
+  suffixRemovedTrigger?: { name: string; suffix: string; key: number } | null
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -52,7 +54,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
 }
 
 
-export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange, addCharTrigger }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange, addCharTrigger, suffixRemovedTrigger }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -688,6 +690,22 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       }
     }
   }, [addCharTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Suffix entfernt → entsprechenden Notiz-Eintrag bereinigen
+  useEffect(() => {
+    if (!suffixRemovedTrigger || !scene) return
+    const { name, suffix } = suffixRemovedTrigger
+    const notizEntry =
+      suffix === '(NT)'  ? `NT ${name}` :
+      suffix === '(VO)'  ? `NT ${name} (VO)` :
+      suffix === '(OFF)' ? `${name} im Off` : null
+    if (!notizEntry) return
+    const currentNotiz = scene.notiz ?? ''
+    if (!currentNotiz.includes(notizEntry)) return
+    const lines = currentNotiz.split('\n').filter((l: string) => l.trim() !== notizEntry)
+    const newNotiz = lines.join('\n').trim()
+    saveScene({ notiz: newNotiz }).then((s: any) => { if (s) setScene(s) }).catch(() => {})
+  }, [suffixRemovedTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMotivSelect = useCallback(async (parentMotiv: any) => {
     setMotivDropdownOpen(false)

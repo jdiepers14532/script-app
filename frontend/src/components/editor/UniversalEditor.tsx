@@ -325,6 +325,8 @@ interface UniversalEditorProps {
   sceneCharNames?: string[]
   /** Callback wenn Charakter über AC eingefügt wurde — für automatischen Szenenkopf-Eintrag */
   onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
+  /** Callback wenn ein Suffix von einer Figur entfernt wurde — für Notiz-Bereinigung */
+  onSuffixRemoved?: (name: string, suffix: string) => void
   /** ID der aktuellen Szene — wird in Freigabe-Emails als Kontext mitgeschickt */
   szeneId?: string | null
   onMagicOpen?: () => void
@@ -366,6 +368,7 @@ export default function UniversalEditor({
   editorRef,
   sceneCharNames,
   onCharInserted,
+  onSuffixRemoved,
   szeneId,
   onMagicOpen,
   onExportOpen,
@@ -1082,10 +1085,14 @@ export default function UniversalEditor({
     }
   }, [editor, tweaks.nurCharAusSzenenkopf, tweaks.charAcStyle, sceneCharNames, charFormatIds, actionFormatIds, acAlleDeaktiviert, charAcDeaktiviert]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const onSuffixRemovedRef = useRef(onSuffixRemoved)
+  onSuffixRemovedRef.current = onSuffixRemoved
+
   // Suffix-Memory aufbauen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
   useEffect(() => {
     if (!editor || charFormatIds.length === 0) return
     const rebuildSuffixMemory = () => {
+      const prev = sceneSuffixMemoryRef.current
       const memory = new Map<string, string>()
       editor.state.doc.descendants((node: any) => {
         if (node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)) {
@@ -1094,6 +1101,15 @@ export default function UniversalEditor({
           if (key && suffix) memory.set(key, suffix)
         }
       })
+      // Suffix entfernt oder geändert → Callback feuern
+      if (onSuffixRemovedRef.current) {
+        for (const [key, oldSuffix] of prev) {
+          const newSuffix = memory.get(key)
+          if (!newSuffix || newSuffix !== oldSuffix) {
+            onSuffixRemovedRef.current(key, oldSuffix)
+          }
+        }
+      }
       sceneSuffixMemoryRef.current = memory
     }
     editor.on('update', rebuildSuffixMemory)
