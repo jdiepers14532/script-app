@@ -8,6 +8,7 @@ import SceneEditor from '../components/SceneEditor'
 import BreakdownPanel from '../components/BreakdownPanel'
 import EditorPanel from '../components/editor/EditorPanel'
 import StatistikModal, { DEFAULT_SECTIONS, type StatModalSection } from '../components/StatistikModal'
+import FolgeMetaDatenModal from '../components/editor/FolgeMetaDatenModal'
 import { useFocus, useSelectedProduction, PanelModeContext, useTweaks, usePanelMode, type TweakState } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import { useWerkstufe } from '../hooks/useDokument'
@@ -478,6 +479,7 @@ export default function ScriptPage() {
   const [selectedBlock, setSelectedBlock] = useState<any | null>(null)
   const [selectedFolgeNummer, setSelectedFolgeNummer] = useState<number | null>(null)
   const [showStatModal, setShowStatModal] = useState(false)
+  const [showMetaDaten, setShowMetaDaten] = useState(false)
   const [showRadar, setShowRadar] = useState(false)
   const [showStrangPanel, setShowStrangPanel] = useState(false)
   const [showStoppzeiten, setShowStoppzeiten] = useState(false)
@@ -1074,6 +1076,7 @@ export default function ScriptPage() {
               onSzenesReordered={setSzenen}
               commentCounts={commentCounts}
               onOpenStatistik={() => setShowStatModal(true)}
+              onOpenMetaDaten={selectedFolgeId != null ? () => setShowMetaDaten(true) : undefined}
               onOpenRadar={() => setShowRadar(v => !v)}
               onOpenSearch={() => setShowSearchReplace(true)}
               onOpenStrangPanel={() => setShowStrangPanel(v => !v)}
@@ -1272,6 +1275,16 @@ export default function ScriptPage() {
           szenen={szenen}
           onNavigate={id => setSelectedSzeneId(id)}
           onClose={() => setGotoOpen(false)}
+        />
+      )}
+
+      {/* Meta-Daten Modal */}
+      {showMetaDaten && selectedFolgeId != null && selectedFolgeNummer != null && (
+        <FolgeMetaDatenModal
+          open={showMetaDaten}
+          onClose={() => setShowMetaDaten(false)}
+          folgeId={selectedFolgeId}
+          folgeNummer={selectedFolgeNummer}
         />
       )}
 

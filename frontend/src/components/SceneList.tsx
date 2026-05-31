@@ -26,6 +26,7 @@ interface SceneListProps {
   onOpenSearch?: () => void
   onOpenStrangPanel?: () => void
   onOpenStoppzeiten?: () => void
+  onOpenMetaDaten?: () => void
   werkstufId?: string | null
   werkstufTyp?: string | null
   allCharacters?: any[]
@@ -48,6 +49,7 @@ export default function SceneList({
   onOpenSearch,
   onOpenStrangPanel,
   onOpenStoppzeiten,
+  onOpenMetaDaten,
   werkstufId,
   werkstufTyp,
   allCharacters,
@@ -761,6 +763,14 @@ export default function SceneList({
 
               {/* Kategorie: Auswertung */}
               <CategoryDivider label="Auswertung" />
+              {onOpenMetaDaten && (
+                <button
+                  className="scene-ctx-item"
+                  onClick={() => { onOpenMetaDaten(); setHeaderMenuOpen(false) }}
+                >
+                  Meta-Daten
+                </button>
+              )}
               {onOpenStatistik && (
                 <button
                   className="scene-ctx-item"

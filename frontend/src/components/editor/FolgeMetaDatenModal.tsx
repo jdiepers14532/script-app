@@ -1,0 +1,719 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
+import { X, Check, Bold, Italic, Underline as UnderlineIcon, Shield } from 'lucide-react'
+import { api } from '../../api/client'
+import { useSelectedProduction } from '../../contexts'
+
+// ── Types & constants ─────────────────────────────────────────────────────────
+
+type DeskriptorStufe = 'leicht' | 'mittel' | 'stark'
+interface DeskriptorItem { kategorie: string; stufe: DeskriptorStufe; beschreibung: string }
+
+const FSK_LEVELS = ['0', '6', '12', '16', '18']
+const FSK_COLORS: Record<string, string> = {
+  '0': '#00C853', '6': '#00C853', '12': '#FF9500', '16': '#FF6B00', '18': '#FF3B30'
+}
+const STUFE_COLORS: Record<DeskriptorStufe, string> = { leicht: '#00C853', mittel: '#FF9500', stark: '#FF3B30' }
+const DESKRIPTOR_KATEGORIEN: string[] = [
+  'GEWALT', 'SEXUELLE_INHALTE', 'ALKOHOL_DROGEN', 'ANGST', 'DISKRIMINIERUNG', 'THEMATISCH_BELASTEND', 'SPRACHE'
+]
+
+type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'lektor' | 'strang' | 'programmpresse' | 'pressetext' | 'deskriptoren' | 'fsk'
+
+const TABS: { id: Tab; label: string; desc: string }[] = [
+  { id: 'titel',          label: 'Titel',          desc: '1–3 Wörter' },
+  { id: 'kurzinhalt',     label: 'Kurzinhalt',     desc: 'strukturiert' },
+  { id: 'redaktion',      label: 'Redaktion',      desc: '300–500 Wörter' },
+  { id: 'lektor',         label: 'Lektor',         desc: 'chronol.' },
+  { id: 'strang',         label: 'Strang',         desc: '≤300 Zeichen' },
+  { id: 'programmpresse', label: 'Programmpresse', desc: '300–450 Zeichen' },
+  { id: 'pressetext',     label: 'Pressetext',     desc: '280–330 Zeichen' },
+  { id: 'deskriptoren',   label: 'Deskriptoren',   desc: 'JuSchG' },
+  { id: 'fsk',            label: 'FSK',            desc: 'Altersfreigabe' },
+]
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function charCount(html: string) {
+  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().length
+}
+function wordCount(html: string) {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).length
+}
+function isEmpty(h: string | undefined) { return !h || h === '<p></p>' }
+
+// ── Rich Editor ───────────────────────────────────────────────────────────────
+
+function RichToolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
+  if (!editor) return null
+  const btn = (active: boolean, onPress: () => void, icon: React.ReactNode, title: string) => (
+    <button
+      onMouseDown={e => { e.preventDefault(); onPress() }}
+      title={title}
+      style={{
+        width: 28, height: 28, borderRadius: 5, border: 'none', cursor: 'pointer',
+        background: active ? 'var(--bg-active)' : 'transparent',
+        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}
+    >{icon}</button>
+  )
+  return (
+    <div style={{ display: 'flex', gap: 2, padding: '5px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+      {btn(editor.isActive('bold'),      () => editor.chain().focus().toggleBold().run(),      <Bold size={13} />,          'Fett')}
+      {btn(editor.isActive('italic'),    () => editor.chain().focus().toggleItalic().run(),    <Italic size={13} />,        'Kursiv')}
+      {btn(editor.isActive('underline'), () => editor.chain().focus().toggleUnderline().run(), <UnderlineIcon size={13} />, 'Unterstrichen')}
+    </div>
+  )
+}
+
+function RichEditor({ editor, minHeight = 140 }: { editor: ReturnType<typeof useEditor>; minHeight?: number }) {
+  if (!editor) return null
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <RichToolbar editor={editor} />
+      <EditorContent
+        editor={editor}
+        style={{ minHeight, padding: '10px 12px', fontSize: 14, lineHeight: 1.7, background: 'var(--input-bg)', color: 'var(--text-primary)' }}
+      />
+    </div>
+  )
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+
+interface Props {
+  open: boolean
+  onClose: () => void
+  folgeId: number
+  folgeNummer: number
+}
+
+export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNummer }: Props) {
+  const { selectedProduction } = useSelectedProduction()
+  const [deskriptorVorlagen, setDeskriptorVorlagen] = useState<string[]>(DESKRIPTOR_KATEGORIEN)
+  const [activeTab, setActiveTab] = useState<Tab>('titel')
+  const [loading, setLoading] = useState(false)
+
+  const [selectedTitel, setSelectedTitel] = useState('')
+  const [strangText, setStrangText]       = useState('')
+  const [deskriptoren, setDeskriptoren]   = useState<DeskriptorItem[]>([])
+  const [fskRating, setFskRating]         = useState('12')
+  const [fskBegruendung, setFskBegruendung] = useState('')
+
+  const [pendingLoadData, setPendingLoadData] = useState<any>(null)
+  const [saveLoading, setSaveLoading] = useState(false)
+  const [saveMsg, setSaveMsg]         = useState<string | null>(null)
+
+  const kurzEditor       = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const redaktionEditor  = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const lektorEditor     = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const presseEditor     = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+  const pressetextEditor = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
+
+  // Apply pending load data when editors are ready
+  useEffect(() => {
+    if (!pendingLoadData) return
+    if (!kurzEditor || !redaktionEditor || !lektorEditor || !presseEditor || !pressetextEditor) return
+    const d = pendingLoadData
+    if (d.folgen_titel) setSelectedTitel(d.folgen_titel)
+    kurzEditor.commands.setContent(d.synopsis_kurzinhalt || d.synopsis_300 || '<p></p>')
+    redaktionEditor.commands.setContent(d.synopsis || '<p></p>')
+    lektorEditor.commands.setContent(d.synopsis_lektor || '<p></p>')
+    presseEditor.commands.setContent(d.synopsis_presse || '<p></p>')
+    pressetextEditor.commands.setContent(d.synopsis_pressetext || '<p></p>')
+    if (d.synopsis_straenge) setStrangText(d.synopsis_straenge)
+    if (d.synopsis_deskriptoren) {
+      try { setDeskriptoren(JSON.parse(d.synopsis_deskriptoren)) } catch {}
+    }
+    if (d.synopsis_fsk) {
+      try {
+        const fsk = JSON.parse(d.synopsis_fsk)
+        if (fsk.rating) setFskRating(fsk.rating)
+        if (fsk.begruendung !== undefined) setFskBegruendung(fsk.begruendung)
+      } catch {}
+    }
+    setPendingLoadData(null)
+  }, [pendingLoadData, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor])
+
+  // Deskriptor-Vorlagen laden
+  useEffect(() => {
+    if (!selectedProduction?.id) return
+    api.getDeskriptorVorlagen(selectedProduction.id)
+      .then(rows => {
+        const names = rows.map((r: any) => r.name).filter(Boolean)
+        if (names.length > 0) setDeskriptorVorlagen(names)
+      })
+      .catch(() => {})
+  }, [selectedProduction?.id])
+
+  // Load existing data on open
+  useEffect(() => {
+    if (!open) return
+    setActiveTab('titel')
+    setSelectedTitel('')
+    setStrangText('')
+    setDeskriptoren([])
+    setFskRating('12')
+    setFskBegruendung('')
+    setSaveMsg(null)
+    kurzEditor?.commands.setContent('<p></p>')
+    redaktionEditor?.commands.setContent('<p></p>')
+    lektorEditor?.commands.setContent('<p></p>')
+    presseEditor?.commands.setContent('<p></p>')
+    pressetextEditor?.commands.setContent('<p></p>')
+
+    setLoading(true)
+    api.getFolgenSynopsen(folgeId)
+      .then(data => { if (data) setPendingLoadData(data) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [open, folgeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Escape
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const save = useCallback(async (): Promise<boolean> => {
+    setSaveLoading(true); setSaveMsg(null)
+    try {
+      const kurzHtml       = kurzEditor?.getHTML()
+      const redaktionHtml  = redaktionEditor?.getHTML()
+      const lektorHtml     = lektorEditor?.getHTML()
+      const presseHtml     = presseEditor?.getHTML()
+      const pressetextHtml = pressetextEditor?.getHTML()
+      const deskriptorenJson = deskriptoren.length > 0 ? JSON.stringify(deskriptoren) : null
+      const fskJson = (fskRating || fskBegruendung.trim())
+        ? JSON.stringify({ rating: fskRating, begruendung: fskBegruendung })
+        : null
+      await api.saveFolgenSynopsen(folgeId, {
+        folgen_titel:          selectedTitel.trim() || null,
+        synopsis_kurzinhalt:   isEmpty(kurzHtml)       ? null : kurzHtml!,
+        synopsis:              isEmpty(redaktionHtml)  ? null : redaktionHtml!,
+        synopsis_lektor:       isEmpty(lektorHtml)     ? null : lektorHtml!,
+        synopsis_presse:       isEmpty(presseHtml)     ? null : presseHtml!,
+        synopsis_pressetext:   isEmpty(pressetextHtml) ? null : pressetextHtml!,
+        synopsis_straenge:     strangText.trim() || null,
+        synopsis_deskriptoren: deskriptorenJson,
+        synopsis_fsk:          fskJson,
+      })
+      setSaveMsg('Gespeichert.')
+      return true
+    } catch (e: any) {
+      setSaveMsg('Fehler: ' + (e?.message ?? String(e)))
+      return false
+    } finally {
+      setSaveLoading(false)
+    }
+  }, [folgeId, selectedTitel, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor, strangText, deskriptoren, fskRating, fskBegruendung])
+
+  async function handleClose() {
+    await save()
+    onClose()
+  }
+
+  if (!open) return null
+
+  const pressetextChars  = pressetextEditor ? charCount(pressetextEditor.getHTML()) : 0
+  const pressetextInRange = pressetextChars >= 280 && pressetextChars <= 330
+  const presseChars      = presseEditor ? charCount(presseEditor.getHTML()) : 0
+  const presseInRange    = presseChars >= 300 && presseChars <= 450
+
+  return (
+    <>
+      <style>{`
+        .meta-modal .ProseMirror { outline: none; }
+        .meta-modal .ProseMirror p { margin: 0 0 7px; }
+        .meta-modal .ProseMirror p:last-child { margin-bottom: 0; }
+        .meta-tab:hover:not(.meta-tab-active) { background: var(--bg-hover) !important; }
+      `}</style>
+
+      {/* Backdrop */}
+      <div
+        onMouseDown={handleClose}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 9000,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        {/* Modal */}
+        <div
+          className="meta-modal"
+          onMouseDown={e => e.stopPropagation()}
+          style={{
+            width: 'min(840px, calc(100vw - 32px))',
+            height: 'min(85vh, 720px)',
+            background: 'var(--bg-surface)',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          {/* Header */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '14px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
+          }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+                Meta-Daten — Folge {folgeNummer}
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                Synopsen · Titel · Deskriptoren · FSK · Autosave beim Schließen
+              </div>
+            </div>
+            <button
+              onClick={handleClose}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-muted)', display: 'flex', padding: 6, borderRadius: 6,
+              }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Tabs */}
+          <div style={{
+            display: 'flex', flexWrap: 'wrap',
+            padding: '8px 16px 0', flexShrink: 0, gap: 2,
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--bg-subtle)',
+          }}>
+            {TABS.map(t => (
+              <button
+                key={t.id}
+                className={`meta-tab${activeTab === t.id ? ' meta-tab-active' : ''}`}
+                onClick={() => setActiveTab(t.id)}
+                style={{
+                  flex: '0 0 auto',
+                  padding: '7px 13px',
+                  borderRadius: '6px 6px 0 0',
+                  border: `1px solid ${activeTab === t.id ? 'var(--border)' : 'transparent'}`,
+                  borderBottom: activeTab === t.id ? '1px solid var(--bg-surface)' : '1px solid transparent',
+                  marginBottom: activeTab === t.id ? -1 : 0,
+                  background: activeTab === t.id ? 'var(--bg-surface)' : 'transparent',
+                  cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                  transition: 'background 0.12s',
+                }}
+              >
+                <span style={{
+                  fontSize: 12, fontWeight: activeTab === t.id ? 700 : 500,
+                  color: activeTab === t.id ? 'var(--text-primary)' : 'var(--text-secondary)',
+                }}>{t.label}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.desc}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px' }}>
+
+            {loading && (
+              <div style={{ textAlign: 'center', padding: 48, color: 'var(--text-muted)', fontSize: 13 }}>
+                Lade…
+              </div>
+            )}
+
+            {/* ── Titel ── */}
+            {!loading && activeTab === 'titel' && (
+              <div>
+                <label style={{
+                  fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+                  display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
+                }}>Arbeitstitel</label>
+                <input
+                  value={selectedTitel}
+                  onChange={e => setSelectedTitel(e.target.value)}
+                  placeholder="Titel der Folge…"
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '9px 12px', borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: 'var(--input-bg)', color: 'var(--text-primary)',
+                    fontSize: 15, fontWeight: 700, outline: 'none',
+                  }}
+                />
+                {selectedTitel && (
+                  <div style={{
+                    marginTop: 6, fontSize: 11,
+                    color: selectedTitel.trim().split(/\s+/).length > 3 ? '#FF9500' : 'var(--text-muted)',
+                  }}>
+                    {selectedTitel.trim().split(/\s+/).length} Wörter
+                    {selectedTitel.trim().split(/\s+/).length > 3 && ' — ideal sind 1–3 Wörter'}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Kurzinhalt ── */}
+            {!loading && activeTab === 'kurzinhalt' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Format: <strong>Haupthandlung</strong> · <strong>Nebenhandlungen</strong> · <strong>Cliffhanger</strong>
+                  </span>
+                  {kurzEditor && kurzEditor.getText().length > 5 && (
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {wordCount(kurzEditor.getHTML())} Wörter
+                    </span>
+                  )}
+                </div>
+                <RichEditor editor={kurzEditor} minHeight={280} />
+              </div>
+            )}
+
+            {/* ── Redaktion ── */}
+            {!loading && activeTab === 'redaktion' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Dramaturgisch · Wendepunkte · Rollennamen in CAPS · ein Absatz pro Strang
+                  </span>
+                  {redaktionEditor && redaktionEditor.getText().length > 5 && (() => {
+                    const wc = wordCount(redaktionEditor.getHTML())
+                    return (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: (wc < 300 || wc > 500) ? '#FF9500' : 'var(--text-secondary)' }}>
+                        {wc} Wörter {(wc < 300 || wc > 500) ? '(Ziel: 300–500)' : ''}
+                      </span>
+                    )
+                  })()}
+                </div>
+                <RichEditor editor={redaktionEditor} minHeight={320} />
+              </div>
+            )}
+
+            {/* ── Lektor ── */}
+            {!loading && activeTab === 'lektor' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Chronologischer Fließtext · [Want] [Need] [Akt X Ende] [Cliff] [Pen] · (Sz. X) Referenzen
+                  </span>
+                  {lektorEditor && lektorEditor.getText().length > 5 && (() => {
+                    const wc = wordCount(lektorEditor.getHTML())
+                    return (
+                      <span style={{ fontSize: 11, fontWeight: 600, color: (wc < 300 || wc > 400) ? '#FF9500' : 'var(--text-secondary)' }}>
+                        {wc} Wörter {(wc < 300 || wc > 400) ? '(Ziel: 300–400)' : ''}
+                      </span>
+                    )
+                  })()}
+                </div>
+                <RichEditor editor={lektorEditor} minHeight={380} />
+              </div>
+            )}
+
+            {/* ── Strang ── */}
+            {!loading && activeTab === 'strang' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Je Handlungsstrang eine Zeile · max. 300 Zeichen
+                  </span>
+                  {strangText.trim() && (
+                    <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      {strangText.split('\n').filter(Boolean).length} Stränge
+                    </span>
+                  )}
+                </div>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--input-bg)' }}>
+                  {strangText.split('\n').filter(Boolean).map((line, i, arr) => {
+                    const ci = line.indexOf(':')
+                    const name    = (ci >= 0 ? line.slice(0, ci) : line).trim()
+                    const content = ci >= 0 ? line.slice(ci + 1).trim() : ''
+                    const updateLine = (newName: string, newContent: string) => {
+                      const lines = strangText.split('\n').filter(Boolean)
+                      lines[i] = newContent ? `${newName}: ${newContent}` : newName
+                      setStrangText(lines.join('\n'))
+                    }
+                    return (
+                      <div key={i} style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '7px 10px 7px 12px',
+                        borderBottom: i < arr.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                      }}>
+                        <input
+                          value={name}
+                          onChange={e => updateLine(e.target.value, content)}
+                          placeholder="STRANG"
+                          style={{
+                            background: 'transparent', border: 'none', outline: 'none',
+                            fontWeight: 700, color: '#007AFF', fontSize: 13, width: '28%', minWidth: 60,
+                          }}
+                        />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 700, flexShrink: 0 }}>:</span>
+                        <input
+                          value={content}
+                          onChange={e => updateLine(name, e.target.value)}
+                          placeholder="Kurzbeschreibung…"
+                          style={{
+                            flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                            color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.7,
+                          }}
+                        />
+                        <button
+                          onMouseDown={() => {
+                            const lines = strangText.split('\n').filter(Boolean)
+                            lines.splice(i, 1)
+                            setStrangText(lines.join('\n'))
+                          }}
+                          style={{
+                            background: 'none', border: 'none', color: 'var(--text-muted)',
+                            cursor: 'pointer', padding: '2px 6px', fontSize: 16, flexShrink: 0,
+                          }}
+                        >×</button>
+                      </div>
+                    )
+                  })}
+                  <div style={{ padding: '6px 12px', borderTop: strangText.trim() ? '1px solid var(--border-subtle)' : 'none' }}>
+                    <button
+                      onMouseDown={() => setStrangText(prev => (prev.trim() ? prev.trimEnd() + '\n: ' : ': '))}
+                      style={{
+                        background: 'none', border: 'none', color: '#007AFF',
+                        cursor: 'pointer', fontSize: 11, padding: 0, fontWeight: 600,
+                      }}
+                    >
+                      + Strang hinzufügen
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Programmpresse ── */}
+            {!loading && activeTab === 'programmpresse' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    TV-Listing / Programmpresse · werblich, neugierig machend · kein Spoiler
+                  </span>
+                  {presseEditor && presseEditor.getText().length > 3 && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5,
+                      background: presseInRange ? 'rgba(0,200,83,0.1)' : 'rgba(255,149,0,0.1)',
+                      border: `1px solid ${presseInRange ? '#00C85355' : '#FF950055'}`,
+                      color: presseInRange ? '#00C853' : '#FF9500',
+                    }}>
+                      {presseChars} / 300–450 Zeichen
+                    </span>
+                  )}
+                </div>
+                <RichEditor editor={presseEditor} minHeight={140} />
+              </div>
+            )}
+
+            {/* ── Pressetext ── */}
+            {!loading && activeTab === 'pressetext' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Sachlicher Pressetext · knapp · kein werblicher Ton · kein Spoiler
+                  </span>
+                  {pressetextEditor && pressetextEditor.getText().length > 3 && (
+                    <span style={{
+                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5,
+                      background: pressetextInRange ? 'rgba(0,200,83,0.1)' : 'rgba(255,59,48,0.1)',
+                      border: `1px solid ${pressetextInRange ? '#00C85355' : '#FF3B3055'}`,
+                      color: pressetextInRange ? '#00C853' : '#FF3B30',
+                    }}>
+                      {pressetextChars} / 280–330 Zeichen
+                    </span>
+                  )}
+                </div>
+                <RichEditor editor={pressetextEditor} minHeight={110} />
+                {pressetextEditor && pressetextEditor.getText().length > 3 && !pressetextInRange && (
+                  <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
+                    {pressetextChars < 280
+                      ? `Noch ${280 - pressetextChars} Zeichen fehlen.`
+                      : `${pressetextChars - 330} Zeichen zu viel — bitte kürzen.`}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Deskriptoren ── */}
+            {!loading && activeTab === 'deskriptoren' && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    Jugendschutz-Inhaltsdeskriptoren (JuSchG) · Kategorien und Schweregrade
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    {deskriptoren.length} {deskriptoren.length === 1 ? 'Deskriptor' : 'Deskriptoren'}
+                  </span>
+                </div>
+                {deskriptoren.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Keine jugendschutzrelevanten Inhalte eingetragen
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                    {deskriptoren.map((d, i) => (
+                      <div key={i} style={{
+                        background: 'rgba(255,107,0,0.06)', border: '1px solid rgba(255,107,0,0.2)',
+                        borderRadius: 9, padding: '10px 12px',
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                          <select
+                            value={d.kategorie}
+                            onChange={e => setDeskriptoren(prev => { const n = [...prev]; n[i] = { ...n[i], kategorie: e.target.value }; return n })}
+                            style={{
+                              background: 'var(--input-bg)', border: '1px solid var(--border)',
+                              borderRadius: 5, color: '#FF9500', fontWeight: 700, fontSize: 12,
+                              padding: '2px 6px', cursor: 'pointer',
+                            }}
+                          >
+                            {deskriptorVorlagen.map(k => <option key={k} value={k}>{k}</option>)}
+                          </select>
+                          <div style={{ display: 'flex', gap: 5 }}>
+                            {(['leicht', 'mittel', 'stark'] as DeskriptorStufe[]).map(s => (
+                              <button
+                                key={s}
+                                onClick={() => setDeskriptoren(prev => { const n = [...prev]; n[i] = { ...n[i], stufe: s }; return n })}
+                                style={{
+                                  padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                                  cursor: 'pointer', border: 'none',
+                                  background: d.stufe === s ? `${STUFE_COLORS[s]}22` : 'var(--bg-subtle)',
+                                  color: d.stufe === s ? STUFE_COLORS[s] : 'var(--text-muted)',
+                                  outline: d.stufe === s ? `1.5px solid ${STUFE_COLORS[s]}88` : '1.5px solid transparent',
+                                }}
+                              >{s}</button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => setDeskriptoren(prev => prev.filter((_, j) => j !== i))}
+                            style={{
+                              marginLeft: 'auto', background: 'none', border: 'none',
+                              color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, padding: '0 4px',
+                            }}
+                          >×</button>
+                        </div>
+                        <input
+                          value={d.beschreibung}
+                          onChange={e => setDeskriptoren(prev => { const n = [...prev]; n[i] = { ...n[i], beschreibung: e.target.value }; return n })}
+                          placeholder="Kurzbeschreibung mit Szenenreferenz (Sz. X)…"
+                          style={{
+                            width: '100%', boxSizing: 'border-box',
+                            background: 'transparent', border: 'none', outline: 'none',
+                            color: 'var(--text-primary)', fontSize: 12, lineHeight: 1.6,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <button
+                  onClick={() => setDeskriptoren(prev => [...prev, { kategorie: deskriptorVorlagen[0] ?? 'GEWALT', stufe: 'leicht', beschreibung: '' }])}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,107,0,0.7)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0 }}
+                >
+                  + Deskriptor hinzufügen
+                </button>
+              </div>
+            )}
+
+            {/* ── FSK ── */}
+            {!loading && activeTab === 'fsk' && (
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>
+                  FSK-Altersfreigabe-Einschätzung — Auswahl + Begründung mit Szenenreferenzen
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                  {FSK_LEVELS.map(lvl => (
+                    <button
+                      key={lvl}
+                      onClick={() => setFskRating(lvl)}
+                      style={{
+                        width: 52, height: 52, borderRadius: 10, cursor: 'pointer',
+                        border: `2px solid ${fskRating === lvl ? FSK_COLORS[lvl] : 'var(--border)'}`,
+                        background: fskRating === lvl ? `${FSK_COLORS[lvl]}18` : 'var(--bg-subtle)',
+                        color: fskRating === lvl ? FSK_COLORS[lvl] : 'var(--text-muted)',
+                        fontSize: 18, fontWeight: 800, transition: 'border-color 0.15s, background 0.15s',
+                      }}
+                    >{lvl}</button>
+                  ))}
+                </div>
+                {fskRating && (
+                  <div style={{
+                    marginBottom: 14, padding: '8px 14px', borderRadius: 8,
+                    background: `${FSK_COLORS[fskRating]}12`,
+                    border: `1px solid ${FSK_COLORS[fskRating]}44`,
+                    fontSize: 14, color: FSK_COLORS[fskRating], fontWeight: 700,
+                    display: 'flex', alignItems: 'center', gap: 7,
+                  }}>
+                    <Shield size={14} />
+                    FSK {fskRating}
+                  </div>
+                )}
+                <label style={{
+                  fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+                  display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
+                }}>Begründung</label>
+                <textarea
+                  value={fskBegruendung}
+                  onChange={e => setFskBegruendung(e.target.value)}
+                  placeholder="Begründung für die FSK-Einschätzung, mit Szenenreferenzen (Sz. X)…"
+                  style={{
+                    width: '100%', boxSizing: 'border-box', minHeight: 140,
+                    padding: '10px 12px', borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: 'var(--input-bg)', color: 'var(--text-primary)',
+                    fontSize: 13, lineHeight: 1.7,
+                    outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+            )}
+
+          </div>
+
+          {/* Footer */}
+          <div style={{
+            flexShrink: 0, padding: '10px 20px', borderTop: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <button
+              onClick={() => save()}
+              disabled={saveLoading}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '7px 16px', borderRadius: 7,
+                background: '#00C853', color: '#fff', border: 'none',
+                cursor: saveLoading ? 'not-allowed' : 'pointer',
+                fontSize: 12, fontWeight: 700, opacity: saveLoading ? 0.7 : 1,
+              }}
+            >
+              <Check size={12} />
+              {saveLoading ? 'Speichert…' : 'Speichern'}
+            </button>
+            {saveMsg && (
+              <span style={{ fontSize: 11, color: saveMsg.startsWith('Fehler') ? '#FF9500' : '#00C853' }}>
+                {saveMsg}
+              </span>
+            )}
+            <button
+              onClick={handleClose}
+              style={{
+                marginLeft: 'auto', padding: '7px 14px', borderRadius: 7,
+                background: 'transparent', border: '1px solid var(--border)',
+                color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
+              }}
+            >
+              Schließen &amp; Autosave
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
