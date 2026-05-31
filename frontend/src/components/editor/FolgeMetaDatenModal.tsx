@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import { X, Check, Bold, Italic, Underline as UnderlineIcon, Shield } from 'lucide-react'
+import { X, Check, Bold, Italic, Underline as UnderlineIcon, Shield, GripVertical } from 'lucide-react'
 import { api } from '../../api/client'
 import { useSelectedProduction } from '../../contexts'
 
@@ -34,6 +34,37 @@ const TABS: { id: Tab; label: string; desc: string }[] = [
   { id: 'fsk',            label: 'FSK',            desc: 'Altersfreigabe' },
 ]
 
+// ── Layout constants ───────────────────────────────────────────────────────────
+
+const DEFAULT_W = 840
+const DEFAULT_H = 680
+const MIN_W = 520
+const MIN_H = 380
+
+interface Layout { x: number; y: number; width: number; height: number }
+
+// Module-level cache — survives modal close/reopen within same session (no flicker)
+let cachedLayout: Layout | null = null
+
+function centeredLayout(): Layout {
+  const w = Math.min(DEFAULT_W, window.innerWidth - 32)
+  const h = Math.min(DEFAULT_H, window.innerHeight - 32)
+  return {
+    x: Math.round((window.innerWidth  - w) / 2),
+    y: Math.round((window.innerHeight - h) / 2),
+    width: w,
+    height: h,
+  }
+}
+
+function clampLayout(l: Layout): Layout {
+  const w = Math.max(MIN_W, Math.min(l.width,  window.innerWidth))
+  const h = Math.max(MIN_H, Math.min(l.height, window.innerHeight))
+  const x = Math.max(0, Math.min(l.x, window.innerWidth  - w))
+  const y = Math.max(0, Math.min(l.y, window.innerHeight - 60))
+  return { x, y, width: w, height: h }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function charCount(html: string) {
@@ -43,6 +74,11 @@ function wordCount(html: string) {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean).length
 }
 function isEmpty(h: string | undefined) { return !h || h === '<p></p>' }
+
+function clientXY(e: MouseEvent | TouchEvent): { x: number; y: number } {
+  if ('touches' in e) return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+  return { x: e.clientX, y: e.clientY }
+}
 
 // ── Rich Editor ───────────────────────────────────────────────────────────────
 
@@ -107,6 +143,117 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
   const [saveLoading, setSaveLoading] = useState(false)
   const [saveMsg, setSaveMsg]         = useState<string | null>(null)
 
+  // ── Layout (position + size) ────────────────────────────────────────────────
+  const [layout, setLayout] = useState<Layout | null>(null)
+  const layoutRef = useRef<Layout | null>(null)
+  const saveLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync ref so drag closures always see latest layout
+  useEffect(() => { layoutRef.current = layout }, [layout])
+
+  // Apply layout from backend or cache on first open
+  useEffect(() => {
+    if (!open) return
+    if (cachedLayout) {
+      setLayout(clampLayout(cachedLayout))
+      return
+    }
+    api.getSettings()
+      .then(s => {
+        const saved = s?.ui_settings?.meta_daten_modal_layout
+        const l = (saved?.width && saved?.height && saved?.x != null && saved?.y != null)
+          ? clampLayout(saved as Layout)
+          : centeredLayout()
+        cachedLayout = l
+        setLayout(l)
+      })
+      .catch(() => {
+        const l = centeredLayout()
+        cachedLayout = l
+        setLayout(l)
+      })
+  }, [open])
+
+  function applyLayout(l: Layout) {
+    const clamped = clampLayout(l)
+    cachedLayout = clamped
+    setLayout(clamped)
+    // Debounced backend save
+    if (saveLayoutTimerRef.current) clearTimeout(saveLayoutTimerRef.current)
+    saveLayoutTimerRef.current = setTimeout(() => {
+      api.updateSettings({ ui_settings: { meta_daten_modal_layout: clamped } }).catch(() => {})
+    }, 800)
+  }
+
+  // ── Drag (header) ─────────────────────────────────────────────────────────
+
+  function handleDragStart(e: React.MouseEvent | React.TouchEvent) {
+    if (!layoutRef.current) return
+    // Don't drag when clicking buttons/inputs inside header
+    if ((e.target as HTMLElement).closest('button')) return
+    e.preventDefault()
+    const start = clientXY(e.nativeEvent as MouseEvent | TouchEvent)
+    const startLayout = { ...layoutRef.current }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'grabbing'
+
+    function onMove(ev: MouseEvent | TouchEvent) {
+      const cur = clientXY(ev)
+      applyLayout({
+        ...startLayout,
+        x: startLayout.x + (cur.x - start.x),
+        y: startLayout.y + (cur.y - start.y),
+      })
+    }
+    function onUp() {
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('touchmove', onMove as EventListener)
+      document.removeEventListener('touchend', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    document.addEventListener('touchmove', onMove as EventListener, { passive: false })
+    document.addEventListener('touchend', onUp)
+  }
+
+  // ── Resize (bottom-right grip) ────────────────────────────────────────────
+
+  function handleResizeStart(e: React.MouseEvent | React.TouchEvent) {
+    if (!layoutRef.current) return
+    e.preventDefault()
+    e.stopPropagation()
+    const start = clientXY(e.nativeEvent as MouseEvent | TouchEvent)
+    const startLayout = { ...layoutRef.current }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'nwse-resize'
+
+    function onMove(ev: MouseEvent | TouchEvent) {
+      const cur = clientXY(ev)
+      applyLayout({
+        ...startLayout,
+        width:  startLayout.width  + (cur.x - start.x),
+        height: startLayout.height + (cur.y - start.y),
+      })
+    }
+    function onUp() {
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('touchmove', onMove as EventListener)
+      document.removeEventListener('touchend', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    document.addEventListener('touchmove', onMove as EventListener, { passive: false })
+    document.addEventListener('touchend', onUp)
+  }
+
+  // ── Editors ──────────────────────────────────────────────────────────────
+
   const kurzEditor       = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
   const redaktionEditor  = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
   const lektorEditor     = useEditor({ extensions: [StarterKit, Underline], content: '<p></p>' })
@@ -149,7 +296,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
       .catch(() => {})
   }, [selectedProduction?.id])
 
-  // Load existing data on open
+  // Load folgen data on open
   useEffect(() => {
     if (!open) return
     setActiveTab('titel')
@@ -220,10 +367,10 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
 
   if (!open) return null
 
-  const pressetextChars  = pressetextEditor ? charCount(pressetextEditor.getHTML()) : 0
+  const pressetextChars   = pressetextEditor ? charCount(pressetextEditor.getHTML()) : 0
   const pressetextInRange = pressetextChars >= 280 && pressetextChars <= 330
-  const presseChars      = presseEditor ? charCount(presseEditor.getHTML()) : 0
-  const presseInRange    = presseChars >= 300 && presseChars <= 450
+  const presseChars       = presseEditor ? charCount(presseEditor.getHTML()) : 0
+  const presseInRange     = presseChars >= 300 && presseChars <= 450
 
   return (
     <>
@@ -232,61 +379,78 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
         .meta-modal .ProseMirror p { margin: 0 0 7px; }
         .meta-modal .ProseMirror p:last-child { margin-bottom: 0; }
         .meta-tab:hover:not(.meta-tab-active) { background: var(--bg-hover) !important; }
+        .meta-drag-handle { cursor: grab; }
+        .meta-drag-handle:active { cursor: grabbing; }
+        .meta-resize-grip { cursor: nwse-resize; }
       `}</style>
 
-      {/* Backdrop */}
+      {/* Backdrop — click to close */}
       <div
         onMouseDown={handleClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 9000,
-          background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        {/* Modal */}
+        style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.35)' }}
+      />
+
+      {/* Modal — draggable + resizable, rendered independently of backdrop */}
+      {layout && (
         <div
           className="meta-modal"
           onMouseDown={e => e.stopPropagation()}
           style={{
-            width: 'min(840px, calc(100vw - 32px))',
-            height: 'min(85vh, 720px)',
+            position: 'fixed',
+            left: layout.x,
+            top: layout.y,
+            width: layout.width,
+            height: layout.height,
+            zIndex: 9001,
             background: 'var(--bg-surface)',
             borderRadius: 12,
             border: '1px solid var(--border)',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
           }}
         >
-          {/* Header */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '14px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
-          }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+          {/* Header — drag handle */}
+          <div
+            className="meta-drag-handle"
+            onMouseDown={handleDragStart}
+            onTouchStart={handleDragStart}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '12px 16px 12px 12px',
+              borderBottom: '1px solid var(--border)',
+              flexShrink: 0,
+              background: 'var(--bg-subtle)',
+            }}
+          >
+            {/* Drag indicator */}
+            <GripVertical size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, opacity: 0.5 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
                 Meta-Daten — Folge {folgeNummer}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
                 Synopsen · Titel · Deskriptoren · FSK · Autosave beim Schließen
               </div>
             </div>
             <button
+              onMouseDown={e => e.stopPropagation()}
               onClick={handleClose}
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 color: 'var(--text-muted)', display: 'flex', padding: 6, borderRadius: 6,
+                flexShrink: 0,
               }}
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           </div>
 
           {/* Tabs */}
           <div style={{
             display: 'flex', flexWrap: 'wrap',
-            padding: '8px 16px 0', flexShrink: 0, gap: 2,
+            padding: '7px 14px 0', flexShrink: 0, gap: 2,
             borderBottom: '1px solid var(--border)',
             background: 'var(--bg-subtle)',
           }}>
@@ -297,7 +461,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                 onClick={() => setActiveTab(t.id)}
                 style={{
                   flex: '0 0 auto',
-                  padding: '7px 13px',
+                  padding: '6px 12px',
                   borderRadius: '6px 6px 0 0',
                   border: `1px solid ${activeTab === t.id ? 'var(--border)' : 'transparent'}`,
                   borderBottom: activeTab === t.id ? '1px solid var(--bg-surface)' : '1px solid transparent',
@@ -443,47 +607,19 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                         padding: '7px 10px 7px 12px',
                         borderBottom: i < arr.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                       }}>
-                        <input
-                          value={name}
-                          onChange={e => updateLine(e.target.value, content)}
-                          placeholder="STRANG"
-                          style={{
-                            background: 'transparent', border: 'none', outline: 'none',
-                            fontWeight: 700, color: '#007AFF', fontSize: 13, width: '28%', minWidth: 60,
-                          }}
-                        />
+                        <input value={name} onChange={e => updateLine(e.target.value, content)} placeholder="STRANG"
+                          style={{ background: 'transparent', border: 'none', outline: 'none', fontWeight: 700, color: '#007AFF', fontSize: 13, width: '28%', minWidth: 60 }} />
                         <span style={{ color: 'var(--text-muted)', fontWeight: 700, flexShrink: 0 }}>:</span>
-                        <input
-                          value={content}
-                          onChange={e => updateLine(name, e.target.value)}
-                          placeholder="Kurzbeschreibung…"
-                          style={{
-                            flex: 1, background: 'transparent', border: 'none', outline: 'none',
-                            color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.7,
-                          }}
-                        />
-                        <button
-                          onMouseDown={() => {
-                            const lines = strangText.split('\n').filter(Boolean)
-                            lines.splice(i, 1)
-                            setStrangText(lines.join('\n'))
-                          }}
-                          style={{
-                            background: 'none', border: 'none', color: 'var(--text-muted)',
-                            cursor: 'pointer', padding: '2px 6px', fontSize: 16, flexShrink: 0,
-                          }}
-                        >×</button>
+                        <input value={content} onChange={e => updateLine(name, e.target.value)} placeholder="Kurzbeschreibung…"
+                          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.7 }} />
+                        <button onMouseDown={() => { const lines = strangText.split('\n').filter(Boolean); lines.splice(i, 1); setStrangText(lines.join('\n')) }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 6px', fontSize: 16, flexShrink: 0 }}>×</button>
                       </div>
                     )
                   })}
                   <div style={{ padding: '6px 12px', borderTop: strangText.trim() ? '1px solid var(--border-subtle)' : 'none' }}>
-                    <button
-                      onMouseDown={() => setStrangText(prev => (prev.trim() ? prev.trimEnd() + '\n: ' : ': '))}
-                      style={{
-                        background: 'none', border: 'none', color: '#007AFF',
-                        cursor: 'pointer', fontSize: 11, padding: 0, fontWeight: 600,
-                      }}
-                    >
+                    <button onMouseDown={() => setStrangText(prev => (prev.trim() ? prev.trimEnd() + '\n: ' : ': '))}
+                      style={{ background: 'none', border: 'none', color: '#007AFF', cursor: 'pointer', fontSize: 11, padding: 0, fontWeight: 600 }}>
                       + Strang hinzufügen
                     </button>
                   </div>
@@ -499,12 +635,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                     TV-Listing / Programmpresse · werblich, neugierig machend · kein Spoiler
                   </span>
                   {presseEditor && presseEditor.getText().length > 3 && (
-                    <span style={{
-                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5,
-                      background: presseInRange ? 'rgba(0,200,83,0.1)' : 'rgba(255,149,0,0.1)',
-                      border: `1px solid ${presseInRange ? '#00C85355' : '#FF950055'}`,
-                      color: presseInRange ? '#00C853' : '#FF9500',
-                    }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: presseInRange ? 'rgba(0,200,83,0.1)' : 'rgba(255,149,0,0.1)', border: `1px solid ${presseInRange ? '#00C85355' : '#FF950055'}`, color: presseInRange ? '#00C853' : '#FF9500' }}>
                       {presseChars} / 300–450 Zeichen
                     </span>
                   )}
@@ -521,12 +652,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                     Sachlicher Pressetext · knapp · kein werblicher Ton · kein Spoiler
                   </span>
                   {pressetextEditor && pressetextEditor.getText().length > 3 && (
-                    <span style={{
-                      fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5,
-                      background: pressetextInRange ? 'rgba(0,200,83,0.1)' : 'rgba(255,59,48,0.1)',
-                      border: `1px solid ${pressetextInRange ? '#00C85355' : '#FF3B3055'}`,
-                      color: pressetextInRange ? '#00C853' : '#FF3B30',
-                    }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5, background: pressetextInRange ? 'rgba(0,200,83,0.1)' : 'rgba(255,59,48,0.1)', border: `1px solid ${pressetextInRange ? '#00C85355' : '#FF3B3055'}`, color: pressetextInRange ? '#00C853' : '#FF3B30' }}>
                       {pressetextChars} / 280–330 Zeichen
                     </span>
                   )}
@@ -534,9 +660,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                 <RichEditor editor={pressetextEditor} minHeight={110} />
                 {pressetextEditor && pressetextEditor.getText().length > 3 && !pressetextInRange && (
                   <div style={{ marginTop: 8, fontSize: 11, color: 'var(--text-muted)' }}>
-                    {pressetextChars < 280
-                      ? `Noch ${280 - pressetextChars} Zeichen fehlen.`
-                      : `${pressetextChars - 330} Zeichen zu viel — bitte kürzen.`}
+                    {pressetextChars < 280 ? `Noch ${280 - pressetextChars} Zeichen fehlen.` : `${pressetextChars - 330} Zeichen zu viel — bitte kürzen.`}
                   </div>
                 )}
               </div>
@@ -546,12 +670,8 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
             {!loading && activeTab === 'deskriptoren' && (
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    Jugendschutz-Inhaltsdeskriptoren (JuSchG) · Kategorien und Schweregrade
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {deskriptoren.length} {deskriptoren.length === 1 ? 'Deskriptor' : 'Deskriptoren'}
-                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Jugendschutz-Inhaltsdeskriptoren (JuSchG) · Kategorien und Schweregrade</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{deskriptoren.length} {deskriptoren.length === 1 ? 'Deskriptor' : 'Deskriptoren'}</span>
                 </div>
                 {deskriptoren.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '40px 0', fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>
@@ -560,63 +680,35 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
                     {deskriptoren.map((d, i) => (
-                      <div key={i} style={{
-                        background: 'rgba(255,107,0,0.06)', border: '1px solid rgba(255,107,0,0.2)',
-                        borderRadius: 9, padding: '10px 12px',
-                      }}>
+                      <div key={i} style={{ background: 'rgba(255,107,0,0.06)', border: '1px solid rgba(255,107,0,0.2)', borderRadius: 9, padding: '10px 12px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                          <select
-                            value={d.kategorie}
+                          <select value={d.kategorie}
                             onChange={e => setDeskriptoren(prev => { const n = [...prev]; n[i] = { ...n[i], kategorie: e.target.value }; return n })}
-                            style={{
-                              background: 'var(--input-bg)', border: '1px solid var(--border)',
-                              borderRadius: 5, color: '#FF9500', fontWeight: 700, fontSize: 12,
-                              padding: '2px 6px', cursor: 'pointer',
-                            }}
-                          >
+                            style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 5, color: '#FF9500', fontWeight: 700, fontSize: 12, padding: '2px 6px', cursor: 'pointer' }}>
                             {deskriptorVorlagen.map(k => <option key={k} value={k}>{k}</option>)}
                           </select>
                           <div style={{ display: 'flex', gap: 5 }}>
                             {(['leicht', 'mittel', 'stark'] as DeskriptorStufe[]).map(s => (
-                              <button
-                                key={s}
+                              <button key={s}
                                 onClick={() => setDeskriptoren(prev => { const n = [...prev]; n[i] = { ...n[i], stufe: s }; return n })}
-                                style={{
-                                  padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                                  cursor: 'pointer', border: 'none',
-                                  background: d.stufe === s ? `${STUFE_COLORS[s]}22` : 'var(--bg-subtle)',
-                                  color: d.stufe === s ? STUFE_COLORS[s] : 'var(--text-muted)',
-                                  outline: d.stufe === s ? `1.5px solid ${STUFE_COLORS[s]}88` : '1.5px solid transparent',
-                                }}
-                              >{s}</button>
+                                style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none', background: d.stufe === s ? `${STUFE_COLORS[s]}22` : 'var(--bg-subtle)', color: d.stufe === s ? STUFE_COLORS[s] : 'var(--text-muted)', outline: d.stufe === s ? `1.5px solid ${STUFE_COLORS[s]}88` : '1.5px solid transparent' }}>
+                                {s}
+                              </button>
                             ))}
                           </div>
-                          <button
-                            onClick={() => setDeskriptoren(prev => prev.filter((_, j) => j !== i))}
-                            style={{
-                              marginLeft: 'auto', background: 'none', border: 'none',
-                              color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, padding: '0 4px',
-                            }}
-                          >×</button>
+                          <button onClick={() => setDeskriptoren(prev => prev.filter((_, j) => j !== i))}
+                            style={{ marginLeft: 'auto', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16, padding: '0 4px' }}>×</button>
                         </div>
-                        <input
-                          value={d.beschreibung}
+                        <input value={d.beschreibung}
                           onChange={e => setDeskriptoren(prev => { const n = [...prev]; n[i] = { ...n[i], beschreibung: e.target.value }; return n })}
                           placeholder="Kurzbeschreibung mit Szenenreferenz (Sz. X)…"
-                          style={{
-                            width: '100%', boxSizing: 'border-box',
-                            background: 'transparent', border: 'none', outline: 'none',
-                            color: 'var(--text-primary)', fontSize: 12, lineHeight: 1.6,
-                          }}
-                        />
+                          style={{ width: '100%', boxSizing: 'border-box', background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 12, lineHeight: 1.6 }} />
                       </div>
                     ))}
                   </div>
                 )}
-                <button
-                  onClick={() => setDeskriptoren(prev => [...prev, { kategorie: deskriptorVorlagen[0] ?? 'GEWALT', stufe: 'leicht', beschreibung: '' }])}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,107,0,0.7)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0 }}
-                >
+                <button onClick={() => setDeskriptoren(prev => [...prev, { kategorie: deskriptorVorlagen[0] ?? 'GEWALT', stufe: 'leicht', beschreibung: '' }])}
+                  style={{ background: 'none', border: 'none', color: 'rgba(255,107,0,0.7)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0 }}>
                   + Deskriptor hinzufügen
                 </button>
               </div>
@@ -630,90 +722,61 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                   {FSK_LEVELS.map(lvl => (
-                    <button
-                      key={lvl}
-                      onClick={() => setFskRating(lvl)}
-                      style={{
-                        width: 52, height: 52, borderRadius: 10, cursor: 'pointer',
-                        border: `2px solid ${fskRating === lvl ? FSK_COLORS[lvl] : 'var(--border)'}`,
-                        background: fskRating === lvl ? `${FSK_COLORS[lvl]}18` : 'var(--bg-subtle)',
-                        color: fskRating === lvl ? FSK_COLORS[lvl] : 'var(--text-muted)',
-                        fontSize: 18, fontWeight: 800, transition: 'border-color 0.15s, background 0.15s',
-                      }}
-                    >{lvl}</button>
+                    <button key={lvl} onClick={() => setFskRating(lvl)}
+                      style={{ width: 52, height: 52, borderRadius: 10, cursor: 'pointer', border: `2px solid ${fskRating === lvl ? FSK_COLORS[lvl] : 'var(--border)'}`, background: fskRating === lvl ? `${FSK_COLORS[lvl]}18` : 'var(--bg-subtle)', color: fskRating === lvl ? FSK_COLORS[lvl] : 'var(--text-muted)', fontSize: 18, fontWeight: 800, transition: 'border-color 0.15s, background 0.15s' }}>
+                      {lvl}
+                    </button>
                   ))}
                 </div>
                 {fskRating && (
-                  <div style={{
-                    marginBottom: 14, padding: '8px 14px', borderRadius: 8,
-                    background: `${FSK_COLORS[fskRating]}12`,
-                    border: `1px solid ${FSK_COLORS[fskRating]}44`,
-                    fontSize: 14, color: FSK_COLORS[fskRating], fontWeight: 700,
-                    display: 'flex', alignItems: 'center', gap: 7,
-                  }}>
-                    <Shield size={14} />
-                    FSK {fskRating}
+                  <div style={{ marginBottom: 14, padding: '8px 14px', borderRadius: 8, background: `${FSK_COLORS[fskRating]}12`, border: `1px solid ${FSK_COLORS[fskRating]}44`, fontSize: 14, color: FSK_COLORS[fskRating], fontWeight: 700, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Shield size={14} />FSK {fskRating}
                   </div>
                 )}
-                <label style={{
-                  fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
-                  display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5,
-                }}>Begründung</label>
-                <textarea
-                  value={fskBegruendung}
-                  onChange={e => setFskBegruendung(e.target.value)}
+                <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Begründung</label>
+                <textarea value={fskBegruendung} onChange={e => setFskBegruendung(e.target.value)}
                   placeholder="Begründung für die FSK-Einschätzung, mit Szenenreferenzen (Sz. X)…"
-                  style={{
-                    width: '100%', boxSizing: 'border-box', minHeight: 140,
-                    padding: '10px 12px', borderRadius: 8,
-                    border: '1px solid var(--border)',
-                    background: 'var(--input-bg)', color: 'var(--text-primary)',
-                    fontSize: 13, lineHeight: 1.7,
-                    outline: 'none', resize: 'vertical', fontFamily: 'inherit',
-                  }}
-                />
+                  style={{ width: '100%', boxSizing: 'border-box', minHeight: 140, padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--input-bg)', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.7, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }} />
               </div>
             )}
 
           </div>
 
           {/* Footer */}
-          <div style={{
-            flexShrink: 0, padding: '10px 20px', borderTop: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', gap: 10,
-          }}>
-            <button
-              onClick={() => save()}
-              disabled={saveLoading}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '7px 16px', borderRadius: 7,
-                background: '#00C853', color: '#fff', border: 'none',
-                cursor: saveLoading ? 'not-allowed' : 'pointer',
-                fontSize: 12, fontWeight: 700, opacity: saveLoading ? 0.7 : 1,
-              }}
-            >
+          <div style={{ flexShrink: 0, padding: '10px 20px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => save()} disabled={saveLoading}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 7, background: '#00C853', color: '#fff', border: 'none', cursor: saveLoading ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, opacity: saveLoading ? 0.7 : 1 }}>
               <Check size={12} />
               {saveLoading ? 'Speichert…' : 'Speichern'}
             </button>
             {saveMsg && (
-              <span style={{ fontSize: 11, color: saveMsg.startsWith('Fehler') ? '#FF9500' : '#00C853' }}>
-                {saveMsg}
-              </span>
+              <span style={{ fontSize: 11, color: saveMsg.startsWith('Fehler') ? '#FF9500' : '#00C853' }}>{saveMsg}</span>
             )}
-            <button
-              onClick={handleClose}
-              style={{
-                marginLeft: 'auto', padding: '7px 14px', borderRadius: 7,
-                background: 'transparent', border: '1px solid var(--border)',
-                color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
-              }}
-            >
+            <button onClick={handleClose}
+              style={{ marginLeft: 'auto', padding: '7px 14px', borderRadius: 7, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
               Schließen &amp; Autosave
             </button>
           </div>
+
+          {/* Resize grip — bottom-right corner */}
+          <div
+            className="meta-resize-grip"
+            onMouseDown={handleResizeStart}
+            onTouchStart={handleResizeStart}
+            style={{
+              position: 'absolute', right: 0, bottom: 0,
+              width: 20, height: 20,
+              display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end',
+              padding: 4,
+            }}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" style={{ opacity: 0.35 }}>
+              <line x1="10" y1="2" x2="2" y2="10" stroke="currentColor" strokeWidth="1.5" />
+              <line x1="10" y1="6" x2="6" y2="10" stroke="currentColor" strokeWidth="1.5" />
+            </svg>
+          </div>
         </div>
-      </div>
+      )}
     </>
   )
 }
