@@ -42,6 +42,7 @@ interface Props {
   sceneCharNames?: string[]
   onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
   onSuffixRemoved?: (name: string, suffix: string) => void
+  onNtLineChange?: (ntLine: string | null) => void
 }
 
 export default function EditorPanel({
@@ -49,7 +50,7 @@ export default function EditorPanel({
   defaultTyp, selectedSzeneId, sceneIdentityId, useDokumentSzenen, activateWerkId,
   onCreateWerkstufe, onReloadWerkstufen,
   onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated, onSzenesNeedReload,
-  sceneCharNames, onCharInserted, onSuffixRemoved,
+  sceneCharNames, onCharInserted, onSuffixRemoved, onNtLineChange,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
@@ -983,6 +984,7 @@ export default function EditorPanel({
               sceneCharNames={sceneCharNames}
               onCharInserted={onCharInserted}
               onSuffixRemoved={onSuffixRemoved}
+              onNtLineChange={onNtLineChange}
               szeneId={currentSzene?.id ? String(currentSzene.id) : undefined}
               onMagicOpen={() => setMagicOpen(true)}
               onExportOpen={() => setExportOpen(v => !v)}

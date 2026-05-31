@@ -72,10 +72,10 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
     setCharToAdd({ name, characterId, suffix, key: Date.now() })
   }, [])
 
-  // Suffix-Entfernung aus Editor → SceneEditor-Notiz-Bereinigung
-  const [suffixRemoved, setSuffixRemoved] = useState<{ name: string; suffix: string; key: number } | null>(null)
-  const handleSuffixRemoved = useCallback((name: string, suffix: string) => {
-    setSuffixRemoved({ name, suffix, key: Date.now() })
+  // NT-Zeile aus Editor → SceneEditor-Notiz (ersetzt suffix-basierte Einzeleinträge)
+  const [ntLineTrigger, setNtLineTrigger] = useState<{ ntLine: string | null; key: number } | null>(null)
+  const handleNtLineChange = useCallback((ntLine: string | null) => {
+    setNtLineTrigger({ ntLine, key: Date.now() })
   }, [])
 
   // Propagate dominant werkId + typ to parent — synchronisiert SceneList mit aktivem EditorPanel
@@ -159,7 +159,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
           onMarkCommentsRead={onMarkCommentsRead}
           onCharsChange={handleCharsChange}
           addCharTrigger={charToAdd}
-          suffixRemovedTrigger={suffixRemoved}
+          ntLineTrigger={ntLineTrigger}
         />
       )}
       <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -207,7 +207,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             onSzenesNeedReload={onSzenesNeedReload}
             sceneCharNames={sceneCharNames}
             onCharInserted={handleCharInserted}
-            onSuffixRemoved={handleSuffixRemoved}
+            onNtLineChange={handleNtLineChange}
           />
         </div>
       )}
@@ -271,7 +271,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             onSzenesNeedReload={onSzenesNeedReload}
             sceneCharNames={sceneCharNames}
             onCharInserted={handleCharInserted}
-            onSuffixRemoved={handleSuffixRemoved}
+            onNtLineChange={handleNtLineChange}
           />
         </div>
       )}

@@ -327,6 +327,8 @@ interface UniversalEditorProps {
   onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
   /** Callback wenn ein Suffix von einer Figur entfernt wurde — für Notiz-Bereinigung */
   onSuffixRemoved?: (name: string, suffix: string) => void
+  /** Callback wenn sich die NT-Figuren der aktuellen Szene ändern — liefert fertige Notiz-Zeile */
+  onNtLineChange?: (ntLine: string | null) => void
   /** ID der aktuellen Szene — wird in Freigabe-Emails als Kontext mitgeschickt */
   szeneId?: string | null
   onMagicOpen?: () => void
@@ -369,6 +371,7 @@ export default function UniversalEditor({
   sceneCharNames,
   onCharInserted,
   onSuffixRemoved,
+  onNtLineChange,
   szeneId,
   onMagicOpen,
   onExportOpen,
@@ -601,6 +604,15 @@ export default function UniversalEditor({
   // IDs der "Action"-Absatzformate
   const actionFormatIds = useMemo(
     () => absatzformate.filter(f => f.name.toLowerCase() === 'action').map(f => f.id),
+    [absatzformate]
+  )
+  // IDs der "Dialogue"- und "Parenthetical"-Absatzformate (für NT-Erkennung)
+  const dialogFormatIds = useMemo(
+    () => absatzformate.filter(f => f.name.toLowerCase() === 'dialogue' || f.name.toLowerCase() === 'dialog').map(f => f.id),
+    [absatzformate]
+  )
+  const parFormatIds = useMemo(
+    () => absatzformate.filter(f => f.name.toLowerCase() === 'parenthetical').map(f => f.id),
     [absatzformate]
   )
 
@@ -1013,12 +1025,8 @@ export default function UniversalEditor({
         : rawSuffix === '(VO)' && !ss.suffix_vo_enabled ? null
         : rawSuffix
       const queryUpper = queryClean.toUpperCase()
-      // Memory-Suffix: letzter bekannter Suffix dieser Figur in der aktuellen Szene
-      const memorySuffix = !querySuffix
-        ? (sceneSuffixMemoryRef.current.get(queryUpper) ?? null)
-        : null
-      const effectiveSuffix = querySuffix ?? memorySuffix
-      detectedSuffixRef.current = effectiveSuffix
+      // Nur explizit getippter Suffix wird akzeptiert — kein Memory-Suffix (verhindert Re-Insertion)
+      detectedSuffixRef.current = querySuffix
       const coords = view.coordsAtPos($from.pos)
       const nodeEndPos = $from.end()
 
@@ -1048,8 +1056,8 @@ export default function UniversalEditor({
           const ghostSuffix = bestMatch.slice(queryClean.length) // Name-Vervollständigung
           inlineGhostAcceptNameRef.current = bestMatch
           inlineGhostNoMatchNameRef.current = null
-          // Aktiv wenn Ghost-Text sichtbar ODER Suffix bekannt (explizit oder aus Memory)
-          inlineGhostActiveRef.current = ghostSuffix.length > 0 || !!effectiveSuffix
+          // Aktiv wenn Ghost-Text sichtbar (Name unvollständig) ODER expliziter Suffix getippt
+          inlineGhostActiveRef.current = ghostSuffix.length > 0 || !!querySuffix
           setGhost(ghostSuffix, nodeEndPos)
         } else {
           // Kein Treffer — Neu anlegen (nur im "alle"-Modus)
@@ -1108,16 +1116,19 @@ export default function UniversalEditor({
 
   const onSuffixRemovedRef = useRef(onSuffixRemoved)
   onSuffixRemovedRef.current = onSuffixRemoved
+  const onNtLineChangeRef = useRef(onNtLineChange)
+  onNtLineChangeRef.current = onNtLineChange
+  const prevNtLineRef = useRef<string | null>(null)
 
-  // Suffix-Memory aufbauen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
+  // Suffix-Memory aufbauen + NT-Zeile berechnen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
   useEffect(() => {
     if (!editor || charFormatIds.length === 0) return
     const rebuildSuffixMemory = () => {
       const prev = sceneSuffixMemoryRef.current
       const memory = new Map<string, string>()
-      // Alle aktuellen CHARACTER-Node-Namen (auch ohne Suffix) — für Diff-Logik
       const allCurrentCharNames = new Set<string>()
 
+      // ── Suffix-Memory ──────────────────────────────────────────────────────
       editor.state.doc.descendants((node: any) => {
         const isChar =
           (node.type.name === 'screenplay_element' && (node.attrs?.elementType === 'character' || node.attrs?.element_type === 'character')) ||
@@ -1131,9 +1142,7 @@ export default function UniversalEditor({
       })
 
       // onSuffixRemoved NUR feuern wenn der Name noch als CHARACTER-Node existiert,
-      // aber das Suffix sich geändert/entfernt hat.
-      // Nicht feuern wenn der Node durch Format-Change (Tab CHARACTER→DIALOGUE)
-      // komplett aus der Character-Liste verschwunden ist.
+      // aber das Suffix sich geändert/entfernt hat (nicht bei Format-Tab-Wechsel).
       if (onSuffixRemovedRef.current) {
         for (const [key, oldSuffix] of prev) {
           const newSuffix = memory.get(key)
@@ -1143,11 +1152,53 @@ export default function UniversalEditor({
         }
       }
       sceneSuffixMemoryRef.current = memory
+
+      // ── NT-Zeile: Scan nach CHARACTER (NT/VO/OFF) + folgendem DIALOGUE ─────
+      if (onNtLineChangeRef.current && dialogFormatIds.length > 0) {
+        const ntParts: string[] = []
+        const seen = new Set<string>()
+        let pendingNtChar: { name: string; typ: string } | null = null
+
+        editor.state.doc.forEach((node: any) => {
+          const isChar = node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)
+          const isDia = node.type.name === 'absatz' && dialogFormatIds.includes(node.attrs.format_id)
+          const isPar = node.type.name === 'absatz' && parFormatIds.includes(node.attrs.format_id)
+
+          if (isChar) {
+            const { name, suffix } = parseSuffix(node.textContent ?? '')
+            pendingNtChar = (suffix && suffix !== '(ONE-WAY)')
+              ? { name: name.trim(), typ: suffix }
+              : null
+            return
+          }
+          if (pendingNtChar) {
+            if (isDia) {
+              const key = `${pendingNtChar.name}:${pendingNtChar.typ}`
+              if (!seen.has(key)) {
+                seen.add(key)
+                const { name, typ } = pendingNtChar
+                if (typ === '(NT)') ntParts.push(`NT ${name}`)
+                else if (typ === '(VO)') ntParts.push(`NT ${name} (VO)`)
+                else if (typ === '(OFF)') ntParts.push(`${name} im Off`)
+              }
+              pendingNtChar = null
+            } else if (!isPar) {
+              pendingNtChar = null // anderer Absatz-Typ → kein Dialogue mehr erwartet
+            }
+          }
+        })
+
+        const newNtLine = ntParts.length > 0 ? ntParts.join(', ') : null
+        if (newNtLine !== prevNtLineRef.current) {
+          prevNtLineRef.current = newNtLine
+          onNtLineChangeRef.current(newNtLine)
+        }
+      }
     }
     editor.on('update', rebuildSuffixMemory)
     rebuildSuffixMemory() // initialer Scan
     return () => { editor.off('update', rebuildSuffixMemory) }
-  }, [editor, charFormatIds])
+  }, [editor, charFormatIds, dialogFormatIds, parFormatIds])
 
   // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
   const onCharInsertedRef = useRef(onCharInserted)

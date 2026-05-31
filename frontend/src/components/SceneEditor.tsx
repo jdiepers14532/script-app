@@ -27,8 +27,8 @@ interface SceneEditorProps {
   onCharsChange?: (chars: { name: string }[]) => void
   /** Wenn Editor einen Charakter via AC einfügt → automatisch in Szenenkopf aufnehmen */
   addCharTrigger?: { name: string; characterId: string | null; suffix: string | null; key: number } | null
-  /** Wenn ein Suffix entfernt wurde → Notiz-Eintrag bereinigen */
-  suffixRemovedTrigger?: { name: string; suffix: string; key: number } | null
+  /** NT-Zeile aus Editor → ersetzt den NT-Abschnitt in der Notiz */
+  ntLineTrigger?: { ntLine: string | null; key: number } | null
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -54,7 +54,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
 }
 
 
-export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange, addCharTrigger, suffixRemovedTrigger }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange, addCharTrigger, ntLineTrigger }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -662,25 +662,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     if (!char) return
 
     // Suffix-Logik:
-    // OFF → nicht in Rollen, Notiz "Name im Off"
-    // NT → nicht in Rollen, Notiz "NT Name"
-    // VO → IN Rollen (Figur ist sichtbar), ZUSÄTZLICH Notiz "NT Name (VO)"
-    // ONE-WAY → in Rollen (sichtbare Figur); Notiz-Text für den Partner wird separat im ONE-WAY-Dialog gesetzt
-    const goesInNotiz = suffix === '(OFF)' || suffix === '(NT)' || suffix === '(VO)'
+    // OFF/NT → nicht in Rollen (NT-Notiz via ntLineTrigger)
+    // VO → IN Rollen (Figur ist sichtbar), NT-Notiz via ntLineTrigger
+    // ONE-WAY → in Rollen
     const goesInRollen = suffix !== '(OFF)' && suffix !== '(NT)'
-
-    if (goesInNotiz) {
-      const notizEntry = suffix === '(NT)'
-        ? `NT ${name}`
-        : suffix === '(VO)'
-          ? `NT ${name} (VO)`
-          : `${name} im Off`
-      const currentNotiz = scene.notiz ? scene.notiz.trim() : ''
-      if (!currentNotiz.includes(notizEntry)) {
-        const newNotiz = currentNotiz ? `${currentNotiz}\n${notizEntry}` : notizEntry
-        saveScene({ notiz: newNotiz }).then((s: any) => { if (s) setScene(s) }).catch(() => {})
-      }
-    }
 
     if (goesInRollen) {
       // Normal oder VO: Figur in Rollen aufnehmen
@@ -691,21 +676,22 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     }
   }, [addCharTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Suffix entfernt → entsprechenden Notiz-Eintrag bereinigen
+  // NT-Zeile aus Editor → NT-Abschnitt in Notiz vollständig ersetzen
   useEffect(() => {
-    if (!suffixRemovedTrigger || !scene) return
-    const { name, suffix } = suffixRemovedTrigger
-    const notizEntry =
-      suffix === '(NT)'  ? `NT ${name}` :
-      suffix === '(VO)'  ? `NT ${name} (VO)` :
-      suffix === '(OFF)' ? `${name} im Off` : null
-    if (!notizEntry) return
-    const currentNotiz = scene.notiz ?? ''
-    if (!currentNotiz.includes(notizEntry)) return
-    const lines = currentNotiz.split('\n').filter((l: string) => l.trim() !== notizEntry)
-    const newNotiz = lines.join('\n').trim()
-    saveScene({ notiz: newNotiz }).then((s: any) => { if (s) setScene(s) }).catch(() => {})
-  }, [suffixRemovedTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!ntLineTrigger || !scene) return
+    const { ntLine } = ntLineTrigger
+    const currentNotiz = (scene.notiz ?? '').trim()
+    // NT-Zeilen erkennen: beginnt mit "NT " oder endet mit " im Off"
+    const isNtLine = (l: string) => {
+      const t = l.trim()
+      return t.startsWith('NT ') || t.endsWith(' im Off')
+    }
+    const nonNtLines = currentNotiz.split('\n').filter((l: string) => !isNtLine(l))
+    const newLines = ntLine ? [ntLine, ...nonNtLines] : nonNtLines
+    const newNotiz = newLines.filter(Boolean).join('\n').trim()
+    if (newNotiz === currentNotiz) return
+    saveScene({ notiz: newNotiz || null }).then((s: any) => { if (s) setScene(s) }).catch(() => {})
+  }, [ntLineTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMotivSelect = useCallback(async (parentMotiv: any) => {
     setMotivDropdownOpen(false)
