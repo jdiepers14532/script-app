@@ -14,8 +14,8 @@ import { getShortcutLabel } from '../shortcuts'
 import { useOfflineQueueContext } from '../sw-ui'
 import ProductionSelector from './ProductionSelector'
 import HeaderSelect from './HeaderSelect'
-import { CompanyInfoModal, useTerminologie, WuenscheModal, MagicModal } from '../sw-ui'
-import type { WunschNotification } from '../sw-ui'
+import { CompanyInfoModal, useTerminologie, WuenscheModal, MagicModal, injectMagicCSS, MAGIC_COLORS } from '../sw-ui'
+import type { WunschNotification, WunschDialoge } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
@@ -289,6 +289,7 @@ export default function AppShell({
   const [teamWorkOpen, setTeamWorkOpen] = useState(false)
   const [wuenscheOpen, setWuenscheOpen] = useState(false)
   const [magicNotifications, setMagicNotifications] = useState<WunschNotification[]>([])
+  const [wunschDialoge, setWunschDialoge] = useState<WunschDialoge | null>(null)
 
   useEffect(() => {
     const handler = () => setTeamWorkOpen(true)
@@ -510,10 +511,15 @@ export default function AppShell({
       .then((data: any) => {
         if (!data) return
         setCurrentUser({ username: data.name, email: data.email, user_id: data.user_id })
-        // Wünsche-Notifications prüfen (Magic Modal bei erfüllten Wünschen)
+        // Wünsche-Notifications + Dialoge laden
+        injectMagicCSS()
         fetch('https://auth.serienwerft.studio/api/wuensche/notifications/pending', { credentials: 'include' })
           .then(r => r.ok ? r.json() : null)
           .then((d: any) => { if (d?.notifications?.length) setMagicNotifications(d.notifications) })
+          .catch(() => {})
+        fetch('https://auth.serienwerft.studio/api/wuensche/dialoge', { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .then((d: any) => { if (d) setWunschDialoge(d) })
           .catch(() => {})
         // Authentifiziert → pendingRedirect abarbeiten (immer löschen, auch wenn kein Redirect nötig)
         if (pendingRedirect) {
@@ -1111,7 +1117,28 @@ export default function AppShell({
           </span>
         </div>
 
-<Tooltip text="Benachrichtigungen" placement="bottom">
+<Tooltip text={wunschDialoge?.aktuell?.magic_tooltip || 'Wünsche einreichen'} placement="bottom">
+          <button
+            className="iconbtn topbar-extra"
+            onClick={() => { setWuenscheOpen(true); setNotifOpen(false); setUserMenuOpen(false); setAppSwitcherOpen(false) }}
+            style={{
+              position: 'relative',
+              color: magicNotifications.length > 0 ? MAGIC_COLORS.gold : undefined,
+              animation: magicNotifications.length > 0 ? 'magic-glow-pulse 1.5s ease-in-out infinite' : undefined,
+            }}
+          >
+            <span style={{ fontSize: 14, lineHeight: 1 }}>✨</span>
+            {magicNotifications.length > 0 && (
+              <span style={{
+                position: 'absolute', top: 2, right: 2,
+                width: 8, height: 8, borderRadius: '50%',
+                background: MAGIC_COLORS.gold, border: '1.5px solid var(--bg-surface)',
+                pointerEvents: 'none',
+              }} />
+            )}
+          </button>
+        </Tooltip>
+        <Tooltip text="Benachrichtigungen" placement="bottom">
           <button
             className="iconbtn topbar-extra"
             onClick={() => { setNotifOpen(v => !v); setUserMenuOpen(false); setAppSwitcherOpen(false) }}
@@ -1221,6 +1248,8 @@ export default function AppShell({
           }).catch(() => {})
           setMagicNotifications(prev => prev.filter(n => n.notification_id !== id))
         }}
+        titelSpruch={wunschDialoge?.aktuell?.notification_titel ?? undefined}
+        bodySpruch={wunschDialoge?.aktuell?.notification_body ?? undefined}
       />
 
       {/* ── Ansichtsoptionen-Panel ── */}
