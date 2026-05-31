@@ -850,7 +850,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                   Elemente per Drag &amp; Drop zwischen den Zonen verschieben.
                 </div>
 
-                {/* PDF-Optionen */}
+                {/* PDF-Optionen: nur Lesezeichen */}
                 {format === 'pdf' && (
                   <div style={{ marginTop: 14 }}>
                     <span style={SEC}>PDF-Optionen</span>
@@ -865,64 +865,6 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     </label>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, marginLeft: 21 }}>
                       Erzeugt anklickbare Bookmarks im PDF-Reader
-                    </div>
-
-                    {/* ── Admin Wasserzeichen (nur Status, nicht änderbar) ── */}
-                    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                      <span style={{ ...SEC, marginBottom: 6 }}>Wasserzeichen (Admin)</span>
-                      <Tooltip text="Immer aktiv — jedes PDF enthält unsichtbare Metadaten zur Rückverfolgung">
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default', fontSize: 12, color: 'var(--text-muted)', userSelect: 'none', opacity: 0.6 }}>
-                          <input type="checkbox" checked={true} readOnly disabled style={{ width: 13, height: 13 }} />
-                          Verstecktes Wasserzeichen (ZWC)
-                        </label>
-                      </Tooltip>
-                    </div>
-
-                    {/* ── Offene Wasserzeichen ── */}
-                    <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                      <span style={{ ...SEC, marginBottom: 6 }}>Offene Wasserzeichen</span>
-
-                      {/* Klein */}
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none' }}>
-                        <input
-                          type="checkbox" checked={wzKleinAktiv}
-                          onChange={e => setWzKleinAktiv(e.target.checked)}
-                          style={{ cursor: 'pointer', accentColor: '#007AFF', width: 13, height: 13 }}
-                        />
-                        <span>Klein — Kopfzeile zentriert</span>
-                      </label>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, marginLeft: 21 }}>
-                        Pers. Ausdruck als kleiner Text oben auf jeder Seite
-                      </div>
-
-                      {/* Groß */}
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none', marginTop: 8 }}>
-                        <input
-                          type="checkbox" checked={wzGrossAktiv}
-                          onChange={e => setWzGrossAktiv(e.target.checked)}
-                          style={{ cursor: 'pointer', accentColor: '#007AFF', width: 13, height: 13 }}
-                        />
-                        <span>Groß — diagonal über die Seite</span>
-                      </label>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, marginLeft: 21 }}>
-                        Pers. Ausdruck diagonal (unten-links → oben-rechts)
-                      </div>
-                      {wzGrossAktiv && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, marginLeft: 21 }}>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Farbe:</span>
-                          <input
-                            type="color" value={wzGrossFarbe}
-                            onChange={e => setWzGrossFarbe(e.target.value)}
-                            style={{ width: 32, height: 22, padding: 0, border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', background: 'none' }}
-                          />
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{wzGrossFarbe}</span>
-                        </div>
-                      )}
-                      {!persAusdruck.trim() && (wzKleinAktiv || wzGrossAktiv) && (
-                        <div style={{ fontSize: 10, color: '#FF9500', marginTop: 6, padding: '3px 7px', background: 'rgba(255,149,0,0.08)', borderRadius: 5, border: '1px solid rgba(255,149,0,0.25)' }}>
-                          Kein Text — bitte „Pers. Ausdruck" ausfüllen
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -1034,6 +976,65 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                       </label>
                     )}
                   </div>
+                )}
+
+                {/* Wasserzeichen (nur PDF) */}
+                {format === 'pdf' && (
+                  <>
+                    {/* Admin Wasserzeichen (nur Status, nicht änderbar) */}
+                    <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                      <span style={SEC}>Wasserzeichen (Admin)</span>
+                      <Tooltip text="Immer aktiv — jedes PDF enthält unsichtbare Metadaten zur Rückverfolgung">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'default', fontSize: 12, color: 'var(--text-muted)', userSelect: 'none', opacity: 0.6 }}>
+                          <input type="checkbox" checked readOnly disabled style={{ width: 13, height: 13 }} />
+                          <Shield size={12} />
+                          Verstecktes Wasserzeichen (ZWC)
+                        </label>
+                      </Tooltip>
+                    </div>
+
+                    {/* Offene Wasserzeichen */}
+                    <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                      <span style={SEC}>Offene Wasserzeichen</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none' }}>
+                          <input
+                            type="checkbox" checked={wzKleinAktiv}
+                            onChange={e => setWzKleinAktiv(e.target.checked)}
+                            style={{ cursor: 'pointer', accentColor: '#007AFF', width: 13, height: 13 }}
+                          />
+                          Klein (Kopfzeile)
+                        </label>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)', userSelect: 'none' }}>
+                          <input
+                            type="checkbox" checked={wzGrossAktiv}
+                            onChange={e => setWzGrossAktiv(e.target.checked)}
+                            style={{ cursor: 'pointer', accentColor: '#007AFF', width: 13, height: 13 }}
+                          />
+                          Groß (diagonal)
+                        </label>
+                        {wzGrossAktiv && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 21 }}>
+                            <input
+                              type="color" value={wzGrossFarbe}
+                              onChange={e => setWzGrossFarbe(e.target.value)}
+                              style={{ width: 24, height: 24, border: 'none', borderRadius: 4, cursor: 'pointer', padding: 0, background: 'none' }}
+                            />
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Farbe</span>
+                            <button
+                              onClick={() => setWzGrossFarbe('#CCCCCC')}
+                              style={{ fontSize: 9, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit' }}
+                            >
+                              Reset
+                            </button>
+                          </div>
+                        )}
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                          Pers. Ausdruck wird als Wasserzeichen eingefügt
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {/* Fortschrittsbalken */}
