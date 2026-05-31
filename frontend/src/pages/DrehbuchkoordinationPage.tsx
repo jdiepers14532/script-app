@@ -1396,7 +1396,7 @@ function FigurenTab() {
 
           {/* Master-Toggle: Alles deaktivieren */}
           <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)' }}>
-            <Tooltip text={'⚠️ Schaltet die gesamte Autovervollständigung ab — sowohl Figuren- als auch Action-Zeilen.\nBetrifft alle Nutzer sofort und ohne weitere Bestätigung.\nEinzelne Einstellungen bleiben gespeichert und werden beim Reaktivieren wiederhergestellt.'}>
+            <Tooltip text={'⚠️ Schaltet die gesamte Autovervollständigung ab — sowohl Figuren- als auch Action-Zeilen.\nBetrifft alle Nutzer sofort und ohne weitere Bestätigung.\n\n🚨 Gefahr: Ohne Autovervollständigung können Figurennamen frei getippt werden, ohne dass sie in der Datenbank erfasst werden. Das führt zu Inkonsistenzen zwischen Drehbuchtext und Figurendatenbank — Figuren, die im Text vorkommen, werden möglicherweise nicht zu den Dreharbeiten bestellt.\n\nEinzelne Einstellungen bleiben gespeichert und werden beim Reaktivieren wiederhergestellt.'}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                 <input type="checkbox" checked={acAlleDeaktiviert} disabled={suffixSaving} onChange={e => {
                   setAcAlleDeaktiviert(e.target.checked)
