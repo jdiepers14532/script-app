@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import multer from 'multer'
 import pdfParse from 'pdf-parse'
+import { PDFDocument } from 'pdf-lib'
 import { authMiddleware, requireRole } from '../auth'
 import { decodeWatermarkFromText, parsePayload } from '../utils/watermark'
 import { query, queryOne } from '../db'
@@ -17,16 +18,27 @@ router.post('/decode',
     try {
       if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
 
-      let text: string
       const isPdf = req.file.mimetype === 'application/pdf'
         || req.file.originalname?.toLowerCase().endsWith('.pdf')
+
+      let payload: string | null = null
+
       if (isPdf) {
-        const parsed = await pdfParse(req.file.buffer)
-        text = parsed.text
+        // 1. Priorität: Keywords-Feld im PDF-Info-Dictionary (neues Verfahren via pdf-lib)
+        try {
+          const pdfDoc = await PDFDocument.load(req.file.buffer, { ignoreEncryption: true })
+          const kw = pdfDoc.getKeywords()
+          if (kw && kw.startsWith('wm1:')) payload = kw
+        } catch { /* ignorieren — Fallback folgt */ }
+
+        // 2. Fallback: ZWC-Extraktion aus PDF-Text (ältere Exporte)
+        if (!payload) {
+          const parsed = await pdfParse(req.file.buffer)
+          payload = decodeWatermarkFromText(parsed.text)
+        }
       } else {
-        text = req.file.buffer.toString('utf8')
+        payload = decodeWatermarkFromText(req.file.buffer.toString('utf8'))
       }
-      const payload = decodeWatermarkFromText(text)
 
       if (!payload) {
         return res.json({ found: false, message: 'Kein Wasserzeichen in dieser Datei gefunden.' })

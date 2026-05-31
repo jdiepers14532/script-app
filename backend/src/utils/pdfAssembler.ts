@@ -1644,9 +1644,7 @@ async function assembleHtml(
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
     const wmPayload = buildPayload(userId, werkstufId)
-    // ZWC-Wasserzeichen: font-size:0.1pt statt 0, damit Chromium den Text in die PDF-Textebene schreibt.
-    // position:absolute + overflow:hidden hält es aus dem sichtbaren Layout.
-    const wmHidden  = `<div style="position:absolute;overflow:hidden;width:0;height:0;font-size:0.1pt;line-height:0;color:transparent;user-select:none">${encodeWatermark(wmPayload)}</div>`
+    // wmPayload wird nach der PDF-Erzeugung via pdf-lib in die Metadaten eingeschrieben (s.u.).
 
     // Alle Sektionen in Reihenfolge: preSections → Hauptinhalt → postSections
     // Jede Sektion bekommt einen page-break-before (außer der allerersten)
@@ -1656,7 +1654,7 @@ async function assembleHtml(
       ...postSections,
     ]
 
-    let bodyHtml = wmHidden + '\n'
+    let bodyHtml = ''
     if (allSections.length === 0) {
       bodyHtml += '<div style="color:#888;font-size:10pt">Kein Inhalt für diesen Export ausgewählt.</div>'
     } else {
@@ -1990,6 +1988,15 @@ export async function assemblePdf(
 
   // Leerseiten entfernen (z.B. durch Seitenumbruch-Artefakte am Anfang)
   pdfBytes = await removeEmptyPages(pdfBytes)
+
+  // Wasserzeichen-Payload in PDF-Metadaten einschreiben (Keywords-Feld).
+  // ZWC im HTML-Body wird von Chromium nicht in die Textebene übernommen;
+  // pdf-lib schreibt direkt ins Info-Dictionary des fertigen PDFs.
+  if (wmPayload) {
+    const wmDoc = await PDFDocument.load(pdfBytes)
+    wmDoc.setKeywords([wmPayload])
+    pdfBytes = await wmDoc.save()
+  }
 
   const filename = title.replace(/\s*[-–]\s*$/, '') + '.pdf'
 
