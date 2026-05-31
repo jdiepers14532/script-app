@@ -1992,9 +1992,10 @@ export async function assemblePdf(
   // Wasserzeichen-Payload in PDF-Metadaten einschreiben (Keywords-Feld).
   // ZWC im HTML-Body wird von Chromium nicht in die Textebene übernommen;
   // pdf-lib schreibt direkt ins Info-Dictionary des fertigen PDFs.
-  if (wmPayload) {
+  const wmPayloadFinal = buildPayload(input.userId, input.werkstufId)
+  if (wmPayloadFinal) {
     const wmDoc = await PDFDocument.load(pdfBytes)
-    wmDoc.setKeywords([wmPayload])
+    wmDoc.setKeywords([wmPayloadFinal])
     pdfBytes = await wmDoc.save()
   }
 
