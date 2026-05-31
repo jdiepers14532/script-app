@@ -1358,6 +1358,67 @@ async function assembleHtml(
           : ''
         return `${bookmarkH2}${await buildSynopsenHtml(client, item.statistikConfig, szenenkopfTemplate, sceneKuerzel, bodyMargins.links / 10, pageContentHeightMm)}`
       }
+      if (item.type === 'fsk') {
+        const folgeRes = await client.query(
+          'SELECT synopsis_fsk, synopsis_deskriptoren, folge_nummer, folgen_titel FROM folgen WHERE id = $1',
+          [w.folge_id]
+        )
+        if (!folgeRes.rows[0]) return null
+        const folge = folgeRes.rows[0]
+        let fskRating: string | null = null
+        let fskBegruendung = ''
+        let deskriptoren: { kategorie: string; stufe: string; beschreibung: string }[] = []
+        if (folge.synopsis_fsk) {
+          try { const p = JSON.parse(folge.synopsis_fsk); fskRating = p.rating ?? null; fskBegruendung = p.begruendung ?? '' } catch {}
+        }
+        if (folge.synopsis_deskriptoren) {
+          try { deskriptoren = JSON.parse(folge.synopsis_deskriptoren) } catch {}
+        }
+        if (!fskRating && deskriptoren.length === 0) return null
+
+        const FSK_COLORS: Record<string, string> = { '0': '#00C853', '6': '#00C853', '12': '#FF9500', '16': '#FF6B00', '18': '#FF3B30' }
+        const STUFE_COLORS: Record<string, string> = { leicht: '#00C853', mittel: '#FF9500', stark: '#FF3B30' }
+        const fskColor = fskRating ? (FSK_COLORS[fskRating] ?? '#999') : '#999'
+
+        const title = item.label || `FSK & Inhaltskennzeichnung — Folge ${folge.folge_nummer}${folge.folgen_titel ? ' – ' + folge.folgen_titel : ''}`
+        const bookmarkH2 = `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(title)}</h2>`
+
+        const deskriptorenHtml = deskriptoren.length > 0
+          ? `<div style="margin-top:12pt;">
+               <div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#555;margin-bottom:6pt;">Inhaltsdeskriptoren</div>
+               ${deskriptoren.map(d => {
+                 const sc = STUFE_COLORS[d.stufe] ?? '#999'
+                 return `<div style="margin-bottom:6pt;padding:6pt 8pt;border:1pt solid ${sc}33;border-radius:4pt;background:${sc}0d;">
+                   <span style="font-weight:700;font-size:9pt;color:${sc};">${esc(d.kategorie)}</span>
+                   <span style="font-size:8pt;font-weight:700;color:${sc};margin-left:6pt;padding:1pt 5pt;border-radius:3pt;background:${sc}22;">${esc(d.stufe.toUpperCase())}</span>
+                   ${d.beschreibung ? `<div style="font-size:9pt;color:#333;margin-top:3pt;">${esc(d.beschreibung)}</div>` : ''}
+                 </div>`
+               }).join('')}
+             </div>`
+          : ''
+
+        const fskBadge = fskRating
+          ? `<div style="display:inline-flex;align-items:center;gap:8pt;margin-bottom:6pt;">
+               <div style="width:36pt;height:36pt;border-radius:4pt;background:${fskColor};display:flex;align-items:center;justify-content:center;font-size:16pt;font-weight:900;color:white;flex-shrink:0;">${esc(fskRating)}</div>
+               <div>
+                 <div style="font-size:13pt;font-weight:700;color:${fskColor};">FSK ${esc(fskRating)}</div>
+                 ${fskBegruendung ? `<div style="font-size:9pt;color:#555;margin-top:2pt;">${esc(fskBegruendung)}</div>` : ''}
+               </div>
+             </div>`
+          : ''
+
+        const html = `${bookmarkH2}
+          <div style="page-break-before:always;padding-top:12pt;">
+            <div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin-bottom:10pt;">FSK &amp; Inhaltskennzeichnung</div>
+            ${fskBadge}
+            ${deskriptorenHtml}
+            <div style="margin-top:14pt;font-size:8pt;color:#aaa;border-top:0.5pt solid #ddd;padding-top:6pt;">
+              Interne Einschätzung — keine offizielle FSK-/FSF-Freigabe.
+              Standard: FSK-Inhaltsdeskriptoren §14 JuSchG (2021) · fsk.de
+            </div>
+          </div>`
+        return html
+      }
       return null
     }
 

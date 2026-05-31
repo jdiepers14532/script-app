@@ -35,7 +35,8 @@ function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedE
       type: (x.type === 'statistik' ? 'statistik'
            : x.type === 'onliner'   ? 'onliner'
            : x.type === 'synopse'   ? 'synopse'
-           : 'notiz') as 'notiz' | 'statistik' | 'onliner' | 'synopse',
+           : x.type === 'fsk'       ? 'fsk'
+           : 'notiz') as 'notiz' | 'statistik' | 'onliner' | 'synopse' | 'fsk',
       id: x.id           ? String(x.id)         : undefined,
       szeneId: x.szeneId ? String(x.szeneId)    : undefined,
       vorlageId: x.vorlageId ? String(x.vorlageId) : undefined,

@@ -13,8 +13,9 @@ export type JobStatus = 'pending' | 'running' | 'done' | 'error'
 /** Ein geordnetes Element VOR oder NACH dem Hauptinhalt im PDF */
 export interface OrderedExportItem {
   /** 'notiz' = Notiz-Werkstufe oder einzelne Notiz-Zeile, 'statistik' = Statistik-Seite,
-   *  'onliner' = Onliner-Tabelle, 'synopse' = Szenenköpfe-Liste */
-  type: 'notiz' | 'statistik' | 'onliner' | 'synopse'
+   *  'onliner' = Onliner-Tabelle, 'synopse' = Szenenköpfe-Liste,
+   *  'fsk' = FSK-Einschätzung + Inhaltsdeskriptoren der aktuellen Folge */
+  type: 'notiz' | 'statistik' | 'onliner' | 'synopse' | 'fsk'
   /** Werkstufe-UUID (für type='notiz': gesamte Notiz-Werkstufe) */
   id?: string
   /** dokument_szenen.id als String (für type='notiz': einzelne Notiz-Zeile aus Drehbuch-Werkstufe) */

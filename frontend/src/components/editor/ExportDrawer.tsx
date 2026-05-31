@@ -13,7 +13,7 @@ import { createPortal } from 'react-dom'
 import {
   X, Download, FileText, FileCode, Loader2, CheckCircle, AlertCircle,
   Eye, WifiOff, GripVertical, BarChart2, Settings, BookOpen, Filter,
-  ChevronDown, Table2, List, Save,
+  ChevronDown, Table2, List, Save, Shield,
 } from 'lucide-react'
 import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
@@ -38,7 +38,7 @@ interface FilterOptions {
 
 interface ExportItem {
   id: string
-  type: 'notiz' | 'statistik' | 'onliner' | 'synopse'
+  type: 'notiz' | 'statistik' | 'onliner' | 'synopse' | 'fsk'
   werkstufId?: string   // Notiz-Werkstufe UUID (gesamtes Notiz-Dokument)
   szeneId?: string      // dokument_szenen.id (einzelne Notiz-Zeile aus aktueller Werkstufe)
   vorlageId?: string    // dokument_vorlagen.id (Titelseite direkt)
@@ -64,6 +64,7 @@ interface ExportPreset {
   synopse_enabled: boolean
   synopse_mode?: 'folge' | 'block'
   titelseite_enabled?: boolean
+  fsk_enabled?: boolean
 }
 
 // ── Dateiname-Builder ──────────────────────────────────────────────────────────
@@ -218,6 +219,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       { id: genId(), type: 'statistik', label: 'Statistik (Konfiguration nötig)', enabled: false },
       { id: genId(), type: 'onliner',   label: 'Onliner (Konfiguration nötig)',   enabled: false },
       { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false },
+      { id: genId(), type: 'fsk',       label: 'FSK & Inhaltskennzeichnung',      enabled: false },
     ])
     setPostItems([])
 
@@ -278,6 +280,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           ...buildAutoConfig('onliner',   preset.onliner_enabled ?? false,   preset.onliner_mode) },
         { id: genId(), type: 'synopse',   label: 'Synopsen (Konfiguration nötig)',  enabled: false,
           ...buildAutoConfig('synopse',   preset.synopse_enabled ?? false,   preset.synopse_mode) },
+        { id: genId(), type: 'fsk',       label: 'FSK & Inhaltskennzeichnung',      enabled: preset.fsk_enabled ?? false },
       ])
       if (notizPostAdd.length) setPostItems(notizPostAdd)
     })
@@ -358,6 +361,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       synopse_enabled:   syn?.enabled ?? false,
       synopse_mode:      syn?.statistikConfig?.mode,
       titelseite_enabled: tit?.enabled ?? false,
+      fsk_enabled: allItems.find(it => it.type === 'fsk')?.enabled ?? false,
     }
     api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
     setStatConfigItemId(null)
@@ -415,7 +419,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       const changed = next.find(it => it.id === id)
       const shouldSavePreset =
         changed?.type === 'statistik' || changed?.type === 'onliner' || changed?.type === 'synopse' ||
-        changed?.vorlageId != null
+        changed?.type === 'fsk' || changed?.vorlageId != null
       if (shouldSavePreset) {
         const allItems = zone === 'pre' ? [...next, ...postItems] : [...preItems, ...next]
         const stat = allItems.find(it => it.type === 'statistik')
@@ -430,6 +434,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           synopse_enabled:   syn?.enabled ?? false,
           synopse_mode:      syn?.statistikConfig?.mode,
           titelseite_enabled: tit?.enabled ?? false,
+          fsk_enabled: allItems.find(it => it.type === 'fsk')?.enabled ?? false,
         }
         api.updateSettings({ ui_settings: { [`export_preset_${produktionId}`]: preset } }).catch(() => {})
       }
@@ -1256,6 +1261,8 @@ function ItemRow({
     ? <Table2    size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
     : item.type === 'synopse'
     ? <List      size={11} style={{ color: isConfigured ? '#00C853' : 'var(--text-muted)', flexShrink: 0 }} />
+    : item.type === 'fsk'
+    ? <Shield    size={11} style={{ color: item.enabled ? '#FF9500' : 'var(--text-muted)', flexShrink: 0 }} />
     : item.vorlageId
     ? <FileText  size={11} style={{ color: '#007AFF', flexShrink: 0 }} />
     : <FileText  size={11} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
