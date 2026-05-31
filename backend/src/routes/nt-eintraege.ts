@@ -307,11 +307,12 @@ ntEintraegeRouter.get('/', async (req, res) => {
          ne.folge_id, ne.nt_typ, ne.repliken_text, ne.notiz, ne.veraltet,
          ne.erstellt_am, ne.aktualisiert_am,
          c.name AS character_name,
-         c.rollen_nummer, c.komparsen_nummer,
+         cp.rollen_nummer, cp.komparsen_nummer,
          f.folge_nummer,
          ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit
        FROM nt_eintraege ne
        LEFT JOIN characters c ON c.id = ne.character_id
+       LEFT JOIN character_productions cp ON cp.character_id = ne.character_id AND cp.produktion_id = ne.produktion_id
        LEFT JOIN folgen f ON f.id = ne.folge_id
        LEFT JOIN dokument_szenen ds ON ds.id = ne.szene_id
        WHERE ${conditions.join(' AND ')}
@@ -401,13 +402,14 @@ ntEintraegeRouter.get('/statistik/overview', async (req, res) => {
     // Pro Figur
     const preFiguren = await query(
       `SELECT
-         c.id, c.name, c.rollen_nummer,
+         c.id, c.name, cp.rollen_nummer,
          COUNT(*) FILTER (WHERE NOT ne.veraltet) AS szenen_count,
          array_agg(DISTINCT ne.nt_typ) FILTER (WHERE NOT ne.veraltet) AS typen
        FROM nt_eintraege ne
        JOIN characters c ON c.id = ne.character_id
+       LEFT JOIN character_productions cp ON cp.character_id = ne.character_id AND cp.produktion_id = ne.produktion_id
        WHERE ne.produktion_id = $1 ${folgeFilter}
-       GROUP BY c.id, c.name, c.rollen_nummer
+       GROUP BY c.id, c.name, cp.rollen_nummer
        ORDER BY c.name`,
       params
     )
