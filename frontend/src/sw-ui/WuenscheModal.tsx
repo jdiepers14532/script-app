@@ -105,7 +105,7 @@ function MiniToast({ text, onDone }: { text: string; onDone: () => void }) {
 
 // ── SW-UI Tooltip (kanonisch: #111, fixed position, 11px) ────────────────────
 
-function SWTooltip({ text, children }: { text: string; children: React.ReactElement }) {
+function SWTooltip({ text, children, placement = 'bottom' }: { text: string; children: React.ReactElement; placement?: 'top' | 'bottom' }) {
   const [show, setShow] = useState(false);
   return (
     <span
@@ -116,8 +116,11 @@ function SWTooltip({ text, children }: { text: string; children: React.ReactElem
       {children}
       {show && (
         <span style={{
-          position: 'absolute', bottom: '100%', left: '50%',
-          transform: 'translate(-50%, -8px)',
+          position: 'absolute',
+          ...(placement === 'bottom'
+            ? { top: '100%', transform: 'translate(-50%, 8px)' }
+            : { bottom: '100%', transform: 'translate(-50%, -8px)' }),
+          left: '50%',
           background: '#111', color: '#fff', fontSize: 11, lineHeight: 1.5,
           padding: '6px 10px', borderRadius: 6, whiteSpace: 'nowrap',
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
@@ -145,17 +148,16 @@ interface WunschItemProps {
 
 function WunschItem({ wunsch, isTouch, voteDankeSpruch, voteRueckzugSpruch, wunschGeloeschtSpruch, onVote, onDelete, onToast }: WunschItemProps) {
   const [voteAnim, setVoteAnim] = useState(false);
-  const btnSize = isTouch ? 44 : 36;
+  const starSize = isTouch ? 20 : 17;
 
   function handleVote() {
     if (wunsch.ist_eigener) return;
     setVoteAnim(true);
     setTimeout(() => setVoteAnim(false), 400);
     onVote(wunsch.id, !wunsch.hat_gevoted);
-    const spruch = wunsch.hat_gevoted
+    onToast(wunsch.hat_gevoted
       ? (voteRueckzugSpruch || 'Stimme zurückgezogen.')
-      : (voteDankeSpruch || 'Stimme gezählt! ✨');
-    onToast(spruch);
+      : (voteDankeSpruch || 'Stimme gezählt! ✨'));
   }
 
   function handleDelete() {
@@ -165,48 +167,49 @@ function WunschItem({ wunsch, isTouch, voteDankeSpruch, voteRueckzugSpruch, wuns
 
   return (
     <div style={{
-      padding: isTouch ? '14px 16px' : '11px 16px',
+      padding: isTouch ? '12px 16px' : '10px 16px',
       borderBottom: '1px solid #F0F0F0',
-      display: 'flex', gap: 12, alignItems: 'flex-start',
       background: wunsch.ist_eigener ? '#FFFDF0' : '#fff',
     }}>
-      {/* Vote-Stern */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: btnSize + 4 }}>
-        <SWTooltip text={wunsch.ist_eigener ? 'Eigener Wunsch' : wunsch.hat_gevoted ? 'Stimme entfernen' : 'Abstimmen'}>
-        <button
-          onClick={handleVote}
-          disabled={!!wunsch.ist_eigener}
-          style={{
-            width: btnSize, height: btnSize,
-            border: 'none', background: 'none', padding: 0,
-            cursor: wunsch.ist_eigener ? 'default' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            opacity: wunsch.ist_eigener ? 0.35 : 1,
-          }}>
-          <div style={{
-            width: btnSize * 0.7, height: btnSize * 0.7,
-            background: wunsch.hat_gevoted
-              ? `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`
-              : '#E8E8E8',
-            clipPath: STAR_CLIP_PATH,
-            animation: voteAnim ? 'magic-sparkle 0.4s ease-out' : 'none',
-            transition: 'background 0.2s',
-            boxShadow: wunsch.hat_gevoted ? `0 0 8px ${MAGIC_COLORS.glowGold}` : 'none',
-          }} />
-        </button>
-        </SWTooltip>
-        <span style={{
-          fontSize: 11, fontWeight: 700, lineHeight: 1,
-          color: wunsch.hat_gevoted ? MAGIC_COLORS.goldDark : '#BDBDBD',
-          animation: voteAnim ? 'magic-counter-roll 0.3s ease-out' : 'none',
-        }}>
-          {wunsch.votes}
-        </span>
-      </div>
+      {/* Kopfzeile: Vote (oben links) | Titel | Delete (oben rechts) */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 3 }}>
 
-      {/* Content */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 600, fontSize: 14, color: '#111', marginBottom: 3, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>
+        {/* Vote-Button: oben links */}
+        <SWTooltip text={wunsch.ist_eigener ? 'Eigener Wunsch' : wunsch.hat_gevoted ? 'Stimme entfernen' : 'Abstimmen'} placement="bottom">
+          <button
+            onClick={handleVote}
+            disabled={!!wunsch.ist_eigener}
+            style={{
+              flexShrink: 0,
+              display: 'flex', alignItems: 'center', gap: 4,
+              border: 'none', background: 'none', padding: isTouch ? '4px 6px' : '2px 4px',
+              cursor: wunsch.ist_eigener ? 'default' : 'pointer',
+              opacity: wunsch.ist_eigener ? 0.35 : 1,
+              minWidth: isTouch ? 44 : undefined, minHeight: isTouch ? 36 : undefined,
+            }}>
+            <div style={{
+              width: starSize, height: starSize,
+              background: wunsch.hat_gevoted
+                ? `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`
+                : '#E0E0E0',
+              clipPath: STAR_CLIP_PATH,
+              animation: voteAnim ? 'magic-sparkle 0.4s ease-out' : 'none',
+              transition: 'background 0.2s',
+              boxShadow: wunsch.hat_gevoted ? `0 0 6px ${MAGIC_COLORS.glowGold}` : 'none',
+              flexShrink: 0,
+            }} />
+            <span style={{
+              fontSize: 12, fontWeight: 700, lineHeight: 1,
+              color: wunsch.hat_gevoted ? MAGIC_COLORS.goldDark : '#BDBDBD',
+              animation: voteAnim ? 'magic-counter-roll 0.3s ease-out' : 'none',
+            }}>
+              {wunsch.votes}
+            </span>
+          </button>
+        </SWTooltip>
+
+        {/* Titel (Mitte) */}
+        <div style={{ flex: 1, minWidth: 0, fontWeight: 600, fontSize: 14, color: '#111', lineHeight: 1.4, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5 }}>
           {wunsch.titel}
           {wunsch.ist_eigener && (
             <span style={{ fontSize: 10, fontWeight: 700, color: MAGIC_COLORS.goldDark, background: MAGIC_COLORS.goldLight, borderRadius: 4, padding: '1px 6px' }}>
@@ -219,20 +222,23 @@ function WunschItem({ wunsch, isTouch, voteDankeSpruch, voteRueckzugSpruch, wuns
             </span>
           )}
         </div>
-        {wunsch.beschreibung && (
-          <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5, marginBottom: 4 }}>{wunsch.beschreibung}</div>
+
+        {/* Delete-Button: oben rechts */}
+        {wunsch.ist_eigener && (
+          <SWTooltip text="Wunsch zurückziehen" placement="bottom">
+            <button onClick={handleDelete}
+              style={{ flexShrink: 0, border: 'none', background: 'none', cursor: 'pointer', color: '#BDBDBD', padding: isTouch ? '4px 6px' : '2px 4px', fontSize: 18, lineHeight: 1, minWidth: isTouch ? 36 : 24, minHeight: isTouch ? 36 : 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              ×
+            </button>
+          </SWTooltip>
         )}
-        <div style={{ fontSize: 11, color: '#C8C8C8' }}>{formatDate(wunsch.eingereicht_am)}</div>
       </div>
 
-      {wunsch.ist_eigener && (
-        <SWTooltip text="Wunsch zurückziehen">
-          <button onClick={handleDelete}
-            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C8C8C8', padding: isTouch ? '8px' : '4px', fontSize: 18, lineHeight: 1, minWidth: isTouch ? 44 : 24, minHeight: isTouch ? 44 : 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            ×
-          </button>
-        </SWTooltip>
+      {/* Beschreibung + Datum */}
+      {wunsch.beschreibung && (
+        <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5, marginBottom: 3, paddingLeft: 2 }}>{wunsch.beschreibung}</div>
       )}
+      <div style={{ fontSize: 11, color: '#C8C8C8', paddingLeft: 2 }}>{formatDate(wunsch.eingereicht_am)}</div>
     </div>
   );
 }
@@ -251,6 +257,7 @@ interface EinreichenFormProps {
 function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, checkMistral, isTouch }: EinreichenFormProps) {
   const [titel, setTitel] = useState('');
   const [beschreibung, setBeschreibung] = useState('');
+  const [titelFocused, setTitelFocused] = useState(false);
   const [pruefLoading, setPruefLoading] = useState(false);
   const [vorschlag, setVorschlag] = useState<{ titel: string; beschreibung: string } | null>(null);
   const [vorschlagAngenommen, setVorschlagAngenommen] = useState<boolean | null>(null);
@@ -337,12 +344,12 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
       <textarea
         value={titel}
         onChange={e => setTitel(e.target.value)}
-        placeholder="Hier eingeben, was Du dir für diese App wünscht. Je konkreter Du es beschreibst, desto schneller können die Elfen es umsetzen."
+        placeholder={titelFocused ? '' : 'Hier eingeben, was Du dir für diese App wünscht. Je konkreter Du es beschreibst, desto schneller können die Elfen es umsetzen.'}
         maxLength={200}
         rows={2}
         style={{ ...inputStyle, marginBottom: 10, resize: 'none' }}
-        onFocus={e => (e.target.style.borderColor = MAGIC_COLORS.gold)}
-        onBlur={e => (e.target.style.borderColor = '#E0E0E0')}
+        onFocus={e => { setTitelFocused(true); e.target.style.borderColor = MAGIC_COLORS.gold; }}
+        onBlur={e => { setTitelFocused(false); e.target.style.borderColor = '#E0E0E0'; }}
       />
       <textarea
         value={beschreibung}
@@ -430,21 +437,6 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
 function Changelog({ items, count, leerSpruch }: { items: ReturnType<typeof useWuensche>['erfuellte']; count: number; leerSpruch?: string }) {
   return (
     <div style={{ paddingBottom: 8 }}>
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{
-          background: `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`,
-          borderRadius: 10, padding: '5px 12px', color: '#fff', fontWeight: 800, fontSize: 20,
-          animation: count > 0 ? 'magic-counter-roll 0.4s ease-out' : 'none',
-          boxShadow: `0 2px 8px ${MAGIC_COLORS.glowGold}`,
-        }}>
-          {count}
-        </div>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#111' }}>Wünsche erfüllt</div>
-          <div style={{ fontSize: 12, color: '#9E9E9E' }}>Neueste zuerst</div>
-        </div>
-      </div>
-
       {items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: '#9E9E9E', fontSize: 14 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>✨</div>
