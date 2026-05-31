@@ -59,7 +59,6 @@ const inlineGhostPlugin = new Plugin({
   props: {
     decorations(state) {
       const g = inlineGhostKey.getState(state)
-      if (g?.suffix) console.log('[GhostPlugin] decorations', { suffix: g.suffix, pos: g.pos, docSize: state.doc.content.size })
       if (!g?.suffix || g.pos === 0) return DecorationSet.empty
       try {
         const widget = Decoration.widget(
@@ -915,11 +914,9 @@ export default function UniversalEditor({
       if (dispatchingGhostRef.current) return
       const cur = inlineGhostKey.getState(editor.state)
       if (cur?.suffix === suffix && cur?.pos === pos) return
-      console.log('[CharAC] setGhost', { suffix, pos, docSize: editor.state.doc.content.size })
       dispatchingGhostRef.current = true
       editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix, pos }))
       dispatchingGhostRef.current = false
-      console.log('[CharAC] ghostState after dispatch', inlineGhostKey.getState(editor.state))
     }
 
     const dismiss = () => {
@@ -940,9 +937,6 @@ export default function UniversalEditor({
       const { $from } = state.selection
       const node = $from.node()
       const isCharNode = node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)
-      if (node.type.name === 'absatz' && isCharNode) {
-        console.log('[CharAC] char-node text=' + JSON.stringify(node.textContent) + ' pool=' + JSON.stringify(sceneCharNames ?? []))
-      }
 
       if (!isCharNode) {
         // Cursor verlässt CHARACTER-Node (Pfeiltasten/Maus) im Inline-Modus → Acceptance auslösen
