@@ -26,3 +26,11 @@ export { TabKeyExtension, TAB_ALIGN_NEXT, TAB_ALIGN_SYMBOL, TAB_ALIGN_COLORS } f
 export type { TabAlign, TabStop } from './editor/primitives/TabStopExtension';
 export { default as KopfZeilenEditor, emptyKopfZeilenEditorValue } from './editor/KopfZeilenEditor';
 export type { KopfZeilenEditorValue, KZPreviewContext } from './editor/KopfZeilenEditor';
+
+export { WuenscheModal } from './WuenscheModal';
+export type { WuenscheModalProps } from './WuenscheModal';
+export { MagicModal } from './MagicModal';
+export type { MagicModalProps } from './MagicModal';
+export { useWuensche } from './useWuensche';
+export type { Wunsch, WunschNotification, WunschDialoge, MistralVorschlag } from './useWuensche';
+export { injectMagicCSS, fireMagicConfetti, fireSparkles, MAGIC_COLORS, MAGIC_CSS, STAR_CLIP_PATH } from './MagicWandTheme';

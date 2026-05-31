@@ -14,7 +14,8 @@ import { getShortcutLabel } from '../shortcuts'
 import { useOfflineQueueContext } from '../sw-ui'
 import ProductionSelector from './ProductionSelector'
 import HeaderSelect from './HeaderSelect'
-import { CompanyInfoModal, useTerminologie } from '../sw-ui'
+import { CompanyInfoModal, useTerminologie, WuenscheModal, MagicModal } from '../sw-ui'
+import type { WunschNotification } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
@@ -286,6 +287,8 @@ export default function AppShell({
   const [offlineOpen, setOfflineOpen] = useState(false)
   const [offlineView, setOfflineView] = useState<'main' | 'import' | 'uninstall'>('main')
   const [teamWorkOpen, setTeamWorkOpen] = useState(false)
+  const [wuenscheOpen, setWuenscheOpen] = useState(false)
+  const [magicNotifications, setMagicNotifications] = useState<WunschNotification[]>([])
 
   useEffect(() => {
     const handler = () => setTeamWorkOpen(true)
@@ -507,6 +510,11 @@ export default function AppShell({
       .then((data: any) => {
         if (!data) return
         setCurrentUser({ username: data.name, email: data.email, user_id: data.user_id })
+        // Wünsche-Notifications prüfen (Magic Modal bei erfüllten Wünschen)
+        fetch('https://auth.serienwerft.studio/api/wuensche/notifications/pending', { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .then((d: any) => { if (d?.notifications?.length) setMagicNotifications(d.notifications) })
+          .catch(() => {})
         // Authentifiziert → pendingRedirect abarbeiten (immer löschen, auch wenn kein Redirect nötig)
         if (pendingRedirect) {
           sessionStorage.removeItem('auth_redirect_after_login')
@@ -1196,6 +1204,25 @@ export default function AppShell({
         />
       )}
 
+      {/* ── Wünsche Modal ── */}
+      <WuenscheModal
+        isOpen={wuenscheOpen}
+        onClose={() => setWuenscheOpen(false)}
+        authApiBase="https://auth.serienwerft.studio"
+        appKontext="script"
+      />
+
+      {/* ── Magic Modal (erfüllte Wünsche bei Login) ── */}
+      <MagicModal
+        notifications={magicNotifications}
+        onDismiss={(id) => {
+          fetch(`https://auth.serienwerft.studio/api/wuensche/notifications/${id}/dismiss`, {
+            method: 'POST', credentials: 'include',
+          }).catch(() => {})
+          setMagicNotifications(prev => prev.filter(n => n.notification_id !== id))
+        }}
+      />
+
       {/* ── Ansichtsoptionen-Panel ── */}
       <div className={`tweaks${tweaksOpen ? ' open' : ''}`}>
         <div className="th">
@@ -1657,6 +1684,10 @@ export default function AppShell({
               Handbuch
               <span className="um-shortcut">{sc('navHandbuch')}</span>
             </Link>
+            <button className="um-item" onClick={() => { setUserMenuOpen(false); setWuenscheOpen(true) }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>✨</span>
+              Wünsche
+            </button>
             <button className="um-item" onClick={() => { set('theme', tweaks.theme === 'light' ? 'dark' : 'light') }}>
               {tweaks.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
               {tweaks.theme === 'light' ? 'Dunkles Theme' : 'Helles Theme'}
