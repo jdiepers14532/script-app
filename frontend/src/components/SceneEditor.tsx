@@ -1076,7 +1076,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                   <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                     {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
                     {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
-                    <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
+                    <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app) – Feature kommt bald'} placement="bottom">
                       <button
                         className={`btn ghost${showAnnotations ? ' active' : ''}`}
                         style={showAnnotations ? { color: 'var(--sw-green)' } : undefined}
@@ -1571,7 +1571,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
               {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>…</span>}
               {saveMsg && !saving && <span style={{ fontSize: 10, color: saveMsg === 'Gespeichert' ? 'var(--sw-green)' : 'var(--sw-danger)' }}>{saveMsg === 'Gespeichert' ? '✓' : '!'}</span>}
-              <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app)'} placement="bottom">
+              <Tooltip text={showAnnotations ? 'Annotationen schließen' : 'Annotationen (Messenger.app) – Feature kommt bald'} placement="bottom">
                 <button className={`btn ghost${showAnnotations ? ' active' : ''}`} style={showAnnotations ? { color: 'var(--sw-green)' } : undefined} onClick={() => { const next = !showAnnotations; setShowAnnotations(next); if (!next && kommentareCount > 0 && typeof szeneId === 'number') onMarkCommentsRead?.(szeneId) }}>
                   <MessageSquare size={12} />
                   {kommentareCount > 0 && !showAnnotations && (<span style={{ fontSize: 10, fontWeight: 600, color: 'var(--sw-green)', marginLeft: 1 }}>{kommentareCount}</span>)}
