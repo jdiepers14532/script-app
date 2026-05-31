@@ -1354,7 +1354,7 @@ async function assembleHtml(
       }
       if (item.type === 'synopse' && item.statistikConfig) {
         const bookmarkH2 = item.label
-          ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
+          ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${esc(item.label)}</h2>`
           : ''
         return `${bookmarkH2}${await buildSynopsenHtml(client, item.statistikConfig, szenenkopfTemplate, sceneKuerzel, bodyMargins.links / 10, pageContentHeightMm)}`
       }
@@ -1408,7 +1408,7 @@ async function assembleHtml(
           : ''
 
         const html = `${bookmarkH2}
-          <div style="page-break-before:always;padding-top:12pt;">
+          <div style="padding-top:12pt;">
             <div style="font-size:9pt;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#999;margin-bottom:10pt;">FSK &amp; Inhaltskennzeichnung</div>
             ${fskBadge}
             ${deskriptorenHtml}
@@ -1494,6 +1494,24 @@ async function assembleHtml(
 
     const postSections: string[] = []
     for (const item of resolvedPostItems) {
+      // Titelseite-Guard: falls Titelseite versehentlich in postItems gelandet ist,
+      // nicht als normale Sektion rendern (würde am Ende des Dokuments erscheinen)
+      if (item.enabled && item.type === 'notiz') {
+        let isTitelseite = false
+        if (item.vorlageId) {
+          const vorRes = await client.query<{ ist_titelseite: boolean }>(
+            'SELECT ist_titelseite FROM dokument_vorlagen WHERE id = $1', [item.vorlageId]
+          )
+          isTitelseite = !!vorRes.rows[0]?.ist_titelseite
+        } else if (item.szeneId) {
+          const vorRes = await client.query<{ ist_titelseite: boolean }>(
+            `SELECT dv.ist_titelseite FROM dokument_szenen ds
+             LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id WHERE ds.id = $1`, [item.szeneId]
+          )
+          isTitelseite = !!vorRes.rows[0]?.ist_titelseite
+        }
+        if (isTitelseite) continue  // Titelseite gehört nicht ans Ende
+      }
       const html = await renderOrderedItem(item)
       if (html && html.replace(/<[^>]*>/g, '').replace(/&[a-zA-Z#][a-zA-Z0-9]+;/g, ' ').trim()) {
         postSections.push(html)
