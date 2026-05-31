@@ -7,6 +7,8 @@ import type { WunschNotification } from './useWuensche';
 export interface MagicModalProps {
   notifications: WunschNotification[];
   onDismiss: (notificationId: string) => void;
+  titelSpruch?: string;
+  bodySpruch?: string;
 }
 
 // ── Schießender Stern ─────────────────────────────────────────────────────────
@@ -66,7 +68,7 @@ function SparkleField() {
 
 // ── Haupt-Modal ───────────────────────────────────────────────────────────────
 
-export function MagicModal({ notifications, onDismiss }: MagicModalProps) {
+export function MagicModal({ notifications, onDismiss, titelSpruch, bodySpruch }: MagicModalProps) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -188,12 +190,24 @@ export function MagicModal({ notifications, onDismiss }: MagicModalProps) {
           {/* Überschrift */}
           <div style={{ textAlign: 'center', marginBottom: 18 }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: MAGIC_COLORS.goldDark, marginBottom: 6, textTransform: 'uppercase' }}>
-              ✨ Dein Wunsch ist in Erfüllung gegangen ✨
+              ✨ {titelSpruch || 'Dein Wunsch ist in Erfüllung gegangen'} ✨
             </div>
             <div style={{ fontSize: 17, fontWeight: 800, color: '#111', lineHeight: 1.3 }}>
               {notif.titel}
             </div>
           </div>
+
+          {/* Body-Spruch aus Dialogen */}
+          {bodySpruch && !notif.ki_zusammenfassung && !notif.admin_beschreibung && (
+            <div style={{
+              padding: '12px 14px', background: '#FFFDF0',
+              border: `1px solid ${MAGIC_COLORS.gold}55`, borderRadius: 10,
+              fontSize: 13, color: '#555', lineHeight: 1.6, marginBottom: 12,
+              fontStyle: 'italic', textAlign: 'center',
+            }}>
+              {bodySpruch}
+            </div>
+          )}
 
           {/* KI-Zusammenfassung */}
           {notif.ki_zusammenfassung && (

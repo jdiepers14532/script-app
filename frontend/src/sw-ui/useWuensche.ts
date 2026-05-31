@@ -31,6 +31,16 @@ export interface WunschDialoge {
     saison?: string;
     ki_check?: string;
     bestaetigung?: string;
+    modal_willkommen?: string;
+    liste_leer?: string;
+    vote_danke?: string;
+    vote_rueckzug?: string;
+    wunsch_geloescht?: string;
+    changelog_leer?: string;
+    einreichen_tipp?: string;
+    notification_titel?: string;
+    notification_body?: string;
+    magic_tooltip?: string;
   };
 }
 

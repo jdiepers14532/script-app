@@ -19,8 +19,9 @@ function useIsBottomSheet() {
     (window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 640)
   );
   useEffect(() => {
-    const mq = window.matchMedia('(pointer: coarse)');
-    const onResize = () => setBottom(mq.matches || window.innerWidth < 640);
+    const onResize = () => setBottom(
+      window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 640
+    );
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -47,13 +48,11 @@ function MagicBackground() {
 
   return (
     <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
-      {/* Goldener Glanz-Kreis oben */}
       <div style={{
         position: 'absolute', top: -80, left: '50%', transform: 'translateX(-50%)',
         width: 420, height: 220,
         background: `radial-gradient(ellipse, ${MAGIC_COLORS.glowGold} 0%, transparent 68%)`,
       }} />
-      {/* Sterne */}
       {stars.map(s => (
         <div key={s.id} style={{
           position: 'absolute',
@@ -65,7 +64,6 @@ function MagicBackground() {
           opacity: 0.12,
         }} />
       ))}
-      {/* Shooting Stars */}
       <div style={{
         position: 'absolute', top: '18%', left: 0,
         width: 120, height: 1.5,
@@ -84,16 +82,41 @@ function MagicBackground() {
   );
 }
 
+// ── Mini-Toast ────────────────────────────────────────────────────────────────
+
+function MiniToast({ text, onDone }: { text: string; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 1800);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <div style={{
+      position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)',
+      background: 'rgba(30,30,30,0.92)', color: '#fff',
+      padding: '7px 18px', borderRadius: 20, fontSize: 13, fontWeight: 500,
+      whiteSpace: 'nowrap', zIndex: 10,
+      animation: 'magic-fade-in 0.2s ease-out',
+      boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+    }}>
+      {text}
+    </div>
+  );
+}
+
 // ── Wunsch-Liste Item ─────────────────────────────────────────────────────────
 
 interface WunschItemProps {
   wunsch: ReturnType<typeof useWuensche>['wuensche'][0];
   isTouch: boolean;
+  voteDankeSpruch?: string;
+  voteRueckzugSpruch?: string;
+  wunschGeloeschtSpruch?: string;
   onVote: (id: string, add: boolean) => void;
   onDelete: (id: string) => void;
+  onToast: (text: string) => void;
 }
 
-function WunschItem({ wunsch, isTouch, onVote, onDelete }: WunschItemProps) {
+function WunschItem({ wunsch, isTouch, voteDankeSpruch, voteRueckzugSpruch, wunschGeloeschtSpruch, onVote, onDelete, onToast }: WunschItemProps) {
   const [voteAnim, setVoteAnim] = useState(false);
   const btnSize = isTouch ? 44 : 36;
 
@@ -102,6 +125,15 @@ function WunschItem({ wunsch, isTouch, onVote, onDelete }: WunschItemProps) {
     setVoteAnim(true);
     setTimeout(() => setVoteAnim(false), 400);
     onVote(wunsch.id, !wunsch.hat_gevoted);
+    const spruch = wunsch.hat_gevoted
+      ? (voteRueckzugSpruch || 'Stimme zurückgezogen.')
+      : (voteDankeSpruch || 'Stimme gezählt! ✨');
+    onToast(spruch);
+  }
+
+  function handleDelete() {
+    onDelete(wunsch.id);
+    onToast(wunschGeloeschtSpruch || 'Wunsch wurde zurückgezogen.');
   }
 
   return (
@@ -166,7 +198,7 @@ function WunschItem({ wunsch, isTouch, onVote, onDelete }: WunschItemProps) {
       </div>
 
       {wunsch.ist_eigener && (
-        <button onClick={() => onDelete(wunsch.id)} title="Wunsch zurückziehen"
+        <button onClick={handleDelete} title="Wunsch zurückziehen"
           style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C8C8C8', padding: isTouch ? '8px' : '4px', fontSize: 18, lineHeight: 1, minWidth: isTouch ? 44 : 24, minHeight: isTouch ? 44 : 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           ×
         </button>
@@ -178,26 +210,73 @@ function WunschItem({ wunsch, isTouch, onVote, onDelete }: WunschItemProps) {
 // ── Einreichen-Formular ───────────────────────────────────────────────────────
 
 interface EinreichenFormProps {
-  onSubmit: (titel: string, beschreibung: string) => Promise<string>;
+  onSubmit: (titel: string, beschreibung: string, geprueft: boolean, vorschlagText?: string, angenommen?: boolean) => Promise<string>;
+  ladeSpruch?: string;
   bestaetigungsSpruch?: string;
+  tippText?: string;
+  checkMistral: (t: string, b: string) => Promise<{ vorschlag: { titel: string; beschreibung: string } | null; fehler?: string }>;
   isTouch: boolean;
 }
 
-function EinreichenForm({ onSubmit, bestaetigungsSpruch, isTouch }: EinreichenFormProps) {
+function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, checkMistral, isTouch }: EinreichenFormProps) {
   const [titel, setTitel] = useState('');
   const [beschreibung, setBeschreibung] = useState('');
+  const [pruefLoading, setPruefLoading] = useState(false);
+  const [vorschlag, setVorschlag] = useState<{ titel: string; beschreibung: string } | null>(null);
+  const [vorschlagAngenommen, setVorschlagAngenommen] = useState<boolean | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
+  const [spruchIdx, setSpruchIdx] = useState(0);
   const successRef = useRef<HTMLDivElement>(null);
+
+  const ladesprueche = ladeSpruch
+    ? [ladeSpruch]
+    : ['Wünsche werden sofort erledigt, Wunder dauern etwas länger.'];
+
+  const hinweisText = tippText
+    || 'Beschreibe kurz das Problem und das gewünschte Verhalten — unsere Elfen lesen jeden Wunsch persönlich. ✨';
+
+  useEffect(() => {
+    if (!pruefLoading) return;
+    const iv = setInterval(() => setSpruchIdx(i => (i + 1) % ladesprueche.length), 3000);
+    return () => clearInterval(iv);
+  }, [pruefLoading]);
+
+  async function handlePruefen() {
+    if (!titel.trim()) return;
+    setPruefLoading(true);
+    setVorschlag(null);
+    setVorschlagAngenommen(null);
+    try {
+      const result = await checkMistral(titel, beschreibung);
+      if (result.vorschlag) setVorschlag(result.vorschlag);
+    } catch(e) {}
+    setPruefLoading(false);
+  }
+
+  function acceptVorschlag() {
+    if (!vorschlag) return;
+    setTitel(vorschlag.titel);
+    setBeschreibung(vorschlag.beschreibung);
+    setVorschlagAngenommen(true);
+    setVorschlag(null);
+  }
 
   async function handleSubmit() {
     if (!titel.trim()) return;
     setSubmitLoading(true);
     try {
-      const spruch = await onSubmit(titel, beschreibung);
+      const spruch = await onSubmit(
+        titel, beschreibung,
+        vorschlag !== null || vorschlagAngenommen !== null,
+        vorschlag ? JSON.stringify(vorschlag) : undefined,
+        vorschlagAngenommen ?? undefined
+      );
       setSuccess(bestaetigungsSpruch || spruch || 'Wunsch eingegangen!');
       setTitel('');
       setBeschreibung('');
+      setVorschlag(null);
+      setVorschlagAngenommen(null);
       if (successRef.current) fireMagicConfetti(successRef.current);
     } catch(e: unknown) {
       alert(e instanceof Error ? e.message : 'Fehler beim Einreichen');
@@ -230,7 +309,7 @@ function EinreichenForm({ onSubmit, bestaetigungsSpruch, isTouch }: EinreichenFo
     <div style={{ padding: '18px 20px 20px', animation: 'magic-fade-in 0.3s ease-out' }}>
       {/* Hinweis */}
       <div style={{ padding: '10px 14px', background: '#FFFDF0', border: `1px solid ${MAGIC_COLORS.gold}44`, borderRadius: 10, marginBottom: 16, fontSize: 13, color: '#555', lineHeight: 1.6 }}>
-        Beschreibe kurz das <strong>Problem</strong> und das <strong>gewünschte Verhalten</strong> — unsere Elfen lesen jeden Wunsch persönlich. ✨
+        {hinweisText}
       </div>
 
       <input
@@ -252,6 +331,59 @@ function EinreichenForm({ onSubmit, bestaetigungsSpruch, isTouch }: EinreichenFo
         onBlur={e => (e.target.style.borderColor = '#E0E0E0')}
       />
 
+      {/* Formulierung verbessern */}
+      {!vorschlag && !vorschlagAngenommen && (
+        <div style={{ marginBottom: 14 }}>
+          <button
+            onClick={handlePruefen}
+            disabled={pruefLoading || !titel.trim()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '9px 16px',
+              background: pruefLoading ? MAGIC_COLORS.goldLight : `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`,
+              color: '#111', border: 'none', borderRadius: 10,
+              cursor: pruefLoading || !titel.trim() ? 'not-allowed' : 'pointer',
+              fontSize: 13, fontWeight: 700,
+              opacity: !titel.trim() ? 0.45 : 1,
+              transition: 'opacity 0.15s',
+              minHeight: isTouch ? 44 : 'auto',
+            }}>
+            <span style={{ fontSize: 15 }}>✨</span>
+            {pruefLoading ? 'Einen Moment…' : 'Formulierung verbessern'}
+          </button>
+          {pruefLoading && (
+            <div style={{
+              marginTop: 8, fontSize: 13, color: MAGIC_COLORS.goldDark,
+              fontStyle: 'italic', lineHeight: 1.5, paddingLeft: 2,
+              animation: 'magic-fade-in 0.3s ease-out',
+            }}>
+              {ladesprueche[spruchIdx]}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Vorschlag */}
+      {vorschlag && (
+        <div style={{ padding: '14px 16px', background: '#FFFDF0', border: `1.5px solid ${MAGIC_COLORS.gold}`, borderRadius: 12, marginBottom: 14, animation: 'magic-fade-in 0.3s ease-out' }}>
+          <div style={{ fontSize: 11, fontWeight: 800, color: MAGIC_COLORS.goldDark, marginBottom: 8, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+            ✨ Verbesserungsvorschlag
+          </div>
+          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 5, color: '#111' }}>{vorschlag.titel}</div>
+          <div style={{ fontSize: 13, color: '#555', lineHeight: 1.5 }}>{vorschlag.beschreibung}</div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button onClick={acceptVorschlag}
+              style={{ padding: isTouch ? '10px 18px' : '6px 16px', background: `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`, color: '#111', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+              Übernehmen
+            </button>
+            <button onClick={() => { setVorschlag(null); setVorschlagAngenommen(false); }}
+              style={{ padding: isTouch ? '10px 18px' : '6px 16px', background: '#F5F5F5', border: '1px solid #E0E0E0', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
+              Original behalten
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Absenden */}
       <button
         onClick={handleSubmit}
@@ -264,7 +396,6 @@ function EinreichenForm({ onSubmit, bestaetigungsSpruch, isTouch }: EinreichenFo
           border: 'none', borderRadius: 12,
           cursor: titel.trim() ? 'pointer' : 'not-allowed',
           fontSize: 15, fontWeight: 700,
-          animation: titel.trim() && !submitLoading ? 'none' : 'none',
           transition: 'background 0.2s',
         }}>
         {submitLoading ? '✨ Wird eingereicht…' : 'Wunsch absenden'}
@@ -275,7 +406,7 @@ function EinreichenForm({ onSubmit, bestaetigungsSpruch, isTouch }: EinreichenFo
 
 // ── Changelog-Ansicht ─────────────────────────────────────────────────────────
 
-function Changelog({ items, count }: { items: ReturnType<typeof useWuensche>['erfuellte']; count: number }) {
+function Changelog({ items, count, leerSpruch }: { items: ReturnType<typeof useWuensche>['erfuellte']; count: number; leerSpruch?: string }) {
   return (
     <div style={{ paddingBottom: 8 }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid #F0F0F0', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -296,7 +427,7 @@ function Changelog({ items, count }: { items: ReturnType<typeof useWuensche>['er
       {items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 20px', color: '#9E9E9E', fontSize: 14 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>✨</div>
-          Noch keine Wünsche erfüllt
+          {leerSpruch || 'Noch keine Wünsche erfüllt'}
         </div>
       ) : items.map((w, i) => (
         <div key={w.id} style={{
@@ -335,13 +466,14 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
   const [tab, setTab] = useState<'liste' | 'einreichen' | 'changelog'>('liste');
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const isBottomSheet = useIsBottomSheet();
 
   const {
     wuensche, erfuellte, dialoge, loading,
     loadListe, loadErfuellte, loadDialoge,
-    submitWunsch, vote, deleteWunsch
+    submitWunsch, vote, deleteWunsch, checkMistral
   } = useWuensche({ authApiBase, appKontext });
 
   useEffect(() => { injectMagicCSS(); }, []);
@@ -361,14 +493,22 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
     setTimeout(() => { setVisible(false); setClosing(false); onClose(); }, 220);
   }
 
-  async function handleSubmit(titel: string, beschreibung: string): Promise<string> {
-    const result = await submitWunsch(titel, beschreibung, false);
+  function showToast(text: string) {
+    setToast(text);
+  }
+
+  async function handleSubmit(
+    titel: string, beschreibung: string, geprueft: boolean, vorschlagText?: string, angenommen?: boolean
+  ): Promise<string> {
+    const result = await submitWunsch(titel, beschreibung, geprueft, vorschlagText, angenommen);
     if (modalRef.current) fireSparkles(modalRef.current, 10);
     setTab('liste');
     return result.spruch || '';
   }
 
   if (!visible && !isOpen) return null;
+
+  const tooltipText = dialoge?.aktuell?.magic_tooltip;
 
   return (
     <div
@@ -419,7 +559,7 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
 
         {/* Header */}
         <div style={{ padding: '18px 22px 0', position: 'relative', zIndex: 1, flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: dialoge?.aktuell?.modal_willkommen ? 8 : 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 26 }}>✨</span>
               <span style={{ fontWeight: 800, fontSize: 19, color: '#111' }}>Wünsche</span>
@@ -435,6 +575,13 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
               ×
             </button>
           </div>
+
+          {/* Willkommens-Spruch */}
+          {dialoge?.aktuell?.modal_willkommen && (
+            <div style={{ fontSize: 13, color: MAGIC_COLORS.goldDark, fontStyle: 'italic', marginBottom: 14, paddingLeft: 2 }}>
+              {dialoge.aktuell.modal_willkommen}
+            </div>
+          )}
 
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 3, background: 'rgba(0,0,0,0.06)', borderRadius: 12, padding: 4 }}>
@@ -469,7 +616,9 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
             ) : wuensche.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '52px 24px', color: '#9E9E9E' }}>
                 <div style={{ fontSize: 44, marginBottom: 12 }}>✨</div>
-                <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>Noch keine Wünsche — sei der Erste!</div>
+                <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 16 }}>
+                  {dialoge?.aktuell?.liste_leer || 'Noch keine Wünsche — sei der Erste!'}
+                </div>
                 <button onClick={() => setTab('einreichen')}
                   style={{ padding: '10px 22px', background: '#111', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
                   Wunsch einreichen
@@ -478,7 +627,10 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
             ) : (
               wuensche.map(w => (
                 <WunschItem key={w.id} wunsch={w} isTouch={isBottomSheet}
-                  onVote={vote} onDelete={deleteWunsch} />
+                  voteDankeSpruch={dialoge?.aktuell?.vote_danke}
+                  voteRueckzugSpruch={dialoge?.aktuell?.vote_rueckzug}
+                  wunschGeloeschtSpruch={dialoge?.aktuell?.wunsch_geloescht}
+                  onVote={vote} onDelete={deleteWunsch} onToast={showToast} />
               ))
             )
           )}
@@ -486,15 +638,21 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
           {tab === 'einreichen' && (
             <EinreichenForm
               onSubmit={handleSubmit}
+              ladeSpruch={dialoge?.aktuell?.ki_check}
               bestaetigungsSpruch={dialoge?.aktuell?.bestaetigung}
+              tippText={dialoge?.aktuell?.einreichen_tipp}
+              checkMistral={checkMistral}
               isTouch={isBottomSheet}
             />
           )}
 
           {tab === 'changelog' && (
-            <Changelog items={erfuellte} count={erfuellte.length} />
+            <Changelog items={erfuellte} count={erfuellte.length} leerSpruch={dialoge?.aktuell?.changelog_leer} />
           )}
         </div>
+
+        {/* Toast */}
+        {toast && <MiniToast text={toast} onDone={() => setToast(null)} />}
 
         {/* Footer — saisonaler Spruch */}
         {dialoge?.aktuell?.saison && (
