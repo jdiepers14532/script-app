@@ -104,6 +104,7 @@ interface UserPrefsContextType {
   spellcheck: 'off' | 'browser' | 'languagetool'
   keyboardLayout: KeyboardLayout
   spellcheckLang: string
+  charAcStyle?: string
 }
 export const UserPrefsContext = createContext<UserPrefsContextType>({
   scrollNavDelay: 1000, showPageShadow: true, showTooltips: true, spellcheck: 'off',

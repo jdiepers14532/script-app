@@ -6,7 +6,7 @@ interface Props {
   onClose: () => void
   sceneFormat: string | undefined | null
   folgeId: number | null
-  folgeNummer: number
+  folgeNummer: number | null
   werkstufId?: string | null
   werkstufTyp?: string | null
   onSynopseClick?: () => void

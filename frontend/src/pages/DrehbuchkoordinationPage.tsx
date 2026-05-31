@@ -3694,6 +3694,13 @@ const LN_FONT_OPTIONS = [
 
 // ── Copy Settings Section (sidebar bottom) ───────────────────────────────────────
 
+const COPY_SECTIONS = [
+  { id: 'kategorien',   label: 'Kategorien' },
+  { id: 'labels',       label: 'Labels' },
+  { id: 'colors',       label: 'Farben' },
+  { id: 'einstellungen', label: 'Einstellungen' },
+]
+
 function CopySection({ produktionId, onCopied }: { produktionId: string; onCopied: () => void }) {
   const { selectedProduction, productions } = useSelectedProduction()
   const { t } = useTerminologie()

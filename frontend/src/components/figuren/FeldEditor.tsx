@@ -14,7 +14,7 @@ const HighlightMark = Mark.create({
   addCommands() {
     return {
       toggleHighlight: () => ({ commands }: any) => commands.toggleMark(this.name),
-    }
+    } as any
   },
 })
 
@@ -199,7 +199,7 @@ function RichTextField({ feld, wert, onChange }: Pick<FeldEditorProps, 'feld' | 
           <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', alignSelf: 'center' }} />
           <TBtn active={editor.isActive('bulletList')} title="Aufzählung" onClick={() => editor.chain().focus().toggleBulletList().run()}><List size={12} /></TBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', margin: '0 2px', alignSelf: 'center' }} />
-          <TBtn active={editor.isActive('highlight')} title="Markieren" onClick={() => editor.chain().focus().toggleHighlight().run()}><Highlighter size={12} /></TBtn>
+          <TBtn active={editor.isActive('highlight')} title="Markieren" onClick={() => (editor.chain().focus() as any).toggleHighlight().run()}><Highlighter size={12} /></TBtn>
         </div>
         {/* Editor content — grows with text */}
         <div className="tiptap-feld" style={{ padding: '6px 10px', fontSize: 13, lineHeight: 1.6, minHeight: 60, position: 'relative' }}>

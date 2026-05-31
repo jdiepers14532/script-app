@@ -23,7 +23,7 @@ export const DEFAULT_SECTIONS: StatModalSection[] = [
 
 export interface StatistikExportConfig {
   folge_ids: number[]
-  folge_nummer: number
+  folge_nummer?: number
   mode: 'folge' | 'block'
   sections: string[]
   includedSceneNumbers?: number[] | null

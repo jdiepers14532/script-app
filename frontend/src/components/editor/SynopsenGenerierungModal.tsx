@@ -134,8 +134,8 @@ function RichEditor({ editor, minHeight = 140, zoom = 1 }: { editor: ReturnType<
 // ── Pre-Check Dialog ──────────────────────────────────────────────────────────
 
 function PreCheckDialog({ data, folgeNummer, onLoad, onNew, onAbort }: {
-  data: { folgen_titel?: string; synopsis?: string; synopsis_kurzinhalt?: string; synopsis_300?: string; synopsis_presse?: string; synopsis_straenge?: string; synopsis_pressetext?: string }
-  folgeNummer: number
+  data: { folgen_titel?: string; synopsis?: string; synopsis_kurzinhalt?: string; synopsis_300?: string; synopsis_presse?: string; synopsis_straenge?: string; synopsis_pressetext?: string; synopsis_lektor?: string }
+  folgeNummer: number | null
   onLoad: () => void
   onNew: () => void
   onAbort: () => void
@@ -235,7 +235,7 @@ interface Props {
   open: boolean
   onClose: () => void
   folgeId: number
-  folgeNummer: number
+  folgeNummer: number | null
   onUebernehmen?: (html: string) => void
   onNavigateToScene?: (sceneNummer: string) => void
 }

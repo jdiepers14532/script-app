@@ -60,7 +60,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const { treatmentLabel } = useAppSettings()
   const { scrollNavDelay } = useUserPrefs()
   const { tweaks } = useTweaks()
-  const { focus, setHoverOpen } = useFocus()
+  const { focus, hoverOpen, setHoverOpen } = useFocus()
   const { showToast } = useToast()
   const { t } = useTerminologie()
   const spieltagAbbr = t('spieltag') === 'Spieltag' ? 'SP' : 'DT'
@@ -645,7 +645,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
     if (!found && characterId) {
       // Neu angelegte Figur: allCharacters neu laden, dann erneut versuchen
-      api.getCharacters(produktionId).then(chars => {
+      api.getCharacters(produktionId!).then(chars => {
         setAllCharacters(Array.isArray(chars) ? chars : [])
         const char = chars.find((c: any) => String(c.id) === String(characterId))
           ?? { id: characterId, name, kategorie_typ: 'rolle' }
@@ -832,7 +832,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       style={focusStyle}
       onMouseEnter={() => { if (focus) setHoverOpen(true) }}
       onMouseLeave={() => { if (focus && !focusPinned) setHoverOpen(false) }}
-      onTouchStart={() => { if (focus) setHoverOpen(v => !v) }}
+      onTouchStart={() => { if (focus) setHoverOpen(!hoverOpen) }}
     >
       {/* Focus mode drag header */}
       {focus && (

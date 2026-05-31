@@ -48,12 +48,12 @@ interface Props {
   selectedWerk: WerkstufeMeta | null
   werkstufen: WerkstufeMeta[]
   produktionId: string
-  folgeNummer: number
+  folgeNummer: number | null
   folgeId: number | null
   sceneFormat?: string | null
   onSelectWerkstufe: (id: string) => void
   onCreateWerkstufe: (typ: string) => void
-  onNeueFassungClick?: (requestedTyp: 'drehbuch' | 'storyline') => void
+  onNeueFassungClick?: (requestedTyp: 'drehbuch' | 'storyline' | 'notiz') => void
   onReloadWerkstufen: () => void
   onChangeSceneFormat?: (format: string) => void
   saveStatus?: SaveStatus

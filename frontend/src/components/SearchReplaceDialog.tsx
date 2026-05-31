@@ -23,7 +23,7 @@ interface Props {
   currentFolgeId?: number
   currentProduktionId?: string
   currentBlockNummer?: number
-  productions?: { id: string; title: string; staffelnummer?: number; projektnummer?: string; is_active: boolean }[]
+  productions?: { id: string; title: string; staffelnummer?: number | null; projektnummer?: string | null; is_active: boolean }[]
   bloecke?: { block_nummer: number; folge_von: number; folge_bis: number }[]
   // Modus
   searchMode: SearchMode
@@ -241,7 +241,7 @@ export default function SearchReplaceDialog({
   const getEffectiveScope = (): SearchScope =>
     scope === 'produktion' && selectedStaffel === 'alle' ? 'alle' : scope
 
-  const prodLabel = (p: { title: string; staffelnummer?: number; projektnummer?: string }) => {
+  const prodLabel = (p: { title: string; staffelnummer?: number | null; projektnummer?: string | null }) => {
     const base = p.staffelnummer ? `${p.title} ${'Staffel'} ${p.staffelnummer}` : p.title
     return p.projektnummer ? `${p.projektnummer} · ${base}` : base
   }
@@ -268,7 +268,7 @@ export default function SearchReplaceDialog({
 
       const addedNames: string[] = []
       for (const char of (data.characters || [])) {
-        onAddChip({ id: char.id, type: 'rolle', label: char.name, value: char.name, entityId: char.id })
+        onAddChip({ type: 'rolle', label: char.name, value: char.name, entityId: char.id })
         addedNames.push(char.name)
       }
       // Verbleibende Keywords als Textquery behalten

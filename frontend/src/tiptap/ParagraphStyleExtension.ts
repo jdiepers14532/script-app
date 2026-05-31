@@ -8,8 +8,13 @@ import { Extension } from '@tiptap/core'
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     paragraphStyle: {
-      setParagraphFont: (fontFamily: string | null) => ReturnType
-      setParagraphFontSize: (fontSize: string | null) => ReturnType
+      setParagraphFont:       (fontFamily: string | null)  => ReturnType
+      setParagraphFontSize:   (fontSize: string | null)    => ReturnType
+      setParagraphBold:       (bold: boolean)              => ReturnType
+      setParagraphItalic:     (italic: boolean)            => ReturnType
+      setParagraphUnderline:  (underline: boolean)         => ReturnType
+      setParagraphLineHeight: (lineHeight: string | null)  => ReturnType
+      setParagraphSpaceAfter: (spaceAfter: string | null)  => ReturnType
     }
   }
 }

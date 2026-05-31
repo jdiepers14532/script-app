@@ -32,7 +32,7 @@ function ResizableImageNodeView({ node, updateAttributes }: NodeViewProps) {
   useEffect(() => {
     if (!hovered || resizing) return
     const hide = (e: TouchEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setHovered(false)
+      if (!wrapperRef.current?.contains(e.target as HTMLElement)) setHovered(false)
     }
     document.addEventListener('touchstart', hide)
     return () => document.removeEventListener('touchstart', hide)

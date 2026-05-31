@@ -218,7 +218,7 @@ export function FieldBox({ name, type, pk, fk, nullable, deprecated }: {
 }
 
 // ── Warn-Box ───────────────────────────────────────────────────────────────
-export function WarnBox({ title, children }: { title: string; children: React.ReactNode }) {
+export function WarnBox({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
     <div style={{
       border: `1px solid ${C.orange}55`,
@@ -229,14 +229,14 @@ export function WarnBox({ title, children }: { title: string; children: React.Re
       marginTop: 12,
       marginBottom: 12,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 12, color: C.orange, marginBottom: 4 }}>{title}</div>
+      {title && <div style={{ fontWeight: 700, fontSize: 12, color: C.orange, marginBottom: 4 }}>{title}</div>}
       <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>{children}</div>
     </div>
   )
 }
 
 // ── Info-Box ───────────────────────────────────────────────────────────────
-export function InfoBox({ title, children, color = C.blue }: { title: string; children: React.ReactNode; color?: string }) {
+export function InfoBox({ title, children, color = C.blue, style }: { title?: string; children: React.ReactNode; color?: string; style?: React.CSSProperties }) {
   return (
     <div style={{
       border: `1px solid ${color}33`,
@@ -246,8 +246,9 @@ export function InfoBox({ title, children, color = C.blue }: { title: string; ch
       background: color + '08',
       marginTop: 12,
       marginBottom: 12,
+      ...style,
     }}>
-      <div style={{ fontWeight: 700, fontSize: 12, color, marginBottom: 4 }}>{title}</div>
+      {title && <div style={{ fontWeight: 700, fontSize: 12, color, marginBottom: 4 }}>{title}</div>}
       <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.7 }}>{children}</div>
     </div>
   )

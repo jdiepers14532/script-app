@@ -28,6 +28,7 @@ import TeamWorkModal from './TeamWorkModal'
 
 interface AppShellProps {
   children: ReactNode
+  title?: string
   selectedProduktionId?: string
   bloecke?: any[]
   selectedBlock?: any | null

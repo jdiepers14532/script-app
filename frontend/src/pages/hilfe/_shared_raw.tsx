@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import AppShell from '../components/AppShell'
+import AppShell from '../../components/AppShell'
 
 // ── Farben ────────────────────────────────────────────────────────────────────
 const C = {

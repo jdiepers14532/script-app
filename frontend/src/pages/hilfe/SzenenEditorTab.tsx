@@ -205,7 +205,7 @@ function SzenenEditorTab() {
         <div style={{ border: `1px solid ${C.orange}33`, borderRadius: 10, padding: 16, marginTop: 16, background: C.orange + '06' }}>
           <div style={{ fontWeight: 700, fontSize: 12, color: C.orange, marginBottom: 10 }}>Notiz-Format — Soft Separation</div>
           <div style={{ fontSize: 11, color: C.muted, lineHeight: 1.8 }}>
-            Szenen im Format <Tag color={C.orange}>Notiz</Tag> können <strong>frei positioniert</strong> werden wie normale Szenen.
+            Szenen im Format <Badge color={C.orange}>Notiz</Badge> können <strong>frei positioniert</strong> werden wie normale Szenen.
             Neue Notizen werden am Ende der Liste eingefügt. Drag &amp; Drop zum Umsortieren.
           </div>
           <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

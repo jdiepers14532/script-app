@@ -13,9 +13,9 @@ export interface NeueWerkstufeParams {
 }
 
 interface Props {
-  requestedTyp: 'drehbuch' | 'storyline'
+  requestedTyp: 'drehbuch' | 'storyline' | 'notiz'
   werkstufen: WerkstufeMeta[]
-  folgeNummer: number
+  folgeNummer: number | null
   produktionId: string
   onConfirm: (params: NeueWerkstufeParams) => void
   onClose: () => void

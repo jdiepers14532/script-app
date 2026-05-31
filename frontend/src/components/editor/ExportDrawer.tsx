@@ -53,7 +53,7 @@ interface Props {
   selectedWerk: WerkstufeMeta | null
   werkstufen: WerkstufeMeta[]
   produktionId: string
-  folgeNummer: number
+  folgeNummer: number | null
 }
 
 interface ExportPreset {
@@ -97,7 +97,7 @@ function formatDatumForFilename(isoDate: string | null | undefined, fmt: 'de' | 
 function assembleFilename(
   chips: FilenameChip[],
   werk: WerkstufeMeta | null,
-  folgeNummer: number,
+  folgeNummer: number | null,
   produktionTitel: string,
   staffelnummer: number | null,
   datumsformat: 'de' | 'en',
@@ -237,7 +237,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       if (!enabled) return { enabled: false }
       if (folgeId && (mode === 'folge' || !mode)) {
         const config: StatistikExportConfig = {
-          folge_ids: [folgeId], folge_nummer: folgeNummer, mode: 'folge', sections: defaultSections,
+          folge_ids: [folgeId], folge_nummer: folgeNummer ?? undefined, mode: 'folge', sections: defaultSections,
         }
         const prefix = type === 'onliner' ? 'Onliner' : type === 'synopse' ? 'Synopsen' : 'Statistik'
         return { enabled: true, statistikConfig: config, label: `${prefix} Folge ${folgeNummer}` }

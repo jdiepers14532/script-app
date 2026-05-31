@@ -118,8 +118,9 @@ export interface PreviewContext {
   sendedatum?:          string
   produktionszeitraum?: string
   aktuelles_datum?:     string
-  aktuelles_uhrzeit?:   string
-  aktuelles_jahr?:      string
+  aktuelles_uhrzeit?:     string
+  aktuelles_uhrzeit_utc?: string
+  aktuelles_jahr?:        string
   folge_laenge_netto?:  string
   firmen_adresse?:      string
   rechtsform?:          string

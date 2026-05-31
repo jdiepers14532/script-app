@@ -23,7 +23,7 @@ import ExportDrawer from './ExportDrawer'
 
 interface Props {
   produktionId: string
-  folgeNummer: number
+  folgeNummer: number | null
   folgeId: number | null
   werkstufen: WerkstufeMeta[]
   formatElements?: any[]
@@ -102,7 +102,7 @@ export default function EditorPanel({
   }, [])
 
   // ── Neue Werkstufe Modal ──────────────────────────────────────────────────
-  const [neueFassungModal, setNeueFassungModal] = useState<'drehbuch' | 'storyline' | null>(null)
+  const [neueFassungModal, setNeueFassungModal] = useState<'drehbuch' | 'storyline' | 'notiz' | null>(null)
   const [platzhalterWerkId, setPlatzhalterWerkId] = useState<string | null>(null)
 
   // ── Template content reset (Stockshot-Template applied in SceneEditor) ───

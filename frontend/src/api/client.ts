@@ -149,6 +149,14 @@ export const api = {
   takeoverLock: (produktionId: string, folgeNummer: number) =>
     request<any>('POST', `/folgen/${produktionId}/${folgeNummer}/lock/takeover`, {}),
 
+  // Szenen (legacy — numeric IDs)
+  getSzene: (id: number) => request<any>('GET', `/szenen/${id}`),
+  updateSzene: (id: number, data: any) => request<any>('PUT', `/szenen/${id}`, data),
+  getKommentare: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/kommentare`),
+  getSceneAnnotations: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/annotations`),
+  createSceneAnnotation: (szeneId: number, text: string) => request<any>('POST', `/szenen/${szeneId}/annotations`, { text }),
+  getStage: (id: number) => request<any>('GET', `/stages/${id}`),
+
   // Szenen Versionen (legacy)
   getVersionen: (szeneId: number) => request<any[]>('GET', `/szenen/${szeneId}/versionen`),
   createVersion: (szeneId: number, data: any) => request<any>('POST', `/szenen/${szeneId}/versionen`, data),
@@ -622,7 +630,7 @@ export const api = {
     request<any>('GET', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`),
   createDokumentVorlage: (produktionId: string, data: { name: string; werkstufe_id: string }) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen`, data),
-  createDokumentVorlageManual: (produktionId: string, data: { name: string; typ?: string; sektionen?: any[]; meta_fields?: any[] }) =>
+  createDokumentVorlageManual: (produktionId: string, data: { name: string; typ?: string; sektionen?: any[]; meta_fields?: any[]; body_content?: any; kopfzeile_content?: any; fusszeile_content?: any; kopfzeile_aktiv?: boolean; fusszeile_aktiv?: boolean; erste_seite_kein_header?: boolean; seiten_layout?: any; zeilennummerierung_unterbinden?: boolean }) =>
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/create`, data),
   updateDokumentVorlage: (produktionId: string, id: string, data: any) =>
     request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/dokument-vorlagen/${id}`, data),
@@ -659,12 +667,12 @@ export const api = {
   deleteAbsatzformat: (produktionId: string, id: string) =>
     request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/${id}`),
   applyAbsatzformatPreset: (produktionId: string, presetId: string) =>
-    request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/from-preset`, { preset_id: presetId }),
+    request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/from-preset`, { preset_id: presetId }),
   copyAbsatzformateFromProduktion: (produktionId: string, sourceId: string) =>
     request<any[]>('POST', `/produktionen/${encodeURIComponent(produktionId)}/absatzformate/from-produktion`, { source_produktion_id: sourceId }),
   getAbsatzformatPresets: () =>
     request<any[]>('GET', '/absatzformat-presets'),
-  createAbsatzformatPreset: (data: { name: string; beschreibung?: string; formate: any[]; erstellt_von?: string; seitenformat?: string; page_margins?: Record<string, number> }) =>
+  createAbsatzformatPreset: (data: { name: string; beschreibung?: string; formate: any[]; erstellt_von?: string; seitenformat?: string; page_margins?: Record<string, number>; szenen_kopf_template?: string }) =>
     request<any>('POST', '/absatzformat-presets', data),
   deleteAbsatzformatPreset: (id: string) =>
     request<void>('DELETE', `/absatzformat-presets/${id}`),
