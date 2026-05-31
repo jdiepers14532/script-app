@@ -629,7 +629,8 @@ function renderSzenenkopf(
   folgeNummer: number,
   pageBreakBefore = false,
   bodyMarginLeftCm = 0,
-  kuerzel: Record<string, string> = {}
+  kuerzel: Record<string, string> = {},
+  synopseMode = false
 ): string {
   const pbStyle = pageBreakBefore ? 'page-break-before:always;' : ''
 
@@ -666,8 +667,14 @@ function renderSzenenkopf(
   // Chrome's generateDocumentOutline ignoriert opacity:0 und height:0 — aber weißer Text
   // auf weißem Hintergrund wird erkannt, weil das Element gerendert wird (layout ≠ 0).
   const label = buildBookmarkLabel(scene, folgeNummer, kuerzel)
+  // Im Synopsen-Modus kein page-break-after:avoid auf dem Content-Div:
+  // Dort folgt die nächste Szene (kein Drehbuch-Content), und das avoid
+  // würde Chrome dazu bringen, Szenen zusammenzuhalten und Seiten vorzeitig umzubrechen.
+  const contentDivStyle = synopseMode
+    ? 'margin-top:14pt;margin-bottom:4pt;break-inside:avoid;page-break-inside:avoid'
+    : 'margin-top:14pt;margin-bottom:4pt;page-break-after:avoid;break-inside:avoid;page-break-inside:avoid'
   return `<h2 style="${pbStyle}color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${label}</h2>` +
-         `<div style="margin-top:14pt;margin-bottom:4pt;page-break-after:avoid;break-inside:avoid;page-break-inside:avoid">${parts.join('\n')}</div>`
+         `<div style="${contentDivStyle}">${parts.join('\n')}</div>`
 }
 
 /** Rendert alle Szenen eines Drehbuchs / Storyline */
@@ -816,7 +823,7 @@ async function buildSynopsenHtml(
       spielzeit:           row.spielzeit,
       vorlage_name:        null,
     }
-    const html = renderSzenenkopf(szenenkopfTemplate, sceneRow, row.folge_nummer, false, bodyMarginLeftCm, kuerzel)
+    const html = renderSzenenkopf(szenenkopfTemplate, sceneRow, row.folge_nummer, false, bodyMarginLeftCm, kuerzel, true)
     if (!html) continue
 
     // Zeilen zählen: <p ...> = einspaltige Zeile, display:flex = mehrspaltige Zeile, <hr = Trennlinie
@@ -834,9 +841,9 @@ async function buildSynopsenHtml(
     }
     accumPt += scenePt
 
-    // <div> statt <tr>: vermeidet Chrome 130 Tabellen-Fragmentierungsbug.
-    // break-inside:avoid als CSS-Backup gegen unerwartetes Splitting.
-    parts.push(`<div style="break-inside:avoid;page-break-inside:avoid">${html}</div>`)
+    // Kein break-inside:avoid — der server-seitige page-break-before steuert die Paginierung.
+    // break-inside:avoid würde Chrome dazu bringen, ganze Szenen auf die nächste Seite zu schieben.
+    parts.push(`<div>${html}</div>`)
   }
 
   if (!parts.length) return '<div style="color:#888;font-size:9pt">Keine Szenen gefunden.</div>'
