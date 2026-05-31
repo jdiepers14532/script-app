@@ -581,6 +581,8 @@ export default function UniversalEditor({
   const inlineGhostAcceptNameRef = useRef<string | null>(null)
   const inlineGhostNoMatchNameRef = useRef<string | null>(null)
   const inlineGhostActiveRef = useRef(false)
+  // Nach Acceptance: nächstes onUpdate nicht erneut aktivieren (verhindert Tab-Loop nach Suffix-Accept)
+  const suppressGhostUpdateRef = useRef(false)
 
   // IDs der "Character"-Absatzformate
   const charFormatIds = useMemo(
@@ -1006,6 +1008,15 @@ export default function UniversalEditor({
         // ── Inline Ghost Text ─────────────────────────────────────────────
         if (!queryClean) { resetInline(); return }
 
+        // Nach einer Acceptance den direkt folgenden onUpdate ignorieren,
+        // damit Tab nach dem Normalisieren (z.B. "SIMON OFF" → "SIMON (OFF)")
+        // wieder normal zur nächsten Zeile springt
+        if (suppressGhostUpdateRef.current) {
+          suppressGhostUpdateRef.current = false
+          resetInline()
+          return
+        }
+
         // Bester Treffer: startsWith, alphabetisch erster Treffer
         const bestMatch = pool.find(n => n.toUpperCase().startsWith(queryUpper))
 
@@ -1199,6 +1210,7 @@ export default function UniversalEditor({
             dispatchingGhostRef.current = false
           }
           if (acceptName) {
+            suppressGhostUpdateRef.current = true
             const sfx = detectedSuffixRef.current
             detectedSuffixRef.current = null
             acceptCharIntoEditor(acceptName, sfx)
