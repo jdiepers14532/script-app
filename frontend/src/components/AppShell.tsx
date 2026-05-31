@@ -1117,27 +1117,6 @@ export default function AppShell({
           </span>
         </div>
 
-<Tooltip text={wunschDialoge?.aktuell?.magic_tooltip || 'Wünsche einreichen'} placement="bottom">
-          <button
-            className="iconbtn topbar-extra"
-            onClick={() => { setWuenscheOpen(true); setNotifOpen(false); setUserMenuOpen(false); setAppSwitcherOpen(false) }}
-            style={{
-              position: 'relative',
-              color: magicNotifications.length > 0 ? MAGIC_COLORS.gold : undefined,
-              animation: magicNotifications.length > 0 ? 'magic-glow-pulse 1.5s ease-in-out infinite' : undefined,
-            }}
-          >
-            <span style={{ fontSize: 14, lineHeight: 1 }}>✨</span>
-            {magicNotifications.length > 0 && (
-              <span style={{
-                position: 'absolute', top: 2, right: 2,
-                width: 8, height: 8, borderRadius: '50%',
-                background: MAGIC_COLORS.gold, border: '1.5px solid var(--bg-surface)',
-                pointerEvents: 'none',
-              }} />
-            )}
-          </button>
-        </Tooltip>
         <Tooltip text="Benachrichtigungen" placement="bottom">
           <button
             className="iconbtn topbar-extra"
