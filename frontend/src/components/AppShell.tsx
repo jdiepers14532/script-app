@@ -1296,7 +1296,7 @@ export default function AppShell({
             <div className="seg">
               <button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')} title="Beide Panels"><Columns2 size={13} /></button>
               <button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')} title={`Nur linkes Panel (${treatmentLabel})`}><PanelLeft size={13} /></button>
-              <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')} title="Nur rechtes Panel (Drehbuch)"><PanelRight size={13} /></button>
+              <button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')} title={`Nur rechtes Panel (${t('drehbuch')})`}><PanelRight size={13} /></button>
             </div>
           </TweakGroup>
 
@@ -1347,7 +1347,7 @@ export default function AppShell({
             </div>
           </TweakGroup>
 
-          <TweakGroup label="Text-Schrift (Drehbuch)">
+          <TweakGroup label={`Text-Schrift (${t('drehbuch')})`}>
             <select
               className="font-select"
               value={tweaks.scriptFont}
@@ -1881,7 +1881,7 @@ export default function AppShell({
                       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 4 }}>Fassungstyp</div>
                       <select value={importStageType} onChange={e => setImportStageType(e.target.value)}
                         style={{ width: '100%', padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', fontSize: 12, fontFamily: 'inherit' }}>
-                        {[['expose','Exposé'],['treatment', treatmentLabel],['draft','Drehbuch'],['final','Endfassung']].map(([v,l]) => (
+                        {[['expose','Exposé'],['treatment', treatmentLabel],['draft', t('drehbuch')],['final','Endfassung']].map(([v,l]) => (
                           <option key={v} value={v}>{l}</option>
                         ))}
                       </select>

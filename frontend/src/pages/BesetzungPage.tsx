@@ -87,7 +87,7 @@ export default function BesetzungPage() {
             onChange={e => setWerkstufTyp(e.target.value)}
             style={selStyle}
           >
-            <option value="drehbuch">Drehbuch</option>
+            <option value="drehbuch">{t('drehbuch')}</option>
             <option value="treatment">Treatment</option>
             <option value="storyline">Storyline</option>
           </select>

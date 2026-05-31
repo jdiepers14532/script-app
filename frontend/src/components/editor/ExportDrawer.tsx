@@ -19,6 +19,7 @@ import type { WerkstufeMeta } from '../../hooks/useDokument'
 import { api } from '../../api/client'
 import Tooltip from '../Tooltip'
 import { useSelectedProduction } from '../../contexts'
+import { useTerminologie } from '../../sw-ui'
 import StatistikModal, {
   DEFAULT_SECTIONS,
   type StatModalSection,
@@ -102,9 +103,10 @@ function assembleFilename(
   staffelnummer: number | null,
   datumsformat: 'de' | 'en',
   ext: string,
+  drehbuchLabel: string,
 ): string {
   if (!werk) return `export.${ext}`
-  const typLabel = werk.typ === 'drehbuch' ? 'Drehbuch'
+  const typLabel = werk.typ === 'drehbuch' ? drehbuchLabel
     : werk.typ === 'storyline' ? 'Storyline' : 'Notiz'
   const values: Record<FilenameChipKey, string> = {
     titel:     produktionTitel,
@@ -143,6 +145,7 @@ const SEC: React.CSSProperties = {
 
 export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen, produktionId, folgeNummer }: Props) {
   const { selectedProduction } = useSelectedProduction()
+  const { t } = useTerminologie()
 
   // Basis
   const [format, setFormat]                       = useState<ExportFormat>('pdf')
@@ -613,7 +616,8 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     selectedProduction?.staffelnummer ?? null,
     datumsformat,
     extForFormat[format],
-  ), [filenameChips, selectedWerk, folgeNummer, selectedProduction, datumsformat, format])
+    t('drehbuch'),
+  ), [filenameChips, selectedWerk, folgeNummer, selectedProduction, datumsformat, format, t])
 
   async function chooseSavePath() {
     if (!('showSaveFilePicker' in window)) {
@@ -682,7 +686,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
   function buildHeaderSub(): string {
     if (!selectedWerk) return ''
-    const typ = selectedWerk.typ === 'drehbuch' ? 'Drehbuch'
+    const typ = selectedWerk.typ === 'drehbuch' ? t('drehbuch')
       : selectedWerk.typ === 'storyline' ? 'Storyline'
       : selectedWerk.typ === 'notiz' ? 'Notiz' : selectedWerk.typ
     const ver = `V${selectedWerk.version_nummer}`
@@ -925,7 +929,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                       const disabled = isDisabledFormat(f)
                       const active   = format === f.value && !disabled
                       return (
-                        <Tooltip key={f.value} placement="bottom" text={!f.available ? 'Kommt bald' : disabled ? 'Nur für Drehbuch' : ''}>
+                        <Tooltip key={f.value} placement="bottom" text={!f.available ? 'Kommt bald' : disabled ? `Nur für ${t('drehbuch')}` : ''}>
                           <button
                             disabled={disabled}
                             onClick={() => !disabled && setFormat(f.value)}

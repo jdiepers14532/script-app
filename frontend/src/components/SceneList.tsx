@@ -78,8 +78,8 @@ export default function SceneList({
   const isNotizWerk = werkstufTyp === 'notiz'
   const allowedFormats = isNotizWerk ? ['notiz'] : isDrehbuchWerk ? ['drehbuch', 'notiz'] : ['storyline', 'notiz']
   const nativeFormat = isNotizWerk ? 'notiz' : isDrehbuchWerk ? 'drehbuch' : 'storyline'
-  const nativeLabel = isNotizWerk ? 'Dokument' : isDrehbuchWerk ? 'Drehbuch' : 'Storyline'
-  const wrongLabel = isDrehbuchWerk ? 'Storyline' : 'Drehbuch'
+  const nativeLabel = isNotizWerk ? 'Dokument' : isDrehbuchWerk ? t('drehbuch') : 'Storyline'
+  const wrongLabel = isDrehbuchWerk ? 'Storyline' : t('drehbuch')
   const [farbModus, setFarbModus] = useState<'licht' | 'strang' | 'aus'>('licht')
   const [platzhalterOpen, setPlatzhalterOpen] = useState(false)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
@@ -647,7 +647,7 @@ export default function SceneList({
           ? 'Neuer Abschnitt'
           : isTouch
             ? `Neue ${nativeLabel}-Szene`
-            : `Neue Szene\n${isDrehbuchWerk ? 'D=Drehbuch' : 'S/T=Storyline'} · N=Dokument\n(Taste halten + Klick)`
+            : `Neue Szene\n${isDrehbuchWerk ? `D=${t('drehbuch')}` : 'S/T=Storyline'} · N=Dokument\n(Taste halten + Klick)`
         }>
           <button className="iconbtn" onClick={() => handleNewSzene()} disabled={creating || !stageId} style={{ flexShrink: 0 }}>
             <Plus size={13} />
@@ -667,7 +667,7 @@ export default function SceneList({
               <div className="scene-ctx-menu" style={{ right: 0, left: 'auto', top: '100%', minWidth: 130 }}>
                 {allowedFormats.filter(f => f !== 'notiz').map(f => (
                   <button key={f} className="scene-ctx-item" onClick={() => { handleNewSzene(f); setFormatPickerOpen(false) }}>
-                    {f === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
+                    {f === 'drehbuch' ? t('drehbuch') : 'Storyline'}
                   </button>
                 ))}
                 <button className="scene-ctx-item" onClick={() => { handleNewSzene('notiz'); setFormatPickerOpen(false) }}>Dokument</button>
@@ -1001,7 +1001,7 @@ export default function SceneList({
                       <CategoryDivider label="Einfügen darunter" />
                       {allowedFormats.filter(f => f !== 'notiz').map(f => (
                         <button key={f} className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, f)} disabled={creating}>
-                          {f === 'drehbuch' ? 'Drehbuch' : 'Storyline'}
+                          {f === 'drehbuch' ? t('drehbuch') : 'Storyline'}
                         </button>
                       ))}
                       <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Dokument</button>

@@ -193,7 +193,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                 <div className="seg">
                   <Tooltip text="Beide Panels"><button className={tweaks.panelMode === 'both' ? 'on' : ''} onClick={() => set('panelMode', 'both')}><Columns2 size={8} /></button></Tooltip>
                   <Tooltip text={`Nur ${treatmentLabel}`}><button className={tweaks.panelMode === 'treatment' ? 'on' : ''} onClick={() => set('panelMode', 'treatment')}><PanelLeft size={8} /></button></Tooltip>
-                  <Tooltip text="Nur Drehbuch"><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={8} /></button></Tooltip>
+                  <Tooltip text={`Nur ${t('drehbuch')}`}><button className={tweaks.panelMode === 'script' ? 'on' : ''} onClick={() => set('panelMode', 'script')}><PanelRight size={8} /></button></Tooltip>
                 </div>
                 <div className="seg">
                   <Tooltip text="Blatt mit Schatten"><button className={tweaks.showPageShadow ? 'on' : ''} onClick={() => set('showPageShadow', true)}><BookOpen size={8} /></button></Tooltip>
@@ -247,7 +247,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
 
             {/* Autovervollständigung — Überschrift */}
             <div style={{ padding: '6px 0 2px', borderTop: '1px solid var(--border-subtle)' }}>
-              <Tooltip text={`Gilt nur für Drehbuch-Format. Bei Storyline gibt es kein ${figurenLabel}-Format.`}>
+              <Tooltip text={`Gilt nur für ${t('drehbuch', 'c')}-Format. Bei Storyline gibt es kein ${figurenLabel}-Format.`}>
                 <span style={{ ...labelStyle, fontWeight: 600, fontSize: 12, color: 'var(--text)' }}>
                   {figurenLabel} — Autovervollständigung
                 </span>
@@ -529,7 +529,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                 </div>
 
                 <div style={rowStyle}>
-                  <span style={labelStyle}>Drehbuch-Schrift</span>
+                  <span style={labelStyle}>{t('drehbuch', 'c')}-Schrift</span>
                   <select
                     value={tweaks.scriptFont}
                     onChange={e => set('scriptFont', e.target.value)}
@@ -546,7 +546,7 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                 </div>
 
                 <div style={{ ...rowStyle, borderBottom: 'none' }}>
-                  <span style={labelStyle}>Drehbuch-Schriftgrosse</span>
+                  <span style={labelStyle}>{t('drehbuch', 'c')}-Schriftgrosse</span>
                   <div className="seg">
                     {FONT_SIZES.map(s => (
                       <button key={s} className={tweaks.fontSize === s ? 'on' : ''} onClick={() => set('fontSize', s)}>

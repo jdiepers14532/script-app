@@ -693,7 +693,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
       <section>
         <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Replikennummern</h3>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6 }}>
-          Einstellungen für die Repliknummerierung im Drehbuch-Editor.
+          Einstellungen für die Repliknummerierung im {t('drehbuch')}-Editor.
           Betrifft alle Nutzer dieser Produktion.
         </p>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -2085,6 +2085,7 @@ function DokumentTypenTab({
   onMarginsSave: (next: DokTypenMargins) => void
 }) {
   const { selectedProduction } = useSelectedProduction()
+  const { t: tDok } = useTerminologie()
   const produktionId = selectedProduction?.id ?? ''
   const [formate, setFormate] = useState<any[]>([])
   const [presets, setPresets] = useState<any[]>([])
@@ -2435,7 +2436,7 @@ function DokumentTypenTab({
             )}
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-primary)', marginBottom: 8 }}>
-            Definiert den Szenenkopf für den Drehbuch-Export. Jede Zeile mit leeren Feldern werden ausgeblendet.
+            Definiert den Szenenkopf für den {tDok('drehbuch')}-Export. Jede Zeile mit leeren Feldern werden ausgeblendet.
           </div>
           <SzenenKopfVorlagenEditor
             value={templateValue}
@@ -2485,7 +2486,7 @@ function DokumentTypenTab({
         <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Filter:</label>
         <select value={filterKat} onChange={e => setFilterKat(e.target.value)} style={selectStyle}>
           <option value="alle">Alle</option>
-          <option value="drehbuch">Drehbuch</option>
+          <option value="drehbuch">{tDok('drehbuch')}</option>
           <option value="storyline">Storyline</option>
           <option value="sl_db">SL/DB</option>
           <option value="notiz">Notiz</option>
@@ -3897,7 +3898,7 @@ function TermRow({ label, subtext, options, value, onSelect, disabled, last }: {
 }
 
 function TerminologieTab({ productionId }: { productionId?: string }) {
-  const { config: currentConfig } = useTerminologie()
+  const { config: currentConfig, t: tTerm2 } = useTerminologie()
   const [config, setConfig] = useState<TerminologieConfig>({ ...currentConfig })
   const [saving, setSaving] = useState(false)
   const [glossarOpen, setGlossarOpen] = useState(false)
@@ -4010,7 +4011,7 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
           {productionId ? (
             <TermRow
               label="Vorstufe / Treatment"
-              subtext="Bezeichnung der Vorstufe vor dem Drehbuch — gilt für diese Produktion"
+              subtext={`Bezeichnung der Vorstufe vor dem ${tTerm2('drehbuch')} — gilt für diese Produktion`}
               options={[
                 { value: 'Treatment', label: 'Treatment' },
                 { value: 'Storylines', label: 'Storylines' },
@@ -5011,7 +5012,7 @@ export default function DrehbuchkoordinationPage() {
                   }}
                 >
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {tab.label}
+                    {tab.id === 'drehbuch-checks' ? `${t('drehbuch', 'c')}-Checks` : tab.label}
                     {(tab as { badge?: string }).badge && (
                       <span style={{
                         fontSize: 9,
@@ -5068,7 +5069,7 @@ export default function DrehbuchkoordinationPage() {
                     color: activeTab === id ? '#007AFF' : 'var(--text-secondary)',
                     borderBottom: activeTab === id ? '2px solid #007AFF' : '2px solid transparent',
                   }}>
-                    {label}
+                    {id === 'dokument-typen' ? `${t('drehbuch', 'c')}-Formatierung` : label}
                   </button>
                 ))}
               </div>
@@ -6161,6 +6162,7 @@ function VorlagenThumbnail({ content, ctx }: { content: any; ctx: PreviewContext
 
 function VorlagenTab({ productionId, seitenformat, margins }: { productionId: string; seitenformat: 'a4' | 'letter'; margins: { oben: number; unten: number; links: number; rechts: number } }) {
   const { selectedProduction } = useSelectedProduction()
+  const { t: tVorlage } = useTerminologie()
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
@@ -6174,7 +6176,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
     folgentitel:   undefined,
     fassung:       'Rohfassung',
     version:       'V1',
-    werkstufe:     'Drehbuch',
+    werkstufe:     tVorlage('drehbuch'),
     stand_datum:   formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
     autor:         'Max Mustermann',
     regie:         undefined,
@@ -6460,7 +6462,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0' }}>
                 {seitenformat === 'a4' ? 'A4 (210 × 297 mm)' : 'Letter (215,9 × 279,4 mm)'}
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 2 }}>
-                  Standard-Einstellung aus Drehbuch-Formatierung
+                  Standard-Einstellung aus {tKf('drehbuch')}-Formatierung
                 </span>
               </div>
             </div>
@@ -6480,7 +6482,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
                 ))}
               </div>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
-                Standard-Einstellung aus Drehbuch-Formatierung
+                Standard-Einstellung aus {tKf('drehbuch')}-Formatierung
               </span>
             </div>
           </div>
@@ -6843,6 +6845,12 @@ async function loadPreviewMeta(productionId: string): Promise<PreviewMeta> {
 
 function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionId: string; seitenformat: 'a4' | 'letter'; margins: DokTypenMargins }) {
   const { selectedProduction } = useSelectedProduction()
+  const { t: tKf } = useTerminologie()
+  const kfTypen = [
+    { id: 'drehbuch',  label: tKf('drehbuch'),  color: '#007AFF' },
+    { id: 'storyline', label: 'Storyline', color: '#FF9500' },
+    { id: 'notiz',     label: 'Dokument',  color: '#757575' },
+  ] as const
   const produktionsLogoUrl = selectedProduction?.logo_filename
     ? `https://produktion.serienwerft.studio/uploads/logos/${selectedProduction.logo_filename}`
     : null
@@ -6865,7 +6873,7 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
     folgentitel:   undefined,
     fassung:       'Rohfassung',
     version:       'V1',
-    werkstufe:     'Drehbuch',
+    werkstufe:     tKf('drehbuch'),
     stand_datum:   formatDatum(new Date().toISOString().slice(0, 10), previewMeta.datumsformat),
     autor:         'Max Mustermann',
     regie:         undefined,
@@ -6996,8 +7004,8 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
   const currentConfig = getCurrentValue()
   const isMultiSync = syncTypen.size > 1
   const isDirty = [...syncTypen].some(t => dirty[t])
-  const activeColor = KF_TYPEN.find(t => t.id === activeTyp)?.color ?? '#007AFF'
-  const syncLabels = KF_TYPEN.filter(t => syncTypen.has(t.id)).map(t => t.label).join(', ')
+  const activeColor = kfTypen.find(t => t.id === activeTyp)?.color ?? '#007AFF'
+  const syncLabels = kfTypen.filter(t => syncTypen.has(t.id)).map(t => t.label).join(', ')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0, height: '100%' }}>
@@ -7009,7 +7017,7 @@ function KopfFusszeileTab({ productionId, seitenformat, margins }: { productionI
       {/* Sub-tab bar + save button */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4 }}>
-          {KF_TYPEN.map(t => {
+          {kfTypen.map(t => {
             const isActive   = activeTyp === t.id
             const isInSync   = syncTypen.has(t.id)
             return (
@@ -7243,6 +7251,7 @@ const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean
 }
 
 function DrehbuchChecksTab({ produktionId }: { produktionId: string }) {
+  const { t: tChecks } = useTerminologie()
   const [config, setConfig] = useState<Record<string, { enabled: boolean; auto: boolean }>>({})
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)

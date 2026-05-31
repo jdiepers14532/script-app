@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
 import type { WerkstufeMeta } from '../hooks/useDokument'
+import { useTerminologie } from '../sw-ui'
 
 export type WerkstufeCreateMode = 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty' | 'platzhalter'
 
@@ -21,8 +22,7 @@ interface Props {
   onClose: () => void
 }
 
-const TYP_LABEL: Record<string, string> = {
-  drehbuch: 'Drehbuch',
+const TYP_LABEL_STATIC: Record<string, string> = {
   storyline: 'Storyline',
   notiz: 'Dokument',
 }
@@ -30,6 +30,8 @@ const TYP_LABEL: Record<string, string> = {
 export default function NeueWerkstufeModal({
   requestedTyp, werkstufen, folgeNummer, produktionId, onConfirm, onClose,
 }: Props) {
+  const { t } = useTerminologie()
+  const TYP_LABEL = { ...TYP_LABEL_STATIC, drehbuch: t('drehbuch') }
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', h)
@@ -82,7 +84,7 @@ export default function NeueWerkstufeModal({
       list.push({
         id: 'storyline_body_as_txt',
         label: 'Storyline-Text als TXT-Format übernehmen',
-        desc: `Szenenköpfe + Storyline-Body als TXT-Absatzformat im Drehbuch-Editor`,
+        desc: `Szenenköpfe + Storyline-Body als TXT-Absatzformat im ${t('drehbuch')}-Editor`,
       })
     }
     list.push({ id: 'empty', label: 'Leere Werkstufe anlegen', desc: 'Keine Szenen kopieren — mit einer neuen Szene starten' })
@@ -115,7 +117,7 @@ export default function NeueWerkstufeModal({
   }
 
   const typLabel = TYP_LABEL[requestedTyp]
-  const crossTypLabel = requestedTyp === 'drehbuch' ? 'Storyline' : 'Drehbuch'
+  const crossTypLabel = requestedTyp === 'drehbuch' ? 'Storyline' : t('drehbuch')
 
   return (
     <div style={{

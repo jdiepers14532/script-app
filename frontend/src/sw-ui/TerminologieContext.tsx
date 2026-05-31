@@ -2,7 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type TermKey = 'szene' | 'motiv' | 'staffel' | 'stab' | 'darsteller' | 'komparse' | 'episode' | 'stockshot' | 'flashback' | 'spieltag';
+export type TermKey = 'szene' | 'motiv' | 'staffel' | 'stab' | 'darsteller' | 'komparse' | 'episode' | 'stockshot' | 'flashback' | 'spieltag' | 'drehbuch';
 
 export interface TermForms {
   /** Singular: "Szene", "Bild" */
@@ -61,6 +61,10 @@ export const TERM_OPTIONS: Record<TermKey, Record<string, TermForms>> = {
     'Spieltag':           { s: 'Spieltag',           p: 'Spieltage',           c: 'Spieltag' },
     'Dramaturgischer Tag': { s: 'Dramaturgischer Tag', p: 'Dramaturgische Tage', c: 'Dramaturgischer' },
   },
+  drehbuch: {
+    'Drehbuch':   { s: 'Drehbuch',   p: 'Drehbücher',   c: 'Drehbuch' },
+    'Dialogbuch': { s: 'Dialogbuch', p: 'Dialogbücher', c: 'Dialogbuch' },
+  },
 };
 
 export const TERM_DEFAULTS: TerminologieConfig = {
@@ -74,9 +78,10 @@ export const TERM_DEFAULTS: TerminologieConfig = {
   stockshot: 'Stockshot',
   flashback: 'Flashback',
   spieltag: 'Spieltag',
+  drehbuch: 'Drehbuch',
 };
 
-export const TERM_KEYS: TermKey[] = ['szene', 'motiv', 'staffel', 'stab', 'darsteller', 'komparse', 'episode', 'stockshot', 'flashback', 'spieltag'];
+export const TERM_KEYS: TermKey[] = ['szene', 'motiv', 'staffel', 'stab', 'darsteller', 'komparse', 'episode', 'stockshot', 'flashback', 'spieltag', 'drehbuch'];
 
 export const TERM_LABELS: Record<TermKey, string> = {
   szene: 'Szene / Bild',
@@ -89,6 +94,7 @@ export const TERM_LABELS: Record<TermKey, string> = {
   stockshot: 'Stockshot / Archivshot',
   flashback: 'Flashback / Rückblende',
   spieltag: 'Spieltag / Dramaturgischer Tag',
+  drehbuch: 'Drehbuch / Dialogbuch',
 };
 
 // ── Resolver ──────────────────────────────────────────────────────────────────

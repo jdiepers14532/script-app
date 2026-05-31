@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Wand2, X, Sparkles, CheckSquare } from 'lucide-react'
+import { useTerminologie } from '../../sw-ui'
 
 interface Props {
   open: boolean
@@ -33,6 +34,7 @@ const STARS = [
 ]
 
 export default function MagicFunktionenModal({ open, onClose, sceneFormat, folgeId, folgeNummer, werkstufId, werkstufTyp, onSynopseClick, onDrehbuchChecksClick }: Props) {
+  const { t } = useTerminologie()
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
@@ -219,7 +221,7 @@ export default function MagicFunktionenModal({ open, onClose, sceneFormat, folge
                     <CheckSquare size={15} color="#00C853" style={{ marginTop: 1, flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginBottom: 4 }}>
-                        Drehbuch-Checks
+                        {t('drehbuch', 'c')}-Checks
                       </div>
                       <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', lineHeight: 1.55, marginBottom: 14 }}>
                         Alle Szenen dieser Werkstufe auf Konsistenz, Struktur und Dramaturgie prüfen.

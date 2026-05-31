@@ -5,6 +5,7 @@ import {
   RefreshCw, ChevronRight, Layers, Maximize2, Zap,
 } from 'lucide-react'
 import { useAppSettings } from '../contexts'
+import { useTerminologie } from '../sw-ui'
 import type {
   SearchScope, SearchOptions, SearchResult, SceneCard, EntityChip,
   EntityType, EntityMode, SearchMode, ReviewStatus,
@@ -114,6 +115,7 @@ export default function SearchReplaceDialog({
   onNavigateToScene,
 }: Props) {
   const { treatmentLabel } = useAppSettings()
+  const { t } = useTerminologie()
   const inputRef = useRef<HTMLInputElement>(null)
   const isMac = /Mac|iPhone|iPad/.test(navigator.userAgent)
 
@@ -541,7 +543,7 @@ export default function SearchReplaceDialog({
         {showWerkstufenSelector && (
           <div style={{ marginBottom: 12 }}>
             <select value={werkstufenTyp} onChange={e => setWerkstufenTyp(e.target.value)} style={selectStyle}>
-              <option value="drehbuch">Drehbuch (empfohlen)</option>
+              <option value="drehbuch">{t('drehbuch')} (empfohlen)</option>
               <option value="treatment">{treatmentLabel}</option>
               <option value="storyline">Beschreibung</option>
               <option value="notiz">Notiz</option>

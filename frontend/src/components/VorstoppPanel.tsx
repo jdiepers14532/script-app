@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Zap } from 'lucide-react'
 import { api } from '../api/client'
+import { useTerminologie } from '../sw-ui'
 
 const STAGES = [
   { key: 'drehbuch',     label: 'Drehbuch' },
@@ -26,6 +27,7 @@ interface Props {
 }
 
 export default function VorstoppPanel({ szeneId, sceneIdentityId }: Props) {
+  const { t } = useTerminologie()
   const [latest, setLatest] = useState<Partial<Record<StageKey, any>>>({})
   const [loading, setLoading] = useState(true)
   const [autoLoading, setAutoLoading] = useState(false)
@@ -96,9 +98,9 @@ export default function VorstoppPanel({ szeneId, sceneIdentityId }: Props) {
               key={key}
               className={`vorstopp-cell${entry ? ' has-value' : ''}`}
               onClick={() => !isEditing && startEdit(key)}
-              title={`${label} — Klicken zum Eingeben (Sekunden)`}
+              title={`${key === 'drehbuch' ? t('drehbuch') : label} — Klicken zum Eingeben (Sekunden)`}
             >
-              <span className="vs-label">{label}</span>
+              <span className="vs-label">{key === 'drehbuch' ? t('drehbuch') : label}</span>
               {isEditing ? (
                 <input
                   ref={inputRef}

@@ -153,7 +153,7 @@ export default function StatistikPage() {
 
           {/* Werkstufe type */}
           <select value={werkstufTyp} onChange={e => setWerkstufTyp(e.target.value)} style={selStyle}>
-            <option value="drehbuch">Drehbuch</option>
+            <option value="drehbuch">{t('drehbuch')}</option>
             <option value="treatment">Treatment</option>
             <option value="storyline">Storyline</option>
           </select>
@@ -194,7 +194,7 @@ function ReportView({ report, title, ntStats }: { report: any; title: string; nt
       {/* Summary */}
       <Section>
         <SummaryRow label="Bilder insgesamt" value={report.bilder_insgesamt} />
-        <SummaryRow label="Anzahl Drehbuchseiten" value={report.drehbuchseiten_display || '0'} />
+        <SummaryRow label={`Anzahl ${t('drehbuch', 'c')}seiten`} value={report.drehbuchseiten_display || '0'} />
         <SummaryRow label="Vorstopp (mm:ss)" value={formatTime(report.vorstopp_sek || 0)} />
       </Section>
 

@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X, Wand2, CheckSquare, Square, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
+import { useTerminologie } from '../sw-ui'
 
 interface CheckMeta {
   label: string
@@ -62,6 +63,7 @@ interface BatchCheckModalProps {
 }
 
 export default function BatchCheckModal({ werkstufId, produktionId, onClose, onDone }: BatchCheckModalProps) {
+  const { t } = useTerminologie()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [loadingConfig, setLoadingConfig] = useState(true)
   const [running, setRunning] = useState(false)
@@ -136,7 +138,7 @@ export default function BatchCheckModal({ werkstufId, produktionId, onClose, onD
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
           <Wand2 size={16} style={{ color: 'var(--sw-green, #00C853)', flexShrink: 0 }} />
-          <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>Drehbuch-Checks ausführen</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{t('drehbuch', 'c')}-Checks ausführen</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', lineHeight: 1 }}>
             <X size={15} />
           </button>

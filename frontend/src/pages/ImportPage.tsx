@@ -84,7 +84,7 @@ export default function ImportPage() {
   const STAGE_TYPES = [
     { value: 'expose', label: 'Exposé' },
     { value: 'treatment', label: treatmentLabel },
-    { value: 'draft', label: 'Drehbuch (Draft)' },
+    { value: 'draft', label: `${t('drehbuch')} (Draft)` },
     { value: 'final', label: 'Final' },
   ]
   const [step, setStep] = useState<Step>(1)
@@ -460,7 +460,7 @@ export default function ImportPage() {
         {/* Step 1 */}
         {step === 1 && (
           <div>
-            <h2 style={{ marginBottom: 8, fontSize: 20, fontWeight: 600 }}>Drehbuch importieren</h2>
+            <h2 style={{ marginBottom: 8, fontSize: 20, fontWeight: 600 }}>{t('drehbuch')} importieren</h2>
             <p style={{ color: '#757575', marginBottom: 24, fontSize: 14 }}>
               Unterstützte Formate: Final Draft (.fdx), Fountain, Word (.docx), PDF, Celtx, WriterDuet (.wdz)
             </p>
@@ -777,7 +777,7 @@ export default function ImportPage() {
                       setEditDocType(e.target.value)
                       setStageType(e.target.value === treatmentLabel ? 'treatment' : 'draft')
                     }} style={{ ...compactSelectStyle, color: '#1565C0', fontWeight: 600 }}>
-                      <option value="Drehbuch">Drehbuch</option>
+                      <option value="Drehbuch">{t('drehbuch')}</option>
                       <option value={treatmentLabel}>{treatmentLabel}</option>
                     </select>
                     <span style={{ color: '#999' }}>—</span>
@@ -994,7 +994,7 @@ export default function ImportPage() {
                           textTransform: 'uppercase', letterSpacing: 0.3,
                           border: '1px solid transparent', cursor: 'pointer',
                         }}>
-                          <option value="Drehbuch">Drehbuch</option>
+                          <option value="Drehbuch">{t('drehbuch')}</option>
                           <option value="Storyline">Storyline</option>
                           <option value="Notiz">Notiz</option>
                         </select>

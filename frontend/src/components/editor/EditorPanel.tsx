@@ -10,7 +10,7 @@ import { useEditorPrefs } from '../../hooks/useEditorPrefs'
 import { useUserPrefs, useSelectedProduction, useAppSettings } from '../../contexts'
 import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
-import { useOfflineQueueContext, DokumentVorlagenEditor } from '../../sw-ui'
+import { useOfflineQueueContext, DokumentVorlagenEditor, useTerminologie } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
 import { Clock } from 'lucide-react'
 import Tooltip from '../Tooltip'
@@ -57,6 +57,7 @@ export default function EditorPanel({
   const { tweaks } = useTweaks()
   const { replikSettings, snapshotSettings } = useAppSettings()
   const { enqueue } = useOfflineQueueContext()
+  const { t } = useTerminologie()
   const { selectedProduction } = useSelectedProduction()
 
   // ── State declarations (all before first useEffect to prevent TDZ in minified builds) ──
@@ -647,7 +648,7 @@ export default function EditorPanel({
                 // Chip-Werte für die Auflösung zusammenbauen
                 const today = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
                 const werkTypLabel = (typ: string) =>
-                  ({ storyline: 'Storyline', drehbuch: 'Drehbuch', notiz: 'Dokument', Notiz: 'Dokument', treatment: 'Treatment' }[typ] ?? typ)
+                  ({ storyline: 'Storyline', drehbuch: t('drehbuch'), notiz: 'Dokument', Notiz: 'Dokument', treatment: 'Treatment' }[typ] ?? typ)
 
                 // Async: Folge-Metadaten, Sendedatum, Blöcke, Folgelänge, Firmendaten parallel laden
                 const [folgeData, sendedatumData, blöckeData, laengeData, companyData] = await Promise.all([
@@ -940,7 +941,7 @@ export default function EditorPanel({
                 {(['drehbuch', 'storyline', 'notiz'] as const).map(typ => (
                   <button key={typ} onClick={() => setNeueFassungModal(typ)}
                     style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12, cursor: 'pointer', background: 'transparent', color: 'var(--text-primary)' }}>
-                    + {typ === 'drehbuch' ? 'Drehbuch' : typ === 'storyline' ? 'Storyline' : 'Dokument ohne Formatierung'}
+                    + {typ === 'drehbuch' ? t('drehbuch') : typ === 'storyline' ? 'Storyline' : 'Dokument ohne Formatierung'}
                   </button>
                 ))}
               </div>

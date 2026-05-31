@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag, GitBranch, Us
 import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
+import { useTerminologie } from '../../sw-ui'
 
 const SICHTBARKEIT_ICONS: Record<string, React.ReactNode> = {
   privat:     <Lock size={11} />,
@@ -31,18 +32,6 @@ function getSichtbarkeitLabel(s: string) {
   return s
 }
 
-const TYP_LABELS: Record<string, string> = {
-  drehbuch: 'Drehbuch',
-  storyline: 'Storyline',
-  notiz: 'Dokument',
-  abstrakt: 'Abstrakt',
-}
-
-const FORMAT_OPTIONS = [
-  { value: 'drehbuch', label: 'Drehbuch' },
-  { value: 'storyline', label: 'Storyline' },
-  { value: 'notiz', label: 'Dokument' },
-]
 
 interface Props {
   selectedWerk: WerkstufeMeta | null
@@ -69,6 +58,18 @@ export default function EditorPanelHeader({
   sceneFormat, onSelectWerkstufe, onCreateWerkstufe, onNeueFassungClick, onReloadWerkstufen,
   onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot, verlaufSlot, rightSlot,
 }: Props) {
+  const { t } = useTerminologie()
+  const typLabels: Record<string, string> = {
+    drehbuch: t('drehbuch'),
+    storyline: 'Storyline',
+    notiz: 'Dokument',
+    abstrakt: 'Abstrakt',
+  }
+  const formatOptions = [
+    { value: 'drehbuch', label: t('drehbuch') },
+    { value: 'storyline', label: 'Storyline' },
+    { value: 'notiz', label: 'Dokument' },
+  ]
   const [showMenu, setShowMenu] = useState(false)
   const [showLabelMenu, setShowLabelMenu] = useState(false)
   const [showSichtbarkeitMenu, setShowSichtbarkeitMenu] = useState(false)
@@ -130,7 +131,7 @@ export default function EditorPanelHeader({
     grouped.set(w.typ, list)
   }
 
-  const typLabel = selectedWerk ? (TYP_LABELS[selectedWerk.typ] ?? selectedWerk.typ) : 'Typ wählen'
+  const typLabel = selectedWerk ? (typLabels[selectedWerk.typ] ?? selectedWerk.typ) : 'Typ wählen'
   const versionLabel = selectedWerk ? `V${selectedWerk.version_nummer}` : ''
   const sichtbarkeit = selectedWerk?.sichtbarkeit ?? 'team'
 
@@ -171,7 +172,7 @@ export default function EditorPanelHeader({
               {Array.from(grouped.entries()).map(([typ, versions]) => (
                 <div key={typ}>
                   <div style={{ padding: '5px 12px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    {TYP_LABELS[typ] ?? typ}
+                    {typLabels[typ] ?? typ}
                   </div>
                   {versions.sort((a, b) => b.version_nummer - a.version_nummer).map(w => (
                     <button
@@ -212,7 +213,7 @@ export default function EditorPanelHeader({
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '7px 12px', fontSize: 12, background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--sw-info)', fontFamily: 'inherit' }}
                 >
-                  <Plus size={11} /> Neue {TYP_LABELS[typ]}-Version
+                  <Plus size={11} /> Neue {typLabels[typ]}-Version
                 </button>
               ))}
               <button
@@ -646,7 +647,7 @@ export default function EditorPanelHeader({
               color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit',
             }}
           >
-            {FORMAT_OPTIONS.map(opt => (
+            {formatOptions.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
