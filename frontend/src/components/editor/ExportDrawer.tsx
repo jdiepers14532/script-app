@@ -503,19 +503,20 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   }
 
   async function triggerDownload(jobId: string) {
-    // Vorausgewählter Ordner via showDirectoryPicker
+    // Vorausgewählter Speicherort via showSaveFilePicker
     if (dirHandleRef.current) {
       try {
         const res = await fetch(`/api/export/job/${jobId}/download`, { credentials: 'include' })
         if (!res.ok) { setJobStatus('error'); setErrorMsg(`Download fehlgeschlagen (${res.status})`); return }
         const blob = await res.blob()
-        const fileHandle = await dirHandleRef.current.getFileHandle(customFilename, { create: true })
-        const writable = await fileHandle.createWritable()
+        const writable = await dirHandleRef.current.createWritable()
         await writable.write(blob)
         await writable.close()
+        dirHandleRef.current = null
+        setSavedDirName(null)
         return
       } catch (e: any) {
-        if (e.name !== 'AbortError') { setJobStatus('error'); setErrorMsg('Speichern im gewählten Pfad fehlgeschlagen') }
+        if (e.name !== 'AbortError') { setJobStatus('error'); setErrorMsg('Speichern am gewählten Pfad fehlgeschlagen') }
         return
       }
     }
@@ -615,12 +616,21 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   ), [filenameChips, selectedWerk, folgeNummer, selectedProduction, datumsformat, format])
 
   async function chooseSavePath() {
-    if (!('showDirectoryPicker' in window)) {
+    if (!('showSaveFilePicker' in window)) {
       alert('Pfadauswahl wird nur in Chrome/Edge unterstützt.')
       return
     }
+    const mimeTypes: Record<ExportFormat, Record<string, string[]>> = {
+      pdf:      { 'application/pdf': ['.pdf'] },
+      docx:     { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'] },
+      fountain: { 'text/plain': ['.fountain'] },
+      fdx:      { 'text/xml': ['.fdx'] },
+    }
     try {
-      const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: customFilename,
+        types: [{ description: 'Dokument', accept: mimeTypes[format] }],
+      })
       dirHandleRef.current = handle
       setSavedDirName(handle.name)
     } catch (e: any) {
