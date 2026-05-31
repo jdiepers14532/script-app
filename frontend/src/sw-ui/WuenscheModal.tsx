@@ -103,6 +103,33 @@ function MiniToast({ text, onDone }: { text: string; onDone: () => void }) {
   );
 }
 
+// ── SW-UI Tooltip (kanonisch: #111, fixed position, 11px) ────────────────────
+
+function SWTooltip({ text, children }: { text: string; children: React.ReactElement }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span
+      style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <span style={{
+          position: 'absolute', bottom: '100%', left: '50%',
+          transform: 'translate(-50%, -8px)',
+          background: '#111', color: '#fff', fontSize: 11, lineHeight: 1.5,
+          padding: '6px 10px', borderRadius: 6, whiteSpace: 'nowrap',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          zIndex: 99999, pointerEvents: 'none',
+        }}>
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
+
 // ── Wunsch-Liste Item ─────────────────────────────────────────────────────────
 
 interface WunschItemProps {
@@ -145,10 +172,10 @@ function WunschItem({ wunsch, isTouch, voteDankeSpruch, voteRueckzugSpruch, wuns
     }}>
       {/* Vote-Stern */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: btnSize + 4 }}>
+        <SWTooltip text={wunsch.ist_eigener ? 'Eigener Wunsch' : wunsch.hat_gevoted ? 'Stimme entfernen' : 'Abstimmen'}>
         <button
           onClick={handleVote}
           disabled={!!wunsch.ist_eigener}
-          title={wunsch.ist_eigener ? 'Eigener Wunsch' : wunsch.hat_gevoted ? 'Stimme entfernen' : 'Abstimmen'}
           style={{
             width: btnSize, height: btnSize,
             border: 'none', background: 'none', padding: 0,
@@ -167,6 +194,7 @@ function WunschItem({ wunsch, isTouch, voteDankeSpruch, voteRueckzugSpruch, wuns
             boxShadow: wunsch.hat_gevoted ? `0 0 8px ${MAGIC_COLORS.glowGold}` : 'none',
           }} />
         </button>
+        </SWTooltip>
         <span style={{
           fontSize: 11, fontWeight: 700, lineHeight: 1,
           color: wunsch.hat_gevoted ? MAGIC_COLORS.goldDark : '#BDBDBD',
@@ -198,10 +226,12 @@ function WunschItem({ wunsch, isTouch, voteDankeSpruch, voteRueckzugSpruch, wuns
       </div>
 
       {wunsch.ist_eigener && (
-        <button onClick={handleDelete} title="Wunsch zurückziehen"
-          style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C8C8C8', padding: isTouch ? '8px' : '4px', fontSize: 18, lineHeight: 1, minWidth: isTouch ? 44 : 24, minHeight: isTouch ? 44 : 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          ×
-        </button>
+        <SWTooltip text="Wunsch zurückziehen">
+          <button onClick={handleDelete}
+            style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#C8C8C8', padding: isTouch ? '8px' : '4px', fontSize: 18, lineHeight: 1, minWidth: isTouch ? 44 : 24, minHeight: isTouch ? 44 : 24, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            ×
+          </button>
+        </SWTooltip>
       )}
     </div>
   );
@@ -312,12 +342,13 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
         {hinweisText}
       </div>
 
-      <input
+      <textarea
         value={titel}
         onChange={e => setTitel(e.target.value)}
-        placeholder="Was wünschst du dir? (kurzer Titel)"
+        placeholder="Was wünschst du dir?"
         maxLength={200}
-        style={{ ...inputStyle, marginBottom: 10 }}
+        rows={isTouch ? 5 : 4}
+        style={{ ...inputStyle, marginBottom: 10, resize: 'none' }}
         onFocus={e => (e.target.style.borderColor = MAGIC_COLORS.gold)}
         onBlur={e => (e.target.style.borderColor = '#E0E0E0')}
       />
@@ -463,7 +494,7 @@ function Changelog({ items, count, leerSpruch }: { items: ReturnType<typeof useW
 // ── Haupt-Modal ───────────────────────────────────────────────────────────────
 
 export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: WuenscheModalProps) {
-  const [tab, setTab] = useState<'liste' | 'einreichen' | 'changelog'>('liste');
+  const [tab, setTab] = useState<'liste' | 'einreichen' | 'changelog'>('einreichen');
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -507,8 +538,6 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
   }
 
   if (!visible && !isOpen) return null;
-
-  const tooltipText = dialoge?.aktuell?.magic_tooltip;
 
   return (
     <div
@@ -562,7 +591,9 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: dialoge?.aktuell?.modal_willkommen ? 8 : 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 26 }}>✨</span>
-              <span style={{ fontWeight: 800, fontSize: 19, color: '#111' }}>Wünsche</span>
+              <span style={{ fontWeight: 800, fontSize: 19, color: '#111' }}>
+                Schon <strong style={{ fontWeight: 900, color: MAGIC_COLORS.goldDark }}>{erfuellte.length}</strong> Wünsche wurden erfüllt!
+              </span>
             </div>
             <button
               onClick={handleClose}
@@ -586,9 +617,9 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
           {/* Tabs */}
           <div style={{ display: 'flex', gap: 3, background: 'rgba(0,0,0,0.06)', borderRadius: 12, padding: 4 }}>
             {([
-              ['liste', 'Alle Wünsche'],
-              ['einreichen', '+ Wunsch'],
-              ['changelog', `✓ ${erfuellte.length}`],
+              ['einreichen', 'ich wünsche mir….'],
+              ['changelog', 'Erfüllte'],
+              ['liste', 'noch bei den Elfen'],
             ] as const).map(([k, l]) => (
               <button key={k} onClick={() => setTab(k)}
                 style={{
@@ -620,8 +651,8 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
                   {dialoge?.aktuell?.liste_leer || 'Noch keine Wünsche — sei der Erste!'}
                 </div>
                 <button onClick={() => setTab('einreichen')}
-                  style={{ padding: '10px 22px', background: '#111', color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>
-                  Wunsch einreichen
+                  style={{ padding: '10px 22px', background: `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`, color: '#111', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 700, animation: 'magic-glow-pulse 2s ease-in-out infinite' }}>
+                  ✨ ich wünsche mir….
                 </button>
               </div>
             ) : (
