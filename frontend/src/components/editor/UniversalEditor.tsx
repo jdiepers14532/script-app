@@ -940,14 +940,8 @@ export default function UniversalEditor({
       const { $from } = state.selection
       const node = $from.node()
       const isCharNode = node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)
-      if (node.type.name === 'absatz') {
-        console.log('[CharAC] update — absatz node', {
-          format_id: node.attrs.format_id, isCharNode,
-          charFormatIds, style, modus,
-          sceneCharNamesCount: sceneCharNames?.length ?? 0,
-          suppressGhost: suppressGhostUpdateRef.current,
-          text: node.textContent,
-        })
+      if (node.type.name === 'absatz' && isCharNode) {
+        console.log('[CharAC] char-node text=' + JSON.stringify(node.textContent) + ' pool=' + JSON.stringify(sceneCharNames ?? []))
       }
 
       if (!isCharNode) {
