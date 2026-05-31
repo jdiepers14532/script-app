@@ -202,12 +202,18 @@ export default function NtListePage() {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {entries.map(e => (
-                    <div key={e.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--surface)' }}>
+                  {entries.map(e => {
+                    const replicaLines: string[] = e.repliken_text
+                      ? e.repliken_text.split('\n').filter((l: string) => l.trim())
+                      : []
+                    const folgeLabel = e.folge_nummer != null ? `Folge ${e.folge_nummer}` : null
+                    const szeneLabel = `Sz. ${e.scene_nummer ?? '?'}${e.ort_name ? ` — ${e.ort_name}` : ''}${e.int_ext ? ` (${(e.int_ext as string).toUpperCase()})` : ''}`
 
-                      {/* Header-Zeile */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        {/* NT-Typ Badge */}
+                    return (
+                    <div key={e.id} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--surface)' }}>
+
+                      {/* Header */}
+                      <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', borderBottom: replicaLines.length > 0 || e.notiz !== undefined ? '1px solid var(--border)' : 'none' }}>
                         <select
                           value={e.nt_typ}
                           onChange={ev => saveTyp(e.id, ev.target.value)}
@@ -218,19 +224,16 @@ export default function NtListePage() {
                           <option value="vo">Voice Over</option>
                         </select>
 
-                        {/* Figur (wenn nach Folge gruppiert) oder Szene (wenn nach Figur) */}
-                        <span style={{ fontSize: 13, fontWeight: 600 }}>
-                          {gruppierung === 'folge' ? e.character_name : (e.folge_nummer != null ? `Folge ${e.folge_nummer}` : '—')}
+                        <span style={{ fontSize: 13, fontWeight: 700 }}>
+                          {gruppierung === 'folge' ? e.character_name : (folgeLabel ?? '—')}
                         </span>
 
-                        {/* Szenen-Info */}
                         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          Sz. {e.scene_nummer ?? '?'}
-                          {e.ort_name ? ` — ${e.ort_name}` : ''}
-                          {e.int_ext ? ` (${(e.int_ext as string).toUpperCase()})` : ''}
+                          {gruppierung === 'folge'
+                            ? szeneLabel
+                            : (folgeLabel ? `${folgeLabel} · ${szeneLabel}` : szeneLabel)}
                         </span>
 
-                        {/* Link zur Szene */}
                         <button
                           onClick={() => navigate(`/?szene=${e.szene_id}`)}
                           style={{ marginLeft: 'auto', padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: 'var(--text)', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
@@ -239,17 +242,26 @@ export default function NtListePage() {
                         </button>
                       </div>
 
-                      {/* Replikentext */}
-                      {e.repliken_text && (
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '3px solid var(--border)', paddingLeft: 10, lineHeight: 1.5 }}>
-                          {e.repliken_text.split('\n').map((line: string, i: number) => (
-                            <div key={i}>{line}</div>
+                      {/* Repliken nummeriert */}
+                      {replicaLines.length > 0 && (
+                        <div style={{ padding: '8px 14px 10px', display: 'flex', flexDirection: 'column', gap: 4, borderBottom: '1px solid var(--border)' }}>
+                          {replicaLines.map((line: string, i: number) => (
+                            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', lineHeight: 1.5 }}>
+                              <span style={{
+                                fontSize: 10, fontWeight: 700, color: NT_TYP_COLORS[e.nt_typ],
+                                minWidth: 52, paddingTop: 2, flexShrink: 0,
+                                letterSpacing: '0.02em',
+                              }}>
+                                Replik {i + 1}
+                              </span>
+                              <span style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--text)' }}>{line}</span>
+                            </div>
                           ))}
                         </div>
                       )}
 
                       {/* Notiz (editierbar) */}
-                      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                      <div style={{ padding: '8px 14px 10px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                         <textarea
                           value={editNotiz[e.id] ?? ''}
                           onChange={ev => setEditNotiz(prev => ({ ...prev, [e.id]: ev.target.value }))}
@@ -265,7 +277,8 @@ export default function NtListePage() {
                         )}
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             ))
