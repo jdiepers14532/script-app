@@ -636,10 +636,27 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     if (!addCharTrigger || !scene?.scene_identity_id) return
     const { name, characterId, suffix } = addCharTrigger
 
-    // Figur in allCharacters suchen (nach ID oder Name)
-    const char = characterId
-      ? (allCharacters.find((c: any) => String(c.id) === String(characterId)) ?? { id: characterId, name, kategorie_typ: 'rolle' })
+    // Figur in allCharacters suchen — neu laden wenn noch nicht vorhanden (z.B. gerade angelegt)
+    const found = characterId
+      ? allCharacters.find((c: any) => String(c.id) === String(characterId))
       : allCharacters.find((c: any) => c.name.toUpperCase() === name.toUpperCase())
+
+    if (!found && characterId) {
+      // Neu angelegte Figur: allCharacters neu laden, dann erneut versuchen
+      api.getCharacters(produktionId).then(chars => {
+        setAllCharacters(Array.isArray(chars) ? chars : [])
+        const char = chars.find((c: any) => String(c.id) === String(characterId))
+          ?? { id: characterId, name, kategorie_typ: 'rolle' }
+        if (!scene?.scene_identity_id) return
+        if (!sceneChars.some((c: any) => String(c.character_id) === String(char.id))) {
+          const katId = char.kategorie_typ === 'komparse' ? komparseKatId : rolleKatId
+          handleAddCharacter(char, katId)
+        }
+      }).catch(() => {})
+      return
+    }
+
+    const char = found ?? (characterId ? { id: characterId, name, kategorie_typ: 'rolle' } : undefined)
     if (!char) return
 
     // Suffix-Logik:

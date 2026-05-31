@@ -49,12 +49,13 @@ charactersRouter.post('/', async (req, res) => {
       [name, meta_json ?? {}]
     )
     if (produktion_id) {
-      // Bei is_komparse: erste Komparse-Kategorie der Produktion suchen
+      // Kategorie automatisch vergeben wenn keine explizite übergeben wurde
       let resolvedKatId = kategorie_id ?? null
-      if (is_komparse && !resolvedKatId) {
+      if (!resolvedKatId) {
+        const typ = is_komparse ? 'komparse' : 'rolle'
         const katRow = await queryOne(
-          `SELECT id FROM character_kategorien WHERE produktion_id = $1 AND typ = 'komparse' ORDER BY sort_order, id LIMIT 1`,
-          [produktion_id]
+          `SELECT id FROM character_kategorien WHERE produktion_id = $1 AND typ = $2 ORDER BY sort_order, id LIMIT 1`,
+          [produktion_id, typ]
         )
         resolvedKatId = katRow?.id ?? null
       }
