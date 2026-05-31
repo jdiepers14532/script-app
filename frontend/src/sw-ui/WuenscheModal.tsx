@@ -178,69 +178,26 @@ function WunschItem({ wunsch, isTouch, onVote, onDelete }: WunschItemProps) {
 // ── Einreichen-Formular ───────────────────────────────────────────────────────
 
 interface EinreichenFormProps {
-  onSubmit: (titel: string, beschreibung: string, geprueft: boolean, vorschlagText?: string, angenommen?: boolean) => Promise<string>;
-  ladeSpruch?: string;
+  onSubmit: (titel: string, beschreibung: string) => Promise<string>;
   bestaetigungsSpruch?: string;
-  checkMistral: (t: string, b: string) => Promise<{ vorschlag: { titel: string; beschreibung: string } | null; fehler?: string }>;
   isTouch: boolean;
 }
 
-function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, checkMistral, isTouch }: EinreichenFormProps) {
+function EinreichenForm({ onSubmit, bestaetigungsSpruch, isTouch }: EinreichenFormProps) {
   const [titel, setTitel] = useState('');
   const [beschreibung, setBeschreibung] = useState('');
-  const [pruefLoading, setPruefLoading] = useState(false);
-  const [vorschlag, setVorschlag] = useState<{ titel: string; beschreibung: string } | null>(null);
-  const [vorschlagAngenommen, setVorschlagAngenommen] = useState<boolean | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
-  const [spruchIdx, setSpruchIdx] = useState(0);
   const successRef = useRef<HTMLDivElement>(null);
-
-  const ladesprueche = ladeSpruch
-    ? [ladeSpruch]
-    : ['Wünsche werden sofort erledigt, Wunder dauern etwas länger.'];
-
-  useEffect(() => {
-    if (!pruefLoading) return;
-    const iv = setInterval(() => setSpruchIdx(i => (i + 1) % ladesprueche.length), 3000);
-    return () => clearInterval(iv);
-  }, [pruefLoading]);
-
-  async function handlePruefen() {
-    if (!titel.trim()) return;
-    setPruefLoading(true);
-    setVorschlag(null);
-    setVorschlagAngenommen(null);
-    try {
-      const result = await checkMistral(titel, beschreibung);
-      if (result.vorschlag) setVorschlag(result.vorschlag);
-    } catch(e) {}
-    setPruefLoading(false);
-  }
-
-  function acceptVorschlag() {
-    if (!vorschlag) return;
-    setTitel(vorschlag.titel);
-    setBeschreibung(vorschlag.beschreibung);
-    setVorschlagAngenommen(true);
-    setVorschlag(null);
-  }
 
   async function handleSubmit() {
     if (!titel.trim()) return;
     setSubmitLoading(true);
     try {
-      const spruch = await onSubmit(
-        titel, beschreibung,
-        vorschlag !== null || vorschlagAngenommen !== null,
-        vorschlag ? JSON.stringify(vorschlag) : undefined,
-        vorschlagAngenommen ?? undefined
-      );
+      const spruch = await onSubmit(titel, beschreibung);
       setSuccess(bestaetigungsSpruch || spruch || 'Wunsch eingegangen!');
       setTitel('');
       setBeschreibung('');
-      setVorschlag(null);
-      setVorschlagAngenommen(null);
       if (successRef.current) fireMagicConfetti(successRef.current);
     } catch(e: unknown) {
       alert(e instanceof Error ? e.message : 'Fehler beim Einreichen');
@@ -273,7 +230,7 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, checkMistra
     <div style={{ padding: '18px 20px 20px', animation: 'magic-fade-in 0.3s ease-out' }}>
       {/* Hinweis */}
       <div style={{ padding: '10px 14px', background: '#FFFDF0', border: `1px solid ${MAGIC_COLORS.gold}44`, borderRadius: 10, marginBottom: 16, fontSize: 13, color: '#555', lineHeight: 1.6 }}>
-        Beschreibe kurz das <strong>Problem</strong> und das <strong>gewünschte Verhalten</strong> — je konkreter, desto besser.
+        Beschreibe kurz das <strong>Problem</strong> und das <strong>gewünschte Verhalten</strong> — unsere Elfen lesen jeden Wunsch persönlich. ✨
       </div>
 
       <input
@@ -294,60 +251,6 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, checkMistra
         onFocus={e => (e.target.style.borderColor = MAGIC_COLORS.gold)}
         onBlur={e => (e.target.style.borderColor = '#E0E0E0')}
       />
-
-      {/* Formulierung verbessern */}
-      {!vorschlag && !vorschlagAngenommen && (
-        <div style={{ marginBottom: 14 }}>
-          <button
-            onClick={handlePruefen}
-            disabled={pruefLoading || !titel.trim()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '9px 16px',
-              background: pruefLoading ? MAGIC_COLORS.goldLight : `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`,
-              color: '#111', border: 'none', borderRadius: 10,
-              cursor: pruefLoading || !titel.trim() ? 'not-allowed' : 'pointer',
-              fontSize: 13, fontWeight: 700,
-              opacity: !titel.trim() ? 0.45 : 1,
-              transition: 'opacity 0.15s',
-              minHeight: isTouch ? 44 : 'auto',
-            }}>
-            <span style={{ fontSize: 15 }}>✨</span>
-            {pruefLoading ? 'Einen Moment…' : 'Formulierung verbessern'}
-          </button>
-          {/* Spruch außerhalb des Buttons — gut lesbar */}
-          {pruefLoading && (
-            <div style={{
-              marginTop: 8, fontSize: 12, color: MAGIC_COLORS.goldDark,
-              fontStyle: 'italic', lineHeight: 1.5, paddingLeft: 2,
-              animation: 'magic-fade-in 0.3s ease-out',
-            }}>
-              {ladesprueche[spruchIdx]}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Vorschlag */}
-      {vorschlag && (
-        <div style={{ padding: '14px 16px', background: '#FFFDF0', border: `1.5px solid ${MAGIC_COLORS.gold}`, borderRadius: 12, marginBottom: 14, animation: 'magic-fade-in 0.3s ease-out' }}>
-          <div style={{ fontSize: 11, fontWeight: 800, color: MAGIC_COLORS.goldDark, marginBottom: 8, letterSpacing: 0.8, textTransform: 'uppercase' }}>
-            ✨ Verbesserungsvorschlag
-          </div>
-          <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 5, color: '#111' }}>{vorschlag.titel}</div>
-          <div style={{ fontSize: 13, color: '#555', lineHeight: 1.5 }}>{vorschlag.beschreibung}</div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-            <button onClick={acceptVorschlag}
-              style={{ padding: isTouch ? '10px 18px' : '6px 16px', background: `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`, color: '#111', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-              Übernehmen
-            </button>
-            <button onClick={() => { setVorschlag(null); setVorschlagAngenommen(false); }}
-              style={{ padding: isTouch ? '10px 18px' : '6px 16px', background: '#F5F5F5', border: '1px solid #E0E0E0', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
-              Original behalten
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Absenden */}
       <button
@@ -438,7 +341,7 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
   const {
     wuensche, erfuellte, dialoge, loading,
     loadListe, loadErfuellte, loadDialoge,
-    submitWunsch, vote, deleteWunsch, checkMistral
+    submitWunsch, vote, deleteWunsch
   } = useWuensche({ authApiBase, appKontext });
 
   useEffect(() => { injectMagicCSS(); }, []);
@@ -458,10 +361,8 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
     setTimeout(() => { setVisible(false); setClosing(false); onClose(); }, 220);
   }
 
-  async function handleSubmit(
-    titel: string, beschreibung: string, geprueft: boolean, vorschlagText?: string, angenommen?: boolean
-  ): Promise<string> {
-    const result = await submitWunsch(titel, beschreibung, geprueft, vorschlagText, angenommen);
+  async function handleSubmit(titel: string, beschreibung: string): Promise<string> {
+    const result = await submitWunsch(titel, beschreibung, false);
     if (modalRef.current) fireSparkles(modalRef.current, 10);
     setTab('liste');
     return result.spruch || '';
@@ -585,9 +486,7 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
           {tab === 'einreichen' && (
             <EinreichenForm
               onSubmit={handleSubmit}
-              ladeSpruch={dialoge?.aktuell?.ki_check}
               bestaetigungsSpruch={dialoge?.aktuell?.bestaetigung}
-              checkMistral={checkMistral}
               isTouch={isBottomSheet}
             />
           )}
@@ -600,10 +499,11 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
         {/* Footer — saisonaler Spruch */}
         {dialoge?.aktuell?.saison && (
           <div style={{
-            padding: '9px 22px 11px',
-            borderTop: '1px solid #F0F0F0',
-            fontSize: 12, color: MAGIC_COLORS.goldDark,
+            padding: '11px 22px 13px',
+            borderTop: `1px solid ${MAGIC_COLORS.gold}33`,
+            fontSize: 14, color: MAGIC_COLORS.goldDark,
             fontStyle: 'italic', textAlign: 'center',
+            fontWeight: 500,
             position: 'relative', zIndex: 1, flexShrink: 0,
             background: '#FFFDF8',
           }}>
