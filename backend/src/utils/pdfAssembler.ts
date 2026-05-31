@@ -1644,7 +1644,9 @@ async function assembleHtml(
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────
     const wmPayload = buildPayload(userId, werkstufId)
-    const wmHidden  = `<span aria-hidden="true" style="position:absolute;left:-9999px;font-size:0;line-height:0">${encodeWatermark(wmPayload)}</span>`
+    // ZWC-Wasserzeichen: font-size:0.1pt statt 0, damit Chromium den Text in die PDF-Textebene schreibt.
+    // position:absolute + overflow:hidden hält es aus dem sichtbaren Layout.
+    const wmHidden  = `<div style="position:absolute;overflow:hidden;width:0;height:0;font-size:0.1pt;line-height:0;color:transparent;user-select:none">${encodeWatermark(wmPayload)}</div>`
 
     // Alle Sektionen in Reihenfolge: preSections → Hauptinhalt → postSections
     // Jede Sektion bekommt einen page-break-before (außer der allerersten)

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import multer from 'multer'
+import pdfParse from 'pdf-parse'
 import { authMiddleware, requireRole } from '../auth'
 import { decodeWatermarkFromText, parsePayload } from '../utils/watermark'
 import { query, queryOne } from '../db'
@@ -16,7 +17,15 @@ router.post('/decode',
     try {
       if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
 
-      const text = req.file.buffer.toString('utf8')
+      let text: string
+      const isPdf = req.file.mimetype === 'application/pdf'
+        || req.file.originalname?.toLowerCase().endsWith('.pdf')
+      if (isPdf) {
+        const parsed = await pdfParse(req.file.buffer)
+        text = parsed.text
+      } else {
+        text = req.file.buffer.toString('utf8')
+      }
       const payload = decodeWatermarkFromText(text)
 
       if (!payload) {
