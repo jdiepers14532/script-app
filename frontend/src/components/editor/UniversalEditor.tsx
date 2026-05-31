@@ -631,8 +631,11 @@ export default function UniversalEditor({
         Tab: () => {
           if (charAcStyleRef.current === 'inline') {
             if (!inlineGhostActiveRef.current) return false
+            // Nur bei Dialog-Öffnung (kein Accept-Name) Event schlucken; sonst
+            // nach Acceptance return false → Tiptap macht Formatwechsel (1 Tab = alles)
+            const opensDialog = !inlineGhostAcceptNameRef.current && !!inlineGhostNoMatchNameRef.current
             acHandlersRef.current.onAccept()
-            return true
+            return opensDialog
           }
           if (!acActiveRef.current) return false
           acHandlersRef.current.onAccept()
@@ -641,8 +644,9 @@ export default function UniversalEditor({
         Enter: () => {
           if (charAcStyleRef.current === 'inline') {
             if (!inlineGhostActiveRef.current) return false
+            const opensDialog = !inlineGhostAcceptNameRef.current && !!inlineGhostNoMatchNameRef.current
             acHandlersRef.current.onAccept()
-            return true
+            return opensDialog
           }
           if (!acActiveRef.current) return false
           acHandlersRef.current.onAccept()
