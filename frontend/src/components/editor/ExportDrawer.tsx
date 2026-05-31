@@ -208,7 +208,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setSzenenAuswahl('')
     setSelectedRollen(new Set()); setSelectedKomparsen(new Set()); setSelectedMotive(new Set())
     setRolleAlsVermerk(false)
-    setSzenenAktiv(true); setPdfBookmarks(false)
+    setSzenenAktiv(true); setPdfBookmarks(true)
     setWzKleinAktiv(false); setWzGrossAktiv(false); setWzGrossFarbe('#CCCCCC')
 
     // Notiz-Werkstufen als Pre-Items (gesamte Notiz-Dokumente)
@@ -270,7 +270,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       // Titelseite-Items aus Vorlagen — enabled-Status aus Preset
       const titelseiteItems: ExportItem[] = (titelseiteRows ?? []).map(v => ({
         id: genId(), type: 'notiz' as const, vorlageId: v.id, label: v.name,
-        enabled: preset.titelseite_enabled ?? false,
+        enabled: preset.titelseite_enabled ?? true,
       }))
 
       setPreItems([
