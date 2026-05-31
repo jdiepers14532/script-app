@@ -910,9 +910,11 @@ export default function UniversalEditor({
       if (dispatchingGhostRef.current) return
       const cur = inlineGhostKey.getState(editor.state)
       if (cur?.suffix === suffix && cur?.pos === pos) return
+      console.log('[CharAC] setGhost', { suffix, pos, docSize: editor.state.doc.content.size })
       dispatchingGhostRef.current = true
       editor.view.dispatch(editor.state.tr.setMeta(inlineGhostKey, { suffix, pos }))
       dispatchingGhostRef.current = false
+      console.log('[CharAC] ghostState after dispatch', inlineGhostKey.getState(editor.state))
     }
 
     const dismiss = () => {
@@ -933,6 +935,15 @@ export default function UniversalEditor({
       const { $from } = state.selection
       const node = $from.node()
       const isCharNode = node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)
+      if (node.type.name === 'absatz') {
+        console.log('[CharAC] update — absatz node', {
+          format_id: node.attrs.format_id, isCharNode,
+          charFormatIds, style, modus,
+          sceneCharNamesCount: sceneCharNames?.length ?? 0,
+          suppressGhost: suppressGhostUpdateRef.current,
+          text: node.textContent,
+        })
+      }
 
       if (!isCharNode) {
         // Cursor verlässt CHARACTER-Node (Pfeiltasten/Maus) im Inline-Modus → Acceptance auslösen
