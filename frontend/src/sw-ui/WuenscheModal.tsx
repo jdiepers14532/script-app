@@ -263,9 +263,6 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
     ? [ladeSpruch]
     : ['Wünsche werden sofort erledigt, Wunder dauern etwas länger.'];
 
-  const hinweisText = tippText
-    || 'Beschreibe kurz das Problem und das gewünschte Verhalten — unsere Elfen lesen jeden Wunsch persönlich. ✨';
-
   useEffect(() => {
     if (!pruefLoading) return;
     const iv = setInterval(() => setSpruchIdx(i => (i + 1) % ladesprueche.length), 3000);
@@ -337,17 +334,12 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
 
   return (
     <div style={{ padding: '18px 20px 20px', animation: 'magic-fade-in 0.3s ease-out' }}>
-      {/* Hinweis */}
-      <div style={{ padding: '10px 14px', background: '#FFFDF0', border: `1px solid ${MAGIC_COLORS.gold}44`, borderRadius: 10, marginBottom: 16, fontSize: 13, color: '#555', lineHeight: 1.6 }}>
-        {hinweisText}
-      </div>
-
       <textarea
         value={titel}
         onChange={e => setTitel(e.target.value)}
-        placeholder="Was wünschst du dir?"
+        placeholder="Hier eingeben, was Du dir für diese App wünscht. Je konkreter Du es beschreibst, desto schneller können die Elfen es umsetzen."
         maxLength={200}
-        rows={isTouch ? 5 : 4}
+        rows={2}
         style={{ ...inputStyle, marginBottom: 10, resize: 'none' }}
         onFocus={e => (e.target.style.borderColor = MAGIC_COLORS.gold)}
         onBlur={e => (e.target.style.borderColor = '#E0E0E0')}
@@ -355,44 +347,12 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
       <textarea
         value={beschreibung}
         onChange={e => setBeschreibung(e.target.value)}
-        placeholder="Beschreibung (optional): Welches Problem löst das? Was soll passieren?"
-        rows={isTouch ? 4 : 3}
+        placeholder="Beschreibung: Welches Problem löst das? Was soll passieren?"
+        rows={isTouch ? 8 : 6}
         style={{ ...inputStyle, resize: 'vertical', marginBottom: 14 }}
         onFocus={e => (e.target.style.borderColor = MAGIC_COLORS.gold)}
         onBlur={e => (e.target.style.borderColor = '#E0E0E0')}
       />
-
-      {/* Formulierung verbessern */}
-      {!vorschlag && !vorschlagAngenommen && (
-        <div style={{ marginBottom: 14 }}>
-          <button
-            onClick={handlePruefen}
-            disabled={pruefLoading || !titel.trim()}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '9px 16px',
-              background: pruefLoading ? MAGIC_COLORS.goldLight : `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`,
-              color: '#111', border: 'none', borderRadius: 10,
-              cursor: pruefLoading || !titel.trim() ? 'not-allowed' : 'pointer',
-              fontSize: 13, fontWeight: 700,
-              opacity: !titel.trim() ? 0.45 : 1,
-              transition: 'opacity 0.15s',
-              minHeight: isTouch ? 44 : 'auto',
-            }}>
-            <span style={{ fontSize: 15 }}>✨</span>
-            {pruefLoading ? 'Einen Moment…' : 'Formulierung verbessern'}
-          </button>
-          {pruefLoading && (
-            <div style={{
-              marginTop: 8, fontSize: 13, color: MAGIC_COLORS.goldDark,
-              fontStyle: 'italic', lineHeight: 1.5, paddingLeft: 2,
-              animation: 'magic-fade-in 0.3s ease-out',
-            }}>
-              {ladesprueche[spruchIdx]}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Vorschlag */}
       {vorschlag && (
@@ -415,22 +375,52 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
         </div>
       )}
 
-      {/* Absenden */}
-      <button
-        onClick={handleSubmit}
-        disabled={submitLoading || !titel.trim()}
-        style={{
-          width: '100%',
-          padding: isTouch ? '13px 0' : '11px 0',
-          background: titel.trim() ? '#111' : '#E0E0E0',
-          color: titel.trim() ? '#fff' : '#9E9E9E',
-          border: 'none', borderRadius: 12,
-          cursor: titel.trim() ? 'pointer' : 'not-allowed',
-          fontSize: 15, fontWeight: 700,
-          transition: 'background 0.2s',
-        }}>
-        {submitLoading ? '✨ Wird eingereicht…' : 'Wunsch absenden'}
-      </button>
+      {/* Ladespruch */}
+      {pruefLoading && (
+        <div style={{ marginBottom: 10, fontSize: 13, color: MAGIC_COLORS.goldDark, fontStyle: 'italic', lineHeight: 1.5, animation: 'magic-fade-in 0.3s ease-out' }}>
+          {ladesprueche[spruchIdx]}
+        </div>
+      )}
+
+      {/* Buttons: Formulierung verbessern + Absenden in einer Zeile */}
+      <div style={{ display: 'flex', gap: 10 }}>
+        {!vorschlag && !vorschlagAngenommen && (
+          <button
+            onClick={handlePruefen}
+            disabled={pruefLoading || !titel.trim()}
+            style={{
+              flex: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: isTouch ? '13px 10px' : '11px 10px',
+              background: pruefLoading ? MAGIC_COLORS.goldLight : `linear-gradient(135deg, ${MAGIC_COLORS.gold}, #FFA500)`,
+              color: '#111', border: 'none', borderRadius: 12,
+              cursor: pruefLoading || !titel.trim() ? 'not-allowed' : 'pointer',
+              fontSize: 14, fontWeight: 700,
+              opacity: !titel.trim() ? 0.45 : 1,
+              transition: 'opacity 0.15s',
+              whiteSpace: 'nowrap',
+            }}>
+            <span style={{ fontSize: 15 }}>✨</span>
+            {pruefLoading ? 'Einen Moment…' : 'Formulierung verbessern'}
+          </button>
+        )}
+        <button
+          onClick={handleSubmit}
+          disabled={submitLoading || !titel.trim()}
+          style={{
+            flex: 1,
+            padding: isTouch ? '13px 10px' : '11px 10px',
+            background: titel.trim() ? '#111' : '#E0E0E0',
+            color: titel.trim() ? '#fff' : '#9E9E9E',
+            border: 'none', borderRadius: 12,
+            cursor: titel.trim() ? 'pointer' : 'not-allowed',
+            fontSize: 14, fontWeight: 700,
+            transition: 'background 0.2s',
+            whiteSpace: 'nowrap',
+          }}>
+          {submitLoading ? '✨ Wird eingereicht…' : 'Wunsch absenden'}
+        </button>
+      </div>
     </div>
   );
 }
