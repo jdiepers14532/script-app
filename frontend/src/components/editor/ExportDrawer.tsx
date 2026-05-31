@@ -158,6 +158,8 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [datumsformat, setDatumsformat]           = useState<'de' | 'en'>('de')
   const saveAsModeRef                             = useRef(false)
   const [saveAsMode, setSaveAsMode]               = useState(false)
+  const dirHandleRef                              = useRef<any>(null)
+  const [savedDirName, setSavedDirName]           = useState<string | null>(null)
 
   // Offene Wasserzeichen
   const [wzKleinAktiv, setWzKleinAktiv]           = useState(false)
@@ -501,6 +503,22 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   }
 
   async function triggerDownload(jobId: string) {
+    // Vorausgewählter Ordner via showDirectoryPicker
+    if (dirHandleRef.current) {
+      try {
+        const res = await fetch(`/api/export/job/${jobId}/download`, { credentials: 'include' })
+        if (!res.ok) { setJobStatus('error'); setErrorMsg(`Download fehlgeschlagen (${res.status})`); return }
+        const blob = await res.blob()
+        const fileHandle = await dirHandleRef.current.getFileHandle(customFilename, { create: true })
+        const writable = await fileHandle.createWritable()
+        await writable.write(blob)
+        await writable.close()
+        return
+      } catch (e: any) {
+        if (e.name !== 'AbortError') { setJobStatus('error'); setErrorMsg('Speichern im gewählten Pfad fehlgeschlagen') }
+        return
+      }
+    }
     if (saveAsModeRef.current) {
       saveAsModeRef.current = false
       setSaveAsMode(false)
@@ -595,6 +613,20 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     datumsformat,
     extForFormat[format],
   ), [filenameChips, selectedWerk, folgeNummer, selectedProduction, datumsformat, format])
+
+  async function chooseSavePath() {
+    if (!('showDirectoryPicker' in window)) {
+      alert('Pfadauswahl wird nur in Chrome/Edge unterstützt.')
+      return
+    }
+    try {
+      const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+      dirHandleRef.current = handle
+      setSavedDirName(handle.name)
+    } catch (e: any) {
+      if (e.name !== 'AbortError') console.warn('Pfadauswahl fehlgeschlagen', e)
+    }
+  }
 
   async function triggerSaveAs(jobId: string) {
     try {
@@ -1128,24 +1160,31 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     </div>
                   ))}
                 </div>
-                {/* Pfad-Button: Export + Browser-Speicherdialog */}
-                <Tooltip placement="top" text={blockedByOffline ? 'Export erfordert Internetverbindung' : 'Export starten und Speicherort wählen'}>
-                  <button
-                    onClick={() => { saveAsModeRef.current = true; setSaveAsMode(true); startExport() }}
-                    disabled={isRunning || isDisabledFormat(currentFormatDef) || blockedByOffline}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                      padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
-                      fontFamily: 'inherit', cursor: (isRunning || blockedByOffline) ? 'not-allowed' : 'pointer',
-                      border: '1px solid var(--border)',
-                      background: 'transparent',
-                      color: (isRunning || blockedByOffline) ? 'var(--text-muted)' : 'var(--text-primary)',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <Save size={12} />Pfad
-                  </button>
-                </Tooltip>
+                {/* Pfad-Button: Ordner vorauswählen (kein Export) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flexShrink: 0 }}>
+                  <Tooltip placement="top" text="Speicherordner wählen — Export speichert dann direkt dort (Chrome/Edge)">
+                    <button
+                      onClick={chooseSavePath}
+                      disabled={isRunning}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                        fontFamily: 'inherit', cursor: isRunning ? 'not-allowed' : 'pointer',
+                        border: `1px solid ${savedDirName ? '#007AFF' : 'var(--border)'}`,
+                        background: savedDirName ? 'rgba(0,122,255,0.08)' : 'transparent',
+                        color: isRunning ? 'var(--text-muted)' : savedDirName ? '#007AFF' : 'var(--text-primary)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Save size={12} />Pfad
+                    </button>
+                  </Tooltip>
+                  {savedDirName && (
+                    <div style={{ fontSize: 9, color: '#007AFF', fontFamily: 'monospace', textAlign: 'center', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {savedDirName}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </>
