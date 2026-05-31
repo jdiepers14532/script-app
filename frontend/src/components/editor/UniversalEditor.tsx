@@ -586,6 +586,8 @@ export default function UniversalEditor({
   const inlineGhostActiveRef = useRef(false)
   // Nach Acceptance: nächstes onUpdate nicht erneut aktivieren (verhindert Tab-Loop nach Suffix-Accept)
   const suppressGhostUpdateRef = useRef(false)
+  // Tracks ob Cursor zuletzt in einem CHARACTER-Node war (für Pfeil-Tasten-Acceptance)
+  const wasInCharNodeRef = useRef(false)
 
   // IDs der "Character"-Absatzformate
   const charFormatIds = useMemo(
@@ -933,6 +935,13 @@ export default function UniversalEditor({
       const isCharNode = node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)
 
       if (!isCharNode) {
+        // Cursor verlässt CHARACTER-Node (Pfeiltasten/Maus) im Inline-Modus → Acceptance auslösen
+        if (charAcStyleRef.current === 'inline' && wasInCharNodeRef.current && inlineGhostActiveRef.current && inlineGhostAcceptNameRef.current) {
+          wasInCharNodeRef.current = false
+          acHandlersRef.current.onAccept()
+          // dismiss() läuft weiter unten — ist idempotent
+        }
+        wasInCharNodeRef.current = false
         // Action-AC: Großbuchstaben-Wort in Action-Zeilen?
         const ss2 = suffixSettingsRef.current
         const isActionNode = ss2.action_ac_enabled
@@ -986,6 +995,7 @@ export default function UniversalEditor({
       }
 
       actionAcModeRef.current = false
+      wasInCharNodeRef.current = true
       const query = node.textContent
       // Suffix erkennen (OFF / NT / ONE-WAY / VO) — Suche läuft auf dem bereinigten Namen
       const { name: queryClean, suffix: rawSuffix } = parseSuffix(query.trim())
@@ -1098,18 +1108,29 @@ export default function UniversalEditor({
     const rebuildSuffixMemory = () => {
       const prev = sceneSuffixMemoryRef.current
       const memory = new Map<string, string>()
+      // Alle aktuellen CHARACTER-Node-Namen (auch ohne Suffix) — für Diff-Logik
+      const allCurrentCharNames = new Set<string>()
+
       editor.state.doc.descendants((node: any) => {
-        if (node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id)) {
-          const { name, suffix } = parseSuffix(node.textContent ?? '')
-          const key = name.trim().toUpperCase()
-          if (key && suffix) memory.set(key, suffix)
-        }
+        const isChar =
+          (node.type.name === 'screenplay_element' && (node.attrs?.elementType === 'character' || node.attrs?.element_type === 'character')) ||
+          (node.type.name === 'absatz' && charFormatIds.includes(node.attrs.format_id))
+        if (!isChar) return
+        const { name, suffix } = parseSuffix(node.textContent ?? '')
+        const key = name.trim().toUpperCase()
+        if (!key) return
+        allCurrentCharNames.add(key)
+        if (suffix) memory.set(key, suffix)
       })
-      // Suffix entfernt oder geändert → Callback feuern
+
+      // onSuffixRemoved NUR feuern wenn der Name noch als CHARACTER-Node existiert,
+      // aber das Suffix sich geändert/entfernt hat.
+      // Nicht feuern wenn der Node durch Format-Change (Tab CHARACTER→DIALOGUE)
+      // komplett aus der Character-Liste verschwunden ist.
       if (onSuffixRemovedRef.current) {
         for (const [key, oldSuffix] of prev) {
           const newSuffix = memory.get(key)
-          if (!newSuffix || newSuffix !== oldSuffix) {
+          if (allCurrentCharNames.has(key) && (!newSuffix || newSuffix !== oldSuffix)) {
             onSuffixRemovedRef.current(key, oldSuffix)
           }
         }
