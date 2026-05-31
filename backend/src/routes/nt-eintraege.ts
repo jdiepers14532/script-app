@@ -9,10 +9,10 @@ ntEintraegeRouter.use(authMiddleware)
 // ── Server-seitiges Suffix-Parsing (spiegelt frontend parseSuffix) ─────────────
 function parseSuffixServer(text: string): { name: string; suffix: string | null } {
   const patterns: Array<{ pattern: RegExp; canonical: string }> = [
-    { pattern: /\s*\(?\s*one[-\s]?way\s*\)?$/i, canonical: '(ONE-WAY)' },
-    { pattern: /\s*\(?\s*v\.?o\.?\s*\)?$/i, canonical: '(VO)' },
-    { pattern: /\s*\(?\s*n\.?t\.?\s*\)?$/i, canonical: '(NT)' },
-    { pattern: /\s*\(?\s*(?:off|o\.s\.?)\s*\)?$/i, canonical: '(OFF)' },
+    { pattern: /(?:^|\s)\(?\s*one[-\s]?way\s*\)?$/i, canonical: '(ONE-WAY)' },
+    { pattern: /(?:^|\s)\(?\s*v\.?o\.?\s*\)?$/i, canonical: '(VO)' },
+    { pattern: /(?:^|\s)\(?\s*n\.?t\.?\s*\)?$/i, canonical: '(NT)' },
+    { pattern: /(?:^|\s)\(?\s*(?:off|o\.s\.?)\s*\)?$/i, canonical: '(OFF)' },
   ]
   for (const { pattern, canonical } of patterns) {
     if (pattern.test(text)) {
@@ -84,7 +84,7 @@ export function extractNtCharacters(
       currentName = nameUpper
       currentSuffix = suffix
       // Repliken sammeln für NT und VO (nicht ONE-WAY, nicht OFF normal)
-      collectReplicas = suffix === '(NT)' || suffix === '(VO)'
+      collectReplicas = suffix === '(NT)' || suffix === '(VO)' || suffix === '(OFF)'
     } else if (isDiag && currentName && collectReplicas) {
       const diagText = extractNodeText(node).trim()
       if (diagText) {
