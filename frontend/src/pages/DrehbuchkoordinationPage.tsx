@@ -1396,13 +1396,15 @@ function FigurenTab() {
 
           {/* Master-Toggle: Alles deaktivieren */}
           <div style={{ paddingTop: 4, borderTop: '1px solid var(--border-subtle)' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input type="checkbox" checked={acAlleDeaktiviert} disabled={suffixSaving} onChange={e => {
-                setAcAlleDeaktiviert(e.target.checked)
-                saveSuffixSettings({ ac_alle_deaktiviert: e.target.checked })
-              }} />
-              <span style={{ fontSize: 13, fontWeight: 600 }}>Gesamte Autovervollständigung deaktivieren (für alle User)</span>
-            </label>
+            <Tooltip text={'⚠️ Schaltet die gesamte Autovervollständigung ab — sowohl Figuren- als auch Action-Zeilen.\nBetrifft alle Nutzer sofort und ohne weitere Bestätigung.\nEinzelne Einstellungen bleiben gespeichert und werden beim Reaktivieren wiederhergestellt.'}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input type="checkbox" checked={acAlleDeaktiviert} disabled={suffixSaving} onChange={e => {
+                  setAcAlleDeaktiviert(e.target.checked)
+                  saveSuffixSettings({ ac_alle_deaktiviert: e.target.checked })
+                }} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>Gesamte Autovervollständigung deaktivieren (für alle User)</span>
+              </label>
+            </Tooltip>
           </div>
 
           {/* Autovervollständigung Action */}
