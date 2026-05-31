@@ -279,7 +279,7 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
 
     // NT-Eintraege auto-upsert (async, non-blocking, P8)
     if (effectiveContent) {
-      autoUpsertNtEintraege(req.params.id, effectiveContent).catch(() => {})
+      autoUpsertNtEintraege(req.params.id, effectiveContent, (req as any).user?.user_id ?? null, (req as any).user?.name ?? null).catch(() => {})
     }
 
     res.json(row)

@@ -373,127 +373,132 @@ rollenFreigabeRouter.get('/:productionId/anfragen', async (req: any, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
+// ── Interne Funktion: Freigabe-Anfrage auslösen (wiederverwendbar ohne HTTP-Kontext) ──
+export async function starteFreigabeAnfrage(params: {
+  characterId: string
+  produktionId: string
+  szeneId: string | null
+  userId: string | null
+  userName: string | null
+}): Promise<'ausstehend' | 'keine'> {
+  const config = await queryOne(
+    `SELECT freigabe_aktiv FROM rollen_freigabe_konfiguration WHERE production_id = $1`,
+    [params.produktionId]
+  )
+  if (!config?.freigabe_aktiv) {
+    await pool.query(
+      `UPDATE character_productions SET freigabe_status = 'keine' WHERE character_id = $1 AND produktion_id = $2`,
+      [params.characterId, params.produktionId]
+    )
+    return 'keine'
+  }
+
+  const genehmiger = await query(
+    `SELECT id, name, email, ist_obligatorisch FROM rollen_freigabe_genehmiger WHERE production_id = $1 ORDER BY sort_order`,
+    [params.produktionId]
+  )
+  if (genehmiger.length === 0) {
+    await pool.query(
+      `UPDATE character_productions SET freigabe_status = 'keine' WHERE character_id = $1 AND produktion_id = $2`,
+      [params.characterId, params.produktionId]
+    )
+    return 'keine'
+  }
+
+  // Szene-Kontext laden
+  let szeneKontext: SzeneKontext | null = null
+  let szeneUrl: string | null = null
+  let szeneFolgeNummer: number | null = null
+  if (params.szeneId) {
+    const szRow = await queryOne(
+      `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit,
+              w.typ AS werkstufe_typ, w.version_nummer AS werkstufe_version,
+              f.folge_nummer, f.folgen_titel AS arbeitstitel
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.id = $1`,
+      [params.szeneId]
+    )
+    if (szRow) {
+      szeneFolgeNummer = szRow.folge_nummer ?? null
+      szeneKontext = {
+        folge_nummer: szRow.folge_nummer,
+        arbeitstitel: szRow.arbeitstitel,
+        werkstufe_typ: szRow.werkstufe_typ,
+        werkstufe_version: szRow.werkstufe_version,
+        scene_nummer: szRow.scene_nummer != null ? String(szRow.scene_nummer) : null,
+        int_ext: szRow.int_ext,
+        ort_name: szRow.ort_name,
+        szene_id: params.szeneId,
+      }
+      szeneUrl = `${APP_URL}/?szene=${params.szeneId}`
+    }
+  }
+
+  const anfrage = await queryOne(
+    `INSERT INTO rollen_freigabe_anfragen
+       (character_id, production_id, beantragt_von_user_id, beantragt_von_name, status, szene_id, folge_nummer)
+     VALUES ($1, $2, $3, $4, 'ausstehend', $5, $6)
+     ON CONFLICT (character_id, production_id) DO UPDATE
+       SET status = 'ausstehend', beantragt_am = NOW(),
+           beantragt_von_user_id = $3, beantragt_von_name = $4,
+           entschieden_am = NULL, entschieden_von_user_id = NULL,
+           szene_id = $5, folge_nummer = $6, notiz = NULL, erneut_anfrage_notiz = NULL
+     RETURNING id`,
+    [params.characterId, params.produktionId, params.userId, params.userName,
+     params.szeneId, szeneFolgeNummer]
+  )
+
+  await pool.query(
+    `UPDATE character_productions SET freigabe_status = 'ausstehend' WHERE character_id = $1 AND produktion_id = $2`,
+    [params.characterId, params.produktionId]
+  )
+
+  const prod = await queryOne(`SELECT titel FROM produktionen WHERE id = $1`, [params.produktionId])
+  const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [params.characterId])
+
+  const gueltigBis = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  for (const g of genehmiger) {
+    const tokenFreigeben = crypto.randomBytes(32).toString('hex')
+    const tokenAblehnen  = crypto.randomBytes(32).toString('hex')
+    const combinedToken  = `${tokenFreigeben}:freigeben,${tokenAblehnen}:ablehnen`
+    await pool.query(
+      `INSERT INTO rollen_freigabe_genehmiger_status (anfrage_id, genehmiger_id, token, token_gueltig_bis)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (anfrage_id, genehmiger_id) DO UPDATE
+         SET token = $3, token_gueltig_bis = $4, entschieden = NULL, entschieden_am = NULL`,
+      [anfrage!.id, g.id, combinedToken, gueltigBis]
+    )
+    await sendFreigabeAnfrageEmail({
+      toName: g.name,
+      toEmail: g.email,
+      rollenName: char?.name ?? '?',
+      produktionTitel: prod?.titel ?? '?',
+      beantragtVon: params.userName ?? params.userId ?? 'NT-Automatik',
+      freigebenUrl: `${APP_URL}/freigabe/${tokenFreigeben}`,
+      ablehnenUrl:  `${APP_URL}/freigabe/${tokenAblehnen}`,
+      szeneKontext,
+      szeneUrl,
+    })
+  }
+
+  return 'ausstehend'
+}
+
 // POST /api/rollen-freigabe/:productionId/anfragen — Neue Anfrage stellen
 rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
   try {
     const { character_id, szene_id } = req.body
     if (!character_id) return res.status(400).json({ error: 'character_id erforderlich' })
-
-    const config = await queryOne(
-      `SELECT freigabe_aktiv FROM rollen_freigabe_konfiguration WHERE production_id = $1`,
-      [req.params.productionId]
-    )
-    if (!config?.freigabe_aktiv) {
-      // Kein Workflow aktiv — direkt freigeben
-      await pool.query(
-        `UPDATE character_productions SET freigabe_status = 'keine' WHERE character_id = $1 AND produktion_id = $2`,
-        [character_id, req.params.productionId]
-      )
-      return res.json({ status: 'keine' })
-    }
-
-    const genehmiger = await query(
-      `SELECT id, name, email, ist_obligatorisch FROM rollen_freigabe_genehmiger WHERE production_id = $1 ORDER BY sort_order`,
-      [req.params.productionId]
-    )
-    if (genehmiger.length === 0) {
-      // Keine Genehmiger konfiguriert — direkt freigeben
-      await pool.query(
-        `UPDATE character_productions SET freigabe_status = 'keine' WHERE character_id = $1 AND produktion_id = $2`,
-        [character_id, req.params.productionId]
-      )
-      return res.json({ status: 'keine' })
-    }
-
-    // Szene-Kontext vorab laden (für INSERT + Email)
-    let szeneKontext: SzeneKontext | null = null
-    let szeneUrl: string | null = null
-    let szeneFolgeNummer: number | null = null
-    if (szene_id) {
-      const szRow = await queryOne(
-        `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit,
-                w.typ AS werkstufe_typ, w.version_nummer AS werkstufe_version,
-                f.folge_nummer, f.folgen_titel AS arbeitstitel
-         FROM dokument_szenen ds
-         JOIN werkstufen w ON w.id = ds.werkstufe_id
-         JOIN folgen f ON f.id = w.folge_id
-         WHERE ds.id = $1`,
-        [szene_id]
-      )
-      if (szRow) {
-        szeneFolgeNummer = szRow.folge_nummer ?? null
-        szeneKontext = {
-          folge_nummer: szRow.folge_nummer,
-          arbeitstitel: szRow.arbeitstitel,
-          werkstufe_typ: szRow.werkstufe_typ,
-          werkstufe_version: szRow.werkstufe_version,
-          scene_nummer: szRow.scene_nummer != null ? String(szRow.scene_nummer) : null,
-          int_ext: szRow.int_ext,
-          ort_name: szRow.ort_name,
-          szene_id,
-        }
-        szeneUrl = `${APP_URL}/?szene=${szene_id}`
-      }
-    }
-
-    // Anfrage anlegen (oder bestehende zurücksetzen)
-    const anfrage = await queryOne(
-      `INSERT INTO rollen_freigabe_anfragen
-         (character_id, production_id, beantragt_von_user_id, beantragt_von_name, status, szene_id, folge_nummer)
-       VALUES ($1, $2, $3, $4, 'ausstehend', $5, $6)
-       ON CONFLICT (character_id, production_id) DO UPDATE
-         SET status = 'ausstehend', beantragt_am = NOW(),
-             beantragt_von_user_id = $3, beantragt_von_name = $4,
-             entschieden_am = NULL, entschieden_von_user_id = NULL,
-             szene_id = $5, folge_nummer = $6, notiz = NULL, erneut_anfrage_notiz = NULL
-       RETURNING id`,
-      [character_id, req.params.productionId, req.user.user_id, req.user.name ?? null,
-       szene_id ?? null, szeneFolgeNummer]
-    )
-
-    await pool.query(
-      `UPDATE character_productions SET freigabe_status = 'ausstehend' WHERE character_id = $1 AND produktion_id = $2`,
-      [character_id, req.params.productionId]
-    )
-
-    // Produktion-Titel + Rollenname für Email
-    const prod = await queryOne(`SELECT titel FROM produktionen WHERE id = $1`, [req.params.productionId])
-    const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [character_id])
-
-    // Token + Email pro Genehmiger
-    const now = new Date()
-    const gueltigBis = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
-
-    for (const g of genehmiger) {
-      // Doppeltes Token für freigeben + ablehnen
-      const tokenFreigeben = crypto.randomBytes(32).toString('hex')
-      const tokenAblehnen  = crypto.randomBytes(32).toString('hex')
-
-      // Wir speichern beide Token kommasepariert (freigeben,ablehnen)
-      const combinedToken = `${tokenFreigeben}:freigeben,${tokenAblehnen}:ablehnen`
-
-      await pool.query(
-        `INSERT INTO rollen_freigabe_genehmiger_status (anfrage_id, genehmiger_id, token, token_gueltig_bis)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (anfrage_id, genehmiger_id) DO UPDATE
-           SET token = $3, token_gueltig_bis = $4, entschieden = NULL, entschieden_am = NULL`,
-        [anfrage!.id, g.id, combinedToken, gueltigBis]
-      )
-
-      await sendFreigabeAnfrageEmail({
-        toName: g.name,
-        toEmail: g.email,
-        rollenName: char?.name ?? '?',
-        produktionTitel: prod?.titel ?? '?',
-        beantragtVon: req.user.name ?? req.user.user_id,
-        freigebenUrl: `${APP_URL}/freigabe/${tokenFreigeben}`,
-        ablehnenUrl:  `${APP_URL}/freigabe/${tokenAblehnen}`,
-        szeneKontext,
-        szeneUrl,
-      })
-    }
-
-    res.json({ status: 'ausstehend', anfrage_id: anfrage!.id })
+    const status = await starteFreigabeAnfrage({
+      characterId: character_id,
+      produktionId: req.params.productionId,
+      szeneId: szene_id ?? null,
+      userId: req.user.user_id,
+      userName: req.user.name ?? null,
+    })
+    res.json({ status })
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 

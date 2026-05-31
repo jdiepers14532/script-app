@@ -4,6 +4,7 @@ import { pool } from './db'
 import fetch from 'node-fetch'
 import { recalcSceneStats, updateReplikCount } from './utils/recalcRepliken'
 import { calcPageLength } from './utils/calcPageLength'
+import { autoUpsertNtEintraege } from './routes/nt-eintraege'
 
 /**
  * Document name format: `szene-{dokumentSzeneId}` — per-scene collaboration on Werkstufen
@@ -124,6 +125,14 @@ export function createHocuspocusServer() {
             }
             if (ds?.werkstufe_id && ds?.scene_identity_id && ds?.content) {
               recalcSceneStats(ds.werkstufe_id, ds.scene_identity_id, ds.content).catch(() => {})
+            }
+            if (ds?.content) {
+              autoUpsertNtEintraege(
+                parsed.id,
+                ds.content,
+                context?.user_id ?? null,
+                context?.user_name ?? null
+              ).catch(() => {})
             }
           } catch { /* non-critical */ }
         },

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { starteFreigabeAnfrage } from './rollen-freigabe'
 
 export const ntEintraegeRouter = Router()
 ntEintraegeRouter.use(authMiddleware)
@@ -115,11 +116,69 @@ export function extractNtCharacters(
   return result
 }
 
+// ── Fehlende Figur automatisch anlegen + ggf. Freigabe starten ───────────────
+async function autoCreateCharacterForNT(
+  nameUpper: string,
+  produktionId: string,
+  szeneId: string,
+  userId: string | null,
+  userName: string | null
+): Promise<string | null> {
+  try {
+    // Figur existiert evtl. global, aber nicht mit dieser Produktion verknüpft
+    let charRow = await queryOne(
+      `SELECT id FROM characters WHERE UPPER(name) = $1 LIMIT 1`,
+      [nameUpper]
+    )
+    if (!charRow?.id) {
+      // Neu anlegen — Title-Case: "HILDE" → "Hilde"
+      const displayName = nameUpper
+        .split(' ')
+        .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+        .join(' ')
+      charRow = await queryOne(
+        `INSERT INTO characters (name, meta_json) VALUES ($1, '{}') RETURNING id`,
+        [displayName]
+      )
+    }
+    if (!charRow?.id) return null
+
+    // Mit Produktion verknüpfen (idempotent)
+    await pool.query(
+      `INSERT INTO character_productions (character_id, produktion_id)
+       VALUES ($1, $2)
+       ON CONFLICT (character_id, produktion_id) DO NOTHING`,
+      [charRow.id, produktionId]
+    )
+
+    // Freigabe-Workflow starten (setzt freigabe_status auf 'ausstehend' oder 'keine')
+    await starteFreigabeAnfrage({
+      characterId: charRow.id,
+      produktionId,
+      szeneId,
+      userId,
+      userName,
+    })
+
+    console.log(`[NT] Figur auto-angelegt: "${nameUpper}" (id=${charRow.id}) in Produktion ${produktionId}`)
+    return charRow.id
+  } catch (err) {
+    console.error('[NT] autoCreateCharacterForNT Fehler:', err)
+    return null
+  }
+}
+
 /**
  * Auto-Upsert: wird nach jedem PUT /api/dokument-szenen/:id aufgerufen.
  * Legt NT-Einträge an, aktualisiert Replikentext, setzt veraltet=TRUE für nicht mehr NT/VO-Figuren.
+ * Figuren die noch nicht existieren werden automatisch angelegt (inkl. ggf. Freigabe-Anfrage).
  */
-export async function autoUpsertNtEintraege(szeneId: string, content: any): Promise<void> {
+export async function autoUpsertNtEintraege(
+  szeneId: string,
+  content: any,
+  userId: string | null = null,
+  userName: string | null = null
+): Promise<void> {
   try {
     // Metadaten der Szene laden
     const szene = await queryOne(
@@ -148,19 +207,26 @@ export async function autoUpsertNtEintraege(szeneId: string, content: any): Prom
     // NT-Figuren aus Content extrahieren
     const ntChars = extractNtCharacters(content, charFormatIds, diagFormatIds)
 
-    // Figuren-UUIDs per Name nachschlagen
+    // Figuren-UUIDs per Name nachschlagen (oder anlegen)
     const upsertedCharIds: string[] = []
 
     for (const entry of ntChars) {
-      // Figur per Name in der Produktion suchen (characters hat keine produktion_id — via character_productions)
-      const char = await queryOne(
+      // Figur per Name in der Produktion suchen
+      let char = await queryOne(
         `SELECT c.id FROM characters c
          JOIN character_productions cp ON cp.character_id = c.id
          WHERE cp.produktion_id = $1 AND UPPER(c.name) = $2
          LIMIT 1`,
         [szene.produktion_id, entry.nameUpper]
       )
-      if (!char?.id) continue
+      if (!char?.id) {
+        // Figur existiert nicht → automatisch anlegen
+        const newId = await autoCreateCharacterForNT(
+          entry.nameUpper, szene.produktion_id, szeneId, userId, userName
+        )
+        if (!newId) continue
+        char = { id: newId }
+      }
 
       const replikenText = entry.replicaTexts.join('\n') || null
 
