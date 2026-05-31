@@ -157,6 +157,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [chipDragIdx, setChipDragIdx]             = useState<number | null>(null)
   const [datumsformat, setDatumsformat]           = useState<'de' | 'en'>('de')
   const saveAsModeRef                             = useRef(false)
+  const [saveAsMode, setSaveAsMode]               = useState(false)
 
   // Offene Wasserzeichen
   const [wzKleinAktiv, setWzKleinAktiv]           = useState(false)
@@ -502,6 +503,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   async function triggerDownload(jobId: string) {
     if (saveAsModeRef.current) {
       saveAsModeRef.current = false
+      setSaveAsMode(false)
       return triggerSaveAs(jobId)
     }
     try {
@@ -1034,6 +1036,14 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                         </div>
                       </div>
                     </div>
+
+                    {/* Dateiname-Vorschau */}
+                    <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                      <span style={SEC}>Dateiname</span>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {customFilename}
+                      </div>
+                    </div>
                   </>
                 )}
 
@@ -1118,28 +1128,24 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     </div>
                   ))}
                 </div>
-                {/* Speichern unter Button */}
-                <Tooltip placement="top" text={blockedByOffline ? 'PDF-Export erfordert Internetverbindung' : 'Export starten und Speicherort wählen'}>
+                {/* Pfad-Button: setzt saveAs-Modus, löst keinen Export aus */}
+                <Tooltip placement="top" text="Speicherort wählen — beim nächsten Export wird der Browser-Speicherdialog geöffnet">
                   <button
-                    onClick={() => { saveAsModeRef.current = true; startExport() }}
-                    disabled={isRunning || isDisabledFormat(currentFormatDef) || blockedByOffline}
+                    onClick={() => { saveAsModeRef.current = !saveAsMode; setSaveAsMode(m => !m) }}
+                    disabled={isRunning || isDisabledFormat(currentFormatDef)}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
                       padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
-                      fontFamily: 'inherit', cursor: (isRunning || blockedByOffline) ? 'not-allowed' : 'pointer',
-                      border: '1px solid var(--border)',
-                      background: (isRunning || blockedByOffline) ? 'var(--bg-subtle)' : 'transparent',
-                      color: (isRunning || blockedByOffline) ? 'var(--text-muted)' : 'var(--text-primary)',
+                      fontFamily: 'inherit', cursor: isRunning ? 'not-allowed' : 'pointer',
+                      border: `1px solid ${saveAsMode ? '#007AFF' : 'var(--border)'}`,
+                      background: saveAsMode ? 'rgba(0,122,255,0.08)' : 'transparent',
+                      color: isRunning ? 'var(--text-muted)' : saveAsMode ? '#007AFF' : 'var(--text-primary)',
                       whiteSpace: 'nowrap',
                     }}
                   >
-                    <Save size={12} />Speichern unter
+                    <Save size={12} />Pfad
                   </button>
                 </Tooltip>
-              </div>
-              {/* Vorschau des Dateinamens */}
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 5, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {customFilename}
               </div>
             </div>
           </>
