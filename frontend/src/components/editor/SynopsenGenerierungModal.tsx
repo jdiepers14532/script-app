@@ -998,9 +998,9 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                           <select
                             value={d.kategorie}
                             onChange={e => setDeskriptoren(prev => { const n=[...prev]; n[i]={...n[i],kategorie:e.target.value}; return n })}
-                            style={{ background:'rgba(0,0,0,0.5)', border:'1px solid rgba(255,107,0,0.4)', borderRadius:5, color:'#FF9500', fontWeight:700, fontSize:12, padding:'2px 6px', cursor:'pointer' }}
+                            style={{ background:'#111', border:'1px solid rgba(255,107,0,0.6)', borderRadius:5, color:'#FF9500', fontWeight:700, fontSize:12, padding:'2px 6px', cursor:'pointer' }}
                           >
-                            {deskriptorVorlagen.map(k => <option key={k} value={k}>{k}</option>)}
+                            {deskriptorVorlagen.map(k => <option key={k} value={k} style={{ background:'#111', color:'#fff' }}>{k}</option>)}
                           </select>
                           <div style={{ display:'flex', gap:5 }}>
                             {(['leicht','mittel','stark'] as DeskriptorStufe[]).map(s => (
