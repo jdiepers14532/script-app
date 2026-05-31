@@ -487,3 +487,24 @@ httpServer.listen(PORT, async () => {
   } catch {}
   console.log(`Script backend running on port ${PORT} (HTTP + WebSocket)`)
 })
+
+// Graceful shutdown — verhindert EADDRINUSE-Crash-Loop bei PM2-Restarts
+async function shutdown(signal: string) {
+  console.log(`[shutdown] ${signal} empfangen — fahre herunter...`)
+  httpServer.close(async () => {
+    try {
+      const { pool } = await import('./db')
+      await pool.end()
+    } catch {}
+    console.log('[shutdown] Abgeschlossen.')
+    process.exit(0)
+  })
+  // Sicherheits-Timeout: nach 8s hart beenden
+  setTimeout(() => {
+    console.error('[shutdown] Timeout — hard exit')
+    process.exit(1)
+  }, 8000).unref()
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
