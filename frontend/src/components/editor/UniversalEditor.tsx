@@ -83,10 +83,10 @@ const InlineGhostExtension = Extension.create({
 
 // ── Charakter-Suffix-Parsing (OFF / NT / ONE-WAY / VO) ───────────────────────
 const CHAR_SUFFIX_PATTERNS: Array<{ pattern: RegExp; canonical: string }> = [
-  { pattern: /\s*\(?\s*one[-\s]?way\s*\)?$/i, canonical: '(ONE-WAY)' },
-  { pattern: /\s*\(?\s*v\.?o\.?\s*\)?$/i, canonical: '(VO)' },
-  { pattern: /\s*\(?\s*n\.?t\.?\s*\)?$/i, canonical: '(NT)' },
-  { pattern: /\s*\(?\s*(?:off|o\.s\.?)\s*\)?$/i, canonical: '(OFF)' },
+  { pattern: /(?:^|\s)\(?\s*one[-\s]?way\s*\)?$/i, canonical: '(ONE-WAY)' },
+  { pattern: /(?:^|\s)\(?\s*v\.?o\.?\s*\)?$/i, canonical: '(VO)' },
+  { pattern: /(?:^|\s)\(?\s*n\.?t\.?\s*\)?$/i, canonical: '(NT)' },
+  { pattern: /(?:^|\s)\(?\s*(?:off|o\.s\.?)\s*\)?$/i, canonical: '(OFF)' },
 ]
 function parseSuffix(text: string): { name: string; suffix: string | null } {
   for (const { pattern, canonical } of CHAR_SUFFIX_PATTERNS) {

@@ -32,6 +32,7 @@ const DK_TABS = [
   { id: 'autorenplan',            label: 'Autorenplan',            badge: 'beta/bald' },
   { id: 'rollen-freigabe',        label: 'Rollen-Freigabe' },
   { id: 'drehbuch-checks',        label: 'Drehbuch-Checks' },
+  { id: 'inhaltskennzeichnung',   label: 'Inhaltskennzeichnung' },
   { id: 'synopsen-ki',            label: 'KI-Synopsen' },
   { id: 'verlauf-sicherung',      label: 'Verlauf & Sicherung' },
 ]
@@ -4851,6 +4852,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <RollenFreigabeTab produktionId={produktionId} /> : <NoProduction />
       case 'drehbuch-checks':
         return produktionId ? <DrehbuchChecksTab produktionId={produktionId} /> : <NoProduction />
+      case 'inhaltskennzeichnung':
+        return produktionId ? <InhaltskennzeichnungTab produktionId={produktionId} /> : <NoProduction />
       case 'synopsen-ki':
         return produktionId ? <SynopsenKiTab produktionId={produktionId} /> : <NoProduction />
       case 'verlauf-sicherung':
@@ -7658,6 +7661,244 @@ function SynopsenKiTab({ produktionId }: { produktionId: string }) {
         <div style={{ fontSize: 12, color: saving ? 'var(--text-muted)' : '#00C853', fontWeight: 600 }}>
           {saving ? 'Speichert…' : '✓ Gespeichert'}
         </div>
+      )}
+    </div>
+  )
+}
+
+// ── Inhaltskennzeichnung Tab ──────────────────────────────────────────────────
+
+const FSK_LEVELS = [
+  { value: '0',  label: 'FSK 0',  color: '#00C853', desc: 'Ohne Altersbeschränkung' },
+  { value: '6',  label: 'FSK 6',  color: '#00C853', desc: 'Ab 6 Jahren freigegeben' },
+  { value: '12', label: 'FSK 12', color: '#FF9500', desc: 'Ab 12 Jahren freigegeben' },
+  { value: '16', label: 'FSK 16', color: '#FF6B00', desc: 'Ab 16 Jahren freigegeben' },
+  { value: '18', label: 'FSK 18', color: '#FF3B30', desc: 'Keine Jugendfreigabe' },
+]
+
+interface DeskriptorVorlage {
+  id: number | null
+  name: string
+  sort_order: number
+}
+
+function InhaltskennzeichnungTab({ produktionId }: { produktionId: string }) {
+  const [vorlagen, setVorlagen] = useState<DeskriptorVorlage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [newName, setNewName] = useState('')
+  const [addError, setAddError] = useState('')
+  const [editId, setEditId] = useState<number | null>(null)
+  const [editName, setEditName] = useState('')
+  const dragIdx = useRef<number | null>(null)
+  const dragOverIdx = useRef<number | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    api.getDeskriptorVorlagen(produktionId)
+      .then(rows => setVorlagen(rows))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [produktionId])
+
+  const addVorlage = async () => {
+    if (!newName.trim()) return
+    setAddError('')
+    try {
+      const created = await api.createDeskriptorVorlage(produktionId, newName)
+      setVorlagen(prev => [...prev, created])
+      setNewName('')
+    } catch {
+      setAddError('Fehler — Name evtl. bereits vorhanden')
+    }
+  }
+
+  const deleteVorlage = async (id: number) => {
+    try {
+      const updated = await api.deleteDeskriptorVorlage(produktionId, id)
+      setVorlagen(Array.isArray(updated) ? updated : vorlagen.filter(v => v.id !== id))
+    } catch {}
+  }
+
+  const saveEdit = async () => {
+    if (editId === null || !editName.trim()) return
+    try {
+      const updated = await api.updateDeskriptorVorlage(produktionId, editId, editName)
+      setVorlagen(prev => prev.map(v => v.id === editId ? { ...v, ...updated } : v))
+      setEditId(null)
+    } catch {}
+  }
+
+  const onDragEnd = async () => {
+    const from = dragIdx.current
+    const to = dragOverIdx.current
+    if (from === null || to === null || from === to) return
+    dragIdx.current = null
+    dragOverIdx.current = null
+    const reordered = [...vorlagen]
+    const [moved] = reordered.splice(from, 1)
+    reordered.splice(to, 0, moved)
+    const withOrder = reordered.map((v, i) => ({ ...v, sort_order: i }))
+    setVorlagen(withOrder)
+    const withIds = withOrder.filter(v => v.id !== null) as { id: number; sort_order: number }[]
+    if (withIds.length > 0) {
+      try {
+        await api.reorderDeskriptorVorlagen(produktionId, withIds.map(v => ({ id: v.id, sort_order: v.sort_order })))
+      } catch {}
+    }
+  }
+
+  const SEC: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', display: 'block', marginBottom: 8 }
+
+  return (
+    <div style={{ maxWidth: 680 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
+        Konfiguriert die verfügbaren Inhaltsdeskriptoren für die Synopsen-Erfassung dieser Produktion.
+        Die Deskriptoren folgen dem Standard der{' '}
+        <strong>FSK (Freiwillige Selbstkontrolle der Filmwirtschaft)</strong>,
+        eingeführt 2021 auf Basis von §14 JuSchG (Jugendschutzgesetz).
+        Für TV-Ausstrahlungen ist ergänzend die{' '}
+        <strong>FSF (Freiwillige Selbstkontrolle Fernsehen)</strong> zuständig.
+      </p>
+
+      {/* FSK-Einstufungen — informativ */}
+      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, marginTop: 0 }}>
+        FSK-Einstufungen
+      </h3>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12 }}>
+        Die Einstufung erfolgt im Synopsen-Dialog pro Folge. Die fünf FSK-Stufen sind fest definiert
+        und können nicht geändert werden.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 24 }}>
+        {FSK_LEVELS.map(f => (
+          <div key={f.value} style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', borderRadius: 8,
+            border: `1px solid ${f.color}33`,
+            background: `${f.color}11`,
+          }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: 6,
+              background: f.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0,
+            }}>
+              {f.value}
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>{f.label}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{f.desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Deskriptor-Vorlagen */}
+      <h3 style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+        Inhaltsdeskriptoren
+      </h3>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 0, marginBottom: 12 }}>
+        Diese Liste steht im Synopsen-Dialog zur Auswahl. Reihenfolge per Drag &amp; Drop.
+        Standard orientiert sich an den{' '}
+        <a href="https://www.fsk.de" target="_blank" rel="noopener noreferrer"
+          style={{ color: '#007AFF', textDecoration: 'none' }}>
+          FSK-Inhaltsdeskriptoren
+        </a>{' '}(fsk.de) und dem{' '}
+        <a href="https://www.fsf.de" target="_blank" rel="noopener noreferrer"
+          style={{ color: '#007AFF', textDecoration: 'none' }}>
+          FSF-System
+        </a>{' '}(fsf.de) für Fernsehen.
+      </p>
+
+      {loading ? (
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Lädt…</span>
+      ) : (
+        <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12 }}>
+            {vorlagen.map((v, i) => (
+              <div
+                key={v.id ?? `default-${i}`}
+                draggable={v.id !== null}
+                onDragStart={() => { dragIdx.current = i }}
+                onDragOver={e => { e.preventDefault(); dragOverIdx.current = i }}
+                onDragEnd={onDragEnd}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '8px 10px', borderRadius: 7,
+                  border: '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  cursor: v.id !== null ? 'grab' : 'default',
+                  opacity: v.id === null ? 0.5 : 1,
+                }}
+              >
+                <span style={{ fontSize: 14, color: 'var(--text-muted)', userSelect: 'none', flexShrink: 0 }}>⋮⋮</span>
+
+                {editId === v.id ? (
+                  <>
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditId(null) }}
+                      style={{ flex: 1, padding: '3px 7px', fontSize: 12, borderRadius: 5, border: '1px solid #007AFF', background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none' }}
+                    />
+                    <button onClick={saveEdit} style={{ padding: '3px 8px', borderRadius: 5, fontSize: 11, border: '1px solid #00C853', background: 'transparent', color: '#00C853', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      ✓
+                    </button>
+                    <button onClick={() => setEditId(null)} style={{ padding: '3px 8px', borderRadius: 5, fontSize: 11, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                      ✕
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)' }}>{v.name}</span>
+                    {v.id !== null && (
+                      <>
+                        <button onClick={() => { setEditId(v.id!); setEditName(v.name) }}
+                          style={{ padding: '3px 8px', borderRadius: 5, fontSize: 11, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          Umbenennen
+                        </button>
+                        <button onClick={() => deleteVorlage(v.id!)}
+                          style={{ padding: '3px 8px', borderRadius: 5, fontSize: 11, border: '1px solid rgba(255,59,48,0.3)', background: 'transparent', color: '#FF3B30', cursor: 'pointer', fontFamily: 'inherit' }}>
+                          ✕
+                        </button>
+                      </>
+                    )}
+                    {v.id === null && (
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>Default (noch nicht gespeichert)</span>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Neuen Deskriptor hinzufügen */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              value={newName}
+              onChange={e => { setNewName(e.target.value); setAddError('') }}
+              onKeyDown={e => e.key === 'Enter' && addVorlage()}
+              placeholder="z. B. Bedrohliche Szenen"
+              style={{ flex: 1, padding: '7px 10px', fontSize: 12, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-canvas)', color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none' }}
+            />
+            <button
+              onClick={addVorlage}
+              disabled={!newName.trim()}
+              style={{ padding: '7px 14px', borderRadius: 7, fontSize: 12, fontWeight: 600, border: 'none', background: newName.trim() ? '#007AFF' : 'var(--border)', color: newName.trim() ? '#fff' : 'var(--text-muted)', cursor: newName.trim() ? 'pointer' : 'default', fontFamily: 'inherit' }}
+            >
+              + Hinzufügen
+            </button>
+          </div>
+          {addError && <div style={{ fontSize: 11, color: '#FF3B30', marginTop: 6 }}>{addError}</div>}
+
+          <div style={{ marginTop: 20, padding: '10px 12px', borderRadius: 8, background: 'var(--surface)', border: '1px solid var(--border)' }}>
+            <span style={SEC}>Hinweis</span>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+              Deskriptoren werden pro Folge im Synopsen-Dialog erfasst, zusammen mit Schweregrad
+              (leicht / mittel / stark) und einer Begründung. Die Einschätzung ist keine offizielle
+              FSK-/FSF-Freigabe, sondern dient der internen Produktionsdokumentation.
+            </p>
+          </div>
+        </>
       )}
     </div>
   )

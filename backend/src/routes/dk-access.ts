@@ -303,6 +303,160 @@ router.delete('/:productionId/stimmungen/:id',
   }
 )
 
+// ── Deskriptor-Vorlagen (FSK/JuSchG) CRUD ────────────────────────────────────
+
+// Standard-Deskriptoren nach FSK-Inhaltsdeskriptoren-System (§14 JuSchG, seit 2021)
+// Quelle: https://www.fsk.de/de/seite_inhaltsdeskriptoren.html
+const DEFAULT_DESKRIPTOR_VORLAGEN = [
+  { name: 'Gewaltdarstellungen',        sort_order: 0 },
+  { name: 'Sexualisierte Darstellungen', sort_order: 1 },
+  { name: 'Beängstigende Szenen',       sort_order: 2 },
+  { name: 'Sprache (Schimpfwörter)',     sort_order: 3 },
+  { name: 'Drogen, Alkohol & Tabak',    sort_order: 4 },
+  { name: 'Diskriminierung',            sort_order: 5 },
+  { name: 'Suizid & Selbstverletzung',  sort_order: 6 },
+  { name: 'Thematisch belastend',       sort_order: 7 },
+]
+
+async function getDeskriptorVorlagen(productionId: string) {
+  const { rows } = await pool.query(
+    `SELECT id, name, sort_order FROM deskriptor_vorlagen
+     WHERE production_id = $1 ORDER BY sort_order ASC`,
+    [productionId]
+  )
+  if (rows.length === 0) return DEFAULT_DESKRIPTOR_VORLAGEN.map(d => ({ ...d, id: null }))
+  return rows
+}
+
+async function ensureDefaultDeskriptorVorlagen(productionId: string) {
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) AS cnt FROM deskriptor_vorlagen WHERE production_id = $1`,
+    [productionId]
+  )
+  if (parseInt(rows[0].cnt) > 0) return
+  for (const d of DEFAULT_DESKRIPTOR_VORLAGEN) {
+    await pool.query(
+      `INSERT INTO deskriptor_vorlagen (production_id, name, sort_order)
+       VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+      [productionId, d.name, d.sort_order]
+    )
+  }
+}
+
+// GET /api/dk-settings/:productionId/deskriptor-vorlagen
+router.get('/:productionId/deskriptor-vorlagen',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      res.json(await getDeskriptorVorlagen(req.params.productionId))
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// POST /api/dk-settings/:productionId/deskriptor-vorlagen
+router.post('/:productionId/deskriptor-vorlagen',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const pid = req.params.productionId
+      const { name } = req.body
+      if (!name?.trim()) return res.status(400).json({ error: 'name erforderlich' })
+      await ensureDefaultDeskriptorVorlagen(pid)
+      const { rows } = await pool.query(
+        `INSERT INTO deskriptor_vorlagen (production_id, name, sort_order)
+         VALUES ($1, $2, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM deskriptor_vorlagen WHERE production_id = $1))
+         ON CONFLICT (production_id, name) DO NOTHING
+         RETURNING id, name, sort_order`,
+        [pid, name.trim()]
+      )
+      if (!rows[0]) return res.status(409).json({ error: 'Deskriptor mit diesem Namen existiert bereits' })
+      res.json(rows[0])
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// PUT /api/dk-settings/:productionId/deskriptor-vorlagen/reorder — [{id, sort_order}]
+router.put('/:productionId/deskriptor-vorlagen/reorder',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const pid = req.params.productionId
+      const entries: { id: number; sort_order: number }[] = req.body
+      if (!Array.isArray(entries)) return res.status(400).json({ error: 'Array erforderlich' })
+      const client = await pool.connect()
+      try {
+        await client.query('BEGIN')
+        for (const e of entries) {
+          await client.query(
+            `UPDATE deskriptor_vorlagen SET sort_order = $1 WHERE id = $2 AND production_id = $3`,
+            [e.sort_order, e.id, pid]
+          )
+        }
+        await client.query('COMMIT')
+      } catch (e) {
+        await client.query('ROLLBACK')
+        throw e
+      } finally {
+        client.release()
+      }
+      res.json(await getDeskriptorVorlagen(pid))
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// PUT /api/dk-settings/:productionId/deskriptor-vorlagen/:id
+router.put('/:productionId/deskriptor-vorlagen/:id',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const { name } = req.body
+      if (!name?.trim()) return res.status(400).json({ error: 'name erforderlich' })
+      const { rows } = await pool.query(
+        `UPDATE deskriptor_vorlagen SET name = $1
+         WHERE id = $2 AND production_id = $3
+         RETURNING id, name, sort_order`,
+        [name.trim(), req.params.id, req.params.productionId]
+      )
+      if (!rows[0]) return res.status(404).json({ error: 'Nicht gefunden' })
+      res.json(rows[0])
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
+// DELETE /api/dk-settings/:productionId/deskriptor-vorlagen/:id
+router.delete('/:productionId/deskriptor-vorlagen/:id',
+  requireDkAccess(req => req.params.productionId),
+  async (req, res) => {
+    try {
+      const pid = req.params.productionId
+      const { rows } = await pool.query(
+        `DELETE FROM deskriptor_vorlagen WHERE id = $1 AND production_id = $2 RETURNING sort_order`,
+        [req.params.id, pid]
+      )
+      if (!rows[0]) return res.status(404).json({ error: 'Nicht gefunden' })
+      // Positionen neu kompaktieren
+      await pool.query(
+        `UPDATE deskriptor_vorlagen SET sort_order = sub.new_pos
+         FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY sort_order) - 1 AS new_pos
+               FROM deskriptor_vorlagen WHERE production_id = $1) sub
+         WHERE deskriptor_vorlagen.id = sub.id AND deskriptor_vorlagen.production_id = $1`,
+        [pid]
+      )
+      res.json(await getDeskriptorVorlagen(pid))
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+)
+
 // Hilfsfunktion: Defaults in DB schreiben wenn noch keine Einträge vorhanden
 async function ensureDefaultStimmungen(productionId: string) {
   const { rows } = await pool.query(

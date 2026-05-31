@@ -4,6 +4,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
 import { Wand2, X, Sparkles, Bold, Italic, Underline as UnderlineIcon, Check, RefreshCw, RotateCcw, AlertTriangle, ChevronUp, Shield } from 'lucide-react'
 import { api } from '../../api/client'
+import { useSelectedProduction } from '../../contexts'
 
 // ── Deskriptoren types & constants ─────────────────────────────────────────────
 
@@ -240,6 +241,8 @@ interface Props {
 }
 
 export default function SynopsenGenerierungModal({ open, onClose, folgeId, folgeNummer, onUebernehmen, onNavigateToScene }: Props) {
+  const { selectedProduction } = useSelectedProduction()
+  const [deskriptorVorlagen, setDeskriptorVorlagen] = useState<string[]>(DESKRIPTOR_KATEGORIEN)
   const [visible, setVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('titel')
   const [minimized, setMinimized] = useState(false)
@@ -333,6 +336,17 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     if (open) setTimeout(() => setVisible(true), 10)
     else setVisible(false)
   }, [open])
+
+  // ── Deskriptor-Vorlagen laden wenn Produktion bekannt ────────────────────
+  useEffect(() => {
+    if (!selectedProduction?.id) return
+    api.getDeskriptorVorlagen(selectedProduction.id)
+      .then(rows => {
+        const names = rows.map((r: any) => r.name).filter(Boolean)
+        if (names.length > 0) setDeskriptorVorlagen(names)
+      })
+      .catch(() => {})
+  }, [selectedProduction?.id])
 
   // ── Reset + Pre-Check on open ─────────────────────────────────────────────
   useEffect(() => {
@@ -986,7 +1000,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                             onChange={e => setDeskriptoren(prev => { const n=[...prev]; n[i]={...n[i],kategorie:e.target.value}; return n })}
                             style={{ background:'rgba(0,0,0,0.5)', border:'1px solid rgba(255,107,0,0.4)', borderRadius:5, color:'#FF9500', fontWeight:700, fontSize:12, padding:'2px 6px', cursor:'pointer' }}
                           >
-                            {DESKRIPTOR_KATEGORIEN.map(k => <option key={k} value={k}>{k.replace(/_/g,' ')}</option>)}
+                            {deskriptorVorlagen.map(k => <option key={k} value={k}>{k}</option>)}
                           </select>
                           <div style={{ display:'flex', gap:5 }}>
                             {(['leicht','mittel','stark'] as DeskriptorStufe[]).map(s => (
@@ -1026,7 +1040,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                   </div>
                 )}
                 <button
-                  onClick={() => setDeskriptoren(prev => [...prev, { kategorie:'GEWALT', stufe:'leicht', beschreibung:'' }])}
+                  onClick={() => setDeskriptoren(prev => [...prev, { kategorie: deskriptorVorlagen[0] ?? 'Gewaltdarstellungen', stufe:'leicht', beschreibung:'' }])}
                   style={{ background:'none', border:'none', color:'rgba(255,107,0,0.65)', cursor:'pointer', fontSize:12, fontWeight:600, padding:0 }}
                 >
                   + Deskriptor hinzufügen

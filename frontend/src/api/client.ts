@@ -503,6 +503,18 @@ export const api = {
   updateDkAppSetting: (productionId: string, key: string, value: string) =>
     request<any>('PUT', `/dk-settings/${encodeURIComponent(productionId)}/app-settings/${encodeURIComponent(key)}`, { value }),
 
+  // ── Deskriptor-Vorlagen (FSK/JuSchG) ─────────────────────────────────────
+  getDeskriptorVorlagen: (productionId: string) =>
+    request<{ id: number | null; name: string; sort_order: number }[]>('GET', `/dk-settings/${encodeURIComponent(productionId)}/deskriptor-vorlagen`),
+  createDeskriptorVorlage: (productionId: string, name: string) =>
+    request<any>('POST', `/dk-settings/${encodeURIComponent(productionId)}/deskriptor-vorlagen`, { name }),
+  updateDeskriptorVorlage: (productionId: string, id: number, name: string) =>
+    request<any>('PUT', `/dk-settings/${encodeURIComponent(productionId)}/deskriptor-vorlagen/${id}`, { name }),
+  reorderDeskriptorVorlagen: (productionId: string, entries: { id: number; sort_order: number }[]) =>
+    request<any>('PUT', `/dk-settings/${encodeURIComponent(productionId)}/deskriptor-vorlagen/reorder`, entries),
+  deleteDeskriptorVorlage: (productionId: string, id: number) =>
+    request<any>('DELETE', `/dk-settings/${encodeURIComponent(productionId)}/deskriptor-vorlagen/${id}`),
+
   // ── Stimmungen (Tageszeit) ────────────────────────────────────────────────
   getStimmungen: (productionId: string) =>
     request<{ id: number | null; name: string; kuerzel: string; position: number }[]>('GET', `/dk-settings/${encodeURIComponent(productionId)}/stimmungen`),
