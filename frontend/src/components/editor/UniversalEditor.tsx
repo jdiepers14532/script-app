@@ -59,6 +59,7 @@ const inlineGhostPlugin = new Plugin({
   props: {
     decorations(state) {
       const g = inlineGhostKey.getState(state)
+      if (g?.suffix) console.log('[GhostPlugin] decorations', { suffix: g.suffix, pos: g.pos, docSize: state.doc.content.size })
       if (!g?.suffix || g.pos === 0) return DecorationSet.empty
       try {
         const widget = Decoration.widget(
