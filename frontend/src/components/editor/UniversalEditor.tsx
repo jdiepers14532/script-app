@@ -589,6 +589,10 @@ export default function UniversalEditor({
   const suppressGhostUpdateRef = useRef(false)
   // Tracks ob Cursor zuletzt in einem CHARACTER-Node war (für Pfeil-Tasten-Acceptance)
   const wasInCharNodeRef = useRef(false)
+  // Gespeicherte Position des letzten CHARACTER-Nodes (start/end im Dokument)
+  const lastCharNodePosRef = useRef<{ start: number; end: number } | null>(null)
+  // One-shot Override: insertNameIntoEditor nutzt diese Position statt cursor (Pfeil-Tasten-Pfad)
+  const insertPosOverrideRef = useRef<{ start: number; end: number } | null>(null)
 
   // IDs der "Character"-Absatzformate
   const charFormatIds = useMemo(
@@ -950,6 +954,8 @@ export default function UniversalEditor({
         // Cursor verlässt CHARACTER-Node (Pfeiltasten/Maus) im Inline-Modus → Acceptance auslösen
         if (charAcStyleRef.current === 'inline' && wasInCharNodeRef.current && inlineGhostActiveRef.current && inlineGhostAcceptNameRef.current) {
           wasInCharNodeRef.current = false
+          // Override: insertNameIntoEditor soll in den verlassenen Node schreiben, nicht in den aktuellen
+          insertPosOverrideRef.current = lastCharNodePosRef.current
           acHandlersRef.current.onAccept()
           // dismiss() läuft weiter unten — ist idempotent
         }
@@ -1008,6 +1014,7 @@ export default function UniversalEditor({
 
       actionAcModeRef.current = false
       wasInCharNodeRef.current = true
+      lastCharNodePosRef.current = { start: $from.start(), end: $from.end() }
       const query = node.textContent
       // Suffix erkennen (OFF / NT / ONE-WAY / VO) — Suche läuft auf dem bereinigten Namen
       const { name: queryClean, suffix: rawSuffix } = parseSuffix(query.trim())
@@ -1160,12 +1167,21 @@ export default function UniversalEditor({
 
   const insertNameIntoEditor = useCallback((name: string, suffix?: string | null) => {
     if (!editor) return
-    const { $from } = editor.state.selection
-    if ($from.node().type.name !== 'absatz') return
-    const start = $from.start()
-    const end = $from.end()
+    const override = insertPosOverrideRef.current
+    insertPosOverrideRef.current = null // einmalig konsumieren
+    let start: number, end: number
+    if (override) {
+      start = override.start
+      end = override.end
+    } else {
+      const { $from } = editor.state.selection
+      if ($from.node().type.name !== 'absatz') return
+      start = $from.start()
+      end = $from.end()
+    }
     const fullText = suffix ? `${name} ${suffix}` : name
-    const chain = editor.chain().focus()
+    // Bei expliziter Position kein .focus() — Cursor soll im Ziel-Node bleiben
+    const chain = override ? editor.chain() : editor.chain().focus()
     if (start < end) {
       chain.deleteRange({ from: start, to: end }).insertContentAt(start, fullText).run()
     } else {
