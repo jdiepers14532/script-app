@@ -1040,7 +1040,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     {/* Dateiname-Vorschau */}
                     <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
                       <span style={SEC}>Dateiname</span>
-                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace', wordBreak: 'break-all', lineHeight: 1.4 }}>
                         {customFilename}
                       </div>
                     </div>
@@ -1128,18 +1128,18 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     </div>
                   ))}
                 </div>
-                {/* Pfad-Button: setzt saveAs-Modus, löst keinen Export aus */}
-                <Tooltip placement="top" text="Speicherort wählen — beim nächsten Export wird der Browser-Speicherdialog geöffnet">
+                {/* Pfad-Button: Export + Browser-Speicherdialog */}
+                <Tooltip placement="top" text={blockedByOffline ? 'Export erfordert Internetverbindung' : 'Export starten und Speicherort wählen'}>
                   <button
-                    onClick={() => { saveAsModeRef.current = !saveAsMode; setSaveAsMode(m => !m) }}
-                    disabled={isRunning || isDisabledFormat(currentFormatDef)}
+                    onClick={() => { saveAsModeRef.current = true; setSaveAsMode(true); startExport() }}
+                    disabled={isRunning || isDisabledFormat(currentFormatDef) || blockedByOffline}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
                       padding: '6px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
-                      fontFamily: 'inherit', cursor: isRunning ? 'not-allowed' : 'pointer',
-                      border: `1px solid ${saveAsMode ? '#007AFF' : 'var(--border)'}`,
-                      background: saveAsMode ? 'rgba(0,122,255,0.08)' : 'transparent',
-                      color: isRunning ? 'var(--text-muted)' : saveAsMode ? '#007AFF' : 'var(--text-primary)',
+                      fontFamily: 'inherit', cursor: (isRunning || blockedByOffline) ? 'not-allowed' : 'pointer',
+                      border: '1px solid var(--border)',
+                      background: 'transparent',
+                      color: (isRunning || blockedByOffline) ? 'var(--text-muted)' : 'var(--text-primary)',
                       whiteSpace: 'nowrap',
                     }}
                   >
