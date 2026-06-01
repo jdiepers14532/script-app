@@ -15,6 +15,7 @@ import type { KopfZeilenEditorValue, SeitenLayout } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
 import KopierenModal from '../components/KopierenModal'
 import WasserzeichenTab from '../components/WasserzeichenTab'
+import GlossarTooltip from '../components/GlossarTooltip'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -5878,10 +5879,10 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
       </div>
 
       {/* ── Genehmiger ── */}
-      <p style={sec}>Budget-Genehmiger</p>
+      <p style={sec}><GlossarTooltip term="Fall B" produktionId={produktionId}>Budget-Genehmiger</GlossarTooltip></p>
       {renderGenehmiger(budgetGenehmiger)}
 
-      <p style={{ ...sec, marginTop: 20 }}>Dispo-Genehmiger</p>
+      <p style={{ ...sec, marginTop: 20 }}><GlossarTooltip term="Fall A" produktionId={produktionId}>Dispo-Genehmiger</GlossarTooltip></p>
       {renderGenehmiger(dispoGenehmiger)}
 
       {/* Neuer Genehmiger */}
@@ -6534,7 +6535,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '4px 0' }}>
                 {seitenformat === 'a4' ? 'A4 (210 × 297 mm)' : 'Letter (215,9 × 279,4 mm)'}
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 2 }}>
-                  Standard-Einstellung aus {tKf('drehbuch')}-Formatierung
+                  Standard-Einstellung aus {tVorlage('drehbuch')}-Formatierung
                 </span>
               </div>
             </div>
@@ -6554,7 +6555,7 @@ function VorlagenTab({ productionId, seitenformat, margins }: { productionId: st
                 ))}
               </div>
               <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 4 }}>
-                Standard-Einstellung aus {tKf('drehbuch')}-Formatierung
+                Standard-Einstellung aus {tVorlage('drehbuch')}-Formatierung
               </span>
             </div>
           </div>
