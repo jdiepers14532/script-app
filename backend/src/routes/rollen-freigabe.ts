@@ -26,6 +26,7 @@
 
 import { Router } from 'express'
 import { pool, query, queryOne } from '../db'
+import { prodQueryOne } from '../prodDb'
 import { authMiddleware, requireDkAccess } from '../auth'
 import nodemailer from 'nodemailer'
 import crypto from 'crypto'
@@ -577,6 +578,98 @@ rollenFreigabeRouter.get('/meta', async (req, res) => {
     res.json({ users, roles })
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/rollen-freigabe/:productionId/ot-mengenkontrolle
+// Zählt o.T.-Komparsen pro Block (jeweils aktuellste Drehbuch-Werkstufe),
+// vergleicht mit ot_obergrenze_pro_block aus der Konfiguration.
+// Benötigt DK-Zugang — gibt graceful "linked: false" wenn keine prodDb-Verknüpfung.
+// ─────────────────────────────────────────────────────────────────────────────
+rollenFreigabeRouter.get('/:produktionId/ot-mengenkontrolle',
+  requireDkAccess(req => req.params.produktionId),
+  async (req, res) => {
+    try {
+      const { produktionId } = req.params
+
+      // Konfiguriertes Limit
+      const cfg = await queryOne(
+        `SELECT ot_obergrenze_pro_block FROM rollen_freigabe_konfiguration WHERE production_id = $1`,
+        [produktionId]
+      )
+      const ot_obergrenze_pro_block: number | null = cfg?.ot_obergrenze_pro_block ?? null
+
+      // Produktionsdatenbank-Verknüpfung
+      const prod = await queryOne(
+        `SELECT produktion_db_id FROM produktionen WHERE id = $1`,
+        [produktionId]
+      )
+      if (!prod?.produktion_db_id) {
+        return res.json({ ot_obergrenze_pro_block, blocks: null, linked: false })
+      }
+
+      // Blöcke aus Produktionsdatenbank
+      const prodRow = await prodQueryOne(
+        `SELECT erster_block, bloecke FROM productions WHERE id = $1`,
+        [prod.produktion_db_id]
+      ).catch(() => null)
+
+      if (!prodRow?.bloecke?.length) {
+        return res.json({ ot_obergrenze_pro_block, blocks: null, linked: true, error: 'Keine Blöcke in der Produktionsdatenbank konfiguriert' })
+      }
+
+      const ersterBlock: number = prodRow.erster_block ?? 1
+      const blocks: Array<{
+        block_nummer: number; folge_von: number; folge_bis: number
+        dreh_von: string | null; dreh_bis: string | null
+        ot_anzahl: number; ueberschritten: boolean
+      }> = []
+
+      for (let i = 0; i < prodRow.bloecke.length; i++) {
+        const blk = prodRow.bloecke[i]
+        const block_nummer = ersterBlock + i
+        const folge_von: number = blk.folge_von
+        const folge_bis: number = blk.folge_bis
+
+        if (folge_von == null || folge_bis == null) continue
+
+        // o.T.-Summe über aktuellste Drehbuch-Werkstufe pro Folge
+        const countRow = await queryOne(
+          `SELECT COALESCE(SUM(sc.anzahl), 0) AS ot_anzahl
+           FROM scene_characters sc
+           JOIN werkstufen w ON w.id = sc.werkstufe_id
+           JOIN folgen f ON f.id = w.folge_id
+           WHERE f.produktion_id = $1
+             AND f.folge_nummer BETWEEN $2 AND $3
+             AND sc.spiel_typ = 'o.t.'
+             AND w.id IN (
+               SELECT DISTINCT ON (f2.id) w2.id
+               FROM werkstufen w2
+               JOIN folgen f2 ON f2.id = w2.folge_id
+               WHERE f2.produktion_id = $1
+                 AND f2.folge_nummer BETWEEN $2 AND $3
+               ORDER BY f2.id,
+                        (w2.typ = 'drehbuch') DESC,
+                        w2.version_nummer DESC
+             )`,
+          [produktionId, folge_von, folge_bis]
+        )
+
+        const ot_anzahl = parseInt(countRow?.ot_anzahl ?? 0)
+        blocks.push({
+          block_nummer,
+          folge_von,
+          folge_bis,
+          dreh_von: blk.dreh_von ?? null,
+          dreh_bis: blk.dreh_bis ?? null,
+          ot_anzahl,
+          ueberschritten: ot_obergrenze_pro_block != null && ot_anzahl > ot_obergrenze_pro_block,
+        })
+      }
+
+      res.json({ ot_obergrenze_pro_block, blocks, linked: true })
+    } catch (err) { res.status(500).json({ error: String(err) }) }
+  }
+)
 
 // GET /api/rollen-freigabe/:productionId/genehmiger
 rollenFreigabeRouter.get('/:productionId/genehmiger', async (req, res) => {

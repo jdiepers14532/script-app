@@ -5700,12 +5700,26 @@ function ToggleBtn({ on, onToggle, disabled }: { on: boolean; onToggle: () => vo
   )
 }
 
+type OtBlock = {
+  block_nummer: number; folge_von: number; folge_bis: number
+  dreh_von: string | null; dreh_bis: string | null
+  ot_anzahl: number; ueberschritten: boolean
+}
+type OtMengenData = {
+  ot_obergrenze_pro_block: number | null
+  blocks: OtBlock[] | null
+  linked: boolean
+  error?: string
+}
+
 function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
   const [config, setConfig] = useState<FreigabeConfig>(DEFAULT_CONFIG)
   const [genehmiger, setGenehmiger] = useState<any[]>([])
   const [meta, setMeta] = useState<{ users: any[]; roles: any[] }>({ users: [], roles: [] })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [otData, setOtData] = useState<OtMengenData | null>(null)
+  const [otInputVal, setOtInputVal] = useState<string>('')
   // New genehmiger form
   const [newTyp, setNewTyp] = useState<'user' | 'rolle'>('user')
   const [newUserId, setNewUserId] = useState('')
@@ -5722,15 +5736,22 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
   const apiDelete = (url: string) =>
     apiFetch(url, { method: 'DELETE' })
 
+  const loadOtData = () =>
+    apiFetch(`/rollen-freigabe/${produktionId}/ot-mengenkontrolle`).then(setOtData).catch(() => {})
+
   useEffect(() => {
     Promise.all([
       apiFetch(`/rollen-freigabe/${produktionId}/config`),
       apiFetch(`/rollen-freigabe/${produktionId}/genehmiger`),
       apiFetch('/rollen-freigabe/meta'),
-    ]).then(([cfg, gen, m]) => {
-      setConfig({ ...DEFAULT_CONFIG, ...cfg })
+      apiFetch(`/rollen-freigabe/${produktionId}/ot-mengenkontrolle`),
+    ]).then(([cfg, gen, m, ot]) => {
+      const merged = { ...DEFAULT_CONFIG, ...cfg }
+      setConfig(merged)
+      setOtInputVal(merged.ot_obergrenze_pro_block != null ? String(merged.ot_obergrenze_pro_block) : '')
       setGenehmiger(Array.isArray(gen) ? gen : [])
       if (m && !m.error) setMeta(m)
+      if (ot && !ot.error) setOtData(ot)
     }).finally(() => setLoading(false))
   }, [produktionId])
 
@@ -5877,6 +5898,118 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
           disabled={saving}
         />
       </div>
+
+      {/* ── o.T.-Mengenkontrolle ── */}
+      <p style={sec}>o.T.-Mengenkontrolle</p>
+      <div style={row}>
+        <span style={lbl}>
+          <Tooltip text="Maximale Anzahl o.T.-Komparsen-Einsätze pro Block (Summe aller anzahl-Werte mit spiel_typ=o.t.). Leer lassen = keine Begrenzung.">
+            Obergrenze o.T. pro Block
+          </Tooltip>
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            type="number"
+            min={1}
+            value={otInputVal}
+            onChange={e => setOtInputVal(e.target.value)}
+            onBlur={() => {
+              const v = otInputVal === '' ? null : parseInt(otInputVal)
+              if (v === null || (!isNaN(v) && v > 0)) {
+                patchConfig({ ot_obergrenze_pro_block: v }).then(loadOtData)
+              }
+            }}
+            placeholder="unbegrenzt"
+            style={{ ...sel, width: 110 }}
+            disabled={saving}
+          />
+          {otInputVal !== '' && (
+            <button
+              onClick={() => { setOtInputVal(''); patchConfig({ ot_obergrenze_pro_block: null }).then(loadOtData) }}
+              style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+              title="Limit entfernen"
+            >✕</button>
+          )}
+        </div>
+      </div>
+
+      {/* Mengenkontrolle-Tabelle */}
+      {otData && (
+        <div style={{ marginBottom: 16 }}>
+          {!otData.linked && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+              ℹ️ Produktion noch nicht mit der Produktionsdatenbank verknüpft — Block-Daten nicht verfügbar.
+            </div>
+          )}
+          {otData.linked && otData.error && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+              ℹ️ {otData.error}
+            </div>
+          )}
+          {otData.linked && otData.blocks && otData.blocks.length > 0 && (
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                <thead>
+                  <tr style={{ background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)' }}>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11 }}>Block</th>
+                    <th style={{ textAlign: 'left', padding: '6px 10px', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11 }}>Folgen</th>
+                    <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11 }}>o.T. Einsätze</th>
+                    <th style={{ textAlign: 'right', padding: '6px 10px', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11 }}>Limit</th>
+                    <th style={{ textAlign: 'center', padding: '6px 10px', fontWeight: 600, color: 'var(--text-muted)', fontSize: 11 }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {otData.blocks.map((blk, i) => {
+                    const hasLimit = otData.ot_obergrenze_pro_block != null
+                    const pct = hasLimit ? Math.min(100, Math.round(blk.ot_anzahl / otData.ot_obergrenze_pro_block! * 100)) : 0
+                    const badgeColor = !hasLimit ? '#757575' : blk.ueberschritten ? '#FF3B30' : blk.ot_anzahl > otData.ot_obergrenze_pro_block! * 0.85 ? '#FF9500' : '#00C853'
+                    const badgeLabel = !hasLimit ? '—' : blk.ueberschritten ? '⚠ Überschritten' : `${pct}%`
+                    return (
+                      <tr key={blk.block_nummer} style={{ borderBottom: i < otData.blocks!.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <td style={{ padding: '7px 10px', fontWeight: 600 }}>Block {blk.block_nummer}</td>
+                        <td style={{ padding: '7px 10px', color: 'var(--text-secondary)' }}>
+                          {blk.folge_von}–{blk.folge_bis}
+                          {(blk.dreh_von || blk.dreh_bis) && (
+                            <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-muted)' }}>
+                              ({[blk.dreh_von, blk.dreh_bis].filter(Boolean).join(' – ')})
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 600, color: blk.ueberschritten ? '#FF3B30' : 'var(--text-primary)' }}>
+                          {blk.ot_anzahl}
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                          {hasLimit ? otData.ot_obergrenze_pro_block : '–'}
+                        </td>
+                        <td style={{ padding: '7px 10px', textAlign: 'center' }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
+                            background: `${badgeColor}22`, color: badgeColor,
+                          }}>{badgeLabel}</span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div style={{ padding: '6px 10px', fontSize: 10, color: 'var(--text-muted)', borderTop: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+                Basis: aktuellste Drehbuch-Werkstufe pro Folge · Zählt Summe aller o.T.-Komparsen-Anzahlen
+                <button
+                  onClick={loadOtData}
+                  style={{ marginLeft: 10, fontSize: 10, color: '#007AFF', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  Aktualisieren
+                </button>
+              </div>
+            </div>
+          )}
+          {otData.linked && otData.blocks?.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+              Noch keine Folgen importiert — Mengenkontrolle zeigt 0 Einträge.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Genehmiger ── */}
       <p style={sec}><GlossarTooltip term="Fall B" produktionId={produktionId}>Budget-Genehmiger</GlossarTooltip></p>
