@@ -220,14 +220,19 @@ export async function autoUpsertNtEintraege(
     // NT-Figuren aus Content extrahieren
     const ntChars = extractNtCharacters(content, charFormatIds, diagFormatIds)
 
-    // replik_baseline für diese Szene laden → absoluter Replik-Offset
-    const wsRow = await queryOne(
-      `SELECT replik_baseline FROM werkstufen WHERE id = $1`,
+    // Replik-Offset: Anzahl CHARACTER-Blöcke aller Vorszenen (identisch zu GET /replik-offsets)
+    // replik_baseline ist nur bei gesperrten Werkstufen gefüllt — daher immer on-the-fly berechnen
+    const scenesInOrder = await query(
+      `SELECT id, replik_count FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht = false
+       ORDER BY sort_order, scene_nummer`,
       [szene.werkstufe_id]
     )
-    const baseline: Array<{ scene_id: string; start: number; count: number }> = wsRow?.replik_baseline ?? []
-    const baselineEntry = baseline.find((b: any) => b.scene_id === szeneId)
-    const baselineStart: number = baselineEntry?.start ?? 0
+    let baselineStart = 0
+    for (const s of scenesInOrder) {
+      if (s.id === szeneId) break
+      baselineStart += (s.replik_count ?? 0)
+    }
 
     // Figuren-UUIDs per Name nachschlagen (oder anlegen)
     const upsertedCharIds: string[] = []
