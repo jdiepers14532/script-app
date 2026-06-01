@@ -142,13 +142,21 @@ export function createHocuspocusServer() {
           // Content aus Yjs-Dokument extrahieren (aktueller Stand, nicht DB-Cache)
           const freshContent = yjsDocToContent(document as unknown as Y.Doc)
 
+          // yjs_state + content synchron schreiben (content wird von applyNtVerweisFix & allen
+          // anderen Checks aus der DB gelesen — muss immer aktuell sein)
           await pool.query(
             `UPDATE dokument_szenen
              SET yjs_state = $1,
-                 updated_by = $2,
+                 content   = COALESCE($2, content),
+                 updated_by = $3,
                  updated_at = now()
-             WHERE id = $3`,
-            [Buffer.from(state), context?.user_id ?? null, parsed.id]
+             WHERE id = $4`,
+            [
+              Buffer.from(state),
+              freshContent ? JSON.stringify(freshContent) : null,
+              context?.user_id ?? null,
+              parsed.id,
+            ]
           )
 
           // Recalc repliken/spiel_typ + page_length after Yjs content persist
