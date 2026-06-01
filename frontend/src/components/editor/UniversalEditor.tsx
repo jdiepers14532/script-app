@@ -600,16 +600,37 @@ export default function UniversalEditor({
   const openNewCharDialogRef = useRef<(name: string, suffix?: string | null) => void>(() => {})
   const openNewCharDialog = useCallback((name: string, suffix?: string | null) => {
     const existing = allCharObjsRef.current.find(o => o.name.toUpperCase() === name.toUpperCase())
-    const stage: 'budget' | 'dispo' = existing ? 'dispo' : 'budget'
-    setNewCharDialog({ name, suffix: suffix ?? null, isKomparse: false, loading: false, stage, existingCharId: existing?.id ?? null, freigabeAktiv: undefined })
-    if (selectedProdId) {
-      fetch(`/api/rollen-freigabe/${selectedProdId}/config`, { credentials: 'include' })
-        .then(r => r.ok ? r.json() : null)
-        .then(cfg => setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: cfg ? !!cfg.freigabe_aktiv : false } : null))
-        .catch(() => setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: false } : null))
-    } else {
-      setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: false } : null)
+
+    if (!existing) {
+      // Budget-Pfad: Figur unbekannt → Dialog sofort zeigen
+      setNewCharDialog({ name, suffix: suffix ?? null, isKomparse: false, loading: false, stage: 'budget', existingCharId: null, freigabeAktiv: undefined })
+      if (selectedProdId) {
+        fetch(`/api/rollen-freigabe/${selectedProdId}/config`, { credentials: 'include' })
+          .then(r => r.ok ? r.json() : null)
+          .then(cfg => setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: cfg ? !!cfg.freigabe_aktiv : false } : null))
+          .catch(() => setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: false } : null))
+      } else {
+        setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: false } : null)
+      }
+      return
     }
+
+    // Dispo-Pfad: Figur existiert → nur Dialog zeigen wenn Lock-Gate aktiv (freigabe_aktiv)
+    // Sonst: Figur direkt einfügen ohne Dialog
+    if (!selectedProdId) {
+      acceptCharIntoEditorRef.current(name, suffix ?? null)
+      return
+    }
+    fetch(`/api/rollen-freigabe/${selectedProdId}/config`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(cfg => {
+        if (cfg?.freigabe_aktiv) {
+          setNewCharDialog({ name, suffix: suffix ?? null, isKomparse: false, loading: false, stage: 'dispo', existingCharId: existing.id ?? null, freigabeAktiv: true })
+        } else {
+          acceptCharIntoEditorRef.current(name, suffix ?? null)
+        }
+      })
+      .catch(() => acceptCharIntoEditorRef.current(name, suffix ?? null))
   }, [selectedProdId])
   useEffect(() => { openNewCharDialogRef.current = openNewCharDialog }, [openNewCharDialog])
   // Erkannter Suffix (OFF/NT/ONE-WAY) aus letzter AC-Eingabe — wird beim Einfügen angehängt
@@ -1357,6 +1378,8 @@ export default function UniversalEditor({
   }, [editor])
   const acceptActionCharIntoEditorRef = useRef(acceptActionCharIntoEditor)
   useEffect(() => { acceptActionCharIntoEditorRef.current = acceptActionCharIntoEditor }, [acceptActionCharIntoEditor])
+  const acceptCharIntoEditorRef = useRef(acceptCharIntoEditor)
+  useEffect(() => { acceptCharIntoEditorRef.current = acceptCharIntoEditor }, [acceptCharIntoEditor])
 
   useEffect(() => {
     acHandlersRef.current = {
