@@ -676,10 +676,16 @@ function renderSzenenkopf(
   // Im Synopsen-Modus kein page-break-after:avoid auf dem Content-Div:
   // Dort folgt die nächste Szene (kein Drehbuch-Content), und das avoid
   // würde Chrome dazu bringen, Szenen zusammenzuhalten und Seiten vorzeitig umzubrechen.
+  // Im Synopsen-Modus: kein break-inside:avoid auf dem Content-Div und kein page-break-after:avoid
+  // auf dem Scene-Bookmark-H2 — der Table-Wrapper in buildSynopsenHtml übernimmt die Kontrolle.
+  // Im Drehbuch-Modus: page-break-after:avoid auf dem H2 hält ihn mit dem Content-Div zusammen.
   const contentDivStyle = synopseMode
-    ? 'margin-top:14pt;margin-bottom:4pt;break-inside:avoid;page-break-inside:avoid'
+    ? 'margin-top:14pt;margin-bottom:4pt'
     : 'margin-top:14pt;margin-bottom:4pt;page-break-after:avoid;break-inside:avoid;page-break-inside:avoid'
-  return `<h2 style="${pbStyle}color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${label}</h2>` +
+  const h2Style = synopseMode
+    ? `${pbStyle}color:white;font-size:1pt;line-height:1;margin:0;padding:0`
+    : `${pbStyle}color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid`
+  return `<h2 style="${h2Style}">${label}</h2>` +
          `<div style="${contentDivStyle}">${parts.join('\n')}</div>`
 }
 
@@ -860,13 +866,11 @@ async function buildSynopsenHtml(
     }
     accumPt += scenePt
 
-    // break-inside:avoid auf dem äußeren Wrapper: verhindert, dass Chrome mitten im Szenenkopf
-    // umbricht (z.B. nach der ersten flex-Zeile). Der server-seitige page-break-before ist der
-    // primäre Mechanismus; break-inside:avoid ist die Sicherheitsnetz-Fallback-Regel.
-    // Da einzelne Szenenköpfe (~80–110pt) immer kleiner als die Seitenhöhe (~714pt) sind,
-    // verschiebt Chrome die Szene im schlimmsten Fall auf die nächste Seite — aber niemals
-    // mitten in eine Szene.
-    parts.push(`<div style="break-inside:avoid;page-break-inside:avoid">${html}</div>`)
+    // TABLE-Wrapper statt DIV: Chrome ignoriert break-inside:avoid bei Block-Containern mit
+    // Flex-Kindern (Puppeteer 22.x Bug), respektiert es aber zuverlässig bei Tabellen.
+    // Jede Szene wird als einzelne Tabellenzelle gerendert — die Tabelle nimmt nie mehr als
+    // ~110pt ein und passt damit immer auf eine Seite (≥694pt verfügbar).
+    parts.push(`<table style="break-inside:avoid;page-break-inside:avoid;width:100%;border-collapse:collapse;table-layout:fixed"><tbody><tr><td style="padding:0">${html}</td></tr></tbody></table>`)
   }
 
   if (!parts.length) return '<div style="color:#888;font-size:9pt">Keine Szenen gefunden.</div>'
@@ -1383,8 +1387,10 @@ async function assembleHtml(
         return `${bookmarkH2}${await renderOnlinerHtml(item.statistikConfig, onlinerFormat)}`
       }
       if (item.type === 'synopse' && item.statistikConfig) {
+        // Kein page-break-after:avoid: Abschnitt startet ohnehin auf neuer Seite (page-break-before:always).
+        // page-break-after:avoid könnte mit dem Table-Wrapper der ersten Szene interagieren.
         const bookmarkH2 = item.label
-          ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0;page-break-after:avoid">${esc(item.label)}</h2>`
+          ? `<h2 style="color:white;font-size:1pt;line-height:1;margin:0;padding:0">${esc(item.label)}</h2>`
           : ''
         return `${bookmarkH2}${await buildSynopsenHtml(client, item.statistikConfig, szenenkopfTemplate, sceneKuerzel, bodyMargins.links / 10, pageContentHeightMm)}`
       }
