@@ -370,7 +370,7 @@ export default function FreigabenPage() {
 
   return (
     <AppShell title="Freigaben">
-      <div style={{ padding: '24px 24px 80px', maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ padding: '24px 24px 80px' }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>

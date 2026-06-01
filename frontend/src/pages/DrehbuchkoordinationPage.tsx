@@ -15,7 +15,6 @@ import type { KopfZeilenEditorValue, SeitenLayout } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
 import KopierenModal from '../components/KopierenModal'
 import WasserzeichenTab from '../components/WasserzeichenTab'
-import GlossarTooltip from '../components/GlossarTooltip'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -5844,19 +5843,35 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
       {/* ── Workflow ── */}
       <p style={sec}>Workflow</p>
       <div style={row}>
-        <span style={lbl}>Freigabe-Workflow aktiv</span>
+        <span style={lbl}>
+          <Tooltip text="Schaltet das gesamte Freigabe-System ein oder aus. Wenn deaktiviert, können Rollen und Szenen ohne Genehmigung hinzugefügt werden.">
+            Freigabe-Workflow aktiv
+          </Tooltip>
+        </span>
         <ToggleBtn on={config.freigabe_aktiv} onToggle={() => patchConfig({ freigabe_aktiv: !config.freigabe_aktiv })} disabled={saving} />
       </div>
       <div style={row}>
-        <span style={lbl}>Budget-Freigabe (Rollenvergabe)</span>
+        <span style={lbl}>
+          <Tooltip text="Fall B: Neue Rollen oder Motive, die noch nicht in der Datenbank existieren, müssen vor der Anlage genehmigt werden. Granularität: pro Rolle/Motiv und Produktion. Zuständig: Herstellungs-/Produktionsleitung.">
+            Budget-Freigabe (Rollenvergabe)
+          </Tooltip>
+        </span>
         <ToggleBtn on={config.deckt_rollen} onToggle={() => patchConfig({ deckt_rollen: !config.deckt_rollen })} disabled={saving || !config.freigabe_aktiv} />
       </div>
       <div style={row}>
-        <span style={lbl}>Dispo-Freigabe (Szenen-Einsatz)</span>
+        <span style={lbl}>
+          <Tooltip text="Fall A: Cast-Änderungen und neue Szenen-Einsätze nach dem Lock benötigen eine Genehmigung. Granularität: pro Szene. Zuständig: Drehplanung/Aufnahmeleitung.">
+            Dispo-Freigabe (Szenen-Einsatz)
+          </Tooltip>
+        </span>
         <ToggleBtn on={config.deckt_motive} onToggle={() => patchConfig({ deckt_motive: !config.deckt_motive })} disabled={saving || !config.freigabe_aktiv} />
       </div>
       <div style={row}>
-        <span style={lbl}>Quorum</span>
+        <span style={lbl}>
+          <Tooltip text={'Legt fest, wie viele Genehmiger zustimmen müssen.\n\nFirst-Responder: Der erste Genehmiger, der entscheidet, bestimmt das Ergebnis für alle.\n\nAlle: Alle obligatorischen Genehmiger müssen zustimmen, bevor die Anfrage gilt.'}>
+            Quorum
+          </Tooltip>
+        </span>
         <select
           value={config.quorum}
           onChange={e => patchConfig({ quorum: e.target.value as any })}
@@ -5868,7 +5883,11 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
         </select>
       </div>
       <div style={row}>
-        <span style={lbl}>Erinnerung nach</span>
+        <span style={lbl}>
+          <Tooltip text="Anzahl Tage, nach denen automatisch eine Erinnerungsmail an noch ausstehende Genehmiger gesendet wird.">
+            Erinnerung nach
+          </Tooltip>
+        </span>
         <select
           value={config.erinnerung_nach_tagen}
           onChange={e => patchConfig({ erinnerung_nach_tagen: parseInt(e.target.value) })}
@@ -5882,13 +5901,25 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
       </div>
 
       {/* ── Lock-Gate ── */}
-      <p style={sec}>Lock-Gate</p>
+      <p style={sec}>
+        <Tooltip text="Steuert das Zusammenspiel zwischen offenen Freigabe-Anfragen und dem Folgen-Lock.">
+          Lock-Gate
+        </Tooltip>
+      </p>
       <div style={row}>
-        <span style={lbl}>Override erlaubt (trotz offener Freigaben sperren)</span>
+        <span style={lbl}>
+          <Tooltip text="Erlaubt der DK, eine Folge trotz noch offener Freigabe-Anfragen zu sperren. Ohne diesen Override kann erst gesperrt werden, wenn alle Anfragen entschieden sind.">
+            Override erlaubt (trotz offener Freigaben sperren)
+          </Tooltip>
+        </span>
         <ToggleBtn on={config.lock_override_aktiv} onToggle={() => patchConfig({ lock_override_aktiv: !config.lock_override_aktiv })} disabled={saving} />
       </div>
       <div style={row}>
-        <span style={lbl}>Lock-Trigger Fassungslabel</span>
+        <span style={lbl}>
+          <Tooltip text="Wenn eine Werkstufe mit genau diesem Label veröffentlicht wird, löst das automatisch den Lock-Prozess aus. Leer lassen für rein manuellen Trigger.">
+            Lock-Trigger Fassungslabel
+          </Tooltip>
+        </span>
         <input
           value={config.lock_trigger_fassungslabel ?? ''}
           onChange={e => setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: e.target.value || null }))}
@@ -6012,10 +6043,18 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
       )}
 
       {/* ── Genehmiger ── */}
-      <p style={sec}><GlossarTooltip term="Fall B" produktionId={produktionId}>Budget-Genehmiger</GlossarTooltip></p>
+      <p style={sec}>
+        <Tooltip text="Fall B (Budget/Inhalt): Genehmiger für neue Rollen und Motive, die noch nicht in der Datenbank existieren. Granularität: pro Rolle/Motiv und Produktion.">
+          Budget-Genehmiger
+        </Tooltip>
+      </p>
       {renderGenehmiger(budgetGenehmiger)}
 
-      <p style={{ ...sec, marginTop: 20 }}><GlossarTooltip term="Fall A" produktionId={produktionId}>Dispo-Genehmiger</GlossarTooltip></p>
+      <p style={{ ...sec, marginTop: 20 }}>
+        <Tooltip text="Fall A (Dispo/Logistik): Genehmiger für Cast-Änderungen und neue Szenen-Einsätze nach dem Lock. Granularität: pro Szene.">
+          Dispo-Genehmiger
+        </Tooltip>
+      </p>
       {renderGenehmiger(dispoGenehmiger)}
 
       {/* Neuer Genehmiger */}
