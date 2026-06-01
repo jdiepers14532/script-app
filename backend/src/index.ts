@@ -426,6 +426,8 @@ async function runMigrations() {
     'v164_drop_block_label.sql',
     // KI-Audit-Log + beat_kurztext ki_settings entry
     'v165_ki_audit_log.sql',
+    // Rollen-Einsatzplanung (Gantt) + Befund-Register
+    'v166_rollen_einsatz_befunde.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

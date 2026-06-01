@@ -251,3 +251,269 @@ planungRouter.post('/beats/ki-kurztext/commit', async (req, res) => {
     res.status(500).json({ error: String(err) })
   }
 })
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Rollen-Einsatzplanung (Gantt)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/planung/einsatz?produktion_id=X
+// Returns { eintraege: RollenEinsatz[], characters: Character[] }
+planungRouter.get('/einsatz', async (req, res) => {
+  const { produktion_id } = req.query
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+
+  try {
+    const eintraege = await query(
+      `SELECT re.id, re.character_id, re.block_von, re.block_bis, re.status, re.notiz,
+              re.erstellt_am, c.name AS character_name, c.farbe AS character_farbe
+       FROM rollen_einsatz re
+       JOIN characters c ON c.id = re.character_id
+       WHERE re.produktion_id = $1
+       ORDER BY c.name, re.block_von`,
+      [produktion_id]
+    )
+
+    // Alle aktiven Characters der Produktion (für Zeilen-Labels)
+    const characters = await query(
+      `SELECT c.id, c.name, c.farbe, cp.nummer
+       FROM characters c
+       JOIN character_productions cp ON cp.character_id = c.id
+       WHERE cp.produktion_id = $1 AND cp.ist_aktiv = TRUE
+       ORDER BY c.name`,
+      [produktion_id]
+    )
+
+    res.json({ eintraege, characters })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/planung/einsatz
+// Body: { produktion_id, character_id, block_von, block_bis, status?, notiz? }
+planungRouter.post('/einsatz', async (req, res) => {
+  const { produktion_id, character_id, block_von, block_bis, status, notiz } = req.body
+  if (!produktion_id || !character_id || block_von == null || block_bis == null) {
+    return res.status(400).json({ error: 'produktion_id, character_id, block_von, block_bis required' })
+  }
+  if (block_bis < block_von) return res.status(400).json({ error: 'block_bis must be >= block_von' })
+
+  try {
+    const row = await queryOne(
+      `INSERT INTO rollen_einsatz (produktion_id, character_id, block_von, block_bis, status, notiz)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [produktion_id, character_id, block_von, block_bis, status ?? 'geplant', notiz ?? null]
+    )
+    // Attach character name/farbe
+    const char = await queryOne('SELECT name, farbe FROM characters WHERE id = $1', [character_id])
+    res.status(201).json({ ...row, character_name: char?.name, character_farbe: char?.farbe })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// PUT /api/planung/einsatz/:id
+// Body: { block_von?, block_bis?, status?, notiz? }
+planungRouter.put('/einsatz/:id', async (req, res) => {
+  const { id } = req.params
+  const { block_von, block_bis, status, notiz } = req.body
+
+  try {
+    const existing = await queryOne('SELECT * FROM rollen_einsatz WHERE id = $1', [id])
+    if (!existing) return res.status(404).json({ error: 'Eintrag nicht gefunden' })
+
+    const newVon = block_von ?? existing.block_von
+    const newBis = block_bis ?? existing.block_bis
+    if (newBis < newVon) return res.status(400).json({ error: 'block_bis must be >= block_von' })
+
+    const row = await queryOne(
+      `UPDATE rollen_einsatz
+       SET block_von = $1, block_bis = $2, status = $3, notiz = $4
+       WHERE id = $5 RETURNING *`,
+      [newVon, newBis, status ?? existing.status, notiz !== undefined ? notiz : existing.notiz, id]
+    )
+    const char = await queryOne('SELECT name, farbe FROM characters WHERE id = $1', [row.character_id])
+    res.json({ ...row, character_name: char?.name, character_farbe: char?.farbe })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// DELETE /api/planung/einsatz/:id
+planungRouter.delete('/einsatz/:id', async (req, res) => {
+  const { id } = req.params
+  try {
+    await query('DELETE FROM rollen_einsatz WHERE id = $1', [id])
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/planung/cast-abgleich?produktion_id=X
+// Vergleicht rollen_einsatz mit beat_charaktere (Future-Beats).
+// Schreibt Befunde in Tabelle befunde (UPSERT per identitaet).
+// Returns { befunde: Befund[], summary: { luecken, ueberschuesse, gesamt } }
+// ══════════════════════════════════════════════════════════════════════════════
+planungRouter.post('/cast-abgleich', async (req, res) => {
+  const { produktion_id } = req.query as { produktion_id?: string }
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+
+  try {
+    // 1. Alle Einsatz-Einträge für diese Produktion
+    const eintraege = await query(
+      `SELECT re.character_id, re.block_von, re.block_bis, c.name AS char_name
+       FROM rollen_einsatz re
+       JOIN characters c ON c.id = re.character_id
+       WHERE re.produktion_id = $1`,
+      [produktion_id]
+    )
+
+    // 2. Alle Future-Beats mit character-Tags für diese Produktion
+    const beatChars = await query(
+      `SELECT bc.character_id, sb.block_nummer, c.name AS char_name
+       FROM beat_charaktere bc
+       JOIN strang_beats sb ON sb.id = bc.beat_id
+       JOIN straenge s ON s.id = sb.strang_id
+       JOIN characters c ON c.id = bc.character_id
+       WHERE s.produktion_id = $1 AND sb.ebene = 'future'
+         AND sb.block_nummer IS NOT NULL`,
+      [produktion_id]
+    )
+
+    // Build lookup: character_id → Set of block_nummern (from beats)
+    const beatBlocksByChar = new Map<string, Set<number>>()
+    for (const bc of beatChars) {
+      if (!beatBlocksByChar.has(bc.character_id)) beatBlocksByChar.set(bc.character_id, new Set())
+      beatBlocksByChar.get(bc.character_id)!.add(bc.block_nummer)
+    }
+
+    // Build lookup: character_id → Set of block_nummern (from einsatz)
+    const einsatzBlocksByChar = new Map<string, { name: string; blocks: Set<number> }>()
+    for (const e of eintraege) {
+      if (!einsatzBlocksByChar.has(e.character_id)) {
+        einsatzBlocksByChar.set(e.character_id, { name: e.char_name, blocks: new Set() })
+      }
+      for (let b = e.block_von; b <= e.block_bis; b++) {
+        einsatzBlocksByChar.get(e.character_id)!.blocks.add(b)
+      }
+    }
+
+    // Collect all relevant character_ids and block_nummern
+    const allCharIds = new Set([...einsatzBlocksByChar.keys(), ...beatBlocksByChar.keys()])
+    const allBlocks = new Set<number>()
+    for (const e of eintraege) {
+      for (let b = e.block_von; b <= e.block_bis; b++) allBlocks.add(b)
+    }
+    for (const bc of beatChars) allBlocks.add(bc.block_nummer)
+
+    const newBefunde: Array<{
+      typ: string; identitaet: string; rolle_id: string
+      block_nummer: number; beschreibung: string
+    }> = []
+
+    for (const charId of allCharIds) {
+      const charName = einsatzBlocksByChar.get(charId)?.name
+        ?? beatChars.find((bc: any) => bc.character_id === charId)?.char_name
+        ?? charId
+
+      const einsatzBlocks = einsatzBlocksByChar.get(charId)?.blocks ?? new Set<number>()
+      const beatBlocks    = beatBlocksByChar.get(charId) ?? new Set<number>()
+
+      // Lücke: Einsatz-Block ohne Future-Beat
+      for (const bn of einsatzBlocks) {
+        if (!beatBlocks.has(bn)) {
+          newBefunde.push({
+            typ: 'cast_luecke',
+            identitaet: `cast_luecke·${charId}·${bn}`,
+            rolle_id: charId,
+            block_nummer: bn,
+            beschreibung: `${charName} ist in Block ${bn} im Einsatzplan eingetragen, hat aber keinen Future-Beat.`,
+          })
+        }
+      }
+
+      // Überschuss: Future-Beat ohne Einsatz-Eintrag
+      for (const bn of beatBlocks) {
+        if (!einsatzBlocks.has(bn)) {
+          newBefunde.push({
+            typ: 'cast_ueberschuss',
+            identitaet: `cast_ueberschuss·${charId}·${bn}`,
+            rolle_id: charId,
+            block_nummer: bn,
+            beschreibung: `${charName} hat in Block ${bn} einen Future-Beat, ist aber nicht im Einsatzplan.`,
+          })
+        }
+      }
+    }
+
+    // UPSERT all new befunde; auto-close resolved ones
+    for (const bf of newBefunde) {
+      await query(
+        `INSERT INTO befunde (produktion_id, typ, identitaet, rolle_id, block_nummer, beschreibung, status)
+         VALUES ($1,$2,$3,$4,$5,$6,'offen')
+         ON CONFLICT (produktion_id, identitaet)
+         DO UPDATE SET status = 'offen', beschreibung = EXCLUDED.beschreibung`,
+        [produktion_id, bf.typ, bf.identitaet, bf.rolle_id, bf.block_nummer, bf.beschreibung]
+      )
+    }
+
+    // Auto-close befunde whose cause is resolved
+    const newIdentitaeten = new Set(newBefunde.map(b => b.identitaet))
+    await query(
+      `UPDATE befunde
+       SET status = 'auto_geloest', geloest_vermerk = 'Ursache durch Änderung behoben'
+       WHERE produktion_id = $1
+         AND typ IN ('cast_luecke','cast_ueberschuss')
+         AND status = 'offen'
+         AND identitaet != ALL($2::text[])`,
+      [produktion_id, [...newIdentitaeten]]
+    )
+
+    // Return all open befunde for this produktion
+    const offene = await query(
+      `SELECT bf.*, c.name AS character_name
+       FROM befunde bf
+       LEFT JOIN characters c ON c.id = bf.rolle_id
+       WHERE bf.produktion_id = $1 AND bf.status = 'offen'
+       ORDER BY bf.block_nummer, bf.typ`,
+      [produktion_id]
+    )
+
+    res.json({
+      befunde: offene,
+      summary: {
+        luecken:      offene.filter((b: any) => b.typ === 'cast_luecke').length,
+        ueberschuesse: offene.filter((b: any) => b.typ === 'cast_ueberschuss').length,
+        gesamt: offene.length,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// GET /api/planung/cast-abgleich/check?produktion_id=X&character_id=Y&block_nummer=N
+// Präventiver Check: Hat diese Rolle einen rollen_einsatz-Eintrag für diesen Block?
+// Wird vom Future-Board vor dem Entfernen eines Character-Tags aufgerufen.
+planungRouter.get('/cast-abgleich/check', async (req, res) => {
+  const { produktion_id, character_id, block_nummer } = req.query
+  if (!produktion_id || !character_id || block_nummer == null) {
+    return res.status(400).json({ error: 'produktion_id, character_id, block_nummer required' })
+  }
+  try {
+    const row = await queryOne(
+      `SELECT re.id, re.status, c.name AS character_name
+       FROM rollen_einsatz re
+       JOIN characters c ON c.id = re.character_id
+       WHERE re.produktion_id = $1
+         AND re.character_id = $2
+         AND re.block_von <= $3 AND re.block_bis >= $3`,
+      [produktion_id, character_id, Number(block_nummer)]
+    )
+    res.json({ hat_einsatz: !!row, einsatz: row ?? null })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})

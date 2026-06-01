@@ -896,6 +896,24 @@ export const api = {
   beatKurztextCommit: (updates: Array<{ beat_id: string; beat_text: string }>) =>
     request<{ updated: number }>('POST', '/planung/beats/ki-kurztext/commit', { updates }),
 
+  // ── Rollen-Einsatzplanung ──────────────────────────────────────────────────
+  getEinsatz: (produktionId: string) =>
+    request<{ eintraege: any[]; characters: any[] }>('GET', `/planung/einsatz?produktion_id=${encodeURIComponent(produktionId)}`),
+  createEinsatz: (data: { produktion_id: string; character_id: string; block_von: number; block_bis: number; status?: string; notiz?: string }) =>
+    request<any>('POST', '/planung/einsatz', data),
+  updateEinsatz: (id: string, data: { block_von?: number; block_bis?: number; status?: string; notiz?: string }) =>
+    request<any>('PUT', `/planung/einsatz/${id}`, data),
+  deleteEinsatz: (id: string) =>
+    request<{ ok: boolean }>('DELETE', `/planung/einsatz/${id}`),
+  runCastAbgleich: (produktionId: string) =>
+    request<{ befunde: any[]; summary: { luecken: number; ueberschuesse: number; gesamt: number } }>(
+      'POST', `/planung/cast-abgleich?produktion_id=${encodeURIComponent(produktionId)}`
+    ),
+  checkCastEinsatz: (produktionId: string, characterId: string, blockNummer: number) =>
+    request<{ hat_einsatz: boolean; einsatz: any | null }>(
+      'GET', `/planung/cast-abgleich/check?produktion_id=${encodeURIComponent(produktionId)}&character_id=${encodeURIComponent(characterId)}&block_nummer=${blockNummer}`
+    ),
+
   // ── Sonderszenen: Wechselschnitt-Partner ──
   getWechselschnittPartner: (szeneId: string) =>
     request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-partner`),

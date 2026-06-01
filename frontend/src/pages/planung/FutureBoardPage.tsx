@@ -224,6 +224,19 @@ function BeatDetailPanel({
   }
 
   async function removeCharakter(charId: string) {
+    // Präventive Warnung: hat diese Rolle einen Einsatz-Eintrag für diesen Block?
+    if (beat.block_nummer != null) {
+      try {
+        const check = await api.checkCastEinsatz(produktionId, charId, beat.block_nummer)
+        if (check.hat_einsatz) {
+          const charName = charaktere.find(c => c.character_id === charId)?.name ?? 'Diese Rolle'
+          const confirmed = window.confirm(
+            `Achtung: ${charName} ist für Block ${beat.block_nummer} im Einsatzplan eingetragen (Status: ${check.einsatz?.status ?? 'geplant'}).\n\nTrotzdem aus diesem Beat entfernen?`
+          )
+          if (!confirmed) return
+        }
+      } catch { /* non-critical */ }
+    }
     await api.removeBeatCharakter(beat.id, charId)
     const next = charaktere.filter(c => c.character_id !== charId)
     setCharaktere(next)
