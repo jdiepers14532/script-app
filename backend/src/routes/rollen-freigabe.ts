@@ -2,6 +2,7 @@
  * Rollen-Freigabe-Workflow
  *
  * Genehmigungsprozess für neue Rollen/Komparsen in der Script-App.
+ * Seit Phase 1: Auth-User/Rolle-basiertes Fan-Out-Modell, First-Responder-Quorum.
  *
  * Routen:
  *   GET    /api/rollen-freigabe/:productionId/config
@@ -11,15 +12,16 @@
  *   PUT    /api/rollen-freigabe/:productionId/genehmiger/:genId
  *   DELETE /api/rollen-freigabe/:productionId/genehmiger/:genId
  *   GET    /api/rollen-freigabe/:productionId/anfragen
- *   POST   /api/rollen-freigabe/:productionId/anfragen          — neue Anfrage
- *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/freigeben
- *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/ablehnen
+ *   POST   /api/rollen-freigabe/:productionId/anfragen
+ *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/entscheiden   (in-app)
+ *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/freigeben     (DK-Override)
+ *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/ablehnen      (DK-Override)
  *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/zurueckziehen
  *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/erinnerung
+ *   POST   /api/rollen-freigabe/:productionId/anfragen/:id/erneut-anfragen
  *
  * Public (kein Auth):
  *   GET  /api/public/freigabe/:token
- *   POST /api/public/freigabe/:token/entscheiden
  */
 
 import { Router } from 'express'
@@ -29,9 +31,7 @@ import nodemailer from 'nodemailer'
 import crypto from 'crypto'
 import { getCompanyName } from '../utils/companyInfo'
 
-// APP_URL ist ein Wert der sich nicht ändert, kann statisch sein
 const APP_URL = process.env.APP_URL ?? 'https://script.serienwerft.studio'
-
 const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP'
 
 // ── Auth-Service Helfer ───────────────────────────────────────────────────────
@@ -65,8 +65,8 @@ async function getUsersByRoleFromAuth(rolle: string): Promise<Array<{user_id: st
   }
 }
 
-// SMTP-Credentials werden lazy aus process.env gelesen (NACH dotenv.config() in index.ts)
-// Daher KEINE module-level Konstanten — getTransporter() liest sie beim ersten Aufruf.
+// ── SMTP ──────────────────────────────────────────────────────────────────────
+
 let transporter: nodemailer.Transporter | null = null
 function getTransporter(): nodemailer.Transporter | null {
   const smtpUser = process.env.SMTP_USER ?? ''
@@ -107,16 +107,15 @@ function werkstufeTyptLabel(typ: string | null | undefined): string {
   return typ ?? ''
 }
 
+// Entscheidung erfolgt in der App — Email enthält nur "In App ansehen"-Button
 async function sendFreigabeAnfrageEmail(opts: {
   toName: string
   toEmail: string
   rollenName: string
   produktionTitel: string
   beantragtVon: string
-  freigebenUrl: string
-  ablehnenUrl: string
+  inAppUrl: string
   szeneKontext?: SzeneKontext | null
-  szeneUrl?: string | null
   erneutNotiz?: string | null
 }) {
   const t = getTransporter()
@@ -130,58 +129,33 @@ async function sendFreigabeAnfrageEmail(opts: {
     ctx.scene_nummer != null ? `<strong>Szene:</strong> ${ctx.scene_nummer}${ctx.int_ext ? ' · ' + ctx.int_ext : ''}${ctx.ort_name ? ' · ' + ctx.ort_name : ''}<br>` : '',
   ].join('') : ''
 
-  const szeneLink = opts.szeneUrl
-    ? `<a href="${opts.szeneUrl}" style="display:inline-block;margin-top:12px;font-size:12px;color:#007AFF;text-decoration:none;">→ Szene in Script-App öffnen</a>`
-    : ''
-
   const erneutNotizBlock = opts.erneutNotiz
-    ? `<div style="background:#fff8e0;border-left:3px solid #FFCC00;border-radius:0 6px 6px 0;padding:12px 16px;margin-top:12px;font-size:13px;line-height:1.7;">
-         <strong>Hinweis des Antragstellers:</strong><br>${opts.erneutNotiz}
-       </div>`
+    ? `<div style="background:#fff8e0;border-left:3px solid #FFCC00;border-radius:0 6px 6px 0;padding:12px 16px;margin-top:12px;font-size:13px;line-height:1.7;"><strong>Hinweis des Antragstellers:</strong><br>${opts.erneutNotiz}</div>`
     : ''
 
+  const dateStr = new Date().toLocaleDateString('de-DE', { dateStyle: 'long' })
   await t.sendMail({
-    from: `"Script · ${companyName}" <${process.env.SMTP_USER}>`,
+    from: `"Script \u00b7 ${companyName}" <${process.env.SMTP_USER}>`,
     to: opts.toEmail,
-    subject: `Freigabe erbeten: Neue Rolle „${opts.rollenName}"`,
-    html: `
-<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+    subject: `Freigabe erbeten: Neue Rolle \u201e${opts.rollenName}\u201c`,
+    html: `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
 body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margin:0;padding:24px}
 .card{background:#fff;border-radius:10px;max-width:520px;margin:0 auto;padding:32px}
 .title{font-size:18px;font-weight:700;margin:0 0 8px}
 .sub{font-size:14px;color:#757575;margin:0 0 24px}
 .info{background:#f5f5f5;border-radius:8px;padding:16px;margin:20px 0;font-size:13px;line-height:1.8}
 .info strong{color:#000}
-.btns{display:flex;gap:12px;margin-top:24px}
-.btn{display:inline-block;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none}
-.btn-ok{background:#000;color:#fff}
-.btn-no{background:#f5f5f5;color:#333;border:1px solid #e0e0e0}
+.btn{display:inline-block;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;background:#000;color:#fff;margin-top:24px}
 .footer{font-size:11px;color:#aaa;margin-top:24px;padding-top:16px;border-top:1px solid #eee}
-</style></head><body>
-<div class="card">
-  <div class="title">Freigabe erbeten</div>
-  <div class="sub">Script-App · ${new Date().toLocaleDateString('de-DE', { dateStyle: 'long' })}</div>
-  <p style="font-size:14px;line-height:1.7;color:#333;">
-    Hallo ${opts.toName},<br><br>
-    <strong>${opts.beantragtVon}</strong> möchte eine neue Rolle anlegen und bittet um deine Freigabe.
-  </p>
-  <div class="info">
-    <strong>Neue Rolle:</strong> ${opts.rollenName}<br>
-    <strong>Produktion:</strong> ${opts.produktionTitel}<br>
-    ${szeneBlock}<strong>Beantragt von:</strong> ${opts.beantragtVon}
-  </div>
-  ${szeneLink}
-  ${erneutNotizBlock}
-  <div class="btns">
-    <a href="${opts.freigebenUrl}" class="btn btn-ok">Rolle freigeben</a>
-    <a href="${opts.ablehnenUrl}" class="btn btn-no">Ablehnen</a>
-  </div>
-  <p style="font-size:12px;color:#999;margin-top:16px">
-    Diese Links sind 7 Tage gültig und können nur einmal verwendet werden.<br>
-    Freigeben: ${opts.freigebenUrl}<br>
-    Ablehnen: ${opts.ablehnenUrl}
-  </p>
-  <div class="footer">${companyName} · Script-App · Diese E-Mail wurde automatisch generiert.</div>
+</style></head><body><div class="card">
+<div class="title">Freigabe erbeten</div>
+<div class="sub">Script-App \u00b7 ${dateStr}</div>
+<p style="font-size:14px;line-height:1.7;color:#333;">Hallo ${opts.toName},<br><br><strong>${opts.beantragtVon}</strong> m\u00f6chte eine neue Rolle anlegen und bittet um deine Freigabe.</p>
+<div class="info"><strong>Neue Rolle:</strong> ${opts.rollenName}<br><strong>Produktion:</strong> ${opts.produktionTitel}<br>${szeneBlock}<strong>Beantragt von:</strong> ${opts.beantragtVon}</div>
+${erneutNotizBlock}
+<a href="${opts.inAppUrl}" class="btn">In App ansehen</a>
+<p style="font-size:12px;color:#999;margin-top:16px">Dieser Link ist 7 Tage g\u00fcltig.<br>${opts.inAppUrl}</p>
+<div class="footer">${companyName} \u00b7 Script-App \u00b7 Diese E-Mail wurde automatisch generiert.</div>
 </div></body></html>`,
   })
 }
@@ -191,82 +165,153 @@ async function sendErinnerungEmail(opts: {
   toEmail: string
   rollenName: string
   produktionTitel: string
-  freigebenUrl: string
-  ablehnenUrl: string
+  inAppUrl: string
 }) {
   const t = getTransporter()
   if (!t) { console.log('[rollenFreigabe] Kein SMTP — Erinnerung übersprungen:', opts.toEmail); return }
   const companyName = await getCompanyName()
+  const dateStr = new Date().toLocaleDateString('de-DE', { dateStyle: 'long' })
   await t.sendMail({
-    from: `"Script · ${companyName}" <${process.env.SMTP_USER}>`,
+    from: `"Script \u00b7 ${companyName}" <${process.env.SMTP_USER}>`,
     to: opts.toEmail,
-    subject: `Erinnerung: Freigabe für Rolle „${opts.rollenName}" steht noch aus`,
-    html: `
-<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
+    subject: `Erinnerung: Freigabe f\u00fcr Rolle \u201e${opts.rollenName}\u201c steht noch aus`,
+    html: `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
 body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margin:0;padding:24px}
 .card{background:#fff;border-radius:10px;max-width:520px;margin:0 auto;padding:32px}
 .title{font-size:18px;font-weight:700;margin:0 0 8px}
 .sub{font-size:14px;color:#757575;margin:0 0 24px}
 .info{background:#fff8e0;border-radius:8px;padding:16px;margin:20px 0;font-size:13px;line-height:1.8;border-left:3px solid #FFCC00}
-.btns{display:flex;gap:12px;margin-top:24px}
-.btn{display:inline-block;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none}
-.btn-ok{background:#000;color:#fff}
-.btn-no{background:#f5f5f5;color:#333;border:1px solid #e0e0e0}
+.btn{display:inline-block;padding:12px 28px;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;background:#000;color:#fff;margin-top:24px}
 .footer{font-size:11px;color:#aaa;margin-top:24px;padding-top:16px;border-top:1px solid #eee}
-</style></head><body>
-<div class="card">
-  <div class="title">Erinnerung: Freigabe steht aus</div>
-  <div class="sub">Script-App · ${new Date().toLocaleDateString('de-DE', { dateStyle: 'long' })}</div>
-  <div class="info">
-    <strong>Neue Rolle:</strong> ${opts.rollenName}<br>
-    <strong>Produktion:</strong> ${opts.produktionTitel}
-  </div>
-  <div class="btns">
-    <a href="${opts.freigebenUrl}" class="btn btn-ok">Rolle freigeben</a>
-    <a href="${opts.ablehnenUrl}" class="btn btn-no">Ablehnen</a>
-  </div>
-  <div class="footer">${companyName} · Script-App · Diese E-Mail wurde automatisch generiert.</div>
+</style></head><body><div class="card">
+<div class="title">Erinnerung: Freigabe steht aus</div>
+<div class="sub">Script-App \u00b7 ${dateStr}</div>
+<div class="info"><strong>Neue Rolle:</strong> ${opts.rollenName}<br><strong>Produktion:</strong> ${opts.produktionTitel}</div>
+<a href="${opts.inAppUrl}" class="btn">In App ansehen</a>
+<div class="footer">${companyName} \u00b7 Script-App \u00b7 Diese E-Mail wurde automatisch generiert.</div>
 </div></body></html>`,
   })
 }
 
-// ── Hilfsfunktion: Status-Gesamtbewertung ────────────────────────────────────
+// ── Szene-Kontext laden ───────────────────────────────────────────────────────
 
-async function recalcAnfrageStatus(anfrageId: number) {
+async function loadSzeneKontext(szeneId: string): Promise<{kontext: SzeneKontext; folgeNummer: number | null} | null> {
+  const szRow = await queryOne(
+    `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext,
+            w.typ AS werkstufe_typ, w.version_nummer AS werkstufe_version,
+            f.folge_nummer, f.folgen_titel AS arbeitstitel
+     FROM dokument_szenen ds
+     JOIN werkstufen w ON w.id = ds.werkstufe_id
+     JOIN folgen f ON f.id = w.folge_id
+     WHERE ds.id = $1`,
+    [szeneId]
+  )
+  if (!szRow) return null
+  return {
+    kontext: {
+      folge_nummer: szRow.folge_nummer,
+      arbeitstitel: szRow.arbeitstitel,
+      werkstufe_typ: szRow.werkstufe_typ,
+      werkstufe_version: szRow.werkstufe_version,
+      scene_nummer: szRow.scene_nummer != null ? String(szRow.scene_nummer) : null,
+      int_ext: szRow.int_ext,
+      ort_name: szRow.ort_name,
+      szene_id: szeneId,
+    },
+    folgeNummer: szRow.folge_nummer ?? null,
+  }
+}
+
+// ── Fan-Out: Genehmiger-Config → konkrete Auth-Users ─────────────────────────
+
+interface GenehmigerUser {
+  user_id: string; name: string; email: string; genehmiger_id: number; stufe: string
+}
+
+async function expandGenehmiger(
+  config: Array<{id: number; user_id: string | null; rolle: string | null; stufe: string}>
+): Promise<GenehmigerUser[]> {
+  const userMap = new Map<string, GenehmigerUser>()
+  for (const g of config) {
+    if (g.user_id) {
+      if (!userMap.has(g.user_id)) {
+        const info = await getUserInfoFromAuth(g.user_id)
+        if (info) userMap.set(g.user_id, { user_id: g.user_id, ...info, genehmiger_id: g.id, stufe: g.stufe })
+      }
+    } else if (g.rolle) {
+      const users = await getUsersByRoleFromAuth(g.rolle)
+      for (const u of users) {
+        if (!userMap.has(u.user_id)) {
+          userMap.set(u.user_id, { user_id: u.user_id, name: u.name, email: u.email, genehmiger_id: g.id, stufe: g.stufe })
+        }
+      }
+    }
+  }
+  return Array.from(userMap.values())
+}
+
+// ── First-Responder: Status-Gesamtbewertung ───────────────────────────────────
+
+async function recalcAnfrageStatus(anfrageId: number): Promise<string> {
   const gStatuses = await query(
-    `SELECT gs.entschieden, g.stufe
+    `SELECT gs.id, gs.entschieden, g.stufe
      FROM rollen_freigabe_genehmiger_status gs
      JOIN rollen_freigabe_genehmiger g ON g.id = gs.genehmiger_id
      WHERE gs.anfrage_id = $1`,
     [anfrageId]
   )
 
+  const obligatorisch = gStatuses.filter((g: any) => g.stufe === 'obligatorisch')
+  const firstDecision = obligatorisch.find(
+    (g: any) => g.entschieden !== null && g.entschieden !== 'zurueckgezogen'
+  )
+
   let neuerStatus = 'ausstehend'
 
-  const hatAbgelehnt = gStatuses.some((g: any) => g.entschieden === 'abgelehnt')
-  if (hatAbgelehnt) {
-    neuerStatus = 'abgelehnt'
-  } else {
-    const obligatorisch = gStatuses.filter((g: any) => g.stufe === 'obligatorisch')
-    const alleObligatorischFreigegeben = obligatorisch.length > 0 &&
-      obligatorisch.every((g: any) => g.entschieden === 'freigegeben')
-    if (alleObligatorischFreigegeben) {
-      neuerStatus = 'freigegeben'
+  if (firstDecision) {
+    neuerStatus = firstDecision.entschieden // 'freigegeben' | 'abgelehnt'
+
+    // Auto-Rückzug aller noch offenen obligatorischen Statuse
+    const toWithdraw = obligatorisch
+      .filter((g: any) => g.entschieden === null)
+      .map((g: any) => g.id)
+    if (toWithdraw.length > 0) {
+      await pool.query(
+        `UPDATE rollen_freigabe_genehmiger_status
+         SET entschieden = 'zurueckgezogen', entschieden_am = NOW()
+         WHERE id = ANY($1::int[])`,
+        [toWithdraw]
+      )
     }
   }
 
   await pool.query(
-    `UPDATE rollen_freigabe_anfragen SET status = $1, entschieden_am = CASE WHEN $1 != 'ausstehend' THEN NOW() ELSE NULL END WHERE id = $2`,
+    `UPDATE rollen_freigabe_anfragen
+     SET status = $1, entschieden_am = CASE WHEN $1 != 'ausstehend' THEN NOW() ELSE NULL END
+     WHERE id = $2`,
     [neuerStatus, anfrageId]
   )
 
-  // freigabe_status auf character_productions aktualisieren
-  const anfrage = await queryOne(`SELECT character_id, production_id FROM rollen_freigabe_anfragen WHERE id = $1`, [anfrageId])
-  if (anfrage) {
-    await pool.query(
-      `UPDATE character_productions SET freigabe_status = $1 WHERE character_id = $2 AND produktion_id = $3`,
-      [neuerStatus, anfrage.character_id, anfrage.production_id]
-    )
+  const anfrage = await queryOne(
+    `SELECT character_id, production_id FROM rollen_freigabe_anfragen WHERE id = $1`,
+    [anfrageId]
+  )
+  if (anfrage && neuerStatus !== 'ausstehend') {
+    if (neuerStatus === 'freigegeben') {
+      await pool.query(
+        `UPDATE character_productions
+         SET freigabe_status = 'freigegeben', is_active = TRUE
+         WHERE character_id = $1 AND produktion_id = $2`,
+        [anfrage.character_id, anfrage.production_id]
+      )
+    } else {
+      await pool.query(
+        `UPDATE character_productions
+         SET freigabe_status = $1
+         WHERE character_id = $2 AND produktion_id = $3`,
+        [neuerStatus, anfrage.character_id, anfrage.production_id]
+      )
+    }
   }
 
   return neuerStatus
@@ -311,37 +356,13 @@ rollenFreigabeRouter.put('/:productionId/config',
 rollenFreigabeRouter.get('/:productionId/genehmiger', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, name, email, stufe, sort_order, user_id, rolle, freigabe_typ
+      `SELECT id, user_id, rolle, freigabe_typ, stufe, sort_order
        FROM rollen_freigabe_genehmiger
        WHERE production_id = $1
        ORDER BY sort_order, id`,
       [req.params.productionId]
     )
-    // Resolve name/email für user_id-basierte Einträge; Legacy-Einträge haben bereits name+email
-    const result = await Promise.all(rows.map(async (g: any) => {
-      let name = g.name
-      let email = g.email
-      if (!name && g.user_id) {
-        const info = await getUserInfoFromAuth(g.user_id)
-        name = info?.name ?? g.user_id
-        email = info?.email ?? ''
-      } else if (!name && g.rolle) {
-        name = `Rolle: ${g.rolle}`
-        email = ''
-      }
-      return {
-        id: g.id,
-        name: name ?? '',
-        email: email ?? '',
-        ist_obligatorisch: g.stufe === 'obligatorisch',
-        sort_order: g.sort_order,
-        user_id: g.user_id,
-        rolle: g.rolle,
-        freigabe_typ: g.freigabe_typ,
-        stufe: g.stufe,
-      }
-    }))
-    res.json(result)
+    res.json(rows)
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
@@ -350,37 +371,21 @@ rollenFreigabeRouter.post('/:productionId/genehmiger',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { name, email, ist_obligatorisch, user_id, rolle, freigabe_typ, stufe } = req.body
+      const { user_id, rolle, freigabe_typ = 'budget', stufe = 'obligatorisch' } = req.body
+      if (!user_id && !rolle) return res.status(400).json({ error: 'user_id oder rolle erforderlich' })
+      if (user_id && rolle) return res.status(400).json({ error: 'Nur user_id ODER rolle angeben, nicht beide' })
+      if (!['budget', 'dispo'].includes(freigabe_typ)) return res.status(400).json({ error: 'freigabe_typ muss budget oder dispo sein' })
+      if (!['obligatorisch', 'review', 'notify'].includes(stufe)) return res.status(400).json({ error: 'stufe muss obligatorisch, review oder notify sein' })
       const maxOrder = await queryOne(
         `SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM rollen_freigabe_genehmiger WHERE production_id = $1`,
         [req.params.productionId]
       )
-      const nextOrder = (maxOrder?.max_order ?? 0) + 1
-      const effStufe = stufe ?? (ist_obligatorisch !== false ? 'obligatorisch' : 'review')
-      let row: any
-      if (name && email) {
-        // Legacy-Modus: Name + E-Mail direkt
-        row = await queryOne(
-          `INSERT INTO rollen_freigabe_genehmiger (production_id, name, email, stufe, sort_order)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [req.params.productionId, name.trim(), email.trim().toLowerCase(), effStufe, nextOrder]
-        )
-      } else if (user_id) {
-        row = await queryOne(
-          `INSERT INTO rollen_freigabe_genehmiger (production_id, user_id, freigabe_typ, stufe, sort_order)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [req.params.productionId, user_id, freigabe_typ ?? 'budget', effStufe, nextOrder]
-        )
-      } else if (rolle) {
-        row = await queryOne(
-          `INSERT INTO rollen_freigabe_genehmiger (production_id, rolle, freigabe_typ, stufe, sort_order)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [req.params.productionId, rolle, freigabe_typ ?? 'budget', effStufe, nextOrder]
-        )
-      } else {
-        return res.status(400).json({ error: 'name+email, user_id oder rolle erforderlich' })
-      }
-      res.status(201).json({ ...row, ist_obligatorisch: row.stufe === 'obligatorisch' })
+      const row = await queryOne(
+        `INSERT INTO rollen_freigabe_genehmiger (production_id, user_id, rolle, freigabe_typ, stufe, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [req.params.productionId, user_id ?? null, rolle ?? null, freigabe_typ, stufe, (maxOrder?.max_order ?? 0) + 1]
+      )
+      res.status(201).json(row)
     } catch (err) { res.status(500).json({ error: String(err) }) }
   }
 )
@@ -390,21 +395,23 @@ rollenFreigabeRouter.put('/:productionId/genehmiger/:genId',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { name, email, ist_obligatorisch, stufe, sort_order } = req.body
-      // ist_obligatorisch (legacy) → stufe mapping
-      const newStufe = stufe ?? (ist_obligatorisch !== undefined
-        ? (ist_obligatorisch ? 'obligatorisch' : 'review')
-        : undefined)
+      const { user_id, rolle, freigabe_typ, stufe, sort_order } = req.body
+      if (user_id !== undefined && rolle !== undefined && user_id !== null && rolle !== null) {
+        return res.status(400).json({ error: 'Nur user_id ODER rolle angeben, nicht beide' })
+      }
       const row = await queryOne(
         `UPDATE rollen_freigabe_genehmiger
-         SET name = COALESCE($1, name), email = COALESCE($2, email),
-             stufe = COALESCE($3, stufe),
-             sort_order = COALESCE($4, sort_order)
-         WHERE id = $5 AND production_id = $6 RETURNING *`,
-        [name?.trim() ?? null, email?.trim().toLowerCase() ?? null, newStufe ?? null, sort_order ?? null, req.params.genId, req.params.productionId]
+         SET user_id      = COALESCE($1, user_id),
+             rolle        = COALESCE($2, rolle),
+             freigabe_typ = COALESCE($3, freigabe_typ),
+             stufe        = COALESCE($4, stufe),
+             sort_order   = COALESCE($5, sort_order)
+         WHERE id = $6 AND production_id = $7 RETURNING *`,
+        [user_id ?? null, rolle ?? null, freigabe_typ ?? null, stufe ?? null, sort_order ?? null,
+         req.params.genId, req.params.productionId]
       )
       if (!row) return res.status(404).json({ error: 'Not found' })
-      res.json({ ...row, ist_obligatorisch: row.stufe === 'obligatorisch' })
+      res.json(row)
     } catch (err) { res.status(500).json({ error: String(err) }) }
   }
 )
@@ -424,8 +431,7 @@ rollenFreigabeRouter.delete('/:productionId/genehmiger/:genId',
 )
 
 // GET /api/rollen-freigabe/:productionId/anfragen
-// Accessible to DK + Produktion
-rollenFreigabeRouter.get('/:productionId/anfragen', async (req: any, res) => {
+rollenFreigabeRouter.get('/:productionId/anfragen', async (req, res) => {
   try {
     const rows = await query(
       `SELECT a.id, a.character_id, c.name AS rollen_name,
@@ -435,11 +441,9 @@ rollenFreigabeRouter.get('/:productionId/anfragen', async (req: any, res) => {
               ds.scene_nummer, ds.ort_name,
               JSON_AGG(JSON_BUILD_OBJECT(
                 'id', gs.id, 'genehmiger_id', gs.genehmiger_id,
-                'name', COALESCE(g.name, g.user_id, g.rolle, '?'),
-                'email', COALESCE(g.email, ''),
-                'ist_obligatorisch', (g.stufe = 'obligatorisch'),
+                'user_id', gs.user_id, 'stufe', g.stufe, 'freigabe_typ', g.freigabe_typ,
                 'entschieden', gs.entschieden, 'entschieden_am', gs.entschieden_am
-              ) ORDER BY g.sort_order) AS genehmiger_status
+              ) ORDER BY g.sort_order) FILTER (WHERE gs.id IS NOT NULL) AS genehmiger_status
        FROM rollen_freigabe_anfragen a
        JOIN characters c ON c.id = a.character_id
        LEFT JOIN dokument_szenen ds ON ds.id = a.szene_id
@@ -474,11 +478,14 @@ export async function starteFreigabeAnfrage(params: {
     return 'keine'
   }
 
-  const genehmiger = await query(
-    `SELECT id, name, email, user_id, rolle, stufe FROM rollen_freigabe_genehmiger WHERE production_id = $1 ORDER BY sort_order`,
+  const genehmigerConfig = await query(
+    `SELECT id, user_id, rolle, stufe
+     FROM rollen_freigabe_genehmiger
+     WHERE production_id = $1 AND freigabe_typ = 'budget'
+     ORDER BY sort_order`,
     [params.produktionId]
   )
-  if (genehmiger.length === 0) {
+  if (genehmigerConfig.length === 0) {
     await pool.query(
       `UPDATE character_productions SET freigabe_status = 'keine' WHERE character_id = $1 AND produktion_id = $2`,
       [params.characterId, params.produktionId]
@@ -488,35 +495,13 @@ export async function starteFreigabeAnfrage(params: {
 
   // Szene-Kontext laden
   let szeneKontext: SzeneKontext | null = null
-  let szeneUrl: string | null = null
   let szeneFolgeNummer: number | null = null
   if (params.szeneId) {
-    const szRow = await queryOne(
-      `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit,
-              w.typ AS werkstufe_typ, w.version_nummer AS werkstufe_version,
-              f.folge_nummer, f.folgen_titel AS arbeitstitel
-       FROM dokument_szenen ds
-       JOIN werkstufen w ON w.id = ds.werkstufe_id
-       JOIN folgen f ON f.id = w.folge_id
-       WHERE ds.id = $1`,
-      [params.szeneId]
-    )
-    if (szRow) {
-      szeneFolgeNummer = szRow.folge_nummer ?? null
-      szeneKontext = {
-        folge_nummer: szRow.folge_nummer,
-        arbeitstitel: szRow.arbeitstitel,
-        werkstufe_typ: szRow.werkstufe_typ,
-        werkstufe_version: szRow.werkstufe_version,
-        scene_nummer: szRow.scene_nummer != null ? String(szRow.scene_nummer) : null,
-        int_ext: szRow.int_ext,
-        ort_name: szRow.ort_name,
-        szene_id: params.szeneId,
-      }
-      szeneUrl = `${APP_URL}/?szene=${params.szeneId}`
-    }
+    const sc = await loadSzeneKontext(params.szeneId)
+    if (sc) { szeneKontext = sc.kontext; szeneFolgeNummer = sc.folgeNummer }
   }
 
+  // Anfrage anlegen / zurücksetzen
   const anfrage = await queryOne(
     `INSERT INTO rollen_freigabe_anfragen
        (character_id, production_id, beantragt_von_user_id, beantragt_von_name, status, szene_id, folge_nummer)
@@ -536,50 +521,38 @@ export async function starteFreigabeAnfrage(params: {
     [params.characterId, params.produktionId]
   )
 
+  // Alte Status-Zeilen löschen (Fan-Out-Konfiguration könnte sich geändert haben)
+  await pool.query(
+    `DELETE FROM rollen_freigabe_genehmiger_status WHERE anfrage_id = $1`,
+    [anfrage!.id]
+  )
+
+  // Fan-Out auf konkrete Auth-Users
+  const users = await expandGenehmiger(genehmigerConfig)
+  if (users.length === 0) return 'ausstehend'
+
   const prod = await queryOne(`SELECT titel FROM produktionen WHERE id = $1`, [params.produktionId])
   const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [params.characterId])
-
   const gueltigBis = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-  // Fan-Out: für jeden Genehmiger ggf. mehrere Empfänger (rolle → alle User mit dieser Rolle)
-  type EmpfaengerEntry = { genehmigterId: number; toName: string; toEmail: string }
-  const empfaenger: EmpfaengerEntry[] = []
-  for (const g of genehmiger) {
-    if (g.name && g.email) {
-      // Legacy: Name + E-Mail direkt gespeichert
-      empfaenger.push({ genehmigterId: g.id, toName: g.name, toEmail: g.email })
-    } else if (g.user_id) {
-      const info = await getUserInfoFromAuth(g.user_id)
-      if (info?.email) empfaenger.push({ genehmigterId: g.id, toName: info.name, toEmail: info.email })
-    } else if (g.rolle) {
-      const users = await getUsersByRoleFromAuth(g.rolle)
-      for (const u of users) {
-        if (u.email) empfaenger.push({ genehmigterId: g.id, toName: u.name, toEmail: u.email })
-      }
-    }
-  }
-
-  for (const e of empfaenger) {
-    const tokenFreigeben = crypto.randomBytes(32).toString('hex')
-    const tokenAblehnen  = crypto.randomBytes(32).toString('hex')
-    const combinedToken  = `${tokenFreigeben}:freigeben,${tokenAblehnen}:ablehnen`
+  for (const u of users) {
+    const token = crypto.randomBytes(32).toString('hex')
     await pool.query(
-      `INSERT INTO rollen_freigabe_genehmiger_status (anfrage_id, genehmiger_id, token, token_gueltig_bis)
-       VALUES ($1, $2, $3, $4)
-       ON CONFLICT (anfrage_id, genehmiger_id) DO UPDATE
-         SET token = $3, token_gueltig_bis = $4, entschieden = NULL, entschieden_am = NULL`,
-      [anfrage!.id, e.genehmigterId, combinedToken, gueltigBis]
+      `INSERT INTO rollen_freigabe_genehmiger_status
+         (anfrage_id, genehmiger_id, user_id, token, token_gueltig_bis)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (anfrage_id, user_id) DO UPDATE
+         SET token = $4, token_gueltig_bis = $5, entschieden = NULL, entschieden_am = NULL`,
+      [anfrage!.id, u.genehmiger_id, u.user_id, token, gueltigBis]
     )
     await sendFreigabeAnfrageEmail({
-      toName: e.toName,
-      toEmail: e.toEmail,
+      toName: u.name,
+      toEmail: u.email,
       rollenName: char?.name ?? '?',
       produktionTitel: prod?.titel ?? '?',
       beantragtVon: params.userName ?? params.userId ?? 'NT-Automatik',
-      freigebenUrl: `${APP_URL}/freigabe/${tokenFreigeben}`,
-      ablehnenUrl:  `${APP_URL}/freigabe/${tokenAblehnen}`,
+      inAppUrl: `${APP_URL}/freigabe/${token}`,
       szeneKontext,
-      szeneUrl,
     })
   }
 
@@ -602,6 +575,41 @@ rollenFreigabeRouter.post('/:productionId/anfragen', async (req: any, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
+// POST /api/rollen-freigabe/:productionId/anfragen/:id/entscheiden — In-App-Entscheidung des Genehmigers
+rollenFreigabeRouter.post('/:productionId/anfragen/:id/entscheiden', async (req: any, res) => {
+  try {
+    const { entscheidung, notiz } = req.body
+    if (!['freigegeben', 'abgelehnt'].includes(entscheidung)) {
+      return res.status(400).json({ error: 'entscheidung muss freigegeben oder abgelehnt sein' })
+    }
+    const gsRow = await queryOne(
+      `SELECT gs.id FROM rollen_freigabe_genehmiger_status gs
+       JOIN rollen_freigabe_anfragen a ON a.id = gs.anfrage_id
+       WHERE gs.anfrage_id = $1 AND gs.user_id = $2 AND gs.entschieden IS NULL
+         AND a.production_id = $3 AND a.status = 'ausstehend'`,
+      [req.params.id, req.user.user_id, req.params.productionId]
+    )
+    if (!gsRow) return res.status(404).json({ error: 'Keine offene Freigabe für diesen User' })
+
+    await pool.query(
+      `UPDATE rollen_freigabe_genehmiger_status
+       SET entschieden = $1, entschieden_am = NOW(), notiz = $2
+       WHERE id = $3`,
+      [entscheidung, notiz ?? null, gsRow.id]
+    )
+
+    if (entscheidung === 'abgelehnt' && notiz?.trim()) {
+      await pool.query(
+        `UPDATE rollen_freigabe_anfragen SET notiz = $1 WHERE id = $2`,
+        [notiz.trim(), req.params.id]
+      )
+    }
+
+    const neuerStatus = await recalcAnfrageStatus(parseInt(req.params.id, 10))
+    res.json({ ok: true, entschieden: entscheidung, anfrage_status: neuerStatus })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 // POST /api/rollen-freigabe/:productionId/anfragen/:id/freigeben (DK-Override)
 rollenFreigabeRouter.post('/:productionId/anfragen/:id/freigeben',
   requireDkAccess(req => req.params.productionId),
@@ -616,7 +624,7 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/freigeben',
       const anfrage = await queryOne(`SELECT character_id, production_id FROM rollen_freigabe_anfragen WHERE id = $1`, [req.params.id])
       if (anfrage) {
         await pool.query(
-          `UPDATE character_productions SET freigabe_status = 'freigegeben' WHERE character_id = $1 AND produktion_id = $2`,
+          `UPDATE character_productions SET freigabe_status = 'freigegeben', is_active = TRUE WHERE character_id = $1 AND produktion_id = $2`,
           [anfrage.character_id, anfrage.production_id]
         )
       }
@@ -685,33 +693,28 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erinnerung',
       if (!anfrage) return res.status(404).json({ error: 'Anfrage nicht gefunden oder nicht ausstehend' })
 
       const pendingStatuses = await query(
-        `SELECT gs.*, g.name, g.email
+        `SELECT gs.id, gs.user_id, gs.token
          FROM rollen_freigabe_genehmiger_status gs
-         JOIN rollen_freigabe_genehmiger g ON g.id = gs.genehmiger_id
          WHERE gs.anfrage_id = $1 AND gs.entschieden IS NULL`,
         [req.params.id]
       )
 
+      let count = 0
       for (const gs of pendingStatuses) {
-        // Token aus DB parsen
-        const tokens = gs.token?.split(',') ?? []
-        let freigebenToken = '', ablehnenToken = ''
-        for (const t of tokens) {
-          const [tok, typ] = t.split(':')
-          if (typ === 'freigeben') freigebenToken = tok
-          if (typ === 'ablehnen')  ablehnenToken = tok
-        }
+        if (!gs.user_id || !gs.token) continue
+        const info = await getUserInfoFromAuth(gs.user_id)
+        if (!info?.email) continue
         await sendErinnerungEmail({
-          toName: gs.name,
-          toEmail: gs.email,
+          toName: info.name,
+          toEmail: info.email,
           rollenName: anfrage.rollen_name,
           produktionTitel: anfrage.prod_titel,
-          freigebenUrl: `${APP_URL}/freigabe/${freigebenToken}`,
-          ablehnenUrl:  `${APP_URL}/freigabe/${ablehnenToken}`,
+          inAppUrl: `${APP_URL}/freigabe/${gs.token}`,
         })
+        count++
       }
 
-      res.json({ ok: true, erinnerungen: pendingStatuses.length })
+      res.json({ ok: true, erinnerungen: count })
     } catch (err) { res.status(500).json({ error: String(err) }) }
   }
 )
@@ -724,7 +727,7 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erneut-anfragen',
       const { notiz } = req.body
 
       const anfrage = await queryOne(
-        `SELECT a.id, a.character_id, a.production_id, a.szene_id, a.folge_nummer,
+        `SELECT a.id, a.character_id, a.production_id, a.szene_id,
                 c.name AS rollen_name, p.titel AS prod_titel
          FROM rollen_freigabe_anfragen a
          JOIN characters c ON c.id = a.character_id
@@ -734,7 +737,6 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erneut-anfragen',
       )
       if (!anfrage) return res.status(404).json({ error: 'Anfrage nicht gefunden' })
 
-      // Anfrage zurücksetzen
       await pool.query(
         `UPDATE rollen_freigabe_anfragen
          SET status = 'ausstehend', beantragt_am = NOW(),
@@ -746,88 +748,51 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erneut-anfragen',
       )
 
       await pool.query(
-        `UPDATE character_productions SET freigabe_status = 'ausstehend'
-         WHERE character_id = $1 AND produktion_id = $2`,
+        `UPDATE character_productions SET freigabe_status = 'ausstehend' WHERE character_id = $1 AND produktion_id = $2`,
         [anfrage.character_id, anfrage.production_id]
       )
 
-      // Szene-Kontext (aus gespeicherter szene_id)
+      // Szene-Kontext laden
       let szeneKontext: SzeneKontext | null = null
-      let szeneUrl: string | null = null
       if (anfrage.szene_id) {
-        const szRow = await queryOne(
-          `SELECT ds.scene_nummer, ds.ort_name, ds.int_ext,
-                  w.typ AS werkstufe_typ, w.version_nummer AS werkstufe_version,
-                  f.folge_nummer, f.folgen_titel AS arbeitstitel
-           FROM dokument_szenen ds
-           JOIN werkstufen w ON w.id = ds.werkstufe_id
-           JOIN folgen f ON f.id = w.folge_id
-           WHERE ds.id = $1`,
-          [anfrage.szene_id]
-        )
-        if (szRow) {
-          szeneKontext = {
-            folge_nummer: szRow.folge_nummer,
-            arbeitstitel: szRow.arbeitstitel,
-            werkstufe_typ: szRow.werkstufe_typ,
-            werkstufe_version: szRow.werkstufe_version,
-            scene_nummer: szRow.scene_nummer != null ? String(szRow.scene_nummer) : null,
-            int_ext: szRow.int_ext,
-            ort_name: szRow.ort_name,
-            szene_id: anfrage.szene_id,
-          }
-          szeneUrl = `${APP_URL}/?szene=${anfrage.szene_id}`
-        }
+        const sc = await loadSzeneKontext(anfrage.szene_id)
+        if (sc) szeneKontext = sc.kontext
       }
 
-      // Neue Tokens generieren und Emails senden
-      const genehmiger = await query(
-        `SELECT id, name, email, user_id, rolle, stufe FROM rollen_freigabe_genehmiger
-         WHERE production_id = $1 ORDER BY sort_order`,
+      // Alte Status-Zeilen löschen, neu per Fan-Out anlegen
+      await pool.query(`DELETE FROM rollen_freigabe_genehmiger_status WHERE anfrage_id = $1`, [req.params.id])
+
+      const genehmigerConfig = await query(
+        `SELECT id, user_id, rolle, stufe
+         FROM rollen_freigabe_genehmiger
+         WHERE production_id = $1 AND freigabe_typ = 'budget'
+         ORDER BY sort_order`,
         [req.params.productionId]
       )
+
+      const users = await expandGenehmiger(genehmigerConfig)
+      const prod = await queryOne(`SELECT titel FROM produktionen WHERE id = $1`, [req.params.productionId])
+      const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [anfrage.character_id])
       const gueltigBis = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-      // Fan-Out: Legacy name/email, user_id oder rolle
-      type EmpfaengerEntry2 = { genehmigterId: number; toName: string; toEmail: string }
-      const empfaenger2: EmpfaengerEntry2[] = []
-      for (const g of genehmiger) {
-        if (g.name && g.email) {
-          empfaenger2.push({ genehmigterId: g.id, toName: g.name, toEmail: g.email })
-        } else if (g.user_id) {
-          const info = await getUserInfoFromAuth(g.user_id)
-          if (info?.email) empfaenger2.push({ genehmigterId: g.id, toName: info.name, toEmail: info.email })
-        } else if (g.rolle) {
-          const users = await getUsersByRoleFromAuth(g.rolle)
-          for (const u of users) {
-            if (u.email) empfaenger2.push({ genehmigterId: g.id, toName: u.name, toEmail: u.email })
-          }
-        }
-      }
-
-      for (const e of empfaenger2) {
-        const tokenFreigeben = crypto.randomBytes(32).toString('hex')
-        const tokenAblehnen  = crypto.randomBytes(32).toString('hex')
-        const combinedToken  = `${tokenFreigeben}:freigeben,${tokenAblehnen}:ablehnen`
-
+      for (const u of users) {
+        const token = crypto.randomBytes(32).toString('hex')
         await pool.query(
-          `INSERT INTO rollen_freigabe_genehmiger_status (anfrage_id, genehmiger_id, token, token_gueltig_bis)
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (anfrage_id, genehmiger_id) DO UPDATE
-             SET token = $3, token_gueltig_bis = $4, entschieden = NULL, entschieden_am = NULL`,
-          [req.params.id, e.genehmigterId, combinedToken, gueltigBis]
+          `INSERT INTO rollen_freigabe_genehmiger_status
+             (anfrage_id, genehmiger_id, user_id, token, token_gueltig_bis)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (anfrage_id, user_id) DO UPDATE
+             SET token = $4, token_gueltig_bis = $5, entschieden = NULL, entschieden_am = NULL`,
+          [req.params.id, u.genehmiger_id, u.user_id, token, gueltigBis]
         )
-
         await sendFreigabeAnfrageEmail({
-          toName: e.toName,
-          toEmail: e.toEmail,
-          rollenName: anfrage.rollen_name,
-          produktionTitel: anfrage.prod_titel,
+          toName: u.name,
+          toEmail: u.email,
+          rollenName: char?.name ?? anfrage.rollen_name,
+          produktionTitel: prod?.titel ?? anfrage.prod_titel,
           beantragtVon: req.user.name ?? req.user.user_id,
-          freigebenUrl: `${APP_URL}/freigabe/${tokenFreigeben}`,
-          ablehnenUrl:  `${APP_URL}/freigabe/${tokenAblehnen}`,
+          inAppUrl: `${APP_URL}/freigabe/${token}`,
           szeneKontext,
-          szeneUrl,
           erneutNotiz: notiz ?? null,
         })
       }
@@ -841,24 +806,21 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erneut-anfragen',
 
 export const rollenFreigabePublicRouter = Router()
 
-// GET /api/public/freigabe/:token — Token-Infos lesen
+// GET /api/public/freigabe/:token — Token-Infos lesen (für Deep-Link-Routing in der App)
 rollenFreigabePublicRouter.get('/:token', async (req, res) => {
   try {
     const { token } = req.params
 
-    // Token suchen: format ist "TOKEN:entscheidung"
-    // Wir suchen in allen token-Feldern nach dem Token
     const gsRow = await queryOne(
-      `SELECT gs.*, gs.token AS raw_token, a.status AS anfrage_status,
-              c.name AS rollen_name, p.titel AS prod_titel,
-              g.name AS genehmiger_name
+      `SELECT gs.id, gs.entschieden, gs.token_gueltig_bis, gs.user_id,
+              a.id AS anfrage_id, a.status AS anfrage_status, a.production_id,
+              c.name AS rollen_name, p.titel AS prod_titel
        FROM rollen_freigabe_genehmiger_status gs
        JOIN rollen_freigabe_anfragen a ON a.id = gs.anfrage_id
        JOIN characters c ON c.id = a.character_id
        JOIN produktionen p ON p.id = a.production_id
-       JOIN rollen_freigabe_genehmiger g ON g.id = gs.genehmiger_id
-       WHERE gs.token LIKE $1`,
-      [`%${token}%`]
+       WHERE gs.token = $1`,
+      [token]
     )
 
     if (!gsRow) return res.status(404).json({ error: 'Token nicht gefunden' })
@@ -866,76 +828,14 @@ rollenFreigabePublicRouter.get('/:token', async (req, res) => {
       return res.status(410).json({ error: 'Token abgelaufen' })
     }
 
-    // Bestimme ob das der Freigeben- oder Ablehnen-Token ist
-    let entscheidung = ''
-    for (const part of (gsRow.raw_token ?? '').split(',')) {
-      const [tok, typ] = part.split(':')
-      if (tok === token) { entscheidung = typ; break }
-    }
-
     res.json({
+      anfrage_id: gsRow.anfrage_id,
+      production_id: gsRow.production_id,
       rollen_name: gsRow.rollen_name,
       prod_titel: gsRow.prod_titel,
-      genehmiger_name: gsRow.genehmiger_name,
       anfrage_status: gsRow.anfrage_status,
       bereits_entschieden: gsRow.entschieden !== null,
       eigene_entscheidung: gsRow.entschieden,
-      entscheidung_typ: entscheidung, // 'freigeben' | 'ablehnen'
     })
-  } catch (err) { res.status(500).json({ error: String(err) }) }
-})
-
-// POST /api/public/freigabe/:token/entscheiden
-rollenFreigabePublicRouter.post('/:token/entscheiden', async (req, res) => {
-  try {
-    const { token } = req.params
-    const { ablehnungsgrund } = req.body ?? {}
-
-    const gsRow = await queryOne(
-      `SELECT gs.*, gs.token AS raw_token
-       FROM rollen_freigabe_genehmiger_status gs
-       JOIN rollen_freigabe_anfragen a ON a.id = gs.anfrage_id
-       WHERE gs.token LIKE $1 AND a.status = 'ausstehend'`,
-      [`%${token}%`]
-    )
-
-    if (!gsRow) return res.status(404).json({ error: 'Token nicht gefunden oder Anfrage bereits abgeschlossen' })
-    if (gsRow.token_gueltig_bis && new Date(gsRow.token_gueltig_bis) < new Date()) {
-      return res.status(410).json({ error: 'Token abgelaufen' })
-    }
-    if (gsRow.entschieden !== null) {
-      return res.status(409).json({ error: 'Bereits entschieden', entschieden: gsRow.entschieden })
-    }
-
-    // Entscheidungstyp aus Token ermitteln
-    let entscheidung = ''
-    for (const part of (gsRow.raw_token ?? '').split(',')) {
-      const [tok, typ] = part.split(':')
-      if (tok === token) { entscheidung = typ; break }
-    }
-    if (!entscheidung) return res.status(400).json({ error: 'Ungültiger Token-Typ' })
-
-    const entschiedenWert = entscheidung === 'freigeben' ? 'freigegeben' : 'abgelehnt'
-
-    // Status setzen
-    await pool.query(
-      `UPDATE rollen_freigabe_genehmiger_status
-       SET entschieden = $1, entschieden_am = NOW()
-       WHERE id = $2`,
-      [entschiedenWert, gsRow.id]
-    )
-
-    // Ablehnungsgrund in anfrage.notiz speichern (falls angegeben)
-    if (entschiedenWert === 'abgelehnt' && ablehnungsgrund?.trim()) {
-      await pool.query(
-        `UPDATE rollen_freigabe_anfragen SET notiz = $1 WHERE id = $2`,
-        [ablehnungsgrund.trim(), gsRow.anfrage_id]
-      )
-    }
-
-    // Gesamtstatus neu berechnen
-    const neuerStatus = await recalcAnfrageStatus(gsRow.anfrage_id)
-
-    res.json({ ok: true, entschieden: entschiedenWert, anfrage_status: neuerStatus })
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })

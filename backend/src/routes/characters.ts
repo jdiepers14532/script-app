@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
-import { authMiddleware } from '../auth'
+import { authMiddleware, requireScopeAccess } from '../auth'
 
 export const charactersRouter = Router()
 export const staffelCharactersRouter = Router({ mergeParams: true })
@@ -13,11 +13,14 @@ charKategorienRouter.use(authMiddleware)
 
 // ── Global Characters ─────────────────────────────────────────────────────────
 
-// GET /api/characters?produktion_id=xxx
-// Returns characters with their production-specific data for a staffel
+// GET /api/characters?produktion_id=xxx[&include_pending=true]
+// Returns characters with their production-specific data.
+// Default: only is_active=TRUE (for editor autocomplete).
+// include_pending=true: includes pending/inactive characters (for DK-Dashboard).
 charactersRouter.get('/', async (req, res) => {
-  const { produktion_id } = req.query
+  const { produktion_id, include_pending } = req.query
   if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+  const activeOnly = include_pending !== 'true'
   try {
     const rows = await query(
       `SELECT c.id, c.name, c.meta_json, c.created_at,
@@ -29,6 +32,7 @@ charactersRouter.get('/', async (req, res) => {
               (SELECT thumbnail_dateiname FROM charakter_fotos WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS primaer_thumbnail_dateiname
        FROM characters c
        JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $1
+         ${activeOnly ? 'AND cp.is_active = TRUE' : ''}
        LEFT JOIN character_kategorien ck ON ck.id = cp.kategorie_id
        ORDER BY CASE WHEN ck.typ = 'komparse' THEN 2 ELSE 1 END, cp.rollen_nummer NULLS LAST, cp.komparsen_nummer NULLS LAST, c.name`,
       [produktion_id]
@@ -280,7 +284,10 @@ charKategorienRouter.delete('/:katId', async (req, res) => {
 })
 
 // POST /api/characters/:id/aktivieren — set is_active = true in a production
-charactersRouter.post('/:id/aktivieren', async (req, res) => {
+// Requires anlage_rollen scope (or Tier-1 role)
+charactersRouter.post('/:id/aktivieren',
+  requireScopeAccess('anlage_rollen', req => req.body.produktion_id),
+  async (req, res) => {
   const { produktion_id } = req.body
   if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
   try {

@@ -143,12 +143,13 @@ async function autoCreateCharacterForNT(
     }
     if (!charRow?.id) return null
 
-    // Mit Produktion verknüpfen (idempotent)
+    // Mit Produktion verknüpfen (idempotent) — inaktiv bis Freigabe erteilt
     await pool.query(
-      `INSERT INTO character_productions (character_id, produktion_id)
-       VALUES ($1, $2)
+      `INSERT INTO character_productions
+         (character_id, produktion_id, is_active, freigabe_status, angelegt_via, angelegt_von_user_id, angelegt_am)
+       VALUES ($1, $2, FALSE, 'ausstehend', 'editor_freigabe', $3, NOW())
        ON CONFLICT (character_id, produktion_id) DO NOTHING`,
-      [charRow.id, produktionId]
+      [charRow.id, produktionId, userId]
     )
 
     // Freigabe-Workflow starten (setzt freigabe_status auf 'ausstehend' oder 'keine')
