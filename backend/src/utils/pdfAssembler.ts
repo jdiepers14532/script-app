@@ -588,7 +588,13 @@ function renderSKParagraph(
       const w = Math.max(0, (tabStops[0]?.pos ?? 4) - bodyMarginLeftCm)
       cellStyle = `width:${w}cm;flex-shrink:0`
     } else if (stop?.align === 'right') {
-      cellStyle = `flex:1;text-align:right`
+      // Letzte right-aligned Zelle bei 3+ Segmenten: auf content-width schrumpfen,
+      // damit die vorherige flex:1-Zelle (z.B. Motiv) den Großteil des Platzes bekommt.
+      // Bei nur 2 Segmenten (z.B. Stoppzeit-Zeile) bleibt flex:1, damit die Zelle
+      // die volle verbleibende Breite nutzt und den Inhalt rechtsbündig ausrichtet.
+      cellStyle = (i === segments.length - 1 && segments.length > 2)
+        ? `flex:0 0 auto;text-align:right;padding-left:8pt`
+        : `flex:1;text-align:right`
     } else if (stop?.align === 'center') {
       cellStyle = `flex:1;text-align:center`
     } else {
@@ -832,7 +838,20 @@ async function buildSynopsenHtml(
       (html.match(/display:flex/g)     ?? []).length +
       (html.match(/<hr /g)             ?? []).length
     )
-    const scenePt = HEAD_MARGIN_PT + lineCount * LINE_HEIGHT_PT
+
+    // Zusammenfassung (Oneliner) umbrechen sich in der flex:1-Spalte — jede zusätzliche
+    // Zeile muss zur Höhenschätzung addiert werden, damit der server-seitige Seitenumbruch
+    // korrekt sitzt und Chrome nicht mitten im Szenenkopf umbrechen muss.
+    // Verfügbare Breite: Seiteninhalt (21cm - 2×bml) abzüglich der festen ersten Spalte
+    // (TabStop 0 bei 5cm → 5-bml cm). Zeichen je Zeile: 11pt Courier Prime ≈ 0.233cm/Zeichen.
+    const onelinerColCm = Math.max(5,
+      (21.0 - 2 * bodyMarginLeftCm) - Math.max(0, 5.0 - bodyMarginLeftCm)
+    )
+    const charsPerLine = Math.max(40, Math.floor(onelinerColCm / 0.233))
+    const zfLen = (row.zusammenfassung ?? '').length
+    const onelinerExtraLines = zfLen > 0 ? Math.max(0, Math.ceil(zfLen / charsPerLine) - 1) : 0
+
+    const scenePt = HEAD_MARGIN_PT + (lineCount + onelinerExtraLines) * LINE_HEIGHT_PT
 
     // Neue Seite wenn Szenenkopf nicht mehr passt (aber nie ganz am Anfang)
     if (accumPt > 0 && accumPt + scenePt > pageHeightPt) {
