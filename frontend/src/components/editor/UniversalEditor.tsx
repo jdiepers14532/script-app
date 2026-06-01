@@ -1243,6 +1243,12 @@ export default function UniversalEditor({
   onNtLineChangeRef.current = onNtLineChange
   const prevNtLineRef = useRef<string | null>(null)
 
+  // prevNtLineRef bei Szenenwechsel zurücksetzen — sonst feuert onNtLineChange nicht wenn neue Szene
+  // dieselben NT-Figuren enthält wie die vorherige
+  useEffect(() => {
+    prevNtLineRef.current = null
+  }, [szeneId])
+
   // Suffix-Memory aufbauen + NT-Zeile berechnen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
   useEffect(() => {
     if (!editor || charFormatIds.length === 0) return
