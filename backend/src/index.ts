@@ -417,6 +417,8 @@ async function runMigrations() {
     'v160_lock_trigger_typ.sql',
     // Lock-Gate Schwellenwert-Logik
     'v161_lock_trigger_version_nummer.sql',
+    // NT-Einträge: Replik-Positionen
+    'v162_nt_repliken_positionen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

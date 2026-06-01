@@ -38,21 +38,31 @@ export default function NtListePage() {
   const [savingId, setSavingId] = useState<string | null>(null)
   const [editNotiz, setEditNotiz] = useState<Record<string, string>>({})
 
-  const loadEintraege = () => {
+  const loadEintraege = async () => {
     if (!produktionId) return
     setLoading(true)
-    const params = new URLSearchParams({ produktion_id: produktionId })
-    if (szeneIdFilter) params.set('szene_id', szeneIdFilter)
-    fetch(`/api/nt-eintraege?${params}`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : [])
-      .then(data => {
-        setEintraege(data)
-        const notizMap: Record<string, string> = {}
-        for (const e of data) notizMap[e.id] = e.notiz ?? ''
-        setEditNotiz(notizMap)
-      })
-      .catch(() => setEintraege([]))
-      .finally(() => setLoading(false))
+    try {
+      // Einträge ohne Dialog zuerst bereinigen
+      await fetch('/api/nt-eintraege/cleanup', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ produktion_id: produktionId }),
+      }).catch(() => {})
+
+      const params = new URLSearchParams({ produktion_id: produktionId })
+      if (szeneIdFilter) params.set('szene_id', szeneIdFilter)
+      const r = await fetch(`/api/nt-eintraege?${params}`, { credentials: 'include' })
+      const data = r.ok ? await r.json() : []
+      setEintraege(data)
+      const notizMap: Record<string, string> = {}
+      for (const e of data) notizMap[e.id] = e.notiz ?? ''
+      setEditNotiz(notizMap)
+    } catch {
+      setEintraege([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => { loadEintraege() }, [produktionId, szeneIdFilter]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -245,18 +255,23 @@ export default function NtListePage() {
                       {/* Repliken nummeriert */}
                       {replicaLines.length > 0 && (
                         <div style={{ padding: '8px 14px 10px', display: 'flex', flexDirection: 'column', gap: 4, borderBottom: '1px solid var(--border)' }}>
-                          {replicaLines.map((line: string, i: number) => (
+                          {replicaLines.map((line: string, i: number) => {
+                            const pos = Array.isArray(e.repliken_positionen) && e.repliken_positionen[i] != null
+                              ? e.repliken_positionen[i]
+                              : i + 1
+                            return (
                             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', lineHeight: 1.5 }}>
                               <span style={{
                                 fontSize: 10, fontWeight: 700, color: NT_TYP_COLORS[e.nt_typ],
                                 minWidth: 52, paddingTop: 2, flexShrink: 0,
                                 letterSpacing: '0.02em',
                               }}>
-                                Replik {i + 1}
+                                Repl. {pos}
                               </span>
                               <span style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--text)' }}>{line}</span>
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       )}
 

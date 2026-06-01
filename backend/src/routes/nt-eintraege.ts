@@ -39,11 +39,12 @@ interface NtCharEntry {
   nameUpper: string
   nt_typ: 'stimme' | 'vo'
   replicaTexts: string[]
+  replicaPositions: number[]  // Szeneninterne Dialogpositions-Nummern (global)
 }
 
 /**
  * Analysiert den ProseMirror-JSON-Content einer Szene und liefert NT/VO-Figuren
- * mit ihrem Replikentext zurück.
+ * mit ihrem Replikentext und der szenenglobalen Dialogpositions-Nummer zurück.
  *
  * Erkannte Fälle:
  * - Suffix (NT) → nt_typ='stimme'
@@ -61,10 +62,11 @@ export function extractNtCharacters(
     : (content?.content ?? [])
 
   // name → { suffixes für alle Auftritte, Repliken für NT/VO-Auftritte }
-  const charMap = new Map<string, { suffixes: string[]; replicaTexts: string[] }>()
+  const charMap = new Map<string, { suffixes: string[]; replicaTexts: string[]; replicaPositions: number[] }>()
   let currentName: string | null = null
   let currentSuffix: string | null = null
   let collectReplicas = false
+  let dialogCounter = 0  // zählt alle Dialogue-Nodes in der Szene (global)
 
   for (const node of nodes) {
     const isChar =
@@ -81,7 +83,7 @@ export function extractNtCharacters(
       const nameUpper = name.toUpperCase()
 
       if (!charMap.has(nameUpper)) {
-        charMap.set(nameUpper, { suffixes: [], replicaTexts: [] })
+        charMap.set(nameUpper, { suffixes: [], replicaTexts: [], replicaPositions: [] })
       }
       charMap.get(nameUpper)!.suffixes.push(suffix ?? '')
 
@@ -89,10 +91,14 @@ export function extractNtCharacters(
       currentSuffix = suffix
       // Repliken sammeln für NT und VO (nicht ONE-WAY, nicht OFF normal)
       collectReplicas = suffix === '(NT)' || suffix === '(VO)' || suffix === '(OFF)'
-    } else if (isDiag && currentName && collectReplicas) {
-      const diagText = extractNodeText(node).trim()
-      if (diagText) {
-        charMap.get(currentName)?.replicaTexts.push(diagText)
+    } else if (isDiag) {
+      dialogCounter++
+      if (currentName && collectReplicas) {
+        const diagText = extractNodeText(node).trim()
+        if (diagText) {
+          charMap.get(currentName)?.replicaTexts.push(diagText)
+          charMap.get(currentName)?.replicaPositions.push(dialogCounter)
+        }
       }
     } else if (!isChar && !isDiag) {
       // Parenthetical etc. — currentName bleibt aktiv
@@ -102,18 +108,18 @@ export function extractNtCharacters(
   const result: NtCharEntry[] = []
 
   for (const [nameUpper, data] of charMap) {
-    const { suffixes, replicaTexts } = data
+    const { suffixes, replicaTexts, replicaPositions } = data
     const hasNt = suffixes.includes('(NT)')
     const hasVo = suffixes.includes('(VO)')
     const hasOff = suffixes.includes('(OFF)')
 
     if (hasVo) {
-      result.push({ nameUpper, nt_typ: 'vo', replicaTexts })
+      result.push({ nameUpper, nt_typ: 'vo', replicaTexts, replicaPositions })
     } else if (hasNt) {
-      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts })
+      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts, replicaPositions })
     } else if (hasOff) {
       // OFF: Figur (auch teilweise) im Off — NT-Aufnahme erforderlich
-      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts: [] })
+      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts: [], replicaPositions: [] })
     }
   }
 
@@ -234,16 +240,18 @@ export async function autoUpsertNtEintraege(
       }
 
       const replikenText = entry.replicaTexts.join('\n') || null
+      const replikenPositionen = entry.replicaPositions.length > 0 ? entry.replicaPositions : null
 
       await pool.query(
         `INSERT INTO nt_eintraege
-           (produktion_id, character_id, szene_id, scene_identity_id, werkstufe_id, folge_id, nt_typ, repliken_text, veraltet)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
+           (produktion_id, character_id, szene_id, scene_identity_id, werkstufe_id, folge_id, nt_typ, repliken_text, repliken_positionen, veraltet)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE)
          ON CONFLICT (character_id, scene_identity_id, werkstufe_id)
          DO UPDATE SET
            szene_id = EXCLUDED.szene_id,
            nt_typ = EXCLUDED.nt_typ,
            repliken_text = EXCLUDED.repliken_text,
+           repliken_positionen = EXCLUDED.repliken_positionen,
            veraltet = FALSE,
            aktualisiert_am = NOW()`,
         [
@@ -255,6 +263,7 @@ export async function autoUpsertNtEintraege(
           szene.folge_id ?? null,
           entry.nt_typ,
           replikenText,
+          replikenPositionen,
         ]
       )
       upsertedCharIds.push(char.id)
@@ -750,6 +759,27 @@ ntEintraegeRouter.get('/', async (req, res) => {
     )
 
     res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/nt-eintraege/cleanup — löscht Einträge ohne Dialog (repliken_text leer/null)
+// Wird beim Aufruf der NT-Seite automatisch aufgerufen.
+// ══════════════════════════════════════════════════════════════════════════════
+ntEintraegeRouter.post('/cleanup', async (req, res) => {
+  try {
+    const { produktion_id } = req.body as { produktion_id?: string }
+    if (!produktion_id) return res.status(400).json({ error: 'produktion_id erforderlich' })
+
+    const result = await pool.query(
+      `DELETE FROM nt_eintraege
+       WHERE produktion_id = $1
+         AND (repliken_text IS NULL OR TRIM(repliken_text) = '')`,
+      [produktion_id]
+    )
+    res.json({ deleted: result.rowCount ?? 0 })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
