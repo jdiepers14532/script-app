@@ -506,8 +506,22 @@ export const api = {
     request<any[]>('GET', `/characters/${characterId}/beziehungen`),
   addCharacterBeziehung: (characterId: string, data: { related_character_id: string; beziehungstyp: string; label?: string }) =>
     request<any>('POST', `/characters/${characterId}/beziehungen`, data),
+  updateCharacterBeziehung: (characterId: string, relId: number, data: { status?: string; seit_block?: string | null; bis_block?: string | null; notiz?: string | null; label?: string | null }) =>
+    request<any>('PUT', `/characters/${characterId}/beziehungen/${relId}`, data),
   deleteCharacterBeziehung: (characterId: string, relId: number) =>
     request<any>('DELETE', `/characters/${characterId}/beziehungen/${relId}`),
+
+  // ── Bible ──────────────────────────────────────────────────────────────────
+  getBibleUebersicht: (produktionId: string) =>
+    request<any[]>('GET', `/bible/uebersicht?produktion_id=${encodeURIComponent(produktionId)}`),
+  getBibleCharacter: (id: string, produktionId: string) =>
+    request<{ beziehungen: any[]; chronologie: any[] }>('GET', `/bible/character/${id}?produktion_id=${encodeURIComponent(produktionId)}`),
+  syncBibleChronologie: (produktionId: string) =>
+    request<{ synced: number }>('POST', `/bible/chronologie-sync?produktion_id=${encodeURIComponent(produktionId)}`),
+  createBibleChronologie: (data: { character_id: string; produktion_id: string; block_nummer?: number | null; ereignis: string }) =>
+    request<any>('POST', '/bible/chronologie', data),
+  deleteBibleChronologie: (id: string) =>
+    request<{ ok: boolean }>('DELETE', `/bible/chronologie/${id}`),
 
   // ── Charakter aktivieren ──────────────────────────────────────────────────
   aktiviereCharacter: (characterId: string, produktionId: string) =>

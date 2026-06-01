@@ -321,19 +321,92 @@ charactersRouter.get('/:id/beziehungen', async (req, res) => {
   }
 })
 
+// Auto-Gegenstück-Mapping
+const GEGENSTUECK: Record<string, string> = {
+  eltern_von:    'kind_von',
+  kind_von:      'eltern_von',
+  geschwister:   'geschwister',
+  partner:       'partner',
+  ex_partner:    'ex_partner',
+  freund:        'freund',
+  feind:         'feind',
+  kollege:       'kollege',
+  vorgesetzter:  'mitarbeiter',
+  mitarbeiter:   'vorgesetzter',
+}
+
 // POST /api/characters/:id/beziehungen
 charactersRouter.post('/:id/beziehungen', async (req, res) => {
-  const { related_character_id, beziehungstyp, label } = req.body
+  const { related_character_id, beziehungstyp, label, status, seit_block, bis_block, notiz } = req.body
   if (!related_character_id || !beziehungstyp) return res.status(400).json({ error: 'related_character_id und beziehungstyp required' })
   try {
     const row = await queryOne(
-      `INSERT INTO charakter_beziehungen (character_id, related_character_id, beziehungstyp, label)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [req.params.id, related_character_id, beziehungstyp, label ?? null]
+      `INSERT INTO charakter_beziehungen
+         (character_id, related_character_id, beziehungstyp, label, status, seit_block, bis_block, notiz)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [req.params.id, related_character_id, beziehungstyp, label ?? null,
+       status ?? 'aktiv', seit_block ?? null, bis_block ?? null, notiz ?? null]
     )
-    res.status(201).json(row)
+
+    // Auto-Gegenstück anlegen (best-effort, Duplikat = kein Fehler)
+    const gegTyp = GEGENSTUECK[beziehungstyp]
+    if (gegTyp) {
+      try {
+        await queryOne(
+          `INSERT INTO charakter_beziehungen
+             (character_id, related_character_id, beziehungstyp, label, status, seit_block, bis_block, notiz)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+           ON CONFLICT (character_id, related_character_id, beziehungstyp) DO NOTHING`,
+          [related_character_id, req.params.id, gegTyp, label ?? null,
+           status ?? 'aktiv', seit_block ?? null, bis_block ?? null, notiz ?? null]
+        )
+      } catch { /* non-critical */ }
+    }
+
+    res.status(201).json({ ...row, gegenstueck_angelegt: !!gegTyp })
   } catch (err: any) {
     if (err.code === '23505') return res.status(409).json({ error: 'Beziehung bereits vorhanden' })
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// PUT /api/characters/:id/beziehungen/:relId
+charactersRouter.put('/:id/beziehungen/:relId', async (req, res) => {
+  const { status, seit_block, bis_block, notiz, label } = req.body
+  try {
+    const existing = await queryOne(
+      'SELECT * FROM charakter_beziehungen WHERE id = $1 AND character_id = $2',
+      [req.params.relId, req.params.id]
+    )
+    if (!existing) return res.status(404).json({ error: 'Beziehung nicht gefunden' })
+
+    const row = await queryOne(
+      `UPDATE charakter_beziehungen
+       SET status = COALESCE($1, status),
+           seit_block = $2,
+           bis_block  = $3,
+           notiz      = $4,
+           label      = COALESCE($5, label)
+       WHERE id = $6 RETURNING *`,
+      [status ?? null, seit_block ?? null, bis_block ?? null, notiz ?? null, label ?? null, req.params.relId]
+    )
+
+    // Gegenstück synchronisieren (status + zeitfelder, best-effort)
+    const gegTyp = GEGENSTUECK[existing.beziehungstyp]
+    if (gegTyp) {
+      try {
+        await queryOne(
+          `UPDATE charakter_beziehungen
+           SET status = COALESCE($1, status), seit_block = $2, bis_block = $3, notiz = $4
+           WHERE character_id = $5 AND related_character_id = $6 AND beziehungstyp = $7`,
+          [status ?? null, seit_block ?? null, bis_block ?? null, notiz ?? null,
+           existing.related_character_id, req.params.id, gegTyp]
+        )
+      } catch { /* non-critical */ }
+    }
+
+    res.json(row)
+  } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
@@ -341,11 +414,26 @@ charactersRouter.post('/:id/beziehungen', async (req, res) => {
 // DELETE /api/characters/:id/beziehungen/:relId
 charactersRouter.delete('/:id/beziehungen/:relId', async (req, res) => {
   try {
-    const row = await queryOne(
-      'DELETE FROM charakter_beziehungen WHERE id = $1 AND character_id = $2 RETURNING id',
+    const existing = await queryOne(
+      'SELECT * FROM charakter_beziehungen WHERE id = $1 AND character_id = $2',
       [req.params.relId, req.params.id]
     )
-    if (!row) return res.status(404).json({ error: 'Beziehung nicht gefunden' })
+    if (!existing) return res.status(404).json({ error: 'Beziehung nicht gefunden' })
+
+    await queryOne('DELETE FROM charakter_beziehungen WHERE id = $1', [req.params.relId])
+
+    // Gegenstück mitlöschen (best-effort)
+    const gegTyp = GEGENSTUECK[existing.beziehungstyp]
+    if (gegTyp) {
+      try {
+        await queryOne(
+          `DELETE FROM charakter_beziehungen
+           WHERE character_id = $1 AND related_character_id = $2 AND beziehungstyp = $3`,
+          [existing.related_character_id, req.params.id, gegTyp]
+        )
+      } catch { /* non-critical */ }
+    }
+
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: String(err) })
