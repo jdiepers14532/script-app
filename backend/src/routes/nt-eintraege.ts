@@ -39,7 +39,7 @@ interface NtCharEntry {
   nameUpper: string
   nt_typ: 'stimme' | 'vo'
   replicaTexts: string[]
-  replicaPositions: number[]  // Szeneninterne Dialogpositions-Nummern (global)
+  replicaCharPositions: number[]  // 1-basierte Position des CHARACTER-Blocks in der Szene
 }
 
 /**
@@ -62,11 +62,12 @@ export function extractNtCharacters(
     : (content?.content ?? [])
 
   // name → { suffixes für alle Auftritte, Repliken für NT/VO-Auftritte }
-  const charMap = new Map<string, { suffixes: string[]; replicaTexts: string[]; replicaPositions: number[] }>()
+  const charMap = new Map<string, { suffixes: string[]; replicaTexts: string[]; replicaCharPositions: number[] }>()
   let currentName: string | null = null
   let currentSuffix: string | null = null
   let collectReplicas = false
-  let dialogCounter = 0  // zählt alle Dialogue-Nodes in der Szene (global)
+  let charCounter = 0  // zählt alle CHARACTER-Blöcke in der Szene (für Replik-Nummerierung)
+  let currentCharPos = 0
 
   for (const node of nodes) {
     const isChar =
@@ -78,26 +79,27 @@ export function extractNtCharacters(
       (node.type === 'absatz' && diagFormatIds.has(node.attrs?.format_id))
 
     if (isChar) {
+      charCounter++
       const rawText = extractNodeText(node).trim()
       const { name, suffix } = parseSuffixServer(rawText)
       const nameUpper = name.toUpperCase()
 
       if (!charMap.has(nameUpper)) {
-        charMap.set(nameUpper, { suffixes: [], replicaTexts: [], replicaPositions: [] })
+        charMap.set(nameUpper, { suffixes: [], replicaTexts: [], replicaCharPositions: [] })
       }
       charMap.get(nameUpper)!.suffixes.push(suffix ?? '')
 
       currentName = nameUpper
       currentSuffix = suffix
+      currentCharPos = charCounter
       // Repliken sammeln für NT und VO (nicht ONE-WAY, nicht OFF normal)
       collectReplicas = suffix === '(NT)' || suffix === '(VO)' || suffix === '(OFF)'
     } else if (isDiag) {
-      dialogCounter++
       if (currentName && collectReplicas) {
         const diagText = extractNodeText(node).trim()
         if (diagText) {
           charMap.get(currentName)?.replicaTexts.push(diagText)
-          charMap.get(currentName)?.replicaPositions.push(dialogCounter)
+          charMap.get(currentName)?.replicaCharPositions.push(currentCharPos)
         }
       }
     } else if (!isChar && !isDiag) {
@@ -108,18 +110,18 @@ export function extractNtCharacters(
   const result: NtCharEntry[] = []
 
   for (const [nameUpper, data] of charMap) {
-    const { suffixes, replicaTexts, replicaPositions } = data
+    const { suffixes, replicaTexts, replicaCharPositions } = data
     const hasNt = suffixes.includes('(NT)')
     const hasVo = suffixes.includes('(VO)')
     const hasOff = suffixes.includes('(OFF)')
 
     if (hasVo) {
-      result.push({ nameUpper, nt_typ: 'vo', replicaTexts, replicaPositions })
+      result.push({ nameUpper, nt_typ: 'vo', replicaTexts, replicaCharPositions })
     } else if (hasNt) {
-      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts, replicaPositions })
+      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts, replicaCharPositions })
     } else if (hasOff) {
       // OFF: Figur (auch teilweise) im Off — NT-Aufnahme erforderlich
-      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts: [], replicaPositions: [] })
+      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts: [], replicaCharPositions: [] })
     }
   }
 
@@ -218,6 +220,15 @@ export async function autoUpsertNtEintraege(
     // NT-Figuren aus Content extrahieren
     const ntChars = extractNtCharacters(content, charFormatIds, diagFormatIds)
 
+    // replik_baseline für diese Szene laden → absoluter Replik-Offset
+    const wsRow = await queryOne(
+      `SELECT replik_baseline FROM werkstufen WHERE id = $1`,
+      [szene.werkstufe_id]
+    )
+    const baseline: Array<{ scene_id: string; start: number; count: number }> = wsRow?.replik_baseline ?? []
+    const baselineEntry = baseline.find((b: any) => b.scene_id === szeneId)
+    const baselineStart: number = baselineEntry?.start ?? 0
+
     // Figuren-UUIDs per Name nachschlagen (oder anlegen)
     const upsertedCharIds: string[] = []
 
@@ -240,7 +251,9 @@ export async function autoUpsertNtEintraege(
       }
 
       const replikenText = entry.replicaTexts.join('\n') || null
-      const replikenPositionen = entry.replicaPositions.length > 0 ? entry.replicaPositions : null
+      // Absolute Repliknummern = Offset der Szene in der Werkstufe + szeneninterne Char-Position
+      const absPositionen = entry.replicaCharPositions.map(p => baselineStart + p)
+      const replikenPositionen = absPositionen.length > 0 ? absPositionen : null
 
       await pool.query(
         `INSERT INTO nt_eintraege

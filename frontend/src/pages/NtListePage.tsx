@@ -256,18 +256,19 @@ export default function NtListePage() {
                       {replicaLines.length > 0 && (
                         <div style={{ padding: '8px 14px 10px', display: 'flex', flexDirection: 'column', gap: 4, borderBottom: '1px solid var(--border)' }}>
                           {replicaLines.map((line: string, i: number) => {
-                            const pos = Array.isArray(e.repliken_positionen) && e.repliken_positionen[i] != null
-                              ? e.repliken_positionen[i]
-                              : i + 1
+                            const hasPos = Array.isArray(e.repliken_positionen) && e.repliken_positionen[i] != null
+                            const pos = hasPos ? e.repliken_positionen[i] : null
                             return (
                             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', lineHeight: 1.5 }}>
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, color: NT_TYP_COLORS[e.nt_typ],
-                                minWidth: 52, paddingTop: 2, flexShrink: 0,
-                                letterSpacing: '0.02em',
-                              }}>
-                                Repl. {pos}
-                              </span>
+                              {pos != null && (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, color: NT_TYP_COLORS[e.nt_typ],
+                                  minWidth: 42, paddingTop: 2, flexShrink: 0,
+                                  letterSpacing: '0.02em',
+                                }}>
+                                  R{pos}
+                                </span>
+                              )}
                               <span style={{ fontSize: 12, fontStyle: 'italic', color: 'var(--text)' }}>{line}</span>
                             </div>
                             )
