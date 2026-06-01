@@ -540,9 +540,7 @@ export async function starteFreigabeAnfrage(params: {
     await pool.query(
       `INSERT INTO rollen_freigabe_genehmiger_status
          (anfrage_id, genehmiger_id, user_id, token, token_gueltig_bis)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (anfrage_id, user_id) DO UPDATE
-         SET token = $4, token_gueltig_bis = $5, entschieden = NULL, entschieden_am = NULL`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [anfrage!.id, u.genehmiger_id, u.user_id, token, gueltigBis]
     )
     await sendFreigabeAnfrageEmail({
@@ -780,9 +778,7 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erneut-anfragen',
         await pool.query(
           `INSERT INTO rollen_freigabe_genehmiger_status
              (anfrage_id, genehmiger_id, user_id, token, token_gueltig_bis)
-           VALUES ($1, $2, $3, $4, $5)
-           ON CONFLICT (anfrage_id, user_id) DO UPDATE
-             SET token = $4, token_gueltig_bis = $5, entschieden = NULL, entschieden_am = NULL`,
+           VALUES ($1, $2, $3, $4, $5)`,
           [req.params.id, u.genehmiger_id, u.user_id, token, gueltigBis]
         )
         await sendFreigabeAnfrageEmail({
