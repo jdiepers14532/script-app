@@ -419,7 +419,9 @@ export default function EditorPanel({
   // Save: write content to the RESOLVED scene for this panel's werkstufe
   // Uses currentSzene.id (set by the loading effect via resolveDokumentSzene) so that
   // each panel saves to its own werkstufe's scene, not the primary SceneList scene.
+  const latestSaveContentRef = useRef<any>(null)
   const scheduleSave = useCallback((editorContent: any) => {
+    latestSaveContentRef.current = editorContent  // synchron vor Debounce — für req-content-flush
     const effectiveSzeneId = currentSzene?.id ?? selectedSzeneId
     if (!editorContent || !effectiveSzeneId) return
     setSaveStatus('saving')
@@ -458,6 +460,29 @@ export default function EditorPanel({
       }
     }, 1500)
   }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue, scheduleSnapshot])
+
+  // req-content-flush: SceneEditor fordert sofortigen Content-Save vor dem Leave-Check.
+  // Debounce abbrechen, sofort speichern, dann 'editor-content-flushed' feuern.
+  useEffect(() => {
+    const handler = async () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+      const editorContent = latestSaveContentRef.current
+      const effectiveSzeneId = currentSzene?.id ?? selectedSzeneId
+      if (editorContent && effectiveSzeneId && useDokumentSzenen && typeof effectiveSzeneId === 'string') {
+        try {
+          const content = editorContent?.content ?? []
+          await api.updateDokumentSzene(effectiveSzeneId, { content })
+          setSaveStatus('saved')
+        } catch {}
+      }
+      window.dispatchEvent(new CustomEvent('editor-content-flushed'))
+    }
+    window.addEventListener('req-content-flush', handler)
+    return () => window.removeEventListener('req-content-flush', handler)
+  }, [currentSzene, selectedSzeneId, useDokumentSzenen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Determine kategorie for format filtering
   const sceneFormat = currentSzene?.format

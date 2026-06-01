@@ -222,6 +222,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const saveSceneRef = useRef<typeof saveScene | null>(null)
   // Immer aktueller Editor-Content — synchron bei jeder Änderung, unabhängig von React-Batching
   const latestContentRef = useRef<any>(null)
+  // Aktuellster Replik-Offset — als Ref, damit der Event-Handler nie einen veralteten Wert nutzt
+  const replikOffsetRef = useRef(replikOffset)
+  useEffect(() => { replikOffsetRef.current = replikOffset }, [replikOffset])
 
   const cycleIntExt = useCallback(async () => {
     const next = scene?.int_ext === 'int' ? 'ext' : 'int'
@@ -840,16 +843,24 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         }))
         return
       }
-      // 1. Debounce abbrechen und sofort speichern
+      // 1. Metadata-Debounce abbrechen (Motiv, Notiz etc.)
       if (debounceRef.current) {
         clearTimeout(debounceRef.current)
         debounceRef.current = null
       }
-      // latestContentRef hat den aktuellsten Editor-Stand (synchron gesetzt, kein React-Delay)
-      const contentToSave = latestContentRef.current ?? currentScene?.content
-      if (contentToSave && saveSceneRef.current) {
-        await saveSceneRef.current({ content: contentToSave }).catch(() => {})
-      }
+      // Content-Save liegt bei EditorPanel — dieses auffordern sofort zu speichern,
+      // dann auf Bestätigung warten (max. 3 s Timeout), bevor der Check läuft.
+      // So werden keine veralteten Inhalte auf dem Server überschrieben.
+      await new Promise<void>(resolve => {
+        const timeout = setTimeout(resolve, 3000)
+        const onFlushed = () => {
+          clearTimeout(timeout)
+          window.removeEventListener('editor-content-flushed', onFlushed)
+          resolve()
+        }
+        window.addEventListener('editor-content-flushed', onFlushed)
+        window.dispatchEvent(new CustomEvent('req-content-flush'))
+      })
       // 2. Auto-Checks ausführen
       let allResults: any[] = []
       try {
@@ -870,7 +881,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       // 4. Blocking-Issues ermitteln und Ergebnis melden
       const blockingIssues = allResults.filter((r: any) => r.check_typ === 'fehlender_dialog')
       window.dispatchEvent(new CustomEvent('leave-check-done', {
-        detail: { currentSzeneId: String(szeneId), targetId: e.detail.targetId, blockingIssues, allResults, replikOffset }
+        detail: { currentSzeneId: String(szeneId), targetId: e.detail.targetId, blockingIssues, allResults, replikOffset: replikOffsetRef.current }
       }))
     }
     window.addEventListener('req-leave-check', handler as EventListener)
