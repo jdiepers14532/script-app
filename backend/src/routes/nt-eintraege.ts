@@ -220,20 +220,6 @@ export async function autoUpsertNtEintraege(
     // NT-Figuren aus Content extrahieren
     const ntChars = extractNtCharacters(content, charFormatIds, diagFormatIds)
 
-    // Replik-Offset: Anzahl CHARACTER-Blöcke aller Vorszenen (identisch zu GET /replik-offsets)
-    // replik_baseline ist nur bei gesperrten Werkstufen gefüllt — daher immer on-the-fly berechnen
-    const scenesInOrder = await query(
-      `SELECT id, replik_count FROM dokument_szenen
-       WHERE werkstufe_id = $1 AND geloescht = false
-       ORDER BY sort_order, scene_nummer`,
-      [szene.werkstufe_id]
-    )
-    let baselineStart = 0
-    for (const s of scenesInOrder) {
-      if (s.id === szeneId) break
-      baselineStart += (s.replik_count ?? 0)
-    }
-
     // Figuren-UUIDs per Name nachschlagen (oder anlegen)
     const upsertedCharIds: string[] = []
 
@@ -256,9 +242,10 @@ export async function autoUpsertNtEintraege(
       }
 
       const replikenText = entry.replicaTexts.join('\n') || null
-      // Absolute Repliknummern = Offset der Szene in der Werkstufe + szeneninterne Char-Position
-      const absPositionen = entry.replicaCharPositions.map(p => baselineStart + p)
-      const replikenPositionen = absPositionen.length > 0 ? absPositionen : null
+      // Lokale Positionen speichern (1-basiert innerhalb der Szene).
+      // Der globale Offset wird zur Lesezeit im GET-Endpoint berechnet —
+      // so bleiben die Nummern korrekt wenn sich Vorszenen ändern.
+      const replikenPositionen = entry.replicaCharPositions.length > 0 ? entry.replicaCharPositions : null
 
       await pool.query(
         `INSERT INTO nt_eintraege
@@ -776,7 +763,36 @@ ntEintraegeRouter.get('/', async (req, res) => {
       params
     )
 
-    res.json(rows)
+    // Replik-Offsets pro Werkstufe berechnen und lokale → globale Positionen umrechnen
+    const werkstufeIds: string[] = [...new Set(rows.map((r: any) => r.werkstufe_id).filter(Boolean))]
+    const offsetMap: Record<string, Record<string, number>> = {}
+    for (const wsId of werkstufeIds) {
+      const scenes = await query(
+        `SELECT id, replik_count FROM dokument_szenen
+         WHERE werkstufe_id = $1 AND geloescht = false
+         ORDER BY sort_order, scene_nummer`,
+        [wsId]
+      )
+      let cumulative = 0
+      const offsets: Record<string, number> = {}
+      for (const s of scenes) {
+        offsets[s.id] = cumulative
+        cumulative += (s.replik_count ?? 0)
+      }
+      offsetMap[wsId] = offsets
+    }
+
+    const enriched = rows.map((r: any) => {
+      const offset = (r.werkstufe_id && r.szene_id)
+        ? (offsetMap[r.werkstufe_id]?.[r.szene_id] ?? 0)
+        : 0
+      const globalPositionen = Array.isArray(r.repliken_positionen) && r.repliken_positionen.length > 0
+        ? r.repliken_positionen.map((p: number) => offset + p)
+        : r.repliken_positionen
+      return { ...r, repliken_positionen: globalPositionen }
+    })
+
+    res.json(enriched)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
