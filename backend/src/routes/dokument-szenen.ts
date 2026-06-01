@@ -4,7 +4,7 @@ import { authMiddleware } from '../auth'
 import { recalcSceneStats, updateReplikCount } from '../utils/recalcRepliken'
 import { calcPageLength } from '../utils/calcPageLength'
 import { recalcPageNumbers } from '../utils/recalcPageNumbers'
-import { autoUpsertNtEintraege } from './nt-eintraege'
+import { autoUpsertNtEintraege, autoClassifySceneKomparsen } from './nt-eintraege'
 
 // ── Einzelne Dokument-Szene Router ───────────────────────────────────────────
 // Mounted at /api/dokument-szenen/:id
@@ -280,6 +280,8 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     // NT-Eintraege auto-upsert (async, non-blocking, P8)
     if (effectiveContent) {
       autoUpsertNtEintraege(req.params.id, effectiveContent, (req as any).user?.user_id ?? null, (req as any).user?.name ?? null).catch(() => {})
+      // Komparsen-Klassifizierung (Phase 2): ot / mit_text / mit_spiel
+      autoClassifySceneKomparsen(req.params.id, effectiveContent, (req as any).user?.user_id ?? null).catch(() => {})
     }
 
     res.json(row)

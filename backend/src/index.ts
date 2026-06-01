@@ -407,6 +407,8 @@ async function runMigrations() {
     'v156_komparse_klassifizierung.sql',
     'v157_freigabe_overrides.sql',
     'v158_freigabe_genehmiger_compat.sql',
+    // Phase 2 — Komparsen-Klassifizierung KI-Settings
+    'v159_ki_komparse_klassifizierung.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

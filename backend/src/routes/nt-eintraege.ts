@@ -3,6 +3,10 @@ import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { starteFreigabeAnfrage } from './rollen-freigabe'
 
+// KI-Trainer URL + Secret aus ENV (für manuelle Overrides)
+const KI_TRAINER_URL = process.env.KI_TRAINER_URL || 'http://127.0.0.1:3013'
+const KI_TRAINER_SECRET = process.env.KI_TRAINER_SECRET || ''
+
 export const ntEintraegeRouter = Router()
 ntEintraegeRouter.use(authMiddleware)
 
@@ -281,6 +285,408 @@ export async function autoUpsertNtEintraege(
     console.error('[NT] autoUpsert Fehler:', err)
   }
 }
+
+// ── Phase 2: Komparsen-Klassifizierung ────────────────────────────────────────
+
+/** Extrahiert alle Action-Textpassagen, in denen charName vorkommt */
+function extractActionPassagesForChar(
+  content: any,
+  charName: string,
+  actionFormatIds: Set<string>
+): string[] {
+  const nodes: any[] = Array.isArray(content) ? content : (content?.content ?? [])
+  const nameUpper = charName.toUpperCase()
+  const stem = nameUpper.replace(/(INNEN|EN|ER|E)$/, '').slice(0, Math.max(4, nameUpper.length - 3))
+  const passages: string[] = []
+
+  for (const node of nodes) {
+    const isAction =
+      (node.type === 'screenplay_element' && (node.attrs?.elementType === 'action' || node.attrs?.element_type === 'action')) ||
+      (node.type === 'absatz' && actionFormatIds.has(node.attrs?.format_id))
+    if (!isAction) continue
+    const text = extractNodeText(node).trim()
+    if (!text) continue
+    const textUpper = text.toUpperCase()
+    if (textUpper.includes(nameUpper) || (stem.length >= 4 && textUpper.includes(stem))) {
+      passages.push(text.substring(0, 300))
+    }
+  }
+  return passages
+}
+
+/**
+ * Analysiert den Content für einen Komparsen:
+ * - Hat er Dialogue folgend auf seinen Character-Block? → mit_text
+ * - Erscheint sein Name in einem Action-Block? → mit_spiel-Kandidat
+ * - Sonst → ot
+ */
+function analyzeKomparseInContent(
+  content: any,
+  charName: string,
+  headerOT: boolean,
+  charFormatIds: Set<string>,
+  diagFormatIds: Set<string>,
+  actionFormatIds: Set<string>
+): { hasDialogue: boolean; actionPassages: string[] } {
+  const nodes: any[] = Array.isArray(content) ? content : (content?.content ?? [])
+  const nameUpper = charName.toUpperCase()
+  const stem = nameUpper.replace(/(INNEN|EN|ER|E)$/, '').slice(0, Math.max(4, nameUpper.length - 3))
+
+  let hasDialogue = false
+  let isCurrentChar = false
+  const actionPassages: string[] = []
+
+  for (const node of nodes) {
+    const isChar =
+      (node.type === 'screenplay_element' && (node.attrs?.elementType === 'character' || node.attrs?.element_type === 'character')) ||
+      (node.type === 'absatz' && charFormatIds.has(node.attrs?.format_id))
+    const isDiag =
+      (node.type === 'screenplay_element' && (node.attrs?.elementType === 'dialogue' || node.attrs?.element_type === 'dialogue')) ||
+      (node.type === 'absatz' && diagFormatIds.has(node.attrs?.format_id))
+    const isAction =
+      (node.type === 'screenplay_element' && (node.attrs?.elementType === 'action' || node.attrs?.element_type === 'action')) ||
+      (node.type === 'absatz' && actionFormatIds.has(node.attrs?.format_id))
+
+    if (isChar) {
+      const rawText = extractNodeText(node).trim()
+      const { name } = parseSuffixServer(rawText)
+      isCurrentChar = name.toUpperCase() === nameUpper
+    } else if (isDiag && isCurrentChar) {
+      hasDialogue = true
+    } else if (isAction) {
+      isCurrentChar = false
+      const text = extractNodeText(node).trim()
+      if (text) {
+        const textUpper = text.toUpperCase()
+        if (textUpper.includes(nameUpper) || (stem.length >= 4 && textUpper.includes(stem))) {
+          actionPassages.push(text.substring(0, 300))
+        }
+      }
+    }
+    // Parenthetical etc. → isCurrentChar bleibt
+  }
+  return { hasDialogue, actionPassages }
+}
+
+/** Einfacher Mistral-HTTP-Call ohne Import aus ki.ts (vermeidet zirkuläre Abhängigkeit) */
+async function callMistralForKomparse(
+  apiKey: string,
+  model: string,
+  charName: string,
+  passages: string[]
+): Promise<{ typ: 'mit_spiel' | 'ot'; evidence: string; konfidenz: number }> {
+  const system =
+    'Du klassifizierst Komparsen in Filmdrehbüchern auf Deutsch. ' +
+    'Eine Figur hat "mit Spiel" wenn sie etwas SZENENRELEVANTES TUT: ' +
+    'eine Handlung ausführt, mit einer anderen Figur interagiert oder die Szene aktiv mitgestaltet. ' +
+    'Reine Anwesenheit, Atmosphäre oder bloße Nennung ist KEIN Spiel. ' +
+    'Im Zweifel: lieber MIT_SPIEL (Recall vor Precision). ' +
+    'Antworte NUR in diesem Format: MIT_SPIEL: <Begründung max 20 Wörter> ODER OHNE_SPIEL: <Begründung max 20 Wörter>'
+
+  const user =
+    `Figur: ${charName}\n\nAction-Texte aus dem Drehbuch (wo die Figur erwähnt wird):\n` +
+    passages.map((p, i) => `[${i + 1}] "${p}"`).join('\n')
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15000)
+  try {
+    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+        max_tokens: 80,
+        temperature: 0.0,
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(`Mistral HTTP ${res.status}`)
+    const data = await res.json() as any
+    const raw = (data.choices?.[0]?.message?.content || '').trim()
+
+    if (/^MIT_SPIEL/i.test(raw)) {
+      const evidence = raw.replace(/^MIT_SPIEL:?\s*/i, '').trim().substring(0, 150)
+      return { typ: 'mit_spiel', evidence, konfidenz: 0.85 }
+    }
+    if (/^OHNE_SPIEL/i.test(raw)) {
+      const evidence = raw.replace(/^OHNE_SPIEL:?\s*/i, '').trim().substring(0, 150)
+      return { typ: 'ot', evidence, konfidenz: 0.80 }
+    }
+    // Unklares Antwortformat → Fallback: mit_spiel (Recall)
+    return { typ: 'mit_spiel', evidence: raw.substring(0, 150), konfidenz: 0.55 }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+/**
+ * Phase 2: Klassifiziert alle Komparsen einer Szene als ot / mit_text / mit_spiel.
+ * Wird asynchron nach PUT /api/dokument-szenen/:id aufgerufen (non-blocking).
+ */
+export async function autoClassifySceneKomparsen(
+  szeneId: string,
+  content: any,
+  _userId: string | null = null
+): Promise<void> {
+  try {
+    // 1. Szenen-Metadaten laden
+    const szene = await queryOne(
+      `SELECT ds.id, ds.scene_identity_id, ds.werkstufe_id,
+              w.folge_id, f.produktion_id
+       FROM dokument_szenen ds
+       JOIN werkstufen w ON w.id = ds.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE ds.id = $1`,
+      [szeneId]
+    )
+    if (!szene?.scene_identity_id || !szene?.werkstufe_id) return
+
+    // 2. Komparsen dieser Szene + Werkstufe laden (via character_kategorien.typ = 'komparse')
+    const komparsen = await query(
+      `SELECT sc.id AS sc_id, sc.character_id, sc.header_o_t, sc.spiel_typ_quelle,
+              c.name AS char_name
+       FROM scene_characters sc
+       JOIN characters c ON c.id = sc.character_id
+       JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.produktion_id = $3
+       LEFT JOIN character_kategorien ck ON ck.id = cp.kategorie_id
+       WHERE sc.scene_identity_id = $1 AND sc.werkstufe_id = $2
+         AND ck.typ = 'komparse'`,
+      [szene.scene_identity_id, szene.werkstufe_id, szene.produktion_id]
+    )
+    if (komparsen.length === 0) return
+
+    // 3. Absatzformat-IDs für CHARACTER, DIALOGUE und ACTION
+    const [charFormats, diagFormats, actionFormats] = await Promise.all([
+      query(`SELECT id FROM absatzformate WHERE produktion_id = $1 AND LOWER(name) = 'character'`, [szene.produktion_id]),
+      query(`SELECT id FROM absatzformate WHERE produktion_id = $1 AND LOWER(name) = 'dialogue'`, [szene.produktion_id]),
+      query(`SELECT id FROM absatzformate WHERE produktion_id = $1 AND LOWER(name) = 'action'`, [szene.produktion_id]),
+    ])
+    const charFormatIds = new Set(charFormats.map((r: any) => r.id))
+    const diagFormatIds = new Set(diagFormats.map((r: any) => r.id))
+    const actionFormatIds = new Set(actionFormats.map((r: any) => r.id))
+
+    // 4. KI-Setting laden (nur wenn Kandidaten für Mistral vorhanden)
+    let kiSetting: any = null
+    const hasMitSpielerKandidaten = komparsen.some((k: any) => {
+      const { hasDialogue, actionPassages } = analyzeKomparseInContent(
+        content, k.char_name, k.header_o_t, charFormatIds, diagFormatIds, actionFormatIds
+      )
+      return !hasDialogue && !k.header_o_t && actionPassages.length > 0
+    })
+    if (hasMitSpielerKandidaten) {
+      kiSetting = await queryOne(
+        `SELECT ks.enabled, ks.provider, ks.model_name, kp.api_key
+         FROM ki_settings ks
+         LEFT JOIN ki_providers kp ON kp.provider = ks.provider AND kp.is_active = TRUE
+         WHERE ks.funktion = 'komparse_spiel_disambiguation'`,
+        []
+      )
+    }
+
+    // 5. Jeden Komparsen klassifizieren und upserten
+    for (const k of komparsen) {
+      const { hasDialogue, actionPassages } = analyzeKomparseInContent(
+        content, k.char_name, k.header_o_t, charFormatIds, diagFormatIds, actionFormatIds
+      )
+
+      let typ_erkannt: 'ot' | 'mit_text' | 'mit_spiel'
+      let konfidenz: number
+      let quelle: 'regel' | 'mistral'
+      let evidence_text: string | null = null
+      let verifiziert = false
+
+      if (hasDialogue) {
+        // Dialogue-Node vorhanden → deterministisch mit_text
+        typ_erkannt = 'mit_text'
+        konfidenz = 1.0
+        quelle = 'regel'
+        verifiziert = true
+      } else if (k.header_o_t) {
+        // Explizit als o.T. im Szenenkopf markiert, kein Dialogue → ot
+        typ_erkannt = 'ot'
+        konfidenz = 1.0
+        quelle = 'regel'
+        verifiziert = true
+      } else if (actionPassages.length > 0) {
+        // In Action-Text erwähnt → Kandidat für mit_spiel
+        if (kiSetting?.enabled && kiSetting?.provider === 'mistral' && kiSetting?.api_key) {
+          try {
+            const res = await callMistralForKomparse(kiSetting.api_key, kiSetting.model_name, k.char_name, actionPassages)
+            typ_erkannt = res.typ
+            konfidenz = res.konfidenz
+            evidence_text = res.evidence
+            quelle = 'mistral'
+            verifiziert = false
+          } catch (err) {
+            // Mistral nicht erreichbar → heuristischer Fallback (Recall)
+            console.error('[KomparseKlass] Mistral Fehler, Fallback:', err)
+            typ_erkannt = 'mit_spiel'
+            konfidenz = 0.60
+            quelle = 'regel'
+            evidence_text = actionPassages[0]?.substring(0, 150) ?? null
+            verifiziert = false
+          }
+        } else {
+          // KI deaktiviert oder kein Key → heuristisch: mit_spiel (Recall > Precision)
+          typ_erkannt = 'mit_spiel'
+          konfidenz = 0.65
+          quelle = 'regel'
+          evidence_text = actionPassages[0]?.substring(0, 150) ?? null
+          verifiziert = false
+        }
+      } else {
+        // Weder Dialogue noch Action-Erwähnung → ot
+        typ_erkannt = 'ot'
+        konfidenz = 0.90
+        quelle = 'regel'
+        verifiziert = false
+      }
+
+      // Upsert in komparse_klassifizierung
+      // Manuell gesetzte Einträge (quelle='manuell') werden NICHT überschrieben
+      await pool.query(
+        `INSERT INTO komparse_klassifizierung
+           (character_id, scene_identity_id, werkstufe_id, typ_erkannt, evidence_text, konfidenz, quelle, verifiziert)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (character_id, scene_identity_id, werkstufe_id) DO UPDATE SET
+           typ_erkannt    = CASE WHEN komparse_klassifizierung.quelle = 'manuell' THEN komparse_klassifizierung.typ_erkannt ELSE EXCLUDED.typ_erkannt END,
+           evidence_text  = CASE WHEN komparse_klassifizierung.quelle = 'manuell' THEN komparse_klassifizierung.evidence_text ELSE EXCLUDED.evidence_text END,
+           konfidenz      = CASE WHEN komparse_klassifizierung.quelle = 'manuell' THEN komparse_klassifizierung.konfidenz ELSE EXCLUDED.konfidenz END,
+           quelle         = CASE WHEN komparse_klassifizierung.quelle = 'manuell' THEN 'manuell' ELSE EXCLUDED.quelle END,
+           verifiziert    = CASE WHEN komparse_klassifizierung.quelle = 'manuell' THEN komparse_klassifizierung.verifiziert ELSE EXCLUDED.verifiziert END,
+           erstellt_am    = CASE WHEN komparse_klassifizierung.quelle = 'manuell' THEN komparse_klassifizierung.erstellt_am ELSE NOW() END`,
+        [k.character_id, szene.scene_identity_id, szene.werkstufe_id, typ_erkannt, evidence_text, konfidenz, quelle, verifiziert]
+      )
+
+      // scene_characters.spiel_typ + spiel_typ_quelle aktualisieren,
+      // sofern noch nicht manuell gesetzt (Präzedenz: manuell > scan > header)
+      if (k.spiel_typ_quelle !== 'manuell') {
+        const spiel_typ_map: Record<string, string> = { ot: 'o.t.', mit_text: 'text', mit_spiel: 'spiel' }
+        const neue_spiel_typ = spiel_typ_map[typ_erkannt]
+        if (neue_spiel_typ) {
+          await pool.query(
+            `UPDATE scene_characters SET spiel_typ = $1, spiel_typ_quelle = 'scan'
+             WHERE id = $2`,
+            [neue_spiel_typ, k.sc_id]
+          )
+        }
+      }
+    }
+
+    console.log(`[KomparseKlass] ${komparsen.length} Komparsen klassifiziert für Szene ${szeneId}`)
+  } catch (err) {
+    // Non-blocking — darf Speicherung nicht blockieren
+    console.error('[KomparseKlass] autoClassifySceneKomparsen Fehler:', err)
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/komparse-klassifizierung?produktion_id=X[&scene_identity_id=Y][&werkstufe_id=Z][&nur_unverifiziert=true]
+// ══════════════════════════════════════════════════════════════════════════════
+ntEintraegeRouter.get('/komparse-klassifizierung', async (req, res) => {
+  try {
+    const { produktion_id, scene_identity_id, werkstufe_id, nur_unverifiziert, character_id } = req.query as Record<string, string>
+    if (!produktion_id) return res.status(400).json({ error: 'produktion_id erforderlich' })
+
+    const conditions: string[] = [
+      `cp.produktion_id = $1`,
+      `ck.typ = 'komparse'`,
+    ]
+    const params: any[] = [produktion_id]
+    let pi = 2
+
+    if (scene_identity_id) { conditions.push(`kk.scene_identity_id = $${pi++}`); params.push(scene_identity_id) }
+    if (werkstufe_id) { conditions.push(`kk.werkstufe_id = $${pi++}`); params.push(werkstufe_id) }
+    if (character_id) { conditions.push(`kk.character_id = $${pi++}`); params.push(character_id) }
+    if (nur_unverifiziert === 'true') { conditions.push(`kk.verifiziert = FALSE`) }
+
+    const rows = await query(
+      `SELECT
+         kk.id, kk.character_id, kk.scene_identity_id, kk.werkstufe_id,
+         kk.typ_erkannt, kk.evidence_text, kk.konfidenz, kk.quelle,
+         kk.verifiziert, kk.verifiziert_von_user_id, kk.verifiziert_am, kk.erstellt_am,
+         c.name AS character_name,
+         cp.komparsen_nummer,
+         ck.name AS kategorie_name,
+         ds.scene_nummer, ds.ort_name, ds.int_ext, ds.tageszeit,
+         f.folge_nummer
+       FROM komparse_klassifizierung kk
+       JOIN characters c ON c.id = kk.character_id
+       JOIN character_productions cp ON cp.character_id = kk.character_id AND cp.produktion_id = $1
+       LEFT JOIN character_kategorien ck ON ck.id = cp.kategorie_id
+       LEFT JOIN dokument_szenen ds ON ds.scene_identity_id = kk.scene_identity_id AND ds.werkstufe_id = kk.werkstufe_id
+       LEFT JOIN werkstufen w ON w.id = kk.werkstufe_id
+       LEFT JOIN folgen f ON f.id = w.folge_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY f.folge_nummer NULLS LAST, ds.scene_nummer NULLS LAST, c.name`,
+      params
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PATCH /api/komparse-klassifizierung/:id — manuelles Override (DK / Besetzung)
+// Setzt quelle='manuell', verifiziert=TRUE, löst KI-Trainer-Event aus.
+// ══════════════════════════════════════════════════════════════════════════════
+ntEintraegeRouter.patch('/komparse-klassifizierung/:id', async (req, res) => {
+  try {
+    const { typ_erkannt, evidence_text } = req.body
+    if (!typ_erkannt || !['ot', 'mit_text', 'mit_spiel'].includes(typ_erkannt)) {
+      return res.status(400).json({ error: 'typ_erkannt muss ot | mit_text | mit_spiel sein' })
+    }
+    const userId = (req as any).user?.user_id ?? null
+    const userName = (req as any).user?.name ?? null
+
+    const row = await queryOne(
+      `UPDATE komparse_klassifizierung SET
+         typ_erkannt           = $1,
+         evidence_text         = COALESCE($2, evidence_text),
+         quelle                = 'manuell',
+         verifiziert           = TRUE,
+         verifiziert_von_user_id = $3,
+         verifiziert_am        = NOW()
+       WHERE id = $4 RETURNING *`,
+      [typ_erkannt, evidence_text ?? null, userId, req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Klassifizierung nicht gefunden' })
+
+    // scene_characters.spiel_typ und spiel_typ_quelle='manuell' synchronisieren
+    const spiel_typ_map: Record<string, string> = { ot: 'o.t.', mit_text: 'text', mit_spiel: 'spiel' }
+    const neue_spiel_typ = spiel_typ_map[typ_erkannt]
+    if (neue_spiel_typ) {
+      await pool.query(
+        `UPDATE scene_characters SET spiel_typ = $1, spiel_typ_quelle = 'manuell'
+         WHERE scene_identity_id = $2 AND werkstufe_id = $3 AND character_id = $4`,
+        [neue_spiel_typ, row.scene_identity_id, row.werkstufe_id, row.character_id]
+      )
+    }
+
+    // KI-Trainer-Event (fire-and-forget)
+    if (KI_TRAINER_SECRET) {
+      fetch(`${KI_TRAINER_URL}/api/training-events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-KI-Trainer-Secret': KI_TRAINER_SECRET },
+        body: JSON.stringify({
+          app: 'script',
+          task: 'komparse_spiel_disambiguation',
+          input: row.evidence_text ?? '',
+          label: typ_erkannt,
+          confidence: 1.0,
+          is_correction: true,
+          source_id: String(row.id),
+        }),
+      }).catch(() => {})
+    }
+
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/nt-eintraege?produktion_id=X[&folge_id=Y][&nt_typ=Z][&veraltet=false]
