@@ -37,16 +37,35 @@ const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2
 
 // ── Auth-Service Helfer ───────────────────────────────────────────────────────
 
-async function getUserInfoFromAuth(userId: string): Promise<{name: string; email: string} | null> {
+// Cached app-users list — gemeinsam genutzt von getUserInfoFromAuth + getUsersByRoleFromAuth
+let appUsersCache: Array<{id: string; username: string; email: string; role_name: string}> | null = null
+let appUsersCacheTs = 0
+const APP_USERS_CACHE_TTL = 5 * 60 * 1000 // 5 Minuten
+
+async function getAppUsers() {
+  const now = Date.now()
+  if (appUsersCache && now - appUsersCacheTs < APP_USERS_CACHE_TTL) return appUsersCache
   try {
     const resp = await fetch(
-      `http://127.0.0.1:3002/api/internal/user-info?user_id=${encodeURIComponent(userId)}`,
+      'http://127.0.0.1:3002/api/internal/app-users/script',
       { headers: { 'x-internal-key': INTERNAL_KEY } }
     )
-    if (!resp.ok) return null
+    if (!resp.ok) return appUsersCache ?? []
     const data = await resp.json() as any
-    if (!data?.user_id) return null
-    return { name: data.name ?? userId, email: data.email ?? '' }
+    appUsersCache = data?.users ?? (Array.isArray(data) ? data : [])
+    appUsersCacheTs = now
+    return appUsersCache!
+  } catch {
+    return appUsersCache ?? []
+  }
+}
+
+async function getUserInfoFromAuth(userId: string): Promise<{name: string; email: string} | null> {
+  try {
+    const users = await getAppUsers()
+    const user = users.find(u => u.id === userId)
+    if (!user) return null
+    return { name: user.username ?? userId, email: user.email ?? '' }
   } catch {
     return null
   }
@@ -54,13 +73,12 @@ async function getUserInfoFromAuth(userId: string): Promise<{name: string; email
 
 async function getUsersByRoleFromAuth(rolle: string): Promise<Array<{user_id: string; name: string; email: string}>> {
   try {
-    const resp = await fetch(
-      `http://127.0.0.1:3002/api/internal/users-by-role?role=${encodeURIComponent(rolle)}&app=script`,
-      { headers: { 'x-internal-key': INTERNAL_KEY } }
-    )
-    if (!resp.ok) return []
-    const data = await resp.json() as any
-    return Array.isArray(data) ? data : []
+    const users = await getAppUsers()
+    const seen = new Set<string>()
+    return users
+      .filter(u => u.role_name === rolle)
+      .filter(u => !seen.has(u.id) && !!seen.add(u.id))
+      .map(u => ({ user_id: u.id, name: u.username, email: u.email }))
   } catch {
     return []
   }
