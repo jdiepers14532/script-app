@@ -475,10 +475,21 @@ rollenFreigabeRouter.use(authMiddleware)
 rollenFreigabeRouter.get('/:productionId/config', async (req, res) => {
   try {
     const row = await queryOne(
-      `SELECT freigabe_aktiv, erinnerung_nach_tagen FROM rollen_freigabe_konfiguration WHERE production_id = $1`,
+      `SELECT freigabe_aktiv, erinnerung_nach_tagen,
+              deckt_rollen, deckt_motive, deckt_neue_szenen,
+              quorum, lock_trigger_fassungslabel,
+              lock_override_aktiv, lock_override_rollen,
+              ot_obergrenze_pro_block
+       FROM rollen_freigabe_konfiguration WHERE production_id = $1`,
       [req.params.productionId]
     )
-    res.json(row ?? { freigabe_aktiv: false, erinnerung_nach_tagen: 3 })
+    res.json(row ?? {
+      freigabe_aktiv: false, erinnerung_nach_tagen: 3,
+      deckt_rollen: true, deckt_motive: false, deckt_neue_szenen: false,
+      quorum: 'first_responder', lock_trigger_fassungslabel: null,
+      lock_override_aktiv: false, lock_override_rollen: [],
+      ot_obergrenze_pro_block: null,
+    })
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
@@ -487,19 +498,78 @@ rollenFreigabeRouter.put('/:productionId/config',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { freigabe_aktiv, erinnerung_nach_tagen } = req.body
+      const {
+        freigabe_aktiv, erinnerung_nach_tagen,
+        deckt_rollen, deckt_motive, deckt_neue_szenen,
+        quorum, lock_trigger_fassungslabel,
+        lock_override_aktiv, lock_override_rollen,
+        ot_obergrenze_pro_block,
+      } = req.body
       const row = await queryOne(
-        `INSERT INTO rollen_freigabe_konfiguration (production_id, freigabe_aktiv, erinnerung_nach_tagen, geaendert_am)
-         VALUES ($1, $2, $3, NOW())
-         ON CONFLICT (production_id) DO UPDATE
-           SET freigabe_aktiv = $2, erinnerung_nach_tagen = $3, geaendert_am = NOW()
-         RETURNING freigabe_aktiv, erinnerung_nach_tagen`,
-        [req.params.productionId, freigabe_aktiv ?? false, erinnerung_nach_tagen ?? 3]
+        `INSERT INTO rollen_freigabe_konfiguration
+           (production_id, freigabe_aktiv, erinnerung_nach_tagen,
+            deckt_rollen, deckt_motive, deckt_neue_szenen,
+            quorum, lock_trigger_fassungslabel,
+            lock_override_aktiv, lock_override_rollen,
+            ot_obergrenze_pro_block, geaendert_am)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+         ON CONFLICT (production_id) DO UPDATE SET
+           freigabe_aktiv             = COALESCE($2, rollen_freigabe_konfiguration.freigabe_aktiv),
+           erinnerung_nach_tagen      = COALESCE($3, rollen_freigabe_konfiguration.erinnerung_nach_tagen),
+           deckt_rollen               = COALESCE($4, rollen_freigabe_konfiguration.deckt_rollen),
+           deckt_motive               = COALESCE($5, rollen_freigabe_konfiguration.deckt_motive),
+           deckt_neue_szenen          = COALESCE($6, rollen_freigabe_konfiguration.deckt_neue_szenen),
+           quorum                     = COALESCE($7, rollen_freigabe_konfiguration.quorum),
+           lock_trigger_fassungslabel = $8,
+           lock_override_aktiv        = COALESCE($9, rollen_freigabe_konfiguration.lock_override_aktiv),
+           lock_override_rollen       = COALESCE($10, rollen_freigabe_konfiguration.lock_override_rollen),
+           ot_obergrenze_pro_block    = $11,
+           geaendert_am               = NOW()
+         RETURNING freigabe_aktiv, erinnerung_nach_tagen,
+                   deckt_rollen, deckt_motive, deckt_neue_szenen,
+                   quorum, lock_trigger_fassungslabel,
+                   lock_override_aktiv, lock_override_rollen,
+                   ot_obergrenze_pro_block`,
+        [
+          req.params.productionId,
+          freigabe_aktiv ?? null,
+          erinnerung_nach_tagen ?? null,
+          deckt_rollen ?? null,
+          deckt_motive ?? null,
+          deckt_neue_szenen ?? null,
+          quorum ?? null,
+          lock_trigger_fassungslabel ?? null,
+          lock_override_aktiv ?? null,
+          lock_override_rollen ? JSON.stringify(lock_override_rollen) : null,
+          ot_obergrenze_pro_block ?? null,
+        ]
       )
       res.json(row)
     } catch (err) { res.status(500).json({ error: String(err) }) }
   }
 )
+
+// GET /api/rollen-freigabe/meta — Nutzer + Rollen für Genehmiger-Konfiguration (DK-Zugriff)
+rollenFreigabeRouter.get('/meta', async (req, res) => {
+  try {
+    const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP'
+    const [usersRes, rolesRes] = await Promise.all([
+      fetch('http://127.0.0.1:3002/api/internal/app-users/script', { headers: { 'x-internal-key': INTERNAL_KEY } }),
+      fetch('http://127.0.0.1:3002/api/internal/app-roles/script', { headers: { 'x-internal-key': INTERNAL_KEY } }),
+    ])
+    if (!usersRes.ok || !rolesRes.ok) return res.status(502).json({ error: 'Auth-Service nicht erreichbar' })
+    const [usersData, rolesData]: any[] = await Promise.all([usersRes.json(), rolesRes.json()])
+    const userMap = new Map<string, { id: string; name: string; email: string }>()
+    for (const u of (usersData.users || [])) {
+      if (!userMap.has(u.id)) {
+        userMap.set(u.id, { id: u.id, name: (u.username || '').trim() || u.email.split('@')[0], email: u.email })
+      }
+    }
+    const users = [...userMap.values()].sort((a: any, b: any) => a.name.localeCompare(b.name, 'de'))
+    const roles = (rolesData.roles || []).map((r: any) => ({ id: r.id, name: r.name }))
+    res.json({ users, roles })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
 
 // GET /api/rollen-freigabe/:productionId/genehmiger
 rollenFreigabeRouter.get('/:productionId/genehmiger', async (req, res) => {

@@ -5656,106 +5656,202 @@ function Placeholder({ label }: { label: string }) {
 
 // ── Rollen-Freigabe Tab ──────────────────────────────────────────────────────
 
-function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
-  const { api } = { api: { get: (url: string) => fetch(`/api${url}`, { credentials: 'include' }).then(r => r.json()), post: (url: string, body: any) => fetch(`/api${url}`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()), put: (url: string, body: any) => fetch(`/api${url}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()), delete: (url: string) => fetch(`/api${url}`, { method: 'DELETE', credentials: 'include' }).then(r => r.json()) } }
+type FreigabeConfig = {
+  freigabe_aktiv: boolean
+  erinnerung_nach_tagen: number
+  deckt_rollen: boolean
+  deckt_motive: boolean
+  deckt_neue_szenen: boolean
+  quorum: 'first_responder' | 'alle'
+  lock_trigger_fassungslabel: string | null
+  lock_override_aktiv: boolean
+  lock_override_rollen: string[]
+  ot_obergrenze_pro_block: number | null
+}
 
-  const [config, setConfig] = useState<{ freigabe_aktiv: boolean; erinnerung_nach_tagen: number } | null>(null)
+const DEFAULT_CONFIG: FreigabeConfig = {
+  freigabe_aktiv: false, erinnerung_nach_tagen: 3,
+  deckt_rollen: true, deckt_motive: false, deckt_neue_szenen: false,
+  quorum: 'first_responder', lock_trigger_fassungslabel: null,
+  lock_override_aktiv: false, lock_override_rollen: [],
+  ot_obergrenze_pro_block: null,
+}
+
+const STUFE_LABELS: Record<string, string> = { obligatorisch: 'Obligatorisch', review: 'Review', notify: 'Info' }
+const TYP_LABELS: Record<string, string> = { budget: 'Budget', dispo: 'Dispo' }
+
+function ToggleBtn({ on, onToggle, disabled }: { on: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      style={{
+        width: 40, height: 22, borderRadius: 11, border: 'none', cursor: disabled ? 'default' : 'pointer',
+        background: on ? '#00C853' : 'var(--border)', position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 3, left: on ? 21 : 3,
+        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        transition: 'left 0.2s',
+      }} />
+    </button>
+  )
+}
+
+function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
+  const [config, setConfig] = useState<FreigabeConfig>(DEFAULT_CONFIG)
   const [genehmiger, setGenehmiger] = useState<any[]>([])
+  const [meta, setMeta] = useState<{ users: any[]; roles: any[] }>({ users: [], roles: [] })
   const [loading, setLoading] = useState(true)
-  const [newName, setNewName] = useState('')
-  const [newEmail, setNewEmail] = useState('')
-  const [newObligatorisch, setNewObligatorisch] = useState(true)
   const [saving, setSaving] = useState(false)
+  // New genehmiger form
+  const [newTyp, setNewTyp] = useState<'user' | 'rolle'>('user')
+  const [newUserId, setNewUserId] = useState('')
+  const [newRolle, setNewRolle] = useState('')
+  const [newFreigabeTyp, setNewFreigabeTyp] = useState('budget')
+  const [newStufe, setNewStufe] = useState('obligatorisch')
+
+  const apiFetch = (url: string, opts?: RequestInit) =>
+    fetch(`/api${url}`, { credentials: 'include', ...opts }).then(r => r.json())
+  const apiPut = (url: string, body: any) =>
+    apiFetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const apiPost = (url: string, body: any) =>
+    apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  const apiDelete = (url: string) =>
+    apiFetch(url, { method: 'DELETE' })
 
   useEffect(() => {
     Promise.all([
-      api.get(`/rollen-freigabe/${produktionId}/config`),
-      api.get(`/rollen-freigabe/${produktionId}/genehmiger`),
-    ]).then(([cfg, gen]) => {
-      setConfig(cfg)
+      apiFetch(`/rollen-freigabe/${produktionId}/config`),
+      apiFetch(`/rollen-freigabe/${produktionId}/genehmiger`),
+      apiFetch('/rollen-freigabe/meta'),
+    ]).then(([cfg, gen, m]) => {
+      setConfig({ ...DEFAULT_CONFIG, ...cfg })
       setGenehmiger(Array.isArray(gen) ? gen : [])
+      if (m && !m.error) setMeta(m)
     }).finally(() => setLoading(false))
   }, [produktionId])
 
-  async function saveConfig(newCfg: { freigabe_aktiv: boolean; erinnerung_nach_tagen: number }) {
+  async function patchConfig(patch: Partial<FreigabeConfig>) {
     setSaving(true)
     try {
-      const updated = await api.put(`/rollen-freigabe/${produktionId}/config`, newCfg)
-      setConfig(updated)
+      const updated = await apiPut(`/rollen-freigabe/${produktionId}/config`, { ...config, ...patch })
+      if (!updated?.error) setConfig(prev => ({ ...prev, ...updated }))
     } finally { setSaving(false) }
   }
 
   async function addGenehmiger() {
-    if (!newName.trim() || !newEmail.trim()) return
-    const g = await api.post(`/rollen-freigabe/${produktionId}/genehmiger`, {
-      name: newName.trim(), email: newEmail.trim(), ist_obligatorisch: newObligatorisch,
-    })
-    setGenehmiger(prev => [...prev, g])
-    setNewName(''); setNewEmail('')
+    const identifier = newTyp === 'user' ? newUserId : newRolle
+    if (!identifier) return
+    const body = newTyp === 'user'
+      ? { user_id: identifier, freigabe_typ: newFreigabeTyp, stufe: newStufe }
+      : { rolle: identifier, freigabe_typ: newFreigabeTyp, stufe: newStufe }
+    const g = await apiPost(`/rollen-freigabe/${produktionId}/genehmiger`, body)
+    if (g && !g.error) {
+      setGenehmiger(prev => [...prev, g])
+      setNewUserId(''); setNewRolle('')
+    }
   }
 
   async function removeGenehmiger(id: number) {
-    await api.delete(`/rollen-freigabe/${produktionId}/genehmiger/${id}`)
+    await apiDelete(`/rollen-freigabe/${produktionId}/genehmiger/${id}`)
     setGenehmiger(prev => prev.filter(g => g.id !== id))
   }
 
-  async function toggleObligatorisch(g: any) {
-    const updated = await api.put(`/rollen-freigabe/${produktionId}/genehmiger/${g.id}`, {
-      ist_obligatorisch: !g.ist_obligatorisch,
-    })
-    setGenehmiger(prev => prev.map(x => x.id === g.id ? { ...x, ...updated } : x))
+  async function changeStufe(g: any, stufe: string) {
+    const updated = await apiPut(`/rollen-freigabe/${produktionId}/genehmiger/${g.id}`, { stufe })
+    if (!updated?.error) setGenehmiger(prev => prev.map(x => x.id === g.id ? { ...x, stufe } : x))
   }
 
-  const label: React.CSSProperties = { fontSize: 13, color: 'var(--text-secondary)', minWidth: 160 }
-  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }
+  const sec: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 12, marginTop: 28 }
+  const row: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }
+  const lbl: React.CSSProperties = { fontSize: 13, color: 'var(--text-secondary)', flex: 1 }
+  const sel: React.CSSProperties = { padding: '5px 9px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: 'var(--bg-surface)', color: 'var(--text-primary)' }
 
   if (loading) return <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Lade...</div>
 
-  return (
-    <div style={{ maxWidth: 620 }}>
-      <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20 }}>Rollen-Freigabe-Workflow</h3>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.6 }}>
-        Wenn aktiv, müssen neue Rollen von konfigurierten Genehmigern per E-Mail-Link freigegeben werden,
-        bevor sie in der Szene verwendet werden können.
-        Die DK kann Freigaben jederzeit übersteuern.
-      </p>
+  const budgetGenehmiger = genehmiger.filter(g => g.freigabe_typ === 'budget')
+  const dispoGenehmiger = genehmiger.filter(g => g.freigabe_typ === 'dispo')
 
-      {/* Aktivierung */}
-      <div style={row}>
-        <span style={label}>Freigabe-Workflow</span>
-        <div style={{ display: 'flex', gap: 8 }}>
+  const renderGenehmiger = (list: any[]) => {
+    if (list.length === 0) return (
+      <div style={{ color: 'var(--text-secondary)', fontSize: 13, padding: '8px 0' }}>Noch keine Genehmiger konfiguriert.</div>
+    )
+    return list.map(g => {
+      const name = g.user_id
+        ? (meta.users.find(u => u.id === g.user_id)?.name || g.user_id)
+        : `Rolle: ${g.rolle}`
+      return (
+        <div key={g.id} style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
+          padding: '7px 10px', borderRadius: 8,
+          border: '1px solid var(--border)', background: 'var(--bg-surface)',
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 500 }}>{name}</span>
+            {g.user_id && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>(User)</span>}
+          </div>
+          <select
+            value={g.stufe}
+            onChange={e => changeStufe(g, e.target.value)}
+            style={{ ...sel, fontSize: 11 }}
+          >
+            <option value="obligatorisch">Obligatorisch</option>
+            <option value="review">Review</option>
+            <option value="notify">Info</option>
+          </select>
           <button
-            onClick={() => config && saveConfig({ ...config, freigabe_aktiv: true })}
-            disabled={saving}
-            style={{
-              padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
-              fontSize: 13, fontWeight: 600,
-              background: config?.freigabe_aktiv ? '#000' : 'var(--bg-surface)',
-              color: config?.freigabe_aktiv ? '#fff' : 'var(--text-secondary)',
-              border: config?.freigabe_aktiv ? 'none' : '1px solid var(--border)',
-            } as any}
-          >Aktiv</button>
-          <button
-            onClick={() => config && saveConfig({ ...config, freigabe_aktiv: false })}
-            disabled={saving}
-            style={{
-              padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
-              fontSize: 13, fontWeight: 600,
-              background: !config?.freigabe_aktiv ? '#000' : 'var(--bg-surface)',
-              color: !config?.freigabe_aktiv ? '#fff' : 'var(--text-secondary)',
-              border: !config?.freigabe_aktiv ? 'none' : '1px solid var(--border)',
-            } as any}
-          >Aus</button>
+            onClick={() => removeGenehmiger(g.id)}
+            style={{ padding: '3px 7px', borderRadius: 5, border: '1px solid var(--border)', background: 'none', color: '#FF3B30', cursor: 'pointer', fontSize: 12 }}
+          >✕</button>
         </div>
+      )
+    })
+  }
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      {/* Link */}
+      <div style={{ marginBottom: 16 }}>
+        <a href="/freigaben" style={{ fontSize: 13, color: '#007AFF', textDecoration: 'none' }}>
+          → Ausstehende Freigaben anzeigen
+        </a>
       </div>
 
-      {/* Erinnerung */}
+      {/* ── Workflow ── */}
+      <p style={sec}>Workflow</p>
       <div style={row}>
-        <span style={label}>Erinnerung nach</span>
+        <span style={lbl}>Freigabe-Workflow aktiv</span>
+        <ToggleBtn on={config.freigabe_aktiv} onToggle={() => patchConfig({ freigabe_aktiv: !config.freigabe_aktiv })} disabled={saving} />
+      </div>
+      <div style={row}>
+        <span style={lbl}>Budget-Freigabe (Rollenvergabe)</span>
+        <ToggleBtn on={config.deckt_rollen} onToggle={() => patchConfig({ deckt_rollen: !config.deckt_rollen })} disabled={saving || !config.freigabe_aktiv} />
+      </div>
+      <div style={row}>
+        <span style={lbl}>Dispo-Freigabe (Szenen-Einsatz)</span>
+        <ToggleBtn on={config.deckt_motive} onToggle={() => patchConfig({ deckt_motive: !config.deckt_motive })} disabled={saving || !config.freigabe_aktiv} />
+      </div>
+      <div style={row}>
+        <span style={lbl}>Quorum</span>
         <select
-          value={config?.erinnerung_nach_tagen ?? 3}
-          onChange={e => config && saveConfig({ ...config, erinnerung_nach_tagen: parseInt(e.target.value) })}
-          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
+          value={config.quorum}
+          onChange={e => patchConfig({ quorum: e.target.value as any })}
+          disabled={saving || !config.freigabe_aktiv}
+          style={sel}
+        >
+          <option value="first_responder">First-Responder (erster Genehmiger entscheidet)</option>
+          <option value="alle">Alle (alle obligatorischen müssen zustimmen)</option>
+        </select>
+      </div>
+      <div style={row}>
+        <span style={lbl}>Erinnerung nach</span>
+        <select
+          value={config.erinnerung_nach_tagen}
+          onChange={e => patchConfig({ erinnerung_nach_tagen: parseInt(e.target.value) })}
+          disabled={saving}
+          style={sel}
         >
           {[1, 2, 3, 5, 7, 14].map(d => (
             <option key={d} value={d}>{d} Tag{d !== 1 ? 'en' : ''}</option>
@@ -5763,95 +5859,67 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
         </select>
       </div>
 
-      {/* Freigaben-Seite Link */}
-      <div style={{ marginBottom: 24 }}>
-        <a
-          href="/freigaben"
-          style={{ fontSize: 13, color: '#007AFF', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
-        >
-          → Ausstehende Freigaben anzeigen
-        </a>
+      {/* ── Lock-Gate ── */}
+      <p style={sec}>Lock-Gate</p>
+      <div style={row}>
+        <span style={lbl}>Override erlaubt (trotz offener Freigaben sperren)</span>
+        <ToggleBtn on={config.lock_override_aktiv} onToggle={() => patchConfig({ lock_override_aktiv: !config.lock_override_aktiv })} disabled={saving} />
+      </div>
+      <div style={row}>
+        <span style={lbl}>Lock-Trigger Fassungslabel</span>
+        <input
+          value={config.lock_trigger_fassungslabel ?? ''}
+          onChange={e => setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: e.target.value || null }))}
+          onBlur={() => patchConfig({ lock_trigger_fassungslabel: config.lock_trigger_fassungslabel })}
+          placeholder="z.B. DB3 (leer = kein automatischer Trigger)"
+          style={{ ...sel, flex: 1 }}
+          disabled={saving}
+        />
       </div>
 
-      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '20px 0' }} />
+      {/* ── Genehmiger ── */}
+      <p style={sec}>Budget-Genehmiger</p>
+      {renderGenehmiger(budgetGenehmiger)}
 
-      {/* Genehmiger-Liste */}
-      <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Genehmiger</h4>
-      <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.5 }}>
-        Obligatorische Genehmiger: alle müssen zustimmen, damit eine Rolle freigegeben wird.
-        Optionale Genehmiger: werden informiert, blockieren aber nicht.
-      </p>
-
-      {genehmiger.length === 0 && (
-        <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginBottom: 16 }}>
-          Noch keine Genehmiger konfiguriert.
-        </div>
-      )}
-
-      {genehmiger.map(g => (
-        <div key={g.id} style={{
-          display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8,
-          padding: '8px 12px', borderRadius: 8,
-          border: '1px solid var(--border)', background: 'var(--bg-surface)',
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600 }}>{g.name}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{g.email}</div>
-          </div>
-          <button
-            onClick={() => toggleObligatorisch(g)}
-            style={{
-              padding: '3px 10px', borderRadius: 99, fontSize: 11, fontWeight: 600, cursor: 'pointer', border: 'none',
-              background: g.ist_obligatorisch ? '#007AFF22' : '#f0f0f0',
-              color: g.ist_obligatorisch ? '#007AFF' : 'var(--text-secondary)',
-            }}
-          >
-            {g.ist_obligatorisch ? 'Obligatorisch' : 'Optional'}
-          </button>
-          <button
-            onClick={() => removeGenehmiger(g.id)}
-            style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', color: '#FF3B30', cursor: 'pointer', fontSize: 12 }}
-          >
-            ✕
-          </button>
-        </div>
-      ))}
+      <p style={{ ...sec, marginTop: 20 }}>Dispo-Genehmiger</p>
+      {renderGenehmiger(dispoGenehmiger)}
 
       {/* Neuer Genehmiger */}
-      <div style={{ marginTop: 16, padding: 16, borderRadius: 8, border: '1px dashed var(--border)' }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>Neuer Genehmiger</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          <input
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            placeholder="Name"
-            style={{ flex: 1, minWidth: 120, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-          />
-          <input
-            value={newEmail}
-            onChange={e => setNewEmail(e.target.value)}
-            placeholder="E-Mail"
-            type="email"
-            style={{ flex: 2, minWidth: 180, padding: '7px 10px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-            <input
-              type="checkbox"
-              checked={newObligatorisch}
-              onChange={e => setNewObligatorisch(e.target.checked)}
-            />
-            Obligatorisch
-          </label>
+      <div style={{ marginTop: 16, padding: 14, borderRadius: 8, border: '1px dashed var(--border)', background: 'var(--bg-subtle)' }}>
+        <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: 'var(--text-secondary)' }}>NEUER GENEHMIGER</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8, alignItems: 'center' }}>
+          <select value={newTyp} onChange={e => setNewTyp(e.target.value as any)} style={sel}>
+            <option value="user">User</option>
+            <option value="rolle">Rolle</option>
+          </select>
+          {newTyp === 'user' ? (
+            <select value={newUserId} onChange={e => setNewUserId(e.target.value)} style={{ ...sel, flex: 1, minWidth: 160 }}>
+              <option value="">– User wählen –</option>
+              {meta.users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.email})</option>)}
+            </select>
+          ) : (
+            <select value={newRolle} onChange={e => setNewRolle(e.target.value)} style={{ ...sel, flex: 1, minWidth: 160 }}>
+              <option value="">– Rolle wählen –</option>
+              {meta.roles.map(r => <option key={r.name} value={r.name}>{r.name}</option>)}
+            </select>
+          )}
+          <select value={newFreigabeTyp} onChange={e => setNewFreigabeTyp(e.target.value)} style={sel}>
+            <option value="budget">Budget</option>
+            <option value="dispo">Dispo</option>
+          </select>
+          <select value={newStufe} onChange={e => setNewStufe(e.target.value)} style={sel}>
+            <option value="obligatorisch">Obligatorisch</option>
+            <option value="review">Review</option>
+            <option value="notify">Info</option>
+          </select>
           <button
             onClick={addGenehmiger}
-            disabled={!newName.trim() || !newEmail.trim()}
+            disabled={newTyp === 'user' ? !newUserId : !newRolle}
             style={{
-              padding: '7px 16px', borderRadius: 6, border: 'none',
+              padding: '7px 14px', borderRadius: 6, border: 'none',
               background: '#000', color: '#fff', fontSize: 13, fontWeight: 600,
-              cursor: newName.trim() && newEmail.trim() ? 'pointer' : 'not-allowed',
-              opacity: newName.trim() && newEmail.trim() ? 1 : 0.4,
+              cursor: (newTyp === 'user' ? newUserId : newRolle) ? 'pointer' : 'not-allowed',
+              opacity: (newTyp === 'user' ? newUserId : newRolle) ? 1 : 0.4, minHeight: 36,
             }}
           >
             Hinzufügen
