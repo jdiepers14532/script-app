@@ -497,17 +497,15 @@ rollenFreigabeRouter.get('/:productionId/config', async (req, res) => {
 })
 
 // GET /api/rollen-freigabe/:produktionId/werkstufen-labels
-// Gibt vorhandene (label, typ)-Kombos zurück, geordnet nach stage_labels.sort_order
+// Gibt alle moeglichen (label, typ)-Kombos aus stage_labels × [drehbuch, storyline] zurueck
 rollenFreigabeRouter.get('/:produktionId/werkstufen-labels', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT DISTINCT w.label, w.typ,
-              COALESCE(sl.sort_order, 9999) AS sort_order
-       FROM werkstufen w
-       JOIN folgen f ON f.id = w.folge_id
-       LEFT JOIN stage_labels sl ON sl.produktion_id = f.produktion_id AND sl.name = w.label
-       WHERE f.produktion_id = $1 AND w.label IS NOT NULL AND w.label != ''
-       ORDER BY COALESCE(sl.sort_order, 9999), w.typ`,
+      `SELECT sl.name AS label, t.typ, sl.sort_order
+       FROM stage_labels sl
+       CROSS JOIN (VALUES ('drehbuch'), ('storyline')) AS t(typ)
+       WHERE sl.produktion_id = $1
+       ORDER BY sl.sort_order, t.typ`,
       [req.params.produktionId]
     )
     res.json(rows.map((r: any) => ({ label: r.label as string, typ: r.typ as string })))
