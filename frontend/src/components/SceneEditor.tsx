@@ -636,21 +636,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   // Lock-Gate: Freigabe-Config + aktuelle Werkstufe prüfen
   useEffect(() => {
     if (!produktionId || !werkstufId) { setLockGateActive(false); return }
-    Promise.all([
-      fetch(`/api/rollen-freigabe/${produktionId}/config`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
-      fetch(`/api/werkstufen/${werkstufId}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
-    ]).then(([cfg, wk]) => {
-      if (!cfg?.freigabe_aktiv) { setLockGateActive(false); return }
-      const triggerTyp: string | null = cfg.lock_trigger_werkstufen_typ ?? null
-      const triggerVersion: number | null = cfg.lock_trigger_version_nummer ?? null
-      const currentTyp: string | null = wk?.typ ?? null
-      const currentVersion: number | null = wk?.version_nummer ?? null
-      // Typ muss übereinstimmen (wenn konfiguriert)
-      const typMatch = !triggerTyp || triggerTyp === currentTyp
-      // Schwellenwert: aktuelle version_nummer muss >= Trigger-version_nummer sein
-      const versionMatch = triggerVersion == null || (currentVersion != null && currentVersion >= triggerVersion)
-      setLockGateActive(typMatch && versionMatch)
-    }).catch(() => setLockGateActive(false))
+    fetch(`/api/rollen-freigabe/${produktionId}/lock-gate?werkstuf_id=${werkstufId}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { active: false })
+      .then(data => setLockGateActive(!!data.active))
+      .catch(() => setLockGateActive(false))
   }, [produktionId, werkstufId])
 
   const handleCreateCharSzenenkopf = async () => {

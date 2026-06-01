@@ -496,23 +496,56 @@ rollenFreigabeRouter.get('/:productionId/config', async (req, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
-// GET /api/rollen-freigabe/:produktionId/werkstufen-labels — distinct label+typ combos with MIN(version_nummer)
+// GET /api/rollen-freigabe/:produktionId/werkstufen-labels
+// Gibt vorhandene (label, typ)-Kombos zurück, geordnet nach stage_labels.sort_order
 rollenFreigabeRouter.get('/:produktionId/werkstufen-labels', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT w.label, w.typ, MIN(w.version_nummer) AS version_nummer
+      `SELECT DISTINCT w.label, w.typ,
+              COALESCE(sl.sort_order, 9999) AS sort_order
        FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id
+       LEFT JOIN stage_labels sl ON sl.produktion_id = f.produktion_id AND sl.name = w.label
        WHERE f.produktion_id = $1 AND w.label IS NOT NULL AND w.label != ''
-       GROUP BY w.label, w.typ
-       ORDER BY w.typ, MIN(w.version_nummer)`,
+       ORDER BY COALESCE(sl.sort_order, 9999), w.typ`,
       [req.params.produktionId]
     )
-    res.json(rows.map((r: any) => ({
-      label: r.label as string,
-      typ: r.typ as string,
-      version_nummer: r.version_nummer as number,
-    })))
+    res.json(rows.map((r: any) => ({ label: r.label as string, typ: r.typ as string })))
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
+// GET /api/rollen-freigabe/:produktionId/lock-gate?werkstuf_id=X
+// Prüft serverseitig ob der Lock-Gate für diese Werkstufe aktiv ist
+rollenFreigabeRouter.get('/:produktionId/lock-gate', authMiddleware, async (req, res) => {
+  try {
+    const { werkstuf_id } = req.query as { werkstuf_id?: string }
+    if (!werkstuf_id) return res.json({ active: false })
+
+    const [cfg, wk] = await Promise.all([
+      queryOne(
+        `SELECT freigabe_aktiv, lock_trigger_fassungslabel, lock_trigger_werkstufen_typ
+         FROM rollen_freigabe_konfiguration WHERE production_id = $1`,
+        [req.params.produktionId]
+      ),
+      queryOne(`SELECT label, typ FROM werkstufen WHERE id = $1`, [werkstuf_id]),
+    ])
+
+    if (!cfg?.freigabe_aktiv || !cfg.lock_trigger_fassungslabel || !wk) return res.json({ active: false })
+
+    // Typ-Check: wenn konfiguriert, muss der aktuelle Typ stimmen
+    if (cfg.lock_trigger_werkstufen_typ && wk.typ !== cfg.lock_trigger_werkstufen_typ) return res.json({ active: false })
+
+    // Label-Hierarchie über stage_labels.sort_order vergleichen
+    const labelRows = await query(
+      `SELECT name, sort_order FROM stage_labels WHERE produktion_id = $1 ORDER BY sort_order, id`,
+      [req.params.produktionId]
+    )
+    const labelIndex = new Map<string, number>(labelRows.map((r: any, i: number) => [r.name as string, i]))
+    const triggerPos = labelIndex.get(cfg.lock_trigger_fassungslabel) ?? -1
+    const currentPos = labelIndex.get(wk.label) ?? -1
+
+    if (triggerPos < 0 || currentPos < 0) return res.json({ active: false })
+    res.json({ active: currentPos >= triggerPos })
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 

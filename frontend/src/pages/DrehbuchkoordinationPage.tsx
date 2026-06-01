@@ -5723,7 +5723,6 @@ type FreigabeConfig = {
   quorum: 'first_responder' | 'alle'
   lock_trigger_fassungslabel: string | null
   lock_trigger_werkstufen_typ: string | null
-  lock_trigger_version_nummer: number | null
   lock_override_aktiv: boolean
   lock_override_rollen: string[]
   ot_obergrenze_pro_block: number | null
@@ -5732,7 +5731,7 @@ type FreigabeConfig = {
 const DEFAULT_CONFIG: FreigabeConfig = {
   freigabe_aktiv: false, erinnerung_nach_tagen: 3,
   deckt_rollen: true, deckt_motive: false, deckt_neue_szenen: false,
-  quorum: 'first_responder', lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null, lock_trigger_version_nummer: null,
+  quorum: 'first_responder', lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null,
   lock_override_aktiv: false, lock_override_rollen: [],
   ot_obergrenze_pro_block: null,
 }
@@ -5780,7 +5779,7 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
   const [otData, setOtData] = useState<OtMengenData | null>(null)
   const [otInputVal, setOtInputVal] = useState<string>('')
   // New genehmiger form
-  const [werkstufenItems, setWerkstufenItems] = useState<{ label: string; typ: string; version_nummer: number }[]>([])
+  const [werkstufenItems, setWerkstufenItems] = useState<{ label: string; typ: string }[]>([])
   const [newTyp, setNewTyp] = useState<'user' | 'rolle'>('user')
   const [newUserId, setNewUserId] = useState('')
   const [newRolle, setNewRolle] = useState('')
@@ -5990,14 +5989,12 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
           onChange={e => {
             const raw = e.target.value
             if (!raw) {
-              setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null, lock_trigger_version_nummer: null }))
-              patchConfig({ lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null, lock_trigger_version_nummer: null })
+              setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null }))
+              patchConfig({ lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null })
             } else {
               const [label, typ] = raw.split('|||')
-              const item = werkstufenItems.find(i => i.label === label && i.typ === typ)
-              const version_nummer = item?.version_nummer ?? null
-              setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: label, lock_trigger_werkstufen_typ: typ, lock_trigger_version_nummer: version_nummer }))
-              patchConfig({ lock_trigger_fassungslabel: label, lock_trigger_werkstufen_typ: typ, lock_trigger_version_nummer: version_nummer })
+              setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: label, lock_trigger_werkstufen_typ: typ }))
+              patchConfig({ lock_trigger_fassungslabel: label, lock_trigger_werkstufen_typ: typ })
             }
           }}
           style={{ ...sel, flex: 1 }}
