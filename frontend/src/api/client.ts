@@ -875,7 +875,7 @@ export const api = {
   },
   getStrangPacing: (produktionId: string) =>
     request<{ warnungen: any[] }>('GET', `/straenge/pacing?produktion_id=${encodeURIComponent(produktionId)}`),
-  importFutureBeats: (strangId: string, data: { text: string; block_label?: string; ebene?: string; folge_id?: number }) =>
+  importFutureBeats: (strangId: string, data: { text: string; block_nummer?: number; ebene?: string; folge_id?: number }) =>
     request<{ created: any[]; count: number }>('POST', `/straenge/${strangId}/future-import`, data),
   rasterGenerieren: (strangId: string, folgeIds: number[]) =>
     request<{ created: any[]; count: number }>('POST', `/straenge/${strangId}/raster-generieren`, { folge_ids: folgeIds }),

@@ -419,6 +419,9 @@ async function runMigrations() {
     'v161_lock_trigger_version_nummer.sql',
     // NT-Einträge: Replik-Positionen
     'v162_nt_repliken_positionen.sql',
+    // Beat-Migration: prosa_text + block_nummer + beat_charaktere + drop block_label
+    'v163_beat_prosa_block_nummer.sql',
+    'v164_drop_block_label.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

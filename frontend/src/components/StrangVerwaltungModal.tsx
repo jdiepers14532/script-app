@@ -179,7 +179,7 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
   const [charDropdown, setCharDropdown] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
-  const [importBlockLabel, setImportBlockLabel] = useState('')
+  const [importBlockNummer, setImportBlockNummer] = useState('')
   const [importing, setImporting] = useState(false)
 
   useEffect(() => {
@@ -349,7 +349,7 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
                     : <Circle size={12} style={{ color: 'var(--text-muted)' }} />}
                 </button>
                 <span style={{ flex: 1, textDecoration: b.ist_abgearbeitet ? 'line-through' : 'none', color: b.ist_abgearbeitet ? 'var(--text-muted)' : 'var(--text-primary)', lineHeight: 1.5 }}>
-                  {b.block_label && <span style={{ color: strang.farbe, fontWeight: 600, marginRight: 4 }}>[{b.block_label}]</span>}
+                  {b.block_nummer && <span style={{ color: strang.farbe, fontWeight: 600, marginRight: 4 }}>[Block {b.block_nummer}]</span>}
                   {b.beat_text}
                 </span>
                 <button className="iconbtn" onClick={() => handleDeleteBeat(b.id)} style={{ flexShrink: 0 }}><X size={9} /></button>
@@ -380,9 +380,10 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
                     <input
-                      value={importBlockLabel}
-                      placeholder="Block-Label (z.B. 870)"
-                      onChange={e => setImportBlockLabel(e.target.value)}
+                      value={importBlockNummer}
+                      placeholder="Block-Nr. (z.B. 870)"
+                      type="number"
+                      onChange={e => setImportBlockNummer(e.target.value)}
                       style={{ width: 140, fontSize: 11, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                     />
                   </div>
@@ -394,14 +395,14 @@ function StrangCard({ strang, isEditing, showFarbPicker, isBeatsExpanded, allCha
                     style={{ width: '100%', fontSize: 11, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, resize: 'vertical', fontFamily: 'inherit', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}
                   />
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
-                    <button className="btn-sm" onClick={() => { setShowImport(false); setImportText(''); setImportBlockLabel('') }}>Abbrechen</button>
+                    <button className="btn-sm" onClick={() => { setShowImport(false); setImportText(''); setImportBlockNummer('') }}>Abbrechen</button>
                     <button className="btn-sm btn-primary" disabled={!importText.trim() || importing}
                       onClick={async () => {
                         setImporting(true)
                         try {
-                          const result = await api.importFutureBeats(strang.id, { text: importText, block_label: importBlockLabel || undefined, ebene: 'future' })
+                          const result = await api.importFutureBeats(strang.id, { text: importText, block_nummer: importBlockNummer ? Number(importBlockNummer) : undefined, ebene: 'future' })
                           setImportText('')
-                          setImportBlockLabel('')
+                          setImportBlockNummer('')
                           setShowImport(false)
                           const updated = await api.getStrangBeats(strang.id)
                           setBeats(updated)

@@ -234,20 +234,19 @@ straengeRouter.get('/:id/beats', async (req, res) => {
 
 // POST /api/straenge/:id/beats
 straengeRouter.post('/:id/beats', async (req, res) => {
-  const { ebene, block_label, folge_id, beat_text, parent_beat_id } = req.body
-  if (!beat_text) return res.status(400).json({ error: 'beat_text required' })
+  const { ebene, block_nummer, folge_id, beat_text, prosa_text, parent_beat_id } = req.body
   try {
     const maxSort = await queryOne(
       'SELECT COALESCE(MAX(sort_order), 0) AS mx FROM strang_beats WHERE strang_id = $1 AND ebene = $2',
       [req.params.id, ebene ?? 'future']
     )
     const row = await queryOne(
-      `INSERT INTO strang_beats (strang_id, ebene, block_label, folge_id, beat_text, sort_order, parent_beat_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      `INSERT INTO strang_beats (strang_id, ebene, block_nummer, folge_id, beat_text, prosa_text, sort_order, parent_beat_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
-        req.params.id, ebene ?? 'future', block_label ?? null,
-        folge_id ?? null, beat_text, (maxSort?.mx ?? 0) + 1,
-        parent_beat_id ?? null,
+        req.params.id, ebene ?? 'future', block_nummer ?? null,
+        folge_id ?? null, beat_text ?? null, prosa_text ?? null,
+        (maxSort?.mx ?? 0) + 1, parent_beat_id ?? null,
       ]
     )
     res.status(201).json(row)
@@ -258,20 +257,22 @@ straengeRouter.post('/:id/beats', async (req, res) => {
 
 // PUT /api/straenge/beats/:id
 straengeRouter.put('/beats/:beatId', async (req, res) => {
-  const { beat_text, ist_abgearbeitet, sort_order, block_label, folge_id, parent_beat_id } = req.body
+  const { beat_text, prosa_text, ist_abgearbeitet, sort_order, block_nummer, folge_id, parent_beat_id } = req.body
   try {
     const row = await queryOne(
       `UPDATE strang_beats SET
         beat_text = COALESCE($1, beat_text),
-        ist_abgearbeitet = COALESCE($2, ist_abgearbeitet),
-        sort_order = COALESCE($3, sort_order),
-        block_label = COALESCE($4, block_label),
-        folge_id = COALESCE($5, folge_id),
-        parent_beat_id = $6
-       WHERE id = $7 RETURNING *`,
+        prosa_text = COALESCE($2, prosa_text),
+        ist_abgearbeitet = COALESCE($3, ist_abgearbeitet),
+        sort_order = COALESCE($4, sort_order),
+        block_nummer = COALESCE($5, block_nummer),
+        folge_id = COALESCE($6, folge_id),
+        parent_beat_id = $7
+       WHERE id = $8 RETURNING *`,
       [
-        beat_text ?? null, ist_abgearbeitet ?? null, sort_order ?? null,
-        block_label ?? null, folge_id ?? null,
+        beat_text ?? null, prosa_text ?? null,
+        ist_abgearbeitet ?? null, sort_order ?? null,
+        block_nummer ?? null, folge_id ?? null,
         parent_beat_id !== undefined ? parent_beat_id : null,
         req.params.beatId,
       ]
@@ -303,6 +304,60 @@ straengeRouter.put('/beats/:beatId/abgearbeitet', async (req, res) => {
     )
     if (!row) return res.status(404).json({ error: 'Beat nicht gefunden' })
     res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// BEAT-CHARAKTERE (Figuren-Tagging pro Beat)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/straenge/beats/:beatId/charaktere
+straengeRouter.get('/beats/:beatId/charaktere', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT bc.*, c.name, c.meta_json
+       FROM beat_charaktere bc
+       JOIN characters c ON c.id = bc.character_id
+       WHERE bc.beat_id = $1
+       ORDER BY bc.rolle, c.name`,
+      [req.params.beatId]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/straenge/beats/:beatId/charaktere — tag/untag (upsert)
+straengeRouter.post('/beats/:beatId/charaktere', async (req, res) => {
+  const { character_id, rolle } = req.body
+  if (!character_id) return res.status(400).json({ error: 'character_id required' })
+  try {
+    const row = await queryOne(
+      `INSERT INTO beat_charaktere (beat_id, character_id, rolle)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (beat_id, character_id)
+       DO UPDATE SET rolle = EXCLUDED.rolle
+       RETURNING *`,
+      [req.params.beatId, character_id, rolle ?? 'haupt']
+    )
+    res.status(201).json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// DELETE /api/straenge/beats/:beatId/charaktere/:characterId
+straengeRouter.delete('/beats/:beatId/charaktere/:characterId', async (req, res) => {
+  try {
+    const row = await queryOne(
+      'DELETE FROM beat_charaktere WHERE beat_id = $1 AND character_id = $2 RETURNING beat_id',
+      [req.params.beatId, req.params.characterId]
+    )
+    if (!row) return res.status(404).json({ error: 'Nicht gefunden' })
+    res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
@@ -493,11 +548,11 @@ straengeRouter.post('/platzhalter-szenen', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 // POST /api/straenge/:id/future-import
-// Body: { text: string, block_label?: string, ebene?: 'future'|'block', folge_id?: number }
+// Body: { text: string, block_nummer?: number, ebene?: 'future'|'block', folge_id?: number }
 // Parses text into beats: each line = one beat. Lines starting with - or * are treated as beats.
 // Empty lines are ignored. Returns created beats.
 straengeRouter.post('/:id/future-import', async (req, res) => {
-  const { text, block_label, ebene = 'future', folge_id } = req.body
+  const { text, block_nummer, ebene = 'future', folge_id } = req.body
   if (!text || typeof text !== 'string') return res.status(400).json({ error: 'text required' })
 
   try {
@@ -524,10 +579,10 @@ straengeRouter.post('/:id/future-import', async (req, res) => {
     const created: any[] = []
     for (const line of lines) {
       const result = await query(
-        `INSERT INTO strang_beats (strang_id, ebene, block_label, folge_id, beat_text, sort_order)
+        `INSERT INTO strang_beats (strang_id, ebene, block_nummer, folge_id, beat_text, sort_order)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [req.params.id, ebene, block_label || null, folge_id || null, line, sortOrder++]
+        [req.params.id, ebene, block_nummer ?? null, folge_id ?? null, line, sortOrder++]
       )
       created.push(result[0])
     }
@@ -571,10 +626,10 @@ straengeRouter.post('/:id/raster-generieren', async (req, res) => {
       let sortOrder = 1
       for (const fb of futureBeats) {
         const result = await query(
-          `INSERT INTO strang_beats (strang_id, ebene, folge_id, beat_text, sort_order, parent_beat_id)
-           VALUES ($1, 'block', $2, $3, $4, $5)
+          `INSERT INTO strang_beats (strang_id, ebene, folge_id, block_nummer, beat_text, sort_order, parent_beat_id)
+           VALUES ($1, 'block', $2, $3, $4, $5, $6)
            RETURNING *`,
-          [req.params.id, folgeId, fb.beat_text, sortOrder++, fb.id]
+          [req.params.id, folgeId, fb.block_nummer ?? null, fb.beat_text, sortOrder++, fb.id]
         )
         created.push(result[0])
       }
@@ -702,7 +757,7 @@ straengeRouter.get('/pacing', async (req, res) => {
 
     // Forgotten beats (only future/block level — folge-level are too granular)
     const vergesseneBeats = await query(
-      `SELECT sb.id, sb.beat_text, sb.block_label, sb.ebene, s.name AS strang_name, s.farbe
+      `SELECT sb.id, sb.beat_text, sb.block_nummer, sb.ebene, s.name AS strang_name, s.farbe
        FROM strang_beats sb
        JOIN straenge s ON s.id = sb.strang_id
        WHERE s.produktion_id = $1 AND sb.ist_abgearbeitet = FALSE AND s.status = 'aktiv'
