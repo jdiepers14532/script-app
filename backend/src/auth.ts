@@ -93,6 +93,7 @@ export function requireDkAccess(getProductionId: (req: Request) => string | unde
       const { rows } = await pool.query(
         `SELECT 1 FROM dk_settings_access
          WHERE production_id = $1
+         AND scope = 'dk'
          AND ((access_type = 'user' AND identifier = $2)
            OR (access_type = 'rolle' AND identifier = ANY($3::text[])))`,
         [productionId, req.user.user_id, userRoles]
@@ -108,6 +109,36 @@ export function requireDkAccess(getProductionId: (req: Request) => string | unde
   }
 }
 
+// Prueft ob User einen spezifischen Scope-Zugriff hat (anlage_rollen | anlage_motive | lock_override)
+export function requireScopeAccess(scope: 'anlage_rollen' | 'anlage_motive' | 'lock_override', getProductionId: (req: Request) => string | undefined) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) return res.status(401).json({ error: 'Nicht authentifiziert' })
+    const userRoles = req.user.roles || [req.user.role]
+    if (userRoles.some(r => TIER1_ROLES.includes(r))) return next()
+
+    const productionId = getProductionId(req)
+    if (!productionId) return res.status(400).json({ error: 'Produktion fehlt' })
+
+    try {
+      const { rows } = await pool.query(
+        `SELECT 1 FROM dk_settings_access
+         WHERE production_id = $1
+         AND scope = $2
+         AND ((access_type = 'user' AND identifier = $3)
+           OR (access_type = 'rolle' AND identifier = ANY($4::text[])))`,
+        [productionId, scope, req.user.user_id, userRoles]
+      )
+      if (rows.length === 0) {
+        return res.status(403).json({ error: 'Keine Anlage-/Bearbeitungsberechtigung für diese Aktion' })
+      }
+      next()
+    } catch (err) {
+      console.error('Scope access check error:', err)
+      return res.status(500).json({ error: 'Zugriffsprüfung fehlgeschlagen' })
+    }
+  }
+}
+
 // Prueft ob User DK-Zugriff fuer IRGENDEINE Produktion hat (fuer globale DK-Settings)
 export function requireAnyDkAccess() {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -118,8 +149,9 @@ export function requireAnyDkAccess() {
     try {
       const { rows } = await pool.query(
         `SELECT 1 FROM dk_settings_access
-         WHERE (access_type = 'user' AND identifier = $1)
-            OR (access_type = 'rolle' AND identifier = ANY($2::text[]))
+         WHERE scope = 'dk'
+         AND ((access_type = 'user' AND identifier = $1)
+            OR (access_type = 'rolle' AND identifier = ANY($2::text[])))
          LIMIT 1`,
         [req.user.user_id, userRoles]
       )
