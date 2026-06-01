@@ -1340,8 +1340,7 @@ export default function UniversalEditor({
           (node.type.name === 'absatz' && charFormatIds.includes(node.attrs?.format_id))
         if (!isChar) return true
         if (node.textContent.toUpperCase().includes(charName)) {
-          editor.commands.setTextSelection(pos + 1)
-          editor.view.dispatch(editor.state.tr.scrollIntoView())
+          editor.chain().focus().setTextSelection(pos + 1).scrollIntoView().run()
           return false  // Traversal abbrechen
         }
         return true

@@ -218,6 +218,8 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   // Refs für den Leave-Check-Handler (stabile Closures)
   const sceneRef = useRef<any>(null)
   const saveSceneRef = useRef<typeof saveScene | null>(null)
+  // Immer aktueller Editor-Content — synchron bei jeder Änderung, unabhängig von React-Batching
+  const latestContentRef = useRef<any>(null)
 
   const cycleIntExt = useCallback(async () => {
     const next = scene?.int_ext === 'int' ? 'ext' : 'int'
@@ -572,6 +574,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
   // Measure Spielzeit column position to align Sondertyp selector beneath it
   const handleContentChange = useCallback((content: any[]) => {
+    latestContentRef.current = content  // synchron, vor React-Batching — für Leave-Check
     if (!scene) return
     const updated = { ...scene, content }
     setScene(updated)
@@ -801,6 +804,25 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   useEffect(() => { sceneRef.current = scene }, [scene])
   useEffect(() => { saveSceneRef.current = saveScene }, [saveScene])
 
+  // ── Sofort-Speichern beim Verlassen der Seite ──────────────────────────────
+  // Fängt: React Router Navigation (Settings, NT-Liste, andere Seiten) + Tab-Wechsel
+  useEffect(() => {
+    const flushSave = () => {
+      if (debounceRef.current === null) return  // kein ausstehender Save
+      if (!latestContentRef.current) return
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+      saveSceneRef.current?.({ content: latestContentRef.current }).catch(() => {})
+    }
+    // Tab wird versteckt (User wechselt Tab, minimiert Browser)
+    const handleHide = () => { if (document.visibilityState === 'hidden') flushSave() }
+    document.addEventListener('visibilitychange', handleHide)
+    return () => {
+      document.removeEventListener('visibilitychange', handleHide)
+      flushSave()  // SceneEditor unmountet (React Router Navigation) — sofort speichern
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Scene-Leave-Check ─────────────────────────────────────────────────────
   // Hört auf 'req-leave-check' von ScriptPage. Speichert sofort, führt Auto-Checks durch,
   // korrigiert NT-Notiz und meldet das Ergebnis zurück.
@@ -821,8 +843,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         clearTimeout(debounceRef.current)
         debounceRef.current = null
       }
-      if (currentScene.content && saveSceneRef.current) {
-        await saveSceneRef.current({ content: currentScene.content }).catch(() => {})
+      // latestContentRef hat den aktuellsten Editor-Stand (synchron gesetzt, kein React-Delay)
+      const contentToSave = latestContentRef.current ?? currentScene?.content
+      if (contentToSave && saveSceneRef.current) {
+        await saveSceneRef.current({ content: contentToSave }).catch(() => {})
       }
       // 2. Auto-Checks ausführen
       let allResults: any[] = []

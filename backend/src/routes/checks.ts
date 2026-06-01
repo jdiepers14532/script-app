@@ -62,6 +62,7 @@ const DEFAULT_CONFIG: Record<string, { enabled: boolean; auto: boolean }> = {
   fehlender_dialog:          { enabled: true,  auto: true  },
   stoppzeit_plausibilitaet:  { enabled: false, auto: false },
   spieltag_inkonsistent:     { enabled: true,  auto: false },
+  nt_verweis:                { enabled: true,  auto: true  },
   // KI-Checks — immer auto:false
   oneliner_qualitaet:        { enabled: false, auto: false },
 }

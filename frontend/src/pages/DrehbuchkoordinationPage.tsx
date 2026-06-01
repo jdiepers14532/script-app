@@ -7572,6 +7572,10 @@ const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean
     label: 'Dramaturgischer Tag (Spieltag)', auto: false, ki: false, defaultEnabled: true,
     tooltip: 'Prüft ob die Spieltag-Nummern (SP1, SP2, …) über alle Folgen hinweg korrekt sind.\n\nEin Tageswechsel tritt auf wenn die letzte Stimmung des Tages (Standard: NACHT) auf eine frühere Stimmung folgt.\n\nDie Stimmungs-Reihenfolge ist in DK-Einstellungen → Allgemein konfigurierbar.\n\nDieser Check läuft immer folgenübergreifend — nicht je Szene.',
   },
+  nt_verweis: {
+    label: 'NT-Notiz synchronisieren', auto: true, ki: false, defaultEnabled: true,
+    tooltip: 'Ergänzt oder löscht NT-Zeilen in der Szenenkopf-Notiz automatisch.\n\nFiguren mit (NT)/(VO)/(OFF) und Dialog → \"NT Figurenname\"\nFiguren mit OFF (im Off gesprochen) → \"Figurenname im Off\"\n(ONE-WAY) im Szenentext → \"Oneway Telefonat\"\n\nKeine Warnung, kein Modal — läuft lautlos beim Szenenwechsel.',
+  },
   oneliner_qualitaet: {
     label: 'Oneliner-Qualität', auto: false, ki: true, defaultEnabled: false,
     tooltip: 'Prüft ob der Oneliner den emotionalen Kern oder Wendepunkt der Szene wiedergibt.\n\n✨ KI-Feature: Nutzt Mistral AI zur Analyse — verursacht API-Kosten. Wird deshalb nur manuell ausgeführt, nie beim Autosave.\n\nEmpfohlen nur wenn alle Szenen konsequent mit Onelinern gepflegt werden.',

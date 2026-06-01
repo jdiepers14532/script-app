@@ -64,7 +64,10 @@ function FehlenderDialogModal({ issues, onClose }: { issues: any[]; onClose: () 
             {issues.map((issue: any, i: number) => (
               <div
                 key={i}
-                onClick={() => window.dispatchEvent(new CustomEvent('drehbuch-check-jump', { detail: { charName: issue.meta?.char_name } }))}
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('drehbuch-check-jump', { detail: { charName: issue.meta?.char_name } }))
+                  onClose()
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
