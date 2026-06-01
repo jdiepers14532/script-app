@@ -14,6 +14,7 @@ import { SzenenKopfVorlagenEditor, KopfZeilenEditor, emptyKopfZeilenEditorValue 
 import type { KopfZeilenEditorValue, SeitenLayout } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
 import KopierenModal from '../components/KopierenModal'
+import WasserzeichenTab from '../components/WasserzeichenTab'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ const DK_TABS = [
   { id: 'inhaltskennzeichnung',   label: 'Inhaltskennzeichnung' },
   { id: 'synopsen-ki',            label: 'KI-Synopsen' },
   { id: 'verlauf-sicherung',      label: 'Verlauf & Sicherung' },
+  { id: 'export-log',             label: 'Export-Log & Wasserzeichen' },
 ]
 
 const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates', 'freie-dok-labels', 'sonstige-dokumente']
@@ -4866,6 +4868,8 @@ export default function DrehbuchkoordinationPage() {
         return produktionId ? <SynopsenKiTab produktionId={produktionId} /> : <NoProduction />
       case 'verlauf-sicherung':
         return <VerlaufSicherungTab produktionId={produktionId} />
+      case 'export-log':
+        return <WasserzeichenTab />
       case 'private-dokumente':
         return <PrivateDokumenteTab produktionId={produktionId} />
       default:
