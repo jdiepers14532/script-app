@@ -81,7 +81,7 @@ freigabenRouter.get('/meine', async (req, res) => {
              WHERE ds3.scene_identity_id = sfa.scene_identity_id
              LIMIT 1
            )
-           AND w2.typ = 'drehbuch' AND w2.geloescht = false
+           AND w2.typ = 'drehbuch'
            ORDER BY w2.version_nummer DESC LIMIT 1
          )
        LEFT JOIN werkstufen w ON w.id = ds.werkstufe_id
