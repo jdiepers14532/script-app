@@ -25,6 +25,7 @@ const DatensicherheitUserTab = lazy(() => import('./hilfe/DatensicherheitUserTab
 const TeamWorkTab          = lazy(() => import('./hilfe/TeamWorkTab'))
 const AutorenplanHilfeTab  = lazy(() => import('./hilfe/AutorenplanHilfeTab'))
 const FreieDokumenteTab    = lazy(() => import('./hilfe/FreieDokumenteTab'))
+const FreigabeWorkflowTab  = lazy(() => import('./hilfe/FreigabeWorkflowTab'))
 const MagicFunktionenTab   = lazy(() => import('./hilfe/MagicFunktionenTab'))
 const VerlaufUndoTab       = lazy(() => import('./hilfe/VerlaufUndoTab'))
 const ThemeAnpassenHilfeTab = lazy(() => import('./hilfe/ThemeAnpassenHilfeTab'))
@@ -96,6 +97,8 @@ const NAV_ITEMS = [
     keywords: 'autorenplan autor plan kalender woche einsatz future terminplanung' },
   { id: 'freie-dokumente',      label: 'Freie Dokumente',           icon: '📂',
     keywords: 'freie dokumente schattenbuch casting szene spin-off sonstiges folge ohne nummer sichtbarkeit privat verknüpfen' },
+  { id: 'freigabe-workflow',    label: 'Figuren- & Motiv-Freigabe', icon: '✅',
+    keywords: 'freigabe workflow budget dispo genehmiger lock gate override komparse ot mengenkontrolle fall a fall b anfrage token quorum first responder batch entscheiden' },
   { id: 'charakter-suffixe',    label: 'OFF / NT / ONE-WAY',        icon: '📞',
     keywords: 'off nt one-way oneway suffix charakter figur telefonat nur ton voice over action grossbuchstaben drehplan disposition' },
   { id: 'drehbuch-checks',      label: 'Drehbuch-Checks',           icon: '🔍',
@@ -192,6 +195,7 @@ function HilfePage() {
       case 'team-work':          return <TeamWorkTab />
       case 'autorenplan':        return <AutorenplanHilfeTab />
       case 'freie-dokumente':    return <FreieDokumenteTab />
+      case 'freigabe-workflow':   return <FreigabeWorkflowTab />
       case 'charakter-suffixe':  return <CharakterSuffixeTab />
       case 'drehbuch-checks':    return <DrehbuchChecksHilfeTab />
       case 'magic-funktionen':   return <MagicFunktionenTab />
