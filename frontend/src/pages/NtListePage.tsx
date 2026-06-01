@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Mic, MicOff, PhoneCall, ExternalLink, RefreshCw } from 'lucide-react'
 import AppShell from '../components/AppShell'
 import { api } from '../api/client'
-import { useSelectedProduction } from '../contexts'
+import { useSelectedProduction, useTweaks } from '../contexts'
 
 const NT_TYP_LABELS: Record<string, string> = {
   stimme: 'Nur Ton',
@@ -25,6 +25,7 @@ const NT_TYP_COLORS: Record<string, string> = {
 
 export default function NtListePage() {
   const { selectedProduction } = useSelectedProduction()
+  const { tweaks } = useTweaks()
   const produktionId = selectedProduction?.id ?? null
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -260,7 +261,7 @@ export default function NtListePage() {
                             const pos = hasPos ? e.repliken_positionen[i] : null
                             return (
                             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', lineHeight: 1.5 }}>
-                              {pos != null && (
+                              {tweaks.showReplikNumbers && pos != null && (
                                 <span style={{
                                   fontSize: 10, fontWeight: 700, color: NT_TYP_COLORS[e.nt_typ],
                                   minWidth: 42, paddingTop: 2, flexShrink: 0,
