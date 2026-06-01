@@ -257,7 +257,7 @@ function parseDeskriptorenData(raw: string): { deskriptoren: any[] } {
     if (parts.length < 3) return null
     const stufe = parts[1].trim().toLowerCase()
     return {
-      kategorie: parts[0].trim().replace(/^[*\-\s]+/, '').toUpperCase(),
+      kategorie: parts[0].trim().replace(/^[*\-\s]+/, ''),
       stufe: valide.includes(stufe) ? stufe : 'leicht',
       beschreibung: parts.slice(2).join('|').trim(),
     }
@@ -660,6 +660,20 @@ router.post('/synopsen/generiere-alle', async (req, res) => {
     )
     const strangNamen: string[] = strangRows.map((r: any) => r.name)
 
+    // Deskriptor-Vorlagen der Produktion laden (Fallback: defaults)
+    const DEFAULT_DESKRIPTOR_LABELS = [
+      'Gewaltdarstellungen', 'Sexualisierte Darstellungen', 'Beängstigende Szenen',
+      'Sprache (Schimpfwörter)', 'Drogen, Alkohol & Tabak', 'Diskriminierung',
+      'Suizid & Selbstverletzung', 'Thematisch belastend',
+    ]
+    const deskVorlagenRows = await query(
+      `SELECT name FROM deskriptor_vorlagen WHERE production_id = $1 ORDER BY sort_order ASC`,
+      [data.werkstufe.produktion_id]
+    )
+    const deskriptorLabels: string[] = deskVorlagenRows.length > 0
+      ? deskVorlagenRows.map((r: any) => r.name)
+      : DEFAULT_DESKRIPTOR_LABELS
+
     // Bisherige Titel als Stil-Referenz
     const vorhandeneTitelRows = await query(
       `SELECT folgen_titel FROM folgen
@@ -745,10 +759,10 @@ Analysiere die Folge auf jugendschutzrelevante Inhalte.
 ###DESKRIPTOREN###
 Liste ALLE zutreffenden Kategorien im Format: KATEGORIE|STUFE|Kurzbeschreibung mit Szenenreferenz (Sz. X)
 Stufen: leicht, mittel, stark
-Kategorien: GEWALT, SEXUELLE_INHALTE, ALKOHOL_DROGEN, ANGST, DISKRIMINIERUNG, THEMATISCH_BELASTEND, SPRACHE
+Kategorien (verwende EXAKT diese Bezeichnungen, keine anderen): ${deskriptorLabels.join(', ')}
 Beispiel:
-GEWALT|leicht|Verbale Auseinandersetzung zwischen LOU und RICHARD (Sz. 5)
-ANGST|mittel|BRITTA erfährt Diagnose, reagiert mit Panikattacke (Sz. 12)
+${deskriptorLabels[0]}|leicht|Verbale Auseinandersetzung zwischen LOU und RICHARD (Sz. 5)
+${deskriptorLabels[2] ?? deskriptorLabels[0]}|mittel|BRITTA erfährt Diagnose, reagiert mit Panikattacke (Sz. 12)
 Wenn keine Deskriptoren zutreffen: "KEINE"
 
 ###FSK###

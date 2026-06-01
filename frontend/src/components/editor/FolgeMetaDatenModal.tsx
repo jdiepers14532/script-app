@@ -17,7 +17,9 @@ const FSK_COLORS: Record<string, string> = {
 }
 const STUFE_COLORS: Record<DeskriptorStufe, string> = { leicht: '#00C853', mittel: '#FF9500', stark: '#FF3B30' }
 const DESKRIPTOR_KATEGORIEN: string[] = [
-  'GEWALT', 'SEXUELLE_INHALTE', 'ALKOHOL_DROGEN', 'ANGST', 'DISKRIMINIERUNG', 'THEMATISCH_BELASTEND', 'SPRACHE'
+  'Gewaltdarstellungen', 'Sexualisierte Darstellungen', 'Beängstigende Szenen',
+  'Sprache (Schimpfwörter)', 'Drogen, Alkohol & Tabak', 'Diskriminierung',
+  'Suizid & Selbstverletzung', 'Thematisch belastend',
 ]
 
 type Tab = 'titel' | 'kurzinhalt' | 'redaktion' | 'lektor' | 'strang' | 'programmpresse' | 'pressetext' | 'deskriptoren' | 'fsk'
@@ -707,7 +709,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                     ))}
                   </div>
                 )}
-                <button onClick={() => setDeskriptoren(prev => [...prev, { kategorie: deskriptorVorlagen[0] ?? 'GEWALT', stufe: 'leicht', beschreibung: '' }])}
+                <button onClick={() => setDeskriptoren(prev => [...prev, { kategorie: deskriptorVorlagen[0] ?? 'Gewaltdarstellungen', stufe: 'leicht', beschreibung: '' }])}
                   style={{ background: 'none', border: 'none', color: 'rgba(255,107,0,0.7)', cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: 0 }}>
                   + Deskriptor hinzufügen
                 </button>
