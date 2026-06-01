@@ -252,7 +252,7 @@ async function expandGenehmiger(
 
 // ── First-Responder: Status-Gesamtbewertung (Budget) ─────────────────────────
 
-async function recalcAnfrageStatus(anfrageId: number): Promise<string> {
+export async function recalcAnfrageStatus(anfrageId: number): Promise<string> {
   const gStatuses = await query(
     `SELECT gs.id, gs.entschieden, g.stufe
      FROM rollen_freigabe_genehmiger_status gs
@@ -319,7 +319,7 @@ async function recalcAnfrageStatus(anfrageId: number): Promise<string> {
 
 // ── First-Responder: Status-Gesamtbewertung (Dispo/Szene) ────────────────────
 
-async function recalcSzenenAnfrageStatus(anfrageId: string): Promise<string> {
+export async function recalcSzenenAnfrageStatus(anfrageId: string): Promise<string> {
   const gStatuses = await query(
     `SELECT gs.id, gs.entschieden, g.stufe
      FROM szenen_freigabe_genehmiger_status gs

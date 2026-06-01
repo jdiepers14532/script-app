@@ -66,6 +66,7 @@ import { runPrivatModusWorker } from './workers/privatModusWorker'
 import analysisRouter from './routes/analysis'
 import { privateDokumenteRouter } from './routes/private-dokumente'
 import { rollenFreigabeRouter, rollenFreigabePublicRouter } from './routes/rollen-freigabe'
+import { freigabenRouter } from './routes/freigaben'
 import { ntEintraegeRouter } from './routes/nt-eintraege'
 import { checksRouter } from './routes/checks'
 
@@ -198,6 +199,9 @@ app.use('/api/dk/private-dokumente', privateDokumenteRouter)
 
 // Rollen-Freigabe
 app.use('/api/rollen-freigabe', rollenFreigabeRouter)
+
+// Freigaben-Übersicht (Phase 5)
+app.use('/api/freigaben', freigabenRouter)
 
 // NT-Eintraege (P8)
 app.use('/api/nt-eintraege', ntEintraegeRouter)
