@@ -807,7 +807,19 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
 
               {/* ── Linke Spalte: Dokumentstruktur ── */}
               <div>
-                <span style={SEC}>Dokumentstruktur</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ ...SEC, marginBottom: 0 }}>Dokumentstruktur</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <button
+                      onClick={() => { setPreItems(p => p.map(i => ({ ...i, enabled: true }))); setPostItems(p => p.map(i => ({ ...i, enabled: true }))) }}
+                      style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit' }}
+                    >Alle</button>
+                    <button
+                      onClick={() => { setPreItems(p => p.map(i => ({ ...i, enabled: false }))); setPostItems(p => p.map(i => ({ ...i, enabled: false }))) }}
+                      style={{ fontSize: 10, padding: '1px 7px', borderRadius: 4, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit' }}
+                    >Keine</button>
+                  </div>
+                </div>
 
               {/* VOR SZENEN Zone */}
                 <div
