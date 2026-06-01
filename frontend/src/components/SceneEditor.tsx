@@ -641,8 +641,12 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       fetch(`/api/werkstufen/${werkstufId}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
     ]).then(([cfg, wk]) => {
       const triggerLabel: string | null = cfg?.lock_trigger_fassungslabel ?? null
+      const triggerTyp: string | null = cfg?.lock_trigger_werkstufen_typ ?? null
       const currentLabel: string | null = wk?.label ?? null
-      setLockGateActive(!!(cfg?.freigabe_aktiv && triggerLabel && currentLabel && triggerLabel === currentLabel))
+      const currentTyp: string | null = wk?.typ ?? null
+      const labelMatch = !!(triggerLabel && currentLabel && triggerLabel === currentLabel)
+      const typMatch = !triggerTyp || (!!currentTyp && triggerTyp === currentTyp)
+      setLockGateActive(!!(cfg?.freigabe_aktiv && labelMatch && typMatch))
     }).catch(() => setLockGateActive(false))
   }, [produktionId, werkstufId])
 

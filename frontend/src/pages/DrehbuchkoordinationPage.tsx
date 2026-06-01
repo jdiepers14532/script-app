@@ -5722,6 +5722,7 @@ type FreigabeConfig = {
   deckt_neue_szenen: boolean
   quorum: 'first_responder' | 'alle'
   lock_trigger_fassungslabel: string | null
+  lock_trigger_werkstufen_typ: string | null
   lock_override_aktiv: boolean
   lock_override_rollen: string[]
   ot_obergrenze_pro_block: number | null
@@ -5730,7 +5731,7 @@ type FreigabeConfig = {
 const DEFAULT_CONFIG: FreigabeConfig = {
   freigabe_aktiv: false, erinnerung_nach_tagen: 3,
   deckt_rollen: true, deckt_motive: false, deckt_neue_szenen: false,
-  quorum: 'first_responder', lock_trigger_fassungslabel: null,
+  quorum: 'first_responder', lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null,
   lock_override_aktiv: false, lock_override_rollen: [],
   ot_obergrenze_pro_block: null,
 }
@@ -5778,7 +5779,7 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
   const [otData, setOtData] = useState<OtMengenData | null>(null)
   const [otInputVal, setOtInputVal] = useState<string>('')
   // New genehmiger form
-  const [werkstufenLabels, setWerkstufenLabels] = useState<string[]>([])
+  const [werkstufenItems, setWerkstufenItems] = useState<{ label: string; typ: string }[]>([])
   const [newTyp, setNewTyp] = useState<'user' | 'rolle'>('user')
   const [newUserId, setNewUserId] = useState('')
   const [newRolle, setNewRolle] = useState('')
@@ -5811,7 +5812,7 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
       setGenehmiger(Array.isArray(gen) ? gen : [])
       if (m && !m.error) setMeta(m)
       if (ot && !ot.error) setOtData(ot)
-      if (Array.isArray(labels)) setWerkstufenLabels(labels)
+      if (Array.isArray(labels)) setWerkstufenItems(labels)
     }).finally(() => setLoading(false))
   }, [produktionId])
 
@@ -5977,22 +5978,34 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
       </div>
       <div style={row}>
         <span style={lbl}>
-          <Tooltip text="Wenn eine Werkstufe mit genau diesem Label veröffentlicht wird, löst das automatisch den Lock-Prozess aus. Leer lassen für rein manuellen Trigger.">
-            Lock-Trigger Fassungslabel
+          <Tooltip text="Wenn eine Werkstufe mit genau diesem Label + Typ gespeichert wird, löst das den Lock-Prozess aus. Leer lassen für rein manuellen Trigger.">
+            Lock-Trigger Fassung
           </Tooltip>
         </span>
         <select
-          value={config.lock_trigger_fassungslabel ?? ''}
+          value={config.lock_trigger_fassungslabel && config.lock_trigger_werkstufen_typ
+            ? `${config.lock_trigger_fassungslabel}|||${config.lock_trigger_werkstufen_typ}`
+            : ''}
           onChange={e => {
-            const val = e.target.value || null
-            setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: val }))
-            patchConfig({ lock_trigger_fassungslabel: val })
+            const raw = e.target.value
+            if (!raw) {
+              setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null }))
+              patchConfig({ lock_trigger_fassungslabel: null, lock_trigger_werkstufen_typ: null })
+            } else {
+              const [label, typ] = raw.split('|||')
+              setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: label, lock_trigger_werkstufen_typ: typ }))
+              patchConfig({ lock_trigger_fassungslabel: label, lock_trigger_werkstufen_typ: typ })
+            }
           }}
           style={{ ...sel, flex: 1 }}
           disabled={saving}
         >
           <option value="">— kein automatischer Trigger —</option>
-          {werkstufenLabels.map(l => <option key={l} value={l}>{l}</option>)}
+          {werkstufenItems.map(item => {
+            const key = `${item.label}|||${item.typ}`
+            const typLabel = item.typ === 'drehbuch' ? 'Drehbuch' : item.typ === 'storyline' ? 'Storyline' : item.typ
+            return <option key={key} value={key}>{item.label} ({typLabel})</option>
+          })}
         </select>
       </div>
 

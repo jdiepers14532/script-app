@@ -413,6 +413,8 @@ async function runMigrations() {
     'v158_freigabe_genehmiger_compat.sql',
     // Phase 2 — Komparsen-Klassifizierung KI-Settings
     'v159_ki_komparse_klassifizierung.sql',
+    // Lock-Gate Werkstufen-Typ
+    'v160_lock_trigger_typ.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

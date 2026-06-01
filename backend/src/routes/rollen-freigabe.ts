@@ -478,7 +478,7 @@ rollenFreigabeRouter.get('/:productionId/config', async (req, res) => {
     const row = await queryOne(
       `SELECT freigabe_aktiv, erinnerung_nach_tagen,
               deckt_rollen, deckt_motive, deckt_neue_szenen,
-              quorum, lock_trigger_fassungslabel,
+              quorum, lock_trigger_fassungslabel, lock_trigger_werkstufen_typ,
               lock_override_aktiv, lock_override_rollen,
               ot_obergrenze_pro_block
        FROM rollen_freigabe_konfiguration WHERE production_id = $1`,
@@ -488,24 +488,25 @@ rollenFreigabeRouter.get('/:productionId/config', async (req, res) => {
       freigabe_aktiv: false, erinnerung_nach_tagen: 3,
       deckt_rollen: true, deckt_motive: false, deckt_neue_szenen: false,
       quorum: 'first_responder', lock_trigger_fassungslabel: null,
+      lock_trigger_werkstufen_typ: null,
       lock_override_aktiv: false, lock_override_rollen: [],
       ot_obergrenze_pro_block: null,
     })
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
-// GET /api/rollen-freigabe/:produktionId/werkstufen-labels — distinct labels for dropdown
+// GET /api/rollen-freigabe/:produktionId/werkstufen-labels — distinct label+typ combos for dropdown
 rollenFreigabeRouter.get('/:produktionId/werkstufen-labels', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT DISTINCT w.label
+      `SELECT DISTINCT w.label, w.typ
        FROM werkstufen w
        JOIN folgen f ON f.id = w.folge_id
        WHERE f.produktion_id = $1 AND w.label IS NOT NULL AND w.label != ''
-       ORDER BY w.label`,
+       ORDER BY w.label, w.typ`,
       [req.params.produktionId]
     )
-    res.json(rows.map((r: any) => r.label as string))
+    res.json(rows.map((r: any) => ({ label: r.label as string, typ: r.typ as string })))
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
@@ -517,7 +518,7 @@ rollenFreigabeRouter.put('/:productionId/config',
       const {
         freigabe_aktiv, erinnerung_nach_tagen,
         deckt_rollen, deckt_motive, deckt_neue_szenen,
-        quorum, lock_trigger_fassungslabel,
+        quorum, lock_trigger_fassungslabel, lock_trigger_werkstufen_typ,
         lock_override_aktiv, lock_override_rollen,
         ot_obergrenze_pro_block,
       } = req.body
@@ -525,30 +526,31 @@ rollenFreigabeRouter.put('/:productionId/config',
         `INSERT INTO rollen_freigabe_konfiguration
            (production_id, freigabe_aktiv, erinnerung_nach_tagen,
             deckt_rollen, deckt_motive, deckt_neue_szenen,
-            quorum, lock_trigger_fassungslabel,
+            quorum, lock_trigger_fassungslabel, lock_trigger_werkstufen_typ,
             lock_override_aktiv, lock_override_rollen,
             ot_obergrenze_pro_block, geaendert_am)
          VALUES ($1,
            COALESCE($2, false), COALESCE($3, 3),
            COALESCE($4, true), COALESCE($5, false), COALESCE($6, false),
-           COALESCE($7, 'first_responder'), $8,
-           COALESCE($9, false), COALESCE($10::jsonb, '[]'::jsonb), $11,
+           COALESCE($7, 'first_responder'), $8, $9,
+           COALESCE($10, false), COALESCE($11::jsonb, '[]'::jsonb), $12,
            NOW())
          ON CONFLICT (production_id) DO UPDATE SET
-           freigabe_aktiv             = COALESCE($2, rollen_freigabe_konfiguration.freigabe_aktiv),
-           erinnerung_nach_tagen      = COALESCE($3, rollen_freigabe_konfiguration.erinnerung_nach_tagen),
-           deckt_rollen               = COALESCE($4, rollen_freigabe_konfiguration.deckt_rollen),
-           deckt_motive               = COALESCE($5, rollen_freigabe_konfiguration.deckt_motive),
-           deckt_neue_szenen          = COALESCE($6, rollen_freigabe_konfiguration.deckt_neue_szenen),
-           quorum                     = COALESCE($7, rollen_freigabe_konfiguration.quorum),
-           lock_trigger_fassungslabel = $8,
-           lock_override_aktiv        = COALESCE($9, rollen_freigabe_konfiguration.lock_override_aktiv),
-           lock_override_rollen       = COALESCE($10::jsonb, rollen_freigabe_konfiguration.lock_override_rollen),
-           ot_obergrenze_pro_block    = $11,
-           geaendert_am               = NOW()
+           freigabe_aktiv              = COALESCE($2, rollen_freigabe_konfiguration.freigabe_aktiv),
+           erinnerung_nach_tagen       = COALESCE($3, rollen_freigabe_konfiguration.erinnerung_nach_tagen),
+           deckt_rollen                = COALESCE($4, rollen_freigabe_konfiguration.deckt_rollen),
+           deckt_motive                = COALESCE($5, rollen_freigabe_konfiguration.deckt_motive),
+           deckt_neue_szenen           = COALESCE($6, rollen_freigabe_konfiguration.deckt_neue_szenen),
+           quorum                      = COALESCE($7, rollen_freigabe_konfiguration.quorum),
+           lock_trigger_fassungslabel  = $8,
+           lock_trigger_werkstufen_typ = $9,
+           lock_override_aktiv         = COALESCE($10, rollen_freigabe_konfiguration.lock_override_aktiv),
+           lock_override_rollen        = COALESCE($11::jsonb, rollen_freigabe_konfiguration.lock_override_rollen),
+           ot_obergrenze_pro_block     = $12,
+           geaendert_am                = NOW()
          RETURNING freigabe_aktiv, erinnerung_nach_tagen,
                    deckt_rollen, deckt_motive, deckt_neue_szenen,
-                   quorum, lock_trigger_fassungslabel,
+                   quorum, lock_trigger_fassungslabel, lock_trigger_werkstufen_typ,
                    lock_override_aktiv, lock_override_rollen,
                    ot_obergrenze_pro_block`,
         [
@@ -560,6 +562,7 @@ rollenFreigabeRouter.put('/:productionId/config',
           deckt_neue_szenen ?? null,
           quorum ?? null,
           lock_trigger_fassungslabel ?? null,
+          lock_trigger_werkstufen_typ ?? null,
           lock_override_aktiv ?? null,
           lock_override_rollen ? JSON.stringify(lock_override_rollen) : null,
           ot_obergrenze_pro_block ?? null,
