@@ -56,6 +56,7 @@ router.get('/:id/copy-preview', async (req, res) => {
       kategorienCnt, charFelderCnt, labelsCnt, colorsCnt,
       revEinst, vorstoppEinst, absatzCnt, kfRows, vorlagenCnt,
       stockshotCnt, glossarCnt, autorenKatCnt,
+      freieLabelsCnt, deskriptorCnt, rollenFreigabeRow,
     ] = await Promise.all([
       pool.query('SELECT key, value FROM production_app_settings WHERE production_id = $1', [sourceId]),
       pool.query('SELECT COUNT(*) FROM character_kategorien WHERE produktion_id = $1', [sourceId]),
@@ -72,6 +73,9 @@ router.get('/:id/copy-preview', async (req, res) => {
       pool.query(`SELECT COUNT(*) FROM autorenplan_job_kategorien ak
                   JOIN produktionen p ON p.produktion_db_id = ak.produktion_db_id
                   WHERE p.id = $1`, [sourceId]),
+      pool.query('SELECT COUNT(*) FROM freie_dokument_labels WHERE produktion_id = $1', [sourceId]),
+      pool.query('SELECT COUNT(*) FROM deskriptor_vorlagen WHERE production_id = $1', [sourceId]),
+      pool.query('SELECT freigabe_aktiv FROM rollen_freigabe_konfiguration WHERE production_id = $1 LIMIT 1', [sourceId]),
     ])
 
     const s: Record<string, string> = {}
@@ -154,12 +158,17 @@ router.get('/:id/copy-preview', async (req, res) => {
         kopf_fusszeilen:     { count: konfKF.length, label: konfKF.length > 0 ? `${konfKF.length} Typ${konfKF.length > 1 ? 'en' : ''} konfiguriert` : '—' },
         vorlagen:            { count: parseInt(vorlagenCnt.rows[0].count), label: `${vorlagenCnt.rows[0].count} Vorlagen` },
         stockshot_templates: { count: parseInt(stockshotCnt.rows[0].count), label: `${stockshotCnt.rows[0].count} Templates` },
+        freie_dok_labels:    { count: parseInt(freieLabelsCnt.rows[0].count), label: `${freieLabelsCnt.rows[0].count} Labels` },
       },
       sonstige: {
-        daily_regeln:            { label: dailyLabel },
-        statistik_config:        { label: s.statistik_config ? 'konfiguriert' : 'Standard' },
-        statistik_modal_config:  { label: s.statistik_modal_config ? 'konfiguriert' : 'Standard' },
+        daily_regeln:              { label: dailyLabel },
+        statistik_config:          { label: s.statistik_config ? 'konfiguriert' : 'Standard' },
+        statistik_modal_config:    { label: s.statistik_modal_config ? 'konfiguriert' : 'Standard' },
         sonstige_dokumente_format: { label: s.sonstige_dokumente_format ? 'konfiguriert' : 'Standard' },
+        drehbuch_checks:           { label: s.drehbuch_checks ? 'konfiguriert' : 'Standard' },
+        synopsis_settings:         { label: s.synopsis_settings ? 'konfiguriert' : 'Standard' },
+        inhaltskennzeichnung:      { count: parseInt(deskriptorCnt.rows[0].count), label: `${deskriptorCnt.rows[0].count} Vorlagen` },
+        rollen_freigabe_config:    { label: rollenFreigabeRow.rows[0] ? (rollenFreigabeRow.rows[0].freigabe_aktiv ? 'aktiv' : 'konfiguriert') : '—' },
       },
       autorenplan: {
         autorenplan_kategorien: { count: autorenCnt, label: autorenCnt > 0 ? `${autorenCnt} Job-Kategorien` : '—' },
@@ -186,6 +195,7 @@ router.post('/:id/copy-settings', async (req, res) => {
     'treatment_label', 'glossar', 'charakter_felder', 'vorstopp', 'seitenformat_margins',
     'kopf_fusszeilen', 'stockshot_templates', 'daily_regeln', 'statistik_config', 'autorenplan_kategorien',
     'statistik_modal_config', 'sonstige_dokumente_format',
+    'freie_dok_labels', 'drehbuch_checks', 'synopsis_settings', 'inhaltskennzeichnung', 'rollen_freigabe_config',
   ]
   const invalid = (sections as string[]).filter(s => !ALLOWED.includes(s))
   if (invalid.length) return res.status(400).json({ error: `Ungültige Sections: ${invalid.join(', ')}` })
@@ -224,6 +234,8 @@ router.post('/:id/copy-settings', async (req, res) => {
     if (sections.includes('statistik_config'))         await copyAppSetting(client, 'statistik_config')
     if (sections.includes('statistik_modal_config'))   await copyAppSetting(client, 'statistik_modal_config')
     if (sections.includes('sonstige_dokumente_format')) await copyAppSetting(client, 'sonstige_dokumente_format')
+    if (sections.includes('drehbuch_checks'))            await copyAppSetting(client, 'drehbuch_checks')
+    if (sections.includes('synopsis_settings'))          await copyAppSetting(client, 'synopsis_settings')
     if (sections.includes('seitenformat_margins')) {
       await copyAppSetting(client, 'seitenformat')
       await copyAppSetting(client, 'page_margin_mm')
@@ -479,6 +491,71 @@ router.post('/:id/copy-settings', async (req, res) => {
               row.praesenz_wochen, row.farbe, row.sortierung, row.erstellt_von]
           )
         }
+      }
+    }
+
+    // ── Freie-Dok-Labels ─────────────────────────────────────────────────────
+    if (sections.includes('freie_dok_labels')) {
+      const src = await client.query(
+        'SELECT * FROM freie_dokument_labels WHERE produktion_id = $1 ORDER BY sort_order, id',
+        [source_produktion_id]
+      )
+      if (!merge) await client.query('DELETE FROM freie_dokument_labels WHERE produktion_id = $1', [targetId])
+      for (const row of src.rows) {
+        await client.query(
+          `INSERT INTO freie_dokument_labels (produktion_id, label_name, sort_order)
+           VALUES ($1, $2, $3) ON CONFLICT (produktion_id, label_name) DO NOTHING`,
+          [targetId, row.label_name, row.sort_order]
+        )
+      }
+    }
+
+    // ── Inhaltskennzeichnungs-Vorlagen ────────────────────────────────────────
+    if (sections.includes('inhaltskennzeichnung')) {
+      const src = await client.query(
+        'SELECT * FROM deskriptor_vorlagen WHERE production_id = $1 ORDER BY sort_order, id',
+        [source_produktion_id]
+      )
+      if (!merge) await client.query('DELETE FROM deskriptor_vorlagen WHERE production_id = $1', [targetId])
+      for (const row of src.rows) {
+        await client.query(
+          `INSERT INTO deskriptor_vorlagen (production_id, name, sort_order)
+           VALUES ($1, $2, $3) ON CONFLICT (production_id, name) DO NOTHING`,
+          [targetId, row.name, row.sort_order]
+        )
+      }
+    }
+
+    // ── Rollen-Freigabe-Konfiguration ─────────────────────────────────────────
+    if (sections.includes('rollen_freigabe_config')) {
+      const src = await client.query(
+        'SELECT * FROM rollen_freigabe_konfiguration WHERE production_id = $1',
+        [source_produktion_id]
+      )
+      if (src.rows.length) {
+        const r = src.rows[0]
+        await client.query(
+          `INSERT INTO rollen_freigabe_konfiguration
+             (production_id, freigabe_aktiv, erinnerung_nach_tagen,
+              deckt_rollen, deckt_motive, deckt_neue_szenen,
+              quorum, lock_trigger_fassungslabel, lock_trigger_werkstufen_typ,
+              lock_trigger_version_nummer, lock_override_aktiv, lock_override_rollen,
+              ot_obergrenze_pro_block)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+           ON CONFLICT (production_id) DO UPDATE SET
+             freigabe_aktiv=$2, erinnerung_nach_tagen=$3,
+             deckt_rollen=$4, deckt_motive=$5, deckt_neue_szenen=$6,
+             quorum=$7, lock_trigger_fassungslabel=$8,
+             lock_trigger_werkstufen_typ=$9, lock_trigger_version_nummer=$10,
+             lock_override_aktiv=$11, lock_override_rollen=$12,
+             ot_obergrenze_pro_block=$13, geaendert_am=NOW()`,
+          [targetId, r.freigabe_aktiv, r.erinnerung_nach_tagen,
+            r.deckt_rollen, r.deckt_motive, r.deckt_neue_szenen,
+            r.quorum, r.lock_trigger_fassungslabel, r.lock_trigger_werkstufen_typ,
+            r.lock_trigger_version_nummer, r.lock_override_aktiv,
+            JSON.stringify(r.lock_override_rollen ?? []),
+            r.ot_obergrenze_pro_block]
+        )
       }
     }
 

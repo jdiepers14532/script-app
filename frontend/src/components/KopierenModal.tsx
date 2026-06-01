@@ -152,6 +152,12 @@ const SECTION_GROUPS: GroupDef[] = [
         isList: true,
         tooltip: 'Vorgefertigte Szenenvorlagen für Stockshots.\nKategorien: Ortswechsel, Zeit vergeht, Stimmungswechsel.\nJedes Template enthält: Name, Oneliner-Vorlage, Stoppzeit, INT/EXT, Stimmung, Beschreibung.\nMotiv-Verknüpfungen werden beim Kopieren entfernt — nur die Vorlage selbst wird übernommen.\nErsetzen: alle vorhandenen Templates werden gelöscht.\nDazufügen: Templates mit gleichem Name+Kategorie werden übersprungen.',
       },
+      {
+        id: 'freie_dok_labels',
+        label: 'Freie-Dok-Labels',
+        isList: true,
+        tooltip: 'Produktionsspezifische Label-Vorschläge für Freie Dokumente (Autocomplete beim Anlegen).\nBeispiele: Schattenbuch, Casting-Szene, Spin-Off.\nDie Standard-Labels (immer verfügbar) werden nicht kopiert — nur die eigenen Ergänzungen.\nErsetzen: alle vorhandenen eigenen Labels werden gelöscht.\nDazufügen: Labels mit gleichem Namen werden übersprungen.',
+      },
     ],
   },
   {
@@ -177,6 +183,27 @@ const SECTION_GROUPS: GroupDef[] = [
         id: 'sonstige_dokumente_format',
         label: 'Onliner-/Statistik-Dokument-Format',
         tooltip: 'Formateinstellungen für Onliner- und Statistik-Dokumente (Seitenformat, Schriften, Abstände).\nWird beim PDF-Export dieser Dokument-Typen angewendet.',
+      },
+      {
+        id: 'drehbuch_checks',
+        label: 'Drehbuch-Checks',
+        tooltip: 'Konfiguration der automatischen Qualitätsprüfungen im Drehbuch-Editor.\nLegt fest, welche Checks aktiv sind und ob sie automatisch oder nur manuell ausgeführt werden.\nBeispiele: Fehlende Szenenüberschriften, inkonsistente Figuren-Schreibweise, leere Dialoge.',
+      },
+      {
+        id: 'synopsis_settings',
+        label: 'KI-Synopsen',
+        tooltip: 'Parameter für die automatische KI-Synopsen-Generierung.\nKonfigurierbare Einstellungen: maximale Zeichenanzahl, Stil-Vorgaben, Sprache.\nWird auf alle KI-generierten Synopsen dieser Produktion angewendet.',
+      },
+      {
+        id: 'inhaltskennzeichnung',
+        label: 'Inhaltskennz.-Vorlagen',
+        isList: true,
+        tooltip: 'Produktionsspezifische Vorlagen für die Inhaltskennzeichnung (FSK/JuSchG-Deskriptoren).\nJede Vorlage ist ein benannter Deskriptor, der pro Folge an- oder abgehakt werden kann.\nErsetzen: alle vorhandenen Vorlagen werden gelöscht.\nDazufügen: Vorlagen mit gleichem Namen werden übersprungen.',
+      },
+      {
+        id: 'rollen_freigabe_config',
+        label: 'Rollen-Freigabe-Konfig',
+        tooltip: 'Konfiguration des Rollen-Freigabe-Workflows (Scope, Quorum, Lock-Trigger, OT-Obergrenze).\nNicht kopiert: die Genehmiger-Liste — die ist produktionsspezifisch und muss manuell eingetragen werden.\nHinweis: Das kopierte Lock-Trigger-Label muss in den Fassungs-Labels der Zielproduktion vorhanden sein.',
       },
     ],
   },
