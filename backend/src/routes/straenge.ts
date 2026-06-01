@@ -257,7 +257,7 @@ straengeRouter.post('/:id/beats', async (req, res) => {
 
 // PUT /api/straenge/beats/:id
 straengeRouter.put('/beats/:beatId', async (req, res) => {
-  const { beat_text, prosa_text, ist_abgearbeitet, sort_order, block_nummer, folge_id, parent_beat_id } = req.body
+  const { beat_text, prosa_text, ist_abgearbeitet, sort_order, block_nummer, folge_id, parent_beat_id, strang_id } = req.body
   try {
     const row = await queryOne(
       `UPDATE strang_beats SET
@@ -267,13 +267,15 @@ straengeRouter.put('/beats/:beatId', async (req, res) => {
         sort_order = COALESCE($4, sort_order),
         block_nummer = COALESCE($5, block_nummer),
         folge_id = COALESCE($6, folge_id),
-        parent_beat_id = $7
-       WHERE id = $8 RETURNING *`,
+        parent_beat_id = $7,
+        strang_id = COALESCE($8, strang_id)
+       WHERE id = $9 RETURNING *`,
       [
         beat_text ?? null, prosa_text ?? null,
         ist_abgearbeitet ?? null, sort_order ?? null,
         block_nummer ?? null, folge_id ?? null,
         parent_beat_id !== undefined ? parent_beat_id : null,
+        strang_id ?? null,
         req.params.beatId,
       ]
     )

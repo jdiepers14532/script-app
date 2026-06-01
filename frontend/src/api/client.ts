@@ -880,6 +880,16 @@ export const api = {
   rasterGenerieren: (strangId: string, folgeIds: number[]) =>
     request<{ created: any[]; count: number }>('POST', `/straenge/${strangId}/raster-generieren`, { folge_ids: folgeIds }),
 
+  // ── Future-Board ──────────────────────────────────────────────────────────
+  getBoardData: (produktionId: string) =>
+    request<{ straenge: any[]; beats: any[] }>('GET', `/planung/board?produktion_id=${encodeURIComponent(produktionId)}`),
+  getBeatCharaktere: (beatId: string) =>
+    request<any[]>('GET', `/straenge/beats/${beatId}/charaktere`),
+  addBeatCharakter: (beatId: string, data: { character_id: string; rolle?: string }) =>
+    request<any>('POST', `/straenge/beats/${beatId}/charaktere`, data),
+  removeBeatCharakter: (beatId: string, characterId: string) =>
+    request<void>('DELETE', `/straenge/beats/${beatId}/charaktere/${characterId}`),
+
   // ── Sonderszenen: Wechselschnitt-Partner ──
   getWechselschnittPartner: (szeneId: string) =>
     request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-partner`),

@@ -69,6 +69,7 @@ import { rollenFreigabeRouter, rollenFreigabePublicRouter } from './routes/rolle
 import { freigabenRouter } from './routes/freigaben'
 import { ntEintraegeRouter } from './routes/nt-eintraege'
 import { checksRouter } from './routes/checks'
+import { planungRouter } from './routes/planung'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -212,6 +213,7 @@ app.use('/api/autorenplan', autorenplanRouter)
 
 // Story-Straenge
 app.use('/api/straenge', straengeRouter)
+app.use('/api/planung', planungRouter)
 
 // Team-Work: Colab-Gruppen, Sessions, Sichtbarkeit
 app.use('/api/colab-gruppen', colabGruppenRouter)
