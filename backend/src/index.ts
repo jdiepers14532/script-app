@@ -406,6 +406,7 @@ async function runMigrations() {
     'v155_motiv_freigabe_anfragen.sql',
     'v156_komparse_klassifizierung.sql',
     'v157_freigabe_overrides.sql',
+    'v158_freigabe_genehmiger_compat.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

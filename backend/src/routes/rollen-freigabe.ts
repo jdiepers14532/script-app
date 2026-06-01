@@ -32,6 +32,39 @@ import { getCompanyName } from '../utils/companyInfo'
 // APP_URL ist ein Wert der sich nicht ändert, kann statisch sein
 const APP_URL = process.env.APP_URL ?? 'https://script.serienwerft.studio'
 
+const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP'
+
+// ── Auth-Service Helfer ───────────────────────────────────────────────────────
+
+async function getUserInfoFromAuth(userId: string): Promise<{name: string; email: string} | null> {
+  try {
+    const resp = await fetch(
+      `http://127.0.0.1:3002/api/internal/user-info?user_id=${encodeURIComponent(userId)}`,
+      { headers: { 'x-internal-key': INTERNAL_KEY } }
+    )
+    if (!resp.ok) return null
+    const data = await resp.json() as any
+    if (!data?.user_id) return null
+    return { name: data.name ?? userId, email: data.email ?? '' }
+  } catch {
+    return null
+  }
+}
+
+async function getUsersByRoleFromAuth(rolle: string): Promise<Array<{user_id: string; name: string; email: string}>> {
+  try {
+    const resp = await fetch(
+      `http://127.0.0.1:3002/api/internal/users-by-role?role=${encodeURIComponent(rolle)}&app=script`,
+      { headers: { 'x-internal-key': INTERNAL_KEY } }
+    )
+    if (!resp.ok) return []
+    const data = await resp.json() as any
+    return Array.isArray(data) ? data : []
+  } catch {
+    return []
+  }
+}
+
 // SMTP-Credentials werden lazy aus process.env gelesen (NACH dotenv.config() in index.ts)
 // Daher KEINE module-level Konstanten — getTransporter() liest sie beim ersten Aufruf.
 let transporter: nodemailer.Transporter | null = null
@@ -201,7 +234,7 @@ body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margi
 
 async function recalcAnfrageStatus(anfrageId: number) {
   const gStatuses = await query(
-    `SELECT gs.entschieden, g.ist_obligatorisch
+    `SELECT gs.entschieden, g.stufe
      FROM rollen_freigabe_genehmiger_status gs
      JOIN rollen_freigabe_genehmiger g ON g.id = gs.genehmiger_id
      WHERE gs.anfrage_id = $1`,
@@ -214,7 +247,7 @@ async function recalcAnfrageStatus(anfrageId: number) {
   if (hatAbgelehnt) {
     neuerStatus = 'abgelehnt'
   } else {
-    const obligatorisch = gStatuses.filter((g: any) => g.ist_obligatorisch)
+    const obligatorisch = gStatuses.filter((g: any) => g.stufe === 'obligatorisch')
     const alleObligatorischFreigegeben = obligatorisch.length > 0 &&
       obligatorisch.every((g: any) => g.entschieden === 'freigegeben')
     if (alleObligatorischFreigegeben) {
@@ -278,13 +311,37 @@ rollenFreigabeRouter.put('/:productionId/config',
 rollenFreigabeRouter.get('/:productionId/genehmiger', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, name, email, ist_obligatorisch, sort_order
+      `SELECT id, name, email, stufe, sort_order, user_id, rolle, freigabe_typ
        FROM rollen_freigabe_genehmiger
        WHERE production_id = $1
        ORDER BY sort_order, id`,
       [req.params.productionId]
     )
-    res.json(rows)
+    // Resolve name/email für user_id-basierte Einträge; Legacy-Einträge haben bereits name+email
+    const result = await Promise.all(rows.map(async (g: any) => {
+      let name = g.name
+      let email = g.email
+      if (!name && g.user_id) {
+        const info = await getUserInfoFromAuth(g.user_id)
+        name = info?.name ?? g.user_id
+        email = info?.email ?? ''
+      } else if (!name && g.rolle) {
+        name = `Rolle: ${g.rolle}`
+        email = ''
+      }
+      return {
+        id: g.id,
+        name: name ?? '',
+        email: email ?? '',
+        ist_obligatorisch: g.stufe === 'obligatorisch',
+        sort_order: g.sort_order,
+        user_id: g.user_id,
+        rolle: g.rolle,
+        freigabe_typ: g.freigabe_typ,
+        stufe: g.stufe,
+      }
+    }))
+    res.json(result)
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
@@ -293,18 +350,37 @@ rollenFreigabeRouter.post('/:productionId/genehmiger',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { name, email, ist_obligatorisch } = req.body
-      if (!name || !email) return res.status(400).json({ error: 'name und email erforderlich' })
+      const { name, email, ist_obligatorisch, user_id, rolle, freigabe_typ, stufe } = req.body
       const maxOrder = await queryOne(
         `SELECT COALESCE(MAX(sort_order), 0) AS max_order FROM rollen_freigabe_genehmiger WHERE production_id = $1`,
         [req.params.productionId]
       )
-      const row = await queryOne(
-        `INSERT INTO rollen_freigabe_genehmiger (production_id, name, email, ist_obligatorisch, sort_order)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [req.params.productionId, name.trim(), email.trim().toLowerCase(), ist_obligatorisch ?? true, (maxOrder?.max_order ?? 0) + 1]
-      )
-      res.status(201).json(row)
+      const nextOrder = (maxOrder?.max_order ?? 0) + 1
+      const effStufe = stufe ?? (ist_obligatorisch !== false ? 'obligatorisch' : 'review')
+      let row: any
+      if (name && email) {
+        // Legacy-Modus: Name + E-Mail direkt
+        row = await queryOne(
+          `INSERT INTO rollen_freigabe_genehmiger (production_id, name, email, stufe, sort_order)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [req.params.productionId, name.trim(), email.trim().toLowerCase(), effStufe, nextOrder]
+        )
+      } else if (user_id) {
+        row = await queryOne(
+          `INSERT INTO rollen_freigabe_genehmiger (production_id, user_id, freigabe_typ, stufe, sort_order)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [req.params.productionId, user_id, freigabe_typ ?? 'budget', effStufe, nextOrder]
+        )
+      } else if (rolle) {
+        row = await queryOne(
+          `INSERT INTO rollen_freigabe_genehmiger (production_id, rolle, freigabe_typ, stufe, sort_order)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [req.params.productionId, rolle, freigabe_typ ?? 'budget', effStufe, nextOrder]
+        )
+      } else {
+        return res.status(400).json({ error: 'name+email, user_id oder rolle erforderlich' })
+      }
+      res.status(201).json({ ...row, ist_obligatorisch: row.stufe === 'obligatorisch' })
     } catch (err) { res.status(500).json({ error: String(err) }) }
   }
 )
@@ -314,17 +390,21 @@ rollenFreigabeRouter.put('/:productionId/genehmiger/:genId',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { name, email, ist_obligatorisch, sort_order } = req.body
+      const { name, email, ist_obligatorisch, stufe, sort_order } = req.body
+      // ist_obligatorisch (legacy) → stufe mapping
+      const newStufe = stufe ?? (ist_obligatorisch !== undefined
+        ? (ist_obligatorisch ? 'obligatorisch' : 'review')
+        : undefined)
       const row = await queryOne(
         `UPDATE rollen_freigabe_genehmiger
          SET name = COALESCE($1, name), email = COALESCE($2, email),
-             ist_obligatorisch = COALESCE($3, ist_obligatorisch),
+             stufe = COALESCE($3, stufe),
              sort_order = COALESCE($4, sort_order)
          WHERE id = $5 AND production_id = $6 RETURNING *`,
-        [name?.trim(), email?.trim().toLowerCase(), ist_obligatorisch, sort_order, req.params.genId, req.params.productionId]
+        [name?.trim() ?? null, email?.trim().toLowerCase() ?? null, newStufe ?? null, sort_order ?? null, req.params.genId, req.params.productionId]
       )
       if (!row) return res.status(404).json({ error: 'Not found' })
-      res.json(row)
+      res.json({ ...row, ist_obligatorisch: row.stufe === 'obligatorisch' })
     } catch (err) { res.status(500).json({ error: String(err) }) }
   }
 )
@@ -355,8 +435,9 @@ rollenFreigabeRouter.get('/:productionId/anfragen', async (req: any, res) => {
               ds.scene_nummer, ds.ort_name,
               JSON_AGG(JSON_BUILD_OBJECT(
                 'id', gs.id, 'genehmiger_id', gs.genehmiger_id,
-                'name', g.name, 'email', g.email,
-                'ist_obligatorisch', g.ist_obligatorisch,
+                'name', COALESCE(g.name, g.user_id, g.rolle, '?'),
+                'email', COALESCE(g.email, ''),
+                'ist_obligatorisch', (g.stufe = 'obligatorisch'),
                 'entschieden', gs.entschieden, 'entschieden_am', gs.entschieden_am
               ) ORDER BY g.sort_order) AS genehmiger_status
        FROM rollen_freigabe_anfragen a
@@ -394,7 +475,7 @@ export async function starteFreigabeAnfrage(params: {
   }
 
   const genehmiger = await query(
-    `SELECT id, name, email, ist_obligatorisch FROM rollen_freigabe_genehmiger WHERE production_id = $1 ORDER BY sort_order`,
+    `SELECT id, name, email, user_id, rolle, stufe FROM rollen_freigabe_genehmiger WHERE production_id = $1 ORDER BY sort_order`,
     [params.produktionId]
   )
   if (genehmiger.length === 0) {
@@ -459,7 +540,26 @@ export async function starteFreigabeAnfrage(params: {
   const char = await queryOne(`SELECT name FROM characters WHERE id = $1`, [params.characterId])
 
   const gueltigBis = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+  // Fan-Out: für jeden Genehmiger ggf. mehrere Empfänger (rolle → alle User mit dieser Rolle)
+  type EmpfaengerEntry = { genehmigterId: number; toName: string; toEmail: string }
+  const empfaenger: EmpfaengerEntry[] = []
   for (const g of genehmiger) {
+    if (g.name && g.email) {
+      // Legacy: Name + E-Mail direkt gespeichert
+      empfaenger.push({ genehmigterId: g.id, toName: g.name, toEmail: g.email })
+    } else if (g.user_id) {
+      const info = await getUserInfoFromAuth(g.user_id)
+      if (info?.email) empfaenger.push({ genehmigterId: g.id, toName: info.name, toEmail: info.email })
+    } else if (g.rolle) {
+      const users = await getUsersByRoleFromAuth(g.rolle)
+      for (const u of users) {
+        if (u.email) empfaenger.push({ genehmigterId: g.id, toName: u.name, toEmail: u.email })
+      }
+    }
+  }
+
+  for (const e of empfaenger) {
     const tokenFreigeben = crypto.randomBytes(32).toString('hex')
     const tokenAblehnen  = crypto.randomBytes(32).toString('hex')
     const combinedToken  = `${tokenFreigeben}:freigeben,${tokenAblehnen}:ablehnen`
@@ -468,11 +568,11 @@ export async function starteFreigabeAnfrage(params: {
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (anfrage_id, genehmiger_id) DO UPDATE
          SET token = $3, token_gueltig_bis = $4, entschieden = NULL, entschieden_am = NULL`,
-      [anfrage!.id, g.id, combinedToken, gueltigBis]
+      [anfrage!.id, e.genehmigterId, combinedToken, gueltigBis]
     )
     await sendFreigabeAnfrageEmail({
-      toName: g.name,
-      toEmail: g.email,
+      toName: e.toName,
+      toEmail: e.toEmail,
       rollenName: char?.name ?? '?',
       produktionTitel: prod?.titel ?? '?',
       beantragtVon: params.userName ?? params.userId ?? 'NT-Automatik',
@@ -682,13 +782,30 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erneut-anfragen',
 
       // Neue Tokens generieren und Emails senden
       const genehmiger = await query(
-        `SELECT id, name, email, ist_obligatorisch FROM rollen_freigabe_genehmiger
+        `SELECT id, name, email, user_id, rolle, stufe FROM rollen_freigabe_genehmiger
          WHERE production_id = $1 ORDER BY sort_order`,
         [req.params.productionId]
       )
       const gueltigBis = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
+      // Fan-Out: Legacy name/email, user_id oder rolle
+      type EmpfaengerEntry2 = { genehmigterId: number; toName: string; toEmail: string }
+      const empfaenger2: EmpfaengerEntry2[] = []
       for (const g of genehmiger) {
+        if (g.name && g.email) {
+          empfaenger2.push({ genehmigterId: g.id, toName: g.name, toEmail: g.email })
+        } else if (g.user_id) {
+          const info = await getUserInfoFromAuth(g.user_id)
+          if (info?.email) empfaenger2.push({ genehmigterId: g.id, toName: info.name, toEmail: info.email })
+        } else if (g.rolle) {
+          const users = await getUsersByRoleFromAuth(g.rolle)
+          for (const u of users) {
+            if (u.email) empfaenger2.push({ genehmigterId: g.id, toName: u.name, toEmail: u.email })
+          }
+        }
+      }
+
+      for (const e of empfaenger2) {
         const tokenFreigeben = crypto.randomBytes(32).toString('hex')
         const tokenAblehnen  = crypto.randomBytes(32).toString('hex')
         const combinedToken  = `${tokenFreigeben}:freigeben,${tokenAblehnen}:ablehnen`
@@ -698,12 +815,12 @@ rollenFreigabeRouter.post('/:productionId/anfragen/:id/erneut-anfragen',
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (anfrage_id, genehmiger_id) DO UPDATE
              SET token = $3, token_gueltig_bis = $4, entschieden = NULL, entschieden_am = NULL`,
-          [req.params.id, g.id, combinedToken, gueltigBis]
+          [req.params.id, e.genehmigterId, combinedToken, gueltigBis]
         )
 
         await sendFreigabeAnfrageEmail({
-          toName: g.name,
-          toEmail: g.email,
+          toName: e.toName,
+          toEmail: e.toEmail,
           rollenName: anfrage.rollen_name,
           produktionTitel: anfrage.prod_titel,
           beantragtVon: req.user.name ?? req.user.user_id,
