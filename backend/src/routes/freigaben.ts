@@ -9,9 +9,10 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { recalcAnfrageStatus, recalcSzenenAnfrageStatus } from './rollen-freigabe'
-import { requireDkAccess } from '../middleware/auth'
+import { authMiddleware, requireDkAccess } from '../auth'
 
 export const freigabenRouter = Router()
+freigabenRouter.use(authMiddleware)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/freigaben/meine
@@ -103,7 +104,7 @@ freigabenRouter.get('/meine', async (req, res) => {
 // Matrix aller offenen Anfragen einer Produktion, optional gefiltert auf eine Folge.
 // Gruppiert nach Folge > Szene. DK-Ansicht.
 // ─────────────────────────────────────────────────────────────────────────────
-freigabenRouter.get('/matrix', requireDkAccess, async (req, res) => {
+freigabenRouter.get('/matrix', requireDkAccess(req => req.query.prod as string), async (req, res) => {
   try {
     const { prod, folge_id } = req.query as Record<string, string>
     if (!prod) return res.status(400).json({ error: 'prod erforderlich' })
