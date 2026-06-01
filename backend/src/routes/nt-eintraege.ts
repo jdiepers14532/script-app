@@ -262,22 +262,44 @@ export async function autoUpsertNtEintraege(
 
     // Figuren, die nicht mehr NT/VO sind → soft-delete (veraltet=TRUE)
     // NIEMALS hard-delete — Disposition.app verlinkt via .id
+    let veralteteCharIds: string[] = []
     if (upsertedCharIds.length > 0) {
-      await pool.query(
+      const veraltete = await query(
         `UPDATE nt_eintraege
          SET veraltet = TRUE, aktualisiert_am = NOW()
          WHERE scene_identity_id = $1 AND werkstufe_id = $2
            AND veraltet = FALSE
-           AND character_id != ALL($3::uuid[])`,
+           AND character_id != ALL($3::uuid[])
+         RETURNING character_id`,
         [szene.scene_identity_id, szene.werkstufe_id, upsertedCharIds]
       )
+      veralteteCharIds = veraltete.map((r: any) => r.character_id)
     } else {
       // Keine NT-Figuren mehr → alle veralten
-      await pool.query(
+      const veraltete = await query(
         `UPDATE nt_eintraege
          SET veraltet = TRUE, aktualisiert_am = NOW()
-         WHERE scene_identity_id = $1 AND werkstufe_id = $2 AND veraltet = FALSE`,
+         WHERE scene_identity_id = $1 AND werkstufe_id = $2 AND veraltet = FALSE
+         RETURNING character_id`,
         [szene.scene_identity_id, szene.werkstufe_id]
+      )
+      veralteteCharIds = veraltete.map((r: any) => r.character_id)
+    }
+
+    // Auto-Zurückziehen: Budget-Anfragen die auf diese Szene zeigen + Figur noch staged (is_active=FALSE)
+    // → wenn NT-Eintrag veraltet ist die Figur nicht mehr im Szenen-Content, Anfrage wird hinfällig
+    if (veralteteCharIds.length > 0) {
+      await pool.query(
+        `UPDATE rollen_freigabe_anfragen rfa
+         SET status = 'zurueckgezogen', entschieden_am = NOW()
+         FROM character_productions cp
+         WHERE rfa.character_id = cp.character_id
+           AND rfa.production_id = cp.produktion_id
+           AND rfa.character_id = ANY($1::uuid[])
+           AND rfa.production_id = $2
+           AND rfa.status = 'ausstehend'
+           AND cp.is_active = FALSE`,
+        [veralteteCharIds, szene.produktion_id]
       )
     }
   } catch (err) {
