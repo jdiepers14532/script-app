@@ -860,9 +860,13 @@ async function buildSynopsenHtml(
     }
     accumPt += scenePt
 
-    // Kein break-inside:avoid — der server-seitige page-break-before steuert die Paginierung.
-    // break-inside:avoid würde Chrome dazu bringen, ganze Szenen auf die nächste Seite zu schieben.
-    parts.push(`<div>${html}</div>`)
+    // break-inside:avoid auf dem äußeren Wrapper: verhindert, dass Chrome mitten im Szenenkopf
+    // umbricht (z.B. nach der ersten flex-Zeile). Der server-seitige page-break-before ist der
+    // primäre Mechanismus; break-inside:avoid ist die Sicherheitsnetz-Fallback-Regel.
+    // Da einzelne Szenenköpfe (~80–110pt) immer kleiner als die Seitenhöhe (~714pt) sind,
+    // verschiebt Chrome die Szene im schlimmsten Fall auf die nächste Seite — aber niemals
+    // mitten in eine Szene.
+    parts.push(`<div style="break-inside:avoid;page-break-inside:avoid">${html}</div>`)
   }
 
   if (!parts.length) return '<div style="color:#888;font-size:9pt">Keine Szenen gefunden.</div>'
