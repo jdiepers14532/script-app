@@ -503,9 +503,10 @@ rollenFreigabeRouter.get('/:produktionId/werkstufen-labels', async (req, res) =>
     const rows = await query(
       `SELECT sl.name AS label, t.typ, sl.sort_order
        FROM stage_labels sl
-       CROSS JOIN (VALUES ('drehbuch'), ('storyline')) AS t(typ)
+       CROSS JOIN (VALUES ('storyline'), ('drehbuch')) AS t(typ)
        WHERE sl.produktion_id = $1
-       ORDER BY sl.sort_order, t.typ`,
+       ORDER BY CASE t.typ WHEN 'storyline' THEN 0 WHEN 'drehbuch' THEN 1 ELSE 2 END,
+                sl.sort_order`,
       [req.params.produktionId]
     )
     res.json(rows.map((r: any) => ({ label: r.label as string, typ: r.typ as string })))
