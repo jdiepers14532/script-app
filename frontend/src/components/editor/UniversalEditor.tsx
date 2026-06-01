@@ -615,23 +615,30 @@ export default function UniversalEditor({
       return
     }
 
-    // Dispo-Pfad: Figur existiert → nur Dialog zeigen wenn Lock-Gate aktiv (freigabe_aktiv)
+    // Dispo-Pfad: Figur existiert → Lock-Gate prüfen (freigabe_aktiv + Typ + Schwellenwert)
     // Sonst: Figur direkt einfügen ohne Dialog
     if (!selectedProdId) {
       acceptCharIntoEditorRef.current(name, suffix ?? null)
       return
     }
-    fetch(`/api/rollen-freigabe/${selectedProdId}/config`, { credentials: 'include' })
-      .then(r => r.ok ? r.json() : null)
-      .then(cfg => {
-        if (cfg?.freigabe_aktiv) {
-          setNewCharDialog({ name, suffix: suffix ?? null, isKomparse: false, loading: false, stage: 'dispo', existingCharId: existing.id ?? null, freigabeAktiv: true })
-        } else {
-          acceptCharIntoEditorRef.current(name, suffix ?? null)
-        }
-      })
-      .catch(() => acceptCharIntoEditorRef.current(name, suffix ?? null))
-  }, [selectedProdId])
+    Promise.all([
+      fetch(`/api/rollen-freigabe/${selectedProdId}/config`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+      werkstufeId ? fetch(`/api/werkstufen/${werkstufeId}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
+    ]).then(([cfg, wk]) => {
+      if (!cfg?.freigabe_aktiv) { acceptCharIntoEditorRef.current(name, suffix ?? null); return }
+      const triggerTyp: string | null = cfg.lock_trigger_werkstufen_typ ?? null
+      const triggerVersion: number | null = cfg.lock_trigger_version_nummer ?? null
+      const currentTyp: string | null = wk?.typ ?? null
+      const currentVersion: number | null = wk?.version_nummer ?? null
+      const typMatch = !triggerTyp || triggerTyp === currentTyp
+      const versionMatch = triggerVersion == null || (currentVersion != null && currentVersion >= triggerVersion)
+      if (typMatch && versionMatch) {
+        setNewCharDialog({ name, suffix: suffix ?? null, isKomparse: false, loading: false, stage: 'dispo', existingCharId: existing.id ?? null, freigabeAktiv: true })
+      } else {
+        acceptCharIntoEditorRef.current(name, suffix ?? null)
+      }
+    }).catch(() => acceptCharIntoEditorRef.current(name, suffix ?? null))
+  }, [selectedProdId, werkstufeId])
   useEffect(() => { openNewCharDialogRef.current = openNewCharDialog }, [openNewCharDialog])
   // Erkannter Suffix (OFF/NT/ONE-WAY) aus letzter AC-Eingabe — wird beim Einfügen angehängt
   const detectedSuffixRef = useRef<string | null>(null)

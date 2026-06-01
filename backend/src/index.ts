@@ -415,6 +415,8 @@ async function runMigrations() {
     'v159_ki_komparse_klassifizierung.sql',
     // Lock-Gate Werkstufen-Typ
     'v160_lock_trigger_typ.sql',
+    // Lock-Gate Schwellenwert-Logik
+    'v161_lock_trigger_version_nummer.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

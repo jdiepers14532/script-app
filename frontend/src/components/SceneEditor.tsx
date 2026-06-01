@@ -640,13 +640,16 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       fetch(`/api/rollen-freigabe/${produktionId}/config`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
       fetch(`/api/werkstufen/${werkstufId}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
     ]).then(([cfg, wk]) => {
-      const triggerLabel: string | null = cfg?.lock_trigger_fassungslabel ?? null
-      const triggerTyp: string | null = cfg?.lock_trigger_werkstufen_typ ?? null
-      const currentLabel: string | null = wk?.label ?? null
+      if (!cfg?.freigabe_aktiv) { setLockGateActive(false); return }
+      const triggerTyp: string | null = cfg.lock_trigger_werkstufen_typ ?? null
+      const triggerVersion: number | null = cfg.lock_trigger_version_nummer ?? null
       const currentTyp: string | null = wk?.typ ?? null
-      const labelMatch = !!(triggerLabel && currentLabel && triggerLabel === currentLabel)
-      const typMatch = !triggerTyp || (!!currentTyp && triggerTyp === currentTyp)
-      setLockGateActive(!!(cfg?.freigabe_aktiv && labelMatch && typMatch))
+      const currentVersion: number | null = wk?.version_nummer ?? null
+      // Typ muss übereinstimmen (wenn konfiguriert)
+      const typMatch = !triggerTyp || triggerTyp === currentTyp
+      // Schwellenwert: aktuelle version_nummer muss >= Trigger-version_nummer sein
+      const versionMatch = triggerVersion == null || (currentVersion != null && currentVersion >= triggerVersion)
+      setLockGateActive(typMatch && versionMatch)
     }).catch(() => setLockGateActive(false))
   }, [produktionId, werkstufId])
 
