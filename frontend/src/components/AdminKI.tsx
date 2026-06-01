@@ -248,7 +248,7 @@ function ProviderCard({
                 ? <span style={{ color: '#00C853' }}>● gespeichert</span>
                 : <span style={{ color: '#FF3B30' }}>● nicht gesetzt</span>}
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
+            <form autoComplete="off" onSubmit={e => e.preventDefault()} style={{ display: 'flex', gap: 6 }}>
               <input
                 type={showKey ? 'text' : 'password'}
                 value={apiKeyInput}
@@ -261,11 +261,11 @@ function ProviderCard({
                   background: 'var(--bg)', color: 'var(--text)', fontFamily: 'monospace',
                 }}
               />
-              <button onClick={() => setShowKey(s => !s)}
+              <button type="button" onClick={() => setShowKey(s => !s)}
                 style={{ padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                 {showKey ? <EyeOff size={13} /> : <Eye size={13} />}
               </button>
-            </div>
+            </form>
           </div>
         ) : (
           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
