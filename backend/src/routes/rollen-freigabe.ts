@@ -512,7 +512,12 @@ rollenFreigabeRouter.put('/:productionId/config',
             quorum, lock_trigger_fassungslabel,
             lock_override_aktiv, lock_override_rollen,
             ot_obergrenze_pro_block, geaendert_am)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+         VALUES ($1,
+           COALESCE($2, false), COALESCE($3, 3),
+           COALESCE($4, true), COALESCE($5, false), COALESCE($6, false),
+           COALESCE($7, 'first_responder'), $8,
+           COALESCE($9, false), COALESCE($10, '[]')::jsonb, $11,
+           NOW())
          ON CONFLICT (production_id) DO UPDATE SET
            freigabe_aktiv             = COALESCE($2, rollen_freigabe_konfiguration.freigabe_aktiv),
            erinnerung_nach_tagen      = COALESCE($3, rollen_freigabe_konfiguration.erinnerung_nach_tagen),
@@ -554,11 +559,13 @@ rollenFreigabeRouter.get('/meta', async (req, res) => {
   try {
     const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP'
     const [usersRes, rolesRes] = await Promise.all([
-      fetch('http://127.0.0.1:3002/api/internal/app-users/script', { headers: { 'x-internal-key': INTERNAL_KEY } }),
-      fetch('http://127.0.0.1:3002/api/internal/app-roles/script', { headers: { 'x-internal-key': INTERNAL_KEY } }),
+      fetch('http://127.0.0.1:3002/api/internal/app-users/script', { headers: { 'x-internal-key': INTERNAL_KEY } })
+        .catch(() => null),
+      fetch('http://127.0.0.1:3002/api/internal/app-roles/script', { headers: { 'x-internal-key': INTERNAL_KEY } })
+        .catch(() => null),
     ])
-    if (!usersRes.ok || !rolesRes.ok) return res.status(502).json({ error: 'Auth-Service nicht erreichbar' })
-    const [usersData, rolesData]: any[] = await Promise.all([usersRes.json(), rolesRes.json()])
+    const usersData: any = usersRes?.ok ? await usersRes.json().catch(() => ({})) : {}
+    const rolesData: any = rolesRes?.ok ? await rolesRes.json().catch(() => ({})) : {}
     const userMap = new Map<string, { id: string; name: string; email: string }>()
     for (const u of (usersData.users || [])) {
       if (!userMap.has(u.id)) {
