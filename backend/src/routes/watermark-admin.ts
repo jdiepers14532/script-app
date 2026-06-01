@@ -49,14 +49,18 @@ router.post('/decode',
         return res.json({ found: true, payload, message: 'Wasserzeichen gefunden, Format unbekannt.' })
       }
 
+      // Watermark enthält werkstufId als exportId — in export_log nach werkstufe_id suchen.
+      // Bei mehreren Exports: neuesten nehmen.
       const log = await queryOne(
         `SELECT el.*, w.typ AS werkstufe_typ, w.version_nummer, w.label AS werkstufe_label,
                 f.folge_nummer, st.titel AS staffel_titel
-         FROM export_logs el
-         LEFT JOIN werkstufen w ON w.id = el.werkstufe_id
+         FROM export_log el
+         LEFT JOIN werkstufen w ON w.id::text = el.werkstufe_id
          LEFT JOIN folgen f ON f.id = w.folge_id
          LEFT JOIN produktionen st ON st.id = f.produktion_id
-         WHERE el.id = $1`,
+         WHERE el.werkstufe_id = $1
+         ORDER BY el.created_at DESC
+         LIMIT 1`,
         [parsed.exportId]
       )
 
@@ -78,11 +82,11 @@ router.get('/logs',
       const logs = await query(
         `SELECT el.*, w.typ AS werkstufe_typ, w.version_nummer, w.label AS werkstufe_label,
                 f.folge_nummer, st.titel AS staffel_titel
-         FROM export_logs el
-         LEFT JOIN werkstufen w ON w.id = el.werkstufe_id
+         FROM export_log el
+         LEFT JOIN werkstufen w ON w.id::text = el.werkstufe_id
          LEFT JOIN folgen f ON f.id = w.folge_id
          LEFT JOIN produktionen st ON st.id = f.produktion_id
-         ORDER BY el.exported_at DESC
+         ORDER BY el.created_at DESC
          LIMIT $1 OFFSET $2`,
         [limit, offset]
       )

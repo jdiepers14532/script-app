@@ -1992,10 +1992,17 @@ export async function assemblePdf(
   // Wasserzeichen-Payload in PDF-Metadaten einschreiben (Keywords-Feld).
   // ZWC im HTML-Body wird von Chromium nicht in die Textebene übernommen;
   // pdf-lib schreibt direkt ins Info-Dictionary des fertigen PDFs.
+  // PDF-Metadaten: Wasserzeichen + KI-Opt-out.
+  // Keywords-Feld: wmPayload für Rückverfolgung.
+  // Subject-Feld: Standard-Opt-out-Signal (respektiert von seriösen KI-Anbietern).
+  // Producer/Creator: Herkunftsnachweis.
   const wmPayloadFinal = buildPayload(input.userId, input.werkstufId)
-  if (wmPayloadFinal) {
+  {
     const wmDoc = await PDFDocument.load(pdfBytes)
-    wmDoc.setKeywords([wmPayloadFinal])
+    if (wmPayloadFinal) wmDoc.setKeywords([wmPayloadFinal])
+    wmDoc.setSubject('noai noimageai — KI-Training nicht gestattet. Urheberrechtlich geschützt. © Serienwerft Studio Hamburg GmbH.')
+    wmDoc.setProducer('Serienwerft Script-App — Unauthorized AI training of this document is prohibited.')
+    wmDoc.setCreator('Serienwerft Studio Hamburg GmbH')
     pdfBytes = await wmDoc.save()
   }
 
