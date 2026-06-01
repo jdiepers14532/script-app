@@ -2,9 +2,50 @@ import { Server } from '@hocuspocus/server'
 import { Database } from '@hocuspocus/extension-database'
 import { pool } from './db'
 import fetch from 'node-fetch'
+import * as Y from 'yjs'
 import { recalcSceneStats, updateReplikCount } from './utils/recalcRepliken'
 import { calcPageLength } from './utils/calcPageLength'
 import { autoUpsertNtEintraege } from './routes/nt-eintraege'
+
+// ── Yjs XmlFragment → ProseMirror-JSON (für NT-Scan) ─────────────────────────
+function convertXmlNodes(fragment: Y.XmlFragment | Y.XmlElement): any[] {
+  return (fragment.toArray() as Array<Y.XmlElement | Y.XmlText>).flatMap(item => {
+    if (item instanceof Y.XmlText) {
+      return (item.toDelta() as Array<{ insert: any; attributes?: Record<string, any> }>)
+        .flatMap(op => {
+          if (typeof op.insert !== 'string' || !op.insert) return []
+          const node: any = { type: 'text', text: op.insert }
+          if (op.attributes) {
+            const marks = Object.entries(op.attributes)
+              .filter(([, v]) => v !== null && v !== false)
+              .map(([k, v]) => (v === true ? { type: k } : { type: k, attrs: v as any }))
+            if (marks.length) node.marks = marks
+          }
+          return [node]
+        })
+    }
+    if (item instanceof Y.XmlElement) {
+      const type = item.nodeName
+      if (!type) return []
+      const attrs = item.getAttributes() as Record<string, any>
+      const children = convertXmlNodes(item)
+      const node: any = { type }
+      if (Object.keys(attrs).length) node.attrs = attrs
+      if (children.length) node.content = children
+      return [node]
+    }
+    return []
+  })
+}
+
+function yjsDocToContent(doc: Y.Doc): any {
+  try {
+    const fragment = doc.getXmlFragment('default')
+    return { type: 'doc', content: convertXmlNodes(fragment) }
+  } catch {
+    return null
+  }
+}
 
 /**
  * Document name format: `szene-{dokumentSzeneId}` — per-scene collaboration on Werkstufen
@@ -94,9 +135,12 @@ export function createHocuspocusServer() {
           return res.rows[0]?.yjs_state ?? null
         },
 
-        async store({ documentName, state, context }) {
+        async store({ documentName, state, document, context }) {
           const parsed = parseDocName(documentName)
           if (!parsed) return
+
+          // Content aus Yjs-Dokument extrahieren (aktueller Stand, nicht DB-Cache)
+          const freshContent = yjsDocToContent(document as unknown as Y.Doc)
 
           await pool.query(
             `UPDATE dokument_szenen
@@ -109,27 +153,47 @@ export function createHocuspocusServer() {
 
           // Recalc repliken/spiel_typ + page_length after Yjs content persist
           try {
-            const dsRow = await pool.query(
-              `SELECT werkstufe_id, scene_identity_id, content FROM dokument_szenen WHERE id = $1`,
-              [parsed.id]
-            )
-            const ds = dsRow.rows[0]
-            if (ds?.content) {
-              const pl = calcPageLength(ds.content)
+            // page_length + replik_count aus frischem Content (falls verfügbar) oder DB-Fallback
+            let contentForStats = freshContent
+            let werkstufe_id: string | null = null
+            let scene_identity_id: string | null = null
+
+            if (!contentForStats) {
+              // Fallback: content aus DB lesen
+              const dsRow = await pool.query(
+                `SELECT werkstufe_id, scene_identity_id, content FROM dokument_szenen WHERE id = $1`,
+                [parsed.id]
+              )
+              const ds = dsRow.rows[0]
+              contentForStats = ds?.content ?? null
+              werkstufe_id = ds?.werkstufe_id ?? null
+              scene_identity_id = ds?.scene_identity_id ?? null
+            } else {
+              const dsRow = await pool.query(
+                `SELECT werkstufe_id, scene_identity_id FROM dokument_szenen WHERE id = $1`,
+                [parsed.id]
+              )
+              werkstufe_id = dsRow.rows[0]?.werkstufe_id ?? null
+              scene_identity_id = dsRow.rows[0]?.scene_identity_id ?? null
+            }
+
+            if (contentForStats) {
+              const pl = calcPageLength(contentForStats)
               await pool.query(
                 `UPDATE dokument_szenen SET page_length = $1 WHERE id = $2`,
                 [pl, parsed.id]
               )
-              const contentForCount = Array.isArray(ds.content) ? { content: ds.content } : ds.content
+              const contentForCount = Array.isArray(contentForStats) ? { content: contentForStats } : contentForStats
               updateReplikCount(parsed.id, contentForCount).catch(() => {})
             }
-            if (ds?.werkstufe_id && ds?.scene_identity_id && ds?.content) {
-              recalcSceneStats(ds.werkstufe_id, ds.scene_identity_id, ds.content).catch(() => {})
+            if (werkstufe_id && scene_identity_id && contentForStats) {
+              recalcSceneStats(werkstufe_id, scene_identity_id, contentForStats).catch(() => {})
             }
-            if (ds?.content) {
+            // NT-Upsert immer mit frischem Yjs-Content (nicht DB-Cache!)
+            if (freshContent) {
               autoUpsertNtEintraege(
                 parsed.id,
-                ds.content,
+                freshContent,
                 context?.user_id ?? null,
                 context?.user_name ?? null
               ).catch(() => {})
