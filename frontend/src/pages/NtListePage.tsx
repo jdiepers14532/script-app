@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Mic, MicOff, PhoneCall, ExternalLink, RefreshCw } from 'lucide-react'
 import AppShell from '../components/AppShell'
-import { api } from '../api/client'
 import { useSelectedProduction, useTweaks } from '../contexts'
 
 const NT_TYP_LABELS: Record<string, string> = {
@@ -24,6 +23,14 @@ const NT_TYP_COLORS: Record<string, string> = {
 }
 
 export default function NtListePage() {
+  return (
+    <AppShell>
+      <NtListeContent />
+    </AppShell>
+  )
+}
+
+function NtListeContent() {
   const { selectedProduction } = useSelectedProduction()
   const { tweaks } = useTweaks()
   const produktionId = selectedProduction?.id ?? null
@@ -133,17 +140,14 @@ export default function NtListePage() {
 
   if (!produktionId) {
     return (
-      <AppShell>
-        <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center' }}>
-          Bitte eine Staffel auswählen
-        </div>
-      </AppShell>
+      <div style={{ padding: 32, color: 'var(--text-secondary)', textAlign: 'center' }}>
+        Bitte eine Staffel auswählen
+      </div>
     )
   }
 
   return (
-    <AppShell>
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
 
         {/* Toolbar */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -302,6 +306,5 @@ export default function NtListePage() {
           )}
         </div>
       </div>
-    </AppShell>
   )
 }
