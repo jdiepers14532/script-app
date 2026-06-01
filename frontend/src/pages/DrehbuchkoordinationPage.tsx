@@ -388,7 +388,7 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 600, display: 'flex', flexDirection: 'column', gap: 32 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
       {/* ── Stimmungen (Tageszeit) ── */}
       <section>
@@ -1231,7 +1231,7 @@ function FigurenTab() {
   const motivFelder = felder.filter(f => f.gilt_fuer === 'motiv')
 
   return (
-    <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 32 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
       {!produktionId && (
         <p style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Bitte eine Produktion auswählen, um Felder zu konfigurieren.</p>
       )}
@@ -1614,7 +1614,7 @@ function ProduktionTab() {
   }
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div>
 
       {/* ── Stage Labels ── */}
       <section style={sectionStyle}>
@@ -1931,7 +1931,7 @@ function SonstigeDokumenteTab({ produktionId }: { produktionId: string }) {
   }
 
   return (
-    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 28, maxWidth: 640 }}>
+    <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: 28 }}>
       {/* Statistik */}
       <div style={secStyle}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Statistik</div>
@@ -3978,7 +3978,7 @@ function TerminologieTab({ productionId }: { productionId?: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 680 }}>
+    <div>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 24 }}>
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
           In der Branche werden für dieselben Konzepte unterschiedliche Begriffe verwendet.
@@ -4667,6 +4667,8 @@ export default function DrehbuchkoordinationPage() {
   const [seitenformat, setSeitenformat] = useState<'a4' | 'letter'>('a4')
   const [seitenformatSaving, setSeitenformatSaving] = useState(false)
   const [margins, setMargins] = useState({ oben: 25, unten: 20, links: 25, rechts: 20 })
+  const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 768)
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 768)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
   const navigate = useNavigate()
   const { selectedProduction, productions } = useSelectedProduction()
@@ -4790,6 +4792,21 @@ export default function DrehbuchkoordinationPage() {
     return () => window.removeEventListener('keydown', handler)
   }, [activeTab])
 
+  useEffect(() => {
+    const check = () => {
+      const narrow = window.innerWidth < 768
+      setIsNarrow(narrow)
+      if (!narrow) setSidebarOpen(true)
+    }
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // Sidebar auf Tablet schließen wenn Tab wechselt
+  useEffect(() => {
+    if (isNarrow) setSidebarOpen(false)
+  }, [activeTab]) // eslint-disable-line
+
   const prodLabel = selectedProduction
     ? [
         selectedProduction.projektnummer,
@@ -4896,6 +4913,23 @@ export default function DrehbuchkoordinationPage() {
           alignItems: 'center',
           gap: 16,
         }}>
+          {/* Hamburger — nur auf Tablet/schmalem Viewport */}
+          {isNarrow && (
+            <button
+              onClick={() => setSidebarOpen(o => !o)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, flexShrink: 0,
+                background: sidebarOpen ? 'var(--bg-surface)' : 'none',
+                border: '1px solid var(--border)',
+                borderRadius: 7, cursor: 'pointer',
+                fontSize: 15, color: 'var(--text-primary)',
+              }}
+              aria-label={sidebarOpen ? 'Menü schließen' : 'Menü öffnen'}
+            >
+              {sidebarOpen ? '✕' : '☰'}
+            </button>
+          )}
           <div style={{ flex: 1 }}>
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, lineHeight: 1.2, color: 'var(--text-primary)' }}>
               Drehbuchkoordination
@@ -4978,6 +5012,19 @@ export default function DrehbuchkoordinationPage() {
         {/* Body: Sidebar + Content */}
         <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 
+          {/* Overlay für mobiles Sidebar-Menü */}
+          {isNarrow && sidebarOpen && (
+            <div
+              onClick={() => setSidebarOpen(false)}
+              style={{
+                position: 'fixed', inset: 0,
+                background: 'rgba(0,0,0,0.45)',
+                zIndex: 99,
+                touchAction: 'none',
+              }}
+            />
+          )}
+
           {/* Sidebar */}
           <div style={{
             width: 200, flexShrink: 0,
@@ -4986,6 +5033,15 @@ export default function DrehbuchkoordinationPage() {
             display: 'flex',
             flexDirection: 'column',
             overflowY: 'auto',
+            ...(isNarrow ? {
+              position: 'fixed',
+              top: 0,
+              bottom: 0,
+              left: 0,
+              zIndex: 100,
+              transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)',
+              transition: 'transform 0.25s ease',
+            } : {}),
           }}>
             {/* Nav items */}
             <nav style={{ flex: 1, paddingTop: 8 }}>
@@ -5079,7 +5135,9 @@ export default function DrehbuchkoordinationPage() {
               </div>
             )}
             <div style={{ flex: 1, overflowY: 'auto', padding: '28px 32px' }}>
-              {renderContent()}
+              <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+                {renderContent()}
+              </div>
             </div>
           </div>
         </div>
@@ -5227,7 +5285,7 @@ function StatistikPanelTab({
   const labelW = 280
 
   return (
-    <div style={{ maxWidth: 600 }}>
+    <div>
       {/* Szenenanzahl-Konfiguration */}
       <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Zähl-Konfiguration</h3>
       <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 4px', lineHeight: 1.6 }}>
@@ -5450,7 +5508,7 @@ function DailyRegelnTab({ productionId }: { productionId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 500 }}>
+    <div>
       <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 4px' }}>Daily-Regeln</h3>
       <p style={descStyle}>
         Steuert die Sommer/Winter-Anzeige im Header. Bei aktivierter Anzeige wird basierend auf dem Sonnenuntergang berechnet,
@@ -5581,7 +5639,7 @@ function LockRegelnTab() {
   const subStyle: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7, margin: '0 0 12px' }
 
   return (
-    <div style={{ maxWidth: 680, display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
 
       {/* Erklärung */}
       <section style={sectionStyle}>
@@ -5832,7 +5890,7 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 640 }}>
+    <div>
       {/* Link */}
       <div style={{ marginBottom: 16 }}>
         <a href="/freigaben" style={{ fontSize: 13, color: '#007AFF', textDecoration: 'none' }}>
@@ -6280,7 +6338,7 @@ function StockshotTemplatesTab({ productionId }: { productionId: string }) {
   if (loading) return <div style={{ padding: 24, color: '#757575' }}>Laden…</div>
 
   return (
-    <div style={{ padding: 24, maxWidth: 800 }}>
+    <div style={{ padding: 24 }}>
       <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>Stockshot-Templates</h2>
       <p style={{ fontSize: 12, color: '#757575', marginBottom: 20, lineHeight: 1.6 }}>
         Templates für Stockshot-Szenen. Bei Auswahl im Editor werden alle Felder automatisch übernommen.
@@ -7377,7 +7435,7 @@ function FreieDokLabelsTab({ produktionId }: { produktionId: string }) {
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div>
       {/* Sticky header — top:-28px gleicht padding-top:28px des Scroll-Containers aus */}
       <div style={{
         position: 'sticky',
@@ -7557,7 +7615,7 @@ function DrehbuchChecksTab({ produktionId }: { produktionId: string }) {
   })
 
   return (
-    <div style={{ maxWidth: 600 }}>
+    <div>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
         Steuert, welche Qualitätschecks beim Autosave (Auto-Check) oder manuell per Kontextmenü ausgeführt werden.
         KI-Checks ✨ werden nur manuell ausgeführt und verursachen API-Kosten.
@@ -7704,7 +7762,7 @@ function VerlaufSicherungTab({ produktionId }: { produktionId: string | null }) 
   )
 
   return (
-    <div style={{ maxWidth: 520 }}>
+    <div>
       <h3 style={{ fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>Verlauf & Auto-Sicherung</h3>
       <p style={{ ...descStyle, marginBottom: 24 }}>
         Steuert, wie oft die App automatisch Sicherungen anlegt. Änderungen gelten sofort und werden
@@ -7882,7 +7940,7 @@ function SynopsenKiTab({ produktionId }: { produktionId: string }) {
   )
 
   return (
-    <div style={{ maxWidth: 680 }}>
+    <div>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
         Steuert Temperatur und Wort-/Zeichenlimiten für die KI-Synopsen-Generierung.
         Werte fließen direkt in die Prompts ein. Änderungen wirken sofort beim nächsten Generieren.
@@ -8011,7 +8069,7 @@ function InhaltskennzeichnungTab({ produktionId }: { produktionId: string }) {
   const SEC: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', display: 'block', marginBottom: 8 }
 
   return (
-    <div style={{ maxWidth: 680 }}>
+    <div>
       <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 24 }}>
         Konfiguriert die verfügbaren Inhaltsdeskriptoren für die Synopsen-Erfassung dieser Produktion.
         Die Deskriptoren folgen dem Standard der{' '}
