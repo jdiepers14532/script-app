@@ -394,6 +394,18 @@ async function runMigrations() {
     'v146_synopsis_lektor.sql',
     'v147_synopsis_deskriptoren_fsk.sql',
     'v148_deskriptor_vorlagen.sql',
+    // Phase 0a — Figuren-/Motiv-Freigabe Schema
+    'v149_freigabe_genehmiger_umbau.sql',
+    'v150_freigabe_konfiguration_erweitern.sql',
+    'v151_dk_settings_access_scope.sql',
+    'v152_scene_characters_status_cp_audit.sql',
+    // Glossar-PR — Besetzungs-/Freigabe-Begriffe
+    'v153_glossar_besetzung_freigabe_seed.sql',
+    // Phase 0b — neue Tabellen für Dispo-Scope, Motive, KI-Audit, Override-Audit
+    'v154_szenen_freigabe_anfragen.sql',
+    'v155_motiv_freigabe_anfragen.sql',
+    'v156_komparse_klassifizierung.sql',
+    'v157_freigabe_overrides.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
