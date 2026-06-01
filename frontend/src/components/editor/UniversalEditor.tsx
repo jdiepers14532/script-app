@@ -644,6 +644,8 @@ export default function UniversalEditor({
   // Sync charAcStyle für Keyboard-Extension (stabile Ref)
   const charAcStyleRef = useRef<'inline' | 'menu'>('menu')
   useEffect(() => { charAcStyleRef.current = tweaks.charAcStyle }, [tweaks.charAcStyle])
+  const suffixStickyEnabledRef = useRef(tweaks.suffixStickyEnabled)
+  useEffect(() => { suffixStickyEnabledRef.current = tweaks.suffixStickyEnabled }, [tweaks.suffixStickyEnabled])
 
   // Inline-Modus: aktueller Vorschlag-Name (zum Einfügen) oder kein-Treffer-Name (für Neu-Anlegen)
   const inlineGhostAcceptNameRef = useRef<string | null>(null)
@@ -1183,8 +1185,8 @@ export default function UniversalEditor({
         if (bestMatch) {
           const nameGhost = bestMatch.slice(queryClean.length) // Name-Vervollständigung
           // Memory-Suffix: nur wenn Name vollständig getippt, kein expliziter Suffix vorhanden,
-          // und Node wurde ohne Suffix betreten (kein nachträgliches Löschen)
-          const memorySuffix = (nameGhost === '' && !querySuffix && !charNodeEntryHadSuffixRef.current)
+          // Node frisch betreten (kein Löschen bestehender Suffixe) und Sticky Suffix aktiv
+          const memorySuffix = (nameGhost === '' && !querySuffix && !charNodeEntryHadSuffixRef.current && suffixStickyEnabledRef.current)
             ? (sceneSuffixMemoryRef.current.get(queryUpper) ?? null)
             : null
           const totalGhost = nameGhost + (memorySuffix ? ` ${memorySuffix}` : '')
@@ -1519,7 +1521,11 @@ export default function UniversalEditor({
           }
           if (acceptName) {
             suppressGhostUpdateRef.current = true
-            const sfx = detectedSuffixRef.current
+            let sfx = detectedSuffixRef.current
+            // Falls kein expliziter Suffix (z.B. bei Acceptance über Name-Ghost): Memory-Suffix nachholen
+            if (!sfx && suffixStickyEnabledRef.current && !charNodeEntryHadSuffixRef.current) {
+              sfx = sceneSuffixMemoryRef.current.get(acceptName.toUpperCase()) ?? null
+            }
             detectedSuffixRef.current = null
             acceptCharIntoEditor(acceptName, sfx)
           } else if (noMatchName) {

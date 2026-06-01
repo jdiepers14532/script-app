@@ -287,6 +287,20 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                     </Tooltip>
                   </div>
                 </div>
+
+                <div style={{ ...rowStyle, paddingLeft: 8 }}>
+                  <Tooltip text="Hat eine Figur in der Szene bereits ein Suffix (NT/VO/OFF), wird es beim nächsten Vorkommen dieser Figur automatisch als Vorschlag eingeblendet · Escape = ablehnen">
+                    <span style={labelStyle}>Sticky Suffix</span>
+                  </Tooltip>
+                  <div className="seg">
+                    <Tooltip text="Suffix-Vorschlag an · Tab/Enter übernimmt · Escape lehnt ab">
+                      <button className={tweaks.suffixStickyEnabled ? 'on' : ''} onClick={() => set('suffixStickyEnabled', true)}>An</button>
+                    </Tooltip>
+                    <Tooltip text="Kein automatischer Suffix-Vorschlag">
+                      <button className={!tweaks.suffixStickyEnabled ? 'on' : ''} onClick={() => set('suffixStickyEnabled', false)}>Aus</button>
+                    </Tooltip>
+                  </div>
+                </div>
               </>
             )}
 

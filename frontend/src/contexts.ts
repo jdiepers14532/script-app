@@ -159,6 +159,8 @@ export interface TweakState {
   episodenWechselErsteSzene: boolean
   /** Letzte gesehene Szene pro Episode im Backend merken und beim Zurückkehren wiederherstellen */
   letzteSzeneProEpisodeMerken: boolean
+  /** Sticky Suffix: Suffix der letzten Zeile einer Figur (NT/VO/OFF) bei der nächsten Zeile automatisch vorschlagen */
+  suffixStickyEnabled: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState

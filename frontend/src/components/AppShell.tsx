@@ -121,6 +121,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   charAcStyle: 'menu',
   episodenWechselErsteSzene: true,
   letzteSzeneProEpisodeMerken: false,
+  suffixStickyEnabled: true,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
