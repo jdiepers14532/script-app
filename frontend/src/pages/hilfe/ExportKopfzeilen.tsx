@@ -305,6 +305,67 @@ function ExportKopfzeilen() {
           in Kopf- oder Fußzeilen ein. So kann jedes PDF individuell für einen Empfänger erzeugt werden
           (z.B. für Drehbuchautoren-Zusendungen).
         </p>
+
+        <h3 style={h3}>Urheberrechtsschutz & KI-Training-Sperre</h3>
+        <p style={p}>
+          Jedes exportierte PDF enthält automatisch drei Schutzmaßnahmen, die ohne weiteres Zutun aktiv sind:
+        </p>
+
+        {/* Drei Maßnahmen */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          {/* 1 — Unsichtbares Rückverfolgungswasserzeichen */}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.blue + '18', border: `1px solid ${C.blue}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🔍</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 3 }}>Unsichtbares Rückverfolgungswasserzeichen</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+                In den PDF-Metadaten (Feld <em>Keywords</em>) ist ein unsichtbarer Code hinterlegt, der den
+                exportierenden Benutzer und die Werkstufe eindeutig identifiziert. Erscheint ein Drehbuch
+                unerlaubt im Netz, kann über <strong>Admin → Wasserzeichen & Export-Log</strong> die
+                genaue Herkunft (Benutzer, Zeitpunkt, Fassung) ermittelt werden. Der Code ist für den
+                Leser unsichtbar und bleibt beim Drucken und Weiterleiten erhalten.
+              </div>
+            </div>
+          </div>
+
+          {/* 2 — KI-Training-Sperre */}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.orange + '18', border: `1px solid ${C.orange}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>🚫</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 3 }}>KI-Training-Sperre (noai / noimageai)</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+                Das Feld <em>Subject</em> der PDF-Metadaten enthält den maschinenlesbaren Hinweis{' '}
+                <code style={{ fontFamily: 'monospace', background: C.border + '66', padding: '1px 5px', borderRadius: 3, fontSize: 11 }}>noai noimageai</code> —
+                den aktuellen Industriestandard für KI-Opt-out. Seriöse KI-Anbieter (OpenAI, Anthropic, Google u.a.)
+                respektieren dieses Signal und schließen das Dokument vom Training aus. Das Feld{' '}
+                <em>Erzeuger</em> enthält zusätzlich einen expliziten Urheberrechtshinweis auf
+                Deutsch und Englisch.
+              </div>
+            </div>
+          </div>
+
+          {/* 3 — Urheberrechtsvermerk */}
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', background: C.subtle, border: `1px solid ${C.border}`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: C.green + '18', border: `1px solid ${C.green}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>©</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 3 }}>Urheberrechtsvermerk in den Metadaten</div>
+              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+                Jedes PDF weist Serienwerft Studio Hamburg GmbH als Urheber aus. Damit ist im Streitfall
+                die Rechtsinhaberschaft dokumentiert und bildet die Grundlage für Unterlassungs- und
+                Schadensersatzansprüche — auch gegenüber KI-Anbietern, die das Opt-out-Signal ignorieren.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Hinweis-Box */}
+        <div style={{ background: C.orange + '10', border: `1px solid ${C.orange}33`, borderRadius: 8, padding: '10px 14px', fontSize: 12, color: C.muted, lineHeight: 1.6 }}>
+          <strong style={{ color: C.orange }}>Hinweis:</strong> Diese Maßnahmen schützen vor unbeabsichtigter
+          Weitergabe und unerlaubtem KI-Training. Sie ersetzen keine vertraglichen Verschwiegenheitspflichten —
+          empfindliche Fassungen sollten weiterhin nur an namentlich bekannte Empfänger verschickt werden.
+          Die Rückverfolgung über das Wasserzeichen funktioniert nur für PDFs, die <em>nach</em> dem 1. Juni 2026
+          exportiert wurden.
+        </div>
       </div>
 
       {/* 6. Kopf-/Fußzeilen */}
