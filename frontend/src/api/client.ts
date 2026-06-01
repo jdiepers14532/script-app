@@ -914,6 +914,16 @@ export const api = {
       'GET', `/planung/cast-abgleich/check?produktion_id=${encodeURIComponent(produktionId)}&character_id=${encodeURIComponent(characterId)}&block_nummer=${blockNummer}`
     ),
 
+  // ── Befund-Register ────────────────────────────────────────────────────────
+  getBefunde: (produktionId: string, status: 'offen' | 'erledigt' | 'auto_geloest' | 'alle' = 'alle') =>
+    request<any[]>('GET', `/planung/befunde?produktion_id=${encodeURIComponent(produktionId)}&status=${status}`),
+  erledigeBefund: (id: string, vermerk?: string) =>
+    request<any>('POST', `/planung/befunde/${id}/erledigen`, { vermerk }),
+  runFreigabeCheck: (produktionId: string) =>
+    request<{ befunde: any[]; summary: { freigabe: number; bilder: number; gesamt: number } }>(
+      'POST', `/planung/freigabe-check?produktion_id=${encodeURIComponent(produktionId)}`
+    ),
+
   // ── Sonderszenen: Wechselschnitt-Partner ──
   getWechselschnittPartner: (szeneId: string) =>
     request<any[]>('GET', `/dokument-szenen/${szeneId}/wechselschnitt-partner`),

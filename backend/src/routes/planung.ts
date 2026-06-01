@@ -494,6 +494,180 @@ planungRouter.post('/cast-abgleich', async (req, res) => {
   }
 })
 
+// ══════════════════════════════════════════════════════════════════════════════
+// Befund-Register
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET /api/planung/befunde?produktion_id=X&status=offen|erledigt|auto_geloest|alle
+planungRouter.get('/befunde', async (req, res) => {
+  const { produktion_id, status } = req.query
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+
+  try {
+    const statusFilter = status === 'alle'
+      ? ''
+      : status === 'erledigt'
+        ? `AND bf.status = 'erledigt'`
+        : status === 'auto_geloest'
+          ? `AND bf.status = 'auto_geloest'`
+          : `AND bf.status = 'offen'`  // default
+
+    const befunde = await query(
+      `SELECT bf.*, c.name AS character_name
+       FROM befunde bf
+       LEFT JOIN characters c ON c.id = bf.rolle_id
+       WHERE bf.produktion_id = $1 ${statusFilter}
+       ORDER BY bf.status, bf.block_nummer, bf.typ`,
+      [produktion_id]
+    )
+    res.json(befunde)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/planung/befunde/:id/erledigen
+// Body: { vermerk?: string }
+planungRouter.post('/befunde/:id/erledigen', async (req, res) => {
+  const { id } = req.params
+  const { vermerk } = req.body
+  const userId = (req as any).user?.user_id ?? null
+
+  try {
+    const row = await queryOne(
+      `UPDATE befunde
+       SET status = 'erledigt', erledigt_von = $1, erledigt_am = NOW(), geloest_vermerk = $2
+       WHERE id = $3 RETURNING *`,
+      [userId, vermerk?.trim() || null, id]
+    )
+    if (!row) return res.status(404).json({ error: 'Befund nicht gefunden' })
+    res.json(row)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/planung/freigabe-check?produktion_id=X
+// Check C: Rollen-Freigabe-Status + Bildbegrenzung
+// Schreibt neue Befunde per UPSERT, schließt gelöste automatisch.
+planungRouter.post('/freigabe-check', async (req, res) => {
+  const { produktion_id } = req.query as { produktion_id?: string }
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+
+  try {
+    const newBefunde: Array<{
+      typ: string; identitaet: string; rolle_id: string | null
+      block_nummer: number | null; beschreibung: string
+    }> = []
+
+    // ── Sub-Check 1: Rollen-Freigabe-Status ────────────────────────────────
+    // Alle Characters im Einsatzplan, die nicht freigegeben sind
+    const nichtFreigegeben = await query(
+      `SELECT DISTINCT re.character_id, c.name AS char_name,
+              cp.freigabe_status
+       FROM rollen_einsatz re
+       JOIN characters c ON c.id = re.character_id
+       LEFT JOIN character_productions cp ON cp.character_id = re.character_id
+         AND cp.produktion_id = re.produktion_id
+       WHERE re.produktion_id = $1
+         AND (cp.freigabe_status IS NULL
+              OR cp.freigabe_status NOT IN ('freigegeben', 'keine'))`,
+      [produktion_id]
+    )
+
+    for (const r of nichtFreigegeben) {
+      const statusLabel = r.freigabe_status === 'ausstehend' ? 'ausstehend'
+        : r.freigabe_status === 'abgelehnt' ? 'abgelehnt'
+        : 'nicht beantragt'
+      newBefunde.push({
+        typ: 'freigabe_ausstehend',
+        identitaet: `freigabe_ausstehend·${r.character_id}`,
+        rolle_id: r.character_id,
+        block_nummer: null,
+        beschreibung: `${r.char_name} ist im Einsatzplan, aber noch nicht freigegeben (Status: ${statusLabel}).`,
+      })
+    }
+
+    // ── Sub-Check 2: Bildbegrenzung ────────────────────────────────────────
+    const config = await queryOne(
+      `SELECT ot_obergrenze_pro_block
+       FROM rollen_freigabe_konfiguration
+       WHERE production_id = $1`,
+      [produktion_id]
+    )
+    const obergrenze: number | null = config?.ot_obergrenze_pro_block ?? null
+
+    if (obergrenze !== null) {
+      // Beats pro Block zählen
+      const beatCounts = await query(
+        `SELECT sb.block_nummer, COUNT(*) AS beat_count
+         FROM strang_beats sb
+         JOIN straenge s ON s.id = sb.strang_id
+         WHERE s.produktion_id = $1 AND sb.ebene = 'future'
+           AND sb.block_nummer IS NOT NULL
+         GROUP BY sb.block_nummer`,
+        [produktion_id]
+      )
+
+      for (const bc of beatCounts) {
+        if (Number(bc.beat_count) > obergrenze) {
+          newBefunde.push({
+            typ: 'bild_obergrenze',
+            identitaet: `bild_obergrenze·${bc.block_nummer}`,
+            rolle_id: null,
+            block_nummer: bc.block_nummer,
+            beschreibung: `Block ${bc.block_nummer}: ${bc.beat_count} Beats, Obergrenze ist ${obergrenze}.`,
+          })
+        }
+      }
+    }
+
+    // UPSERT
+    for (const bf of newBefunde) {
+      await query(
+        `INSERT INTO befunde (produktion_id, typ, identitaet, rolle_id, block_nummer, beschreibung, status)
+         VALUES ($1,$2,$3,$4,$5,$6,'offen')
+         ON CONFLICT (produktion_id, identitaet)
+         DO UPDATE SET status = 'offen', beschreibung = EXCLUDED.beschreibung`,
+        [produktion_id, bf.typ, bf.identitaet, bf.rolle_id, bf.block_nummer, bf.beschreibung]
+      )
+    }
+
+    // Auto-close resolved
+    const newIds = new Set(newBefunde.map(b => b.identitaet))
+    await query(
+      `UPDATE befunde
+       SET status = 'auto_geloest', geloest_vermerk = 'Ursache durch Änderung behoben'
+       WHERE produktion_id = $1
+         AND typ IN ('freigabe_ausstehend','bild_obergrenze')
+         AND status = 'offen'
+         AND identitaet != ALL($2::text[])`,
+      [produktion_id, [...newIds]]
+    )
+
+    // Return all open befunde
+    const offene = await query(
+      `SELECT bf.*, c.name AS character_name
+       FROM befunde bf
+       LEFT JOIN characters c ON c.id = bf.rolle_id
+       WHERE bf.produktion_id = $1 AND bf.status = 'offen'
+       ORDER BY bf.block_nummer, bf.typ`,
+      [produktion_id]
+    )
+
+    res.json({
+      befunde: offene,
+      summary: {
+        freigabe: offene.filter((b: any) => b.typ === 'freigabe_ausstehend').length,
+        bilder:   offene.filter((b: any) => b.typ === 'bild_obergrenze').length,
+        gesamt: offene.length,
+      },
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // GET /api/planung/cast-abgleich/check?produktion_id=X&character_id=Y&block_nummer=N
 // Präventiver Check: Hat diese Rolle einen rollen_einsatz-Eintrag für diesen Block?
 // Wird vom Future-Board vor dem Entfernen eines Character-Tags aufgerufen.
