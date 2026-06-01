@@ -27,6 +27,7 @@ const CHECK_TYPE_LABELS: Record<string, string> = {
   strang_zuordnung: 'Strang-Zuordnung',
   motiv_leer: 'Motiv',
   duplikat_motiv: 'Duplikat-Motiv',
+  fehlender_dialog: 'Fehlender Dialog',
   stoppzeit_plausibilitaet: 'Stoppzeit',
   spieltag_inkonsistent: 'Dramaturgischer Tag',
 }

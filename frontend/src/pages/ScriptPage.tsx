@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router-dom'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertOctagon, X } from 'lucide-react'
 import { api, preloadScene, preloadAllScenes, clearCacheByPrefix } from '../api/client'
 import AppShell, { DEFAULT_TWEAKS } from '../components/AppShell'
 import SceneList from '../components/SceneList'
@@ -17,6 +18,88 @@ import { useSearchReplace } from '../hooks/useSearchReplace'
 import StoryRadarPanel from '../components/StoryRadarPanel'
 import StrangVerwaltungModal from '../components/StrangVerwaltungModal'
 import StoppzeitenModal from '../components/StoppzeitenModal'
+
+// ── Fehlender-Dialog Blocking-Modal ───────────────────────────────────────────
+function FehlenderDialogModal({ issues, onClose }: { issues: any[]; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  const content = (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 99999,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div style={{
+        background: 'var(--bg-surface, #fff)',
+        border: '1px solid rgba(255,59,48,0.35)',
+        borderRadius: 10,
+        boxShadow: '0 16px 48px rgba(0,0,0,0.28)',
+        width: 380, maxWidth: 'calc(100vw - 32px)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '12px 16px', borderBottom: '1px solid var(--border)',
+          background: 'rgba(255,59,48,0.05)',
+        }}>
+          <AlertOctagon size={15} style={{ color: '#FF3B30', flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#FF3B30' }}>
+            Szenenwechsel blockiert
+          </span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', lineHeight: 1 }}>
+            <X size={14} />
+          </button>
+        </div>
+        <div style={{ padding: '14px 16px' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: '0 0 12px', lineHeight: 1.5 }}>
+            {issues.length === 1
+              ? 'Diese Szene enthält eine Rolle ohne folgenden Dialog. Bitte korrigieren und dann erneut wechseln.'
+              : `Diese Szene enthält ${issues.length} Rollen ohne folgenden Dialog. Bitte korrigieren und dann erneut wechseln.`}
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {issues.map((issue: any, i: number) => (
+              <div
+                key={i}
+                onClick={() => window.dispatchEvent(new CustomEvent('drehbuch-check-jump', { detail: { charName: issue.meta?.char_name } }))}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '5px 10px', borderRadius: 6, cursor: 'pointer',
+                  background: 'rgba(255,59,48,0.06)', border: '1px solid rgba(255,59,48,0.2)',
+                  fontSize: 12, fontWeight: 600, color: '#FF3B30',
+                  userSelect: 'none',
+                }}
+                title="Zur Stelle springen"
+              >
+                <span style={{ flex: 1 }}>{issue.meta?.char_name ?? issue.meldung}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>↑ springen</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '12px 0 0', lineHeight: 1.4 }}>
+            Klicke einen Eintrag um zur Stelle zu springen. Schließe dann diesen Hinweis und korrigiere den Text.
+          </p>
+        </div>
+        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '7px 20px', borderRadius: 7, border: '1px solid rgba(255,59,48,0.4)',
+              background: 'rgba(255,59,48,0.08)', color: '#FF3B30',
+              cursor: 'pointer', fontSize: 13, fontWeight: 600,
+            }}
+          >
+            Schließen und korrigieren
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+  return createPortal(content, document.body)
+}
 
 // ── Folgen-Dokument-Editor Panels (inline in main layout) ─────────────────────
 // Per-scene editing: each editor shows only the currently selected scene's content
@@ -490,6 +573,11 @@ export default function ScriptPage() {
   const [selectedSzeneId, setSelectedSzeneId] = useState<number | string | null>(null)
   const [selectedFolgeId, setSelectedFolgeId] = useState<number | null>(null)
 
+  // ── Fehlender-Dialog Blocking-Check ────────────────────────────────────────
+  const [fehlenderDialogIssues, setFehlenderDialogIssues] = useState<any[]>([])
+  const pendingNavRef = useRef<{ targetId: number | string } | null>(null)
+  const checkInProgressRef = useRef(false)
+
   const [commentCounts, setCommentCounts] = useState<Record<number, number>>({})
 
   // Kommentar-Badges: lade ungelesene Counts wenn Stage wechselt
@@ -497,6 +585,30 @@ export default function ScriptPage() {
     if (!selectedStageId) { setCommentCounts({}); return }
     api.getSceneCommentCounts(selectedStageId).then(setCommentCounts).catch(() => {})
   }, [selectedStageId])
+
+  // ── leave-check-done: SceneEditor hat gespeichert + gecheckt ────────────────
+  useEffect(() => {
+    const handler = (e: CustomEvent) => {
+      checkInProgressRef.current = false
+      const { blockingIssues } = e.detail
+      if (blockingIssues.length > 0) {
+        setFehlenderDialogIssues(blockingIssues)
+        // Zur problematischen Stelle im Editor springen
+        const firstChar = blockingIssues[0]?.meta?.char_name
+        if (firstChar) {
+          window.dispatchEvent(new CustomEvent('drehbuch-check-jump', { detail: { charName: firstChar } }))
+        }
+      } else {
+        setFehlenderDialogIssues([])
+        // Zur Zielszene navigieren (ggf. aktualisiertes Ziel aus pendingNavRef)
+        const nav = pendingNavRef.current
+        pendingNavRef.current = null
+        if (nav) setSelectedSzeneId(nav.targetId)
+      }
+    }
+    window.addEventListener('leave-check-done', handler as EventListener)
+    return () => window.removeEventListener('leave-check-done', handler as EventListener)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Freies Dokument laden wenn freiDokId gesetzt
   useEffect(() => {
@@ -1045,8 +1157,7 @@ export default function ScriptPage() {
               szenen={szenen}
               selectedSzeneId={selectedSzeneId}
               onSelectSzene={(id) => {
-                setSelectedSzeneId(id)
-                navRestored.current = true  // User hat explizit navigiert — ab jetzt speichern
+                navRestored.current = true
                 if (selectedProduktionId)
                   api.updateSettings({ ui_settings: {
                     last_produktion_id: selectedProduktionId,
@@ -1054,6 +1165,19 @@ export default function ScriptPage() {
                     last_stage_id: selectedStageId,
                     last_szene_id: id,
                   } }).catch(() => {})
+                // Wenn aktuelle Szene eine UUID ist → Leave-Check vor Navigation
+                if (selectedSzeneId && typeof selectedSzeneId === 'string') {
+                  pendingNavRef.current = { targetId: id }
+                  if (!checkInProgressRef.current) {
+                    checkInProgressRef.current = true
+                    window.dispatchEvent(new CustomEvent('req-leave-check', {
+                      detail: { currentSzeneId: String(selectedSzeneId), targetId: id }
+                    }))
+                  }
+                  // Bei laufendem Check: Ziel wurde oben bereits aktualisiert
+                  return  // Navigation wartet auf leave-check-done
+                }
+                setSelectedSzeneId(id)
               }}
               produktionId={selectedProduktionId}
               folgeNummer={selectedFolgeNummer}
@@ -1275,6 +1399,18 @@ export default function ScriptPage() {
           szenen={szenen}
           onNavigate={id => setSelectedSzeneId(id)}
           onClose={() => setGotoOpen(false)}
+        />
+      )}
+
+      {/* Fehlender-Dialog Blocking-Modal */}
+      {fehlenderDialogIssues.length > 0 && (
+        <FehlenderDialogModal
+          issues={fehlenderDialogIssues}
+          onClose={() => {
+            setFehlenderDialogIssues([])
+            checkInProgressRef.current = false
+            pendingNavRef.current = null
+          }}
         />
       )}
 

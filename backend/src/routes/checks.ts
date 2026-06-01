@@ -14,6 +14,36 @@ function extractText(node: any): string {
   return ''
 }
 
+function isCharacterNode(node: any): boolean {
+  if (node.type === 'screenplay_element') return node.attrs?.element_type === 'character'
+  if (node.type === 'absatz') return node.attrs?.format_name === 'Character'
+  return false
+}
+
+function isDialogueNode(node: any): boolean {
+  if (node.type === 'screenplay_element') {
+    return node.attrs?.element_type === 'dialogue' || node.attrs?.element_type === 'parenthetical'
+  }
+  if (node.type === 'absatz') {
+    return node.attrs?.format_name === 'Dialogue' || node.attrs?.format_name === 'Parenthetical'
+  }
+  return false
+}
+
+const NT_SUFFIX_PATTERNS = [
+  { pattern: /(?:^|\s)\(?\s*one[-\s]?way\s*\)?$/i, canonical: '(ONE-WAY)' },
+  { pattern: /(?:^|\s)\(?\s*v\.?o\.?\s*\)?$/i, canonical: '(VO)' },
+  { pattern: /(?:^|\s)\(?\s*n\.?t\.?\s*\)?$/i, canonical: '(NT)' },
+  { pattern: /(?:^|\s)\(?\s*(?:off|o\.s\.?)\s*\)?$/i, canonical: '(OFF)' },
+] as const
+
+function parseNtSuffix(text: string): { name: string; suffix: string | null } {
+  for (const { pattern, canonical } of NT_SUFFIX_PATTERNS) {
+    if (pattern.test(text)) return { name: text.replace(pattern, '').trim(), suffix: canonical as string }
+  }
+  return { name: text, suffix: null }
+}
+
 type Schwere = 'hinweis' | 'fehler'
 interface CheckResult {
   check_typ: string
@@ -29,6 +59,7 @@ const DEFAULT_CONFIG: Record<string, { enabled: boolean; auto: boolean }> = {
   sondertyp_wechselschnitt:  { enabled: true,  auto: true  },
   strang_zuordnung:          { enabled: true,  auto: true  },
   duplikat_motiv:            { enabled: true,  auto: true  },
+  fehlender_dialog:          { enabled: true,  auto: true  },
   stoppzeit_plausibilitaet:  { enabled: false, auto: false },
   spieltag_inkonsistent:     { enabled: true,  auto: false },
   // KI-Checks — immer auto:false
@@ -251,7 +282,29 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     }
   }
 
-  // ── 6. Stoppzeit-Plausibilität ───────────────────────────────────────────
+  // ── 6. Fehlender Dialog ──────────────────────────────────────────────────
+  if (run('fehlender_dialog') && s.format !== 'notiz') {
+    for (let i = 0; i < content.length; i++) {
+      const node = content[i]
+      if (!isCharacterNode(node)) continue
+      const charText = extractText(node).trim()
+      if (!charText) continue  // leerer Character-Node
+      // Nächsten nicht-leeren Node finden
+      let j = i + 1
+      while (j < content.length && !extractText(content[j]).trim()) j++
+      // Kein Folge-Node oder Folge-Node ist kein Dialog/Parenthetical
+      if (j >= content.length || !isDialogueNode(content[j])) {
+        results.push({
+          check_typ: 'fehlender_dialog',
+          schwere: 'fehler',
+          meldung: `${charText}: Rolle ohne folgenden Dialog`,
+          meta: { char_name: charText, node_index: i },
+        })
+      }
+    }
+  }
+
+  // ── 7. Stoppzeit-Plausibilität ───────────────────────────────────────────
   if (run('stoppzeit_plausibilitaet') && s.format === 'drehbuch' && s.stoppzeit_sek != null) {
     const textLen = plaintext.replace(/\s+/g, ' ').trim().length
     if (textLen > 200) {
@@ -343,19 +396,27 @@ router.post('/szene/:id/manual', async (req, res) => {
 
 // POST /api/checks/werkstufe/:id/batch — run checks for all scenes in a werkstufe
 // Body: { checks_override?: string[] } — if provided, only run those check types
+// Special key 'nt_verweis' triggers the NT-Verweis auto-fix (not a normal check)
 router.post('/werkstufe/:id/batch', async (req, res) => {
   try {
     const werkstufId = req.params.id
-    const checksOverride: string[] | null = Array.isArray(req.body?.checks_override) ? req.body.checks_override : null
+    const rawOverride: string[] | null = Array.isArray(req.body?.checks_override) ? req.body.checks_override : null
+    const runNtVerweis = !rawOverride || rawOverride.includes('nt_verweis')
+    const checksOverride: string[] | null = rawOverride
+      ? rawOverride.filter(k => k !== 'nt_verweis')
+      : null
     const szenenRes = await pool.query<any>(
       `SELECT id FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE`,
       [werkstufId]
     )
     let total = 0
     for (const row of szenenRes.rows) {
-      const results = await runChecks(row.id, false, checksOverride)
+      const results = await runChecks(row.id, false, checksOverride && checksOverride.length > 0 ? checksOverride : null)
       await persistResults(row.id, werkstufId, results)
       total += results.length
+      if (runNtVerweis) {
+        await applyNtVerweisFix(row.id).catch(() => {})
+      }
     }
     // If spieltag_inkonsistent in checks_override (or no override), run cross-Folgen spieltag check too
     const runSpieltagCross = !checksOverride || checksOverride.includes('spieltag_inkonsistent')
@@ -437,6 +498,72 @@ router.patch('/:id/behoben', async (req, res) => {
     )
     res.json({ ok: true })
   } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── NT-Verweis Auto-Fix ───────────────────────────────────────────────────────
+// Scannt Character-Nodes auf NT/VO/OFF/ONE-WAY-Suffixe + folgenden Dialog
+// und synchronisiert die Notiz im Szenenkopf ohne User-Feedback.
+
+async function applyNtVerweisFix(szeneId: string): Promise<{ changed: boolean; notiz: string | null }> {
+  const sceneRes = await pool.query<any>(
+    `SELECT id, content, format, notiz FROM dokument_szenen WHERE id = $1 AND geloescht IS NOT TRUE`,
+    [szeneId]
+  )
+  if (!sceneRes.rows[0]) return { changed: false, notiz: null }
+  const { content, format, notiz } = sceneRes.rows[0]
+  if (format === 'notiz') return { changed: false, notiz }
+
+  const nodes: any[] = Array.isArray(content) ? content : []
+  const ntParts: string[] = []
+  let hasOneway = false
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    if (!isCharacterNode(node)) continue
+    const text = extractText(node).trim()
+    if (!text) continue
+    const { name, suffix } = parseNtSuffix(text)
+    if (!suffix) continue
+    // Nächsten nicht-leeren Node prüfen
+    let j = i + 1
+    while (j < nodes.length && !extractText(nodes[j]).trim()) j++
+    if (j >= nodes.length || !isDialogueNode(nodes[j])) continue  // kein Dialog → nicht zählen
+    if (suffix === '(NT)') ntParts.push(`NT ${name}`)
+    else if (suffix === '(VO)') ntParts.push(`NT ${name} (VO)`)
+    else if (suffix === '(OFF)') ntParts.push(`${name} im Off`)
+    else if (suffix === '(ONE-WAY)') hasOneway = true
+  }
+
+  const currentNotiz = (notiz ?? '').trim()
+  const isAutoLine = (l: string) => {
+    const t = l.trim()
+    return t.startsWith('NT ') || t.endsWith(' im Off') || t === 'Oneway Telefonat'
+  }
+  const nonAutoLines = currentNotiz.split('\n').filter((l: string) => !isAutoLine(l))
+  const newAutoLines: string[] = []
+  if (hasOneway) newAutoLines.push('Oneway Telefonat')
+  newAutoLines.push(...ntParts)
+
+  const newNotiz = [...newAutoLines, ...nonAutoLines].filter(Boolean).join('\n').trim() || null
+
+  if (newNotiz === (currentNotiz || null)) return { changed: false, notiz: newNotiz }
+
+  await pool.query(
+    `UPDATE dokument_szenen SET notiz = $1 WHERE id = $2`,
+    [newNotiz, szeneId]
+  )
+  return { changed: true, notiz: newNotiz }
+}
+
+// POST /api/checks/szene/:id/nt-verweis-fix — synchronisiert NT-Notiz-Zeilen
+router.post('/szene/:id/nt-verweis-fix', async (req, res) => {
+  try {
+    const result = await applyNtVerweisFix(req.params.id)
+    res.json({ ok: true, ...result })
+  } catch (err) {
+    console.error('nt-verweis-fix error:', err)
     res.status(500).json({ error: String(err) })
   }
 })

@@ -7560,6 +7560,10 @@ const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean
     label: 'Duplikat-Motiv im Block', auto: true, ki: false, defaultEnabled: true,
     tooltip: 'Erkennt wenn dieselbe Motivkombination (Motiv + I/A + Tageszeit) bereits in einer anderen Szene derselben Folge vorkommt.\n\nDoppelte Motive sind oft ein Hinweis auf einen Fehler beim Kopieren. Absichtliche Wiederholungen (Rahmenhandlung) können einzeln ignoriert werden.',
   },
+  fehlender_dialog: {
+    label: 'Fehlender Dialog', auto: true, ki: false, defaultEnabled: true,
+    tooltip: 'Prüft ob nach jedem Character-Element tatsächlich ein Dialog-Element folgt.\n\nEine Rolle ohne Dialog ist ein typischer Schreibfehler: Name eingetragen, Dialog vergessen.\n\nBei Auto=EIN: Szenenwechsel wird blockiert bis korrigiert. Bei manuell: erscheint als Fehler-Badge.',
+  },
   stoppzeit_plausibilitaet: {
     label: 'Stoppzeit-Plausibilität', auto: false, ki: false, defaultEnabled: false,
     tooltip: 'Vergleicht die eingetragene Stoppzeit mit der geschätzten Spielzeit aus der Textlänge.\n\nFaustregel: 1 Seite ≈ 1 Minute ≈ ~1.800 Zeichen. Warnung bei mehr als Faktor 4 Abweichung.\n\nNur für Drehbuch-Format. Standardmäßig deaktiviert, da die Schätzung ungenau ist.',

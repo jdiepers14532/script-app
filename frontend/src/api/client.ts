@@ -999,6 +999,8 @@ export const api = {
     request<Record<string, { count: number; has_fehler: boolean }>>('GET', `/checks/werkstufe/${werkstufId}/badges`),
   markCheckBehoben: (checkId: string) =>
     request<{ ok: boolean }>('PATCH', `/checks/${checkId}/behoben`),
+  runNtVerweisFix: (szeneId: string) =>
+    request<{ ok: boolean; changed: boolean; notiz: string | null }>('POST', `/checks/szene/${szeneId}/nt-verweis-fix`),
 
   // ── Generic helpers ───────────────────────────────────────────────────────
   get: (path: string) => request<any>('GET', path),

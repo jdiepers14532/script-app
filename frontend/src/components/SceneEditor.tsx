@@ -215,6 +215,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const panelsRef = useRef<HTMLDivElement | null>(null)
   const draggingRef = useRef(false)
   const overscrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Refs für den Leave-Check-Handler (stabile Closures)
+  const sceneRef = useRef<any>(null)
+  const saveSceneRef = useRef<typeof saveScene | null>(null)
 
   const cycleIntExt = useCallback(async () => {
     const next = scene?.int_ext === 'int' ? 'ext' : 'int'
@@ -793,6 +796,60 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     if (newNotiz === currentNotiz) return
     saveScene({ notiz: newNotiz || null }).then((s: any) => { if (s) setScene(s) }).catch(() => {})
   }, [ntLineTrigger?.key]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refs aktuell halten für den Leave-Check-Handler
+  useEffect(() => { sceneRef.current = scene }, [scene])
+  useEffect(() => { saveSceneRef.current = saveScene }, [saveScene])
+
+  // ── Scene-Leave-Check ─────────────────────────────────────────────────────
+  // Hört auf 'req-leave-check' von ScriptPage. Speichert sofort, führt Auto-Checks durch,
+  // korrigiert NT-Notiz und meldet das Ergebnis zurück.
+  useEffect(() => {
+    if (!useDokumentSzenen || typeof szeneId !== 'string') return
+    const handler = async (e: CustomEvent) => {
+      if (e.detail.currentSzeneId !== String(szeneId)) return
+      const currentScene = sceneRef.current
+      if (!currentScene?.id) {
+        // Szene noch nicht geladen — direkt weiternavigieren
+        window.dispatchEvent(new CustomEvent('leave-check-done', {
+          detail: { currentSzeneId: String(szeneId), targetId: e.detail.targetId, blockingIssues: [], allResults: [] }
+        }))
+        return
+      }
+      // 1. Debounce abbrechen und sofort speichern
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
+      }
+      if (currentScene.content && saveSceneRef.current) {
+        await saveSceneRef.current({ content: currentScene.content }).catch(() => {})
+      }
+      // 2. Auto-Checks ausführen
+      let allResults: any[] = []
+      try {
+        const res = await api.runChecksAuto(currentScene.id)
+        allResults = res.results ?? []
+        setCheckResults(allResults)
+        window.dispatchEvent(new CustomEvent('sz-checks-updated', {
+          detail: { szeneId: currentScene.id, count: res.issues ?? 0 }
+        }))
+      } catch {}
+      // 3. NT-Verweis-Fix (still, ohne User-Feedback)
+      try {
+        const ntRes = await api.runNtVerweisFix(currentScene.id)
+        if (ntRes.changed) {
+          setScene((prev: any) => prev ? { ...prev, notiz: ntRes.notiz ?? null } : prev)
+        }
+      } catch {}
+      // 4. Blocking-Issues ermitteln und Ergebnis melden
+      const blockingIssues = allResults.filter((r: any) => r.check_typ === 'fehlender_dialog')
+      window.dispatchEvent(new CustomEvent('leave-check-done', {
+        detail: { currentSzeneId: String(szeneId), targetId: e.detail.targetId, blockingIssues, allResults }
+      }))
+    }
+    window.addEventListener('req-leave-check', handler as EventListener)
+    return () => window.removeEventListener('req-leave-check', handler as EventListener)
+  }, [szeneId, useDokumentSzenen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleMotivSelect = useCallback(async (parentMotiv: any) => {
     setMotivDropdownOpen(false)

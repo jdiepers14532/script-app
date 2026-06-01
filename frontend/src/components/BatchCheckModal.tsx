@@ -25,6 +25,10 @@ const CHECK_META: Record<string, CheckMeta> = {
     label: 'Rollen-Konsistenz', ki: false, auto: true,
     tooltip: 'Vergleicht Rollen im Szenenkopf mit GROSSBUCHSTABEN-Namen im Text.',
   },
+  fehlender_dialog: {
+    label: 'Fehlender Dialog', ki: false, auto: true,
+    tooltip: 'Prüft ob nach jedem Character-Element tatsächlich ein Dialog folgt.\nRolle ohne Dialog ist ein häufiger Schreibfehler.',
+  },
   sondertyp_wechselschnitt: {
     label: 'Sondertypen & Wechselschnitte', ki: false, auto: true,
     tooltip: 'Prüft ob "Wechselschnitt" markiert ist und Telefonpartner angegeben.',
@@ -41,6 +45,10 @@ const CHECK_META: Record<string, CheckMeta> = {
     label: 'Strang-Zuordnung', ki: false, auto: true,
     tooltip: 'Prüft ob die Szene mindestens einem Story-Strang zugeordnet ist.',
   },
+  nt_verweis: {
+    label: 'NT-Notiz synchronisieren', ki: false, auto: true,
+    tooltip: 'Aktualisiert automatisch die NT-Zeilen in der Szenenkopf-Notiz:\nNT/VO/OFF → "NT Name", "Name im Off"\n(ONE-WAY) → "Oneway Telefonat"\nLäuft ohne Rückmeldung im Hintergrund.',
+  },
   oneliner_qualitaet: {
     label: 'Oneliner-Qualität', ki: true, auto: false,
     tooltip: '✨ KI-Feature — prüft ob der Oneliner den emotionalen Kern wiedergibt.\nVerursacht API-Kosten.',
@@ -49,9 +57,10 @@ const CHECK_META: Record<string, CheckMeta> = {
 
 const GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Inhalt', keys: ['motiv_leer', 'duplikat_motiv'] },
-  { label: 'Rollen', keys: ['rollen_konsistenz'] },
+  { label: 'Rollen', keys: ['rollen_konsistenz', 'fehlender_dialog'] },
   { label: 'Struktur', keys: ['sondertyp_wechselschnitt', 'stoppzeit_plausibilitaet'] },
   { label: 'Dramaturgisch', keys: ['spieltag_inkonsistent', 'strang_zuordnung'] },
+  { label: 'Auto-Korrekturen', keys: ['nt_verweis'] },
   { label: 'KI', keys: ['oneliner_qualitaet'] },
 ]
 

@@ -1328,6 +1328,29 @@ export default function UniversalEditor({
     return () => { editor.off('update', rebuildSuffixMemory) }
   }, [editor, charFormatIds, dialogFormatIds, parFormatIds])
 
+  // ── Jump-to-Character-Node bei fehlender-Dialog-Check ───────────────────────
+  useEffect(() => {
+    if (!editor) return
+    const handler = (e: CustomEvent) => {
+      const charName = (e.detail?.charName ?? '').toUpperCase()
+      if (!charName) return
+      editor.state.doc.descendants((node: any, pos: number) => {
+        const isChar =
+          (node.type.name === 'screenplay_element' && (node.attrs?.element_type === 'character' || node.attrs?.elementType === 'character')) ||
+          (node.type.name === 'absatz' && charFormatIds.includes(node.attrs?.format_id))
+        if (!isChar) return true
+        if (node.textContent.toUpperCase().includes(charName)) {
+          editor.commands.setTextSelection(pos + 1)
+          editor.view.dispatch(editor.state.tr.scrollIntoView())
+          return false  // Traversal abbrechen
+        }
+        return true
+      })
+    }
+    window.addEventListener('drehbuch-check-jump', handler as EventListener)
+    return () => window.removeEventListener('drehbuch-check-jump', handler as EventListener)
+  }, [editor, charFormatIds])
+
   // ── Charakter-AC: Handler-Ref aktuell halten ────────────────────────────────
   const onCharInsertedRef = useRef(onCharInserted)
   onCharInsertedRef.current = onCharInserted
