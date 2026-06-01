@@ -6,7 +6,7 @@ import {
   X, User, Settings2, ExternalLink, Check, LogOut, BookOpen, AlignLeft,
   Wifi, WifiOff, Download, RefreshCw, HardDrive, Smartphone, Trash2, Zap,
   Users, UserCheck, MapPin, ClipboardList, Eye, BarChart3, Grid3x3,
-  Clapperboard, Tv, FolderOpen, ShieldCheck, MicOff,
+  Clapperboard, Tv, FolderOpen, ShieldCheck, MicOff, Map,
 } from 'lucide-react'
 import { useFocus, useSelectedProduction, PanelModeContext, useAppSettings, UserPrefsContext, TweaksContext, ToastContext } from '../contexts'
 import type { TweakState, ToastType } from '../contexts'
@@ -1489,6 +1489,7 @@ export default function AppShell({
               { to: '/import',              label: 'Import',              icon: <FileUp size={14} /> },
               { to: '/freie-dokumente',     label: 'Freie Dokumente',     icon: <FolderOpen size={14} />,      shortcut: 'navFreieDokumente' },
               { to: '/nt-liste', label: 'NT-Liste', icon: <MicOff size={14} />, shortcut: 'navNtListe' },
+              { to: '/planung', label: 'Planung', icon: <Map size={14} /> },
               ...(hasDkAccess ? [{ to: '/drehbuchkoordination', label: 'Drehbuchkoordination', icon: <ClipboardList size={14} />, shortcut: 'navDrehbuchkoordination' }] : []),
             ].map(item => item.action ? (
               <button
