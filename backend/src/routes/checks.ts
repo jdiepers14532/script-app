@@ -285,17 +285,19 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
 
   // ── 6. Fehlender Dialog ──────────────────────────────────────────────────
   if (run('fehlender_dialog') && s.format !== 'notiz') {
+    let replikNr = 0  // lokale Replik-Nummer in dieser Szene (1-basiert, wie ReplikNumberPlugin)
     for (let i = 0; i < content.length; i++) {
       const node = content[i]
       if (!isCharacterNode(node)) continue
+      replikNr++
       const charText = extractText(node).trim()
       if (!charText) {
         // Leere Rollenzeile — kein Name eingetragen (erscheint ggf. nur mit Replik-Nr.)
         results.push({
           check_typ: 'fehlender_dialog',
           schwere: 'fehler',
-          meldung: 'Leere Rollenzeile (kein Name eingetragen)',
-          meta: { char_name: '', empty_char: true, node_index: i },
+          meldung: `Replik ${replikNr}: Leere Rollenzeile (kein Name eingetragen)`,
+          meta: { char_name: '', empty_char: true, node_index: i, replik_nr: replikNr },
         })
         continue
       }
@@ -307,8 +309,8 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
         results.push({
           check_typ: 'fehlender_dialog',
           schwere: 'fehler',
-          meldung: `${charText}: Rolle ohne folgenden Dialog`,
-          meta: { char_name: charText, node_index: i },
+          meldung: `Replik ${replikNr} (${charText}): Rolle ohne Dialog`,
+          meta: { char_name: charText, node_index: i, replik_nr: replikNr },
         })
       }
     }
