@@ -1333,12 +1333,21 @@ export default function UniversalEditor({
     if (!editor) return
     const handler = (e: CustomEvent) => {
       const charName = (e.detail?.charName ?? '').toUpperCase()
-      if (!charName) return
+      const emptyChar = !!e.detail?.empty_char
+      if (!charName && !emptyChar) return
       editor.state.doc.descendants((node: any, pos: number) => {
         const isChar =
           (node.type.name === 'screenplay_element' && (node.attrs?.element_type === 'character' || node.attrs?.elementType === 'character')) ||
           (node.type.name === 'absatz' && charFormatIds.includes(node.attrs?.format_id))
         if (!isChar) return true
+        if (emptyChar) {
+          // Ersten leeren Character-Node finden und Cursor hineinsetzen
+          if (!node.textContent.trim()) {
+            editor.chain().focus().setTextSelection(pos + 1).scrollIntoView().run()
+            return false
+          }
+          return true
+        }
         if (node.textContent.toUpperCase().includes(charName)) {
           editor.chain().focus().setTextSelection(pos + 1).scrollIntoView().run()
           return false  // Traversal abbrechen

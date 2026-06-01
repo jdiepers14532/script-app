@@ -289,7 +289,16 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
       const node = content[i]
       if (!isCharacterNode(node)) continue
       const charText = extractText(node).trim()
-      if (!charText) continue  // leerer Character-Node
+      if (!charText) {
+        // Leere Rollenzeile — kein Name eingetragen (erscheint ggf. nur mit Replik-Nr.)
+        results.push({
+          check_typ: 'fehlender_dialog',
+          schwere: 'fehler',
+          meldung: 'Leere Rollenzeile (kein Name eingetragen)',
+          meta: { char_name: '', empty_char: true, node_index: i },
+        })
+        continue
+      }
       // Nächsten nicht-leeren Node finden
       let j = i + 1
       while (j < content.length && !extractText(content[j]).trim()) j++
