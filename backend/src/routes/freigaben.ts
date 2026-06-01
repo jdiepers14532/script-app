@@ -42,7 +42,7 @@ freigabenRouter.get('/meine', async (req, res) => {
        JOIN characters c ON c.id = rfa.character_id
        JOIN rollen_freigabe_genehmiger_status rfgs
          ON rfgs.anfrage_id = rfa.id AND rfgs.user_id = $1 AND rfgs.entschieden IS NULL
-       LEFT JOIN dokument_szenen ds ON ds.id::TEXT = rfa.szene_id
+       LEFT JOIN dokument_szenen ds ON ds.id = rfa.szene_id
        LEFT JOIN werkstufen w ON w.id = ds.werkstufe_id
        LEFT JOIN folgen f ON f.id = w.folge_id
        WHERE rfa.status = 'ausstehend'
