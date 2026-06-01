@@ -66,7 +66,7 @@ function FehlenderDialogModal({ issues, onClose }: { issues: any[]; onClose: () 
                 key={i}
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent('drehbuch-check-jump', {
-                    detail: { charName: issue.meta?.char_name, empty_char: issue.meta?.empty_char }
+                    detail: { charName: issue.meta?.char_name, empty_char: issue.meta?.empty_char, replik_nr: issue.meta?.replik_nr }
                   }))
                   onClose()
                 }}
@@ -79,7 +79,11 @@ function FehlenderDialogModal({ issues, onClose }: { issues: any[]; onClose: () 
                 }}
                 title="Zur Stelle springen"
               >
-                <span style={{ flex: 1 }}>{issue.meta?.char_name || issue.meldung}</span>
+                <span style={{ flex: 1 }}>
+                  {issue.meta?.replik_nr != null
+                    ? `Replik ${issue.meta.replik_nr}${issue.meta?.char_name ? ` · ${issue.meta.char_name}` : ''}`
+                    : (issue.meta?.char_name || issue.meldung)}
+                </span>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>↑ springen</span>
               </div>
             ))}
@@ -600,9 +604,9 @@ export default function ScriptPage() {
         setFehlenderDialogIssues(blockingIssues)
         // Zur problematischen Stelle im Editor springen
         const firstMeta = blockingIssues[0]?.meta
-        if (firstMeta?.char_name || firstMeta?.empty_char) {
+        if (firstMeta?.replik_nr != null || firstMeta?.char_name || firstMeta?.empty_char) {
           window.dispatchEvent(new CustomEvent('drehbuch-check-jump', {
-            detail: { charName: firstMeta.char_name, empty_char: firstMeta.empty_char }
+            detail: { charName: firstMeta.char_name, empty_char: firstMeta.empty_char, replik_nr: firstMeta.replik_nr }
           }))
         }
       } else {
