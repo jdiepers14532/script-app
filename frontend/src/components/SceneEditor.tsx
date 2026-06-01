@@ -29,6 +29,8 @@ interface SceneEditorProps {
   addCharTrigger?: { name: string; characterId: string | null; suffix: string | null; key: number } | null
   /** NT-Zeile aus Editor → ersetzt den NT-Abschnitt in der Notiz */
   ntLineTrigger?: { ntLine: string | null; key: number } | null
+  /** Replik-Offset des aktuellen Editors (Anzahl Charakter-Nodes in vorherigen Szenen) */
+  replikOffset?: number
 }
 
 function formatUpdatedAt(iso: string): string {
@@ -54,7 +56,7 @@ function getEnvKey(scene: any): keyof typeof ENV_COLORS {
 }
 
 
-export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange, addCharTrigger, ntLineTrigger }: SceneEditorProps) {
+export default function SceneEditor({ szeneId, stageId, produktionId, folgeNummer, panelMode: panelModeProp, useDokumentSzenen, compact: compactProp, werkstufId, werkstufTyp, sceneIdentityId, onSzeneUpdated, onNavigatePrev, onNavigateNext, onMarkCommentsRead, onCharsChange, addCharTrigger, ntLineTrigger, replikOffset = 0 }: SceneEditorProps) {
   const { panelMode: panelModeCtx } = useContext(PanelModeContext)
   const panelMode = panelModeProp ?? panelModeCtx
   const { treatmentLabel } = useAppSettings()
@@ -868,7 +870,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       // 4. Blocking-Issues ermitteln und Ergebnis melden
       const blockingIssues = allResults.filter((r: any) => r.check_typ === 'fehlender_dialog')
       window.dispatchEvent(new CustomEvent('leave-check-done', {
-        detail: { currentSzeneId: String(szeneId), targetId: e.detail.targetId, blockingIssues, allResults }
+        detail: { currentSzeneId: String(szeneId), targetId: e.detail.targetId, blockingIssues, allResults, replikOffset }
       }))
     }
     window.addEventListener('req-leave-check', handler as EventListener)

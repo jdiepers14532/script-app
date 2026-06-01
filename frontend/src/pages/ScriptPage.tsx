@@ -80,8 +80,8 @@ function FehlenderDialogModal({ issues, onClose }: { issues: any[]; onClose: () 
                 title="Zur Stelle springen"
               >
                 <span style={{ flex: 1 }}>
-                  {issue.meta?.replik_nr != null
-                    ? `Replik ${issue.meta.replik_nr}${issue.meta?.char_name ? ` · ${issue.meta.char_name}` : ''}`
+                  {issue.meta?.replik_nr_global != null
+                    ? `Replik ${issue.meta.replik_nr_global}${issue.meta?.char_name ? ` · ${issue.meta.char_name}` : ''}`
                     : (issue.meta?.char_name || issue.meldung)}
                 </span>
                 <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>↑ springen</span>
@@ -171,6 +171,12 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
     setNtLineTrigger({ ntLine, key: Date.now() })
   }, [])
 
+  // Replik-Offset vom aktiven Drehbuch-Panel (rechts bevorzugt) → für globale Replik-Nummern im Leave-Check
+  const [currentReplikOffset, setCurrentReplikOffset] = useState(0)
+  const handleReplikOffsetChange = useCallback((offset: number) => {
+    setCurrentReplikOffset(offset)
+  }, [])
+
   // Propagate dominant werkId + typ to parent — synchronisiert SceneList mit aktivem EditorPanel
   useEffect(() => {
     const dominant = rightWerkId ?? leftWerkId
@@ -253,6 +259,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
           onCharsChange={handleCharsChange}
           addCharTrigger={charToAdd}
           ntLineTrigger={ntLineTrigger}
+          replikOffset={currentReplikOffset}
         />
       )}
       <div ref={splitContainerRef} style={{ display: 'flex', borderTop: '2px solid var(--border)', flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -301,6 +308,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             sceneCharNames={sceneCharNames}
             onCharInserted={handleCharInserted}
             onNtLineChange={handleNtLineChange}
+            onReplikOffsetChange={showBoth ? undefined : handleReplikOffsetChange}
           />
         </div>
       )}
@@ -365,6 +373,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             sceneCharNames={sceneCharNames}
             onCharInserted={handleCharInserted}
             onNtLineChange={handleNtLineChange}
+            onReplikOffsetChange={handleReplikOffsetChange}
           />
         </div>
       )}
@@ -599,11 +608,16 @@ export default function ScriptPage() {
   useEffect(() => {
     const handler = (e: CustomEvent) => {
       checkInProgressRef.current = false
-      const { blockingIssues } = e.detail
+      const { blockingIssues, replikOffset = 0 } = e.detail
       if (blockingIssues.length > 0) {
-        setFehlenderDialogIssues(blockingIssues)
-        // Zur problematischen Stelle im Editor springen
-        const firstMeta = blockingIssues[0]?.meta
+        // Globale Replik-Nummer berechnen (lokale Nr. + Offset der vorherigen Szenen)
+        const enriched = blockingIssues.map((issue: any) => ({
+          ...issue,
+          meta: { ...issue.meta, replik_nr_global: replikOffset + (issue.meta?.replik_nr ?? 0) }
+        }))
+        setFehlenderDialogIssues(enriched)
+        // Zur problematischen Stelle im Editor springen (lokale Replik-Nr. für den Jump-Handler)
+        const firstMeta = enriched[0]?.meta
         if (firstMeta?.replik_nr != null || firstMeta?.char_name || firstMeta?.empty_char) {
           window.dispatchEvent(new CustomEvent('drehbuch-check-jump', {
             detail: { charName: firstMeta.char_name, empty_char: firstMeta.empty_char, replik_nr: firstMeta.replik_nr }

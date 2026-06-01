@@ -43,6 +43,7 @@ interface Props {
   onCharInserted?: (name: string, characterId: string | null, suffix: string | null) => void
   onSuffixRemoved?: (name: string, suffix: string) => void
   onNtLineChange?: (ntLine: string | null) => void
+  onReplikOffsetChange?: (offset: number) => void
 }
 
 export default function EditorPanel({
@@ -50,7 +51,7 @@ export default function EditorPanel({
   defaultTyp, selectedSzeneId, sceneIdentityId, useDokumentSzenen, activateWerkId,
   onCreateWerkstufe, onReloadWerkstufen,
   onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated, onSzenesNeedReload,
-  sceneCharNames, onCharInserted, onSuffixRemoved, onNtLineChange,
+  sceneCharNames, onCharInserted, onSuffixRemoved, onNtLineChange, onReplikOffsetChange,
 }: Props) {
   const { prefs } = useEditorPrefs()
   const { showPageShadow } = useUserPrefs()
@@ -506,6 +507,10 @@ export default function EditorPanel({
   // which comes from ScriptPage and may reference a different werkstufe's UUIDs
   const resolvedSzeneIdForOffset = currentSzene?.id ?? (typeof selectedSzeneId === 'string' ? selectedSzeneId : null)
   const currentReplikOffset = replikSettings.mode === 'per_scene' ? 0 : (resolvedSzeneIdForOffset ? (replikOffsets[resolvedSzeneIdForOffset] ?? 0) : 0)
+
+  useEffect(() => {
+    onReplikOffsetChange?.(currentReplikOffset)
+  }, [currentReplikOffset]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Live text statistics from current scene content
   const textStats = useMemo(() => {
