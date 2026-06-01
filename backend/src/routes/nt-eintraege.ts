@@ -755,7 +755,7 @@ ntEintraegeRouter.get('/', async (req, res) => {
     const rows = await query(
       `SELECT
          ne.id, ne.character_id, ne.szene_id, ne.scene_identity_id, ne.werkstufe_id,
-         ne.folge_id, ne.nt_typ, ne.repliken_text, ne.notiz, ne.veraltet,
+         ne.folge_id, ne.nt_typ, ne.repliken_text, ne.repliken_positionen, ne.notiz, ne.veraltet,
          ne.erstellt_am, ne.aktualisiert_am,
          c.name AS character_name,
          cp.rollen_nummer, cp.komparsen_nummer,
