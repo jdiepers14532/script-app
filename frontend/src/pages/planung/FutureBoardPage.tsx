@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Plus, X, Check, Loader2, Trash2 } from 'lucide-react'
+import { Plus, X, Check, Loader2, Trash2, Sparkles } from 'lucide-react'
 import { api } from '../../api/client'
 import { useSelectedProduction } from '../../contexts'
+import KiVorschlagReviewPanel, { type KiVorschlag } from './KiVorschlagReviewPanel'
 import {
   DndContext, type DragEndEvent, useDndSensors, closestCorners,
 } from '../../hooks/useDnd'
@@ -481,6 +482,8 @@ export default function FutureBoardPage() {
   const [blocks, setBlocks] = useState<Block[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null)
+  const [kiLoading, setKiLoading] = useState(false)
+  const [kiVorschlaege, setKiVorschlaege] = useState<{ items: KiVorschlag[]; provider: string; model: string } | null>(null)
   const sensors = useDndSensors()
 
   const prodId = selectedProduction?.id ?? null
@@ -586,6 +589,34 @@ export default function FutureBoardPage() {
       })
   }
 
+  async function handleKiRaster() {
+    if (!prodId) return
+    setKiLoading(true)
+    try {
+      const result = await api.beatKurztext(prodId)
+      if (result.items.length === 0) {
+        alert('Keine Beats mit Prosa-Text gefunden, bei denen noch ein Kurztext fehlt.')
+        return
+      }
+      setKiVorschlaege(result)
+    } catch (err: any) {
+      alert(err?.message || 'KI-Fehler')
+    } finally {
+      setKiLoading(false)
+    }
+  }
+
+  function handleKiCommit(updates: Array<{ beat_id: string; beat_text: string }>) {
+    setBeats(prev => prev.map(b => {
+      const u = updates.find(u => u.beat_id === b.id)
+      return u ? { ...b, beat_text: u.beat_text } : b
+    }))
+    setKiVorschlaege(null)
+  }
+
+  // Anzahl Beats, für die KI sinnvoll wäre (prosa_text vorhanden, beat_text fehlt)
+  const kiCandidateCount = beats.filter(b => b.prosa_text && (!b.beat_text || b.beat_text.trim() === '')).length
+
   const totalCols = blockColumns.length + (showNoneCol ? 1 : 0)
   const minWidth = ROW_HEADER_W + COL_W * totalCols
 
@@ -616,16 +647,39 @@ export default function FutureBoardPage() {
                   display: 'flex', position: 'sticky', top: 0, zIndex: 4,
                   background: 'var(--bg-surface)', borderBottom: '2px solid var(--border)',
                 }}>
-                  {/* Corner */}
+                  {/* Corner — mit KI-Button */}
                   <div style={{
                     width: ROW_HEADER_W, flexShrink: 0,
                     position: 'sticky', left: 0, zIndex: 5, background: 'var(--bg-surface)',
                     borderRight: '1px solid var(--border)',
-                    padding: '9px 14px', fontSize: 10, fontWeight: 600,
+                    padding: '6px 10px 6px 14px', fontSize: 10, fontWeight: 600,
                     color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.6px',
-                    display: 'flex', alignItems: 'center',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
                   }}>
-                    Strang
+                    <span>Strang</span>
+                    <button
+                      onClick={handleKiRaster}
+                      disabled={kiLoading || kiCandidateCount === 0}
+                      title={kiCandidateCount === 0
+                        ? 'Keine Beats mit Prosa-Text ohne Kurztext'
+                        : `KI: Kurztext für ${kiCandidateCount} Beat${kiCandidateCount !== 1 ? 's' : ''} ableiten`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        padding: '3px 8px', borderRadius: 5,
+                        border: '1px solid var(--border)', background: 'transparent',
+                        cursor: kiLoading || kiCandidateCount === 0 ? 'default' : 'pointer',
+                        fontSize: 10, color: kiCandidateCount > 0 ? '#007AFF' : 'var(--text-muted)',
+                        opacity: kiCandidateCount === 0 ? 0.4 : 1,
+                        whiteSpace: 'nowrap', textTransform: 'none', letterSpacing: 0, fontWeight: 500,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {kiLoading
+                        ? <Loader2 size={10} style={{ animation: 'spin 0.8s linear infinite' }} />
+                        : <Sparkles size={10} />}
+                      KI: Raster
+                      {kiCandidateCount > 0 && <span style={{ opacity: 0.7 }}>({kiCandidateCount})</span>}
+                    </button>
                   </div>
                   {blockColumns.map(bn => (
                     <div key={bn} style={{
@@ -725,6 +779,17 @@ export default function FutureBoardPage() {
             )}
           </div>
         </DndContext>
+      )}
+
+      {/* KI-Review-Panel */}
+      {kiVorschlaege && (
+        <KiVorschlagReviewPanel
+          items={kiVorschlaege.items}
+          provider={kiVorschlaege.provider}
+          model={kiVorschlaege.model}
+          onClose={() => setKiVorschlaege(null)}
+          onCommit={handleKiCommit}
+        />
       )}
     </>
   )

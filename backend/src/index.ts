@@ -424,6 +424,8 @@ async function runMigrations() {
     // Beat-Migration: prosa_text + block_nummer + beat_charaktere + drop block_label
     'v163_beat_prosa_block_nummer.sql',
     'v164_drop_block_label.sql',
+    // KI-Audit-Log + beat_kurztext ki_settings entry
+    'v165_ki_audit_log.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

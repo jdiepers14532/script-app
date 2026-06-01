@@ -889,6 +889,12 @@ export const api = {
     request<any>('POST', `/straenge/beats/${beatId}/charaktere`, data),
   removeBeatCharakter: (beatId: string, characterId: string) =>
     request<void>('DELETE', `/straenge/beats/${beatId}/charaktere/${characterId}`),
+  beatKurztext: (produktionId: string, beatIds?: string[]) =>
+    request<{ items: Array<{ beat_id: string; prosa_text: string; vorschlag_beat_text: string; fehler?: string }>; provider: string; model: string }>(
+      'POST', '/planung/beats/ki-kurztext', { produktion_id: produktionId, ...(beatIds ? { beat_ids: beatIds } : {}) }
+    ),
+  beatKurztextCommit: (updates: Array<{ beat_id: string; beat_text: string }>) =>
+    request<{ updated: number }>('POST', '/planung/beats/ki-kurztext/commit', { updates }),
 
   // ── Sonderszenen: Wechselschnitt-Partner ──
   getWechselschnittPartner: (szeneId: string) =>

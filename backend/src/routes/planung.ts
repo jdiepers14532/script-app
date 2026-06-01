@@ -1,9 +1,76 @@
 import { Router } from 'express'
-import { query } from '../db'
+import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { getProviderApiKey, recordUsage } from './ki'
 
 export const planungRouter = Router()
 planungRouter.use(authMiddleware)
+
+// ── Shared KI-helper ──────────────────────────────────────────────────────────
+
+async function getBeatKurztextSetting() {
+  return await queryOne('SELECT * FROM ki_settings WHERE funktion = $1', ['beat_kurztext'])
+}
+
+async function callMistralSingle(apiKey: string, model: string, prompt: string): Promise<string> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 25000)
+  try {
+    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 120,
+        temperature: 0.2,
+      }),
+      signal: ctrl.signal,
+    })
+    if (!res.ok) throw new Error(`Mistral ${res.status}`)
+    const data = await res.json() as any
+    return (data.choices?.[0]?.message?.content || '').trim()
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+async function callOllamaSingle(model: string, prompt: string): Promise<string> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), 30000)
+  try {
+    const res = await fetch('http://127.0.0.1:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt, stream: false }),
+      signal: ctrl.signal,
+    })
+    if (!res.ok) throw new Error(`Ollama ${res.status}`)
+    const data = await res.json() as any
+    return (data.response || '').trim()
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+async function logKiAudit(opts: {
+  funktion: string; provider: string; model: string
+  input_summary: string; output_summary: string; item_count: number
+  tokens_in: number; tokens_out: number; user_id?: string
+}) {
+  try {
+    await query(
+      `INSERT INTO ki_audit_log
+         (funktion, provider, model, input_summary, output_summary, item_count, tokens_in, tokens_out, user_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+      [
+        opts.funktion, opts.provider, opts.model,
+        opts.input_summary, opts.output_summary, opts.item_count,
+        opts.tokens_in, opts.tokens_out, opts.user_id ?? null,
+      ]
+    )
+  } catch { /* non-critical */ }
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/planung/board?produktion_id=X
@@ -53,6 +120,133 @@ planungRouter.get('/board', async (req, res) => {
     )
 
     res.json({ straenge, beats })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/planung/beats/ki-kurztext
+// Preview: leitet beat_text aus prosa_text ab — kein DB-Write.
+// Body: { beat_ids?: string[], produktion_id: string }
+//   beat_ids   = optional; fehlt → alle Beats mit prosa_text, aber ohne beat_text
+//   produktion_id = Pflicht (für Beats die über strang verknüpft sind)
+// Returns: { items: [{beat_id, prosa_text, vorschlag_beat_text, fehler?}], provider, model }
+// ══════════════════════════════════════════════════════════════════════════════
+planungRouter.post('/beats/ki-kurztext', async (req, res) => {
+  const { beat_ids, produktion_id } = req.body
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
+
+  try {
+    const setting = await getBeatKurztextSetting()
+    if (!setting) return res.status(503).json({ error: 'KI-Funktion beat_kurztext nicht konfiguriert' })
+    if (!setting.enabled) return res.status(503).json({ error: 'KI-Funktion beat_kurztext ist deaktiviert' })
+
+    // Load beats: explicit list or auto-detect (prosa_text vorhanden, beat_text fehlt)
+    let beats: any[]
+    if (Array.isArray(beat_ids) && beat_ids.length > 0) {
+      beats = await query(
+        `SELECT sb.id, sb.prosa_text, sb.beat_text
+         FROM strang_beats sb
+         JOIN straenge s ON s.id = sb.strang_id
+         WHERE sb.id = ANY($1) AND s.produktion_id = $2
+           AND sb.prosa_text IS NOT NULL AND sb.prosa_text <> ''`,
+        [beat_ids, produktion_id]
+      )
+    } else {
+      beats = await query(
+        `SELECT sb.id, sb.prosa_text, sb.beat_text
+         FROM strang_beats sb
+         JOIN straenge s ON s.id = sb.strang_id
+         WHERE s.produktion_id = $1 AND sb.ebene = 'future'
+           AND sb.prosa_text IS NOT NULL AND sb.prosa_text <> ''
+           AND (sb.beat_text IS NULL OR sb.beat_text = '')`,
+        [produktion_id]
+      )
+    }
+
+    if (beats.length === 0) {
+      return res.json({ items: [], provider: setting.provider, model: setting.model_name })
+    }
+    if (beats.length > 30) beats = beats.slice(0, 30) // Hard cap
+
+    // Get API key
+    let apiKey: string | null = null
+    if (setting.provider !== 'ollama') {
+      apiKey = await getProviderApiKey(setting.provider)
+      if (!apiKey) return res.status(503).json({ error: `Kein API-Key für ${setting.provider}` })
+    }
+
+    const promptTemplate: string = setting.prompt || setting.default_prompt || ''
+    const CONCURRENCY = 5
+
+    // Process in parallel batches
+    const items: any[] = []
+    for (let i = 0; i < beats.length; i += CONCURRENCY) {
+      const batch = beats.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(batch.map(async (b: any) => {
+        const prompt = promptTemplate.replace('{{prosa_text}}', b.prosa_text)
+        try {
+          let text: string
+          if (setting.provider === 'ollama') {
+            text = await callOllamaSingle(setting.model_name, prompt)
+          } else {
+            text = await callMistralSingle(apiKey!, setting.model_name, prompt)
+          }
+          return { beat_id: b.id, prosa_text: b.prosa_text, vorschlag_beat_text: text.slice(0, 200) }
+        } catch (err) {
+          return { beat_id: b.id, prosa_text: b.prosa_text, vorschlag_beat_text: '', fehler: String(err) }
+        }
+      }))
+      items.push(...results)
+    }
+
+    // Estimate tokens (rough: 4 chars ≈ 1 token)
+    const tokensIn = Math.ceil(items.reduce((s, it) => s + (it.prosa_text?.length ?? 0), 0) / 4)
+    const tokensOut = Math.ceil(items.reduce((s, it) => s + (it.vorschlag_beat_text?.length ?? 0), 0) / 4)
+
+    await recordUsage(setting.provider, setting.model_name, tokensIn, tokensOut)
+    await logKiAudit({
+      funktion: 'beat_kurztext',
+      provider: setting.provider,
+      model: setting.model_name,
+      input_summary: `${beats.length} Beats · ProduktionId: ${produktion_id}`,
+      output_summary: items.slice(0, 3).map((it: any) => it.vorschlag_beat_text).join(' | '),
+      item_count: items.length,
+      tokens_in: tokensIn,
+      tokens_out: tokensOut,
+      user_id: (req as any).user?.user_id,
+    })
+
+    res.json({ items, provider: setting.provider, model: setting.model_name })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/planung/beats/ki-kurztext/commit
+// Schreibt user-bestätigte beat_text-Werte in die DB.
+// Body: { updates: [{beat_id: string, beat_text: string}][] }
+// Returns: { updated: number }
+// ══════════════════════════════════════════════════════════════════════════════
+planungRouter.post('/beats/ki-kurztext/commit', async (req, res) => {
+  const { updates } = req.body
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return res.status(400).json({ error: 'updates array required' })
+  }
+
+  try {
+    let updated = 0
+    for (const u of updates) {
+      if (!u.beat_id || typeof u.beat_text !== 'string') continue
+      const row = await queryOne(
+        `UPDATE strang_beats SET beat_text = $1 WHERE id = $2 RETURNING id`,
+        [u.beat_text.trim() || null, u.beat_id]
+      )
+      if (row) updated++
+    }
+    res.json({ updated })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
