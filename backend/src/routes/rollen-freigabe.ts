@@ -516,7 +516,7 @@ rollenFreigabeRouter.put('/:productionId/config',
            COALESCE($2, false), COALESCE($3, 3),
            COALESCE($4, true), COALESCE($5, false), COALESCE($6, false),
            COALESCE($7, 'first_responder'), $8,
-           COALESCE($9, false), COALESCE($10, '[]')::jsonb, $11,
+           COALESCE($9, false), COALESCE($10::jsonb, '[]'::jsonb), $11,
            NOW())
          ON CONFLICT (production_id) DO UPDATE SET
            freigabe_aktiv             = COALESCE($2, rollen_freigabe_konfiguration.freigabe_aktiv),
@@ -527,7 +527,7 @@ rollenFreigabeRouter.put('/:productionId/config',
            quorum                     = COALESCE($7, rollen_freigabe_konfiguration.quorum),
            lock_trigger_fassungslabel = $8,
            lock_override_aktiv        = COALESCE($9, rollen_freigabe_konfiguration.lock_override_aktiv),
-           lock_override_rollen       = COALESCE($10, rollen_freigabe_konfiguration.lock_override_rollen),
+           lock_override_rollen       = COALESCE($10::jsonb, rollen_freigabe_konfiguration.lock_override_rollen),
            ot_obergrenze_pro_block    = $11,
            geaendert_am               = NOW()
          RETURNING freigabe_aktiv, erinnerung_nach_tagen,
