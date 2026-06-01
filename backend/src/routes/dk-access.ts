@@ -348,6 +348,7 @@ router.get('/:productionId/deskriptor-vorlagen',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
+      await ensureDefaultDeskriptorVorlagen(req.params.productionId)
       res.json(await getDeskriptorVorlagen(req.params.productionId))
     } catch (err) {
       res.status(500).json({ error: String(err) })
