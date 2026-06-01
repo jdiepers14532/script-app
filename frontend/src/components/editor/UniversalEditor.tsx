@@ -586,7 +586,32 @@ export default function UniversalEditor({
   useEffect(() => { acNewNameRef.current = acNewName }, [acNewName])
 
   // Dialog-State für Charakter-Anlegen-Bestätigung
-  const [newCharDialog, setNewCharDialog] = useState<{ name: string; suffix?: string | null; isKomparse: boolean; loading: boolean } | null>(null)
+  const [newCharDialog, setNewCharDialog] = useState<{
+    name: string;
+    suffix?: string | null;
+    isKomparse: boolean;
+    loading: boolean;
+    stage?: 'budget' | 'dispo';
+    existingCharId?: string | null;
+    freigabeAktiv?: boolean; // undefined = noch ladend
+  } | null>(null)
+
+  // Ref zum stabilen Öffnen des Dialogs aus Effects heraus
+  const openNewCharDialogRef = useRef<(name: string, suffix?: string | null) => void>(() => {})
+  const openNewCharDialog = useCallback((name: string, suffix?: string | null) => {
+    const existing = allCharObjsRef.current.find(o => o.name.toUpperCase() === name.toUpperCase())
+    const stage: 'budget' | 'dispo' = existing ? 'dispo' : 'budget'
+    setNewCharDialog({ name, suffix: suffix ?? null, isKomparse: false, loading: false, stage, existingCharId: existing?.id ?? null, freigabeAktiv: undefined })
+    if (selectedProdId) {
+      fetch(`/api/rollen-freigabe/${selectedProdId}/config`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then(cfg => setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: cfg ? !!cfg.freigabe_aktiv : false } : null))
+        .catch(() => setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: false } : null))
+    } else {
+      setNewCharDialog(prev => prev ? { ...prev, freigabeAktiv: false } : null)
+    }
+  }, [selectedProdId])
+  useEffect(() => { openNewCharDialogRef.current = openNewCharDialog }, [openNewCharDialog])
   // Erkannter Suffix (OFF/NT/ONE-WAY) aus letzter AC-Eingabe — wird beim Einfügen angehängt
   const detectedSuffixRef = useRef<string | null>(null)
 
@@ -661,8 +686,18 @@ export default function UniversalEditor({
     name: 'charAcKey',
     addKeyboardShortcuts() {
       return {
-        ArrowUp:   () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowUp();  return true },
-        ArrowDown: () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowDown(); return true },
+        ArrowUp:    () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowUp();  return true },
+        ArrowDown:  () => { if (!acActiveRef.current) return false; acHandlersRef.current.onArrowDown(); return true },
+        ArrowRight: () => {
+          if (charAcStyleRef.current === 'inline') {
+            if (!inlineGhostNoMatchNameRef.current) return false
+            acHandlersRef.current.onAccept()
+            return true
+          }
+          if (!acActiveRef.current || !acNewNameRef.current || acSuggestionsRef.current.length > 0) return false
+          acHandlersRef.current.onAccept()
+          return true
+        },
         Tab: () => {
           if (charAcStyleRef.current === 'inline') {
             if (!inlineGhostActiveRef.current) return false
@@ -1057,18 +1092,19 @@ export default function UniversalEditor({
             setGhost(restUpper, $from.pos)
           } else {
             inlineGhostAcceptNameRef.current = null
-            inlineGhostNoMatchNameRef.current = modus === 'alle' ? toRollenName(actionQueryUpper) : null
-            inlineGhostActiveRef.current = modus === 'alle'
+            inlineGhostNoMatchNameRef.current = toRollenName(actionQueryUpper)
+            inlineGhostActiveRef.current = true
             clearGhostDecoration()
           }
         } else {
           clearGhostDecoration()
           acActiveRef.current = true
           const filtered2 = actionPool.filter(n => n.toUpperCase().startsWith(actionQueryUpper)).slice(0, 9)
-          if (filtered2.length === 0 && modus !== 'alle') { actionAcModeRef.current = false; dismiss(); return }
-          setAcSuggestions(filtered2)
           const exactMatch2 = filtered2.some(n => n.toUpperCase() === actionQueryUpper)
-          setAcNewName(modus === 'alle' && !exactMatch2 ? toRollenName(actionQueryUpper) : null)
+          const newNameAction = !exactMatch2 ? toRollenName(actionQueryUpper) : null
+          if (filtered2.length === 0 && !newNameAction) { actionAcModeRef.current = false; dismiss(); return }
+          setAcSuggestions(filtered2)
+          setAcNewName(newNameAction)
           setAcSelectedIndex(0)
           setAcPos({ x: actionCoords.left, y: actionCoords.top })
         }
@@ -1123,10 +1159,10 @@ export default function UniversalEditor({
           inlineGhostActiveRef.current = ghostSuffix.length > 0 || !!querySuffix
           setGhost(ghostSuffix, nodeEndPos)
         } else {
-          // Kein Treffer — Neu anlegen (nur im "alle"-Modus)
+          // Kein Treffer — Neu anlegen (auch im szenenkopf-Modus)
           inlineGhostAcceptNameRef.current = null
-          inlineGhostNoMatchNameRef.current = modus === 'alle' ? toRollenName(queryClean) : null
-          inlineGhostActiveRef.current = modus === 'alle' && queryClean.length > 0
+          inlineGhostNoMatchNameRef.current = queryClean ? toRollenName(queryClean) : null
+          inlineGhostActiveRef.current = queryClean.length > 0
           clearGhostDecoration()
         }
       } else {
@@ -1139,11 +1175,14 @@ export default function UniversalEditor({
             !queryClean || n.toUpperCase().startsWith(queryUpper)
           ).slice(0, 8)
 
-          if (filtered.length === 0) { dismiss(); return }
+          const exactMatch3 = filtered.some(n => n.toUpperCase() === queryUpper)
+          const newName3 = queryClean && !exactMatch3 ? toRollenName(queryClean) : null
+          acNewNameRef.current = newName3
+          setAcNewName(newName3)
+
+          if (filtered.length === 0 && !newName3) { dismiss(); return }
 
           setAcSuggestions(filtered)
-          acNewNameRef.current = null
-          setAcNewName(null)
           setAcSelectedIndex(0)
           setAcPos({ x: coords.left, y: coords.top })
         } else {
@@ -1323,7 +1362,11 @@ export default function UniversalEditor({
     acHandlersRef.current = {
       onArrowUp: () => setAcSelectedIndex(prev => Math.max(0, prev - 1)),
       onArrowDown: () => {
-        const maxIdx = acSuggestionsRef.current.length - 1 + (acNewNameRef.current ? 1 : 0)
+        const suggestions = acSuggestionsRef.current
+        const newName = acNewNameRef.current
+        // Nur «Neu anlegen» vorhanden → sofort Dialog öffnen
+        if (newName && suggestions.length === 0) { acHandlersRef.current.onAccept(); return }
+        const maxIdx = suggestions.length - 1 + (newName ? 1 : 0)
         setAcSelectedIndex(prev => Math.min(Math.max(maxIdx, 0), prev + 1))
       },
       onAccept: () => {
@@ -1343,7 +1386,7 @@ export default function UniversalEditor({
             if (acceptName) {
               acceptActionCharIntoEditorRef.current(acceptName)
             } else if (noMatchName) {
-              setNewCharDialog({ name: noMatchName, suffix: null, isKomparse: false, loading: false })
+              openNewCharDialogRef.current(noMatchName)
             }
             return
           }
@@ -1355,7 +1398,7 @@ export default function UniversalEditor({
             setAcSuggestions([])
             setAcNewName(null)
             setAcPos(null)
-            setNewCharDialog({ name: newName, suffix: null, isKomparse: false, loading: false })
+            openNewCharDialogRef.current(newName)
             return
           }
           const suggestionIdx2 = newName ? idx - 1 : idx
@@ -1386,7 +1429,7 @@ export default function UniversalEditor({
             detectedSuffixRef.current = null
             acceptCharIntoEditor(acceptName, sfx)
           } else if (noMatchName) {
-            setNewCharDialog({ name: noMatchName, suffix: detectedSuffixRef.current, isKomparse: false, loading: false })
+            openNewCharDialogRef.current(noMatchName, detectedSuffixRef.current)
             detectedSuffixRef.current = null
           }
           return
@@ -1401,7 +1444,7 @@ export default function UniversalEditor({
           setAcSuggestions([])
           setAcNewName(null)
           setAcPos(null)
-          setNewCharDialog({ name: newName, suffix: detectedSuffixRef.current, isKomparse: false, loading: false })
+          openNewCharDialogRef.current(newName, detectedSuffixRef.current)
           detectedSuffixRef.current = null
           return
         }
@@ -1625,40 +1668,72 @@ export default function UniversalEditor({
 
   if (!editor) return null
 
-  // Charakter anlegen + Freigabe-Anfrage stellen
+  // Charakter anlegen + Freigabe-Anfrage stellen (Budget- oder Dispo-Pfad)
   const handleCreateChar = async (name: string) => {
     if (!selectedProdId) return
     setNewCharDialog(prev => prev ? { ...prev, loading: true } : null)
+    const stage = newCharDialog?.stage ?? 'budget'
+    const existingCharId = newCharDialog?.existingCharId ?? null
+    const freigabeAktiv = newCharDialog?.freigabeAktiv ?? false
     try {
-      const createRes = await fetch('/api/characters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, produktion_id: selectedProdId, is_komparse: newCharDialog?.isKomparse ?? false }),
-      })
-      if (!createRes.ok) {
-        const err = await createRes.json()
-        showToast(err.error || 'Charakter konnte nicht angelegt werden', 'error')
-        setNewCharDialog(null)
-        return
-      }
-      const char = await createRes.json()
+      let charId: string
 
-      // Freigabe-Anfrage versuchen (optional — ignoriere Fehler wenn nicht konfiguriert)
-      let freigabeGestartet = false
-      try {
-        const fRes = await fetch(`/api/rollen-freigabe/${selectedProdId}/anfragen`, {
+      if (stage === 'dispo' && existingCharId) {
+        // Dispo-Pfad: Figur existiert bereits — nur Freigabe anfragen
+        charId = existingCharId
+      } else {
+        // Budget-Pfad: Figur anlegen
+        const createRes = await fetch('/api/characters', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ character_id: char.id, szene_id: szeneId ?? undefined }),
+          body: JSON.stringify({ name, produktion_id: selectedProdId, is_komparse: newCharDialog?.isKomparse ?? false }),
         })
-        if (fRes.ok) {
-          const fData = await fRes.json()
-          freigabeGestartet = fData.status === 'ausstehend'
-          if (freigabeGestartet) setFreigabeRefresh(c => c + 1)
+        if (!createRes.ok) {
+          const err = await createRes.json()
+          showToast(err.error || 'Charakter konnte nicht angelegt werden', 'error')
+          setNewCharDialog(null)
+          return
         }
-      } catch { /* Freigabe nicht konfiguriert — ignorieren */ }
+        const char = await createRes.json()
+        charId = String(char.id)
+        // Cache direkt ergänzen
+        allCharObjsRef.current = [...allCharObjsRef.current, { id: charId, name }]
+      }
+
+      // Freigabe-Anfrage (optional — ignoriert wenn nicht konfiguriert)
+      let freigabeGestartet = false
+      if (freigabeAktiv) {
+        try {
+          if (stage === 'dispo' && sceneIdentityId) {
+            // Dispo-Freigabe für diese Szene
+            const fRes = await fetch(`/api/rollen-freigabe/${selectedProdId}/szenen-anfragen`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ character_id: charId, scene_identity_id: sceneIdentityId }),
+            })
+            if (fRes.ok) {
+              const fData = await fRes.json()
+              freigabeGestartet = fData.status === 'ausstehend'
+              if (freigabeGestartet) setFreigabeRefresh(c => c + 1)
+            }
+          } else {
+            // Budget-Freigabe
+            const fRes = await fetch(`/api/rollen-freigabe/${selectedProdId}/anfragen`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ character_id: charId, szene_id: szeneId ?? undefined }),
+            })
+            if (fRes.ok) {
+              const fData = await fRes.json()
+              freigabeGestartet = fData.status === 'ausstehend'
+              if (freigabeGestartet) setFreigabeRefresh(c => c + 1)
+            }
+          }
+        } catch { /* Freigabe nicht konfiguriert — ignorieren */ }
+      }
 
       // Name + ggf. Suffix in Editor einfügen
       const sfx = newCharDialog?.suffix ?? null
@@ -1673,14 +1748,13 @@ export default function UniversalEditor({
         chain.insertContentAt(start, fullInsertName).run()
       }
 
-      // Cache aktualisieren + Szenenkopf-Callback mit bekannter ID
-      allCharObjsRef.current = [...allCharObjsRef.current, { id: String(char.id), name }]
-      onCharInsertedRef.current?.(name, String(char.id), sfx)
+      // Szenenkopf-Callback
+      onCharInsertedRef.current?.(name, charId, sfx)
 
       showToast(
-        freigabeGestartet
-          ? `${name} wurde angelegt. Freigabe-Anfrage gesendet.`
-          : `${name} wurde angelegt.`,
+        stage === 'dispo'
+          ? (freigabeGestartet ? `Dispo-Freigabe für ${name} angefragt.` : `${name} in die Szene aufgenommen.`)
+          : (freigabeGestartet ? `${name} angelegt. Budget-Freigabe angefragt.` : `${name} wurde angelegt.`),
         'success'
       )
       setNewCharDialog(null)
@@ -2235,7 +2309,7 @@ export default function UniversalEditor({
             })}
           </div>
           <div style={{ padding: '4px 12px', borderTop: '1px solid var(--border-subtle, #eee)', fontSize: 10, color: 'var(--text-muted, #999)' }}>
-            ↑↓ navigieren · Tab/Enter übernehmen · Esc schließen
+            ↑↓ navigieren · Tab/Enter/→ übernehmen · Esc schließen
           </div>
         </div>,
         document.body
@@ -2251,25 +2325,32 @@ export default function UniversalEditor({
             style={{ background: 'var(--bg-surface, #fff)', borderRadius: 12, padding: '24px 28px', minWidth: 320, maxWidth: 440, boxShadow: '0 16px 48px rgba(0,0,0,0.3)' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Neuen Charakter anlegen?</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              <strong>{newCharDialog.name}</strong> existiert noch nicht in der Rollendatenbank.
-              Soll der Charakter angelegt und eine Freigabe-Anfrage gesendet werden?
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>
+              {newCharDialog.stage === 'dispo' ? 'Dispo-Freigabe anfragen?' : 'Neuen Charakter anlegen?'}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={newCharDialog.isKomparse}
-                disabled={newCharDialog.loading}
-                onChange={e => setNewCharDialog(prev => prev ? { ...prev, isKomparse: e.target.checked } : null)}
-              />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>Ist Komparse</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                  Komparsen erhalten eine Komparsen-Nummer statt einer Rollen-Nummer.
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              {newCharDialog.stage === 'dispo' ? (
+                <><strong>{newCharDialog.name}</strong> ist bekannt, hat aber noch keine Dispo-Freigabe für diese Szene.</>
+              ) : (
+                <><strong>{newCharDialog.name}</strong> existiert noch nicht in der Rollendatenbank. Soll der Charakter angelegt werden?</>
+              )}
+            </div>
+            {newCharDialog.stage !== 'dispo' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={newCharDialog.isKomparse}
+                  disabled={newCharDialog.loading}
+                  onChange={e => setNewCharDialog(prev => prev ? { ...prev, isKomparse: e.target.checked } : null)}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>Ist Komparse</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Komparsen erhalten eine Komparsen-Nummer statt einer Rollen-Nummer.
+                  </div>
                 </div>
-              </div>
-            </label>
+              </label>
+            )}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button
                 onClick={() => setNewCharDialog(null)}
@@ -2280,10 +2361,14 @@ export default function UniversalEditor({
               </button>
               <button
                 onClick={() => handleCreateChar(newCharDialog.name)}
-                disabled={newCharDialog.loading}
-                style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: '#007AFF', color: '#fff', cursor: newCharDialog.loading ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500 }}
+                disabled={newCharDialog.loading || newCharDialog.freigabeAktiv === undefined}
+                style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: '#007AFF', color: '#fff', cursor: (newCharDialog.loading || newCharDialog.freigabeAktiv === undefined) ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500 }}
               >
-                {newCharDialog.loading ? 'Wird angelegt…' : 'Anlegen & Freigabe anfragen'}
+                {newCharDialog.loading ? (newCharDialog.stage === 'dispo' ? 'Wird angefragt…' : 'Wird angelegt…')
+                  : newCharDialog.freigabeAktiv === undefined ? 'Laden…'
+                  : newCharDialog.stage === 'dispo' ? 'Dispo-Freigabe anfragen'
+                  : newCharDialog.freigabeAktiv ? 'Anlegen & Budget-Freigabe anfragen'
+                  : 'Anlegen'}
               </button>
             </div>
           </div>
