@@ -657,6 +657,9 @@ export default function UniversalEditor({
   const lastCharNodePosRef = useRef<{ start: number; end: number } | null>(null)
   // One-shot Override: insertNameIntoEditor nutzt diese Position statt cursor (Pfeil-Tasten-Pfad)
   const insertPosOverrideRef = useRef<{ start: number; end: number } | null>(null)
+  // Merkt ob der CHARACTER-Node beim Betreten bereits einen Suffix hatte →
+  // verhindert Memory-Ghost wenn ein bestehender Suffix nachträglich gelöscht wird
+  const charNodeEntryHadSuffixRef = useRef(false)
 
   // IDs der "Character"-Absatzformate
   const charFormatIds = useMemo(
@@ -1078,6 +1081,7 @@ export default function UniversalEditor({
           // dismiss() läuft weiter unten — ist idempotent
         }
         wasInCharNodeRef.current = false
+        charNodeEntryHadSuffixRef.current = false
         // Action-AC: Großbuchstaben-Wort in Action-Zeilen?
         const ss2 = suffixSettingsRef.current
         const isActionNode = ss2.action_ac_enabled
@@ -1132,6 +1136,11 @@ export default function UniversalEditor({
       }
 
       actionAcModeRef.current = false
+      if (!wasInCharNodeRef.current) {
+        // Erster Frame in diesem Node: Suffix-Zustand beim Betreten merken
+        const { suffix: entrySuffix } = parseSuffix($from.node().textContent ?? '')
+        charNodeEntryHadSuffixRef.current = !!entrySuffix
+      }
       wasInCharNodeRef.current = true
       lastCharNodePosRef.current = { start: $from.start(), end: $from.end() }
       const query = node.textContent
@@ -1172,12 +1181,19 @@ export default function UniversalEditor({
         const bestMatch = pool.find(n => n.toUpperCase().startsWith(queryUpper))
 
         if (bestMatch) {
-          const ghostSuffix = bestMatch.slice(queryClean.length) // Name-Vervollständigung
+          const nameGhost = bestMatch.slice(queryClean.length) // Name-Vervollständigung
+          // Memory-Suffix: nur wenn Name vollständig getippt, kein expliziter Suffix vorhanden,
+          // und Node wurde ohne Suffix betreten (kein nachträgliches Löschen)
+          const memorySuffix = (nameGhost === '' && !querySuffix && !charNodeEntryHadSuffixRef.current)
+            ? (sceneSuffixMemoryRef.current.get(queryUpper) ?? null)
+            : null
+          const totalGhost = nameGhost + (memorySuffix ? ` ${memorySuffix}` : '')
           inlineGhostAcceptNameRef.current = bestMatch
           inlineGhostNoMatchNameRef.current = null
-          // Aktiv wenn Ghost-Text sichtbar (Name unvollständig) ODER expliziter Suffix getippt
-          inlineGhostActiveRef.current = ghostSuffix.length > 0 || !!querySuffix
-          setGhost(ghostSuffix, nodeEndPos)
+          // Aktiv wenn Ghost-Text sichtbar ODER expliziter Suffix getippt ODER Memory-Suffix vorgeschlagen
+          inlineGhostActiveRef.current = totalGhost.length > 0 || !!querySuffix
+          if (memorySuffix) detectedSuffixRef.current = memorySuffix // überschreibt querySuffix=null
+          setGhost(totalGhost, nodeEndPos)
         } else {
           // Kein Treffer — Neu anlegen (auch im szenenkopf-Modus)
           inlineGhostAcceptNameRef.current = null
@@ -1242,10 +1258,10 @@ export default function UniversalEditor({
   onNtLineChangeRef.current = onNtLineChange
   const prevNtLineRef = useRef<string | null>(null)
 
-  // prevNtLineRef bei Szenenwechsel zurücksetzen — sonst feuert onNtLineChange nicht wenn neue Szene
-  // dieselben NT-Figuren enthält wie die vorherige
+  // prevNtLineRef + charNodeEntryHadSuffixRef bei Szenenwechsel zurücksetzen
   useEffect(() => {
     prevNtLineRef.current = null
+    charNodeEntryHadSuffixRef.current = false
   }, [szeneId])
 
   // Suffix-Memory aufbauen + NT-Zeile berechnen: bei jeder Dokument-Änderung alle CHARACTER-Nodes scannen
