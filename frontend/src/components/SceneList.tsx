@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown, AlertTriangle } from 'lucide-react'
 import CheckHinweisModal from './CheckHinweisModal'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
-import { api, clearCacheByPrefix } from '../api/client'
+import { api, ApiError, clearCacheByPrefix } from '../api/client'
 import { useAppSettings, useTweaks, useToast } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from './Tooltip'
@@ -64,6 +64,13 @@ export default function SceneList({
   const isDarkTheme = tweaks.theme === 'dark'
   const [searchQuery, setSearchQuery] = useState('')
   const [lock, setLock] = useState<any | null>(null)
+  const [locking, setLocking] = useState(false)
+  const [lockDialog, setLockDialog] = useState<{
+    anfragen: Array<{ character_id: string; rollen_name: string; freigabe_status: string }>
+    count: number
+    override_aktiv: boolean
+  } | null>(null)
+  const [lockBegruendung, setLockBegruendung] = useState('')
   const [creating, setCreating] = useState(false)
   const [menuOpenId, setMenuOpenId] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<number | string | null>(null)
@@ -98,6 +105,40 @@ export default function SceneList({
     if (!werkstufId) { setCheckBadges({}); return }
     api.getCheckBadges(werkstufId).then(setCheckBadges).catch(() => setCheckBadges({}))
   }, [werkstufId])
+
+  const handleLockEpisode = async (force?: boolean, begruendung?: string) => {
+    if (!produktionId || folgeNummer == null) return
+    setLocking(true)
+    try {
+      const newLock = await api.createLock(produktionId, folgeNummer, force ? { force: true, begruendung } : undefined)
+      setLock(newLock)
+      setLockDialog(null)
+      setLockBegruendung('')
+      showToast('Folge gesperrt', 'success')
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.data?.error === 'freigaben_ausstehend') {
+        setLockDialog({ anfragen: err.data.anfragen, count: err.data.count, override_aktiv: err.data.override_aktiv })
+      } else if (err instanceof ApiError && err.status === 409) {
+        showToast(err.data?.error || 'Folge bereits gesperrt', 'error')
+      } else {
+        showToast('Fehler beim Sperren', 'error')
+      }
+    } finally {
+      setLocking(false)
+    }
+  }
+
+  const handleUnlockEpisode = async () => {
+    if (!produktionId || folgeNummer == null) return
+    try {
+      await api.deleteLock(produktionId, folgeNummer)
+      setLock(null)
+      showToast('Sperre aufgehoben', 'success')
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.data?.error : String(err)
+      showToast(msg || 'Fehler beim Aufheben', 'error')
+    }
+  }
   const [oneWayDialog, setOneWayDialog] = useState<{ sceneId: string | number; currentNotiz: string } | null>(null)
   const [oneWayPartner, setOneWayPartner] = useState('')
   const [oneWaySaving, setOneWaySaving] = useState(false)
@@ -712,6 +753,25 @@ export default function SceneList({
 
               {/* Kategorie: Verwalten */}
               <CategoryDivider label="Verwalten" />
+              {!lock && produktionId && folgeNummer != null && (
+                <button
+                  className="scene-ctx-item"
+                  onClick={() => { setHeaderMenuOpen(false); handleLockEpisode() }}
+                  disabled={locking}
+                  style={{ color: 'var(--sw-warning)' }}
+                >
+                  {locking ? 'Sperren…' : 'Folge sperren'}
+                </button>
+              )}
+              {lock && (
+                <button
+                  className="scene-ctx-item"
+                  onClick={() => { setHeaderMenuOpen(false); handleUnlockEpisode() }}
+                  style={{ color: 'var(--sw-warning)' }}
+                >
+                  Sperre aufheben
+                </button>
+              )}
               <button
                 className="scene-ctx-item"
                 onClick={() => { onOpenStrangPanel?.(); setHeaderMenuOpen(false) }}
@@ -1349,7 +1409,107 @@ export default function SceneList({
         </div>,
         document.body
       )}
-{/* Drehbuch-Check schwebendes Modal — createPortal, Position egal */}
+{/* Lock-Gate Dialog */}
+      {lockDialog && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 10000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div style={{
+            background: 'var(--bg)', borderRadius: 12, padding: 24, width: '100%', maxWidth: 480,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <AlertTriangle size={18} style={{ color: '#FFCC00', flexShrink: 0 }} />
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>
+                Offene Freigaben — Folge {folgeNummer}
+              </h3>
+            </div>
+            <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' }}>
+              {lockDialog.count === 1
+                ? 'Es gibt noch 1 offene Budget-Freigabe in dieser Produktion:'
+                : `Es gibt noch ${lockDialog.count} offene Budget-Freigaben in dieser Produktion:`}
+            </p>
+            <div style={{
+              background: 'var(--bg-subtle)', borderRadius: 8, padding: '8px 12px',
+              marginBottom: 16, maxHeight: 180, overflowY: 'auto',
+            }}>
+              {lockDialog.anfragen.map((a, i) => (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '4px 0', borderBottom: i < lockDialog.anfragen.length - 1 ? '1px solid var(--border)' : undefined,
+                  fontSize: 13,
+                }}>
+                  <span style={{ fontWeight: 500 }}>{a.rollen_name}</span>
+                  <span style={{
+                    fontSize: 11, fontWeight: 600,
+                    color: a.freigabe_status === 'abgelehnt' ? '#FF3B30' : '#FFCC00',
+                    background: a.freigabe_status === 'abgelehnt' ? 'rgba(255,59,48,0.1)' : 'rgba(255,204,0,0.12)',
+                    borderRadius: 4, padding: '2px 6px',
+                  }}>
+                    {a.freigabe_status === 'abgelehnt' ? 'Abgelehnt' : 'Ausstehend'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {lockDialog.override_aktiv ? (
+              <>
+                <p style={{ margin: '0 0 8px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Override möglich — Pflichtbegründung:
+                </p>
+                <textarea
+                  value={lockBegruendung}
+                  onChange={e => setLockBegruendung(e.target.value)}
+                  placeholder="Begründung für das Sperren trotz offener Freigaben…"
+                  rows={3}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                    border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px',
+                    fontSize: 13, background: 'var(--bg)', color: 'var(--text)', marginBottom: 12,
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                  <button
+                    onClick={() => { setLockDialog(null); setLockBegruendung('') }}
+                    style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13, minHeight: 44 }}
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    onClick={() => handleLockEpisode(true, lockBegruendung)}
+                    disabled={!lockBegruendung.trim() || locking}
+                    style={{
+                      padding: '8px 16px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, minHeight: 44,
+                      background: lockBegruendung.trim() ? '#FFCC00' : 'var(--bg-subtle)',
+                      color: lockBegruendung.trim() ? '#000' : 'var(--text-muted)',
+                      cursor: lockBegruendung.trim() ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {locking ? 'Sperren…' : 'Trotzdem sperren'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Bitte alle Freigaben abschließen, bevor die Folge gesperrt wird.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => setLockDialog(null)}
+                    style={{ padding: '8px 16px', border: '1px solid var(--border)', borderRadius: 8, background: 'transparent', cursor: 'pointer', fontSize: 13, minHeight: 44 }}
+                  >
+                    Schließen
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Drehbuch-Check schwebendes Modal — createPortal, Position egal */}
       {checkModal && checkModal.checks.length > 0 && (
         <CheckHinweisModal
           checks={checkModal.checks}

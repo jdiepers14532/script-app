@@ -62,6 +62,16 @@ export function peekCache<T>(path: string): T | undefined {
   return getCached<T>(path)
 }
 
+export class ApiError extends Error {
+  status: number
+  data: any
+  constructor(status: number, data: any) {
+    super(data?.error || `HTTP ${status}`)
+    this.status = status
+    this.data = data
+  }
+}
+
 async function doRequest<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -76,8 +86,8 @@ async function doRequest<T>(method: string, path: string, body?: unknown): Promi
     return new Promise(() => {}) // halt execution while redirecting
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || `HTTP ${res.status}`)
+    const data = await res.json().catch(() => ({ error: res.statusText }))
+    throw new ApiError(res.status, data)
   }
   if (res.status === 204) return undefined as T
   return res.json()
@@ -142,8 +152,8 @@ export const api = {
   // Locks (keyed by produktionId + folgeNummer)
   getLock: (produktionId: string, folgeNummer: number) =>
     request<any>('GET', `/folgen/${produktionId}/${folgeNummer}/lock`),
-  createLock: (produktionId: string, folgeNummer: number) =>
-    request<any>('POST', `/folgen/${produktionId}/${folgeNummer}/lock`, {}),
+  createLock: (produktionId: string, folgeNummer: number, opts?: { force?: boolean; begruendung?: string }) =>
+    request<any>('POST', `/folgen/${produktionId}/${folgeNummer}/lock`, opts ?? {}),
   deleteLock: (produktionId: string, folgeNummer: number) =>
     request<void>('DELETE', `/folgen/${produktionId}/${folgeNummer}/lock`),
   takeoverLock: (produktionId: string, folgeNummer: number) =>

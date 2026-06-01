@@ -1,11 +1,26 @@
 import { Router } from 'express'
-import { query, queryOne } from '../db'
+import { query, queryOne, pool } from '../db'
 import { authMiddleware, requireRole } from '../auth'
 
 export const locksRouter = Router()
 export const contractLocksRouter = Router()
 
 locksRouter.use(authMiddleware)
+
+const TIER1_ROLES = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung']
+
+async function hasScopeAccess(userId: string, userRoles: string[], productionId: string, scope: string): Promise<boolean> {
+  if (userRoles.some(r => TIER1_ROLES.includes(r))) return true
+  const { rows } = await pool.query(
+    `SELECT 1 FROM dk_settings_access
+     WHERE production_id = $1 AND scope = $2
+       AND ((access_type = 'user' AND identifier = $3)
+         OR (access_type = 'rolle' AND identifier = ANY($4::text[])))
+     LIMIT 1`,
+    [productionId, scope, userId, userRoles]
+  )
+  return rows.length > 0
+}
 
 // GET /api/folgen/:produktionId/:folgeNummer/lock
 locksRouter.get('/:produktionId/:folgeNummer/lock', async (req, res) => {
@@ -27,10 +42,12 @@ locksRouter.get('/:produktionId/:folgeNummer/lock', async (req, res) => {
 })
 
 // POST /api/folgen/:produktionId/:folgeNummer/lock
+// Body: { force?: boolean, begruendung?: string }
 locksRouter.post('/:produktionId/:folgeNummer/lock', async (req, res) => {
   const { produktionId, folgeNummer } = req.params
   const fn = parseInt(folgeNummer)
   const user = req.user!
+  const { force, begruendung } = req.body ?? {}
   try {
     await query(
       "DELETE FROM episode_locks WHERE produktion_id = $1 AND folge_nummer = $2 AND lock_type = 'exclusive' AND expires_at < NOW()",
@@ -46,6 +63,56 @@ locksRouter.post('/:produktionId/:folgeNummer/lock', async (req, res) => {
         lock: existing,
       })
     }
+
+    // ── Lock-Gate: ausstehende Budget-Freigaben prüfen ────────────────────────
+    const offeneFreigaben = await query(
+      `SELECT cp.character_id, c.name AS rollen_name, cp.freigabe_status
+       FROM character_productions cp
+       JOIN characters c ON c.id = cp.character_id
+       WHERE cp.produktion_id = $1
+         AND cp.freigabe_status IN ('ausstehend', 'abgelehnt')
+       ORDER BY c.name`,
+      [produktionId]
+    )
+
+    if (offeneFreigaben.length > 0 && !force) {
+      // Prüfen ob Override überhaupt konfiguriert ist
+      const cfg = await queryOne(
+        `SELECT lock_override_aktiv FROM rollen_freigabe_konfiguration
+         WHERE production_id = $1 LIMIT 1`,
+        [produktionId]
+      )
+      return res.status(409).json({
+        error: 'freigaben_ausstehend',
+        count: offeneFreigaben.length,
+        anfragen: offeneFreigaben,
+        override_aktiv: cfg?.lock_override_aktiv ?? false,
+      })
+    }
+
+    if (offeneFreigaben.length > 0 && force) {
+      // Override: Berechtigung prüfen
+      const userRoles = user.roles || [user.role]
+      const hasAccess = await hasScopeAccess(user.user_id, userRoles, produktionId, 'lock_override')
+      if (!hasAccess) {
+        return res.status(403).json({ error: 'Keine Berechtigung für Lock-Override' })
+      }
+      if (!begruendung?.trim()) {
+        return res.status(400).json({ error: 'Begründung ist Pflicht beim Override' })
+      }
+      // Audit-Eintrag
+      await query(
+        `INSERT INTO freigabe_overrides (typ, bezug_id, user_id, begruendung, fehlende_freigaben)
+         VALUES ('lock', $1, $2, $3, $4)`,
+        [
+          `${produktionId}/${fn}`,
+          user.user_id,
+          begruendung.trim(),
+          JSON.stringify(offeneFreigaben),
+        ]
+      )
+    }
+
     const expiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000)
     const lock = await queryOne(
       `INSERT INTO episode_locks (produktion_id, folge_nummer, user_id, user_name, lock_type, expires_at)
