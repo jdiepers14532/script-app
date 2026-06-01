@@ -143,7 +143,11 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [charSearchKomparse, setCharSearchKomparse] = useState('')
   const [charDropdownRolle, setCharDropdownRolle] = useState(false)
   const [charDropdownKomparse, setCharDropdownKomparse] = useState(false)
-  const [newCharDialogSzenenkopf, setNewCharDialogSzenenkopf] = useState<{ name: string; isKomparse: boolean; loading: boolean } | null>(null)
+  const [newCharDialogSzenenkopf, setNewCharDialogSzenenkopf] = useState<{
+    name: string; isKomparse: boolean; loading: boolean;
+    stage?: 'budget' | 'dispo'; existingCharId?: string | null
+  } | null>(null)
+  const [lockGateActive, setLockGateActive] = useState(false)
   const [sceneStraenge, setSceneStraenge] = useState<any[]>([])
   const [allStraenge, setAllStraenge] = useState<any[]>([])
   const [strangDropdownOpen, setStrangDropdownOpen] = useState(false)
@@ -629,60 +633,102 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
     }
   }, [scene])
 
+  // Lock-Gate: Freigabe-Config + aktuelle Werkstufe prüfen
+  useEffect(() => {
+    if (!produktionId || !werkstufId) { setLockGateActive(false); return }
+    Promise.all([
+      fetch(`/api/rollen-freigabe/${produktionId}/config`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+      fetch(`/api/werkstufen/${werkstufId}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null),
+    ]).then(([cfg, wk]) => {
+      const triggerLabel: string | null = cfg?.lock_trigger_fassungslabel ?? null
+      const currentLabel: string | null = wk?.label ?? null
+      setLockGateActive(!!(cfg?.freigabe_aktiv && triggerLabel && currentLabel && triggerLabel === currentLabel))
+    }).catch(() => setLockGateActive(false))
+  }, [produktionId, werkstufId])
+
   const handleCreateCharSzenenkopf = async () => {
     if (!produktionId || !newCharDialogSzenenkopf) return
-    const { name, isKomparse } = newCharDialogSzenenkopf
+    const { name, isKomparse, stage, existingCharId } = newCharDialogSzenenkopf
     setNewCharDialogSzenenkopf(prev => prev ? { ...prev, loading: true } : null)
     try {
-      const createRes = await fetch('/api/characters', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ name, produktion_id: produktionId, is_komparse: isKomparse }),
-      })
-      if (!createRes.ok) {
-        const err = await createRes.json()
-        showToast(err.error || 'Charakter konnte nicht angelegt werden', 'error')
-        setNewCharDialogSzenenkopf(null)
-        return
-      }
-      const char = await createRes.json()
-
-      // Freigabe-Anfrage versuchen (optional)
       let freigabeGestartet = false
-      try {
-        const fRes = await fetch(`/api/rollen-freigabe/${produktionId}/anfragen`, {
+
+      if (stage === 'dispo') {
+        // Figur existiert bereits — nur zur Szene hinzufügen + Dispo-Freigabe anfragen
+        const char = allCharacters.find((c: any) => String(c.id) === String(existingCharId))
+        if (!char) {
+          showToast('Figur nicht gefunden', 'error')
+          setNewCharDialogSzenenkopf(null)
+          return
+        }
+        const katId = char.kategorie_typ === 'komparse' ? komparseKatId : rolleKatId
+        await handleAddCharacter(char, katId)
+        try {
+          const fRes = await fetch(`/api/rollen-freigabe/${produktionId}/szenen-anfragen`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ character_id: existingCharId, scene_identity_id: scene?.scene_identity_id }),
+          })
+          if (fRes.ok) freigabeGestartet = true
+        } catch { /* Freigabe nicht konfiguriert */ }
+
+        showToast(
+          freigabeGestartet
+            ? `${name} zur Szene hinzugefügt. Dispo-Freigabe angefragt.`
+            : `${name} zur Szene hinzugefügt.`,
+          'success'
+        )
+      } else {
+        // Budget-Pfad: Figur anlegen + Budget-Freigabe anfragen
+        const createRes = await fetch('/api/characters', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
-          body: JSON.stringify({ character_id: char.id, szene_id: szeneId }),
+          body: JSON.stringify({ name, produktion_id: produktionId, is_komparse: isKomparse }),
         })
-        if (fRes.ok) {
-          const fData = await fRes.json()
-          freigabeGestartet = fData.status === 'ausstehend'
+        if (!createRes.ok) {
+          const err = await createRes.json()
+          showToast(err.error || 'Charakter konnte nicht angelegt werden', 'error')
+          setNewCharDialogSzenenkopf(null)
+          return
         }
-      } catch { /* Freigabe nicht konfiguriert */ }
+        const char = await createRes.json()
 
-      // allCharacters neu laden damit Figur sofort verfügbar ist
-      api.getCharacters(produktionId).then(chars => {
-        setAllCharacters(Array.isArray(chars) ? chars : [])
-      }).catch(() => {})
+        try {
+          const fRes = await fetch(`/api/rollen-freigabe/${produktionId}/anfragen`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ character_id: char.id, szene_id: szeneId }),
+          })
+          if (fRes.ok) {
+            const fData = await fRes.json()
+            freigabeGestartet = fData.status === 'ausstehend'
+          }
+        } catch { /* Freigabe nicht konfiguriert */ }
 
-      // Figur sofort zur Szene hinzufügen
-      const katId = isKomparse ? komparseKatId : rolleKatId
-      await handleAddCharacter(char, katId)
+        // allCharacters neu laden damit Figur sofort verfügbar ist
+        api.getCharacters(produktionId).then(chars => {
+          setAllCharacters(Array.isArray(chars) ? chars : [])
+        }).catch(() => {})
 
-      showToast(
-        freigabeGestartet
-          ? `${name} wurde angelegt. Freigabe-Anfrage gesendet.`
-          : `${name} wurde angelegt.`,
-        'success'
-      )
+        const katId = isKomparse ? komparseKatId : rolleKatId
+        await handleAddCharacter(char, katId)
+
+        showToast(
+          freigabeGestartet
+            ? `${name} wurde angelegt. Freigabe-Anfrage gesendet.`
+            : `${name} wurde angelegt.`,
+          'success'
+        )
+      }
+
       setNewCharDialogSzenenkopf(null)
       setCharSearchRolle('')
       setCharDropdownRolle(false)
     } catch {
-      showToast('Fehler beim Anlegen des Charakters', 'error')
+      showToast('Fehler beim Verarbeiten', 'error')
       setNewCharDialogSzenenkopf(null)
     }
   }
@@ -1210,7 +1256,15 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                         {charDropdownRolle && (
                           <div className="sf-dropdown sf-dropdown-fixed" style={getFixedDropdownStyle(rolleDropdownRef)}>
                             {rolleCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase())).slice(0, 15).map(ch => (
-                              <div key={ch.id} className="sf-dropdown-item" onMouseDown={e => { e.preventDefault(); handleAddCharacter(ch, rolleKatId); setCharSearchRolle(''); setCharDropdownRolle(false) }}>{ch.name}</div>
+                              <div key={ch.id} className="sf-dropdown-item" onMouseDown={e => {
+                                e.preventDefault()
+                                if (lockGateActive) {
+                                  setNewCharDialogSzenenkopf({ name: ch.name, isKomparse: ch.kategorie_typ === 'komparse', loading: false, stage: 'dispo', existingCharId: String(ch.id) })
+                                } else {
+                                  handleAddCharacter(ch, rolleKatId)
+                                }
+                                setCharSearchRolle(''); setCharDropdownRolle(false)
+                              }}>{ch.name}</div>
                             ))}
                             {rolleCharacters.filter(ch => !sceneChars.some(sc => sc.character_id === ch.id)).filter(ch => !charSearchRolle || ch.name.toLowerCase().includes(charSearchRolle.toLowerCase())).length === 0 && (
                               charSearchRolle.trim()
@@ -1876,26 +1930,33 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
             style={{ background: 'var(--bg-surface, #fff)', borderRadius: 12, padding: '24px 28px', minWidth: 320, maxWidth: 440, boxShadow: '0 16px 48px rgba(0,0,0,0.3)' }}
             onClick={e => e.stopPropagation()}
           >
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>Neuen Charakter anlegen?</div>
-            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
-              <strong>{newCharDialogSzenenkopf.name}</strong> existiert noch nicht in der Rollendatenbank.
-              Soll der Charakter angelegt und eine Freigabe-Anfrage gesendet werden?
+            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 8 }}>
+              {newCharDialogSzenenkopf.stage === 'dispo' ? 'Dispo-Freigabe anfragen?' : 'Neuen Charakter anlegen?'}
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={newCharDialogSzenenkopf.isKomparse}
-                disabled={newCharDialogSzenenkopf.loading}
-                onChange={e => setNewCharDialogSzenenkopf(prev => prev ? { ...prev, isKomparse: e.target.checked } : null)}
-              />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>Ist Komparse</div>
-                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                  Komparsen erhalten eine Komparsen-Nummer statt einer Rollen-Nummer.
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+              {newCharDialogSzenenkopf.stage === 'dispo' ? (
+                <>Möchtest du eine Dispo-Freigabe für <strong>{newCharDialogSzenenkopf.name}</strong> in dieser Szene anfragen? Die Figur wird sofort zur Szene hinzugefügt.</>
+              ) : (
+                <><strong>{newCharDialogSzenenkopf.name}</strong> existiert noch nicht in der Rollendatenbank. Soll der Charakter angelegt und eine Budget-Freigabe-Anfrage gesendet werden?</>
+              )}
+            </div>
+            {newCharDialogSzenenkopf.stage !== 'dispo' && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={newCharDialogSzenenkopf.isKomparse}
+                  disabled={newCharDialogSzenenkopf.loading}
+                  onChange={e => setNewCharDialogSzenenkopf(prev => prev ? { ...prev, isKomparse: e.target.checked } : null)}
+                />
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>Ist Komparse</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                    Komparsen erhalten eine Komparsen-Nummer statt einer Rollen-Nummer.
+                  </div>
                 </div>
-              </div>
-            </label>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              </label>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: newCharDialogSzenenkopf.stage === 'dispo' ? 20 : 0 }}>
               <button
                 onClick={() => setNewCharDialogSzenenkopf(null)}
                 disabled={newCharDialogSzenenkopf.loading}
@@ -1908,7 +1969,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                 disabled={newCharDialogSzenenkopf.loading}
                 style={{ padding: '8px 16px', border: 'none', borderRadius: 8, background: '#007AFF', color: '#fff', cursor: newCharDialogSzenenkopf.loading ? 'wait' : 'pointer', fontSize: 13, fontWeight: 500 }}
               >
-                {newCharDialogSzenenkopf.loading ? 'Wird angelegt…' : 'Anlegen & Freigabe anfragen'}
+                {newCharDialogSzenenkopf.loading
+                  ? (newCharDialogSzenenkopf.stage === 'dispo' ? 'Wird verarbeitet…' : 'Wird angelegt…')
+                  : (newCharDialogSzenenkopf.stage === 'dispo' ? 'Freigabe anfragen' : 'Anlegen & Freigabe anfragen')}
               </button>
             </div>
           </div>

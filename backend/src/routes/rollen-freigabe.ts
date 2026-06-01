@@ -494,6 +494,21 @@ rollenFreigabeRouter.get('/:productionId/config', async (req, res) => {
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
+// GET /api/rollen-freigabe/:produktionId/werkstufen-labels — distinct labels for dropdown
+rollenFreigabeRouter.get('/:produktionId/werkstufen-labels', async (req, res) => {
+  try {
+    const rows = await query(
+      `SELECT DISTINCT w.label
+       FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE f.produktion_id = $1 AND w.label IS NOT NULL AND w.label != ''
+       ORDER BY w.label`,
+      [req.params.produktionId]
+    )
+    res.json(rows.map((r: any) => r.label as string))
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 // PUT /api/rollen-freigabe/:productionId/config
 rollenFreigabeRouter.put('/:productionId/config',
   requireDkAccess(req => req.params.productionId),

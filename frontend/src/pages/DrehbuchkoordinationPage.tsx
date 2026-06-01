@@ -5778,6 +5778,7 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
   const [otData, setOtData] = useState<OtMengenData | null>(null)
   const [otInputVal, setOtInputVal] = useState<string>('')
   // New genehmiger form
+  const [werkstufenLabels, setWerkstufenLabels] = useState<string[]>([])
   const [newTyp, setNewTyp] = useState<'user' | 'rolle'>('user')
   const [newUserId, setNewUserId] = useState('')
   const [newRolle, setNewRolle] = useState('')
@@ -5802,13 +5803,15 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
       apiFetch(`/rollen-freigabe/${produktionId}/genehmiger`),
       apiFetch('/rollen-freigabe/meta'),
       apiFetch(`/rollen-freigabe/${produktionId}/ot-mengenkontrolle`),
-    ]).then(([cfg, gen, m, ot]) => {
+      apiFetch(`/rollen-freigabe/${produktionId}/werkstufen-labels`),
+    ]).then(([cfg, gen, m, ot, labels]) => {
       const merged = { ...DEFAULT_CONFIG, ...cfg }
       setConfig(merged)
       setOtInputVal(merged.ot_obergrenze_pro_block != null ? String(merged.ot_obergrenze_pro_block) : '')
       setGenehmiger(Array.isArray(gen) ? gen : [])
       if (m && !m.error) setMeta(m)
       if (ot && !ot.error) setOtData(ot)
+      if (Array.isArray(labels)) setWerkstufenLabels(labels)
     }).finally(() => setLoading(false))
   }, [produktionId])
 
@@ -5978,14 +5981,19 @@ function RollenFreigabeTab({ produktionId }: { produktionId: string }) {
             Lock-Trigger Fassungslabel
           </Tooltip>
         </span>
-        <input
+        <select
           value={config.lock_trigger_fassungslabel ?? ''}
-          onChange={e => setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: e.target.value || null }))}
-          onBlur={() => patchConfig({ lock_trigger_fassungslabel: config.lock_trigger_fassungslabel })}
-          placeholder="z.B. DB3 (leer = kein automatischer Trigger)"
+          onChange={e => {
+            const val = e.target.value || null
+            setConfig(prev => ({ ...prev, lock_trigger_fassungslabel: val }))
+            patchConfig({ lock_trigger_fassungslabel: val })
+          }}
           style={{ ...sel, flex: 1 }}
           disabled={saving}
-        />
+        >
+          <option value="">— kein automatischer Trigger —</option>
+          {werkstufenLabels.map(l => <option key={l} value={l}>{l}</option>)}
+        </select>
       </div>
 
       {/* ── o.T.-Mengenkontrolle ── */}
