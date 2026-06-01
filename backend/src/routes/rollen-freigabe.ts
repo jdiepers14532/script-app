@@ -1203,6 +1203,74 @@ rollenFreigabeRouter.post('/:productionId/szenen-anfragen/:id/erneut-anfragen', 
   } catch (err) { res.status(500).json({ error: String(err) }) }
 })
 
+// GET /api/rollen-freigabe/:productionId/szene-statuses?scene_identity_id=X&werkstufe_id=Y
+// Liefert kombinierten Freigabe-Status pro Figurenname (für Editor-Farblogik)
+rollenFreigabeRouter.get('/:productionId/szene-statuses', async (req, res) => {
+  try {
+    const { scene_identity_id, werkstufe_id } = req.query as Record<string, string>
+    if (!scene_identity_id || !werkstufe_id) {
+      return res.status(400).json({ error: 'scene_identity_id und werkstufe_id erforderlich' })
+    }
+
+    // Budget-Status: character_productions.freigabe_status
+    const budgetRows = await query(
+      `SELECT UPPER(c.name) AS name_upper, cp.freigabe_status, cp.is_active,
+              rfa.notiz AS ablehnungsnotiz
+       FROM scene_characters sc
+       JOIN characters c ON c.id = sc.character_id
+       JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.produktion_id = $3
+       LEFT JOIN rollen_freigabe_anfragen rfa
+         ON rfa.character_id = sc.character_id AND rfa.production_id = $3 AND rfa.status = 'abgelehnt'
+       WHERE sc.scene_identity_id = $1 AND sc.werkstufe_id = $2`,
+      [scene_identity_id, werkstufe_id, req.params.productionId]
+    )
+
+    // Dispo-Status: scene_characters.status
+    const dispoRows = await query(
+      `SELECT UPPER(c.name) AS name_upper, sc.status AS dispo_status,
+              sfa.notiz AS dispo_ablehnungsnotiz
+       FROM scene_characters sc
+       JOIN characters c ON c.id = sc.character_id
+       LEFT JOIN szenen_freigabe_anfragen sfa
+         ON sfa.character_id = sc.character_id AND sfa.scene_identity_id = $1 AND sfa.status = 'abgelehnt'
+       WHERE sc.scene_identity_id = $1 AND sc.werkstufe_id = $2`,
+      [scene_identity_id, werkstufe_id]
+    )
+
+    // Zusammenführen: Budget + Dispo, Priorität: abgelehnt > ausstehend > ok
+    const statusMap = new Map<string, {
+      budget: string; dispo: string; combined: string; notiz: string | null
+    }>()
+
+    for (const r of budgetRows) {
+      statusMap.set(r.name_upper, {
+        budget: r.freigabe_status ?? 'keine',
+        dispo: 'bestaetigt',
+        combined: 'ok',
+        notiz: r.ablehnungsnotiz ?? null,
+      })
+    }
+    for (const r of dispoRows) {
+      const existing = statusMap.get(r.name_upper) ?? { budget: 'keine', dispo: 'bestaetigt', combined: 'ok', notiz: null }
+      statusMap.set(r.name_upper, { ...existing, dispo: r.dispo_status ?? 'bestaetigt', notiz: existing.notiz ?? r.dispo_ablehnungsnotiz ?? null })
+    }
+
+    // combined berechnen
+    const result = Array.from(statusMap.entries()).map(([name_upper, v]) => {
+      const budgetAbgelehnt = v.budget === 'abgelehnt'
+      const dispoAbgelehnt = v.dispo === 'abgelehnt'
+      const budgetAusstehend = v.budget === 'ausstehend'
+      const dispoAusstehend = v.dispo === 'ausstehend'
+      const combined = (budgetAbgelehnt || dispoAbgelehnt) ? 'abgelehnt'
+        : (budgetAusstehend || dispoAusstehend) ? 'ausstehend'
+        : 'ok'
+      return { name_upper, budget_status: v.budget, dispo_status: v.dispo, combined, notiz: v.notiz }
+    }).filter(r => r.combined !== 'ok')
+
+    res.json(result)
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 // ── Public Router (kein Auth) ─────────────────────────────────────────────────
 
 export const rollenFreigabePublicRouter = Router()

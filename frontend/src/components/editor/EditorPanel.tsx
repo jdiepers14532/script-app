@@ -987,6 +987,8 @@ export default function EditorPanel({
               onSuffixRemoved={onSuffixRemoved}
               onNtLineChange={onNtLineChange}
               szeneId={currentSzene?.id ? String(currentSzene.id) : undefined}
+              sceneIdentityId={currentSzene?.scene_identity_id ?? undefined}
+              werkstufeId={currentSzene?.werkstufe_id ?? undefined}
               onMagicOpen={() => setMagicOpen(true)}
               onExportOpen={() => setExportOpen(v => !v)}
               exportOpen={exportOpen}

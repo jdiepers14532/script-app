@@ -36,6 +36,7 @@ import { useUserPrefs, useFocus, useAppSettings, useTweaks, useSelectedProductio
 import { LineNumberOverlay } from './LineNumberOverlay'
 import { createReplikNumberPlugin, replikNumberPluginKey, REPLIK_NUMBER_CSS, setReplikNumberColor } from '../../tiptap/ReplikNumberPlugin'
 import { createRevisionMarginPlugin, REVISION_MARGIN_CSS } from '../../tiptap/RevisionMarginPlugin'
+import { createFreigabeStatusPlugin, freigabeStatusPluginKey, FREIGABE_STATUS_CSS, type FreigabeStatusEntry } from '../../tiptap/FreigabeStatusPlugin'
 import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS } from '../../sw-ui/editor/extensions/PlaceholderChipExtension'
 import { ParagraphStyleExtension } from '../../sw-ui/editor/extensions/ParagraphStyleExtension'
 import Table from '@tiptap/extension-table'
@@ -171,6 +172,16 @@ function injectRevisionCSS() {
   const style = document.createElement('style')
   style.id = 'revision-margin-css'
   style.textContent = REVISION_MARGIN_CSS
+  document.head.appendChild(style)
+}
+
+let freigabeCssInjected = false
+function injectFreigabeCSS() {
+  if (freigabeCssInjected) return
+  freigabeCssInjected = true
+  const style = document.createElement('style')
+  style.id = 'freigabe-status-css'
+  style.textContent = FREIGABE_STATUS_CSS
   document.head.appendChild(style)
 }
 
@@ -331,6 +342,9 @@ interface UniversalEditorProps {
   onNtLineChange?: (ntLine: string | null) => void
   /** ID der aktuellen Szene — wird in Freigabe-Emails als Kontext mitgeschickt */
   szeneId?: string | null
+  /** scene_identity_id + werkstufe_id für Freigabe-Status-Farblogik (Phase 4) */
+  sceneIdentityId?: string | null
+  werkstufeId?: string | null
   onMagicOpen?: () => void
   onExportOpen?: () => void
   exportOpen?: boolean
@@ -373,6 +387,8 @@ export default function UniversalEditor({
   onSuffixRemoved,
   onNtLineChange,
   szeneId,
+  sceneIdentityId,
+  werkstufeId,
   onMagicOpen,
   onExportOpen,
   exportOpen = false,
@@ -383,6 +399,7 @@ export default function UniversalEditor({
   injectReplikCSS()
   injectChipCSS()
   injectTableCSS()
+  injectFreigabeCSS()
 
   const { spellcheck: spellcheckMode } = useUserPrefs()
   const { tweaks } = useTweaks()
@@ -819,6 +836,52 @@ export default function UniversalEditor({
     }
     return () => { try { editor.unregisterPlugin('revisionMargin') } catch {} }
   }, [editor, changedBlocks, revisionColor])
+
+  // ── Freigabe-Status-Plugin (Phase 4) ──────────────────────────────────────
+  const [freigabeEntries, setFreigabeEntries] = useState<FreigabeStatusEntry[]>([])
+  const [freigabeRefresh, setFreigabeRefresh] = useState(0)
+
+  useEffect(() => {
+    if (!produktionId || !sceneIdentityId || !werkstufeId) { setFreigabeEntries([]); return }
+    fetch(`/api/rollen-freigabe/${produktionId}/szene-statuses?scene_identity_id=${encodeURIComponent(sceneIdentityId)}&werkstufe_id=${encodeURIComponent(werkstufeId)}`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: FreigabeStatusEntry[]) => setFreigabeEntries(Array.isArray(data) ? data : []))
+      .catch(() => setFreigabeEntries([]))
+  }, [produktionId, sceneIdentityId, werkstufeId, freigabeRefresh])
+
+  useEffect(() => {
+    if (!editor) return
+    try { editor.unregisterPlugin(freigabeStatusPluginKey) } catch {}
+    if (freigabeEntries.length > 0) {
+      try { editor.registerPlugin(createFreigabeStatusPlugin(freigabeEntries)) } catch {}
+    }
+    return () => { try { editor.unregisterPlugin(freigabeStatusPluginKey) } catch {} }
+  }, [editor, freigabeEntries])
+
+  // Freigabe-Tooltip: Hover über markierte Figurennamen
+  const [freigabeTooltip, setFreigabeTooltip] = useState<{
+    x: number; y: number; status: 'abgelehnt' | 'ausstehend'; notiz: string | null
+  } | null>(null)
+
+  useEffect(() => {
+    if (!editor || freigabeEntries.length === 0) return
+    const el = editor.view.dom as HTMLElement
+    const handleMouseMove = (e: MouseEvent) => {
+      const target = (e.target as HTMLElement).closest('[data-freigabe-status]') as HTMLElement | null
+      if (!target) { setFreigabeTooltip(null); return }
+      const status = target.dataset.freigabeStatus as 'abgelehnt' | 'ausstehend'
+      const notiz = target.dataset.freigabeNotiz || null
+      const rect = target.getBoundingClientRect()
+      setFreigabeTooltip({ x: rect.left + rect.width / 2, y: rect.top - 6, status, notiz: notiz || null })
+    }
+    const handleMouseLeave = () => setFreigabeTooltip(null)
+    el.addEventListener('mousemove', handleMouseMove)
+    el.addEventListener('mouseleave', handleMouseLeave)
+    return () => {
+      el.removeEventListener('mousemove', handleMouseMove)
+      el.removeEventListener('mouseleave', handleMouseLeave)
+    }
+  }, [editor, freigabeEntries])
 
   useEffect(() => () => {
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -1593,6 +1656,7 @@ export default function UniversalEditor({
         if (fRes.ok) {
           const fData = await fRes.json()
           freigabeGestartet = fData.status === 'ausstehend'
+          if (freigabeGestartet) setFreigabeRefresh(c => c + 1)
         }
       } catch { /* Freigabe nicht konfiguriert — ignorieren */ }
 
@@ -2225,6 +2289,32 @@ export default function UniversalEditor({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Freigabe-Status Tooltip */}
+      {freigabeTooltip && (
+        <div
+          style={{
+            position: 'fixed',
+            left: freigabeTooltip.x,
+            top: freigabeTooltip.y,
+            transform: 'translate(-50%, -100%)',
+            background: freigabeTooltip.status === 'abgelehnt' ? '#FF3B30' : '#FFCC00',
+            color: freigabeTooltip.status === 'abgelehnt' ? '#fff' : '#000',
+            fontSize: 11,
+            lineHeight: 1.4,
+            padding: '5px 9px',
+            borderRadius: 6,
+            boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+            zIndex: 99999,
+            pointerEvents: 'none',
+            whiteSpace: 'pre-line',
+            maxWidth: 240,
+          }}
+        >
+          {freigabeTooltip.status === 'abgelehnt' ? 'Freigabe abgelehnt' : 'Freigabe ausstehend'}
+          {freigabeTooltip.notiz && `\n${freigabeTooltip.notiz}`}
+        </div>
       )}
 
       {/* LanguageTool Popup */}
