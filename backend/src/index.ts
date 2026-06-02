@@ -445,6 +445,8 @@ async function runMigrations() {
     'v169_glossar_wechselschnitt_verwandte.sql',
     // Planung-KI-Runs: fire-and-forget Storyline-Abgleich + Beziehungswiderspruch-Check
     'v170_planung_runs.sql',
+    // Handoff 1 Phase 1: Backfill node_id auf alle Top-Level-Blöcke in dokument_szenen.content
+    'v171_node_id_backfill.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

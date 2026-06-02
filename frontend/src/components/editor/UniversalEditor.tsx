@@ -36,6 +36,7 @@ import { useUserPrefs, useFocus, useAppSettings, useTweaks, useSelectedProductio
 import { LineNumberOverlay } from './LineNumberOverlay'
 import { createReplikNumberPlugin, replikNumberPluginKey, REPLIK_NUMBER_CSS, setReplikNumberColor } from '../../tiptap/ReplikNumberPlugin'
 import { createRevisionMarginPlugin, REVISION_MARGIN_CSS } from '../../tiptap/RevisionMarginPlugin'
+import { NodeIdExtension } from '../../tiptap/NodeIdExtension'
 import { createFreigabeStatusPlugin, freigabeStatusPluginKey, FREIGABE_STATUS_CSS, type FreigabeStatusEntry } from '../../tiptap/FreigabeStatusPlugin'
 import { PlaceholderChipExtension, PLACEHOLDER_CHIP_CSS } from '../../sw-ui/editor/extensions/PlaceholderChipExtension'
 import { ParagraphStyleExtension } from '../../sw-ui/editor/extensions/ParagraphStyleExtension'
@@ -800,6 +801,7 @@ export default function UniversalEditor({
       ResizableImageExtension,
       ScreenplayExtension.configure({ formatElements }),
       AbsatzExtension.configure({ formate: relevantFormats }),
+      NodeIdExtension,
       AlignmentShortcuts,
       DocumentBoundsShortcuts,
       AnnotationMark,

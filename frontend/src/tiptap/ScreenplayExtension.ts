@@ -56,9 +56,18 @@ export const ScreenplayExtension = Node.create<{ formatElements: FormatElement[]
         renderHTML: (attrs) => ({ 'data-sp-type': attrs.element_type }),
       },
       szene_uuid: {
+        // Scene-level UUID (scene_heading only) — distinct from node_id which is per-block.
         default: null,
         parseHTML: (el) => el.getAttribute('data-szene-uuid') || null,
         renderHTML: (attrs) => attrs.szene_uuid ? { 'data-szene-uuid': attrs.szene_uuid } : {},
+      },
+      node_id: {
+        // Stable per-block UUID. Assigned by NodeIdExtension.appendTransaction.
+        // Preserved on Werkstufe full-copy (content copied 1:1 → Invariante 1.3).
+        // Required on ALL top-level block types for revision tracking and diff.
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-node-id') || null,
+        renderHTML: (attrs) => attrs.node_id ? { 'data-node-id': attrs.node_id } : {},
       },
     }
   },

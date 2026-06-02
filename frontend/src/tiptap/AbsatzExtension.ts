@@ -53,6 +53,14 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
         parseHTML: (el) => el.getAttribute('data-format-name') || null,
         renderHTML: (attrs) => attrs.format_name ? { 'data-format-name': attrs.format_name } : {},
       },
+      node_id: {
+        // Stable per-block UUID. Assigned by NodeIdExtension.appendTransaction.
+        // Preserved on Werkstufe full-copy (content copied 1:1 → Invariante 1.3).
+        // Required on ALL top-level block types for revision tracking and diff.
+        default: null,
+        parseHTML: (el) => el.getAttribute('data-node-id') || null,
+        renderHTML: (attrs) => attrs.node_id ? { 'data-node-id': attrs.node_id } : {},
+      },
     }
   },
 
