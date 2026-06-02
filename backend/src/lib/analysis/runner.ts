@@ -53,6 +53,7 @@ export interface PreparedAnalysisContext {
   block_nummer: number
   folge_nummer?: number | null
   block_version_hash: string
+  force_fresh?: boolean
 }
 
 // ── Schritt 1: Synchrone Vorbereitung (nur DB-Queries, kein KI-Aufruf) ────────
@@ -218,6 +219,7 @@ export async function prepareAnalysisRun(opts: {
     block_nummer,
     folge_nummer: folge_nummer ?? null,
     block_version_hash,
+    force_fresh: (opts as any).force_fresh ?? false,
   }
 }
 
@@ -226,7 +228,7 @@ export async function prepareAnalysisRun(opts: {
 export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<void> {
   const {
     run_id, methods, szenen, folgenRows, werkstufenRows, roteRosenMeta,
-    produktionRow, dreh_von, dreh_bis, block_nummer, block_version_hash,
+    produktionRow, dreh_von, dreh_bis, block_nummer, block_version_hash, force_fresh,
   } = ctx
 
   // Status auf 'running' setzen
@@ -246,8 +248,8 @@ export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<
 
     const isVisual = ['strang_heatmap', 'figuren_agency', 'vonnegut_arcs'].includes(method)
 
-    // Cache-Lookup
-    const cached = await queryOne(
+    // Cache-Lookup (übersprungen wenn force_fresh)
+    const cached = force_fresh ? null : await queryOne(
       `SELECT mr.id, mr.result_markdown, mr.result_structured, mr.duration_ms
        FROM analysis_method_results mr
        JOIN analysis_runs ar ON ar.id = mr.run_id

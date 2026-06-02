@@ -4,6 +4,7 @@ import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
 import { useTerminologie } from '../../sw-ui'
+import ChecklistenModal from '../ChecklistenModal'
 
 const SICHTBARKEIT_ICONS: Record<string, React.ReactNode> = {
   privat:     <Lock size={11} />,
@@ -79,6 +80,7 @@ export default function EditorPanelHeader({
   const sichtbarkeitContainerRef = useRef<HTMLDivElement>(null)
   const [labelError, setLabelError] = useState<string | null>(null)
   const [stageLabels, setStageLabels] = useState<{ id: number; name: string; is_produktionsfassung: boolean }[]>([])
+  const [checkGateModal, setCheckGateModal] = useState<{ label: string } | null>(null)
   const [colabGruppen, setColabGruppen] = useState<Array<{ id: string; name: string }>>([])
   const [sichtbarkeitSaving, setSichtbarkeitSaving] = useState(false)
   const [revisionColors, setRevisionColors] = useState<{ id: number; name: string; color: string }[]>([])
@@ -152,7 +154,7 @@ export default function EditorPanelHeader({
     : saveStatus === 'error' ? '● Fehler'
     : ''
 
-  return (
+  return (<>
     <div className="editor-panel-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', rowGap: 4, padding: '5px 10px', borderBottom: '1px solid var(--border)', background: 'var(--bg-surface)', flexShrink: 0 }}>
 
       {/* LEFT: Werkfassung, Fassungslabel, Version */}
@@ -305,7 +307,13 @@ export default function EditorPanelHeader({
                     onClick={async (e) => {
                       e.stopPropagation()
                       const newLabel = selectedWerk.label === sl.name ? '' : sl.name
+                      setShowLabelMenu(false)
                       setLabelError(null)
+                      // Produktionsfassung-Labels → Check-Gate Modal anzeigen (nur beim Setzen, nicht Entfernen)
+                      if (sl.is_produktionsfassung && newLabel) {
+                        setCheckGateModal({ label: newLabel })
+                        return
+                      }
                       try {
                         await api.updateWerkstufe(selectedWerk.id, { label: newLabel })
                         clearCacheByPrefix('/v2/folgen/')
@@ -316,7 +324,6 @@ export default function EditorPanelHeader({
                         setLabelError('Fassung nicht mehr vorhanden – Ansicht wurde aktualisiert.')
                         console.error('Label update failed:', err)
                       }
-                      setShowLabelMenu(false)
                     }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8, width: '100%',
@@ -849,5 +856,23 @@ export default function EditorPanelHeader({
 
       </div>{/* end RIGHT */}
     </div>
-  )
+
+    {/* ChecklistenModal — Check-Gate vor Produktionsfassung-Label */}
+    {checkGateModal && selectedWerk && (
+      <ChecklistenModal
+        werkstufId={selectedWerk.id}
+        targetLabel={checkGateModal.label}
+        onCancel={() => setCheckGateModal(null)}
+        onConfirm={async (override) => {
+          await api.updateWerkstufe(selectedWerk.id, {
+            label: checkGateModal.label,
+            ...(override ? { allow_check_warnings: true } : {}),
+          })
+          clearCacheByPrefix('/v2/folgen/')
+          onReloadWerkstufen()
+          setCheckGateModal(null)
+        }}
+      />
+    )}
+  </>)
 }

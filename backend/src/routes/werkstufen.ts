@@ -3,6 +3,7 @@ import { pool, query, queryOne } from '../db'
 import { authMiddleware, requireRole } from '../auth'
 import { applyVorlage } from './dokument-vorlagen'
 import { calcPageLength } from '../utils/calcPageLength'
+import { getEffectiveCheckConfig } from './checks'
 
 // ── Werkstufen Router ────────────────────────────────────────────────────────
 // Mounted at /api/folgen/:folgeId/werkstufen AND /api/werkstufen
@@ -329,6 +330,7 @@ werkstufenRouter.put('/:id', async (req, res) => {
 
     // When label changes: check if new label is a Produktionsfassung label
     let autoBearbeitungStatus: string | null = null
+    let _labelProdId: string | null = null
     if (hasLabel) {
       // Advisory lock per Produktion — serialisiert parallele Label-Sets gegen laufende Renames
       const _prodIdRes = await client.query(
@@ -336,6 +338,7 @@ werkstufenRouter.put('/:id', async (req, res) => {
         [req.params.id]
       )
       const _prodId = _prodIdRes.rows[0]?.produktion_id
+      _labelProdId = _prodId ?? null
       if (_prodId) await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [_prodId])
       if (labelVal) {
         // Look up the stage_label by name within the same produktion
@@ -356,6 +359,47 @@ werkstufenRouter.put('/:id', async (req, res) => {
       } else {
         // Label cleared — unlock
         autoBearbeitungStatus = 'entwurf'
+      }
+    }
+
+    // Check-Gate: beim Setzen eines Produktionsfassung-Labels Blockers aus szenen_check_ergebnisse prüfen.
+    // allow_check_warnings=true im Body erlaubt es, trotz Warnungen fortzufahren (Override wird geloggt).
+    if (autoBearbeitungStatus === 'gesperrt' && _labelProdId) {
+      try {
+        const cfg = await getEffectiveCheckConfig(_labelProdId)
+        const resultRes = await client.query(`
+          SELECT sce.check_typ, sce.schwere, sce.meldung, sce.meta, ds.scene_nummer, sce.dokument_szene_id
+          FROM szenen_check_ergebnisse sce
+          JOIN dokument_szenen ds ON ds.id = sce.dokument_szene_id
+          WHERE sce.werkstufe_id = $1 AND sce.behoben IS NOT TRUE
+        `, [req.params.id])
+
+        const blockers: any[] = []
+        const warnungen: any[] = []
+        for (const r of resultRes.rows) {
+          const checkCfg = cfg[r.check_typ]
+          if (!checkCfg?.enabled) continue
+          const gating = checkCfg.lock_gating ?? 'off'
+          const finding = { check_typ: r.check_typ, scene_nummer: r.scene_nummer, szene_id: r.dokument_szene_id, meldung: r.meldung, schwere: r.schwere }
+          if (gating === 'blocker' && r.schwere === 'blocker') blockers.push(finding)
+          else if (gating === 'warnung') warnungen.push(finding)
+        }
+
+        if (blockers.length > 0) {
+          await client.query('ROLLBACK')
+          return res.status(409).json({ error: 'check_gate_blocked', blockers, warnungen })
+        }
+        if (warnungen.length > 0 && !req.body.allow_check_warnings) {
+          await client.query('ROLLBACK')
+          return res.status(409).json({ error: 'check_gate_warnings', blockers: [], warnungen })
+        }
+        if (warnungen.length > 0 && req.body.allow_check_warnings) {
+          const userId = (req as any).user?.user_id ?? 'unknown'
+          console.log(`[check-gate-override] Werkstufe ${req.params.id} locked with ${warnungen.length} warnings by ${userId}`)
+        }
+      } catch (gateErr) {
+        console.error('[check-gate] Non-fatal gate check error:', gateErr)
+        // Gate errors are non-fatal — allow lock to proceed
       }
     }
 

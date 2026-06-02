@@ -1060,6 +1060,56 @@ router.get('/werkstufe/:id/badges', async (req, res) => {
   }
 })
 
+// GET /api/checks/werkstufe/:id/gate-summary — persisted findings grouped by lock-gating
+// Used by ChecklistenModal before applying a Produktionsfassung label.
+// Does NOT re-run checks — reads from szenen_check_ergebnisse (run batch first).
+router.get('/werkstufe/:id/gate-summary', async (req, res) => {
+  try {
+    const werkstufId = req.params.id
+    const wsRes = await pool.query(
+      `SELECT f.produktion_id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      [werkstufId]
+    )
+    if (!wsRes.rows[0]) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    const produktionId = wsRes.rows[0].produktion_id as string
+    const cfg = await getEffectiveCheckConfig(produktionId)
+
+    const { rows } = await pool.query<any>(`
+      SELECT sce.id, sce.check_typ, sce.schwere, sce.meldung, sce.meta,
+             ds.scene_nummer, sce.dokument_szene_id
+      FROM szenen_check_ergebnisse sce
+      JOIN dokument_szenen ds ON ds.id = sce.dokument_szene_id
+      WHERE sce.werkstufe_id = $1 AND sce.behoben IS NOT TRUE
+      ORDER BY ds.scene_nummer, sce.schwere DESC
+    `, [werkstufId])
+
+    const blockers: any[] = []
+    const warnungen: any[] = []
+    const hinweise: any[] = []
+
+    for (const row of rows) {
+      const checkCfg = cfg[row.check_typ]
+      if (!checkCfg?.enabled) continue
+      const gating = checkCfg.lock_gating ?? 'off'
+      if (gating === 'off') continue
+      const finding = {
+        id: row.id, check_typ: row.check_typ, schwere: row.schwere,
+        meldung: row.meldung, meta: row.meta,
+        scene_nummer: row.scene_nummer, szene_id: row.dokument_szene_id,
+      }
+      if (gating === 'blocker' && row.schwere === 'blocker') {
+        blockers.push(finding)
+      } else if (gating === 'warnung') {
+        warnungen.push(finding)
+      } else {
+        hinweise.push(finding)
+      }
+    }
+
+    res.json({ has_blockers: blockers.length > 0, has_warnungen: warnungen.length > 0, blockers, warnungen, hinweise })
+  } catch (err) { res.status(500).json({ error: String(err) }) }
+})
+
 // PATCH /api/checks/:id/behoben — mark a single check result as resolved
 router.patch('/:id/behoben', async (req, res) => {
   try {
