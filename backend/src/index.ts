@@ -469,6 +469,8 @@ async function runMigrations() {
     'v180_ki_providers_base_url_gemini.sql',
     // PR 11: import_jobs-Tabelle für 3-Tier-PDF-Import
     'v181_import_jobs.sql',
+    // Glossar: "Im Unterbruch" (neu) + CA erklaerung_lang
+    'v182_glossar_im_unterbruch_ca.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
