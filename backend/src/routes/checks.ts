@@ -76,7 +76,22 @@ const DEFAULT_CONFIG: Record<string, CheckConfigEntry> = {
   spieltag_inkonsistent:     { enabled: true,  auto: false, lock_gating: 'warnung' },
   nt_verweis:                { enabled: true,  auto: true,  lock_gating: 'off' },
   // KI-Checks — immer auto:false
-  oneliner_qualitaet:        { enabled: false, auto: false, lock_gating: 'off' },
+  oneliner_qualitaet:            { enabled: false, auto: false, lock_gating: 'off' },
+  // Phase 2: Vollständiger Katalog
+  'szenenkopf.pflichtfelder':        { enabled: true,  auto: true,  lock_gating: 'blocker' },
+  'scene.unique_szenennummer':       { enabled: true,  auto: true,  lock_gating: 'blocker' },
+  'scene.empty':                     { enabled: true,  auto: true,  lock_gating: 'warnung' },
+  'motiv.einheitliche_schreibweise': { enabled: true,  auto: true,  lock_gating: 'warnung', autofix_mode: '1klick' },
+  'rolle.einheitliche_schreibweise': { enabled: true,  auto: true,  lock_gating: 'warnung', autofix_mode: '1klick' },
+  'dialog.endet_satzzeichen':        { enabled: true,  auto: true,  lock_gating: 'off',     autofix_mode: '1klick' },
+  'text.kein_leerzeichen_start':     { enabled: true,  auto: true,  lock_gating: 'off',     autofix_mode: 'silent' },
+  leere_bloecke:                     { enabled: true,  auto: true,  lock_gating: 'off',     autofix_mode: 'silent' },
+  doppelter_sprecher:                { enabled: true,  auto: true,  lock_gating: 'warnung', autofix_mode: '1klick' },
+  seitenzahl_im_bereich:             { enabled: false, auto: false, lock_gating: 'warnung' },
+  tageszeit_sequenz:                 { enabled: true,  auto: false, lock_gating: 'warnung' },
+  nt_replik_konsistenz:              { enabled: true,  auto: false, lock_gating: 'warnung' },
+  dramaturgischer_tag_chronologie:   { enabled: true,  auto: false, lock_gating: 'warnung' },
+  etablierungsshot_vorhanden:        { enabled: false, auto: false, lock_gating: 'off' },
 }
 
 // Reads the 'drehbuch_checks' JSON blob from production_app_settings and merges
@@ -115,7 +130,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
   const sceneRes = await pool.query<any>(`
     SELECT ds.id, ds.scene_identity_id, ds.werkstufe_id, ds.ort_name, ds.int_ext,
            ds.tageszeit, ds.stoppzeit_sek, ds.sondertyp, ds.content, ds.format,
-           ds.scene_nummer, f.produktion_id,
+           ds.scene_nummer, ds.sort_order, ds.spieltag, f.produktion_id,
            f.folge_nummer
     FROM dokument_szenen ds
     JOIN scene_identities si ON si.id = ds.scene_identity_id
@@ -362,7 +377,339 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     }
   }
 
+  // ── 8. Szenenkopf-Pflichtfelder ──────────────────────────────────────────
+  if (run('szenenkopf.pflichtfelder') && s.format !== 'notiz') {
+    const felder: Array<{ feld: string; label: string }> = [
+      { feld: 'int_ext',      label: 'I/A (Innen/Außen)' },
+      { feld: 'tageszeit',    label: 'Stimmung/Tageszeit' },
+      { feld: 'scene_nummer', label: 'Szenennummer' },
+      { feld: 'ort_name',     label: 'Motiv' },
+    ]
+    for (const { feld, label } of felder) {
+      if (!(s as any)[feld]?.trim()) {
+        results.push({
+          check_typ: 'szenenkopf.pflichtfelder',
+          schwere: 'blocker',
+          meldung: `${label} fehlt`,
+          meta: { feld },
+        })
+      }
+    }
+  }
+
+  // ── 9. Eindeutige Szenennummer ───────────────────────────────────────────
+  if (run('scene.unique_szenennummer') && s.scene_nummer?.trim()) {
+    const dupRes = await pool.query<any>(`
+      SELECT id FROM dokument_szenen
+      WHERE werkstufe_id = $1 AND scene_nummer = $2 AND id != $3 AND geloescht IS NOT TRUE
+    `, [s.werkstufe_id, s.scene_nummer, szeneId])
+    if (dupRes.rows.length > 0) {
+      results.push({
+        check_typ: 'scene.unique_szenennummer',
+        schwere: 'blocker',
+        meldung: `Szenennummer "${s.scene_nummer}" ist in dieser Werkstufe mehrfach vergeben`,
+        meta: { duplicate_ids: dupRes.rows.map((r: any) => r.id) },
+      })
+    }
+  }
+
+  // ── 10. Leere Szene ──────────────────────────────────────────────────────
+  // Ausschluss: Wechselschnitt und Stockshot sind by design inhaltsleer
+  if (run('scene.empty') && s.format !== 'notiz') {
+    const SONDERTYP_LEER = ['wechselschnitt', 'stockshot']
+    if (!SONDERTYP_LEER.includes(s.sondertyp)) {
+      if (!plaintext.trim()) {
+        results.push({
+          check_typ: 'scene.empty',
+          schwere: 'warnung',
+          meldung: 'Szene hat keinen Inhalt',
+        })
+      }
+    }
+  }
+
+  // ── 11. Motiv-Schreibweise ───────────────────────────────────────────────
+  if (run('motiv.einheitliche_schreibweise') && s.ort_name?.trim()) {
+    const motivRes = await pool.query<any>(`
+      SELECT ort_name, COUNT(*) AS anzahl
+      FROM dokument_szenen
+      WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
+        AND LOWER(ort_name) = LOWER($2) AND ort_name != $3
+      GROUP BY ort_name ORDER BY anzahl DESC LIMIT 1
+    `, [s.werkstufe_id, s.ort_name, s.ort_name])
+    if (motivRes.rows[0]) {
+      const vorschlag = motivRes.rows[0].ort_name
+      results.push({
+        check_typ: 'motiv.einheitliche_schreibweise',
+        schwere: 'warnung',
+        meldung: `Motiv "${s.ort_name}" — häufigere Schreibweise "${vorschlag}" (${motivRes.rows[0].anzahl}×)`,
+        meta: { aktuell: s.ort_name, vorschlag, szene_id: szeneId },
+      })
+    }
+  }
+
+  // ── 12. Rollen-Schreibweise ──────────────────────────────────────────────
+  if (run('rolle.einheitliche_schreibweise')) {
+    const allCharsRes = await pool.query<any>(`
+      SELECT c.id, c.name FROM characters c
+      JOIN character_productions cp ON cp.character_id = c.id
+      WHERE cp.produktion_id = $1
+    `, [s.produktion_id])
+    const charByUpper = new Map<string, string>(
+      allCharsRes.rows.map((c: any) => [c.name.toUpperCase(), c.name as string])
+    )
+    const schreibweiseViolos: Array<{ gefunden: string; canonical: string }> = []
+    for (const node of content) {
+      if (!isCharacterNode(node)) continue
+      const rawName = extractText(node).trim()
+      if (!rawName) continue
+      const { name } = parseNtSuffix(rawName)
+      const canonical = charByUpper.get(name.toUpperCase())
+      if (canonical && canonical !== name) {
+        if (!schreibweiseViolos.some(v => v.gefunden === name)) {
+          schreibweiseViolos.push({ gefunden: name, canonical })
+        }
+      }
+    }
+    if (schreibweiseViolos.length > 0) {
+      results.push({
+        check_typ: 'rolle.einheitliche_schreibweise',
+        schwere: 'warnung',
+        meldung: `${schreibweiseViolos.length} Rollenname${schreibweiseViolos.length !== 1 ? 'n weichen' : ' weicht'} von der Rollendatei ab`,
+        meta: { violations: schreibweiseViolos },
+      })
+    }
+  }
+
+  // ── 13. Dialog endet mit Satzzeichen ────────────────────────────────────
+  if (run('dialog.endet_satzzeichen') && s.format === 'drehbuch') {
+    const SATZZEICHEN = /[.!?…\u2026"»]$/
+    let replikNr = 0
+    const dialogViolos: number[] = []
+    for (let i = 0; i < content.length; i++) {
+      if (isCharacterNode(content[i])) replikNr++
+      if (isDialogueNode(content[i])) {
+        const text = extractText(content[i]).trim()
+        if (text && !SATZZEICHEN.test(text)) dialogViolos.push(replikNr)
+      }
+    }
+    if (dialogViolos.length > 0) {
+      results.push({
+        check_typ: 'dialog.endet_satzzeichen',
+        schwere: 'hinweis',
+        meldung: `${dialogViolos.length} Dialog-Block${dialogViolos.length !== 1 ? 'e' : ''} ohne abschließendes Satzzeichen`,
+        meta: { replik_nummern: dialogViolos },
+      })
+    }
+  }
+
+  // ── 14. Kein führendes Leerzeichen ───────────────────────────────────────
+  if (run('text.kein_leerzeichen_start')) {
+    const leerzeichenViolos: number[] = []
+    for (let i = 0; i < content.length; i++) {
+      const node = content[i]
+      if (node.type !== 'screenplay_element' && node.type !== 'absatz') continue
+      if (/^ /.test(extractText(node))) leerzeichenViolos.push(i)
+    }
+    if (leerzeichenViolos.length > 0) {
+      results.push({
+        check_typ: 'text.kein_leerzeichen_start',
+        schwere: 'hinweis',
+        meldung: `${leerzeichenViolos.length} Block${leerzeichenViolos.length !== 1 ? 'e' : ''} mit führendem Leerzeichen`,
+        meta: { node_indices: leerzeichenViolos },
+      })
+    }
+  }
+
+  // ── 15. Leere Blöcke ─────────────────────────────────────────────────────
+  if (run('leere_bloecke')) {
+    const leereCount = content.filter((node: any) =>
+      (node.type === 'screenplay_element' || node.type === 'absatz') &&
+      !extractText(node).trim()
+    ).length
+    if (leereCount > 0) {
+      results.push({
+        check_typ: 'leere_bloecke',
+        schwere: 'hinweis',
+        meldung: `${leereCount} leere${leereCount !== 1 ? '' : 'r'} Block${leereCount !== 1 ? 'e' : ''}`,
+      })
+    }
+  }
+
+  // ── 16. Doppelter Sprecher ────────────────────────────────────────────────
+  if (run('doppelter_sprecher')) {
+    let replikNr = 0
+    const doppeltViolos: Array<{ replik_a: number; replik_b: number; node_index: number }> = []
+    for (let i = 0; i < content.length - 1; i++) {
+      if (!isCharacterNode(content[i])) continue
+      replikNr++
+      // Suche nächsten nicht-leeren Node
+      let j = i + 1
+      while (j < content.length && !extractText(content[j]).trim()) j++
+      if (j < content.length && isCharacterNode(content[j])) {
+        doppeltViolos.push({ replik_a: replikNr, replik_b: replikNr + 1, node_index: i })
+      }
+    }
+    if (doppeltViolos.length > 0) {
+      results.push({
+        check_typ: 'doppelter_sprecher',
+        schwere: 'warnung',
+        meldung: `${doppeltViolos.length} doppelter Sprecher-Block${doppeltViolos.length !== 1 ? 'e' : ''}: Replik ${doppeltViolos.map(v => `${v.replik_a}/${v.replik_b}`).join(', ')}`,
+        meta: { violations: doppeltViolos },
+      })
+    }
+  }
+
+  // ── 17. Tageszeit-Sequenz ─────────────────────────────────────────────────
+  if (run('tageszeit_sequenz') && s.tageszeit && s.spieltag != null && s.sort_order != null) {
+    const stimmungen = await getStimmungen(s.produktion_id)
+    const stimmungPos = new Map<string, number>(stimmungen.map((st: any) => [st.name as string, st.position as number]))
+    const currentStimmungPos = stimmungPos.get(s.tageszeit)
+    if (currentStimmungPos !== undefined) {
+      const prevRes = await pool.query<any>(`
+        SELECT id, scene_nummer, tageszeit, spieltag
+        FROM dokument_szenen
+        WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE AND id != $2
+          AND sort_order < $3 AND spieltag = $4
+        ORDER BY sort_order DESC LIMIT 1
+      `, [s.werkstufe_id, szeneId, s.sort_order, s.spieltag])
+      if (prevRes.rows[0]) {
+        const prev = prevRes.rows[0]
+        const prevPos = stimmungPos.get(prev.tageszeit) ?? -1
+        if (prevPos > currentStimmungPos) {
+          results.push({
+            check_typ: 'tageszeit_sequenz',
+            schwere: 'warnung',
+            meldung: `Tageszeit geht zurück: "${prev.tageszeit}" (Sz. ${prev.scene_nummer}) → "${s.tageszeit}" am selben Spieltag SP${s.spieltag}`,
+            meta: { vorige_szene_id: prev.id, vorige_scene_nummer: prev.scene_nummer },
+          })
+        }
+      }
+    }
+  }
+
+  // ── 18. Dramaturgischer Tag — Chronologie ────────────────────────────────
+  if (run('dramaturgischer_tag_chronologie') && s.spieltag != null && s.sort_order != null) {
+    const prevDayRes = await pool.query<any>(`
+      SELECT id, scene_nummer, spieltag
+      FROM dokument_szenen
+      WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE AND id != $2
+        AND sort_order < $3 AND spieltag IS NOT NULL
+      ORDER BY sort_order DESC LIMIT 1
+    `, [s.werkstufe_id, szeneId, s.sort_order])
+    if (prevDayRes.rows[0]) {
+      const prev = prevDayRes.rows[0]
+      if (s.spieltag < prev.spieltag) {
+        results.push({
+          check_typ: 'dramaturgischer_tag_chronologie',
+          schwere: 'warnung',
+          meldung: `Spieltag SP${s.spieltag} liegt vor Sz. ${prev.scene_nummer} (SP${prev.spieltag})`,
+          meta: { vorige_szene_id: prev.id, vorige_scene_nummer: prev.scene_nummer, vorige_spieltag: prev.spieltag },
+        })
+      } else if (s.spieltag > prev.spieltag + 1) {
+        results.push({
+          check_typ: 'dramaturgischer_tag_chronologie',
+          schwere: 'warnung',
+          meldung: `Spieltag-Lücke: Sz. ${prev.scene_nummer} (SP${prev.spieltag}) → SP${s.spieltag}`,
+          meta: { vorige_szene_id: prev.id, vorige_scene_nummer: prev.scene_nummer, vorige_spieltag: prev.spieltag },
+        })
+      }
+    }
+  }
+
+  // ── 19. NT-Replik-Konsistenz ──────────────────────────────────────────────
+  // Liest den bereits berechneten konsistenz_status aus nt_eintraege.
+  // Die Aktualisierung des Status erfolgt durch den Batch-Handler (updateNtKonsistenzForWerkstufe).
+  if (run('nt_replik_konsistenz')) {
+    const ntKonsRes = await pool.query<any>(`
+      SELECT ne.id, ne.konsistenz_status, c.name AS char_name
+      FROM nt_eintraege ne
+      JOIN characters c ON c.id = ne.character_id
+      WHERE ne.werkstufe_id = $1 AND ne.scene_identity_id = $2
+        AND ne.veraltet = FALSE
+        AND ne.konsistenz_status IN ('block_fehlt', 'text_geaendert')
+    `, [s.werkstufe_id, s.scene_identity_id])
+    for (const nt of ntKonsRes.rows) {
+      results.push({
+        check_typ: 'nt_replik_konsistenz',
+        schwere: nt.konsistenz_status === 'block_fehlt' ? 'blocker' : 'warnung',
+        meldung: nt.konsistenz_status === 'block_fehlt'
+          ? `NT-Replik "${nt.char_name}": Basis-Block fehlt in der Arbeitsfassung`
+          : `NT-Replik "${nt.char_name}": Text hat sich gegenüber der Basis geändert`,
+        meta: { nt_eintrag_id: nt.id, char_name: nt.char_name, status: nt.konsistenz_status },
+      })
+    }
+  }
+
   return results
+}
+
+// ── NT-Konsistenz-Update für Werkstufe ────────────────────────────────────────
+// Repliziert die Kern-Logik des /tools/konsistenz-Endpoints (Handoff 1) für den
+// Batch-Handler. Findet die zuletzt eingefrorene Basis-Werkstufe derselben Folge
+// und aktualisiert konsistenz_status aller nt_eintraege der Arbeits-Werkstufe.
+
+async function updateNtKonsistenzForWerkstufe(werkstufeId: string): Promise<void> {
+  // Folge der Arbeits-Werkstufe
+  const wsRes = await pool.query<any>(`SELECT folge_id FROM werkstufen WHERE id = $1`, [werkstufeId])
+  if (!wsRes.rows[0]) return
+  const folgeId = wsRes.rows[0].folge_id
+
+  // Neueste eingefrorene Basis-Werkstufe derselben Folge
+  const basisRes = await pool.query<any>(`
+    SELECT id FROM werkstufen
+    WHERE folge_id = $1 AND eingefroren = TRUE AND id != $2
+    ORDER BY eingefroren_am DESC NULLS LAST LIMIT 1
+  `, [folgeId, werkstufeId])
+  const basisId: string | undefined = basisRes.rows[0]?.id
+  if (!basisId) return  // Keine eingefrorene Basis → kein Check möglich
+
+  // Basis-NT-Einträge indexieren
+  const basisEintraege = await pool.query<any>(`
+    SELECT character_id, scene_identity_id, repliken_text, repliken_node_ids
+    FROM nt_eintraege WHERE werkstufe_id = $1 AND veraltet = FALSE
+  `, [basisId])
+  const basisMap = new Map<string, any>(
+    basisEintraege.rows.map((e: any) => [`${e.character_id}::${e.scene_identity_id}`, e])
+  )
+
+  // Node-IDs der Arbeits-Werkstufe aufbauen
+  const szenen = await pool.query<any>(`
+    SELECT content FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht = FALSE
+  `, [werkstufeId])
+  const nodeIdSet = new Set<string>()
+  for (const sz of szenen.rows) {
+    const blocks: any[] = Array.isArray(sz.content) ? sz.content : []
+    for (const block of blocks) {
+      const nid = block?.attrs?.node_id
+      if (nid) nodeIdSet.add(nid as string)
+    }
+  }
+
+  // Konsistenz-Status pro NT-Eintrag berechnen und aktualisieren
+  const arbeit = await pool.query<any>(`
+    SELECT id, character_id, scene_identity_id, repliken_text, repliken_node_ids
+    FROM nt_eintraege WHERE werkstufe_id = $1 AND veraltet = FALSE
+  `, [werkstufeId])
+
+  for (const eintrag of arbeit.rows) {
+    const key = `${eintrag.character_id}::${eintrag.scene_identity_id}`
+    const basis = basisMap.get(key)
+    if (!basis) continue  // Neuer Eintrag ohne Basis → 'neu', kein Update nötig
+
+    const basisNodeIds: string[] = basis.repliken_node_ids ?? []
+    const fehlend = basisNodeIds.filter((nid: string) => !nodeIdSet.has(nid))
+    const newStatus = fehlend.length > 0
+      ? 'block_fehlt'
+      : eintrag.repliken_text !== basis.repliken_text
+        ? 'text_geaendert'
+        : 'ok'
+
+    await pool.query(
+      `UPDATE nt_eintraege SET konsistenz_status = $1, aktualisiert_am = NOW() WHERE id = $2`,
+      [newStatus, eintrag.id]
+    )
+  }
 }
 
 // ── Persist results ───────────────────────────────────────────────────────────
@@ -449,6 +796,14 @@ router.post('/werkstufe/:id/batch', async (req, res) => {
       `SELECT id FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE`,
       [werkstufId]
     )
+
+    // NT-Konsistenz-Status aktualisieren bevor per-Szene-Checks laufen,
+    // damit nt_replik_konsistenz aktuelle Werte liest.
+    const runNtKonsistenz = !checksOverride || checksOverride.includes('nt_replik_konsistenz')
+    if (runNtKonsistenz) {
+      await updateNtKonsistenzForWerkstufe(werkstufId).catch(() => {})
+    }
+
     let total = 0
     for (const row of szenenRes.rows) {
       const results = await runChecks(row.id, false, checksOverride && checksOverride.length > 0 ? checksOverride : null)

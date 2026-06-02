@@ -13,29 +13,79 @@ interface CheckMeta {
 }
 
 const CHECK_META: Record<string, CheckMeta> = {
+  // Szenenkopf
+  'szenenkopf.pflichtfelder': {
+    label: 'Pflichtfelder (I/A, Stimmung, Sz.-Nr., Motiv)', ki: false, auto: true,
+    tooltip: 'Prüft ob alle Pflichtfelder im Szenenkopf ausgefüllt sind.\nFehlende Pflichtfelder blockieren den Lock.',
+  },
   motiv_leer: {
     label: 'Motiv angegeben?', ki: false, auto: true,
     tooltip: 'Prüft ob das Motiv-Feld ausgefüllt ist.',
+  },
+  'motiv.einheitliche_schreibweise': {
+    label: 'Motiv-Schreibweise einheitlich', ki: false, auto: true,
+    tooltip: 'Erkennt wenn dasselbe Motiv in unterschiedlicher Schreibweise vorkommt.\nAutofix: häufigste Schreibweise übernehmen.',
   },
   duplikat_motiv: {
     label: 'Duplikat-Motiv im Block', ki: false, auto: true,
     tooltip: 'Erkennt wenn dieselbe Motivkombination bereits in einer anderen Szene der Folge vorkommt.',
   },
+  // Szenennummer
+  'scene.unique_szenennummer': {
+    label: 'Eindeutige Szenennummer', ki: false, auto: true,
+    tooltip: 'Doppelte Szenennummer in der Werkstufe blockiert den Lock.',
+  },
+  // Inhalt
+  'scene.empty': {
+    label: 'Szene hat Inhalt', ki: false, auto: true,
+    tooltip: 'Warnt bei leeren Szenen.\nWechselschnitte und Stockshots sind ausgenommen (by design leer).',
+  },
+  // Rollen
   rollen_konsistenz: {
     label: 'Rollen-Konsistenz', ki: false, auto: true,
     tooltip: 'Vergleicht Rollen im Szenenkopf mit GROSSBUCHSTABEN-Namen im Text.',
   },
+  'rolle.einheitliche_schreibweise': {
+    label: 'Rollen-Schreibweise (Rollendatei)', ki: false, auto: true,
+    tooltip: 'Prüft ob Rollennamen in CHARACTER-Zeilen exakt mit der Rollendatei übereinstimmen.',
+  },
   fehlender_dialog: {
     label: 'Fehlender Dialog', ki: false, auto: true,
-    tooltip: 'Prüft ob nach jedem Character-Element tatsächlich ein Dialog folgt.\nRolle ohne Dialog ist ein häufiger Schreibfehler.',
+    tooltip: 'Prüft ob nach jedem Character-Element tatsächlich ein Dialog folgt.\nRolle ohne Dialog blockiert den Lock.',
   },
+  // Format & Text
   sondertyp_wechselschnitt: {
     label: 'Sondertypen & Wechselschnitte', ki: false, auto: true,
     tooltip: 'Prüft ob "Wechselschnitt" markiert ist und Telefonpartner angegeben.',
   },
+  doppelter_sprecher: {
+    label: 'Doppelter Sprecher-Block', ki: false, auto: true,
+    tooltip: 'Zwei CHARACTER-Zeilen hintereinander ohne Dialog dazwischen.',
+  },
+  'dialog.endet_satzzeichen': {
+    label: 'Dialog endet mit Satzzeichen', ki: false, auto: true,
+    tooltip: 'Prüft ob Dialog-Blöcke mit einem Satzzeichen enden (., !, ?, …).',
+  },
+  'text.kein_leerzeichen_start': {
+    label: 'Kein führendes Leerzeichen', ki: false, auto: true,
+    tooltip: 'Findet Blöcke mit ungewolltem führendem Leerzeichen.',
+  },
+  leere_bloecke: {
+    label: 'Leere Blöcke entfernen', ki: false, auto: true,
+    tooltip: 'Leere screenplay_element/absatz-Blöcke im Dokument.',
+  },
+  // Timing & Dramaturgie
   stoppzeit_plausibilitaet: {
     label: 'Stoppzeit-Plausibilität', ki: false, auto: false,
     tooltip: 'Vergleicht die Stoppzeit mit der geschätzten Spielzeit aus der Textlänge.',
+  },
+  tageszeit_sequenz: {
+    label: 'Tageszeit-Sequenz', ki: false, auto: false,
+    tooltip: 'Prüft ob die Tageszeit innerhalb eines Spieltags in der richtigen DK-Reihenfolge vorwärts geht.',
+  },
+  dramaturgischer_tag_chronologie: {
+    label: 'Spieltag-Chronologie', ki: false, auto: false,
+    tooltip: 'Prüft ob die Spieltag-Nummern in der richtigen Reihenfolge sind (keine Sprünge oder Rückschritte).',
   },
   spieltag_inkonsistent: {
     label: 'Dramaturgischer Tag (Spieltag)', ki: false, auto: false,
@@ -45,10 +95,16 @@ const CHECK_META: Record<string, CheckMeta> = {
     label: 'Strang-Zuordnung', ki: false, auto: true,
     tooltip: 'Prüft ob die Szene mindestens einem Story-Strang zugeordnet ist.',
   },
+  // NT & Konsistenz
+  nt_replik_konsistenz: {
+    label: 'NT-Replik-Konsistenz (Basis-Vergleich)', ki: false, auto: false,
+    tooltip: 'Vergleicht NT-Repliken mit der eingefrorenen Basis-Werkstufe.\nFehlende Basis-Blöcke sind Blocker-Kandidaten.',
+  },
   nt_verweis: {
     label: 'NT-Notiz synchronisieren', ki: false, auto: true,
     tooltip: 'Aktualisiert automatisch die NT-Zeilen in der Szenenkopf-Notiz:\nNT/VO/OFF → "NT Name", "Name im Off"\n(ONE-WAY) → "Oneway Telefonat"\nLäuft ohne Rückmeldung im Hintergrund.',
   },
+  // KI
   oneliner_qualitaet: {
     label: 'Oneliner-Qualität', ki: true, auto: false,
     tooltip: '✨ KI-Feature — prüft ob der Oneliner den emotionalen Kern wiedergibt.\nVerursacht API-Kosten.',
@@ -56,11 +112,11 @@ const CHECK_META: Record<string, CheckMeta> = {
 }
 
 const GROUPS: { label: string; keys: string[] }[] = [
-  { label: 'Inhalt', keys: ['motiv_leer', 'duplikat_motiv'] },
-  { label: 'Rollen', keys: ['rollen_konsistenz', 'fehlender_dialog'] },
-  { label: 'Struktur', keys: ['sondertyp_wechselschnitt', 'stoppzeit_plausibilitaet'] },
-  { label: 'Dramaturgisch', keys: ['spieltag_inkonsistent', 'strang_zuordnung'] },
-  { label: 'Auto-Korrekturen', keys: ['nt_verweis'] },
+  { label: 'Szenenkopf', keys: ['szenenkopf.pflichtfelder', 'motiv_leer', 'motiv.einheitliche_schreibweise', 'scene.unique_szenennummer', 'duplikat_motiv'] },
+  { label: 'Inhalt & Rollen', keys: ['scene.empty', 'rollen_konsistenz', 'rolle.einheitliche_schreibweise', 'fehlender_dialog'] },
+  { label: 'Format & Text', keys: ['sondertyp_wechselschnitt', 'doppelter_sprecher', 'dialog.endet_satzzeichen', 'text.kein_leerzeichen_start', 'leere_bloecke'] },
+  { label: 'Timing & Dramaturgie', keys: ['stoppzeit_plausibilitaet', 'tageszeit_sequenz', 'dramaturgischer_tag_chronologie', 'spieltag_inkonsistent', 'strang_zuordnung'] },
+  { label: 'NT & Konsistenz', keys: ['nt_replik_konsistenz', 'nt_verweis'] },
   { label: 'KI', keys: ['oneliner_qualitaet'] },
 ]
 
