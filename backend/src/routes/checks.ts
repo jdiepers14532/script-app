@@ -44,7 +44,7 @@ function parseNtSuffix(text: string): { name: string; suffix: string | null } {
   return { name: text, suffix: null }
 }
 
-type Schwere = 'hinweis' | 'fehler'
+type Schwere = 'blocker' | 'warnung' | 'hinweis'
 interface CheckResult {
   check_typ: string
   schwere: Schwere
@@ -52,31 +52,55 @@ interface CheckResult {
   meta?: any
 }
 
-// Default check config (all auto-checks on, KI-checks off)
-const DEFAULT_CONFIG: Record<string, { enabled: boolean; auto: boolean }> = {
-  motiv_leer:                { enabled: true,  auto: true  },
-  rollen_konsistenz:         { enabled: true,  auto: true  },
-  sondertyp_wechselschnitt:  { enabled: true,  auto: true  },
-  strang_zuordnung:          { enabled: true,  auto: true  },
-  duplikat_motiv:            { enabled: true,  auto: true  },
-  fehlender_dialog:          { enabled: true,  auto: true  },
-  stoppzeit_plausibilitaet:  { enabled: false, auto: false },
-  spieltag_inkonsistent:     { enabled: true,  auto: false },
-  nt_verweis:                { enabled: true,  auto: true  },
-  // KI-Checks — immer auto:false
-  oneliner_qualitaet:        { enabled: false, auto: false },
+// Four orthogonal axes per check:
+//   enabled     — check runs at all
+//   auto        — runs on autosave/batch; false = only on-demand or at lock time
+//   lock_gating — production-level lock policy: blocker | warnung | off
+//   autofix_mode — how a fix is presented: silent | 1klick | diff_bestaetigen | null
+export type CheckConfigEntry = {
+  enabled: boolean
+  auto: boolean
+  lock_gating: 'blocker' | 'warnung' | 'off'
+  autofix_mode?: 'silent' | '1klick' | 'diff_bestaetigen' | null
 }
 
-async function getCheckConfig(produktionId: string) {
+// Default check config (all auto-checks on, KI-checks off)
+const DEFAULT_CONFIG: Record<string, CheckConfigEntry> = {
+  motiv_leer:                { enabled: true,  auto: true,  lock_gating: 'warnung' },
+  rollen_konsistenz:         { enabled: true,  auto: true,  lock_gating: 'warnung', autofix_mode: '1klick' },
+  sondertyp_wechselschnitt:  { enabled: true,  auto: true,  lock_gating: 'warnung' },
+  strang_zuordnung:          { enabled: true,  auto: true,  lock_gating: 'off' },
+  duplikat_motiv:            { enabled: true,  auto: true,  lock_gating: 'warnung' },
+  fehlender_dialog:          { enabled: true,  auto: true,  lock_gating: 'blocker' },
+  stoppzeit_plausibilitaet:  { enabled: false, auto: false, lock_gating: 'warnung' },
+  spieltag_inkonsistent:     { enabled: true,  auto: false, lock_gating: 'warnung' },
+  nt_verweis:                { enabled: true,  auto: true,  lock_gating: 'off' },
+  // KI-Checks — immer auto:false
+  oneliner_qualitaet:        { enabled: false, auto: false, lock_gating: 'off' },
+}
+
+// Reads the 'drehbuch_checks' JSON blob from production_app_settings and merges
+// per-check with DEFAULT_CONFIG — saved overrides win, new checks get defaults.
+export async function getEffectiveCheckConfig(produktionId: string): Promise<Record<string, CheckConfigEntry>> {
   const res = await pool.query(
     `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'drehbuch_checks'`,
     [produktionId]
   )
   if (!res.rows[0]) return { ...DEFAULT_CONFIG }
   try {
-    const saved = JSON.parse(res.rows[0].value)
-    // Merge with defaults so new checks get their defaults
-    return { ...DEFAULT_CONFIG, ...saved }
+    const saved = JSON.parse(res.rows[0].value) as Record<string, Partial<CheckConfigEntry>>
+    const merged: Record<string, CheckConfigEntry> = {}
+    // Start from DEFAULT_CONFIG entries
+    for (const [key, def] of Object.entries(DEFAULT_CONFIG)) {
+      merged[key] = saved[key] ? { ...def, ...saved[key] } : { ...def }
+    }
+    // Include any blob-only keys (future checks stored before code ships)
+    for (const [key, overrides] of Object.entries(saved)) {
+      if (!merged[key]) {
+        merged[key] = { enabled: true, auto: true, lock_gating: 'warnung', ...overrides } as CheckConfigEntry
+      }
+    }
+    return merged
   } catch {
     return { ...DEFAULT_CONFIG }
   }
@@ -112,7 +136,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
   const plaintextForRollen = content.filter((n: any) => n.type !== 'absatz').map(extractText).join(' ')
   const plaintextForRollenUpper = plaintextForRollen.toUpperCase()
 
-  const cfg = await getCheckConfig(s.produktion_id)
+  const cfg = await getEffectiveCheckConfig(s.produktion_id)
 
   // Helper: should this check run?
   // If checksOverride provided → only run listed checks (ignores DK-Settings enabled/auto)
@@ -165,7 +189,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     if (missing.length > 0) {
       results.push({
         check_typ: 'rollen_konsistenz',
-        schwere: 'hinweis',
+        schwere: 'warnung',
         meldung: `${missing.map((c: any) => c.name.toUpperCase()).join(', ')} im Text, aber nicht in Rollen eingetragen`,
         meta: {
           missing_chars: missing.map((c: any) => ({ id: String(c.id), name: c.name })),
@@ -176,8 +200,12 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     if (unused.length > 0) {
       results.push({
         check_typ: 'rollen_konsistenz',
-        schwere: 'hinweis',
+        schwere: 'warnung',
         meldung: `${unused.map((sc: any) => sc.name.toUpperCase()).join(', ')} in Rollen eingetragen, aber nicht im Text`,
+        meta: {
+          unused_chars: unused.map((sc: any) => ({ id: String(sc.character_id), name: sc.name })),
+          scene_identity_id: s.scene_identity_id,
+        },
       })
     }
   }
@@ -295,7 +323,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
         // Leere Rollenzeile — kein Name eingetragen (erscheint ggf. nur mit Replik-Nr.)
         results.push({
           check_typ: 'fehlender_dialog',
-          schwere: 'fehler',
+          schwere: 'blocker',
           meldung: `Replik ${replikNr}: Leere Rollenzeile (kein Name eingetragen)`,
           meta: { char_name: '', empty_char: true, node_index: i, replik_nr: replikNr },
         })
@@ -308,7 +336,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
       if (j >= content.length || !isDialogueNode(content[j])) {
         results.push({
           check_typ: 'fehlender_dialog',
-          schwere: 'fehler',
+          schwere: 'blocker',
           meldung: `Replik ${replikNr} (${charText}): Rolle ohne Dialog`,
           meta: { char_name: charText, node_index: i, replik_nr: replikNr },
         })
@@ -454,10 +482,10 @@ router.post('/werkstufe/:id/batch', async (req, res) => {
   }
 })
 
-// GET /api/checks/config/:produktionId — merged check config for a production
+// GET /api/checks/config/:produktionId — merged check config for a production (all 4 axes)
 router.get('/config/:produktionId', async (req, res) => {
   try {
-    const cfg = await getCheckConfig(req.params.produktionId)
+    const cfg = await getEffectiveCheckConfig(req.params.produktionId)
     res.json(cfg)
   } catch (err) {
     res.status(500).json({ error: String(err) })
@@ -485,7 +513,7 @@ router.get('/werkstufe/:id/badges', async (req, res) => {
   try {
     const { rows } = await pool.query<any>(`
       SELECT dokument_szene_id AS szene_id, COUNT(*) AS issue_count,
-             bool_or(schwere = 'fehler') AS has_fehler
+             bool_or(schwere IN ('blocker', 'fehler')) AS has_fehler
       FROM szenen_check_ergebnisse
       WHERE werkstufe_id = $1 AND behoben = FALSE
       GROUP BY dokument_szene_id
@@ -809,4 +837,4 @@ router.post('/produktion/:pid/spieltag/fix', async (req: any, res) => {
   }
 })
 
-export { DEFAULT_CONFIG as checkDefaultConfig, router as checksRouter }
+export { DEFAULT_CONFIG as checkDefaultConfig, router as checksRouter, runChecks }

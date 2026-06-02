@@ -557,7 +557,8 @@ rollenFreigabeRouter.get('/:produktionId/lock-gate', authMiddleware, async (req,
       `SELECT name, sort_order FROM stage_labels WHERE produktion_id = $1 ORDER BY sort_order, id`,
       [req.params.produktionId]
     )
-    const labelIndex = new Map<string, number>(labelRows.map((r: any, i: number) => [r.name as string, i]))
+    // Bug 7 fix: use r.sort_order (DB value), not array index i
+    const labelIndex = new Map<string, number>(labelRows.map((r: any) => [r.name as string, r.sort_order as number]))
     const triggerPos = labelIndex.get(cfg.lock_trigger_fassungslabel) ?? -1
     const currentPos = labelIndex.get(wk.label) ?? -1
 
