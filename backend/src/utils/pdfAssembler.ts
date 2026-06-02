@@ -13,6 +13,7 @@ import * as path from 'path'
 import { request as httpsRequest } from 'https'
 import { request as httpRequest } from 'http'
 import { PDFDocument, PDFName, PDFNumber, PDFString, PDFNull, PDFHexString } from 'pdf-lib'
+import { getCompanyInfo } from './companyInfo'
 import { pool } from '../db'
 import type { ExportJobOptions, OrderedExportItem, JobResult } from './exportJobQueue'
 import {
@@ -2046,11 +2047,12 @@ export async function assemblePdf(
   // Producer/Creator: Herkunftsnachweis.
   const wmPayloadFinal = buildPayload(input.userId, input.werkstufId)
   {
+    const { company_name } = await getCompanyInfo()
     const wmDoc = await PDFDocument.load(pdfBytes)
     if (wmPayloadFinal) wmDoc.setKeywords([wmPayloadFinal])
-    wmDoc.setSubject('noai noimageai — KI-Training nicht gestattet. Urheberrechtlich geschützt. © Serienwerft Studio Hamburg GmbH.')
-    wmDoc.setProducer('Serienwerft Script-App — Unauthorized AI training of this document is prohibited.')
-    wmDoc.setCreator('Serienwerft Studio Hamburg GmbH')
+    wmDoc.setSubject(`noai noimageai — KI-Training nicht gestattet. Urheberrechtlich geschützt. © ${company_name}.`)
+    wmDoc.setProducer(`${company_name} Script-App — Unauthorized AI training of this document is prohibited.`)
+    wmDoc.setCreator(company_name)
     pdfBytes = await wmDoc.save()
   }
 

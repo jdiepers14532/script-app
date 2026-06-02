@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { getCompanyName } from '../utils/companyInfo'
 
 const AUTH_URL    = process.env.AUTH_INTERNAL_URL    ?? 'http://127.0.0.1:3002'
 const AUTH_KEY    = process.env.AUTH_INTERNAL_KEY    ?? ''
@@ -53,6 +54,7 @@ async function sendNotificationEmail(
   alteSicht: string,
   neueSicht: string,
 ): Promise<boolean> {
+  const companyName = await getCompanyName()
   const sichtLabels: Record<string, string> = {
     privat: 'Privat', colab: 'Colab', produktion: 'Produktion', alle: 'Alle',
   }
@@ -103,7 +105,7 @@ async function sendNotificationEmail(
     </p>
 
     <div class="footer">
-      Studio Hamburg Serienwerft · Script-App · Diese E-Mail wurde automatisch generiert.
+      ${companyName} · Script-App · Diese E-Mail wurde automatisch generiert.
     </div>
   </div>
 </body>
