@@ -481,6 +481,8 @@ async function runMigrations() {
     'v186_import_commit.sql',
     // Handoff 3: ki_settings für Check-Engine KI-Checks (oneliner_vorhanden, spielzeit_uhrzeit)
     'v187_ki_check_settings.sql',
+    // Handoff 3 §7: Audit-Tabelle für Check-Gate-Overrides
+    'v188_check_gate_overrides.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

@@ -391,7 +391,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
       { feld: 'ort_name',     label: 'Motiv' },
     ]
     for (const { feld, label } of felder) {
-      if (!(s as any)[feld]?.trim()) {
+      if (!String((s as any)[feld] ?? '').trim()) {
         results.push({
           check_typ: 'szenenkopf.pflichtfelder',
           schwere: 'blocker',

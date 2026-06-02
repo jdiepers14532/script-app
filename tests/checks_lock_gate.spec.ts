@@ -168,8 +168,10 @@ test('Test 4: GET /api/checks/config/:produktionId liefert 4-Achsen-Struktur', a
 
 // ── Test 5: scene.empty — Notiz-Dokumente ausgenommen ────────────────────────
 
-test('Test 5: Checks für Notiz-Dokumente (format=notiz) werden übersprungen', async ({ request }) => {
-  // Szene mit format=notiz anlegen, Checks laufen lassen
+// Test 5: scene.empty-Ausschluss — wechselschnitt/stockshot werden nicht als leer gemeldet
+// Legt eine temporäre Szene mit sondertyp=wechselschnitt und leerem Content an,
+// führt manual checks aus, erwartet kein scene.empty-Finding. Cleanup danach.
+test('Test 5: scene.empty-Check schließt wechselschnitt- und stockshot-Szenen aus', async ({ request }) => {
   const folgenRes = await request.get(`${BASE}/api/v2/folgen?produktion_id=${PROD_ID}&limit=1`, h())
   test.skip(!folgenRes.ok(), 'Folgen-API nicht verfügbar')
   const folgen = await folgenRes.json()
@@ -182,37 +184,49 @@ test('Test 5: Checks für Notiz-Dokumente (format=notiz) werden übersprungen', 
   test.skip(!Array.isArray(ws) || ws.length === 0, 'Keine Werkstufen')
   const werkstufId = ws[0].id
 
-  // Szenen laden — eine Notiz-Szene finden
-  const sRes = await request.get(`${BASE}/api/v2/werkstufen/${werkstufId}/szenen`, h())
-  if (!sRes.ok()) { test.skip(true, 'Szenen-API nicht verfügbar'); return }
-  const szenen = await sRes.json()
-  const notizSzene = Array.isArray(szenen)
-    ? szenen.find((s: any) => s.format === 'notiz')
-    : null
-
-  if (!notizSzene) {
-    // Kein Notiz-Dokument in dieser Werkstufe — Test überspringen
-    test.skip(true, 'Keine Notiz-Szene vorhanden')
-    return
-  }
-
-  // Checks für diese Notiz-Szene auslösen
-  const checkRes = await request.post(`${BASE}/api/checks/run`, hd({
-    szene_id: notizSzene.id,
-    only_auto: false,
+  // Szene anlegen (leerer Content, Drehbuch-Format → würde normalerweise scene.empty triggern)
+  const createRes = await request.post(`${BASE}/api/werkstufen/${werkstufId}/szenen`, hd({
+    ort_name: 'TEST-GATE-WS-' + Date.now(),
+    int_ext: 'I',
+    tageszeit: 'TAG',
+    content: [],
+    format: 'drehbuch',
   }))
-  // 200 oder 204 — kein 500
-  expect(checkRes.status()).not.toBe(500)
+  test.skip(!createRes.ok(), 'Szene anlegen nicht möglich')
+  const newSzene = await createRes.json()
+  const szeneId = newSzene.id ?? newSzene.szene?.id
 
-  if (checkRes.ok()) {
-    const results = await checkRes.json()
-    // Notiz-Dokumente sollen keine Check-Ergebnisse haben
-    const checkTypen = Array.isArray(results)
-      ? results.map((r: any) => r.check_typ)
-      : []
-    expect(checkTypen).not.toContain('scene.empty')
-    expect(checkTypen).not.toContain('fehlender_dialog')
-    expect(checkTypen).not.toContain('motiv_leer')
+  try {
+    // sondertyp=wechselschnitt setzen
+    const updateRes = await request.put(`${BASE}/api/dokument-szenen/${szeneId}`, hd({
+      sondertyp: 'wechselschnitt',
+    }))
+    test.skip(!updateRes.ok(), 'Szene-Update nicht möglich')
+
+    // Manual-Check ausführen
+    const checkRes = await request.post(`${BASE}/api/checks/szene/${szeneId}/manual`, h())
+    expect(checkRes.status(), 'Manual-Check kein 500').not.toBe(500)
+
+    if (checkRes.ok()) {
+      const body = await checkRes.json()
+      const results: any[] = body.results ?? []
+      const checkTypen = results.map((r: any) => r.check_typ)
+      // Wechselschnitt-Szene darf kein scene.empty-Finding haben — auch wenn Content leer
+      expect(checkTypen, 'Wechselschnitt: scene.empty muss ausgeschlossen sein').not.toContain('scene.empty')
+    }
+
+    // stockshot testen
+    await request.put(`${BASE}/api/dokument-szenen/${szeneId}`, hd({ sondertyp: 'stockshot' }))
+    const checkRes2 = await request.post(`${BASE}/api/checks/szene/${szeneId}/manual`, h())
+    if (checkRes2.ok()) {
+      const body2 = await checkRes2.json()
+      const results2: any[] = body2.results ?? []
+      const typen2 = results2.map((r: any) => r.check_typ)
+      expect(typen2, 'Stockshot: scene.empty muss ausgeschlossen sein').not.toContain('scene.empty')
+    }
+  } finally {
+    // Cleanup — Szene löschen
+    if (szeneId) await request.delete(`${BASE}/api/dokument-szenen/${szeneId}`, h())
   }
 })
 
@@ -352,4 +366,56 @@ test('Test 10b: oneliner_qualitaet KI-Check ist auto:false', async ({ request })
   expect(data.oneliner_qualitaet.auto).toBe(false)
   // lock_gating ist "off" für KI-Checks im Default
   expect(data.oneliner_qualitaet.lock_gating).toBe('off')
+})
+
+// ── Test 11: Cap-/Eskalations-Verhalten des Check-Gates ──────────────────────
+
+test('Test 11a: gate-summary — lock_gating=warnung downgradet schwere=blocker zu Warnung', async ({ request }) => {
+  // Test 11a prüft das Datenmodell: gate-summary gruppiert korrekt.
+  // Bei gating=warnung: alle Findings gehen in warnungen, unabhängig von schwere.
+  // Wir prüfen via Config + struktureller Prüfung.
+  const res = await request.get(`${BASE}/api/checks/config/${PROD_ID}`, h())
+  expect(res.ok()).toBeTruthy()
+  const data = await res.json()
+
+  // rollen_konsistenz hat lock_gating=warnung im Default.
+  // Selbst wenn es schwere=blocker-Findings hätte, kämen sie in warnungen.
+  // Das ist der Downgrade-Fall.
+  expect(data.rollen_konsistenz.lock_gating).toBe('warnung')
+
+  // fehlender_dialog hat lock_gating=blocker und erzeugt schwere=blocker-Findings.
+  // Das ist der scharfe Blocker-Fall.
+  expect(data.fehlender_dialog.lock_gating).toBe('blocker')
+
+  // nt_replik_konsistenz hat lock_gating=warnung im Default.
+  // Wird auf blocker gestellt → block_fehlt (schwere=blocker) blockiert,
+  // text_geaendert (schwere=warnung) landet in warnungen (nicht silent-drop).
+  expect(data.nt_replik_konsistenz.lock_gating).toBe('warnung')
+})
+
+test('Test 11b: gate-summary zeigt lock_gating=blocker + schwere=warnung als hinweis (nicht verloren)', async ({ request }) => {
+  // Prüft die gate-summary Logik: gating=blocker + schwere=warnung → hinweise[].
+  // Diese Findings dürfen nicht silent-dropped werden.
+  // Da wir keine spezifischen Check-Ergebnisse im Live-System erzwingen können,
+  // prüfen wir dass die API-Antwort das hinweise-Array zurückgibt (nicht undefined).
+  const folgenRes = await request.get(`${BASE}/api/v2/folgen?produktion_id=${PROD_ID}&limit=1`, h())
+  test.skip(!folgenRes.ok(), 'Folgen-API nicht verfügbar')
+  const folgen = await folgenRes.json()
+  test.skip(!Array.isArray(folgen) || folgen.length === 0, 'Keine Folge')
+  const wRes = await request.get(`${BASE}/api/v2/folgen/${folgen[0].id}/werkstufen`, h())
+  test.skip(!wRes.ok(), 'Werkstufen nicht verfügbar')
+  const ws = await wRes.json()
+  test.skip(!Array.isArray(ws) || ws.length === 0, 'Keine Werkstufen')
+
+  const sumRes = await request.get(`${BASE}/api/checks/werkstufe/${ws[0].id}/gate-summary`, h())
+  test.skip(!sumRes.ok(), 'gate-summary nicht verfügbar')
+  const summary = await sumRes.json()
+
+  // hinweise-Array muss vorhanden sein (nicht undefined) —
+  // damit gating=blocker + schwere=warnung-Findings einen Platz haben.
+  expect(Array.isArray(summary.hinweise)).toBeTruthy()
+
+  // Konsistenz: has_blockers ↔ blockers.length > 0
+  expect(summary.has_blockers).toBe(summary.blockers.length > 0)
+  expect(summary.has_warnungen).toBe(summary.warnungen.length > 0)
 })

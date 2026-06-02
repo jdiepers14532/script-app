@@ -380,9 +380,13 @@ werkstufenRouter.put('/:id', async (req, res) => {
           const checkCfg = cfg[r.check_typ]
           if (!checkCfg?.enabled) continue
           const gating = checkCfg.lock_gating ?? 'off'
+          if (gating === 'off') continue
           const finding = { check_typ: r.check_typ, scene_nummer: r.scene_nummer, szene_id: r.dokument_szene_id, meldung: r.meldung, schwere: r.schwere }
+          // lock_gating=blocker: nur schwere=blocker blockiert hart;
+          // schwere=warnung von einem blocker-konfigurierten Check → Warnung (nicht silent-drop).
+          // lock_gating=warnung: alles landet in Warnungen (Downgrade von blocker→warnung).
           if (gating === 'blocker' && r.schwere === 'blocker') blockers.push(finding)
-          else if (gating === 'warnung') warnungen.push(finding)
+          else warnungen.push(finding) // gating=warnung oder (gating=blocker aber schwere=warnung)
         }
 
         if (blockers.length > 0) {
@@ -395,7 +399,19 @@ werkstufenRouter.put('/:id', async (req, res) => {
         }
         if (warnungen.length > 0 && req.body.allow_check_warnings) {
           const userId = (req as any).user?.user_id ?? 'unknown'
-          console.log(`[check-gate-override] Werkstufe ${req.params.id} locked with ${warnungen.length} warnings by ${userId}`)
+          // Persistenter Audit-Trail (Handoff §7): wer, wann, welche Warnungen übersteuert.
+          await pool.query(
+            `INSERT INTO check_gate_overrides
+               (werkstufe_id, user_id, warnungen_count, warnungen_typen, warnungen_szenen)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [
+              req.params.id,
+              userId,
+              warnungen.length,
+              warnungen.map((w: any) => w.check_typ),
+              warnungen.map((w: any) => w.scene_nummer).filter((n: any) => n != null),
+            ]
+          )
         }
       } catch (gateErr) {
         console.error('[check-gate] Non-fatal gate check error:', gateErr)
