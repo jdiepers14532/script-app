@@ -499,6 +499,7 @@ async function runMigrations() {
     const paths = [
       path.join(__dirname, 'migrations', file),
       path.join(__dirname, '..', 'src', 'migrations', file),
+      path.join(__dirname, '..', 'migrations', file),
     ]
     let sql: string | null = null
     for (const p of paths) {
