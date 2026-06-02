@@ -1343,6 +1343,17 @@ export default function AnalysisPage() {
   const [error, setError] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // PDF-Optionen
+  const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape'>('portrait')
+  const [pdfFzText, setPdfFzText] = useState('')
+
+  useEffect(() => {
+    fetch('https://auth.serienwerft.studio/api/public/company-info')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => { if (d?.company_name) setPdfFzText(d.company_name) })
+      .catch(() => {})
+  }, [])
+
   const isPolling = activeRunId != null && (activeRunStatus === 'queued' || activeRunStatus === 'running')
 
   // ── Drag Handle ─────────────────────────────────────────────────────────────
@@ -1760,15 +1771,56 @@ export default function AnalysisPage() {
               </div>
             </div>
           ) : selectedRunData ? (
-            <ReportView
-              run={selectedRunData}
-              activeTab={selectedTab}
-              onTabChange={setSelectedTab}
-              onRerunMethod={handleRerunMethod}
-              onPreviewPdf={(method) => window.open(`/api/analysis/run/${selectedRunData.id}/pdf?method=${method}&inline=1`, '_blank')}
-              onDownloadPdf={(method) => window.open(`/api/analysis/run/${selectedRunData.id}/pdf?method=${method}`, '_blank')}
-              isPolling={isPolling}
-            />
+            <>
+              {/* PDF-Optionen */}
+              <div style={{
+                padding: '6px 20px', borderBottom: '1px solid var(--border)',
+                background: 'var(--bg-subtle)', flexShrink: 0,
+                display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap',
+              }}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>PDF</span>
+                {(['portrait', 'landscape'] as const).map(ori => (
+                  <button key={ori} onClick={() => setPdfOrientation(ori)} style={{
+                    padding: '3px 8px', borderRadius: 5, fontSize: 11, fontFamily: 'inherit',
+                    border: `1px solid ${pdfOrientation === ori ? '#007AFF' : 'var(--border)'}`,
+                    background: pdfOrientation === ori ? 'rgba(0,122,255,0.08)' : 'transparent',
+                    color: pdfOrientation === ori ? '#007AFF' : 'var(--text-secondary)',
+                    cursor: 'pointer', fontWeight: pdfOrientation === ori ? 600 : 400,
+                  }}>
+                    {ori === 'portrait' ? '↕ Hoch' : '↔ Quer'}
+                  </button>
+                ))}
+                <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
+                <input
+                  type="text"
+                  value={pdfFzText}
+                  onChange={e => setPdfFzText(e.target.value)}
+                  placeholder="Fußzeile (leer = Standard)"
+                  style={{
+                    padding: '3px 7px', fontSize: 11, border: '1px solid var(--border)',
+                    borderRadius: 5, background: 'var(--bg-canvas)', color: 'var(--text-primary)',
+                    fontFamily: 'inherit', outline: 'none', minWidth: 160, flex: 1, maxWidth: 280,
+                  }}
+                />
+              </div>
+              <ReportView
+                run={selectedRunData}
+                activeTab={selectedTab}
+                onTabChange={setSelectedTab}
+                onRerunMethod={handleRerunMethod}
+                onPreviewPdf={(method) => {
+                  const p = new URLSearchParams({ method, inline: '1', landscape: pdfOrientation === 'landscape' ? '1' : '0' })
+                  if (pdfFzText.trim()) p.set('fzText', pdfFzText.trim())
+                  window.open(`/api/analysis/run/${selectedRunData.id}/pdf?${p}`, '_blank')
+                }}
+                onDownloadPdf={(method) => {
+                  const p = new URLSearchParams({ method, landscape: pdfOrientation === 'landscape' ? '1' : '0' })
+                  if (pdfFzText.trim()) p.set('fzText', pdfFzText.trim())
+                  window.open(`/api/analysis/run/${selectedRunData.id}/pdf?${p}`, '_blank')
+                }}
+                isPolling={isPolling}
+              />
+            </>
           ) : (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center', padding: 24, gap: 12 }}>
               {!selectedProduction ? (

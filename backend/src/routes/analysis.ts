@@ -750,6 +750,9 @@ router.get('/run/:id/pdf', async (req, res) => {
 
     const methodFilter = req.query.method as string | undefined
     const inlinePreview = req.query.inline === '1'
+    const landscapeParam = req.query.landscape as string | undefined
+    const useLandscape = landscapeParam === '1' ? true : landscapeParam === '0' ? false : (methodFilter === 'vonnegut_arcs')
+    const fzTextOverride = typeof req.query.fzText === 'string' ? req.query.fzText.trim() : ''
 
     const run = await queryOne(
       `SELECT r.id, r.block_nummer, r.folge_nummer, r.status, r.created_at,
@@ -809,14 +812,17 @@ router.get('/run/:id/pdf', async (req, res) => {
     try {
       const page = await browser.newPage()
       await page.setContent(html, { waitUntil: 'networkidle0' })
+      const effectiveFooter = fzTextOverride
+        ? `<div style="font-size:8pt;font-family:sans-serif;color:#888;width:100%;padding:0 2.5cm;box-sizing:border-box;text-align:center">${fzTextOverride.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]!))}</div>`
+        : footerZone || fallbackFooter
       const pdfBuf = await page.pdf({
         format: 'A4',
-        landscape: methodFilter === 'vonnegut_arcs',
+        landscape: useLandscape,
         margin: { top: '2.5cm', bottom: '2.2cm', left: '2.5cm', right: '2.5cm' },
         printBackground: true,
         displayHeaderFooter: true,
         headerTemplate: headerZone || '<span style="font-size:0"></span>',
-        footerTemplate: footerZone || fallbackFooter,
+        footerTemplate: effectiveFooter,
       })
       await page.close()
 
