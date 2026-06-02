@@ -1024,12 +1024,12 @@ function MethodBadge({ fromCache }: { fromCache: boolean }) {
 
 // ── ReportView ─────────────────────────────────────────────────────────────────
 
-function ReportView({ run, activeTab, onTabChange, onRerun, onDownloadPdf, isPolling }: {
+function ReportView({ run, activeTab, onTabChange, onRerunMethod, onDownloadPdf, isPolling }: {
   run: RunData
   activeTab: string | null
   onTabChange: (tab: string) => void
-  onRerun?: () => void
-  onDownloadPdf?: () => void
+  onRerunMethod?: (method: string) => void
+  onDownloadPdf?: (method: string) => void
   isPolling?: boolean
 }) {
   const currentTab = activeTab ?? run.method_results[0]?.method ?? null
@@ -1068,36 +1068,6 @@ function ReportView({ run, activeTab, onTabChange, onRerun, onDownloadPdf, isPol
         <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
           {fmtDate(run.created_at)}
         </span>
-        {onRerun && (
-          <button
-            onClick={onRerun}
-            disabled={isPolling}
-            title="Alle Methoden neu berechnen (Cache überspringen)"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
-              background: 'var(--bg-card)', color: 'var(--text-primary)',
-              fontSize: 11, cursor: isPolling ? 'default' : 'pointer',
-              opacity: isPolling ? 0.5 : 1, fontFamily: 'inherit', fontWeight: 500,
-            }}
-          >
-            <RefreshCw size={11} /> Neu berechnen
-          </button>
-        )}
-        {onDownloadPdf && (
-          <button
-            onClick={onDownloadPdf}
-            title="Report als PDF exportieren"
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
-              background: 'var(--bg-card)', color: 'var(--text-primary)',
-              fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
-            }}
-          >
-            <FileDown size={11} /> PDF
-          </button>
-        )}
       </div>
 
       {/* Tab-Leiste */}
@@ -1140,6 +1110,40 @@ function ReportView({ run, activeTab, onTabChange, onRerun, onDownloadPdf, isPol
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 3 }}>
                   <Clock size={10} /> {fmtDuration(result.duration_ms)}
                 </span>
+              )}
+              {(onRerunMethod || onDownloadPdf) && (
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  {onRerunMethod && (
+                    <button
+                      onClick={() => onRerunMethod(result.method)}
+                      disabled={isPolling}
+                      title="Diese Methode neu berechnen (Cache überspringen)"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)',
+                        background: 'var(--bg-card)', color: 'var(--text-secondary)',
+                        fontSize: 11, cursor: isPolling ? 'default' : 'pointer',
+                        opacity: isPolling ? 0.5 : 1, fontFamily: 'inherit',
+                      }}
+                    >
+                      <RefreshCw size={10} /> Neu
+                    </button>
+                  )}
+                  {onDownloadPdf && result.status === 'completed' && (
+                    <button
+                      onClick={() => onDownloadPdf(result.method)}
+                      title="Als PDF exportieren"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)',
+                        background: 'var(--bg-card)', color: 'var(--text-secondary)',
+                        fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <FileDown size={10} /> PDF
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             {result.status === 'error' ? (
@@ -1499,18 +1503,17 @@ export default function AnalysisPage() {
     }
   }
 
-  // ── Neu berechnen (force_fresh) ──────────────────────────────────────────────
+  // ── Neu berechnen (force_fresh, per Methode) ─────────────────────────────────
 
-  const handleRerun = useCallback(async () => {
+  const handleRerunMethod = useCallback(async (method: string) => {
     if (!selectedRunData || !selectedProdId || isPolling) return
     setSubmitting(true)
     setError(null)
     try {
-      const methods = selectedRunData.method_results.map(r => r.method)
       const body: Record<string, unknown> = {
         produktion_id: selectedProdId,
         block_nummer: selectedRunData.block_nummer,
-        methods,
+        methods: [method],
         force_fresh: true,
       }
       if (selectedRunData.folge_nummer != null) body.folge_nummer = selectedRunData.folge_nummer
@@ -1740,8 +1743,8 @@ export default function AnalysisPage() {
               run={selectedRunData}
               activeTab={selectedTab}
               onTabChange={setSelectedTab}
-              onRerun={handleRerun}
-              onDownloadPdf={() => window.open(`/api/analysis/run/${selectedRunData.id}/pdf`, '_blank')}
+              onRerunMethod={handleRerunMethod}
+              onDownloadPdf={(method) => window.open(`/api/analysis/run/${selectedRunData.id}/pdf?method=${method}`, '_blank')}
               isPolling={isPolling}
             />
           ) : (

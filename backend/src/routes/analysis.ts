@@ -11,6 +11,7 @@
 import { Router } from 'express'
 import Anthropic from '@anthropic-ai/sdk'
 import { request as httpRequest } from 'http'
+import { request as httpsRequest } from 'https'
 import puppeteer from 'puppeteer'
 import { authMiddleware } from '../auth'
 import { query, queryOne } from '../db'
@@ -29,6 +30,25 @@ function fetchAuthJson(apiPath: string): Promise<any> {
     req.on('error', () => resolve(null))
     req.setTimeout(5000, () => { req.destroy(); resolve(null) })
     req.end()
+  })
+}
+
+function fetchBase64(url: string): Promise<string | null> {
+  return new Promise(resolve => {
+    const mod = url.startsWith('https') ? httpsRequest : httpRequest
+    try {
+      const r = mod(url, res => {
+        if (!res.statusCode || res.statusCode >= 400) { resolve(null); return }
+        const ct = res.headers['content-type'] ?? 'image/png'
+        const chunks: Buffer[] = []
+        res.on('data', (c: Buffer) => chunks.push(c))
+        res.on('end', () => resolve(`data:${ct};base64,${Buffer.concat(chunks).toString('base64')}`))
+        res.on('error', () => resolve(null))
+      })
+      r.on('error', () => resolve(null))
+      r.setTimeout(5000, () => { r.destroy(); resolve(null) })
+      r.end()
+    } catch { resolve(null) }
   })
 }
 
@@ -107,54 +127,197 @@ function markdownToHtml(md: string): string {
   return out.join('\n')
 }
 
+// ── Visuelle Methoden → HTML/SVG ──────────────────────────────────────────────
+
+function hexWithAlpha(hex: string, alpha: number): string {
+  if (!hex.startsWith('#') || hex.length !== 7) return hex
+  return hex + Math.round(alpha * 255).toString(16).padStart(2, '0')
+}
+
+function renderStrangHeatmapHtml(data: any): string {
+  const straenge = data?.straenge ?? []
+  if (!straenge.length) return '<p>Keine Strang-Daten</p>'
+  const folgen: number[] = [...new Set<number>(straenge.flatMap((s: any) => s.szenen.map((z: any) => Number(z.folge_nr))))].sort((a, b) => a - b)
+  const intensityAlpha = [0, 0.12, 0.28, 0.48, 0.68, 0.90]
+
+  const rows = straenge.map((s: any) => {
+    const grid: Record<number, number> = {}
+    for (const z of s.szenen) grid[z.folge_nr] = Math.max(grid[z.folge_nr] ?? 0, z.intensitaet)
+    const cells = folgen.map(f => {
+      const v = Math.min(grid[f] ?? 0, 5)
+      const alpha = v > 0 ? intensityAlpha[v] + 0.08 : 0
+      const bg = v > 0 ? hexWithAlpha(s.farbe, alpha) : '#f0f0f0'
+      const border = v > 0 ? hexWithAlpha(s.farbe, 0.5) : '#e0e0e0'
+      const color = v >= 4 ? '#fff' : v > 0 ? s.farbe : '#ccc'
+      return `<td style="width:34px;height:24px;padding:0;text-align:center;border:1px solid ${border};background:${bg};font-size:9pt;font-weight:${v >= 4 ? 700 : 400};color:${color}">${v > 0 ? v : ''}</td>`
+    }).join('')
+    return `<tr>
+      <td style="padding:4px 10px 4px 0;white-space:nowrap;font-size:9pt;border:none">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${esc(s.farbe)};margin-right:5px;vertical-align:middle"></span><strong>${esc(s.name)}</strong> <span style="color:#999;font-size:8pt">(${s.szenen.length})</span>
+      </td>${cells}</tr>`
+  }).join('')
+
+  return `<table style="border-collapse:separate;border-spacing:2px;font-size:9pt">
+    <thead><tr>
+      <th style="text-align:left;padding:4px 10px 4px 0;border:none;border-bottom:1.5px solid #000">Strang</th>
+      ${folgen.map(f => `<th style="width:34px;text-align:center;border:none;border-bottom:1.5px solid #000;padding:4px 2px;font-size:9pt">F${f}</th>`).join('')}
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p style="font-size:8pt;color:#666;margin-top:6pt">Intensität 1–5 · Farbtiefe = Stärke der Folge</p>`
+}
+
+function renderFigurenAgencyHtml(data: any): string {
+  const charaktere = data?.charaktere ?? []
+  if (!charaktere.length) return '<p>Keine Figuren-Daten</p>'
+  const folgen: number[] = [...new Set<number>(charaktere.flatMap((c: any) => c.episoden.map((e: any) => Number(e.folge_nr))))].sort((a, b) => a - b)
+
+  const rows = charaktere.map((c: any) => {
+    const epMap: Record<number, any> = {}
+    for (const e of c.episoden) epMap[e.folge_nr] = e
+    const totalA = c.episoden.filter((e: any) => e.mode === 'AKTIV').length
+    const totalR = c.episoden.filter((e: any) => e.mode === 'REAKTIV').length
+    const cells = folgen.map(f => {
+      const ep = epMap[f]
+      if (!ep) return `<td style="padding:4px 6px;text-align:center;color:#ccc;border:1px solid #eee">—</td>`
+      const isA = ep.mode === 'AKTIV'
+      const isR = ep.mode === 'REAKTIV'
+      const bg = isA ? '#e8fff0' : isR ? '#fff4e0' : '#f5f5f5'
+      const color = isA ? '#00C853' : isR ? '#FF9500' : '#999'
+      const label = isA ? 'A' : isR ? 'R' : 'P'
+      return `<td style="padding:4px 6px;text-align:center;background:${bg};color:${color};font-weight:700;border:1px solid ${isA ? '#00C85330' : isR ? '#FF950030' : '#e0e0e0'}">${label}</td>`
+    }).join('')
+    return `<tr>
+      <td style="padding:4px 10px 4px 0;white-space:nowrap;font-size:9pt;border:none">${esc(c.name)}</td>
+      ${cells}
+      <td style="padding:4px 8px;text-align:center;font-size:9pt;color:#555;border:1px solid #eee">${totalA}:${totalR}</td>
+    </tr>`
+  }).join('')
+
+  return `<p style="font-size:8pt;margin-bottom:6pt"><span style="color:#00C853;font-weight:700">A</span> = Aktiv (Entscheidung) &nbsp;·&nbsp; <span style="color:#FF9500;font-weight:700">R</span> = Reaktiv &nbsp;·&nbsp; — = nicht präsent</p>
+  <table style="border-collapse:separate;border-spacing:2px;font-size:9pt">
+    <thead><tr>
+      <th style="text-align:left;padding:4px 10px 4px 0;border:none;border-bottom:1.5px solid #000">Figur</th>
+      ${folgen.map(f => `<th style="padding:4px 6px;text-align:center;border:none;border-bottom:1.5px solid #000">F${f}</th>`).join('')}
+      <th style="padding:4px 6px;text-align:center;border:none;border-bottom:1.5px solid #000">A:R</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`
+}
+
+function renderVonnegutSvg(data: any): string {
+  const straenge = data?.straenge ?? []
+  if (!straenge.length) return '<p>Keine Arc-Daten</p>'
+
+  const allKeys = straenge.flatMap((s: any) => s.punkte.map((p: any) => `${p.folge_nr}.${p.scene_nr}`))
+  const xKeys: string[] = [...new Set<string>(allKeys)].sort((a, b) => {
+    const [af, as_] = a.split('.').map(Number)
+    const [bf, bs] = b.split('.').map(Number)
+    return af - bf || as_ - bs
+  })
+
+  const PX_PER = 14
+  const W = Math.max(520, xKeys.length * PX_PER + 100)
+  const H = 200
+  const PAD = { top: 20, right: 60, bottom: 38, left: 48 }
+  const cW = W - PAD.left - PAD.right
+  const cH = H - PAD.top - PAD.bottom
+
+  const xPos = (i: number) => xKeys.length > 1 ? PAD.left + (i / (xKeys.length - 1)) * cW : PAD.left + cW / 2
+  const yPos = (v: number) => PAD.top + ((5 - v) / 10) * cH
+
+  const svgParts: string[] = []
+
+  // Grid lines
+  for (const v of [-5, -4, -2, 0, 2, 4, 5]) {
+    const y = yPos(v).toFixed(1)
+    svgParts.push(`<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="${v === 0 ? '#888' : '#ddd'}" stroke-width="${v === 0 ? 1 : 0.5}" stroke-dasharray="${v === 0 ? '' : '2,4'}"/>`)
+    if (v === 5 || v === 0 || v === -5) {
+      svgParts.push(`<text x="${PAD.left - 6}" y="${(yPos(v) + 4).toFixed(1)}" text-anchor="end" font-size="8" fill="#666">${v > 0 ? '+' : ''}${v}</text>`)
+    }
+  }
+
+  // Folge change markers + x-axis labels
+  let lastFolge = -1
+  xKeys.forEach((k, i) => {
+    const f = Number(k.split('.')[0])
+    if (f !== lastFolge) {
+      if (i > 0) svgParts.push(`<line x1="${xPos(i).toFixed(1)}" y1="${PAD.top}" x2="${xPos(i).toFixed(1)}" y2="${H - PAD.bottom}" stroke="#e8e8e8" stroke-width="1"/>`)
+      svgParts.push(`<text x="${xPos(i).toFixed(1)}" y="${H - PAD.bottom + 14}" text-anchor="middle" font-size="9" fill="#555" font-weight="500">F${f}</text>`)
+      lastFolge = f
+    }
+  })
+
+  // Lines + points per strand
+  straenge.forEach((s: any) => {
+    const pMap: Record<string, number> = {}
+    for (const p of s.punkte) pMap[`${p.folge_nr}.${p.scene_nr}`] = p.wert
+    const pts = xKeys.map((k, i) => pMap[k] != null ? { x: xPos(i), y: yPos(pMap[k]) } : null).filter(Boolean) as { x: number; y: number }[]
+    if (!pts.length) return
+    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+    svgParts.push(`<path d="${d}" fill="none" stroke="${esc(s.farbe)}" stroke-width="1.8" stroke-linejoin="round"/>`)
+    pts.forEach(p => svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1.5"/>`))
+  })
+
+  // Legend
+  const ITEM_W = 150
+  const COLS = Math.max(1, Math.floor(W / ITEM_W))
+  const legendRows = Math.ceil(straenge.length / COLS)
+  const legendH = legendRows * 18 + 10
+  const totalH = H + legendH
+
+  straenge.forEach((s: any, i: number) => {
+    const col = i % COLS, row = Math.floor(i / COLS)
+    const lx = col * ITEM_W + PAD.left
+    const ly = H + 14 + row * 18
+    svgParts.push(`<circle cx="${lx + 5}" cy="${ly}" r="4" fill="${esc(s.farbe)}"/>`)
+    svgParts.push(`<text x="${lx + 13}" y="${ly + 4}" font-size="9" fill="#333">${esc(s.name)}</text>`)
+  })
+
+  return `<figure style="overflow-x:auto;margin:8pt 0">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" width="${W}" height="${totalH}" style="max-width:100%;display:block;font-family:sans-serif">
+      ${svgParts.join('\n      ')}
+    </svg>
+    <figcaption style="font-size:8pt;color:#666;margin-top:4pt">Emotionale Kurven pro Strang · Werte −5 (Tiefpunkt) bis +5 (Höhepunkt)</figcaption>
+  </figure>`
+}
+
 function renderStructuredHtml(method: string, data: any): string {
-  if (method === 'strang_heatmap') {
-    const straenge = data?.straenge ?? []
-    if (!straenge.length) return '<p>Keine Strang-Daten</p>'
-    const folgen: number[] = [...new Set<number>(straenge.flatMap((s: any) => s.szenen.map((z: any) => Number(z.folge_nr))))].sort((a, b) => a - b)
-    const rows = straenge.map((s: any) => {
-      const grid: Record<number, number> = {}
-      for (const z of s.szenen) grid[z.folge_nr] = Math.max(grid[z.folge_nr] ?? 0, z.intensitaet)
-      const cells = folgen.map(f => { const v = grid[f] ?? 0; return `<td style="padding:3px 6px;text-align:center${v ? '' : ';color:#bbb'}">${v || '—'}</td>` }).join('')
-      return `<tr><td style="padding:3px 10px 3px 0;white-space:nowrap">${esc(s.name)} <span style="color:#999">(${s.szenen.length})</span></td>${cells}</tr>`
-    }).join('')
-    return `<table style="border-collapse:collapse;font-size:9pt">
-      <thead><tr><th style="text-align:left;padding:3px 10px 3px 0;border-bottom:1px solid #ddd">Strang</th>${folgen.map(f => `<th style="padding:3px 6px;text-align:center;border-bottom:1px solid #ddd">F${f}</th>`).join('')}</tr></thead>
-      <tbody>${rows}</tbody></table>
-      <p style="font-size:8pt;color:#666;margin-top:6pt">Werte = maximale Intensität (1–5) pro Strang und Folge</p>`
-  }
-  if (method === 'figuren_agency') {
-    const charaktere = data?.charaktere ?? []
-    if (!charaktere.length) return '<p>Keine Figuren-Daten</p>'
-    const folgen: number[] = [...new Set<number>(charaktere.flatMap((c: any) => c.episoden.map((e: any) => Number(e.folge_nr))))].sort((a, b) => a - b)
-    const rows = charaktere.map((c: any) => {
-      const epMap: Record<number, any> = {}
-      for (const e of c.episoden) epMap[e.folge_nr] = e
-      const totalA = c.episoden.filter((e: any) => e.mode === 'AKTIV').length
-      const totalR = c.episoden.filter((e: any) => e.mode === 'REAKTIV').length
-      const cells = folgen.map(f => { const ep = epMap[f]; const v = !ep ? '—' : ep.mode === 'AKTIV' ? 'A' : ep.mode === 'REAKTIV' ? 'R' : 'P'; return `<td style="padding:3px 6px;text-align:center">${v}</td>` }).join('')
-      return `<tr><td style="padding:3px 10px 3px 0;white-space:nowrap">${esc(c.name)}</td>${cells}<td style="padding:3px 6px;text-align:center">${totalA}:${totalR}</td></tr>`
-    }).join('')
-    return `<p style="font-size:8pt;margin-bottom:6pt">A = Aktiv (Entscheidung) &nbsp;·&nbsp; R = Reaktiv &nbsp;·&nbsp; — = nicht präsent</p>
-      <table style="border-collapse:collapse;font-size:9pt">
-      <thead><tr><th style="text-align:left;padding:3px 10px 3px 0;border-bottom:1px solid #ddd">Figur</th>${folgen.map(f => `<th style="padding:3px 6px;text-align:center;border-bottom:1px solid #ddd">F${f}</th>`).join('')}<th style="padding:3px 6px;border-bottom:1px solid #ddd">A:R</th></tr></thead>
-      <tbody>${rows}</tbody></table>`
-  }
-  if (method === 'vonnegut_arcs') {
-    const straenge = data?.straenge ?? []
-    if (!straenge.length) return '<p>Keine Arc-Daten</p>'
-    const rows = straenge.map((s: any) => {
-      const pts = [...s.punkte].sort((a: any, b: any) => a.folge_nr - b.folge_nr || a.scene_nr - b.scene_nr)
-        .map((p: any) => `F${p.folge_nr}/Sz${p.scene_nr}: ${p.wert > 0 ? '+' : ''}${p.wert}`).join('  ·  ')
-      return `<tr><td style="padding:3px 10px 3px 0;white-space:nowrap;font-weight:500">${esc(s.name)}</td><td style="padding:3px 0;font-size:8pt">${pts}</td></tr>`
-    }).join('')
-    return `<p style="font-size:8pt;margin-bottom:6pt">Werte von −5 (Tiefpunkt) bis +5 (Höhepunkt) pro Szene</p>
-      <table style="border-collapse:collapse;font-size:9pt;width:100%">
-      <thead><tr><th style="text-align:left;padding:3px 10px 3px 0;border-bottom:1px solid #ddd;white-space:nowrap">Strang</th><th style="text-align:left;padding:3px 0;border-bottom:1px solid #ddd">Punkte</th></tr></thead>
-      <tbody>${rows}</tbody></table>`
-  }
+  if (method === 'strang_heatmap') return renderStrangHeatmapHtml(data)
+  if (method === 'figuren_agency') return renderFigurenAgencyHtml(data)
+  if (method === 'vonnegut_arcs') return renderVonnegutSvg(data)
   return '<p>Visuelle Analyse — vollständige Darstellung in der App</p>'
 }
+
+// ── Company Info Helpers (Auth API) ───────────────────────────────────────────
+
+function buildFirmaAdresse(raw: any): string {
+  if (!raw) return ''
+  const addr = raw.company_address
+  const name = raw.company_name ?? ''
+  const street = addr?.street ?? ''
+  const zip = addr?.zip ?? ''
+  const city = addr?.city ?? ''
+  const addrStr = [street, [zip, city].filter(Boolean).join(' ')].filter(Boolean).join(', ')
+  return [name, addrStr].filter(Boolean).join(' · ')
+}
+
+function buildPflichtangaben(raw: any): string {
+  if (!raw) return ''
+  const parts: string[] = []
+  const lf = (raw.company_legal_form ?? '').toUpperCase()
+  if (lf) parts.push(lf)
+  if (raw.company_register_number) parts.push(`HRB ${raw.company_register_number}`)
+  if (raw.company_register_court) parts.push(raw.company_register_court)
+  if (raw.company_vat_id) parts.push(`USt-IdNr.: ${raw.company_vat_id}`)
+  try {
+    const mgmt: string[] = JSON.parse(raw.company_management || '[]')
+    if (mgmt.length) parts.push(`GF: ${mgmt.join(', ')}`)
+  } catch {}
+  return parts.join(' · ')
+}
+
+// ── Analyse-PDF HTML ──────────────────────────────────────────────────────────
 
 const ANALYSIS_METHOD_LABELS: Record<string, string> = {
   story_consultant_pur: 'Showrunner-Check',
@@ -164,14 +327,16 @@ const ANALYSIS_METHOD_LABELS: Record<string, string> = {
   vonnegut_arcs: 'Vonnegut-Arcs',
 }
 
-function buildAnalysisPdfHtml(run: any, companyInfo: any): string {
+function buildAnalysisPdfHtml(run: any, companyInfo: any, singleMethod?: string): string {
   const scope = run.folge_nummer != null ? `Folge ${run.folge_nummer}` : `Block ${run.block_nummer}`
   const titel = run.produktion_titel ? `${esc(run.produktion_titel)} · ` : ''
   const dateStr = new Date(run.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })
-  const co = companyInfo
-  const companyLine = [co?.name ?? co?.firma_name, co?.adresse].filter(Boolean).join(' · ')
 
-  const sections = (run.method_results ?? []).map((mr: any) => {
+  const results = (run.method_results ?? []).filter((mr: any) => !singleMethod || mr.method === singleMethod)
+  const isSingle = results.length === 1
+  const pageTitle = isSingle ? `Story-Analyse · ${ANALYSIS_METHOD_LABELS[results[0].method] || results[0].method} · ${scope}` : `Story-Analyse · ${scope}`
+
+  const sections = results.map((mr: any, idx: number) => {
     const label = ANALYSIS_METHOD_LABELS[mr.method] || mr.method
     let content: string
     if (mr.status === 'error') {
@@ -183,7 +348,8 @@ function buildAnalysisPdfHtml(run: any, companyInfo: any): string {
     } else {
       content = '<p>Kein Inhalt</p>'
     }
-    return `<section class="ms"><h2>${esc(label)}</h2>${content}</section>`
+    const pbClass = idx > 0 ? ' class="pb"' : ''
+    return `<section${pbClass}>${isSingle ? '' : `<h2>${esc(label)}</h2>`}${content}</section>`
   }).join('')
 
   return `<!DOCTYPE html>
@@ -201,45 +367,57 @@ p{margin:0 0 6pt}
 ul,ol{margin:0 0 8pt 18pt}
 li{margin-bottom:2pt}
 hr{border:none;border-top:1pt solid #ccc;margin:10pt 0}
-table{border-collapse:collapse;margin:6pt 0}
-td,th{padding:3px 8px;border:0.75pt solid #ddd;font-size:9pt}
-th{background:#f5f5f5;font-weight:600}
+table{margin:6pt 0}
+td,th{font-size:9pt}
 pre{background:#f5f5f5;padding:8pt;border-radius:3pt;font-size:8pt;margin:6pt 0}
 code{background:#f0f0f0;padding:1pt 3pt;border-radius:2pt;font-size:8.5pt}
 blockquote{border-left:3pt solid #ccc;padding-left:8pt;color:#555;margin:6pt 0}
 .gap{height:8pt}
-.ms+.ms{page-break-before:always}
+.pb{page-break-before:always}
 </style>
 </head><body>
 <div class="header">
-  <h1>Story-Analyse · ${scope}</h1>
-  <div class="meta">${titel}Erstellt am ${dateStr}${companyLine ? ` · ${esc(companyLine)}` : ''}</div>
+  <h1>${esc(pageTitle)}</h1>
+  <div class="meta">${titel}Erstellt am ${dateStr}</div>
 </div>
 ${sections}
 </body></html>`
 }
 
-function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[] }, companyInfo: any): string {
+// ── Puppeteer Header/Footer Zonen ─────────────────────────────────────────────
+
+interface PdfCtx { companyInfo: any; produktionTitel?: string; logoBase64?: string | null }
+
+function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[] }, ctx: PdfCtx): string {
+  const raw = ctx.companyInfo
   const renderZone = (zone?: any[]): string => {
     if (!zone?.length) return ''
-    return zone.map((el: any) => {
+    return zone.map((el: any): string => {
       if (el.type === 'text') return esc(el.value ?? '')
+      if (el.type === 'newline') return '<br>'
       if (el.type === 'token') switch (el.key) {
         case 'firma_logo':
-        case 'firma_name': return esc(companyInfo?.name ?? companyInfo?.firma_name ?? '')
-        case 'firma_adresse': return esc(companyInfo?.adresse ?? companyInfo?.firma_adresse ?? '')
-        case 'pflichtangaben': return esc(companyInfo?.pflichtangaben ?? '')
+          if (ctx.logoBase64) {
+            const h = el.size === 'L' ? 32 : el.size === 'S' ? 16 : 24
+            return `<img src="${ctx.logoBase64}" style="height:${h}px;vertical-align:middle">`
+          }
+          return esc(raw?.company_name ?? '')
+        case 'firma_name': return esc(raw?.company_name ?? '')
+        case 'firma_adresse': return esc(buildFirmaAdresse(raw))
+        case 'pflichtangaben': return esc(buildPflichtangaben(raw))
         case 'seite': return 'Seite <span class="pageNumber"></span>&thinsp;/&thinsp;<span class="totalPages"></span>'
+        case 'erstelldatum': return new Date().toLocaleDateString('de-DE')
+        case 'produktion_titel': return esc(ctx.produktionTitel ?? '')
         case 'datum': return new Date().toLocaleDateString('de-DE')
       }
       return ''
-    }).join('&nbsp;')
+    }).join('')
   }
   const l = renderZone(zones.left)
   const c = renderZone(zones.center)
   const r = renderZone(zones.right)
   if (!l && !c && !r) return ''
-  return `<div style="font-size:8pt;font-family:sans-serif;color:#666;width:100%;padding:0 2.5cm;display:flex;justify-content:space-between;align-items:center"><span style="flex:1;overflow:hidden;white-space:nowrap">${l}</span><span style="flex:1;text-align:center;overflow:hidden;white-space:nowrap">${c}</span><span style="flex:1;text-align:right;overflow:hidden;white-space:nowrap">${r}</span></div>`
+  return `<div style="font-size:8pt;font-family:sans-serif;color:#444;width:100%;padding:0 2.5cm;display:flex;justify-content:space-between;align-items:center"><span style="flex:1">${l}</span><span style="flex:1;text-align:center">${c}</span><span style="flex:1;text-align:right">${r}</span></div>`
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -444,13 +622,15 @@ router.get('/settings', async (_req, res) => {
   }
 })
 
-// ── GET /api/analysis/run/:id/pdf ─────────────────────────────────────────────
+// ── GET /api/analysis/run/:id/pdf?method=xxx ──────────────────────────────────
 router.get('/run/:id/pdf', async (req, res) => {
   try {
     const userRoles: string[] = req.user!.roles || [req.user!.role]
     if (!await canAnalyse(userRoles)) {
       return res.status(403).json({ error: 'Keine Berechtigung' })
     }
+
+    const methodFilter = req.query.method as string | undefined
 
     const run = await queryOne(
       `SELECT r.id, r.block_nummer, r.folge_nummer, r.status, r.created_at,
@@ -476,18 +656,29 @@ router.get('/run/:id/pdf', async (req, res) => {
 
     const [companyInfo, templateData] = await Promise.all([
       fetchAuthJson('/api/public/company-info'),
-      fetchAuthJson('/api/public/document-templates/default'),
+      fetchAuthJson('/api/public/document-templates/standard'),
     ])
 
-    const html = buildAnalysisPdfHtml(run, companyInfo)
+    // Logo als Base64 für Puppeteer-Header (externe URLs laden dort nicht)
+    const logoUrl: string | null = companyInfo?.logo_url ?? companyInfo?.logos?.light ?? null
+    const logoBase64 = logoUrl ? await fetchBase64(logoUrl) : null
 
+    const ctx: PdfCtx = {
+      companyInfo,
+      produktionTitel: run.produktion_titel ?? undefined,
+      logoBase64,
+    }
+
+    const html = buildAnalysisPdfHtml(run, companyInfo, methodFilter)
+
+    const tmpl = templateData?.template ?? templateData ?? null
     const headerZone = buildPuppeteerZone(
-      { left: templateData?.header_left, center: templateData?.header_center, right: templateData?.header_right },
-      companyInfo
+      { left: tmpl?.header_left, center: tmpl?.header_center, right: tmpl?.header_right },
+      ctx
     )
     const footerZone = buildPuppeteerZone(
-      { left: templateData?.footer_left, center: templateData?.footer_center, right: templateData?.footer_right },
-      companyInfo
+      { left: tmpl?.footer_left, center: tmpl?.footer_center, right: tmpl?.footer_right },
+      ctx
     )
     const fallbackFooter = `<div style="font-size:8pt;font-family:sans-serif;color:#888;width:100%;text-align:center">Seite <span class="pageNumber"></span>&thinsp;/&thinsp;<span class="totalPages"></span></div>`
 
@@ -501,7 +692,7 @@ router.get('/run/:id/pdf', async (req, res) => {
       await page.setContent(html, { waitUntil: 'networkidle0' })
       const pdfBuf = await page.pdf({
         format: 'A4',
-        margin: { top: '2.2cm', bottom: '2.2cm', left: '2.5cm', right: '2.5cm' },
+        margin: { top: '2.5cm', bottom: '2.2cm', left: '2.5cm', right: '2.5cm' },
         printBackground: true,
         displayHeaderFooter: true,
         headerTemplate: headerZone || '<span style="font-size:0"></span>',
@@ -510,8 +701,9 @@ router.get('/run/:id/pdf', async (req, res) => {
       await page.close()
 
       const scopeSlug = run.folge_nummer != null ? `folge${run.folge_nummer}` : `block${run.block_nummer}`
+      const methodSlug = methodFilter ? `-${methodFilter.replace(/_/g, '-')}` : ''
       res.set('Content-Type', 'application/pdf')
-      res.set('Content-Disposition', `attachment; filename="analyse-${scopeSlug}-${new Date().toISOString().slice(0, 10)}.pdf"`)
+      res.set('Content-Disposition', `attachment; filename="analyse-${scopeSlug}${methodSlug}-${new Date().toISOString().slice(0, 10)}.pdf"`)
       res.send(Buffer.from(pdfBuf))
     } finally {
       await browser.close()
