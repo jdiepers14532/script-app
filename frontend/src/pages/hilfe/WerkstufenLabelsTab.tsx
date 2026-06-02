@@ -505,7 +505,7 @@ function WerkstufenLabelsTab() {
         <h2 style={h2}>11. Typischer Workflow</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           {[
-            { step: '1', label: 'Import', desc: 'PDF importieren → erstellt Folge + Werkstufe (typ=drehbuch, V1) + Szenen', color: C.blue },
+            { step: '1', label: 'Import', desc: 'PDF importieren → erstellt Folge + Werkstufe (typ=drehbuch, V1, label=NULL) + Szenen. Kein automatisches Label.', color: C.blue },
             { step: '2', label: 'Label zuweisen', desc: 'Im Editor-Header: „Erstfassung" zuweisen — describes den Arbeitsschritt', color: C.purple },
             { step: '3', label: 'Parallel: Storyline', desc: 'Autoren schreiben Storyline V1 mit Label „Edit 1" — unabhaengig vom Drehbuch', color: C.blue },
             { step: '4', label: 'Redaktion', desc: 'Neue Drehbuch-Werkstufe V2 erstellen, Label „Edit 1" setzen — Aenderungen einarbeiten', color: C.orange },
@@ -558,10 +558,20 @@ function WerkstufenLabelsTab() {
         <FaqItem
           q="Kann ich Labels umbenennen, nachdem sie bereits Werkstufen zugewiesen sind?"
           a={<>
-            Vorsicht: Das Feld <code>werkstufen.label</code> speichert den Labelnamen als Text-String
-            (nicht als Foreign-Key-ID). Eine Umbenennung in <code>stage_labels.name</code> muss daher
-            auch alle entsprechenden <code>werkstufen.label</code>-Eintraege manuell aktualisiert werden.
-            Das System bietet dafuer aktuell keine automatische Migration in der UI.
+            Ja — das Umbenennen ist sicher. Der Rename-Dialog in den DK-Einstellungen propagiert die
+            Aenderung transaktional: <code>stage_labels.name</code> wird umbenannt,{' '}
+            <em>alle</em> Werkstufen der Produktion, die dieses Label tragen, werden mitaktualisiert,
+            und falls das Label als Gate-Trigger konfiguriert ist, wird auch dieser Eintrag automatisch
+            angepasst. Ein Umbenennen auf einen bereits vorhandenen Namen wird mit einem Fehler abgewiesen.
+          </>}
+        />
+        <FaqItem
+          q="Bekommt eine importierte PDF automatisch ein Label?"
+          a={<>
+            Nein. Ein PDF-Import legt die neue Werkstufe mit <code>label = NULL</code> an — der
+            Dateiname wird separat in <code>original_dateiname</code> gespeichert, taucht aber{' '}
+            <strong>nie</strong> als Fassungs-Label auf. Das Label muss anschliessend manuell
+            im Editor-Header vergeben werden.
           </>}
         />
       </Section>
