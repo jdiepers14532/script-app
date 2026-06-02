@@ -6,6 +6,7 @@ import {
 import { api } from '../../api/client'
 import { useSelectedProduction } from '../../contexts'
 import Tooltip from '../../components/Tooltip'
+import ImportPanel from './ImportPanel'
 
 type VersionTyp = 'future' | 'konzept'
 
@@ -802,6 +803,8 @@ export default function VersionenPage() {
 
       {/* Content */}
       <div style={{ flex: 1, overflow: 'auto', padding: '24px' }}>
+        <ImportPanel produktionId={selectedProduction.id} />
+
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
             <Loader2 size={24} style={{ animation: 'spin 0.8s linear infinite', color: 'var(--text-muted)' }} />

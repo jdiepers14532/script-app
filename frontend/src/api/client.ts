@@ -1107,6 +1107,22 @@ export const api = {
     request<any>('GET', `/import-jobs/${id}`),
   deleteImportJob: (id: string) =>
     request<void>('DELETE', `/import-jobs/${id}`),
+  uploadImportDoc: (produktionId: string, file: File) => {
+    const fd = new FormData()
+    fd.append('produktion_id', produktionId)
+    fd.append('file', file)
+    return fetch(`${BASE}/import-jobs/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      body: fd,
+    }).then(async res => {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: res.statusText }))
+        throw new ApiError(res.status, data)
+      }
+      return res.json()
+    }) as Promise<any>
+  },
   // Datei-Download via direkter URL: /api/import-jobs/:id/file
 
   // ── Generic helpers ───────────────────────────────────────────────────────

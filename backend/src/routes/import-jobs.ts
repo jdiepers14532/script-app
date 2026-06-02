@@ -2,9 +2,58 @@ import { Router } from 'express'
 import { query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import * as fs from 'fs'
+import * as path from 'path'
+import multer from 'multer'
+import { pdfToText, runTier1 } from '../lib/import/tier1-parser'
+
+const storage = multer.diskStorage({
+  destination: path.join(process.cwd(), 'uploads', 'import-docs'),
+  filename: (_req, file, cb) => {
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
+    cb(null, `${Date.now()}_${safe}`)
+  },
+})
+const upload = multer({ storage, limits: { fileSize: 50 * 1024 * 1024 } })
 
 const router = Router()
 router.use(authMiddleware)
+
+// POST /api/import-jobs/upload — PDF hochladen + Tier-1-Parse
+router.post('/upload', upload.single('file'), async (req, res) => {
+  try {
+    const { produktion_id } = req.body
+    if (!produktion_id) return res.status(400).json({ error: 'produktion_id erforderlich' })
+    if (!req.file) return res.status(400).json({ error: 'Keine Datei übermittelt' })
+
+    const userId = (req as any).user?.user_id || null
+    const job = await queryOne(
+      `INSERT INTO import_jobs (produktion_id, status, source_file_name, source_file_path, user_id)
+       VALUES ($1, 'running', $2, $3, $4) RETURNING *`,
+      [produktion_id, req.file.originalname, req.file.path, userId]
+    )
+
+    try {
+      const buffer = fs.readFileSync(req.file.path)
+      const { text, numPages } = await pdfToText(buffer)
+      const result = runTier1(text, numPages)
+      const newStatus = result.success ? 'done' : 'detecting'
+      const tierEreicht = result.success ? 1 : 0
+      await query(
+        `UPDATE import_jobs SET status=$1, tier_erreicht=$2, ergebnis_json=$3, abgeschlossen_am=NOW() WHERE id=$4`,
+        [newStatus, tierEreicht, JSON.stringify(result), job.id]
+      )
+      return res.json({ ...job, status: newStatus, tier_erreicht: tierEreicht, ergebnis_json: result })
+    } catch (parseErr) {
+      await query(
+        `UPDATE import_jobs SET status='error', fehler=$1, abgeschlossen_am=NOW() WHERE id=$2`,
+        [String(parseErr), job.id]
+      )
+      return res.json({ ...job, status: 'error', fehler: String(parseErr) })
+    }
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
 
 // GET /api/import-jobs?produktion_id=X
 router.get('/', async (req, res) => {
