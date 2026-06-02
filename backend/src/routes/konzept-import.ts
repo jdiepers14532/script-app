@@ -101,7 +101,8 @@ async function getMistralSettings() {
   const s = await queryOne(
     `SELECT * FROM ki_settings WHERE funktion = 'beat_kurztext'`
   )
-  return { apiKey: getProviderApiKey('mistral'), model: s?.model_mistral || 'mistral-large-latest' }
+  const apiKey = await getProviderApiKey('mistral')
+  return { apiKey, model: s?.model_mistral || 'mistral-large-latest' }
 }
 
 // ── Bestehende Stränge für Match-Erkennung ──────────────────────────────────
@@ -171,7 +172,7 @@ Antworte AUSSCHLIESSLICH in diesem Format:
       kiResult = parseJsonBlock(raw)
 
       // Token-Schätzung
-      await recordUsage('konzept_import_a', 'mistral', model,
+      await recordUsage('mistral', model,
         Math.round(prompt.length / 4), Math.round(raw.length / 4))
 
       if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
@@ -221,7 +222,7 @@ Antworte AUSSCHLIESSLICH in diesem Format:
       const raw = await callMistral(apiKey, model, prompt)
       kiResult = parseJsonBlock(raw)
 
-      await recordUsage('konzept_import_b', 'mistral', model,
+      await recordUsage('mistral', model,
         Math.round(prompt.length / 4), Math.round(raw.length / 4))
 
       if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
@@ -270,7 +271,7 @@ Antworte AUSSCHLIESSLICH in diesem Format:
       const raw = await callMistral(apiKey, model, prompt)
       kiResult = parseJsonBlock(raw)
 
-      await recordUsage('konzept_import_c', 'mistral', model,
+      await recordUsage('mistral', model,
         Math.round(prompt.length / 4), Math.round(raw.length / 4))
 
       if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
