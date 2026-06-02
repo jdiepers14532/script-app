@@ -314,7 +314,13 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
       }}>
         <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 5, overflow: 'hidden' }}>
           <button onClick={() => setMode('folge')} style={toggleBtnStyle(mode === 'folge')}>Pro {t('episode')}</button>
-          <button onClick={() => setMode('block')} style={{ ...toggleBtnStyle(mode === 'block'), borderLeft: '1px solid var(--border)' }}>Pro Block</button>
+          <button onClick={() => {
+            if (initialFolgeNummer != null && bloecke.length > 0) {
+              const idx = bloecke.findIndex(b => initialFolgeNummer >= b.folge_von && initialFolgeNummer <= b.folge_bis)
+              if (idx >= 0) setSelectedBlockIdx(idx)
+            }
+            setMode('block')
+          }} style={{ ...toggleBtnStyle(mode === 'block'), borderLeft: '1px solid var(--border)' }}>Pro Block</button>
         </div>
         {mode === 'folge' && (
           <select value={selectedFolgeId ?? ''} onChange={e => setSelectedFolgeId(Number(e.target.value) || null)} style={selectStyle}>
