@@ -104,6 +104,9 @@ export async function runStoryConsultant(opts: {
       }
       throw new Error('Claude API-Rate-Limit erreicht — bitte kurz warten und erneut versuchen.')
     }
+    if (err instanceof Anthropic.OverloadedError) {
+      throw new Error('Claude API ist momentan überlastet — bitte in einigen Minuten erneut versuchen.')
+    }
     if (err instanceof Anthropic.NotFoundError) {
       throw new Error(`Modell "${model}" nicht gefunden — bitte in Admin → Analyse ein anderes Modell wählen.`)
     }
