@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X, Trash2, FileDown } from 'lucide-react'
+import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X, Trash2, FileDown, Eye } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import AppShell from '../components/AppShell'
@@ -1024,11 +1024,12 @@ function MethodBadge({ fromCache }: { fromCache: boolean }) {
 
 // ── ReportView ─────────────────────────────────────────────────────────────────
 
-function ReportView({ run, activeTab, onTabChange, onRerunMethod, onDownloadPdf, isPolling }: {
+function ReportView({ run, activeTab, onTabChange, onRerunMethod, onPreviewPdf, onDownloadPdf, isPolling }: {
   run: RunData
   activeTab: string | null
   onTabChange: (tab: string) => void
   onRerunMethod?: (method: string) => void
+  onPreviewPdf?: (method: string) => void
   onDownloadPdf?: (method: string) => void
   isPolling?: boolean
 }) {
@@ -1111,7 +1112,7 @@ function ReportView({ run, activeTab, onTabChange, onRerunMethod, onDownloadPdf,
                   <Clock size={10} /> {fmtDuration(result.duration_ms)}
                 </span>
               )}
-              {(onRerunMethod || onDownloadPdf) && (
+              {(onRerunMethod || onPreviewPdf || onDownloadPdf) && (
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
                   {onRerunMethod && (
                     <button
@@ -1129,10 +1130,24 @@ function ReportView({ run, activeTab, onTabChange, onRerunMethod, onDownloadPdf,
                       <RefreshCw size={10} /> Neu
                     </button>
                   )}
+                  {onPreviewPdf && result.status === 'completed' && (
+                    <button
+                      onClick={() => onPreviewPdf(result.method)}
+                      title="PDF-Voransicht im Browser öffnen"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 4,
+                        padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)',
+                        background: 'var(--bg-card)', color: 'var(--text-secondary)',
+                        fontSize: 11, cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      <Eye size={10} /> Vorschau
+                    </button>
+                  )}
                   {onDownloadPdf && result.status === 'completed' && (
                     <button
                       onClick={() => onDownloadPdf(result.method)}
-                      title="Als PDF exportieren"
+                      title="Als PDF herunterladen"
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
                         padding: '3px 9px', borderRadius: 5, border: '1px solid var(--border)',
@@ -1744,6 +1759,7 @@ export default function AnalysisPage() {
               activeTab={selectedTab}
               onTabChange={setSelectedTab}
               onRerunMethod={handleRerunMethod}
+              onPreviewPdf={(method) => window.open(`/api/analysis/run/${selectedRunData.id}/pdf?method=${method}&inline=1`, '_blank')}
               onDownloadPdf={(method) => window.open(`/api/analysis/run/${selectedRunData.id}/pdf?method=${method}`, '_blank')}
               isPolling={isPolling}
             />

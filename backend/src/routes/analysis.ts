@@ -686,6 +686,7 @@ router.get('/run/:id/pdf', async (req, res) => {
     }
 
     const methodFilter = req.query.method as string | undefined
+    const inlinePreview = req.query.inline === '1'
 
     const run = await queryOne(
       `SELECT r.id, r.block_nummer, r.folge_nummer, r.status, r.created_at,
@@ -758,8 +759,9 @@ router.get('/run/:id/pdf', async (req, res) => {
 
       const scopeSlug = run.folge_nummer != null ? `folge${run.folge_nummer}` : `block${run.block_nummer}`
       const methodSlug = methodFilter ? `-${methodFilter.replace(/_/g, '-')}` : ''
+      const filename = `analyse-${scopeSlug}${methodSlug}-${new Date().toISOString().slice(0, 10)}.pdf`
       res.set('Content-Type', 'application/pdf')
-      res.set('Content-Disposition', `attachment; filename="analyse-${scopeSlug}${methodSlug}-${new Date().toISOString().slice(0, 10)}.pdf"`)
+      res.set('Content-Disposition', `${inlinePreview ? 'inline' : 'attachment'}; filename="${filename}"`)
       res.send(Buffer.from(pdfBuf))
     } finally {
       await browser.close()
