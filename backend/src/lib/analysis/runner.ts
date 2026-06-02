@@ -6,6 +6,7 @@
  */
 
 import * as crypto from 'crypto'
+import Anthropic from '@anthropic-ai/sdk'
 import { query, queryOne } from '../../db'
 import { resolveBlock } from '../blocks/resolver'
 import { runStoryConsultant, calcCostEurCent } from './methods/story-consultant'
@@ -337,7 +338,20 @@ export async function executeAnalysisRun(ctx: PreparedAnalysisContext): Promise<
       }
 
     } catch (err: any) {
-      const errMsg = String(err?.message || err)
+      let errMsg = String(err?.message || err)
+      // Anthropic API-Fehler → verständliche Meldung (auch für Methoden ohne eigenes try-catch)
+      if (err instanceof Anthropic.RateLimitError) {
+        const m = err.message?.toLowerCase() ?? ''
+        errMsg = (m.includes('credit') || m.includes('balance') || m.includes('quota'))
+          ? 'Claude API-Guthaben erschöpft — bitte im Anthropic-Account aufladen.'
+          : 'Claude API-Rate-Limit erreicht — bitte kurz warten und erneut versuchen.'
+      } else if (err instanceof Anthropic.InternalServerError && (err as any).status === 529) {
+        errMsg = 'Claude API ist momentan überlastet — bitte in einigen Minuten erneut versuchen.'
+      } else if (err instanceof Anthropic.AuthenticationError) {
+        errMsg = 'Claude API-Key ungültig oder abgelaufen — bitte in Admin → KI-Provider prüfen.'
+      } else if (err instanceof Anthropic.APIConnectionError) {
+        errMsg = 'Verbindung zur Claude API fehlgeschlagen — Netzwerkproblem auf dem Server.'
+      }
       await query(
         `UPDATE analysis_method_results SET status = 'error', error_detail = $1 WHERE id = $2`,
         [errMsg, method_result_id]
