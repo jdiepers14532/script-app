@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X, Trash2 } from 'lucide-react'
+import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X, Trash2, FileDown } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import AppShell from '../components/AppShell'
@@ -1024,10 +1024,13 @@ function MethodBadge({ fromCache }: { fromCache: boolean }) {
 
 // ── ReportView ─────────────────────────────────────────────────────────────────
 
-function ReportView({ run, activeTab, onTabChange }: {
+function ReportView({ run, activeTab, onTabChange, onRerun, onDownloadPdf, isPolling }: {
   run: RunData
   activeTab: string | null
   onTabChange: (tab: string) => void
+  onRerun?: () => void
+  onDownloadPdf?: () => void
+  isPolling?: boolean
 }) {
   const currentTab = activeTab ?? run.method_results[0]?.method ?? null
   const result = run.method_results.find(r => r.method === currentTab)
@@ -1065,6 +1068,36 @@ function ReportView({ run, activeTab, onTabChange }: {
         <span style={{ fontSize: 11, color: 'var(--text-secondary)', marginLeft: 'auto' }}>
           {fmtDate(run.created_at)}
         </span>
+        {onRerun && (
+          <button
+            onClick={onRerun}
+            disabled={isPolling}
+            title="Alle Methoden neu berechnen (Cache überspringen)"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--bg-card)', color: 'var(--text-primary)',
+              fontSize: 11, cursor: isPolling ? 'default' : 'pointer',
+              opacity: isPolling ? 0.5 : 1, fontFamily: 'inherit', fontWeight: 500,
+            }}
+          >
+            <RefreshCw size={11} /> Neu berechnen
+          </button>
+        )}
+        {onDownloadPdf && (
+          <button
+            onClick={onDownloadPdf}
+            title="Report als PDF exportieren"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--bg-card)', color: 'var(--text-primary)',
+              fontSize: 11, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+            }}
+          >
+            <FileDown size={11} /> PDF
+          </button>
+        )}
       </div>
 
       {/* Tab-Leiste */}
@@ -1466,6 +1499,38 @@ export default function AnalysisPage() {
     }
   }
 
+  // ── Neu berechnen (force_fresh) ──────────────────────────────────────────────
+
+  const handleRerun = useCallback(async () => {
+    if (!selectedRunData || !selectedProdId || isPolling) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const methods = selectedRunData.method_results.map(r => r.method)
+      const body: Record<string, unknown> = {
+        produktion_id: selectedProdId,
+        block_nummer: selectedRunData.block_nummer,
+        methods,
+        force_fresh: true,
+      }
+      if (selectedRunData.folge_nummer != null) body.folge_nummer = selectedRunData.folge_nummer
+      const resp = await fetch('/api/analysis/run', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await resp.json()
+      if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`)
+      setActiveRunStatus('queued')
+      startPolling(data.run_id)
+      loadPrevRuns()
+    } catch (e: any) {
+      setError(e.message || String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [selectedRunData, selectedProdId, isPolling, startPolling, loadPrevRuns])
+
   // ── Run laden ────────────────────────────────────────────────────────────────
 
   const loadRun = useCallback(async (runId: string) => {
@@ -1671,7 +1736,14 @@ export default function AnalysisPage() {
               </div>
             </div>
           ) : selectedRunData ? (
-            <ReportView run={selectedRunData} activeTab={selectedTab} onTabChange={setSelectedTab} />
+            <ReportView
+              run={selectedRunData}
+              activeTab={selectedTab}
+              onTabChange={setSelectedTab}
+              onRerun={handleRerun}
+              onDownloadPdf={() => window.open(`/api/analysis/run/${selectedRunData.id}/pdf`, '_blank')}
+              isPolling={isPolling}
+            />
           ) : (
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', fontSize: 13, textAlign: 'center', padding: 24, gap: 12 }}>
               {!selectedProduction ? (
