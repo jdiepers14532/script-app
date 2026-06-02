@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { pool } from '../db'
 import { authMiddleware } from '../auth'
 import { getStimmungen, ensureDefaultStimmungen } from './dk-access'
-import { getKiSetting, callProvider, applyPromptTemplate, effectivePrompt } from './ki'
+import { getKiSetting, callProvider, applyPromptTemplate, effectivePrompt, effectivePromptForProduction } from './ki'
 
 const router = Router()
 router.use(authMiddleware)
@@ -660,7 +660,8 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
             WHERE sc.scene_identity_id = $1
           `, [s.scene_identity_id])
           const rollenText = rollen.rows.map((r: any) => r.name).join(', ') || '(keine)'
-          const prompt = applyPromptTemplate(effectivePrompt(kiSetting), {
+          const promptTemplate = await effectivePromptForProduction(kiSetting, s.produktion_id)
+          const prompt = applyPromptTemplate(promptTemplate, {
             motiv: s.ort_name ?? '',
             int_ext: s.int_ext ?? '',
             tageszeit: s.tageszeit ?? '',
@@ -832,7 +833,8 @@ async function runSpielzeitUhrzeitCheck(werkstufeId: string, cfg: Record<string,
         return `Sz.${sz.scene_nummer} ${sz.int_ext ?? ''}. ${sz.ort_name ?? ''} - ${sz.tageszeit ?? ''} ${ankerHinweis} | ${oneliner}`.trim()
       }).join('\n')
 
-      const promptText = applyPromptTemplate(effectivePrompt(kiSetting), {
+      const promptTemplate = await effectivePromptForProduction(kiSetting, produktion_id)
+      const promptText = applyPromptTemplate(promptTemplate, {
         serie_name: produktion_titel ?? 'Serie',
         spieltag: String(spieltag),
         szenen_des_tages: szenenText,

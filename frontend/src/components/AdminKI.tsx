@@ -129,6 +129,20 @@ const FUNKTION_META: Record<string, {
     placeholders: ['{{text}}'],
     Icon: Upload,
   },
+  oneliner_vorhanden: {
+    label: 'Oneliner vorhanden (Check-Engine)',
+    description: 'Prüft ob ein Oneliner gesetzt ist und ob er den emotionalen Kern der Szene trifft.',
+    verwendung: 'Wird im Drehbuch-Check-Batch und manuell pro Szene ausgeführt (Check-Engine, nicht der alte Oneliner-Qualitäts-Check). KI-Kosten pro Szene.',
+    placeholders: ['{{motiv}}', '{{int_ext}}', '{{tageszeit}}', '{{rollen}}', '{{oneliner}}', '{{text_auszug}}'],
+    Icon: CheckCircle,
+  },
+  spielzeit_uhrzeit: {
+    label: 'Spielzeit/Uhrzeit-Schätzung',
+    description: 'Schätzt plausible Uhrzeiten (HH:MM) für alle Szenen eines dramaturgischen Tages.',
+    verwendung: 'Läuft als Batch-Level-Check pro Werkstufe über alle Szenen eines Spieltags. Bereits gesetzte Spielzeiten (Anker) bleiben unverändert. KI-Kosten pro Spieltag.',
+    placeholders: ['{{spieltag}}', '{{szenen_des_tages}}', '{{kontext_vorherige_folge}}', '{{kontext_naechste_folge}}', '{{serie_name}}'],
+    Icon: Zap,
+  },
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

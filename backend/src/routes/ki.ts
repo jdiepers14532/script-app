@@ -378,6 +378,27 @@ function effectivePrompt(setting: any): string {
   return (setting.prompt && setting.prompt.trim()) || setting.default_prompt || ''
 }
 
+/**
+ * Effektiver Prompt mit Produktions-Override:
+ * Reihenfolge: production_app_settings.ki_prompt_overrides[funktion] > ki_settings.prompt > ki_settings.default_prompt
+ */
+async function effectivePromptForProduction(setting: any, productionId?: string): Promise<string> {
+  if (productionId) {
+    try {
+      const row = await queryOne(
+        `SELECT value FROM production_app_settings WHERE production_id = $1 AND key = 'ki_prompt_overrides'`,
+        [productionId]
+      )
+      if (row?.value) {
+        const overrides = typeof row.value === 'string' ? JSON.parse(row.value) : row.value
+        const override = overrides?.[setting.funktion]?.trim()
+        if (override) return override
+      }
+    } catch { /* Fallback auf globale Einstellung */ }
+  }
+  return effectivePrompt(setting)
+}
+
 async function notifyKiTrainer(app: string, task: string, input: string, label: string, source_id?: string) {
   const secret = process.env.KI_TRAINER_SECRET
   if (!secret) return
@@ -1044,4 +1065,4 @@ router.post('/query-expand', async (req, res) => {
 })
 
 export default router
-export { getKiSetting, callProvider, applyPromptTemplate, effectivePrompt }
+export { getKiSetting, callProvider, applyPromptTemplate, effectivePrompt, effectivePromptForProduction }

@@ -7641,84 +7641,197 @@ function FreieDokLabelsTab({ produktionId }: { produktionId: string }) {
 
 // ── Tab: Drehbuch-Checks ─────────────────────────────────────────────────────
 
-const CHECK_DEFAULTS: Record<string, { label: string; auto: boolean; ki: boolean; defaultEnabled: boolean; tooltip: string }> = {
+type CheckDefaultEntry = {
+  label: string
+  auto: boolean
+  ki: boolean
+  defaultEnabled: boolean
+  defaultLockGating: 'blocker' | 'warnung' | 'off'
+  tooltip: string
+  gruppe: string
+}
+
+const CHECK_DEFAULTS: Record<string, CheckDefaultEntry> = {
+  // Szenenkopf
+  'szenenkopf.pflichtfelder': {
+    label: 'Pflichtfelder (I/A, Stimmung, Sz.-Nr., Motiv)', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'blocker', gruppe: 'Szenenkopf',
+    tooltip: 'Prüft ob alle Pflichtfelder im Szenenkopf ausgefüllt sind.\nFehlende Pflichtfelder blockieren den Lock.',
+  },
   motiv_leer: {
-    label: 'Motiv angegeben?', auto: true, ki: false, defaultEnabled: true,
-    tooltip: 'Prüft ob das Motiv-Feld ausgefüllt ist.\n\nEin fehlendes Motiv verhindert korrekte Breakdowns und den Drehplan-Export. Besonders wichtig bei Szenen, die direkt nach dem Import angelegt werden.',
+    label: 'Motiv angegeben?', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Szenenkopf',
+    tooltip: 'Prüft ob das Motiv-Feld ausgefüllt ist.\nEin fehlendes Motiv verhindert korrekte Breakdowns und den Drehplan-Export.',
   },
-  rollen_konsistenz: {
-    label: 'Rollen-Konsistenz', auto: true, ki: false, defaultEnabled: true,
-    tooltip: 'Vergleicht die Rollen im Szenenkopf mit den GROSSBUCHSTABEN-Namen im Szenentext.\n\nZwei Richtungen:\n• Name im Text → fehlt im Szenenkopf (vergessen einzutragen)\n• Name im Szenenkopf → nie im Text (eingetragen, aber nicht aufgetreten)\n\nNur Figuren aus der Figurendatenbank dieser Produktion werden geprüft.',
+  'motiv.einheitliche_schreibweise': {
+    label: 'Motiv-Schreibweise einheitlich', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Szenenkopf',
+    tooltip: 'Erkennt wenn dasselbe Motiv in unterschiedlicher Schreibweise vorkommt.',
   },
-  sondertyp_wechselschnitt: {
-    label: 'Sondertypen & Wechselschnitte', auto: true, ki: false, defaultEnabled: true,
-    tooltip: 'Zwei Prüfungen:\n\n① Sondertyp "Wechselschnitt" gesetzt, aber kein Telefonpartner angegeben.\n\n② Im Szenentext steht "WECHSELSCHNITT" oder "WS:", aber der Sondertyp ist nicht markiert — möglicherweise vergessen.',
-  },
-  strang_zuordnung: {
-    label: 'Strang-Zuordnung', auto: true, ki: false, defaultEnabled: true,
-    tooltip: 'Prüft ob die Szene mindestens einem Story-Strang zugeordnet ist.\n\nWird nur ausgelöst wenn für diese Produktion Stränge angelegt wurden. Szenen ohne Strang fehlen in Pacing-Analysen und im Story-Radar.\n\nHinweis: Nicht jede Szene muss einem Strang gehören (z.B. reine Produktionsszenen).',
+  'scene.unique_szenennummer': {
+    label: 'Eindeutige Szenennummer', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'blocker', gruppe: 'Szenenkopf',
+    tooltip: 'Doppelte Szenennummer in der Werkstufe blockiert den Lock.',
   },
   duplikat_motiv: {
-    label: 'Duplikat-Motiv im Block', auto: true, ki: false, defaultEnabled: true,
-    tooltip: 'Erkennt wenn dieselbe Motivkombination (Motiv + I/A + Tageszeit) bereits in einer anderen Szene derselben Folge vorkommt.\n\nDoppelte Motive sind oft ein Hinweis auf einen Fehler beim Kopieren. Absichtliche Wiederholungen (Rahmenhandlung) können einzeln ignoriert werden.',
+    label: 'Duplikat-Motiv im Block', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Szenenkopf',
+    tooltip: 'Erkennt wenn dieselbe Motivkombination bereits in einer anderen Szene der Folge vorkommt.',
+  },
+  // Inhalt & Rollen
+  'scene.empty': {
+    label: 'Szene hat Inhalt', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Inhalt & Rollen',
+    tooltip: 'Warnt bei leeren Szenen.\nWechselschnitte und Stockshots sind ausgenommen.',
+  },
+  rollen_konsistenz: {
+    label: 'Rollen-Konsistenz', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Inhalt & Rollen',
+    tooltip: 'Vergleicht Rollen im Szenenkopf mit GROSSBUCHSTABEN-Namen im Szenentext.',
+  },
+  'rolle.einheitliche_schreibweise': {
+    label: 'Rollen-Schreibweise (Rollendatei)', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Inhalt & Rollen',
+    tooltip: 'Prüft ob Rollennamen in CHARACTER-Zeilen exakt mit der Rollendatei übereinstimmen.',
   },
   fehlender_dialog: {
-    label: 'Fehlender Dialog', auto: true, ki: false, defaultEnabled: true,
-    tooltip: 'Prüft ob nach jedem Character-Element tatsächlich ein Dialog-Element folgt.\n\nEine Rolle ohne Dialog ist ein typischer Schreibfehler: Name eingetragen, Dialog vergessen.\n\nBei Auto=EIN: Szenenwechsel wird blockiert bis korrigiert. Bei manuell: erscheint als Fehler-Badge.',
+    label: 'Fehlender Dialog', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'blocker', gruppe: 'Inhalt & Rollen',
+    tooltip: 'Prüft ob nach jedem Character-Element tatsächlich ein Dialog folgt.\nRolle ohne Dialog blockiert den Lock.',
   },
+  sondertyp_wechselschnitt: {
+    label: 'Sondertypen & Wechselschnitte', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Format & Text',
+    tooltip: 'Prüft ob "Wechselschnitt" markiert ist und Telefonpartner angegeben.',
+  },
+  doppelter_sprecher: {
+    label: 'Doppelter Sprecher-Block', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Format & Text',
+    tooltip: 'Zwei CHARACTER-Zeilen hintereinander ohne Dialog dazwischen.',
+  },
+  'dialog.endet_satzzeichen': {
+    label: 'Dialog endet mit Satzzeichen', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'off', gruppe: 'Format & Text',
+    tooltip: 'Prüft ob Dialog-Blöcke mit einem Satzzeichen enden (., !, ?, …).',
+  },
+  'text.kein_leerzeichen_start': {
+    label: 'Kein führendes Leerzeichen', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'off', gruppe: 'Format & Text',
+    tooltip: 'Findet Blöcke mit ungewolltem führendem Leerzeichen.',
+  },
+  leere_bloecke: {
+    label: 'Leere Blöcke entfernen', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'off', gruppe: 'Format & Text',
+    tooltip: 'Leere screenplay_element/absatz-Blöcke im Dokument.',
+  },
+  // Timing & Dramaturgie
   stoppzeit_plausibilitaet: {
-    label: 'Stoppzeit-Plausibilität', auto: false, ki: false, defaultEnabled: false,
-    tooltip: 'Vergleicht die eingetragene Stoppzeit mit der geschätzten Spielzeit aus der Textlänge.\n\nFaustregel: 1 Seite ≈ 1 Minute ≈ ~1.800 Zeichen. Warnung bei mehr als Faktor 4 Abweichung.\n\nNur für Drehbuch-Format. Standardmäßig deaktiviert, da die Schätzung ungenau ist.',
+    label: 'Stoppzeit-Plausibilität', auto: false, ki: false, defaultEnabled: false, defaultLockGating: 'warnung', gruppe: 'Timing & Dramaturgie',
+    tooltip: 'Vergleicht die Stoppzeit mit der geschätzten Spielzeit aus der Textlänge.',
+  },
+  tageszeit_sequenz: {
+    label: 'Tageszeit-Sequenz', auto: false, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Timing & Dramaturgie',
+    tooltip: 'Prüft ob die Tageszeit innerhalb eines Spieltags in der richtigen DK-Reihenfolge vorwärts geht.',
+  },
+  dramaturgischer_tag_chronologie: {
+    label: 'Spieltag-Chronologie', auto: false, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Timing & Dramaturgie',
+    tooltip: 'Prüft ob die Spieltag-Nummern in der richtigen Reihenfolge sind.',
   },
   spieltag_inkonsistent: {
-    label: 'Dramaturgischer Tag (Spieltag)', auto: false, ki: false, defaultEnabled: true,
-    tooltip: 'Prüft ob die Spieltag-Nummern (SP1, SP2, …) über alle Folgen hinweg korrekt sind.\n\nEin Tageswechsel tritt auf wenn die letzte Stimmung des Tages (Standard: NACHT) auf eine frühere Stimmung folgt.\n\nDie Stimmungs-Reihenfolge ist in DK-Einstellungen → Allgemein konfigurierbar.\n\nDieser Check läuft immer folgenübergreifend — nicht je Szene.',
+    label: 'Dramaturgischer Tag (Spieltag)', auto: false, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Timing & Dramaturgie',
+    tooltip: 'Prüft ob Spieltag-Nummern über alle Folgen korrekt sind.\nLäuft immer folgenübergreifend.',
+  },
+  strang_zuordnung: {
+    label: 'Strang-Zuordnung', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'off', gruppe: 'Timing & Dramaturgie',
+    tooltip: 'Prüft ob die Szene mindestens einem Story-Strang zugeordnet ist.',
+  },
+  etablierungsshot_vorhanden: {
+    label: 'Etablierungsshot vorhanden', auto: false, ki: false, defaultEnabled: false, defaultLockGating: 'off', gruppe: 'Timing & Dramaturgie',
+    tooltip: 'Prüft ob im Szenentext ein Etablierungsshot-Hinweis (z.B. TOTALE, ESTABLISHING) vorhanden ist.',
+  },
+  // NT & Konsistenz
+  nt_replik_konsistenz: {
+    label: 'NT-Replik-Konsistenz', auto: false, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'NT & Konsistenz',
+    tooltip: 'Vergleicht NT-Repliken mit der eingefrorenen Basis-Werkstufe.',
   },
   nt_verweis: {
-    label: 'NT-Notiz synchronisieren', auto: true, ki: false, defaultEnabled: true,
-    tooltip: 'Ergänzt oder löscht NT-Zeilen in der Szenenkopf-Notiz automatisch.\n\nFiguren mit (NT)/(VO)/(OFF) und Dialog → \"NT Figurenname\"\nFiguren mit OFF (im Off gesprochen) → \"Figurenname im Off\"\n(ONE-WAY) im Szenentext → \"Oneway Telefonat\"\n\nKeine Warnung, kein Modal — läuft lautlos beim Szenenwechsel.',
+    label: 'NT-Notiz synchronisieren', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'off', gruppe: 'NT & Konsistenz',
+    tooltip: 'Ergänzt oder löscht NT-Zeilen in der Szenenkopf-Notiz automatisch.\nLäuft lautlos beim Szenenwechsel.',
   },
+  // KI-Checks
   oneliner_qualitaet: {
-    label: 'Oneliner-Qualität', auto: false, ki: true, defaultEnabled: false,
-    tooltip: 'Prüft ob der Oneliner den emotionalen Kern oder Wendepunkt der Szene wiedergibt.\n\n✨ KI-Feature: Nutzt Mistral AI zur Analyse — verursacht API-Kosten. Wird deshalb nur manuell ausgeführt, nie beim Autosave.\n\nEmpfohlen nur wenn alle Szenen konsequent mit Onelinern gepflegt werden.',
+    label: 'Oneliner-Qualität', auto: false, ki: true, defaultEnabled: false, defaultLockGating: 'off', gruppe: 'KI',
+    tooltip: '✨ KI-Feature: Prüft ob der Oneliner den emotionalen Kern wiedergibt.\nVerursacht API-Kosten.',
+  },
+  oneliner_vorhanden: {
+    label: 'Oneliner vorhanden', auto: false, ki: true, defaultEnabled: false, defaultLockGating: 'off', gruppe: 'KI',
+    tooltip: '✨ KI-Feature: Prüft ob ein Oneliner gesetzt ist und schlägt ihn vor falls nicht.\nVerursacht API-Kosten pro Szene.',
+  },
+  spielzeit_uhrzeit: {
+    label: 'Spielzeit/Uhrzeit-Schätzung', auto: false, ki: true, defaultEnabled: false, defaultLockGating: 'warnung', gruppe: 'KI',
+    tooltip: '✨ KI-Feature: Schätzt plausible Uhrzeiten für alle Szenen eines Spieltags.\nBatch-Check pro Werkstufe. Verursacht API-Kosten.',
   },
 }
 
+type CheckCfg = { enabled: boolean; auto: boolean; lock_gating: 'blocker' | 'warnung' | 'off' }
+
+const LOCK_GATING_LABELS: Record<string, string> = {
+  blocker: 'Blocker',
+  warnung: 'Warnung',
+  off: 'Inaktiv',
+}
+
 function DrehbuchChecksTab({ produktionId }: { produktionId: string }) {
-  const { t: tChecks } = useTerminologie()
-  const [config, setConfig] = useState<Record<string, { enabled: boolean; auto: boolean }>>({})
+  const navigate = useNavigate()
+  const [config, setConfig] = useState<Record<string, CheckCfg>>({})
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  // KI-Prompt-Overrides (per Produktion)
+  const [kiOverrides, setKiOverrides] = useState<Record<string, string>>({})
+  const [kiSettings, setKiSettings] = useState<Record<string, { prompt: string | null; default_prompt: string | null }>>({})
+  const [promptOpen, setPromptOpen] = useState<Record<string, boolean>>({})
+  const [promptDraft, setPromptDraft] = useState<Record<string, string>>({})
+  const [promptSaving, setPromptSaving] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    fetch(`/api/dk-settings/${produktionId}/app-settings`, { credentials: 'include' })
+    // Lade Check-Config über /api/checks/config (merged 4-axis)
+    fetch(`/api/checks/config/${encodeURIComponent(produktionId)}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(s => {
-        if (s?.drehbuch_checks) {
-          try {
-            const v = typeof s.drehbuch_checks === 'string' ? JSON.parse(s.drehbuch_checks) : s.drehbuch_checks
-            // Merge with defaults
-            const merged: Record<string, { enabled: boolean; auto: boolean }> = {}
-            for (const [key, meta] of Object.entries(CHECK_DEFAULTS)) {
-              merged[key] = { enabled: meta.defaultEnabled, auto: meta.auto, ...v[key] }
-            }
-            setConfig(merged)
-          } catch { setConfig({}) }
-        } else {
-          const defaults: Record<string, { enabled: boolean; auto: boolean }> = {}
+      .then((cfg: Record<string, any> | null) => {
+        if (!cfg) {
+          const defaults: Record<string, CheckCfg> = {}
           for (const [key, meta] of Object.entries(CHECK_DEFAULTS)) {
-            defaults[key] = { enabled: meta.defaultEnabled, auto: meta.auto }
+            defaults[key] = { enabled: meta.defaultEnabled, auto: meta.auto, lock_gating: meta.defaultLockGating }
           }
           setConfig(defaults)
+        } else {
+          const merged: Record<string, CheckCfg> = {}
+          for (const [key, meta] of Object.entries(CHECK_DEFAULTS)) {
+            merged[key] = {
+              enabled: cfg[key]?.enabled ?? meta.defaultEnabled,
+              auto: cfg[key]?.auto ?? meta.auto,
+              lock_gating: cfg[key]?.lock_gating ?? meta.defaultLockGating,
+            }
+          }
+          setConfig(merged)
+        }
+      })
+      .catch(() => {})
+
+    // Lade KI-Settings (global admin prompts)
+    fetch('/api/admin/ki-settings', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then((funcs: Array<{ funktion: string; prompt: string | null; default_prompt: string | null }>) => {
+        const map: Record<string, { prompt: string | null; default_prompt: string | null }> = {}
+        for (const f of funcs) map[f.funktion] = { prompt: f.prompt, default_prompt: f.default_prompt }
+        setKiSettings(map)
+      })
+      .catch(() => {})
+
+    // Lade Produktions-spezifische KI-Prompt-Overrides
+    fetch(`/api/dk-settings/${encodeURIComponent(produktionId)}/app-settings`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((s: any) => {
+        if (s?.ki_prompt_overrides) {
+          try {
+            const v = typeof s.ki_prompt_overrides === 'string' ? JSON.parse(s.ki_prompt_overrides) : s.ki_prompt_overrides
+            setKiOverrides(v ?? {})
+          } catch {}
         }
       })
       .catch(() => {})
   }, [produktionId])
 
-  const save = async (next: Record<string, { enabled: boolean; auto: boolean }>) => {
+  const save = async (next: Record<string, CheckCfg>) => {
     setSaving(true)
     try {
-      await fetch(`/api/dk-settings/${produktionId}/app-settings/drehbuch_checks`, {
+      await fetch(`/api/dk-settings/${encodeURIComponent(produktionId)}/app-settings/drehbuch_checks`, {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -7735,73 +7848,211 @@ function DrehbuchChecksTab({ produktionId }: { produktionId: string }) {
     save(next)
   }
 
-  const rowStyle: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
-    borderBottom: '1px solid var(--border)', fontSize: 13,
+  const setLockGating = (key: string, value: 'blocker' | 'warnung' | 'off') => {
+    const next = { ...config, [key]: { ...config[key], lock_gating: value } }
+    setConfig(next)
+    save(next)
   }
-  const labelStyle: React.CSSProperties = { flex: 1, color: 'var(--text-primary)' }
+
+  const saveKiPromptOverride = async (funktion: string, prompt: string) => {
+    setPromptSaving(p => ({ ...p, [funktion]: true }))
+    try {
+      const next = { ...kiOverrides, [funktion]: prompt }
+      await fetch(`/api/dk-settings/${encodeURIComponent(produktionId)}/app-settings/ki_prompt_overrides`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(next) }),
+      })
+      setKiOverrides(next)
+    } catch {}
+    setPromptSaving(p => ({ ...p, [funktion]: false }))
+  }
+
+  const resetKiPromptOverride = async (funktion: string) => {
+    setPromptSaving(p => ({ ...p, [funktion]: true }))
+    try {
+      const next = { ...kiOverrides }
+      delete next[funktion]
+      await fetch(`/api/dk-settings/${encodeURIComponent(produktionId)}/app-settings/ki_prompt_overrides`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: JSON.stringify(next) }),
+      })
+      setKiOverrides(next)
+      setPromptDraft(d => ({ ...d, [funktion]: '' }))
+    } catch {}
+    setPromptSaving(p => ({ ...p, [funktion]: false }))
+  }
+
   const tagStyle = (color: string): React.CSSProperties => ({
     fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 999,
     background: `${color}20`, border: `1px solid ${color}60`, color,
   })
 
+  // Gruppen aus CHECK_DEFAULTS
+  const gruppen = Array.from(new Set(Object.values(CHECK_DEFAULTS).map(m => m.gruppe)))
+
   return (
     <div>
-      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
-        Steuert, welche Qualitätschecks beim Autosave (Auto-Check) oder manuell per Kontextmenü ausgeführt werden.
-        KI-Checks ✨ werden nur manuell ausgeführt und verursachen API-Kosten.
+      <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16 }}>
+        Steuert, welche Qualitätschecks beim Autosave (Auto) oder beim Lock ausgeführt werden.
+        „Lock-Gate" bestimmt, ob ein offener Check den Lock <strong>blockiert</strong> oder als <strong>Warnung</strong> überbrückt werden kann.
+        KI-Checks ✨ verursachen API-Kosten und laufen nur manuell oder beim Lock.
       </p>
 
-      <div style={{ marginBottom: 8, display: 'grid', gridTemplateColumns: '1fr 80px 80px', gap: 8, fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-        <span>Check</span>
-        <span style={{ textAlign: 'center' }}>Aktiv</span>
-        <span style={{ textAlign: 'center' }}>Auto</span>
-      </div>
-
-      {Object.entries(CHECK_DEFAULTS).map(([key, meta]) => {
-        const cfg = config[key] ?? { enabled: meta.defaultEnabled, auto: meta.auto }
+      {gruppen.map(gruppe => {
+        const checks = Object.entries(CHECK_DEFAULTS).filter(([, m]) => m.gruppe === gruppe)
         return (
-          <div key={key} style={rowStyle}>
-            <div style={labelStyle}>
-              <Tooltip text={meta.tooltip} placement="right">
-                <span style={{ borderBottom: '1px dotted var(--text-muted)', cursor: 'help' }}>{meta.label}</span>
-              </Tooltip>
-              {meta.ki && <span style={{ ...tagStyle('#AF52DE'), marginLeft: 6 }}>✨ KI</span>}
-              {!meta.auto && !meta.ki && <span style={{ ...tagStyle('#757575'), marginLeft: 6 }}>nur manuell</span>}
+          <div key={gruppe} style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)', marginBottom: 6, paddingBottom: 4, borderBottom: '1px solid var(--border)' }}>
+              {gruppe}
             </div>
-            {/* Aktiv-Toggle */}
-            <div style={{ width: 80, textAlign: 'center' }}>
-              <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={cfg.enabled}
-                  onChange={() => toggle(key, 'enabled')}
-                  style={{ accentColor: '#007AFF', width: 16, height: 16 }}
-                />
-              </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 110px', gap: 8, fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0', marginBottom: 2 }}>
+              <span>Check</span>
+              <span style={{ textAlign: 'center' }}>Aktiv</span>
+              <span style={{ textAlign: 'center' }}>Auto</span>
+              <span style={{ textAlign: 'center' }}>Lock-Gate</span>
             </div>
-            {/* Auto-Toggle — KI-Checks sind immer nur manuell */}
-            <div style={{ width: 80, textAlign: 'center' }}>
-              {meta.ki ? (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
-              ) : (
-                <label style={{ cursor: cfg.enabled ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', opacity: cfg.enabled ? 1 : 0.4 }}>
-                  <input
-                    type="checkbox"
-                    checked={cfg.auto}
-                    disabled={!cfg.enabled}
-                    onChange={() => toggle(key, 'auto')}
-                    style={{ accentColor: '#007AFF', width: 16, height: 16 }}
-                  />
-                </label>
-              )}
-            </div>
+
+            {checks.map(([key, meta]) => {
+              const cfg = config[key] ?? { enabled: meta.defaultEnabled, auto: meta.auto, lock_gating: meta.defaultLockGating }
+              const isKiCheck = meta.ki
+              const promptExpanded = promptOpen[key] ?? false
+              const globalSetting = kiSettings[key]
+              const hasOverride = !!kiOverrides[key]?.trim()
+              const effectivePromptPreview = kiOverrides[key]?.trim()
+                || globalSetting?.prompt?.trim()
+                || globalSetting?.default_prompt?.trim()
+                || ''
+
+              return (
+                <React.Fragment key={key}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 60px 110px', gap: 8, alignItems: 'center', padding: '8px 0', borderBottom: isKiCheck ? 'none' : '1px solid var(--border)', opacity: cfg.enabled ? 1 : 0.6 }}>
+                    <div>
+                      <Tooltip text={meta.tooltip} placement="right">
+                        <span style={{ borderBottom: '1px dotted var(--text-muted)', cursor: 'help', fontSize: 13 }}>{meta.label}</span>
+                      </Tooltip>
+                      {meta.ki && <span style={{ ...tagStyle('#AF52DE'), marginLeft: 6 }}>✨ KI</span>}
+                      {!meta.auto && !meta.ki && <span style={{ ...tagStyle('#757575'), marginLeft: 6 }}>nur manuell</span>}
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <label style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={cfg.enabled}
+                          onChange={() => toggle(key, 'enabled')}
+                          style={{ accentColor: '#007AFF', width: 16, height: 16 }}
+                        />
+                      </label>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      {meta.ki ? (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
+                      ) : (
+                        <label style={{ cursor: cfg.enabled ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', opacity: cfg.enabled ? 1 : 0.4 }}>
+                          <input
+                            type="checkbox"
+                            checked={cfg.auto}
+                            disabled={!cfg.enabled}
+                            onChange={() => toggle(key, 'auto')}
+                            style={{ accentColor: '#007AFF', width: 16, height: 16 }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <select
+                        value={cfg.lock_gating}
+                        onChange={e => setLockGating(key, e.target.value as 'blocker' | 'warnung' | 'off')}
+                        disabled={!cfg.enabled}
+                        style={{
+                          fontSize: 11, padding: '3px 6px', borderRadius: 5,
+                          border: `1px solid ${cfg.lock_gating === 'blocker' ? '#FF3B30' : cfg.lock_gating === 'warnung' ? '#FFCC00' : 'var(--border)'}`,
+                          background: 'var(--bg)', color: cfg.lock_gating === 'blocker' ? '#FF3B30' : cfg.lock_gating === 'warnung' ? '#FFCC00' : 'var(--text-secondary)',
+                          cursor: cfg.enabled ? 'pointer' : 'not-allowed', opacity: cfg.enabled ? 1 : 0.5,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <option value="blocker">Blocker</option>
+                        <option value="warnung">Warnung</option>
+                        <option value="off">Inaktiv</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* KI-Prompt-Sektion — nur für KI-Checks */}
+                  {isKiCheck && globalSetting && (
+                    <div style={{ paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                      <button
+                        onClick={() => setPromptOpen(p => ({ ...p, [key]: !p[key] }))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0 4px 0' }}
+                      >
+                        <span style={{ fontSize: 9 }}>{promptExpanded ? '▼' : '▶'}</span>
+                        Prompt
+                        {hasOverride && <span style={{ ...tagStyle('#007AFF'), marginLeft: 4 }}>Produktions-Override</span>}
+                        {!hasOverride && globalSetting.prompt && globalSetting.prompt !== globalSetting.default_prompt && (
+                          <span style={{ ...tagStyle('#AF52DE'), marginLeft: 4 }}>Admin-Anpassung</span>
+                        )}
+                      </button>
+                      {promptExpanded && (
+                        <div style={{ paddingLeft: 8 }}>
+                          <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '0 0 6px', lineHeight: 1.5 }}>
+                            Produktionsspezifischer Prompt-Override (leer = globale Admin-Einstellung übernehmen).{' '}
+                            <button
+                              onClick={() => navigate('/admin?tab=ki')}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#007AFF', fontSize: 11, textDecoration: 'underline', padding: 0 }}
+                            >
+                              Globale Einstellung in Admin-KI bearbeiten →
+                            </button>
+                          </p>
+                          <textarea
+                            value={promptDraft[key] !== undefined ? promptDraft[key] : (kiOverrides[key] ?? '')}
+                            onChange={e => setPromptDraft(d => ({ ...d, [key]: e.target.value }))}
+                            placeholder={`Leer lassen = globale Einstellung verwenden:\n\n${effectivePromptPreview.substring(0, 150)}…`}
+                            rows={5}
+                            style={{
+                              width: '100%', fontSize: 11, fontFamily: 'monospace',
+                              padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 6,
+                              background: 'var(--bg)', color: 'var(--text)',
+                              resize: 'vertical', boxSizing: 'border-box' as const, lineHeight: 1.5,
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: 8, marginTop: 5, alignItems: 'center' }}>
+                            <button
+                              onClick={() => {
+                                const draft = promptDraft[key] !== undefined ? promptDraft[key] : (kiOverrides[key] ?? '')
+                                saveKiPromptOverride(key, draft)
+                              }}
+                              disabled={!!promptSaving[key]}
+                              style={{ fontSize: 11, padding: '4px 12px', border: 'none', borderRadius: 5, background: 'var(--text)', color: 'var(--bg)', cursor: 'pointer', fontWeight: 500 }}
+                            >
+                              {promptSaving[key] ? '…' : 'Override speichern'}
+                            </button>
+                            {hasOverride && (
+                              <button
+                                onClick={() => resetKiPromptOverride(key)}
+                                disabled={!!promptSaving[key]}
+                                style={{ fontSize: 11, padding: '4px 10px', border: '1px solid var(--border)', borderRadius: 5, background: 'transparent', cursor: 'pointer', color: 'var(--text-secondary)' }}
+                              >
+                                Override entfernen
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </React.Fragment>
+              )
+            })}
           </div>
         )
       })}
 
       {(saving || msg) && (
-        <div style={{ marginTop: 12, fontSize: 12, color: msg === 'Gespeichert' ? 'var(--sw-green)' : msg ? 'var(--sw-danger)' : 'var(--text-muted)' }}>
+        <div style={{ marginTop: 8, fontSize: 12, color: msg === 'Gespeichert' ? 'var(--sw-green)' : msg ? 'var(--sw-danger)' : 'var(--text-muted)' }}>
           {saving ? 'Wird gespeichert…' : msg}
         </div>
       )}

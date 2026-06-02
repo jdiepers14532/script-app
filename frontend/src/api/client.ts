@@ -1095,7 +1095,7 @@ export const api = {
   runChecksBatch: (werkstufId: string, opts?: { checks_override?: string[] }) =>
     request<{ ok: boolean; scenes_checked: number; total_issues: number }>('POST', `/checks/werkstufe/${werkstufId}/batch`, opts ?? {}),
   getCheckConfig: (produktionId: string) =>
-    request<Record<string, { enabled: boolean; auto: boolean }>>('GET', `/checks/config/${encodeURIComponent(produktionId)}`),
+    request<Record<string, { enabled: boolean; auto: boolean; lock_gating: string; autofix_mode?: string | null }>>('GET', `/checks/config/${encodeURIComponent(produktionId)}`),
   getCheckResults: (szeneId: string) =>
     request<any[]>('GET', `/checks/szene/${szeneId}`),
   getCheckBadges: (werkstufId: string) =>

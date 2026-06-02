@@ -109,6 +109,14 @@ const CHECK_META: Record<string, CheckMeta> = {
     label: 'Oneliner-Qualität', ki: true, auto: false,
     tooltip: '✨ KI-Feature — prüft ob der Oneliner den emotionalen Kern wiedergibt.\nVerursacht API-Kosten.',
   },
+  oneliner_vorhanden: {
+    label: 'Oneliner vorhanden', ki: true, auto: false,
+    tooltip: '✨ KI-Feature — prüft ob ein Oneliner gesetzt ist und ob er den emotionalen Kern trifft.\nVerursacht API-Kosten pro Szene.',
+  },
+  spielzeit_uhrzeit: {
+    label: 'Spielzeit/Uhrzeit-Schätzung', ki: true, auto: false,
+    tooltip: '✨ KI-Feature — schätzt plausible Uhrzeiten für alle Szenen eines dramaturgischen Tages.\nLäuft als Batch-Check pro Spieltag, nicht pro Szene. Verursacht API-Kosten.',
+  },
 }
 
 const GROUPS: { label: string; keys: string[] }[] = [
@@ -117,7 +125,7 @@ const GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Format & Text', keys: ['sondertyp_wechselschnitt', 'doppelter_sprecher', 'dialog.endet_satzzeichen', 'text.kein_leerzeichen_start', 'leere_bloecke'] },
   { label: 'Timing & Dramaturgie', keys: ['stoppzeit_plausibilitaet', 'tageszeit_sequenz', 'dramaturgischer_tag_chronologie', 'spieltag_inkonsistent', 'strang_zuordnung'] },
   { label: 'NT & Konsistenz', keys: ['nt_replik_konsistenz', 'nt_verweis'] },
-  { label: 'KI', keys: ['oneliner_qualitaet'] },
+  { label: 'KI', keys: ['oneliner_qualitaet', 'oneliner_vorhanden', 'spielzeit_uhrzeit'] },
 ]
 
 interface BatchCheckModalProps {
