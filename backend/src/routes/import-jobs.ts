@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { query, queryOne } from '../db'
+import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -379,6 +379,173 @@ router.post('/:id/tier3', async (req, res) => {
         [String(fatalErr), job.id]
       )
     })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── Hilfsfunktion: extrahierte Blöcke aus ergebnis_json lesen ─────────────────
+function extractBlocks(ergebnisJson: any): Array<{ block_nummer: number; strang?: string; charakter?: string; text: string }> {
+  if (!ergebnisJson) return []
+  // Tier-3-Ergebnis hat Vorrang (vollständiger)
+  const source = ergebnisJson.tier3_result ?? ergebnisJson
+  return Array.isArray(source.blocks) ? source.blocks : []
+}
+
+const STRANG_COLORS = ['#007AFF', '#FF9500', '#AF52DE', '#00C853', '#FF3B30', '#FFCC00', '#32ADE6', '#FF2D55']
+
+// GET /api/import-jobs/:id/commit-preview — Dry-Run: neue/vorhandene Stränge + Beat-Anzahl
+router.get('/:id/commit-preview', async (req, res) => {
+  try {
+    const job = await queryOne('SELECT id, status, produktion_id, ergebnis_json, committed_at FROM import_jobs WHERE id = $1', [req.params.id])
+    if (!job) return res.status(404).json({ error: 'Job nicht gefunden' })
+    if (job.status !== 'done') return res.status(400).json({ error: 'Nur für abgeschlossene Jobs' })
+
+    const blocks = extractBlocks(job.ergebnis_json)
+    if (blocks.length === 0) return res.status(400).json({ error: 'Keine Blöcke in ergebnis_json' })
+
+    // Einzigartige Strang-Namen
+    const uniqueStrangNames = [...new Set(blocks.map(b => b.strang).filter(Boolean))] as string[]
+
+    // Vorhandene Stränge in dieser Produktion
+    const existingRows = await query(
+      `SELECT id, name FROM straenge WHERE produktion_id = $1 AND LOWER(TRIM(name)) = ANY($2)`,
+      [job.produktion_id, uniqueStrangNames.map(n => n.toLowerCase().trim())]
+    )
+    const existingMap = new Map<string, string>(existingRows.map((r: any) => [r.name.toLowerCase().trim(), r.id]))
+
+    const neueStrangeNames = uniqueStrangNames.filter(n => !existingMap.has(n.toLowerCase().trim()))
+    const vorhandeneStrange = uniqueStrangNames
+      .filter(n => existingMap.has(n.toLowerCase().trim()))
+      .map(n => ({ name: n, id: existingMap.get(n.toLowerCase().trim())! }))
+
+    // Beat-Counts: neue vs. vorhandene
+    let neueBeats = 0
+    let aktualisierteBeats = 0
+    for (const b of blocks) {
+      if (!b.strang) continue
+      const strangId = existingMap.get(b.strang.toLowerCase().trim())
+      if (!strangId) {
+        neueBeats++
+        continue
+      }
+      const existing = await queryOne(
+        `SELECT id FROM strang_beats WHERE strang_id = $1 AND block_nummer = $2 AND ebene = 'future' LIMIT 1`,
+        [strangId, b.block_nummer]
+      )
+      existing ? aktualisierteBeats++ : neueBeats++
+    }
+
+    res.json({
+      neue_straenge: neueStrangeNames,
+      vorhandene_straenge: vorhandeneStrange,
+      neue_beats: neueBeats,
+      aktualisierte_beats: aktualisierteBeats,
+      total_blocks: blocks.length,
+      already_committed: !!job.committed_at,
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/import-jobs/:id/commit — Stränge + Future-Beats in DB schreiben
+router.post('/:id/commit', async (req, res) => {
+  try {
+    const job = await queryOne('SELECT * FROM import_jobs WHERE id = $1', [req.params.id])
+    if (!job) return res.status(404).json({ error: 'Job nicht gefunden' })
+    if (job.status !== 'done') return res.status(400).json({ error: 'Nur für abgeschlossene Jobs' })
+    if (job.committed_at) return res.status(409).json({ error: 'Job wurde bereits committed' })
+
+    const blocks = extractBlocks(job.ergebnis_json)
+    if (blocks.length === 0) return res.status(400).json({ error: 'Keine Blöcke in ergebnis_json' })
+
+    const uniqueStrangNames = [...new Set(blocks.map(b => b.strang).filter(Boolean))] as string[]
+    const userId = (req as any).user?.user_id || null
+
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+
+      // 1. Stränge anlegen oder finden
+      const existingRows = await client.query(
+        `SELECT id, name FROM straenge WHERE produktion_id = $1 AND LOWER(TRIM(name)) = ANY($2)`,
+        [job.produktion_id, uniqueStrangNames.map(n => n.toLowerCase().trim())]
+      )
+      const strangIdMap = new Map<string, string>(
+        existingRows.rows.map((r: any) => [r.name.toLowerCase().trim(), r.id])
+      )
+
+      // Aktuelle Strang-Anzahl für Farb-Zuweisung
+      const countRow = await client.query(
+        `SELECT COUNT(*) AS cnt FROM straenge WHERE produktion_id = $1`, [job.produktion_id]
+      )
+      let colorIdx = parseInt(countRow.rows[0].cnt, 10)
+
+      for (const name of uniqueStrangNames) {
+        const key = name.toLowerCase().trim()
+        if (strangIdMap.has(key)) continue
+        const sortRow = await client.query(
+          `SELECT COALESCE(MAX(sort_order), 0) AS mx FROM straenge WHERE produktion_id = $1`, [job.produktion_id]
+        )
+        const color = STRANG_COLORS[colorIdx % STRANG_COLORS.length]
+        colorIdx++
+        const ins = await client.query(
+          `INSERT INTO straenge (produktion_id, name, farbe, sort_order, erstellt_von)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [job.produktion_id, name, color, (sortRow.rows[0].mx ?? 0) + 1, userId]
+        )
+        strangIdMap.set(key, ins.rows[0].id)
+      }
+
+      // 2. Future-Beats schreiben (upsert per SELECT + INSERT/UPDATE)
+      let createdBeats = 0
+      let updatedBeats = 0
+      for (const b of blocks) {
+        if (!b.strang) continue
+        const strangId = strangIdMap.get(b.strang.toLowerCase().trim())
+        if (!strangId) continue
+
+        const existing = await client.query(
+          `SELECT id FROM strang_beats WHERE strang_id = $1 AND block_nummer = $2 AND ebene = 'future' LIMIT 1`,
+          [strangId, b.block_nummer]
+        )
+        if (existing.rows.length > 0) {
+          await client.query(
+            `UPDATE strang_beats SET prosa_text = $1 WHERE id = $2`,
+            [b.text || null, existing.rows[0].id]
+          )
+          updatedBeats++
+        } else {
+          await client.query(
+            `INSERT INTO strang_beats (strang_id, ebene, block_nummer, prosa_text, sort_order)
+             VALUES ($1, 'future', $2, $3, $2)`,
+            [strangId, b.block_nummer, b.text || null]
+          )
+          createdBeats++
+        }
+      }
+
+      await client.query('COMMIT')
+
+      // 3. Job als committed markieren
+      await query(
+        `UPDATE import_jobs SET committed_at=NOW(), committed_strands=$1, committed_beats=$2 WHERE id=$3`,
+        [uniqueStrangNames.length, createdBeats + updatedBeats, job.id]
+      )
+
+      res.json({
+        committed_strands: uniqueStrangNames.length,
+        neue_straenge: uniqueStrangNames.length - existingRows.rows.length,
+        neue_beats: createdBeats,
+        aktualisierte_beats: updatedBeats,
+      })
+    } catch (txErr) {
+      await client.query('ROLLBACK')
+      throw txErr
+    } finally {
+      client.release()
+    }
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

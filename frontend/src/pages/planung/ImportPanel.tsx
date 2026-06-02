@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Upload, FileText, Trash2, Download, ChevronDown, ChevronRight,
-  Loader2, CheckCircle, AlertCircle, Info, X, Zap, Eye, Play,
+  Loader2, CheckCircle, AlertCircle, Info, X, Zap, Eye, Play, Import,
 } from 'lucide-react'
 import { api } from '../../api/client'
 import Tooltip from '../../components/Tooltip'
@@ -18,6 +18,9 @@ interface ImportJob {
   total_chunks: number | null
   done_chunks: number
   fehler: string | null
+  committed_at: string | null
+  committed_strands: number | null
+  committed_beats: number | null
   erstellt_am: string
   abgeschlossen_am: string | null
   ergebnis_json: any | null
@@ -200,6 +203,194 @@ function CostPreviewDialog({
   )
 }
 
+// ── Commit-Dialog ─────────────────────────────────────────────────────────────
+
+interface CommitPreview {
+  neue_straenge: string[]
+  vorhandene_straenge: Array<{ name: string; id: string }>
+  neue_beats: number
+  aktualisierte_beats: number
+  total_blocks: number
+  already_committed: boolean
+}
+
+function CommitDialog({
+  jobId,
+  onClose,
+  onCommitted,
+}: {
+  jobId: string
+  onClose: () => void
+  onCommitted: (result: { committed_strands: number; neue_beats: number; aktualisierte_beats: number }) => void
+}) {
+  const [preview, setPreview] = useState<CommitPreview | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+  const [committing, setCommitting] = useState(false)
+
+  useEffect(() => {
+    api.get(`/import-jobs/${jobId}/commit-preview`)
+      .then(p => setPreview(p))
+      .catch(e => setErr(e.message || 'Fehler'))
+      .finally(() => setLoading(false))
+  }, [jobId])
+
+  async function handleCommit() {
+    setCommitting(true)
+    setErr('')
+    try {
+      const result = await api.post(`/import-jobs/${jobId}/commit`)
+      onCommitted(result)
+    } catch (e: any) {
+      setErr(e.message || 'Fehler beim Importieren')
+      setCommitting(false)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9000,
+      }}
+      onClick={e => e.target === e.currentTarget && onClose()}
+    >
+      <div style={{
+        width: 480, background: 'var(--bg-surface)', borderRadius: 12,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.25)', overflow: 'hidden',
+      }}>
+        <div style={{
+          padding: '14px 18px', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 7 }}>
+            <Import size={14} style={{ color: '#007AFF' }} />
+            In Strang-System importieren
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', padding: 4 }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: 20 }}>
+          {loading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
+              <Loader2 size={20} style={{ animation: 'spin 0.8s linear infinite', color: 'var(--text-muted)' }} />
+            </div>
+          ) : err && !preview ? (
+            <div style={{ fontSize: 12, color: '#FF3B30' }}>{err}</div>
+          ) : preview && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {preview.already_committed && (
+                <div style={{
+                  padding: '8px 12px', borderRadius: 6,
+                  background: 'rgba(255,204,0,0.1)', border: '1px solid rgba(255,204,0,0.3)',
+                  fontSize: 12, color: '#B8860B',
+                }}>
+                  Dieser Job wurde bereits importiert. Ein erneuter Import überschreibt vorhandene Prosa-Texte.
+                </div>
+              )}
+
+              {/* Neue Stränge */}
+              {preview.neue_straenge.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    Neue Stränge werden angelegt ({preview.neue_straenge.length})
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {preview.neue_straenge.map(name => (
+                      <span key={name} style={{
+                        padding: '2px 8px', borderRadius: 4, fontSize: 11,
+                        background: 'rgba(0,200,83,0.08)', color: '#00C853',
+                        border: '1px solid rgba(0,200,83,0.25)',
+                      }}>
+                        + {name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Vorhandene Stränge */}
+              {preview.vorhandene_straenge.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                    Vorhandene Stränge (werden aktualisiert, {preview.vorhandene_straenge.length})
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {preview.vorhandene_straenge.map(s => (
+                      <span key={s.id} style={{
+                        padding: '2px 8px', borderRadius: 4, fontSize: 11,
+                        background: 'rgba(0,122,255,0.07)', color: '#007AFF',
+                        border: '1px solid rgba(0,122,255,0.2)',
+                      }}>
+                        {s.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Beat-Statistik */}
+              <div style={{
+                padding: '10px 14px', borderRadius: 8, background: 'var(--bg)',
+                border: '1px solid var(--border)', display: 'grid',
+                gridTemplateColumns: '1fr 1fr', gap: '6px 16px',
+              }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Block-Einträge gesamt</span>
+                <span style={{ fontSize: 12, color: 'var(--text-primary)', fontWeight: 500 }}>{preview.total_blocks}</span>
+
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Neue Future-Beats</span>
+                <span style={{ fontSize: 12, color: '#00C853', fontWeight: 500 }}>+{preview.neue_beats}</span>
+
+                {preview.aktualisierte_beats > 0 && (
+                  <>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Aktualisierte Beats</span>
+                    <span style={{ fontSize: 12, color: '#007AFF', fontWeight: 500 }}>{preview.aktualisierte_beats}</span>
+                  </>
+                )}
+              </div>
+
+              {err && <div style={{ fontSize: 12, color: '#FF3B30' }}>{err}</div>}
+            </div>
+          )}
+        </div>
+
+        <div style={{
+          padding: '12px 18px', borderTop: '1px solid var(--border)',
+          display: 'flex', justifyContent: 'flex-end', gap: 8,
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '7px 16px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'transparent', cursor: 'pointer', fontSize: 13,
+            }}
+          >
+            Abbrechen
+          </button>
+          <button
+            onClick={handleCommit}
+            disabled={committing || loading || (!preview && !err)}
+            style={{
+              padding: '7px 20px', borderRadius: 6, border: 'none',
+              background: committing || loading ? 'var(--border)' : '#000',
+              color: committing || loading ? 'var(--text-muted)' : '#fff',
+              cursor: committing || loading ? 'default' : 'pointer',
+              fontSize: 13, fontWeight: 500,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            {committing && <Loader2 size={13} style={{ animation: 'spin 0.8s linear infinite' }} />}
+            <Import size={13} />
+            Importieren
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Einzelner Job-Eintrag ─────────────────────────────────────────────────────
 
 function JobRow({
@@ -216,6 +407,7 @@ function JobRow({
   const [deleting, setDeleting] = useState(false)
   const [tier2Running, setTier2Running] = useState(false)
   const [showCostPreview, setShowCostPreview] = useState(false)
+  const [showCommitDialog, setShowCommitDialog] = useState(false)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Job-Daten von außen aktualisieren (nach Upload)
@@ -397,6 +589,38 @@ function JobRow({
             </Tooltip>
           )}
 
+          {/* Importieren-Button */}
+          {job.status === 'done' && !job.committed_at && (
+            <Tooltip text="Blöcke als Future-Beats in Strang-System importieren">
+              <button
+                onClick={() => setShowCommitDialog(true)}
+                style={{
+                  height: 28, padding: '0 10px', borderRadius: 6,
+                  border: '1px solid #007AFF',
+                  background: 'rgba(0,122,255,0.08)', color: '#007AFF',
+                  cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                <Import size={11} />
+                Importieren
+              </button>
+            </Tooltip>
+          )}
+
+          {/* Committed-Badge */}
+          {job.committed_at && (
+            <span style={{
+              padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 600,
+              background: 'rgba(0,200,83,0.1)', color: '#00C853',
+              border: '1px solid rgba(0,200,83,0.25)',
+              display: 'flex', alignItems: 'center', gap: 3,
+            }}>
+              <CheckCircle size={10} />
+              Importiert
+            </span>
+          )}
+
           <Tooltip text="Original-PDF herunterladen">
             <a
               href={`/api/import-jobs/${job.id}/file`}
@@ -524,6 +748,25 @@ function JobRow({
           onStart={async () => {
             const updated = await api.getImportJob(job.id)
             handleTier3Started(updated)
+          }}
+        />
+      )}
+
+      {/* Commit-Dialog */}
+      {showCommitDialog && (
+        <CommitDialog
+          jobId={job.id}
+          onClose={() => setShowCommitDialog(false)}
+          onCommitted={result => {
+            setShowCommitDialog(false)
+            const updated: ImportJob = {
+              ...job,
+              committed_at: new Date().toISOString(),
+              committed_strands: result.committed_strands,
+              committed_beats: result.neue_beats + result.aktualisierte_beats,
+            }
+            setJob(updated)
+            onUpdate(updated)
           }}
         />
       )}

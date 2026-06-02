@@ -477,6 +477,8 @@ async function runMigrations() {
     'v184_ki_import_settings.sql',
     // PR 13: extracted_text-Spalte in import_jobs (PDF-Text-Cache für Tier-2/3)
     'v185_import_jobs_text_cache.sql',
+    // PR 14: committed_at/strands/beats für Import-Commit-Schritt
+    'v186_import_commit.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
