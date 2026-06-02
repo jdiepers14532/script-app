@@ -12,7 +12,7 @@ import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor, useTerminologie } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
-import { Clock } from 'lucide-react'
+import { Clock, GitCompare, X } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import MagicFunktionenModal from './MagicFunktionenModal'
 import BatchCheckModal from '../BatchCheckModal'
@@ -498,6 +498,11 @@ export default function EditorPanel({
   const [changedBlocks, setChangedBlocks] = useState<Set<string>>(new Set())
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
 
+  // ── Diff mode (Revisionsstufen-Vergleich) ─────────────────────────────────
+  const [diffWerkId, setDiffWerkId] = useState<string | null>(null)
+  const [diffResult, setDiffResult] = useState<any[] | null>(null)   // raw diff array
+  const [diffLoading, setDiffLoading] = useState(false)
+
   useEffect(() => {
     const szId = currentSzene?.id ?? selectedSzeneId
     if (!szId) { setChangedBlocks(new Set()); setRevisionColor(null); return }
@@ -519,7 +524,30 @@ export default function EditorPanel({
         setRevisionColor(colorDelta?.revision_color ?? null)
       })
       .catch(() => { setChangedBlocks(new Set()); setRevisionColor(null) })
-  }, [currentSzene?.id, selectedSzeneId, useDokumentSzenen])
+  }, [currentSzene?.id, selectedSzeneId, useDokumentSzenen, diffWerkId]) // re-run when diff mode exits
+
+  // Diff laden wenn diffWerkId gesetzt
+  useEffect(() => {
+    if (!diffWerkId || !selectedWerkId) { setDiffResult(null); return }
+    setDiffLoading(true)
+    api.getWerkstufeDiff(selectedWerkId, diffWerkId)
+      .then(data => setDiffResult(data.diff ?? []))
+      .catch(() => setDiffResult([]))
+      .finally(() => setDiffLoading(false))
+  }, [diffWerkId, selectedWerkId])
+
+  // Im Diff-Modus: changedBlocks aus Diff-Daten für aktuelle Szene überschreiben
+  useEffect(() => {
+    if (!diffResult || !currentSzene?.scene_identity_id) return
+    const entry = diffResult.find((e: any) => e.scene_identity_id === currentSzene.scene_identity_id)
+    if (entry) {
+      setChangedBlocks(new Set<string>(entry.changed_block_uuids ?? []))
+      setRevisionColor('#007AFF')  // Diff-Modus immer blau
+    } else {
+      setChangedBlocks(new Set())
+      setRevisionColor(null)
+    }
+  }, [diffResult, currentSzene?.scene_identity_id, currentSzene?.id])
 
   // ── Replik offsets for numbering ──────────────────────────────────────────
   const [replikOffsets, setReplikOffsets] = useState<Record<string, number>>({})
@@ -589,6 +617,10 @@ export default function EditorPanel({
         onCreateWerkstufe={onCreateWerkstufe}
         onNeueFassungClick={folgeId ? (typ) => setNeueFassungModal(typ) : undefined}
         onReloadWerkstufen={onReloadWerkstufen}
+        onDiffRequest={(compareId) => {
+          setDiffWerkId(compareId)
+          if (!compareId) { setDiffResult(null); setChangedBlocks(new Set()); setRevisionColor(null) }
+        }}
         onChangeSceneFormat={async (fmt) => {
           if (!currentSzene?.id || typeof currentSzene.id !== 'string') return
           // If body has content, show confirmation first (destructive)
@@ -638,6 +670,39 @@ export default function EditorPanel({
         ) : undefined}
       />
 
+      {/* ── Diff-Modus Banner ── */}
+      {diffWerkId && (() => {
+        const compareWerk = werkstufen.find(w => w.id === diffWerkId)
+        const label = compareWerk?.ist_revisionsstufe
+          ? `Revisionsstufe ${compareWerk.revisionsstufen_nr}`
+          : (compareWerk?.label ?? compareWerk?.typ ?? diffWerkId)
+        return (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px',
+            background: 'rgba(0,122,255,0.08)', borderBottom: '1px solid rgba(0,122,255,0.2)',
+            fontSize: 11, color: '#007AFF',
+          }}>
+            <GitCompare size={12} />
+            {diffLoading ? 'Vergleich wird geladen…' : `Diff-Modus: Vergleich mit ${label}`}
+            {!diffLoading && diffResult && (
+              <span style={{ color: 'var(--text-muted)', marginLeft: 4 }}>
+                — {diffResult.filter((e: any) => e.status === 'changed').length} Szenen geändert
+              </span>
+            )}
+            <button
+              onClick={() => { setDiffWerkId(null); setDiffResult(null); setChangedBlocks(new Set()); setRevisionColor(null) }}
+              style={{
+                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3,
+                padding: '2px 6px', borderRadius: 4, fontSize: 10, border: '1px solid rgba(0,122,255,0.3)',
+                background: 'transparent', color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <X size={10} />
+              Beenden
+            </button>
+          </div>
+        )
+      })()}
 
       {/* ── Szenario 3: Andere User aktiv auf derselben Werkstufe ── */}
       {otherActiveUsers.length > 0 && !collabEnabled && (

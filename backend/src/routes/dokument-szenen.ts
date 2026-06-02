@@ -195,6 +195,20 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
       }
     }
 
+    // Freeze-Guard: Content-PUTs auf eingefrorene Werkstufen verweigern (403).
+    // Metadaten-Updates (kein content im Body) dürfen immer durch — auch für Label-Rename (Handoff 2).
+    if (effectiveContent) {
+      const frozenCheck = await queryOne(
+        `SELECT w.eingefroren FROM dokument_szenen ds
+         JOIN werkstufen w ON w.id = ds.werkstufe_id
+         WHERE ds.id = $1`,
+        [req.params.id]
+      )
+      if (frozenCheck?.eingefroren) {
+        return res.status(403).json({ error: 'Werkstufe ist eingefroren — kein Content-Update möglich', code: 'FROZEN' })
+      }
+    }
+
     // Calculate page_length if content is provided
     const pageLength = effectiveContent ? calcPageLength(effectiveContent) : null
 

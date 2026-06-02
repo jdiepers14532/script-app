@@ -116,6 +116,11 @@ export interface WerkstufeMeta {
   seitenzahlen_gesperrt?: boolean
   gesperrt_am?: string | null
   gesperrt_von?: string | null
+  eingefroren?: boolean
+  eingefroren_am?: string | null
+  eingefroren_von?: string | null
+  ist_revisionsstufe?: boolean
+  revisionsstufen_nr?: number | null
 }
 
 export function useWerkstufe(folgeId: number | null) {

@@ -271,6 +271,10 @@ export const api = {
     request<any>('POST', `/werkstufen/${werkstufId}/start-revision`, { revision_color_id: revisionColorId }),
   stopRevision: (werkstufId: string) =>
     request<any>('DELETE', `/werkstufen/${werkstufId}/start-revision`),
+  einfrierenWerkstufe: (werkstufId: string) =>
+    request<any>('PUT', `/werkstufen/${werkstufId}/einfrieren`),
+  getWerkstufeDiff: (baseId: string, otherId: string) =>
+    request<any>('GET', `/werkstufen/${baseId}/diff/${otherId}`),
   updateWerkstufe: (werkstufId: string, data: any) =>
     request<any>('PUT', `/werkstufen/${werkstufId}`, data),
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag, GitBranch, User } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Lock, Users, Globe, Tag, GitBranch, User, Snowflake, GitCompare } from 'lucide-react'
 import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
@@ -44,6 +44,7 @@ interface Props {
   onCreateWerkstufe: (typ: string) => void
   onNeueFassungClick?: (requestedTyp: 'drehbuch' | 'storyline' | 'notiz') => void
   onReloadWerkstufen: () => void
+  onDiffRequest?: (compareWerkId: string | null) => void
   onChangeSceneFormat?: (format: string) => void
   saveStatus?: SaveStatus
   updatedBy?: string | null
@@ -56,7 +57,7 @@ interface Props {
 export default function EditorPanelHeader({
   selectedWerk, werkstufen, produktionId, folgeNummer, folgeId,
   sceneFormat, onSelectWerkstufe, onCreateWerkstufe, onNeueFassungClick, onReloadWerkstufen,
-  onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot, verlaufSlot, rightSlot,
+  onDiffRequest, onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot, verlaufSlot, rightSlot,
 }: Props) {
   const { t } = useTerminologie()
   const typLabels: Record<string, string> = {
@@ -83,6 +84,7 @@ export default function EditorPanelHeader({
   const [revisionColors, setRevisionColors] = useState<{ id: number; name: string; color: string }[]>([])
   const [showRevisionMenu, setShowRevisionMenu] = useState(false)
   const [revisionSaving, setRevisionSaving] = useState(false)
+  const [showDiffMenu, setShowDiffMenu] = useState(false)
   const [userRoles, setUserRoles] = useState<string[]>([])
   const [seitenLockSaving, setSeitenLockSaving] = useState(false)
 
@@ -656,9 +658,28 @@ export default function EditorPanelHeader({
 
       {/* Revision UI */}
       {selectedWerk && (
-        <div style={{ position: 'relative' }}>
-          {selectedWerk.revision_color_id ? (
-            // Active revision: show colored badge + stop button
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }}>
+
+          {/* Frozen badge */}
+          {selectedWerk.eingefroren && (
+            <Tooltip text={selectedWerk.ist_revisionsstufe
+              ? `Revisionsstufe ${selectedWerk.revisionsstufen_nr} — eingefroren, kein Content-Edit möglich`
+              : 'Eingefroren — kein Content-Edit möglich'}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4,
+                padding: '3px 7px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                border: '1px solid #007AFF', color: '#007AFF',
+              }}>
+                <Snowflake size={11} />
+                {selectedWerk.ist_revisionsstufe
+                  ? `Rev. ${selectedWerk.revisionsstufen_nr}`
+                  : 'Eingefroren'}
+              </span>
+            </Tooltip>
+          )}
+
+          {/* Active revision badge + einfrieren button */}
+          {!selectedWerk.eingefroren && selectedWerk.revision_color_id ? (
             <>
               {(() => {
                 const rc = revisionColors.find(c => c.id === selectedWerk.revision_color_id)
@@ -676,64 +697,130 @@ export default function EditorPanelHeader({
                   </Tooltip>
                 )
               })()}
-              <button
-                onClick={async () => {
-                  if (!confirm('Revision beenden? Alle Revisionsmarkierungen werden gelöscht.')) return
-                  setRevisionSaving(true)
-                  try {
-                    await api.stopRevision(selectedWerk.id)
-                    onReloadWerkstufen()
-                  } catch { /* ignore */ } finally { setRevisionSaving(false) }
-                }}
-                disabled={revisionSaving}
-                style={{
-                  marginLeft: 4, padding: '3px 8px', borderRadius: 6, fontSize: 11,
-                  border: '1px solid #FF3B30', background: 'transparent',
-                  color: '#FF3B30', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
-                }}
-              >
-                Revision beenden
-              </button>
-            </>
-          ) : (
-            // No active revision: show "Revision starten" button
-            revisionColors.length > 0 && (
-              <>
+              <Tooltip text="Revision abschließen: Werkstufe wird eingefroren und als Revisionsstufe gespeichert. Markierungen bleiben erhalten.">
                 <button
-                  onClick={() => setShowRevisionMenu(v => !v)}
+                  onClick={async () => {
+                    if (!confirm('Revision abschließen und Werkstufe einfrieren?\nDie Fassung kann danach nicht mehr bearbeitet werden. Revisionsmarkierungen bleiben als historischer Nachweis erhalten.')) return
+                    setRevisionSaving(true)
+                    try {
+                      await api.einfrierenWerkstufe(selectedWerk.id)
+                      onReloadWerkstufen()
+                    } catch { /* ignore */ } finally { setRevisionSaving(false) }
+                  }}
+                  disabled={revisionSaving}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px',
-                    border: '1px solid var(--border)', borderRadius: 6, fontSize: 11,
-                    color: 'var(--text-muted)', background: 'transparent',
-                    cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                    padding: '3px 8px', borderRadius: 6, fontSize: 11,
+                    border: '1px solid #007AFF', background: 'transparent',
+                    color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
                   }}
                 >
-                  <GitBranch size={11} />
-                  Revision starten
-                  <ChevronDown size={10} />
+                  <Snowflake size={10} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 3 }} />
+                  Revision beenden
                 </button>
-                {showRevisionMenu && (
+              </Tooltip>
+            </>
+          ) : !selectedWerk.eingefroren && revisionColors.length > 0 ? (
+            // No active revision: show "Revision starten" button
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowRevisionMenu(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px',
+                  border: '1px solid var(--border)', borderRadius: 6, fontSize: 11,
+                  color: 'var(--text-muted)', background: 'transparent',
+                  cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                }}
+              >
+                <GitBranch size={11} />
+                Revision starten
+                <ChevronDown size={10} />
+              </button>
+              {showRevisionMenu && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowRevisionMenu(false)} />
+                  <div style={{
+                    position: 'absolute', top: '100%', right: 0, zIndex: 99, marginTop: 4,
+                    background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                    borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 200, padding: '4px 0',
+                  }}>
+                    <div style={{ padding: '5px 12px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Revisionsfarbe wählen
+                    </div>
+                    {revisionColors.map(rc => (
+                      <button
+                        key={rc.id}
+                        onClick={async () => {
+                          setShowRevisionMenu(false)
+                          setRevisionSaving(true)
+                          try {
+                            await api.startRevision(selectedWerk.id, rc.id)
+                            onReloadWerkstufen()
+                          } catch { /* ignore */ } finally { setRevisionSaving(false) }
+                        }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                          padding: '7px 12px', fontSize: 12, border: 'none',
+                          cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                          background: 'transparent', color: 'var(--text-primary)',
+                        }}
+                      >
+                        <span style={{ width: 12, height: 12, borderRadius: '50%', background: rc.color, flexShrink: 0 }} />
+                        {rc.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          ) : null}
+
+          {/* Diff button — nur wenn es Revisionsstufen gibt */}
+          {onDiffRequest && (() => {
+            const revStufen = werkstufen.filter(w => w.ist_revisionsstufe && w.id !== selectedWerk.id)
+            if (revStufen.length === 0) return null
+            return (
+              <div style={{ position: 'relative' }}>
+                <Tooltip text="Aktuelle Fassung mit einer Revisionsstufe vergleichen">
+                  <button
+                    onClick={() => setShowDiffMenu(v => !v)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px',
+                      border: '1px solid var(--border)', borderRadius: 6, fontSize: 11,
+                      color: 'var(--text-muted)', background: 'transparent',
+                      cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500,
+                    }}
+                  >
+                    <GitCompare size={11} />
+                    Vergleichen
+                    <ChevronDown size={10} />
+                  </button>
+                </Tooltip>
+                {showDiffMenu && (
                   <>
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowRevisionMenu(false)} />
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowDiffMenu(false)} />
                     <div style={{
                       position: 'absolute', top: '100%', right: 0, zIndex: 99, marginTop: 4,
                       background: 'var(--bg-surface)', border: '1px solid var(--border)',
                       borderRadius: 8, boxShadow: 'var(--shadow-xl)', minWidth: 200, padding: '4px 0',
                     }}>
                       <div style={{ padding: '5px 12px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                        Revisionsfarbe wählen
+                        Vergleichen mit …
                       </div>
-                      {revisionColors.map(rc => (
+                      <button
+                        onClick={() => { setShowDiffMenu(false); onDiffRequest(null) }}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                          padding: '7px 12px', fontSize: 12, border: 'none',
+                          cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                          background: 'transparent', color: 'var(--text-muted)',
+                        }}
+                      >
+                        Vergleich beenden
+                      </button>
+                      {revStufen.map(rs => (
                         <button
-                          key={rc.id}
-                          onClick={async () => {
-                            setShowRevisionMenu(false)
-                            setRevisionSaving(true)
-                            try {
-                              await api.startRevision(selectedWerk.id, rc.id)
-                              onReloadWerkstufen()
-                            } catch { /* ignore */ } finally { setRevisionSaving(false) }
-                          }}
+                          key={rs.id}
+                          onClick={() => { setShowDiffMenu(false); onDiffRequest(rs.id) }}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                             padding: '7px 12px', fontSize: 12, border: 'none',
@@ -741,16 +828,18 @@ export default function EditorPanelHeader({
                             background: 'transparent', color: 'var(--text-primary)',
                           }}
                         >
-                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: rc.color, flexShrink: 0 }} />
-                          {rc.name}
+                          <Snowflake size={11} style={{ color: '#007AFF', flexShrink: 0 }} />
+                          {rs.ist_revisionsstufe ? `Revisionsstufe ${rs.revisionsstufen_nr}` : rs.label ?? rs.typ}
+                          {rs.label ? ` (${rs.label})` : ''}
                         </button>
                       ))}
                     </div>
                   </>
                 )}
-              </>
+              </div>
             )
-          )}
+          })()}
+
         </div>
       )}
 

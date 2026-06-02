@@ -457,6 +457,8 @@ async function runMigrations() {
     'v175_titel_alternativen.sql',
     // scene_characters: idx_scene_chars_identity_char auf werkstufe_id IS NULL einschränken
     'v176_scene_chars_constraint_fix.sql',
+    // Handoff 1 Phase 3: Werkstufen einfrieren (Revisionsstufen)
+    'v177_werkstufen_einfrieren.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

@@ -486,13 +486,15 @@ werkstufenRouter.post('/:id/start-revision', async (req, res) => {
       try { blocks = typeof scene.content === 'string' ? JSON.parse(scene.content) : (Array.isArray(scene.content) ? scene.content : scene.content?.content ?? []) }
       catch { blocks = [] }
 
-      for (let i = 0; i < blocks.length; i++) {
-        const blockJson = JSON.stringify(blocks[i])
+      for (const block of blocks) {
+        const nodeId = block?.attrs?.node_id
+        if (!nodeId) continue  // nur Blöcke mit node_id snapshotten
+        const blockJson = JSON.stringify(block)
         await client.query(
-          `INSERT INTO szenen_revisionen (dokument_szene_id, field_type, block_index, block_type, old_value, new_value)
+          `INSERT INTO szenen_revisionen (dokument_szene_id, field_type, block_uuid, block_type, old_value, new_value)
            VALUES ($1, 'content_block', $2, $3, $4, $4)
-           ON CONFLICT (dokument_szene_id, block_index) WHERE field_type = 'content_block' DO NOTHING`,
-          [scene.id, i, blocks[i]?.type ?? 'unknown', blockJson]
+           ON CONFLICT (dokument_szene_id, block_uuid) WHERE field_type = 'content_block' AND block_uuid IS NOT NULL DO NOTHING`,
+          [scene.id, nodeId, block?.type ?? 'unknown', blockJson]
         )
       }
     }
@@ -536,6 +538,137 @@ werkstufenRouter.delete('/:id/start-revision', async (req, res) => {
     res.status(500).json({ error: String(err) })
   } finally {
     client.release()
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PUT /api/werkstufen/:id/einfrieren — Revision abschließen + Werkstufe einfrieren
+// Setzt eingefroren=true, ist_revisionsstufe=true, vergibt revisionsstufen_nr,
+// löscht revision_color_id. Behält szenen_revisionen als historischen Nachweis.
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.put('/:id/einfrieren', async (req, res) => {
+  const user = req.user!
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Werkstufe laden — brauchen folge_id für revisionsstufen_nr-Vergabe
+    const ws = await client.query(
+      `SELECT w.*, f.produktion_id
+       FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE w.id = $1`,
+      [req.params.id]
+    )
+    if (ws.rowCount === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    }
+    if (ws.rows[0].eingefroren) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({ error: 'Werkstufe ist bereits eingefroren' })
+    }
+
+    // Nächste revisionsstufen_nr für diese Produktion ermitteln
+    const nrResult = await client.query(
+      `SELECT COALESCE(MAX(w2.revisionsstufen_nr), 0) + 1 AS next_nr
+       FROM werkstufen w2
+       JOIN folgen f2 ON f2.id = w2.folge_id
+       WHERE f2.produktion_id = $1 AND w2.ist_revisionsstufe = TRUE`,
+      [ws.rows[0].produktion_id]
+    )
+    const nextNr = nrResult.rows[0].next_nr as number
+
+    const updated = await client.query(
+      `UPDATE werkstufen SET
+         eingefroren        = TRUE,
+         eingefroren_am     = NOW(),
+         eingefroren_von    = $1,
+         ist_revisionsstufe = TRUE,
+         revisionsstufen_nr = $2,
+         revision_color_id  = NULL
+       WHERE id = $3
+       RETURNING *`,
+      [user.user_id, nextNr, req.params.id]
+    )
+
+    await client.query('COMMIT')
+    res.json({ ...updated.rows[0], revisionsstufen_nr: nextNr })
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {})
+    res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/werkstufen/:id/diff/:otherId — Vergleich zweier Werkstufen auf Block-Ebene
+// Gibt geänderte block_uuids pro Szene zurück (phase 3: scene-level diff).
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.get('/:id/diff/:otherId', async (req, res) => {
+  try {
+    const { id, otherId } = req.params
+
+    // Alle Szenen der Basis-Werkstufe
+    const baseSzenen = await query(
+      `SELECT ds.id, ds.scene_identity_id, ds.content
+       FROM dokument_szenen ds
+       WHERE ds.werkstufe_id = $1 AND ds.geloescht = FALSE`,
+      [id]
+    )
+    // Alle Szenen der Vergleichs-Werkstufe, indiziert nach scene_identity_id
+    const cmpSzenen = await query(
+      `SELECT ds.id, ds.scene_identity_id, ds.content
+       FROM dokument_szenen ds
+       WHERE ds.werkstufe_id = $1 AND ds.geloescht = FALSE`,
+      [otherId]
+    )
+    const cmpMap = new Map<string, any>(cmpSzenen.map((s: any) => [s.scene_identity_id, s]))
+
+    const result: Array<{
+      scene_identity_id: string
+      base_scene_id: string
+      cmp_scene_id: string | null
+      status: 'changed' | 'added' | 'removed'
+      changed_block_uuids: string[]
+    }> = []
+
+    const toBlocks = (content: any): any[] => {
+      if (!content) return []
+      const raw = typeof content === 'string' ? JSON.parse(content) : content
+      return Array.isArray(raw) ? raw : (raw?.content ?? [])
+    }
+
+    for (const base of baseSzenen) {
+      const cmp = cmpMap.get(base.scene_identity_id)
+      if (!cmp) {
+        result.push({ scene_identity_id: base.scene_identity_id, base_scene_id: base.id, cmp_scene_id: null, status: 'removed', changed_block_uuids: [] })
+        continue
+      }
+      cmpMap.delete(base.scene_identity_id)
+
+      const baseBlocks = toBlocks(base.content)
+      const cmpBlocks  = toBlocks(cmp.content)
+      const baseMap = new Map<string, string>(baseBlocks.map((b: any) => [b?.attrs?.node_id, JSON.stringify(b)]).filter(([id]) => id) as any)
+      const cmpMap2  = new Map<string, string>(cmpBlocks.map((b: any) => [b?.attrs?.node_id, JSON.stringify(b)]).filter(([id]) => id) as any)
+
+      const changed: string[] = []
+      for (const [nid, json] of baseMap) { if (cmpMap2.get(nid) !== json) changed.push(nid) }
+      for (const [nid] of cmpMap2)       { if (!baseMap.has(nid)) changed.push(nid) }
+
+      if (changed.length > 0 || baseBlocks.length !== cmpBlocks.length) {
+        result.push({ scene_identity_id: base.scene_identity_id, base_scene_id: base.id, cmp_scene_id: cmp.id, status: 'changed', changed_block_uuids: changed })
+      }
+    }
+    // Szenen die nur im anderen Stage existieren
+    for (const [sid, cmp] of cmpMap) {
+      result.push({ scene_identity_id: sid, base_scene_id: req.params.id, cmp_scene_id: cmp.id, status: 'added', changed_block_uuids: [] })
+    }
+
+    res.json({ diff: result, total_changed_scenes: result.length })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
   }
 })
 
