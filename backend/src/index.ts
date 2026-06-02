@@ -447,6 +447,8 @@ async function runMigrations() {
     'v170_planung_runs.sql',
     // Handoff 1 Phase 1: Backfill node_id auf alle Top-Level-Blöcke in dokument_szenen.content
     'v171_node_id_backfill.sql',
+    // Handoff 1 Phase 1 (Fix): v171 war No-Op (falsches Format). Korrekte Version für Array-Format.
+    'v172_node_id_backfill_fix.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
