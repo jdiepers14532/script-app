@@ -479,6 +479,8 @@ async function runMigrations() {
     'v185_import_jobs_text_cache.sql',
     // PR 14: committed_at/strands/beats für Import-Commit-Schritt
     'v186_import_commit.sql',
+    // Handoff 3: ki_settings für Check-Engine KI-Checks (oneliner_vorhanden, spielzeit_uhrzeit)
+    'v187_ki_check_settings.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

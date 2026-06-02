@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { pool } from '../db'
 import { authMiddleware } from '../auth'
 import { getStimmungen, ensureDefaultStimmungen } from './dk-access'
+import { getKiSetting, callProvider, applyPromptTemplate, effectivePrompt } from './ki'
 
 const router = Router()
 router.use(authMiddleware)
@@ -92,6 +93,9 @@ const DEFAULT_CONFIG: Record<string, CheckConfigEntry> = {
   nt_replik_konsistenz:              { enabled: true,  auto: false, lock_gating: 'warnung' },
   dramaturgischer_tag_chronologie:   { enabled: true,  auto: false, lock_gating: 'warnung' },
   etablierungsshot_vorhanden:        { enabled: false, auto: false, lock_gating: 'off' },
+  // KI-Checks Phase 3 (disabled by default — KI-Kosten)
+  oneliner_vorhanden:                { enabled: false, auto: false, lock_gating: 'off',     autofix_mode: '1klick' },
+  spielzeit_uhrzeit:                 { enabled: false, auto: false, lock_gating: 'warnung', autofix_mode: '1klick' },
 }
 
 // Reads the 'drehbuch_checks' JSON blob from production_app_settings and merges
@@ -130,7 +134,8 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
   const sceneRes = await pool.query<any>(`
     SELECT ds.id, ds.scene_identity_id, ds.werkstufe_id, ds.ort_name, ds.int_ext,
            ds.tageszeit, ds.stoppzeit_sek, ds.sondertyp, ds.content, ds.format,
-           ds.scene_nummer, ds.sort_order, ds.spieltag, f.produktion_id,
+           ds.scene_nummer, ds.sort_order, ds.spieltag,
+           ds.zusammenfassung, ds.spielzeit, f.produktion_id,
            f.folge_nummer
     FROM dokument_szenen ds
     JOIN scene_identities si ON si.id = ds.scene_identity_id
@@ -617,7 +622,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     }
   }
 
-  // ── 19. NT-Replik-Konsistenz ──────────────────────────────────────────────
+  // ── 19. NT-Replik-Konsistenz ─────────────────────────────────────────────
   // Liest den bereits berechneten konsistenz_status aus nt_eintraege.
   // Die Aktualisierung des Status erfolgt durch den Batch-Handler (updateNtKonsistenzForWerkstufe).
   if (run('nt_replik_konsistenz')) {
@@ -637,6 +642,42 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
           ? `NT-Replik "${nt.char_name}": Basis-Block fehlt in der Arbeitsfassung`
           : `NT-Replik "${nt.char_name}": Text hat sich gegenüber der Basis geändert`,
         meta: { nt_eintrag_id: nt.id, char_name: nt.char_name, status: nt.konsistenz_status },
+      })
+    }
+  }
+
+  // ── 20. Oneliner vorhanden (KI-optional) ────────────────────────────────
+  if (run('oneliner_vorhanden') && s.format === 'drehbuch') {
+    const oneliner = (s.zusammenfassung ?? '').trim()
+    if (!oneliner) {
+      let kiMeta: any = undefined
+      try {
+        const kiSetting = await getKiSetting('oneliner_vorhanden')
+        if (kiSetting?.enabled) {
+          const rollen = await pool.query<any>(`
+            SELECT c.name FROM scene_characters sc
+            JOIN characters c ON c.id = sc.character_id
+            WHERE sc.scene_identity_id = $1
+          `, [s.scene_identity_id])
+          const rollenText = rollen.rows.map((r: any) => r.name).join(', ') || '(keine)'
+          const prompt = applyPromptTemplate(effectivePrompt(kiSetting), {
+            motiv: s.ort_name ?? '',
+            int_ext: s.int_ext ?? '',
+            tageszeit: s.tageszeit ?? '',
+            rollen: rollenText,
+            oneliner: '',
+            text_auszug: plaintext.substring(0, 600),
+          })
+          const raw = await callProvider(kiSetting, [{ role: 'user', content: prompt }], 200)
+          const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim())
+          if (parsed.hinweis) kiMeta = { ki_hinweis: parsed.hinweis }
+        }
+      } catch { /* KI ist optional */ }
+      results.push({
+        check_typ: 'oneliner_vorhanden',
+        schwere: 'hinweis',
+        meldung: 'Kein Oneliner (Zusammenfassung) vorhanden',
+        meta: kiMeta,
       })
     }
   }
@@ -712,14 +753,130 @@ async function updateNtKonsistenzForWerkstufe(werkstufeId: string): Promise<void
   }
 }
 
+// ── spielzeit_uhrzeit: KI-Check auf Werkstufen-Ebene (pro dramaturgischem Tag) ─
+// Löscht alte spielzeit_uhrzeit-Ergebnisse der Werkstufe, ruft KI für jeden
+// spieltag auf und persistiert Vorschläge/Konflikte in szenen_check_ergebnisse.
+
+async function runSpielzeitUhrzeitCheck(werkstufeId: string, cfg: Record<string, CheckConfigEntry>): Promise<void> {
+  if (!cfg['spielzeit_uhrzeit']?.enabled) return
+  const kiSetting = await getKiSetting('spielzeit_uhrzeit')
+  if (!kiSetting?.enabled) return
+
+  // Produktions- und Folgeninfos
+  const wsRes = await pool.query<any>(`
+    SELECT w.folge_id, f.folge_nummer, f.produktion_id, p.titel AS produktion_titel
+    FROM werkstufen w
+    JOIN folgen f ON f.id = w.folge_id
+    JOIN produktionen p ON p.id = f.produktion_id
+    WHERE w.id = $1
+  `, [werkstufeId])
+  if (!wsRes.rows[0]) return
+  const { folge_id: _folgeId, folge_nummer, produktion_id, produktion_titel } = wsRes.rows[0]
+
+  // Szenen dieser Werkstufe mit spieltag
+  const szenenRes = await pool.query<any>(`
+    SELECT id, scene_nummer, ort_name, int_ext, tageszeit, spieltag,
+           zusammenfassung, spielzeit, sort_order, content
+    FROM dokument_szenen
+    WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE AND spieltag IS NOT NULL
+    ORDER BY spieltag, sort_order
+  `, [werkstufeId])
+  if (szenenRes.rows.length === 0) return
+
+  // Alte spielzeit_uhrzeit-Ergebnisse für diese Werkstufe löschen
+  await pool.query(
+    `DELETE FROM szenen_check_ergebnisse WHERE werkstufe_id = $1 AND check_typ = 'spielzeit_uhrzeit'`,
+    [werkstufeId]
+  )
+
+  // Kontext aus Nachbarfolgen (letzte/erste N Szenen der besten Werkstufe)
+  const getNeighborContext = async (neighborNr: number): Promise<string> => {
+    try {
+      const nf = await pool.query<any>(
+        `SELECT id FROM folgen WHERE produktion_id = $1 AND folge_nummer = $2`,
+        [produktion_id, neighborNr]
+      )
+      if (!nf.rows[0]) return ''
+      const wsId = await getBestWerkstufe(nf.rows[0].id)
+      if (!wsId) return ''
+      const ns = await pool.query<any>(`
+        SELECT scene_nummer, ort_name, int_ext, tageszeit, spielzeit, zusammenfassung
+        FROM dokument_szenen WHERE werkstufe_id = $1 AND geloescht IS NOT TRUE
+        ORDER BY sort_order DESC LIMIT 3
+      `, [wsId])
+      return ns.rows.map((s: any) =>
+        `Sz.${s.scene_nummer} ${s.int_ext ?? ''}. ${s.ort_name ?? ''} - ${s.tageszeit ?? ''}${s.spielzeit ? ` [ANKER: ${s.spielzeit}]` : ''}: ${s.zusammenfassung ?? ''}`.trim()
+      ).reverse().join('\n')
+    } catch { return '' }
+  }
+
+  const [kontextVorher, kontextNachher] = await Promise.all([
+    getNeighborContext(folge_nummer - 1),
+    getNeighborContext(folge_nummer + 1),
+  ])
+
+  // Szenen nach spieltag gruppieren und pro Tag einen KI-Call machen
+  const tagMap = new Map<number, typeof szenenRes.rows>()
+  for (const sz of szenenRes.rows) {
+    if (!tagMap.has(sz.spieltag)) tagMap.set(sz.spieltag, [])
+    tagMap.get(sz.spieltag)!.push(sz)
+  }
+
+  for (const [spieltag, tagSzenen] of tagMap) {
+    try {
+      const szenenText = tagSzenen.map((sz: any) => {
+        const blocks: any[] = Array.isArray(sz.content) ? sz.content : []
+        const text = blocks.map((n: any) => extractText(n)).join(' ').substring(0, 200)
+        const ankerHinweis = sz.spielzeit ? `[ANKER: ${sz.spielzeit}]` : ''
+        const oneliner = sz.zusammenfassung ?? text
+        return `Sz.${sz.scene_nummer} ${sz.int_ext ?? ''}. ${sz.ort_name ?? ''} - ${sz.tageszeit ?? ''} ${ankerHinweis} | ${oneliner}`.trim()
+      }).join('\n')
+
+      const promptText = applyPromptTemplate(effectivePrompt(kiSetting), {
+        serie_name: produktion_titel ?? 'Serie',
+        spieltag: String(spieltag),
+        szenen_des_tages: szenenText,
+        kontext_vorherige_folge: kontextVorher || '(keine)',
+        kontext_naechste_folge: kontextNachher || '(keine)',
+      })
+
+      const raw = await callProvider(kiSetting, [{ role: 'user', content: promptText }], 800)
+      const result = JSON.parse(raw.replace(/```json|```/g, '').trim())
+
+      // Pro Szene ein Finding einfügen
+      for (const entry of (result.szenen ?? [])) {
+        const szene = tagSzenen.find((s: any) => String(s.scene_nummer) === String(entry.szenennummer))
+        if (!szene) continue
+        if (!entry.vorschlag_uhrzeit && !entry.konflikt_mit_ankern) continue
+
+        const meldung = entry.konflikt_mit_ankern
+          ? `Spielzeit-Anker ${szene.spielzeit} erscheint unplausibel: ${entry.begruendung ?? ''}`
+          : `Spielzeit-Vorschlag ${entry.vorschlag_uhrzeit} [${entry.confidence ?? '?'}]: ${entry.begruendung ?? ''}`
+
+        await pool.query(
+          `INSERT INTO szenen_check_ergebnisse (dokument_szene_id, werkstufe_id, check_typ, schwere, meldung, meta)
+           VALUES ($1, $2, 'spielzeit_uhrzeit', $3, $4, $5)`,
+          [
+            szene.id, werkstufeId,
+            entry.konflikt_mit_ankern ? 'warnung' : 'hinweis',
+            meldung,
+            JSON.stringify(entry),
+          ]
+        )
+      }
+    } catch { /* KI ist optional — non-fatal */ }
+  }
+}
+
 // ── Persist results ───────────────────────────────────────────────────────────
 
 async function persistResults(szeneId: string, werkstufeId: string, results: CheckResult[]) {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
+    // spielzeit_uhrzeit-Ergebnisse werden batch-seitig verwaltet — hier nicht löschen
     await client.query(
-      `DELETE FROM szenen_check_ergebnisse WHERE dokument_szene_id = $1`,
+      `DELETE FROM szenen_check_ergebnisse WHERE dokument_szene_id = $1 AND check_typ != 'spielzeit_uhrzeit'`,
       [szeneId]
     )
     for (const r of results) {
@@ -813,6 +970,23 @@ router.post('/werkstufe/:id/batch', async (req, res) => {
         await applyNtVerweisFix(row.id).catch(() => {})
       }
     }
+    // spielzeit_uhrzeit: batch-level KI-Check (nach Per-Szene-Schleife)
+    const runSpielzeit = !checksOverride || checksOverride.includes('spielzeit_uhrzeit')
+    if (runSpielzeit) {
+      const batchCfg = await getEffectiveCheckConfig(
+        // produktion_id aus erster Szene
+        szenenRes.rows[0]
+          ? (await pool.query<any>(
+              `SELECT f.produktion_id FROM dokument_szenen ds
+               JOIN scene_identities si ON si.id = ds.scene_identity_id
+               JOIN folgen f ON f.id = si.folge_id WHERE ds.id = $1`,
+              [szenenRes.rows[0].id]
+            )).rows[0]?.produktion_id ?? ''
+          : ''
+      )
+      await runSpielzeitUhrzeitCheck(werkstufId, batchCfg).catch(() => {})
+    }
+
     // If spieltag_inkonsistent in checks_override (or no override), run cross-Folgen spieltag check too
     const runSpieltagCross = !checksOverride || checksOverride.includes('spieltag_inkonsistent')
     if (runSpieltagCross) {

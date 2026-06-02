@@ -1044,3 +1044,4 @@ router.post('/query-expand', async (req, res) => {
 })
 
 export default router
+export { getKiSetting, callProvider, applyPromptTemplate, effectivePrompt }
