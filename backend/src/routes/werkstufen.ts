@@ -145,10 +145,16 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
           `INSERT INTO dokument_szenen
              (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
               format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-              szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, content, updated_by, page_length)
+              szeneninfo, seiten, stoppzeit_sek, content, updated_by, page_length,
+              notiz, motiv_id, sondertyp, stockshot_kategorie, stockshot_neu_drehen,
+              flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
+              flashback_referenz_freitext, ws_spezifikation, vorlage_id, pre_vorlage_content, element_type)
            SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
                   format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-                  szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, content, $2, page_length
+                  szeneninfo, seiten, stoppzeit_sek, content, $2, page_length,
+                  notiz, motiv_id, sondertyp, stockshot_kategorie, stockshot_neu_drehen,
+                  flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
+                  flashback_referenz_freitext, ws_spezifikation, vorlage_id, pre_vorlage_content, element_type
            FROM dokument_szenen
            WHERE werkstufe_id = $3 AND geloescht = false
              AND (format IS NULL OR format != 'notiz')`,
@@ -162,10 +168,12 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
           `INSERT INTO dokument_szenen
              (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
               format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-              szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, content, updated_by, page_length)
+              szeneninfo, seiten, stoppzeit_sek, content, updated_by,
+              notiz, motiv_id)
            SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
                   $4, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-                  szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, NULL, $2, NULL
+                  szeneninfo, seiten, stoppzeit_sek, NULL, $2,
+                  notiz, motiv_id
            FROM dokument_szenen
            WHERE werkstufe_id = $3 AND geloescht = false
              AND (format IS NULL OR format != 'notiz')`,
@@ -186,7 +194,10 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
         const predScenes = await client.query(
           `SELECT scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
                   ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-                  szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, content
+                  szeneninfo, seiten, stoppzeit_sek, content,
+                  notiz, motiv_id, sondertyp, stockshot_kategorie, stockshot_neu_drehen,
+                  flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
+                  flashback_referenz_freitext, ws_spezifikation, vorlage_id, pre_vorlage_content, element_type
            FROM dokument_szenen
            WHERE werkstufe_id = $1 AND geloescht = false
              AND (format IS NULL OR format != 'notiz')`,
@@ -205,13 +216,15 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
             `INSERT INTO dokument_szenen
                (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
                 format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-                szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, content, updated_by)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)`,
+                szeneninfo, seiten, stoppzeit_sek, content, updated_by,
+                notiz, motiv_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
             [
               werkstufe.id, s.scene_identity_id, s.sort_order, s.scene_nummer, s.scene_nummer_suffix,
               typ, s.ort_name, s.int_ext, s.tageszeit, s.spieltag, s.zusammenfassung, s.spielzeit,
-              s.szeneninfo, s.seiten, s.stoppzeit_sek, s.is_wechselschnitt,
+              s.szeneninfo, s.seiten, s.stoppzeit_sek,
               transformedContent ? JSON.stringify(transformedContent) : null, user.name || user.user_id,
+              s.notiz ?? null, s.motiv_id ?? null,
             ]
           )
           copiedCount++
@@ -238,10 +251,12 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
           `INSERT INTO dokument_szenen
              (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
               format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-              szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, content, updated_by, page_length)
+              szeneninfo, seiten, stoppzeit_sek, content, updated_by, page_length,
+              notiz, vorlage_id, pre_vorlage_content)
            SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
                   format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
-                  szeneninfo, seiten, stoppzeit_sek, is_wechselschnitt, content, $2, page_length
+                  szeneninfo, seiten, stoppzeit_sek, content, $2, page_length,
+                  notiz, vorlage_id, pre_vorlage_content
            FROM dokument_szenen
            WHERE werkstufe_id = $3 AND geloescht = false AND format = 'notiz'`,
           [werkstufe.id, user.name || user.user_id, predecessorId]
