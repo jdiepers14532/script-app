@@ -926,14 +926,15 @@ ntEintraegeRouter.get('/statistik/overview', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// GET /api/nt-eintraege/drift-check?werkstufe_id=X
+// GET /api/nt-eintraege/tools/drift-check?werkstufe_id=X
 // Phase 4: Interims-Text-Drift-Check — re-extrahiert repliken_text aus dem
 // aktuellen Szenen-Content und vergleicht mit gespeicherten Werten.
 // Gibt Divergenzen zurück (= Einträge, bei denen gespeicherter Text nicht mehr
 // mit dem tatsächlichen Content übereinstimmt).
 // Kein Frontend nötig; sofortige Wertlieferung für manuelle Audits.
+// Zwei-Segment-Pfad (/tools/...) damit /:id diese Route nicht abfängt.
 // ══════════════════════════════════════════════════════════════════════════════
-ntEintraegeRouter.get('/drift-check', async (req, res) => {
+ntEintraegeRouter.get('/tools/drift-check', async (req, res) => {
   const { werkstufe_id } = req.query
   if (!werkstufe_id) return res.status(400).json({ error: 'werkstufe_id required' })
 
@@ -994,7 +995,7 @@ ntEintraegeRouter.get('/drift-check', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// GET /api/nt-eintraege/konsistenz?werkstufe_id=X&basis_werkstufe_id=Y
+// GET /api/nt-eintraege/tools/konsistenz?werkstufe_id=X&basis_werkstufe_id=Y
 // Phase 4: Konsistenz-Check gegen eingefrorene Basis-Fassung.
 // Vergleicht NT-Einträge der Arbeits-Werkstufe (X) gegen die eingefrorene
 // Referenz-Werkstufe (Y) per repliken_node_ids:
@@ -1003,7 +1004,7 @@ ntEintraegeRouter.get('/drift-check', async (req, res) => {
 //   ok             → identisch
 // Aktualisiert konsistenz_status auf den NT-Einträgen in Werkstufe X.
 // ══════════════════════════════════════════════════════════════════════════════
-ntEintraegeRouter.get('/konsistenz', async (req, res) => {
+ntEintraegeRouter.get('/tools/konsistenz', async (req, res) => {
   const { werkstufe_id, basis_werkstufe_id } = req.query
   if (!werkstufe_id || !basis_werkstufe_id) {
     return res.status(400).json({ error: 'werkstufe_id und basis_werkstufe_id required' })
