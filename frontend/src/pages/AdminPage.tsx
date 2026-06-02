@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import AdminKI from '../components/AdminKI'
-import { api } from '../api/client'
+import Tooltip from '../components/Tooltip'
+import { api, ApiError } from '../api/client'
 import { useSelectedProduction } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 
@@ -953,6 +955,13 @@ function FassungenRevisionTab() {
   const [newColorHex, setNewColorHex] = useState('#4A90D9')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  // Rename
+  const [editingLabelId, setEditingLabelId] = useState<number | null>(null)
+  const [editingLabelName, setEditingLabelName] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
+  // Delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<{ label: any; impact: any } | null>(null)
+  const [deleteReplacement, setDeleteReplacement] = useState('')
 
   useEffect(() => {
     if (!selectedProdId) { setStageLabels([]); setRevColors([]); return }
@@ -966,7 +975,7 @@ function FassungenRevisionTab() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [selectedProdId])
 
-  const flash = (text: string) => { setMsg(text); setTimeout(() => setMsg(null), 2500) }
+  const flash = (text: string) => { setMsg(text); setTimeout(() => setMsg(null), 3000) }
 
   const addLabel = async () => {
     const name = newLabelName.trim()
@@ -981,12 +990,63 @@ function FassungenRevisionTab() {
     finally { setSaving(false) }
   }
 
-  const deleteLabel = async (id: number) => {
+  const startRename = (l: any) => {
+    setEditingLabelId(l.id)
+    setEditingLabelName(l.name)
+    setTimeout(() => renameInputRef.current?.select(), 30)
+  }
+
+  const commitRename = async (l: any) => {
+    const newName = editingLabelName.trim()
+    if (!newName || newName === l.name || !selectedProdId) { setEditingLabelId(null); return }
+    setSaving(true)
+    try {
+      const updated = await api.updateStageLabel(selectedProdId, l.id, { name: newName })
+      setStageLabels(prev => prev.map(x => x.id === updated.id ? updated : x))
+      setEditingLabelId(null)
+      const count = updated.affectedWerkstufen ?? 0
+      flash(`Umbenannt.${count > 0 ? ` ${count} Werkstufe${count !== 1 ? 'n' : ''} aktualisiert.` : ''}`)
+    } catch (e: any) {
+      if (e instanceof ApiError && e.status === 409) flash('Fehler: Ein Label mit diesem Namen existiert bereits.')
+      else flash(e.message)
+    } finally { setSaving(false) }
+  }
+
+  const requestDeleteLabel = async (l: any) => {
     if (!selectedProdId) return
     try {
-      await api.deleteStageLabel(selectedProdId, id)
-      setStageLabels(prev => prev.filter(l => l.id !== id))
-    } catch (e: any) { flash(e.message) }
+      await api.deleteStageLabel(selectedProdId, l.id)
+      setStageLabels(prev => prev.filter(x => x.id !== l.id))
+    } catch (e: any) {
+      if (e instanceof ApiError && e.status === 409) {
+        setDeleteConfirm({ label: l, impact: e.data })
+        setDeleteReplacement('')
+      } else if (e instanceof ApiError && e.status === 422) {
+        flash('Löschen nicht möglich: Dieses Label ist als Produktionsfassung markiert und hat gesperrte Werkstufen.')
+      } else {
+        flash(e.message)
+      }
+    }
+  }
+
+  const confirmForceDelete = async () => {
+    if (!deleteConfirm || !selectedProdId) return
+    const { label } = deleteConfirm
+    setSaving(true)
+    try {
+      const replacement = deleteReplacement.trim() || undefined
+      await api.deleteStageLabel(selectedProdId, label.id, { force: true, replacementName: replacement })
+      setStageLabels(prev => prev.filter(x => x.id !== label.id))
+      setDeleteConfirm(null)
+      flash('Label gelöscht.')
+    } catch (e: any) {
+      if (e instanceof ApiError && e.status === 422) {
+        flash('Löschen nicht möglich: Aktive gesperrte Produktionsfassung.')
+        setDeleteConfirm(null)
+      } else {
+        flash(e.message)
+      }
+    } finally { setSaving(false) }
   }
 
   const toggleLabelProd = async (label: any) => {
@@ -1076,18 +1136,41 @@ function FassungenRevisionTab() {
               {stageLabels.length === 0 && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>Noch keine Labels.</p>}
               {stageLabels.map(l => (
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                  <span style={{ flex: 1, fontSize: 13 }}>{l.name}</span>
-                  {l.is_produktionsfassung && (
-                    <span style={{ fontSize: 10, fontWeight: 600, color: '#00C853', background: 'rgba(0,200,83,0.1)', borderRadius: 4, padding: '1px 6px' }}>Produktion</span>
+                  {editingLabelId === l.id ? (
+                    <input
+                      ref={renameInputRef}
+                      value={editingLabelName}
+                      onChange={e => setEditingLabelName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') commitRename(l); if (e.key === 'Escape') setEditingLabelId(null) }}
+                      onBlur={() => commitRename(l)}
+                      style={{ flex: 1, fontSize: 13, padding: '2px 6px', borderRadius: 5, border: '1px solid var(--info)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', minHeight: 28 }}
+                      autoFocus
+                    />
+                  ) : (
+                    <Tooltip text="Klicken zum Umbenennen">
+                      <span
+                        onClick={() => startRename(l)}
+                        style={{ flex: 1, fontSize: 13, cursor: 'text', minHeight: 28, display: 'flex', alignItems: 'center' }}
+                      >{l.name}</span>
+                    </Tooltip>
                   )}
-                  <button
-                    onClick={() => toggleLabelProd(l)}
-                    title={l.is_produktionsfassung ? 'Als Nicht-Produktion markieren' : 'Als Produktionsfassung markieren'}
-                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', fontSize: 11, padding: '2px 6px', color: 'var(--text-secondary)' }}
-                  >
-                    {l.is_produktionsfassung ? '✓ Prod' : 'Prod?'}
-                  </button>
-                  <button onClick={() => deleteLabel(l.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 15, padding: '0 4px' }}>×</button>
+                  {l.is_produktionsfassung && (
+                    <span style={{ fontSize: 10, fontWeight: 600, color: '#00C853', background: 'rgba(0,200,83,0.1)', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>Produktion</span>
+                  )}
+                  <Tooltip text={l.is_produktionsfassung ? 'Als Nicht-Produktionsfassung markieren' : 'Als Produktionsfassung markieren'}>
+                    <button
+                      onClick={() => toggleLabelProd(l)}
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer', fontSize: 11, padding: '4px 8px', color: 'var(--text-secondary)', minHeight: 28 }}
+                    >
+                      {l.is_produktionsfassung ? '✓ Prod' : 'Prod?'}
+                    </button>
+                  </Tooltip>
+                  <Tooltip text="Label löschen">
+                    <button
+                      onClick={() => requestDeleteLabel(l)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 15, padding: '4px 6px', minHeight: 28, minWidth: 28 }}
+                    >×</button>
+                  </Tooltip>
                 </div>
               ))}
             </div>
@@ -1130,6 +1213,56 @@ function FassungenRevisionTab() {
       )}
 
       {msg && <p style={{ fontSize: 12, color: 'var(--sw-green)' }}>{msg}</p>}
+
+      {/* Delete-Confirmation-Modal */}
+      {deleteConfirm && createPortal(
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={e => { if (e.target === e.currentTarget) setDeleteConfirm(null) }}
+        >
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, padding: '28px 28px 24px', width: 420, maxWidth: '92vw', boxShadow: '0 8px 32px rgba(0,0,0,0.25)' }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, margin: '0 0 12px' }}>Label löschen</h3>
+            <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: '0 0 8px', lineHeight: 1.6 }}>
+              Das Label <strong>„{deleteConfirm.label.name}"</strong> ist in Verwendung:
+            </p>
+            <ul style={{ margin: '0 0 14px', paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.8 }}>
+              {deleteConfirm.impact.affectedWerkstufen > 0 && (
+                <li>{deleteConfirm.impact.affectedWerkstufen} Werkstufe{deleteConfirm.impact.affectedWerkstufen !== 1 ? 'n' : ''} tragen dieses Label</li>
+              )}
+              {deleteConfirm.impact.isTrigger && (
+                <li style={{ color: 'var(--sw-warning, #FFCC00)', fontWeight: 600 }}>Dieses Label ist als Gate-Trigger konfiguriert — Gate wird deaktiviert</li>
+              )}
+            </ul>
+            {deleteConfirm.impact.affectedWerkstufen > 0 && stageLabels.filter(l => l.id !== deleteConfirm.label.id).length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'block', marginBottom: 5 }}>Ersatz-Label (optional)</label>
+                <select
+                  value={deleteReplacement}
+                  onChange={e => setDeleteReplacement(e.target.value)}
+                  style={{ width: '100%', fontSize: 12, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit', minHeight: 36 }}
+                >
+                  <option value="">— kein Ersatz (label wird NULL) —</option>
+                  {stageLabels.filter(l => l.id !== deleteConfirm.label.id).map(l => (
+                    <option key={l.id} value={l.name}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                style={{ padding: '8px 18px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', minHeight: 36 }}
+              >Abbrechen</button>
+              <button
+                onClick={confirmForceDelete}
+                disabled={saving}
+                style={{ padding: '8px 18px', borderRadius: 7, border: 'none', background: '#FF3B30', color: '#fff', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, minHeight: 36 }}
+              >Trotzdem löschen</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

@@ -584,8 +584,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     if (Object.keys(filenameMeta).length > 0) metaJson.filename_metadata = filenameMeta
     if (result.meta.roteRosenMeta) metaJson.rote_rosen = result.meta.roteRosenMeta
 
-    let versionLabel = `Import: ${req.file.originalname}`
-    if (filenameMeta.fassungsdatum) versionLabel = `Import ${filenameMeta.fassungsdatum}`
+    // Ein Import vergibt NIE ein Fassungslabel — das macht erst ein Mensch über stage_labels.
+    // Die Herkunft (Dateiname) ist bereits in original_dateiname (Zeilen weiter unten) erfasst.
     const standDatum = req.body.stand_datum || filenameMeta.fassungsdatum || null
 
     const stageToDocTyp: Record<string, string> = {
@@ -744,7 +744,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const werkRow = (await client.query(
         `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum, meta_json)
          VALUES ($1, $2, $3, $4, 'autoren', $5, $6, $7) RETURNING id`,
-        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, versionLabel, req.user!.user_id, standDatum, JSON.stringify(metaJson)]
+        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, null, req.user!.user_id, standDatum, JSON.stringify(metaJson)]
       )).rows[0]
       werkstufeId = werkRow.id
 

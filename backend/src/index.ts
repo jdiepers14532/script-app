@@ -471,6 +471,8 @@ async function runMigrations() {
     'v181_import_jobs.sql',
     // Glossar: "Im Unterbruch" (neu) + CA erklaerung_lang
     'v182_glossar_im_unterbruch_ca.sql',
+    // Handoff 2 Option C: Cleanup verwaiste werkstufen.label-Einträge (generisch, idempotent)
+    'v183_cleanup_orphan_labels.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

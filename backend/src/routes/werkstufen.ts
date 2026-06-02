@@ -330,6 +330,13 @@ werkstufenRouter.put('/:id', async (req, res) => {
     // When label changes: check if new label is a Produktionsfassung label
     let autoBearbeitungStatus: string | null = null
     if (hasLabel) {
+      // Advisory lock per Produktion — serialisiert parallele Label-Sets gegen laufende Renames
+      const _prodIdRes = await client.query(
+        `SELECT f.produktion_id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+        [req.params.id]
+      )
+      const _prodId = _prodIdRes.rows[0]?.produktion_id
+      if (_prodId) await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [_prodId])
       if (labelVal) {
         // Look up the stage_label by name within the same produktion
         const slRes = await client.query(

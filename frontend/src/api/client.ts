@@ -233,8 +233,13 @@ export const api = {
     request<any>('POST', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels`, data),
   updateStageLabel: (produktionId: string, labelId: number, data: any) =>
     request<any>('PUT', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/${labelId}`, data),
-  deleteStageLabel: (produktionId: string, labelId: number) =>
-    request<void>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/${labelId}`),
+  deleteStageLabel: (produktionId: string, labelId: number, params?: { force?: boolean; replacementName?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.force) qs.set('force', 'true')
+    if (params?.replacementName) qs.set('replacementName', params.replacementName)
+    const query = qs.toString() ? `?${qs}` : ''
+    return request<any>('DELETE', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/${labelId}${query}`)
+  },
   reorderStageLabels: (produktionId: string, order: {id: number, sort_order: number}[]) =>
     request<any[]>('PATCH', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/reorder`, { order }),
 

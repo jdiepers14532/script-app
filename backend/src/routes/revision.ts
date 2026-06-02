@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { query, queryOne } from '../db'
+import { query, queryOne, pool } from '../db'
 import { authMiddleware } from '../auth'
 
 export const stageLabelsRouter = Router({ mergeParams: true })
@@ -50,39 +50,198 @@ stageLabelsRouter.post('/', async (req, res) => {
 })
 
 // PUT /api/produktionen/:produktionId/stage-labels/:labelId
+// Rename propagiert transaktional: R1 (stage_labels.name) + R2 (werkstufen.label, production-scoped)
+// + R3 (lock_trigger_fassungslabel). Läuft auch für gesperrte/eingefrorene Werkstufen.
 stageLabelsRouter.put('/:labelId', async (req, res) => {
   const { produktionId } = req.params as any
   const { name, sort_order, is_produktionsfassung } = req.body
+  const client = await pool.connect()
   try {
-    const row = await queryOne(
+    await client.query('BEGIN')
+
+    // Lock the row before any changes (verhindert parallele Renames desselben Labels)
+    const current = await client.query(
+      `SELECT id, name FROM stage_labels WHERE id = $1 AND produktion_id = $2 FOR UPDATE`,
+      [req.params.labelId, produktionId]
+    )
+    if (current.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Stage-Label nicht gefunden' })
+    }
+    const oldName = current.rows[0].name
+    const newName = typeof name === 'string' && name.trim() !== '' ? name.trim() : null
+    const isRename = newName !== null && newName !== oldName
+
+    let affectedWerkstufen = 0
+    let triggerUpdated = false
+
+    if (isRename) {
+      // Advisory lock per Produktion — serialisiert Renames + parallele Label-Sets auf Werkstufen
+      await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [produktionId])
+      // Expliziter Kollisionscheck (saubere Fehlermeldung statt raw UNIQUE-Violation)
+      const collision = await client.query(
+        `SELECT id FROM stage_labels WHERE produktion_id = $1 AND name = $2 AND id != $3`,
+        [produktionId, newName, req.params.labelId]
+      )
+      if (collision.rows.length > 0) {
+        await client.query('ROLLBACK')
+        return res.status(409).json({ error: 'label_name_collision', message: 'Ein Label mit diesem Namen existiert bereits in dieser Produktion.' })
+      }
+    }
+
+    // R1: stage_labels.name + optionale Felder in einer Anweisung
+    const updatedRow = await client.query(
       `UPDATE stage_labels SET
-         name = COALESCE($1, name),
-         sort_order = COALESCE($2, sort_order),
+         name               = COALESCE($1, name),
+         sort_order         = COALESCE($2, sort_order),
          is_produktionsfassung = COALESCE($3, is_produktionsfassung)
        WHERE id = $4 AND produktion_id = $5 RETURNING *`,
-      [name ?? null, sort_order ?? null, is_produktionsfassung ?? null,
-       req.params.labelId, produktionId]
+      [newName, sort_order ?? null, is_produktionsfassung ?? null, req.params.labelId, produktionId]
     )
-    if (!row) return res.status(404).json({ error: 'Stage-Label nicht gefunden' })
-    res.json(row)
+
+    if (isRename) {
+      // R2: werkstufen.label — production-scoped, erfasst alle Typen + alle Bearbeitungs-Status
+      const r2 = await client.query(
+        `UPDATE werkstufen w SET label = $1
+         FROM folgen f
+         WHERE w.folge_id = f.id AND f.produktion_id = $2 AND w.label = $3`,
+        [newName, produktionId, oldName]
+      )
+      affectedWerkstufen = r2.rowCount ?? 0
+      // R3: lock_trigger_fassungslabel
+      const r3 = await client.query(
+        `UPDATE rollen_freigabe_konfiguration SET lock_trigger_fassungslabel = $1
+         WHERE production_id = $2 AND lock_trigger_fassungslabel = $3`,
+        [newName, produktionId, oldName]
+      )
+      triggerUpdated = (r3.rowCount ?? 0) > 0
+    }
+
+    await client.query('COMMIT')
+    res.json({ ...updatedRow.rows[0], renamed: isRename, affectedWerkstufen, triggerUpdated })
   } catch (err: any) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Label-Name bereits vorhanden' })
+    await client.query('ROLLBACK')
+    if (err.code === '23505') return res.status(409).json({ error: 'label_name_collision', message: 'Label-Name bereits vorhanden' })
     res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
   }
 })
 
 // DELETE /api/produktionen/:produktionId/stage-labels/:labelId
+// ?force=true           — Löschen auch wenn in Benutzung (Werkstufen werden auf NULL gesetzt)
+// ?replacementName=...  — optionales Ersatz-Label statt NULL
+// 409 label_in_use      — Label in Benutzung, kein force
+// 422 Hard-Block        — aktive gesperrte Produktionsfassung (auch mit force nicht möglich)
 stageLabelsRouter.delete('/:labelId', async (req, res) => {
   const { produktionId } = req.params as any
+  const force = req.query.force === 'true'
+  const replacementName = (req.query.replacementName as string | undefined)?.trim() || null
+  const client = await pool.connect()
   try {
-    const row = await queryOne(
-      `DELETE FROM stage_labels WHERE id = $1 AND produktion_id = $2 RETURNING id`,
+    await client.query('BEGIN')
+    // Advisory lock — serialisiert Delete + parallele Renames/Label-Sets
+    await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [produktionId])
+
+    // Lock row
+    const current = await client.query(
+      `SELECT id, name, is_produktionsfassung FROM stage_labels WHERE id = $1 AND produktion_id = $2 FOR UPDATE`,
       [req.params.labelId, produktionId]
     )
-    if (!row) return res.status(404).json({ error: 'Stage-Label nicht gefunden' })
-    res.json({ ok: true })
+    if (current.rows.length === 0) {
+      await client.query('ROLLBACK')
+      return res.status(404).json({ error: 'Stage-Label nicht gefunden' })
+    }
+    const { name: labelName, is_produktionsfassung: isProdFassung } = current.rows[0]
+
+    // Impact: betroffene Werkstufen
+    const r2Impact = await client.query(
+      `SELECT COUNT(*)::int AS cnt FROM werkstufen w
+       JOIN folgen f ON f.id = w.folge_id
+       WHERE f.produktion_id = $1 AND w.label = $2`,
+      [produktionId, labelName]
+    )
+    const affectedWerkstufen: number = r2Impact.rows[0].cnt
+
+    // Impact: Gate-Trigger
+    const r3Impact = await client.query(
+      `SELECT COUNT(*)::int AS cnt FROM rollen_freigabe_konfiguration
+       WHERE production_id = $1 AND lock_trigger_fassungslabel = $2`,
+      [produktionId, labelName]
+    )
+    const isTrigger: boolean = r3Impact.rows[0].cnt > 0
+
+    // 422 Hard-Block: Produktionsfassung-Label mit gesperrten Werkstufen — auch mit force verboten
+    if (isProdFassung) {
+      const lockedCnt = await client.query(
+        `SELECT COUNT(*)::int AS cnt FROM werkstufen w
+         JOIN folgen f ON f.id = w.folge_id
+         WHERE f.produktion_id = $1 AND w.label = $2
+           AND w.bearbeitung_status = 'gesperrt'`,
+        [produktionId, labelName]
+      )
+      const lockedProduktionsfassungen: number = lockedCnt.rows[0].cnt
+      if (lockedProduktionsfassungen > 0) {
+        await client.query('ROLLBACK')
+        return res.status(422).json({
+          error: 'cannot_delete_active_produktionsfassung',
+          message: 'Das Label ist als Produktionsfassung markiert und hat gesperrte Werkstufen — Löschen nicht möglich.',
+          lockedProduktionsfassungen,
+        })
+      }
+    }
+
+    // 409 label_in_use — Benutzung vorhanden, kein force
+    if ((affectedWerkstufen > 0 || isTrigger) && !force) {
+      await client.query('ROLLBACK')
+      return res.status(409).json({
+        error: 'label_in_use',
+        message: 'Das Label ist in Verwendung.',
+        affectedWerkstufen,
+        isTrigger,
+        isProduktionsfassung: isProdFassung,
+      })
+    }
+
+    // Durchführen (force oder keine Benutzung)
+    let werkstufenUnlabeled = 0
+    if (affectedWerkstufen > 0) {
+      // R2: werkstufen auf NULL oder Ersatz-Label setzen
+      const r2Del = await client.query(
+        `UPDATE werkstufen w SET label = $1
+         FROM folgen f
+         WHERE w.folge_id = f.id AND f.produktion_id = $2 AND w.label = $3`,
+        [replacementName, produktionId, labelName]
+      )
+      werkstufenUnlabeled = r2Del.rowCount ?? 0
+    }
+
+    let gateDisabled = false
+    if (isTrigger) {
+      // R3: Gate-Trigger nullen — AUDIT (kein lautloses Verschwinden der Freigabepflicht)
+      await client.query(
+        `UPDATE rollen_freigabe_konfiguration SET lock_trigger_fassungslabel = NULL
+         WHERE production_id = $1 AND lock_trigger_fassungslabel = $2`,
+        [produktionId, labelName]
+      )
+      const userId = (req as any).user?.user_id ?? 'unknown'
+      console.log(`[label-delete] Gate deaktiviert: produktion=${produktionId} label="${labelName}" replacement=${replacementName ?? 'NULL'} user=${userId}`)
+      gateDisabled = true
+    }
+
+    // R1: Label löschen
+    await client.query(
+      `DELETE FROM stage_labels WHERE id = $1 AND produktion_id = $2`,
+      [req.params.labelId, produktionId]
+    )
+
+    await client.query('COMMIT')
+    res.json({ deleted: true, werkstufenUnlabeled, gateDisabled })
   } catch (err) {
+    await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
   }
 })
 
