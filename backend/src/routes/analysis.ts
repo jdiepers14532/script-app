@@ -216,63 +216,118 @@ function renderVonnegutSvg(data: any): string {
     return af - bf || as_ - bs
   })
 
-  const PX_PER = 14
-  const W = Math.max(520, xKeys.length * PX_PER + 100)
-  const H = 200
-  const PAD = { top: 20, right: 60, bottom: 38, left: 48 }
+  const PX_PER = 16
+  const W = Math.max(640, xKeys.length * PX_PER + 160)
+  const CH = 220
+  const PAD = { top: 24, right: 60, bottom: 40, left: 56 }
   const cW = W - PAD.left - PAD.right
-  const cH = H - PAD.top - PAD.bottom
+  const cH = CH - PAD.top - PAD.bottom
 
-  const xPos = (i: number) => xKeys.length > 1 ? PAD.left + (i / (xKeys.length - 1)) * cW : PAD.left + cW / 2
+  const xPos = (i: number) => xKeys.length > 1
+    ? PAD.left + (i / (xKeys.length - 1)) * cW
+    : PAD.left + cW / 2
   const yPos = (v: number) => PAD.top + ((5 - v) / 10) * cH
 
   const svgParts: string[] = []
 
-  // Grid lines
+  // Y-axis grid + labels
   for (const v of [-5, -4, -2, 0, 2, 4, 5]) {
     const y = yPos(v).toFixed(1)
-    svgParts.push(`<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="${v === 0 ? '#888' : '#ddd'}" stroke-width="${v === 0 ? 1 : 0.5}" stroke-dasharray="${v === 0 ? '' : '2,4'}"/>`)
-    if (v === 5 || v === 0 || v === -5) {
-      svgParts.push(`<text x="${PAD.left - 6}" y="${(yPos(v) + 4).toFixed(1)}" text-anchor="end" font-size="8" fill="#666">${v > 0 ? '+' : ''}${v}</text>`)
-    }
+    const isMid = v === 0
+    svgParts.push(
+      `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="${isMid ? '#888' : '#ddd'}" stroke-width="${isMid ? 1 : 0.5}"${isMid ? '' : ' stroke-dasharray="2,4"'}/>`
+    )
+    if (v === 5 || v === 0 || v === -5)
+      svgParts.push(`<text x="${PAD.left - 8}" y="${(yPos(v) + 4).toFixed(1)}" text-anchor="end" font-size="9" fill="#666">${v > 0 ? '+' : ''}${v}</text>`)
   }
 
-  // Folge change markers + x-axis labels
+  // Folge separators + x-axis labels
   let lastFolge = -1
   xKeys.forEach((k, i) => {
     const f = Number(k.split('.')[0])
     if (f !== lastFolge) {
-      if (i > 0) svgParts.push(`<line x1="${xPos(i).toFixed(1)}" y1="${PAD.top}" x2="${xPos(i).toFixed(1)}" y2="${H - PAD.bottom}" stroke="#e8e8e8" stroke-width="1"/>`)
-      svgParts.push(`<text x="${xPos(i).toFixed(1)}" y="${H - PAD.bottom + 14}" text-anchor="middle" font-size="9" fill="#555" font-weight="500">F${f}</text>`)
+      if (i > 0)
+        svgParts.push(`<line x1="${xPos(i).toFixed(1)}" y1="${PAD.top}" x2="${xPos(i).toFixed(1)}" y2="${CH - PAD.bottom}" stroke="#e8e8e8" stroke-width="1"/>`)
+      svgParts.push(`<text x="${xPos(i).toFixed(1)}" y="${CH - PAD.bottom + 14}" text-anchor="middle" font-size="9" fill="#555" font-weight="500">F${f}</text>`)
       lastFolge = f
     }
   })
 
-  // Lines + points per strand
-  straenge.forEach((s: any) => {
-    const pMap: Record<string, number> = {}
-    for (const p of s.punkte) pMap[`${p.folge_nr}.${p.scene_nr}`] = p.wert
-    const pts = xKeys.map((k, i) => pMap[k] != null ? { x: xPos(i), y: yPos(pMap[k]) } : null).filter(Boolean) as { x: number; y: number }[]
+  // Point maps per strand
+  const pMaps: Array<Record<string, number>> = straenge.map((s: any) => {
+    const m: Record<string, number> = {}
+    for (const p of s.punkte) m[`${p.folge_nr}.${p.scene_nr}`] = p.wert
+    return m
+  })
+
+  // Strand curves + dots
+  straenge.forEach((s: any, si: number) => {
+    const pts = xKeys
+      .map((k, i) => pMaps[si][k] != null ? { x: xPos(i), y: yPos(pMaps[si][k]) } : null)
+      .filter(Boolean) as { x: number; y: number }[]
     if (!pts.length) return
-    const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-    svgParts.push(`<path d="${d}" fill="none" stroke="${esc(s.farbe)}" stroke-width="1.8" stroke-linejoin="round"/>`)
-    pts.forEach(p => svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1.5"/>`))
+    const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+    svgParts.push(`<path d="${path}" fill="none" stroke="${esc(s.farbe)}" stroke-width="2" stroke-linejoin="round"/>`)
+    pts.forEach(p =>
+      svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1.5"/>`)
+    )
   })
 
-  // Legend
-  const ITEM_W = 150
-  const COLS = Math.max(1, Math.floor(W / ITEM_W))
-  const legendRows = Math.ceil(straenge.length / COLS)
-  const legendH = legendRows * 18 + 10
-  const totalH = H + legendH
+  // ── Annotation zone (directly below chart) ─────────────────────────────────
+  const ANNO_ROW_H = 20
+  const ANNO_Y = CH + 14
 
+  // Dashed connecting lines first (behind labels)
+  straenge.forEach((s: any, si: number) => {
+    const rowCenter = ANNO_Y + si * ANNO_ROW_H + ANNO_ROW_H / 2
+    xKeys.forEach((k, i) => {
+      const val = pMaps[si][k]
+      if (val == null) return
+      const cx = xPos(i)
+      const fromY = yPos(val) + 5.5
+      const toY = rowCenter - 5
+      if (toY > fromY + 2)
+        svgParts.push(`<line x1="${cx.toFixed(1)}" y1="${fromY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${toY.toFixed(1)}" stroke="${esc(s.farbe)}" stroke-width="0.8" stroke-dasharray="2,3" opacity="0.4"/>`)
+    })
+  })
+
+  // Annotation rows (alternating background + labels)
+  straenge.forEach((s: any, si: number) => {
+    const rowY = ANNO_Y + si * ANNO_ROW_H
+    const rowCenter = rowY + ANNO_ROW_H / 2
+    if (si % 2 === 0)
+      svgParts.push(`<rect x="0" y="${rowY}" width="${W}" height="${ANNO_ROW_H}" fill="#fafafa"/>`)
+    // Color dot + short strand name on left
+    svgParts.push(`<circle cx="8" cy="${rowCenter.toFixed(1)}" r="3" fill="${esc(s.farbe)}"/>`)
+    const nameShort = s.name.length > 20 ? s.name.substring(0, 19) + '\u2026' : s.name
+    svgParts.push(`<text x="14" y="${(rowCenter + 4).toFixed(1)}" font-size="7.5" fill="${esc(s.farbe)}" font-weight="600">${esc(nameShort)}</text>`)
+    // Value label at each x-position
+    xKeys.forEach((k, i) => {
+      const val = pMaps[si][k]
+      if (val == null) return
+      svgParts.push(`<text x="${xPos(i).toFixed(1)}" y="${(rowCenter + 4).toFixed(1)}" text-anchor="middle" font-size="8" fill="${esc(s.farbe)}" font-weight="600">${val > 0 ? '+' : ''}${val}</text>`)
+    })
+  })
+
+  // ── Legend ─────────────────────────────────────────────────────────────────
+  const LEGEND_Y = ANNO_Y + straenge.length * ANNO_ROW_H + 18
+  const LEG_ITEM_W = 160
+  const LEG_COLS = Math.max(1, Math.floor(W / LEG_ITEM_W))
+  const LEG_ROWS = Math.ceil(straenge.length / LEG_COLS)
+  const LEG_ROW_H = 18
+
+  svgParts.push(`<text x="${PAD.left}" y="${LEGEND_Y}" font-size="8" fill="#aaa">Legende:</text>`)
   straenge.forEach((s: any, i: number) => {
-    const col = i % COLS, row = Math.floor(i / COLS)
-    const lx = col * ITEM_W + PAD.left
-    const ly = H + 14 + row * 18
-    svgParts.push(`<circle cx="${lx + 5}" cy="${ly}" r="4" fill="${esc(s.farbe)}"/>`)
-    svgParts.push(`<text x="${lx + 13}" y="${ly + 4}" font-size="9" fill="#333">${esc(s.name)}</text>`)
+    const col = i % LEG_COLS
+    const row = Math.floor(i / LEG_COLS)
+    const lx = PAD.left + col * LEG_ITEM_W
+    const ly = LEGEND_Y + 14 + row * LEG_ROW_H + LEG_ROW_H / 2
+    svgParts.push(`<line x1="${lx}" y1="${ly.toFixed(1)}" x2="${(lx + 14).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${esc(s.farbe)}" stroke-width="2"/>`)
+    svgParts.push(`<circle cx="${(lx + 7).toFixed(1)}" cy="${ly.toFixed(1)}" r="3.5" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1"/>`)
+    svgParts.push(`<text x="${lx + 20}" y="${(ly + 4).toFixed(1)}" font-size="9" fill="#333">${esc(s.name)}</text>`)
   })
+
+  const totalH = LEGEND_Y + 14 + LEG_ROWS * LEG_ROW_H + 12
 
   return `<figure style="overflow-x:auto;margin:8pt 0">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" width="${W}" height="${totalH}" style="max-width:100%;display:block;font-family:sans-serif">
@@ -692,6 +747,7 @@ router.get('/run/:id/pdf', async (req, res) => {
       await page.setContent(html, { waitUntil: 'networkidle0' })
       const pdfBuf = await page.pdf({
         format: 'A4',
+        landscape: true,
         margin: { top: '2.5cm', bottom: '2.2cm', left: '2.5cm', right: '2.5cm' },
         printBackground: true,
         displayHeaderFooter: true,
