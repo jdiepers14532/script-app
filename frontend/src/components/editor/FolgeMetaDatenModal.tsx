@@ -48,6 +48,26 @@ interface Layout { x: number; y: number; width: number; height: number }
 // Module-level cache — survives modal close/reopen within same session (no flicker)
 let cachedLayout: Layout | null = null
 
+// Synopsen-Cache — vorladen der benachbarten Folgen, verhindert Flackern bei Folgenwechsel
+const synopsenCache: Record<number, { data: any; loadedAt: number }> = {}
+const SYNOPSEN_CACHE_TTL = 5 * 60 * 1000
+
+async function fetchOrGetCached(folgeId: number): Promise<any> {
+  const c = synopsenCache[folgeId]
+  if (c && Date.now() - c.loadedAt < SYNOPSEN_CACHE_TTL) return c.data
+  const data = await api.getFolgenSynopsen(folgeId)
+  synopsenCache[folgeId] = { data, loadedAt: Date.now() }
+  return data
+}
+
+function prefetchSynopsen(folgeId: number) {
+  const c = synopsenCache[folgeId]
+  if (c && Date.now() - c.loadedAt < SYNOPSEN_CACHE_TTL) return
+  api.getFolgenSynopsen(folgeId).then(data => {
+    synopsenCache[folgeId] = { data, loadedAt: Date.now() }
+  }).catch(() => {})
+}
+
 function centeredLayout(): Layout {
   const w = Math.min(DEFAULT_W, window.innerWidth - 32)
   const h = Math.min(DEFAULT_H, window.innerHeight - 32)
@@ -155,6 +175,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
   const prevFolgeRef = useRef<{ id: number; folge_nummer: number } | null>(null)
   const nextFolgeRef = useRef<{ id: number; folge_nummer: number } | null>(null)
   const navigateToRef = useRef<((f: { id: number; folge_nummer: number }) => void) | null>(null)
+  const prevOpenRef = useRef(false)
 
   // Sync ref so drag closures always see latest layout
   useEffect(() => { layoutRef.current = layout }, [layout])
@@ -310,28 +331,48 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
       .catch(() => {})
   }, [selectedProduction?.id])
 
-  // Load folgen data on open
+  // Load folgen data on open or folge change
   useEffect(() => {
-    if (!open) return
-    setActiveTab('titel')
-    setSelectedTitel('')
-    setTitelAlternativen([])
-    setStrangText('')
-    setDeskriptoren([])
-    setFskRating('12')
-    setFskBegruendung('')
-    setSaveMsg(null)
-    kurzEditor?.commands.setContent('<p></p>')
-    redaktionEditor?.commands.setContent('<p></p>')
-    lektorEditor?.commands.setContent('<p></p>')
-    presseEditor?.commands.setContent('<p></p>')
-    pressetextEditor?.commands.setContent('<p></p>')
+    if (!open) { prevOpenRef.current = false; return }
 
-    setLoading(true)
-    api.getFolgenSynopsen(folgeId)
+    const justOpened = !prevOpenRef.current
+    prevOpenRef.current = true
+
+    // Tab nur beim ersten Öffnen zurücksetzen, nicht beim Folgenwechsel
+    if (justOpened) setActiveTab('titel')
+    setSaveMsg(null)
+
+    const cached = synopsenCache[folgeId]
+    const hasCached = !!(cached && Date.now() - cached.loadedAt < SYNOPSEN_CACHE_TTL)
+
+    if (!hasCached) {
+      // Noch nicht im Cache — Felder leeren und Ladeindikator zeigen
+      setSelectedTitel('')
+      setTitelAlternativen([])
+      setStrangText('')
+      setDeskriptoren([])
+      setFskRating('12')
+      setFskBegruendung('')
+      kurzEditor?.commands.setContent('<p></p>')
+      redaktionEditor?.commands.setContent('<p></p>')
+      lektorEditor?.commands.setContent('<p></p>')
+      presseEditor?.commands.setContent('<p></p>')
+      pressetextEditor?.commands.setContent('<p></p>')
+      setLoading(true)
+    }
+
+    fetchOrGetCached(folgeId)
       .then(data => { if (data) setPendingLoadData(data) })
       .catch(() => {})
       .finally(() => setLoading(false))
+
+    // Benachbarte Folgen im Hintergrund vorladen (verhindert Flackern bei Navigation)
+    if (folgenList && folgenList.length > 0) {
+      const sorted = [...folgenList].sort((a, b) => a.folge_nummer - b.folge_nummer)
+      const idx = sorted.findIndex(f => f.id === folgeId)
+      if (idx > 0) prefetchSynopsen(sorted[idx - 1].id)
+      if (idx >= 0 && idx < sorted.length - 1) prefetchSynopsen(sorted[idx + 1].id)
+    }
   }, [open, folgeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Escape + Pfeiltasten-Navigation
@@ -376,6 +417,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
         synopsis_fsk:          fskJson,
       })
       setSaveMsg('Gespeichert.')
+      delete synopsenCache[folgeId] // Cache invalidieren nach Save
       return true
     } catch (e: any) {
       setSaveMsg('Fehler: ' + (e?.message ?? String(e)))
