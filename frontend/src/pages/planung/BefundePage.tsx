@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
   AlertTriangle, CheckCircle, RefreshCw, Loader2, Check, X,
-  AlertCircle, ShieldAlert, ImageOff,
+  AlertCircle, ShieldAlert, ImageOff, GitCompare, BookOpen,
 } from 'lucide-react'
 import { api } from '../../api/client'
 import { useSelectedProduction } from '../../contexts'
+import PlanungsKiRunModal, { type RunTyp } from './PlanungsKiRunModal'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,18 @@ const TYP_CONFIG: Record<string, { label: string; color: string; bg: string; Ico
     color: '#FFCC00',
     bg: 'rgba(255,204,0,0.12)',
     Icon: ImageOff,
+  },
+  storyline_abweichung: {
+    label: 'Storyline-Abweichung',
+    color: '#AF52DE',
+    bg: 'rgba(175,82,222,0.08)',
+    Icon: GitCompare,
+  },
+  beziehungswiderspruch: {
+    label: 'Beziehungswiderspruch',
+    color: '#FF3B30',
+    bg: 'rgba(255,59,48,0.08)',
+    Icon: BookOpen,
   },
 }
 
@@ -215,6 +228,7 @@ export default function BefundePage() {
   const [checksLoading, setChecksLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('offen')
   const [lastCheck, setLastCheck] = useState<string | null>(null)
+  const [kiRunModal, setKiRunModal] = useState<{ runId: string; typ: RunTyp } | null>(null)
 
   const prodId = selectedProduction?.id ?? null
 
@@ -268,6 +282,27 @@ export default function BefundePage() {
   async function handleErledigt(id: string, vermerk: string) {
     const updated = await api.erledigeBefund(id, vermerk || undefined)
     setBefunde(prev => prev.map(b => b.id === id ? { ...b, ...updated } : b))
+  }
+
+  async function handleStartKiRun(typ: RunTyp) {
+    if (!prodId) return
+    try {
+      const result = typ === 'storyline_abgleich'
+        ? await api.startStorylineAbgleich(prodId)
+        : await api.startBeziehungsCheck(prodId)
+      setKiRunModal({ runId: result.run_id, typ })
+    } catch (err: any) {
+      alert(err?.message || 'Fehler beim Starten der KI-Analyse')
+    }
+  }
+
+  async function handleKiCommitted(count: number) {
+    setKiRunModal(null)
+    if (!prodId) return
+    const updated = await api.getBefunde(prodId, 'alle').catch(() => befunde)
+    setBefunde(updated)
+    setLastCheck(new Date().toLocaleTimeString('de-DE'))
+    if (count > 0) setStatusFilter('offen')
   }
 
   if (!prodId) {
@@ -330,6 +365,37 @@ export default function BefundePage() {
             : <RefreshCw size={12} />}
           Checks ausführen
         </button>
+
+        {/* KI-Analysen */}
+        <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
+
+        <button
+          onClick={() => handleStartKiRun('storyline_abgleich')}
+          style={{
+            padding: '6px 12px', borderRadius: 6,
+            border: '1px solid rgba(175,82,222,0.4)',
+            background: 'rgba(175,82,222,0.06)', color: '#AF52DE',
+            cursor: 'pointer', fontSize: 12, fontWeight: 500,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <GitCompare size={12} />
+          Storyline-Abgleich
+        </button>
+
+        <button
+          onClick={() => handleStartKiRun('beziehungs_check')}
+          style={{
+            padding: '6px 12px', borderRadius: 6,
+            border: '1px solid rgba(255,59,48,0.4)',
+            background: 'rgba(255,59,48,0.06)', color: '#FF3B30',
+            cursor: 'pointer', fontSize: 12, fontWeight: 500,
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <BookOpen size={12} />
+          Beziehungs-Check
+        </button>
       </div>
 
       {/* Status-Filter Tabs */}
@@ -359,6 +425,16 @@ export default function BefundePage() {
           </button>
         ))}
       </div>
+
+      {/* KI-Run Modal */}
+      {kiRunModal && (
+        <PlanungsKiRunModal
+          runId={kiRunModal.runId}
+          runTyp={kiRunModal.typ}
+          onClose={() => setKiRunModal(null)}
+          onCommitted={handleKiCommitted}
+        />
+      )}
 
       {/* List */}
       <div style={{ flex: 1, overflow: 'auto' }}>

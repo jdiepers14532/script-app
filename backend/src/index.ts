@@ -73,6 +73,7 @@ import { planungRouter } from './routes/planung'
 import { bibleRouter } from './routes/bible'
 import { planungVersionenRouter } from './routes/planung-versionen'
 import { konzeptImportRouter } from './routes/konzept-import'
+import { planungKiRouter } from './routes/planung-ki'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -220,6 +221,7 @@ app.use('/api/planung', planungRouter)
 app.use('/api/bible', bibleRouter)
 app.use('/api/planung-versionen', planungVersionenRouter)
 app.use('/api/konzept-import', konzeptImportRouter)
+app.use('/api/planung-ki', planungKiRouter)
 
 // Team-Work: Colab-Gruppen, Sessions, Sichtbarkeit
 app.use('/api/colab-gruppen', colabGruppenRouter)
@@ -440,6 +442,8 @@ async function runMigrations() {
     'v168_versionen_import.sql',
     // Glossar — Wechselschnitt erweitert + verwandte Schnitttermini (Parallelmontage, RB, Vision, Insert)
     'v169_glossar_wechselschnitt_verwandte.sql',
+    // Planung-KI-Runs: fire-and-forget Storyline-Abgleich + Beziehungswiderspruch-Check
+    'v170_planung_runs.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

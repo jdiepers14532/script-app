@@ -547,6 +547,16 @@ export const api = {
   konzeptImportCommit: (data: { quelltyp: string; produktion_id: string; data: any[]; auto_version?: boolean }) =>
     request<any>('POST', '/konzept-import/commit', data),
 
+  // ── Planung-KI ────────────────────────────────────────────────────────────
+  startStorylineAbgleich: (produktionId: string) =>
+    request<{ run_id: string; status: string }>('POST', `/planung-ki/storyline-abgleich?produktion_id=${encodeURIComponent(produktionId)}`),
+  startBeziehungsCheck: (produktionId: string) =>
+    request<{ run_id: string; status: string }>('POST', `/planung-ki/beziehungs-check?produktion_id=${encodeURIComponent(produktionId)}`),
+  getPlanungRun: (runId: string) =>
+    request<any>('GET', `/planung-ki/runs/${runId}`),
+  commitPlanungBefunde: (runId: string, accepted: { beschreibung: string; rolle_id?: string; block_nummer?: number; typ?: string }[]) =>
+    request<{ created: number }>('POST', `/planung-ki/runs/${runId}/commit-befunde`, { accepted }),
+
   // ── Charakter aktivieren ──────────────────────────────────────────────────
   aktiviereCharacter: (characterId: string, produktionId: string) =>
     request<any>('POST', `/characters/${characterId}/aktivieren`, { produktion_id: produktionId }),
