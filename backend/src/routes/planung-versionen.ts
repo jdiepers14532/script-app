@@ -1,9 +1,11 @@
 import { Router } from 'express'
 import { query, queryOne } from '../db'
-import { authMiddleware } from '../auth'
+import { authMiddleware, requireRole } from '../auth'
 
 export const planungVersionenRouter = Router()
 planungVersionenRouter.use(authMiddleware)
+
+const FREIGABE_ROLLEN = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung', 'produktionsleitung'] as const
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/planung-versionen?produktion_id=X&typ=future|konzept|alle
@@ -222,8 +224,9 @@ planungVersionenRouter.put('/:id', async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /api/planung-versionen/:id/freigeben
 // Body: { typ:'future'|'konzept' }
+// Nur für: superadmin, geschaeftsfuehrung, herstellungsleitung, produktionsleitung
 // ══════════════════════════════════════════════════════════════════════════════
-planungVersionenRouter.post('/:id/freigeben', async (req, res) => {
+planungVersionenRouter.post('/:id/freigeben', requireRole(...FREIGABE_ROLLEN), async (req, res) => {
   const { id } = req.params
   const { typ } = req.body
   const userId = (req as any).user?.user_id ?? null

@@ -171,9 +171,16 @@ Antworte AUSSCHLIESSLICH in diesem Format:
       const raw = await callMistral(apiKey, model, prompt)
       kiResult = parseJsonBlock(raw)
 
-      // Token-Schätzung
-      await recordUsage('mistral', model,
-        Math.round(prompt.length / 4), Math.round(raw.length / 4))
+      const tokIn = Math.round(prompt.length / 4)
+      const tokOut = Math.round(raw.length / 4)
+      await recordUsage('mistral', model, tokIn, tokOut)
+      await query(
+        `INSERT INTO ki_audit_log (funktion, input_summary, output_summary, item_count, provider, model, tokens_in, tokens_out, user_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        ['konzept_import_a', prompt.slice(0, 200), raw.slice(0, 200),
+          kiResult ? (kiResult.straenge || []).length : 0,
+          'mistral', model, tokIn, tokOut, (req as any).user?.user_id ?? null]
+      ).catch(() => {})
 
       if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
 
@@ -222,8 +229,16 @@ Antworte AUSSCHLIESSLICH in diesem Format:
       const raw = await callMistral(apiKey, model, prompt)
       kiResult = parseJsonBlock(raw)
 
-      await recordUsage('mistral', model,
-        Math.round(prompt.length / 4), Math.round(raw.length / 4))
+      const tokIn = Math.round(prompt.length / 4)
+      const tokOut = Math.round(raw.length / 4)
+      await recordUsage('mistral', model, tokIn, tokOut)
+      await query(
+        `INSERT INTO ki_audit_log (funktion, input_summary, output_summary, item_count, provider, model, tokens_in, tokens_out, user_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        ['konzept_import_b', prompt.slice(0, 200), raw.slice(0, 200),
+          kiResult ? (kiResult.items || []).length : 0,
+          'mistral', model, tokIn, tokOut, (req as any).user?.user_id ?? null]
+      ).catch(() => {})
 
       if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
 
@@ -271,8 +286,16 @@ Antworte AUSSCHLIESSLICH in diesem Format:
       const raw = await callMistral(apiKey, model, prompt)
       kiResult = parseJsonBlock(raw)
 
-      await recordUsage('mistral', model,
-        Math.round(prompt.length / 4), Math.round(raw.length / 4))
+      const tokIn = Math.round(prompt.length / 4)
+      const tokOut = Math.round(raw.length / 4)
+      await recordUsage('mistral', model, tokIn, tokOut)
+      await query(
+        `INSERT INTO ki_audit_log (funktion, input_summary, output_summary, item_count, provider, model, tokens_in, tokens_out, user_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        ['konzept_import_c', prompt.slice(0, 200), raw.slice(0, 200),
+          kiResult ? (kiResult.items || []).length : 0,
+          'mistral', model, tokIn, tokOut, (req as any).user?.user_id ?? null]
+      ).catch(() => {})
 
       if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
 

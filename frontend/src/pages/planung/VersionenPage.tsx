@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import {
   History, Plus, ChevronDown, ChevronRight, Check, Trash2,
   ShieldCheck, Clock, X, Loader2, FileText, GitCompare,
@@ -354,6 +354,7 @@ function AenderungForm({
 function VersionCard({
   version,
   compareWith,
+  canFreigeben,
   onFreigeben,
   onDelete,
   onUpdated,
@@ -363,6 +364,7 @@ function VersionCard({
 }: {
   version: Version
   compareWith: Version | null
+  canFreigeben: boolean
   onFreigeben: (v: Version) => void
   onDelete: (v: Version) => void
   onUpdated: (v: Version) => void
@@ -502,7 +504,7 @@ function VersionCard({
             </button>
           </Tooltip>
 
-          {!isFreigegeben && (
+          {!isFreigegeben && canFreigeben && (
             <Tooltip text="Freigeben">
               <button
                 onClick={() => onFreigeben(version)}
@@ -658,6 +660,8 @@ function VersionCard({
 
 // ── Hauptseite ────────────────────────────────────────────────────────────────
 
+const FREIGABE_ROLLEN = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung', 'produktionsleitung']
+
 export default function VersionenPage() {
   const { selectedProduction } = useSelectedProduction()
   const [versionen, setVersionen] = useState<Version[]>([])
@@ -665,6 +669,18 @@ export default function VersionenPage() {
   const [activeTab, setActiveTab] = useState<VersionTyp | 'alle'>('alle')
   const [showModal, setShowModal] = useState(false)
   const [compareBase, setCompareBase] = useState<Version | null>(null)
+  const [myRoles, setMyRoles] = useState<string[]>([])
+
+  useEffect(() => {
+    api.getMe().then(me => {
+      setMyRoles(me.roles || (me.role ? [me.role] : []))
+    }).catch(() => {})
+  }, [])
+
+  const canFreigeben = useMemo(
+    () => myRoles.some(r => FREIGABE_ROLLEN.includes(r)),
+    [myRoles]
+  )
 
   const load = useCallback(async () => {
     if (!selectedProduction) return
@@ -811,6 +827,7 @@ export default function VersionenPage() {
                 key={v.id}
                 version={v}
                 compareWith={compareBase?.id !== v.id ? compareBase : null}
+                canFreigeben={canFreigeben}
                 onFreigeben={handleFreigeben}
                 onDelete={handleDelete}
                 onUpdated={updated => setVersionen(prev => prev.map(x => x.id === updated.id ? { ...x, ...updated } : x))}

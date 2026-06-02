@@ -168,6 +168,15 @@ Maximal 20 Einträge. Falls keine Abweichungen: leeres Array.`
     }
 
     await setRunStatus(runId, 'done', { ergebnis_json: parsed })
+
+    // KI-Audit-Log
+    await query(
+      `INSERT INTO ki_audit_log (funktion, input_summary, output_summary, item_count, provider, model, tokens_in, tokens_out)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      ['storyline_abgleich', prompt.slice(0, 200), raw.slice(0, 200),
+        (parsed.abweichungen || []).length, 'mistral', 'mistral-large-latest',
+        Math.round(prompt.length / 4), Math.round(raw.length / 4)]
+    ).catch(() => {})
   } catch (err: any) {
     await setRunStatus(runId, 'error', { fehler: String(err) }).catch(() => {})
   }
@@ -271,6 +280,15 @@ Maximal 15 Einträge. Nur echte, klar belegbare Widersprüche.`
     }
 
     await setRunStatus(runId, 'done', { ergebnis_json: parsed })
+
+    // KI-Audit-Log
+    await query(
+      `INSERT INTO ki_audit_log (funktion, input_summary, output_summary, item_count, provider, model, tokens_in, tokens_out)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      ['beziehungs_check', prompt.slice(0, 200), raw.slice(0, 200),
+        (parsed.widersprueche || []).length, 'mistral', 'mistral-large-latest',
+        Math.round(prompt.length / 4), Math.round(raw.length / 4)]
+    ).catch(() => {})
   } catch (err: any) {
     await setRunStatus(runId, 'error', { fehler: String(err) }).catch(() => {})
   }
