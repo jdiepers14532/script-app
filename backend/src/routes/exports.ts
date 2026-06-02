@@ -93,6 +93,10 @@ router.post('/export/job', async (req, res) => {
       wz_klein_aktiv:           options.wz_klein_aktiv === true,
       wz_gross_aktiv:           options.wz_gross_aktiv === true,
       wz_gross_farbe:           options.wz_gross_farbe            ? String(options.wz_gross_farbe)         : undefined,
+      pdfLandscape:             options.pdfLandscape === true,
+      kzAktivOverride:          options.kzAktivOverride != null ? Boolean(options.kzAktivOverride) : undefined,
+      fzAktivOverride:          options.fzAktivOverride != null ? Boolean(options.fzAktivOverride) : undefined,
+      fzTextOverride:           options.fzTextOverride           ? String(options.fzTextOverride).slice(0, 500) : undefined,
     },
   }
 

@@ -186,6 +186,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [szenenAktiv, setSzenenAktiv]             = useState(true)
   const [pdfBookmarks, setPdfBookmarks]           = useState(false)
 
+  // PDF-Layout / KZ-FZ
+  const [pdfOrientation, setPdfOrientation]       = useState<'portrait' | 'landscape'>('portrait')
+  const [kzFzModus, setKzFzModus]                 = useState<'standard' | 'kz' | 'fz' | 'keine'>('standard')
+  const [fzText, setFzText]                       = useState('')
+
   // Statistik / Folge-Picker Modal
   const [statConfigItemId, setStatConfigItemId]     = useState<string | null>(null)
   const [statConfigItemType, setStatConfigItemType] = useState<'statistik' | 'onliner' | 'synopse'>('statistik')
@@ -213,6 +218,11 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
     setRolleAlsVermerk(false)
     setSzenenAktiv(true); setPdfBookmarks(true)
     setWzKleinAktiv(false); setWzGrossAktiv(false); setWzGrossFarbe('#CCCCCC')
+    setPdfOrientation('portrait'); setKzFzModus('standard'); setFzText('')
+    fetch('https://auth.serienwerft.studio/api/public/company-info')
+      .then(r => r.ok ? r.json() : null)
+      .then((d: any) => { if (d?.company_name) setFzText(d.company_name) })
+      .catch(() => {})
 
     // Notiz-Werkstufen als Pre-Items (gesamte Notiz-Dokumente)
     const notizWerkItems: ExportItem[] = notizWerkstufen.map(w => ({
@@ -478,6 +488,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           wz_klein_aktiv:  format === 'pdf' ? (wzKleinAktiv && !!buildPersAusdruck()) : undefined,
           wz_gross_aktiv:  format === 'pdf' ? (wzGrossAktiv && !!buildPersAusdruck()) : undefined,
           wz_gross_farbe:  format === 'pdf' && wzGrossAktiv ? wzGrossFarbe : undefined,
+          pdfLandscape:    format === 'pdf' ? (pdfOrientation === 'landscape') : undefined,
+          kzAktivOverride: format === 'pdf' && kzFzModus !== 'standard' ? (kzFzModus === 'kz') : undefined,
+          fzAktivOverride: format === 'pdf' && kzFzModus !== 'standard' ? (kzFzModus === 'fz') : undefined,
+          fzTextOverride:  format === 'pdf' && kzFzModus === 'fz' && fzText.trim() ? fzText.trim() : undefined,
         },
       }
 
@@ -583,6 +597,10 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
           wz_klein_aktiv:  wzKleinAktiv && !!buildPersAusdruck(),
           wz_gross_aktiv:  wzGrossAktiv && !!buildPersAusdruck(),
           wz_gross_farbe:  wzGrossAktiv ? wzGrossFarbe : undefined,
+          pdfLandscape:    pdfOrientation === 'landscape',
+          kzAktivOverride: kzFzModus !== 'standard' ? (kzFzModus === 'kz') : undefined,
+          fzAktivOverride: kzFzModus !== 'standard' ? (kzFzModus === 'fz') : undefined,
+          fzTextOverride:  kzFzModus === 'fz' && fzText.trim() ? fzText.trim() : undefined,
         },
       }
       const res = await fetch('/api/export/pdf-preview', {
@@ -910,7 +928,7 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                   Elemente per Drag &amp; Drop zwischen den Zonen verschieben.
                 </div>
 
-                {/* PDF-Optionen: nur Lesezeichen */}
+                {/* PDF-Optionen */}
                 {format === 'pdf' && (
                   <div style={{ marginTop: 14 }}>
                     <span style={SEC}>PDF-Optionen</span>
@@ -963,6 +981,85 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
                     })}
                   </div>
                 </div>
+
+                {/* Seitenlayout — nur PDF */}
+                {format === 'pdf' && (
+                  <div>
+                    <span style={SEC}>Seitenlayout</span>
+                    <div style={{ display: 'flex', gap: 5 }}>
+                      {(['portrait', 'landscape'] as const).map(ori => {
+                        const active = pdfOrientation === ori
+                        return (
+                          <button
+                            key={ori}
+                            onClick={() => setPdfOrientation(ori)}
+                            style={{
+                              flex: 1, padding: '6px 9px', borderRadius: 6, fontSize: 11,
+                              border: `1px solid ${active ? '#007AFF' : 'var(--border)'}`,
+                              background: active ? 'rgba(0,122,255,0.08)' : 'transparent',
+                              color: active ? '#007AFF' : 'var(--text-primary)',
+                              cursor: 'pointer', fontFamily: 'inherit', fontWeight: active ? 600 : 400,
+                            }}
+                          >
+                            {ori === 'portrait' ? '↕ Hochformat' : '↔ Querformat'}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Kopf-/Fußzeile — nur PDF */}
+                {format === 'pdf' && (
+                  <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                    <span style={SEC}>Kopf-/Fußzeile</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 6 }}>
+                      {([
+                        { val: 'standard', label: 'Standard' },
+                        { val: 'kz',       label: 'Nur KZ' },
+                        { val: 'fz',       label: 'Nur FZ' },
+                        { val: 'keine',    label: 'Keine' },
+                      ] as const).map(opt => {
+                        const active = kzFzModus === opt.val
+                        return (
+                          <button
+                            key={opt.val}
+                            onClick={() => setKzFzModus(opt.val)}
+                            style={{
+                              padding: '5px 8px', borderRadius: 6, fontSize: 11,
+                              border: `1px solid ${active ? '#007AFF' : 'var(--border)'}`,
+                              background: active ? 'rgba(0,122,255,0.08)' : 'transparent',
+                              color: active ? '#007AFF' : 'var(--text-primary)',
+                              cursor: 'pointer', fontFamily: 'inherit', fontWeight: active ? 600 : 400,
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {kzFzModus === 'standard' && (
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        KZ + FZ gemäß DK-Einstellungen
+                      </div>
+                    )}
+                    {kzFzModus === 'fz' && (
+                      <textarea
+                        value={fzText}
+                        onChange={e => setFzText(e.target.value)}
+                        placeholder="Fußzeilen-Text (leer = Fußzeile ohne Inhalt)"
+                        rows={2}
+                        style={{
+                          width: '100%', padding: '5px 8px', fontSize: 11,
+                          border: '1px solid var(--border)', borderRadius: 6,
+                          background: 'var(--bg-canvas)', color: 'var(--text-primary)',
+                          fontFamily: 'inherit', resize: 'vertical', outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
 
                 {/* Szenen-Filter */}
                 <div>

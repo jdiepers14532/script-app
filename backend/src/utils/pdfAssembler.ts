@@ -1073,7 +1073,21 @@ async function assembleHtml(
        WHERE produktion_id = $1 AND werkstufe_typ = 'alle'`,
       [w.produktion_id]
     )
-    const kzFz = kzTypRes.rows[0] ?? kzAlleRes.rows[0] ?? null
+    let kzFz: any = kzTypRes.rows[0] ?? kzAlleRes.rows[0] ?? null
+
+    // ── Override aus Export-Optionen: KZ/FZ aktiv + FZ Plain-Text ─────────────
+    {
+      const o = input.options
+      if (o.kzAktivOverride !== undefined || o.fzAktivOverride !== undefined || o.fzTextOverride?.trim()) {
+        if (!kzFz) kzFz = { kopfzeile_aktiv: false, kopfzeile_content: null, fusszeile_aktiv: false, fusszeile_content: null, erste_seite_kein_header: true, erste_seite_kein_footer: false, seiten_layout: {} }
+        if (o.kzAktivOverride !== undefined) kzFz.kopfzeile_aktiv = o.kzAktivOverride
+        if (o.fzAktivOverride !== undefined) kzFz.fusszeile_aktiv = o.fzAktivOverride
+        if (o.fzTextOverride?.trim()) {
+          kzFz.fusszeile_aktiv = true
+          kzFz.fusszeile_content = [{ type: 'paragraph', content: [{ type: 'text', text: o.fzTextOverride.trim() }] }]
+        }
+      }
+    }
 
     // ── 4. Seitenränder: Fallback page_margin_mm → kzFz.seiten_layout (Single Source of Truth) ──
     setProgress(22)
@@ -1756,6 +1770,7 @@ async function renderHtmlToPdf(
     footerTemplate?: string
     margin: { top: string; bottom: string; left: string; right: string }
     outline?: boolean
+    landscape?: boolean
     /** Optionaler Hook zwischen setContent und pdf() — z.B. für JS-Seitenumbruch-Fixup */
     onBeforePdf?: (page: any) => Promise<void>
   }
@@ -1766,6 +1781,7 @@ async function renderHtmlToPdf(
     if (opts.onBeforePdf) await opts.onBeforePdf(page)
     return await page.pdf({
       format: 'A4',
+      landscape: opts.landscape ?? false,
       printBackground: true,
       displayHeaderFooter: opts.displayHeaderFooter,
       headerTemplate: opts.headerTemplate ?? '<div style="font-size:0"></div>',
@@ -1945,6 +1961,7 @@ export async function assemblePdf(
     setProgress(63)
     const titelseiteBytes = await renderHtmlToPdf(browser, titelseiteFullHtml, {
       displayHeaderFooter: false,
+      landscape: input.options.pdfLandscape ?? false,
       margin: {
         top:    `${titelseiteMargins.oben}mm`,
         bottom: `${titelseiteMargins.unten}mm`,
@@ -1960,6 +1977,7 @@ export async function assemblePdf(
       headerTemplate,
       footerTemplate,
       outline: pdfBookmarks,
+      landscape: input.options.pdfLandscape ?? false,
       margin: {
         top:    `${pageMarginTop}mm`,
         bottom: `${pageMarginBottom}mm`,
@@ -1997,6 +2015,7 @@ export async function assemblePdf(
       // Akkurat, da der Browser selbst weiß auf welcher Seite jedes Element landet.
       pdfBytes = await page.pdf({
         format: 'A4',
+        landscape: input.options.pdfLandscape ?? false,
         printBackground: true,
         displayHeaderFooter: true,
         headerTemplate,

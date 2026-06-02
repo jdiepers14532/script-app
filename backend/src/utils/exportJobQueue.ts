@@ -75,6 +75,14 @@ export interface ExportJobOptions {
   wz_gross_aktiv?: boolean
   /** Farbe des großen Wasserzeichens als Hex, z.B. "#CCCCCC" */
   wz_gross_farbe?: string
+  /** true = Querformat (A4 landscape), false/undefined = Hochformat */
+  pdfLandscape?: boolean
+  /** Kopfzeile für diesen Export aktiv/inaktiv (überschreibt DK-Settings) */
+  kzAktivOverride?: boolean
+  /** Fußzeile für diesen Export aktiv/inaktiv (überschreibt DK-Settings) */
+  fzAktivOverride?: boolean
+  /** Plain-Text für Fußzeile dieses Exports (überschreibt DK-Settings-Inhalt) */
+  fzTextOverride?: string
 }
 
 export interface ExportJobParams {
