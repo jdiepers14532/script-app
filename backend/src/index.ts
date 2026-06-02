@@ -74,6 +74,7 @@ import { bibleRouter } from './routes/bible'
 import { planungVersionenRouter } from './routes/planung-versionen'
 import { konzeptImportRouter } from './routes/konzept-import'
 import { planungKiRouter } from './routes/planung-ki'
+import { importJobsRouter } from './routes/import-jobs'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -222,6 +223,7 @@ app.use('/api/bible', bibleRouter)
 app.use('/api/planung-versionen', planungVersionenRouter)
 app.use('/api/konzept-import', konzeptImportRouter)
 app.use('/api/planung-ki', planungKiRouter)
+app.use('/api/import-jobs', importJobsRouter)
 
 // Team-Work: Colab-Gruppen, Sessions, Sichtbarkeit
 app.use('/api/colab-gruppen', colabGruppenRouter)
@@ -461,6 +463,12 @@ async function runMigrations() {
     'v177_werkstufen_einfrieren.sql',
     // Handoff 1 Phase 4: NT revisionssicher — repliken_node_ids + konsistenz_status
     'v178_nt_repliken_node_ids.sql',
+    // Glossar: erklaerung_lang + quellen Felder + Unterbruch-Eintrag
+    'v179_glossar_erklaerung_lang.sql',
+    // PR 11: ki_providers base_url + Gemini/Custom-Seed
+    'v180_ki_providers_base_url_gemini.sql',
+    // PR 11: import_jobs-Tabelle für 3-Tier-PDF-Import
+    'v181_import_jobs.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
@@ -544,6 +552,11 @@ httpServer.listen(PORT, async () => {
   } catch (err) {
     console.error('Migration error:', err)
   }
+  // Upload-Verzeichnis für Import-Dokumente (PDF-Speicherung)
+  try {
+    const importDocsDir = path.join(process.cwd(), 'uploads', 'import-docs')
+    if (!fs.existsSync(importDocsDir)) fs.mkdirSync(importDocsDir, { recursive: true })
+  } catch {}
   // Orphaned Analysis-Runs bereinigen (nach PM2-Neustart hängen gebliebene running/queued)
   try {
     const { query: dbQuery } = await import('./db')

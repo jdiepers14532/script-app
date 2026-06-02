@@ -757,8 +757,59 @@ function AllgemeinTab({ productionId }: { productionId: string }) {
 type GlossarKategorie = 'transition' | 'shot' | 'kuerzel' | 'fachbegriff' | 'sonstige'
   | 'dramaturgie' | 'emotional_bogen' | 'serien_struktur' | 'format_produktion' | 'app_architektur'
 
-type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; term_en: string; kategorie: GlossarKategorie; sort_order: number }
-type GlossarDraft = { kuerzel: string; name: string; erklaerung: string; term_en: string; kategorie: GlossarKategorie }
+type GlossarEntry = { id: number; kuerzel: string; name: string; erklaerung: string; erklaerung_lang: string; quellen: string; term_en: string; kategorie: GlossarKategorie; sort_order: number }
+type GlossarDraft = { kuerzel: string; name: string; erklaerung: string; erklaerung_lang: string; quellen: string; term_en: string; kategorie: GlossarKategorie }
+
+// ── Glossar Render-Helpers ────────────────────────────────────────────────────
+
+function renderErklaerungLang(text: string): React.ReactNode {
+  const lines = text.split('\n')
+  return lines.map((line, i) => {
+    const trimmed = line.trim()
+    if (!trimmed) return <div key={i} style={{ height: 6 }} />
+    if (trimmed.startsWith('## ')) {
+      return (
+        <div key={i} style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-primary)', marginTop: 12, marginBottom: 3 }}>
+          {trimmed.slice(3)}
+        </div>
+      )
+    }
+    // inline **bold**
+    const parts = trimmed.split(/\*\*([^*]+)\*\*/)
+    const rendered = parts.map((p, j) => j % 2 === 1 ? <strong key={j}>{p}</strong> : p)
+    return (
+      <div key={i} style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+        {rendered}
+      </div>
+    )
+  })
+}
+
+function renderQuellen(text: string): React.ReactNode {
+  const lines = text.split('\n').filter(l => l.trim())
+  if (!lines.length) return null
+  return (
+    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 5 }}>
+        Quellen
+      </div>
+      {lines.map((line, i) => {
+        const sepIdx = line.lastIndexOf(' | ')
+        const titel = sepIdx > -1 ? line.slice(0, sepIdx).trim() : line.trim()
+        const url   = sepIdx > -1 ? line.slice(sepIdx + 3).trim() : line.trim()
+        const isUrl = url.startsWith('http')
+        return isUrl ? (
+          <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+            style={{ display: 'block', fontSize: 11, color: '#007AFF', textDecoration: 'none', marginBottom: 2, lineHeight: 1.5 }}>
+            → {titel}
+          </a>
+        ) : (
+          <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 2 }}>→ {titel}</div>
+        )
+      })}
+    </div>
+  )
+}
 
 const GLOSSAR_KATEGORIEN: { value: GlossarKategorie; label: string; importFilter: boolean }[] = [
   { value: 'kuerzel',          label: 'Abkürzung',                              importFilter: true  },
@@ -785,8 +836,9 @@ function GlossarSection({ productionId }: { productionId: string }) {
   const [filterKat, setFilterKat] = useState<GlossarKategorie | 'alle'>('alle')
   const [langMode, setLangMode] = useState<'de' | 'en'>('de')
   const [editId, setEditId] = useState<number | null>(null)
-  const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '', term_en: '', kategorie: 'kuerzel' })
+  const [editDraft, setEditDraft] = useState<GlossarDraft>({ kuerzel: '', name: '', erklaerung: '', erklaerung_lang: '', quellen: '', term_en: '', kategorie: 'kuerzel' })
   const [newDraft, setNewDraft] = useState<GlossarDraft | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -809,7 +861,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
 
   const startEdit = (e: GlossarEntry) => {
     setEditId(e.id)
-    setEditDraft({ kuerzel: e.kuerzel, name: e.name, erklaerung: e.erklaerung, term_en: e.term_en ?? '', kategorie: e.kategorie ?? 'kuerzel' })
+    setEditDraft({ kuerzel: e.kuerzel, name: e.name, erklaerung: e.erklaerung, erklaerung_lang: e.erklaerung_lang ?? '', quellen: e.quellen ?? '', term_en: e.term_en ?? '', kategorie: e.kategorie ?? 'kuerzel' })
     setNewDraft(null)
   }
 
@@ -899,7 +951,7 @@ function GlossarSection({ productionId }: { productionId: string }) {
             style={{ padding: '3px 10px', border: 'none', background: langMode === 'en' ? 'var(--text-primary)' : 'transparent', color: langMode === 'en' ? '#fff' : 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'inherit' }}>EN</button>
         </div>
         <button
-          onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '', term_en: '', kategorie: 'kuerzel' }); setEditId(null) }}
+          onClick={() => { setNewDraft({ kuerzel: '', name: '', erklaerung: '', erklaerung_lang: '', quellen: '', term_en: '', kategorie: 'kuerzel' }); setEditId(null) }}
           disabled={!!newDraft}
           style={{ padding: '5px 12px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
           + Eintrag
@@ -930,43 +982,65 @@ function GlossarSection({ productionId }: { productionId: string }) {
               </thead>
               <tbody>
                 {filtered.map(entry => (
-                  <tr key={entry.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                  <React.Fragment key={entry.id}>
+                  <tr style={{ borderBottom: expandedId === entry.id && editId !== entry.id ? 'none' : '1px solid var(--border)' }}>
                     {editId === entry.id ? (
                       <>
-                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                            <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
-                              placeholder="Name (DE)" style={{ ...inputSt, width: '100%' }} autoFocus />
-                            <input value={editDraft.term_en} onChange={e => setEditDraft(d => ({ ...d, term_en: e.target.value }))}
-                              placeholder="Term (EN)" style={{ ...inputSt, width: '100%', fontStyle: 'italic' }} />
+                        <td colSpan={5} style={{ padding: '8px', verticalAlign: 'top' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              <div style={{ flex: 2, minWidth: 140, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>NAME (DE)</span>
+                                <input value={editDraft.name} onChange={e => setEditDraft(d => ({ ...d, name: e.target.value }))}
+                                  placeholder="Name (DE)" style={{ ...inputSt, width: '100%' }} autoFocus />
+                              </div>
+                              <div style={{ flex: 2, minWidth: 140, display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>TERM (EN)</span>
+                                <input value={editDraft.term_en} onChange={e => setEditDraft(d => ({ ...d, term_en: e.target.value }))}
+                                  placeholder="Term (EN)" style={{ ...inputSt, width: '100%', fontStyle: 'italic' }} />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KÜRZEL</span>
+                                <input value={editDraft.kuerzel} onChange={e => setEditDraft(d => ({ ...d, kuerzel: e.target.value }))}
+                                  placeholder="Kürzel" style={{ ...inputSt, width: 64, textTransform: 'uppercase' }} />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KATEGORIE</span>
+                                <select value={editDraft.kategorie}
+                                  onChange={e => setEditDraft(d => ({ ...d, kategorie: e.target.value as GlossarKategorie }))}
+                                  style={{ ...inputSt, fontSize: 11, padding: '2px 6px' }}>
+                                  {GLOSSAR_KATEGORIEN.map(k => (
+                                    <option key={k.value} value={k.value}>{k.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KURZERKLÄRUNG (Tooltip)</span>
+                              <textarea value={editDraft.erklaerung} onChange={e => setEditDraft(d => ({ ...d, erklaerung: e.target.value }))}
+                                rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>AUSFÜHRLICHE ERKLÄRUNG (optional — unterstützt ## Abschnitt, • Aufzählung, **fett**)</span>
+                              <textarea value={editDraft.erklaerung_lang} onChange={e => setEditDraft(d => ({ ...d, erklaerung_lang: e.target.value }))}
+                                rows={8} style={{ ...inputSt, width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 11 }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>QUELLEN (optional — eine pro Zeile: "Titel | https://...")</span>
+                              <textarea value={editDraft.quellen} onChange={e => setEditDraft(d => ({ ...d, quellen: e.target.value }))}
+                                rows={3} style={{ ...inputSt, width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 11 }} />
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button onClick={saveEdit} disabled={saving}
+                                style={{ padding: '5px 14px', borderRadius: 6, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
+                                {saving ? '…' : 'Speichern'}
+                              </button>
+                              <button onClick={cancelEdit}
+                                style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', fontSize: 12, cursor: 'pointer' }}>
+                                Abbrechen
+                              </button>
+                            </div>
                           </div>
-                        </td>
-                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <input value={editDraft.kuerzel} onChange={e => setEditDraft(d => ({ ...d, kuerzel: e.target.value }))}
-                            placeholder="Kürzel" style={{ ...inputSt, width: 64, textTransform: 'uppercase' }} />
-                        </td>
-                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <textarea value={editDraft.erklaerung} onChange={e => setEditDraft(d => ({ ...d, erklaerung: e.target.value }))}
-                            rows={3} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
-                        </td>
-                        <td style={{ padding: '6px 8px', verticalAlign: 'top' }}>
-                          <select value={editDraft.kategorie}
-                            onChange={e => setEditDraft(d => ({ ...d, kategorie: e.target.value as GlossarKategorie }))}
-                            style={{ ...inputSt, fontSize: 11, padding: '2px 6px', width: '100%' }}>
-                            {GLOSSAR_KATEGORIEN.map(k => (
-                              <option key={k.value} value={k.value}>{k.label}</option>
-                            ))}
-                          </select>
-                        </td>
-                        <td style={{ padding: '6px 8px', verticalAlign: 'top', whiteSpace: 'nowrap' }}>
-                          <button onClick={saveEdit} disabled={saving}
-                            style={{ padding: '3px 8px', borderRadius: 4, border: 'none', background: 'var(--text-primary)', color: '#fff', fontSize: 11, cursor: 'pointer', marginRight: 4 }}>
-                            {saving ? '…' : 'OK'}
-                          </button>
-                          <button onClick={cancelEdit}
-                            style={{ padding: '3px 8px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', fontSize: 11, cursor: 'pointer' }}>
-                            ✕
-                          </button>
                         </td>
                       </>
                     ) : deleteConfirm === entry.id ? (
@@ -1006,6 +1080,13 @@ function GlossarSection({ productionId }: { productionId: string }) {
                           </span>
                         </td>
                         <td style={{ padding: '6px 8px', whiteSpace: 'nowrap', verticalAlign: 'top' }}>
+                          {entry.erklaerung_lang && (
+                            <button onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
+                              title={expandedId === entry.id ? 'Einklappen' : 'Vollständige Erklärung anzeigen'}
+                              style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border)', background: expandedId === entry.id ? 'var(--bg-subtle)' : 'transparent', fontSize: 11, cursor: 'pointer', marginRight: 4 }}>
+                              {expandedId === entry.id ? '▾' : '▸'}
+                            </button>
+                          )}
                           <button onClick={() => startEdit(entry)}
                             title="Bearbeiten"
                             style={{ padding: '3px 6px', borderRadius: 4, border: '1px solid var(--border)', background: 'transparent', fontSize: 11, cursor: 'pointer', marginRight: 4 }}>
@@ -1020,6 +1101,15 @@ function GlossarSection({ productionId }: { productionId: string }) {
                       </>
                     )}
                   </tr>
+                  {expandedId === entry.id && editId !== entry.id && (
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td colSpan={5} style={{ padding: '12px 16px 18px 16px', background: 'var(--bg-subtle)' }}>
+                        {renderErklaerungLang(entry.erklaerung_lang ?? '')}
+                        {renderQuellen(entry.quellen ?? '')}
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -1052,10 +1142,22 @@ function GlossarSection({ productionId }: { productionId: string }) {
                 </label>
               </div>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>ERKLÄRUNG</span>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KURZERKLÄRUNG (Tooltip)</span>
                 <textarea value={newDraft.erklaerung} onChange={e => setNewDraft(d => d ? { ...d, erklaerung: e.target.value } : d)}
                   placeholder="Bedeutung und Verwendung…"
                   rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical' }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>AUSFÜHRLICHE ERKLÄRUNG (optional — ## Abschnitt, • Aufzählung, **fett**)</span>
+                <textarea value={newDraft.erklaerung_lang} onChange={e => setNewDraft(d => d ? { ...d, erklaerung_lang: e.target.value } : d)}
+                  placeholder="## Abschnitt&#10;&#10;Ausführlicher Text mit Formatierung…"
+                  rows={6} style={{ ...inputSt, width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 11 }} />
+              </label>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>QUELLEN (optional — eine pro Zeile: "Titel | https://...")</span>
+                <textarea value={newDraft.quellen} onChange={e => setNewDraft(d => d ? { ...d, quellen: e.target.value } : d)}
+                  placeholder="Quellenname | https://example.com"
+                  rows={2} style={{ ...inputSt, width: '100%', resize: 'vertical', fontFamily: 'monospace', fontSize: 11 }} />
               </label>
               <label style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>KATEGORIE</span>

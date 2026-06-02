@@ -9,6 +9,7 @@ import {
 interface KiProvider {
   provider: string
   api_key: string | null      // '***' if set, null if empty
+  base_url: string | null
   is_active: boolean
   dsgvo_level: string
   tokens_in: number
@@ -30,12 +31,14 @@ interface KiFunction {
 
 const PROVIDER_META: Record<string, {
   label: string; initials: string; color: string
-  dsgvo: string; dsgvoColor: string; needsKey: boolean; warn?: boolean
+  dsgvo: string; dsgvoColor: string; needsKey: boolean; warn?: boolean; hasBaseUrl?: boolean
 }> = {
-  ollama:  { label: 'Ollama',     initials: 'O', color: '#111111', dsgvo: 'DSGVO-sicher · lokal',    dsgvoColor: '#00C853', needsKey: false },
-  mistral: { label: 'Mistral AI', initials: 'M', color: '#FA520F', dsgvo: 'DSGVO-konform · EU',       dsgvoColor: '#007AFF', needsKey: true  },
-  openai:  { label: 'OpenAI',     initials: 'G', color: '#10A37F', dsgvo: 'Opt-In nötig · USA',       dsgvoColor: '#FFCC00', needsKey: true, warn: true },
-  claude:  { label: 'Claude',     initials: 'C', color: '#CC785C', dsgvo: 'Opt-In nötig · USA',       dsgvoColor: '#FFCC00', needsKey: true, warn: true },
+  ollama:  { label: 'Ollama',          initials: 'O',  color: '#111111', dsgvo: 'DSGVO-sicher · lokal',    dsgvoColor: '#00C853', needsKey: false },
+  mistral: { label: 'Mistral AI',      initials: 'M',  color: '#FA520F', dsgvo: 'DSGVO-konform · EU',       dsgvoColor: '#007AFF', needsKey: true  },
+  openai:  { label: 'OpenAI',          initials: 'G',  color: '#10A37F', dsgvo: 'Opt-In nötig · USA',       dsgvoColor: '#FFCC00', needsKey: true, warn: true },
+  claude:  { label: 'Claude',          initials: 'C',  color: '#CC785C', dsgvo: 'Opt-In nötig · USA',       dsgvoColor: '#FFCC00', needsKey: true, warn: true },
+  gemini:  { label: 'Google Gemini',   initials: 'Ge', color: '#4285F4', dsgvo: 'Opt-In nötig · USA',       dsgvoColor: '#FFCC00', needsKey: true, warn: true },
+  custom:  { label: 'Custom API',      initials: 'Cx', color: '#757575', dsgvo: 'Konfigurierbar',            dsgvoColor: '#757575', needsKey: true, hasBaseUrl: true },
 }
 
 const MODELS_BY_PROVIDER: Record<string, string[]> = {
@@ -43,6 +46,8 @@ const MODELS_BY_PROVIDER: Record<string, string[]> = {
   mistral: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'open-mistral-7b', 'open-mixtral-8x7b', 'mistral-ocr-latest'],
   openai:  ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
   claude:  ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
+  gemini:  ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'],
+  custom:  ['llama-3.1-8b-instruct', 'llama-3.2-3b-instruct', 'mistral-7b-instruct'],
 }
 
 const FUNKTION_META: Record<string, {
@@ -154,17 +159,20 @@ function ProviderCard({
   }
   const [isActive, setIsActive] = useState(provider.is_active)
   const [apiKeyInput, setApiKeyInput] = useState('')
+  const [baseUrlInput, setBaseUrlInput] = useState(provider.base_url ?? '')
   const [showKey, setShowKey] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedMsg, setSavedMsg] = useState('')
   const [resetting, setResetting] = useState(false)
 
-  const save = async (extra?: Record<string, any>) => {
+  // includeConfig=true: speichert auch api_key + base_url (nur beim expliziten Speichern-Button)
+  const save = async (extra?: Record<string, any>, includeConfig = false) => {
     setSaving(true)
     setSavedMsg('')
     try {
       const body: Record<string, any> = { is_active: isActive, ...extra }
-      if (apiKeyInput.trim()) body.api_key = apiKeyInput.trim()
+      if (includeConfig && apiKeyInput.trim()) body.api_key = apiKeyInput.trim()
+      if (includeConfig && meta.hasBaseUrl) body.base_url = baseUrlInput.trim() || null
       const resp = await fetch(`/api/admin/ki-providers/${provider.provider}`, {
         method: 'PUT',
         credentials: 'include',
@@ -174,7 +182,7 @@ function ProviderCard({
       const data = await resp.json()
       if (!resp.ok) throw new Error(data.error || 'Fehler')
       onUpdated(data)
-      setApiKeyInput('')
+      if (includeConfig) setApiKeyInput('')
       setSavedMsg('Gespeichert')
       setTimeout(() => setSavedMsg(''), 2000)
     } catch (err: any) {
@@ -232,7 +240,7 @@ function ProviderCard({
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)', flexShrink: 0 }}>
           <ToggleSwitch
             checked={isActive}
-            onChange={v => { setIsActive(v); save({ is_active: v }) }}
+            onChange={v => { setIsActive(v); save({ is_active: v }, false) }}
           />
           {isActive ? 'Aktiv' : 'Inaktiv'}
         </label>
@@ -253,7 +261,7 @@ function ProviderCard({
                 type={showKey ? 'text' : 'password'}
                 value={apiKeyInput}
                 onChange={e => setApiKeyInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && save()}
+                onKeyDown={e => e.key === 'Enter' && save(undefined, true)}
                 placeholder={hasKey ? '•••••••• (leer = unverändert)' : 'sk-…'}
                 style={{
                   flex: 1, fontSize: 12, padding: '6px 10px',
@@ -273,11 +281,35 @@ function ProviderCard({
           </div>
         )}
 
+        {/* Base URL (nur für custom-Provider) */}
+        {meta.hasBaseUrl && (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 5 }}>
+              Base URL{' '}
+              {provider.base_url
+                ? <span style={{ color: '#00C853' }}>● gesetzt</span>
+                : <span style={{ color: '#757575' }}>● nicht gesetzt</span>}
+            </div>
+            <input
+              type="text"
+              value={baseUrlInput}
+              onChange={e => setBaseUrlInput(e.target.value)}
+              placeholder="https://…/v1"
+              style={{
+                width: '100%', fontSize: 12, padding: '6px 10px',
+                border: '1px solid var(--border)', borderRadius: 6,
+                background: 'var(--bg)', color: 'var(--text)', fontFamily: 'monospace',
+                boxSizing: 'border-box' as const,
+              }}
+            />
+          </div>
+        )}
+
         {/* Save button */}
         {meta.needsKey && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <button
-              onClick={() => save()}
+              onClick={() => save(undefined, true)}
               disabled={saving}
               style={{
                 fontSize: 12, padding: '5px 14px', border: 'none', borderRadius: 6,
@@ -543,7 +575,7 @@ export default function AdminKI() {
   }, [])
 
   const hasNonEuActive = providers.some(
-    p => (p.provider === 'openai' || p.provider === 'claude') && p.is_active
+    p => (['openai', 'claude', 'gemini'] as string[]).includes(p.provider) && p.is_active
   )
 
   if (loading) return <div style={{ padding: '32px', fontSize: 13, color: 'var(--text-secondary)' }}>Lade KI-Konfiguration…</div>
@@ -558,7 +590,8 @@ export default function AdminKI() {
         <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
           <strong style={{ color: 'var(--text)' }}>Datenschutz-Hinweis:</strong> Drehbuchinhalte sind produktionskritische Daten.
           Ollama verarbeitet lokal ohne Datenübertragung. Mistral AI arbeitet DSGVO-konform mit EU-Servern und
-          Datenverarbeitungsvertrag. OpenAI und Claude erfordern eine explizite Opt-in-Einwilligung.
+          Datenverarbeitungsvertrag. OpenAI, Claude und Gemini erfordern eine explizite Opt-in-Einwilligung.
+          Custom-Endpoints (OpenAI-kompatibel) sind individuell datenschutzrechtlich zu bewerten.
         </p>
       </div>
 
@@ -567,7 +600,7 @@ export default function AdminKI() {
         API-Anbieter
       </h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 32 }}>
-        {(['ollama', 'mistral', 'openai', 'claude'] as const).map(p => {
+        {(['ollama', 'mistral', 'openai', 'claude', 'gemini', 'custom'] as const).map(p => {
           const prov = providers.find(x => x.provider === p)
           if (!prov) return null
           return (

@@ -33,6 +33,16 @@ export async function getProviderApiKey(provider: string): Promise<string | null
   return row.api_key
 }
 
+/** Returns api_key + base_url for a provider (base_url null if not set or provider inactive) */
+export async function getProviderConfig(provider: string): Promise<{ apiKey: string | null; baseUrl: string | null }> {
+  const row = await queryOne(
+    `SELECT api_key, is_active, base_url FROM ki_providers WHERE provider = $1`,
+    [provider]
+  )
+  if (!row || !row.is_active) return { apiKey: null, baseUrl: null }
+  return { apiKey: row.api_key || null, baseUrl: row.base_url || null }
+}
+
 /** Records token usage + cost for a provider. Fire-and-forget safe (swallows errors). */
 export async function recordUsage(
   provider: string,
@@ -74,10 +84,22 @@ kiProviderRouter.get('/', async (_req, res) => {
   }
 })
 
+// GET /api/admin/ki-providers/available-models
+kiProviderRouter.get('/available-models', (_req, res) => {
+  res.json({
+    ollama:  ['llama3.2', 'llama3.1', 'llama3.1:8b', 'llama3.1:70b', 'mistral', 'codellama', 'phi3'],
+    mistral: ['mistral-large-latest', 'mistral-medium-latest', 'mistral-small-latest', 'open-mistral-7b', 'open-mixtral-8x7b', 'mistral-ocr-latest'],
+    openai:  ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+    claude:  ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
+    gemini:  ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-1.5-pro'],
+    custom:  [],
+  })
+})
+
 // PUT /api/admin/ki-providers/:provider
 kiProviderRouter.put('/:provider', async (req, res) => {
   try {
-    const { api_key, is_active, reset_costs } = req.body
+    const { api_key, is_active, reset_costs, base_url } = req.body
     const { provider } = req.params
 
     // Validate provider exists
@@ -93,6 +115,9 @@ kiProviderRouter.put('/:provider', async (req, res) => {
     }
     if (is_active !== undefined) {
       sql += `, is_active = $${idx++}`; params.push(is_active)
+    }
+    if (base_url !== undefined) {
+      sql += `, base_url = $${idx++}`; params.push(base_url === '' ? null : base_url)
     }
     if (reset_costs === true) {
       sql += `, tokens_in = 0, tokens_out = 0, cost_eur = 0`
@@ -219,6 +244,55 @@ async function callOllama(model: string, prompt: string): Promise<string> {
   }
 }
 
+async function callOpenAI(apiKey: string, model: string, messages: { role: string; content: string }[], maxTokens = 300, baseUrl?: string): Promise<string> {
+  const controller = new AbortController()
+  const timeoutMs = maxTokens > 600 ? 60000 : 20000
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const endpoint = (baseUrl?.replace(/\/$/, '') ?? 'https://api.openai.com/v1') + '/chat/completions'
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.1 }),
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`)
+    const data = await res.json() as any
+    return data.choices?.[0]?.message?.content || ''
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function callGemini(apiKey: string, model: string, messages: { role: string; content: string }[], maxTokens = 300): Promise<string> {
+  const controller = new AbortController()
+  const timeoutMs = maxTokens > 600 ? 60000 : 20000
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const contents = messages.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }))
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          generationConfig: { maxOutputTokens: maxTokens, temperature: 0.1 },
+        }),
+        signal: controller.signal,
+      }
+    )
+    if (!res.ok) throw new Error(`Gemini HTTP ${res.status}`)
+    const data = await res.json() as any
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
 async function getKiSetting(funktion: string): Promise<any> {
   return await queryOne('SELECT * FROM ki_settings WHERE funktion = $1', [funktion])
 }
@@ -228,13 +302,13 @@ function applyPromptTemplate(template: string, vars: Record<string, string>): st
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`)
 }
 
-/** Ruft das konfigurierte LLM auf (Ollama / Mistral / Claude) */
+/** Ruft das konfigurierte LLM auf (Ollama / Mistral / Claude / OpenAI / Gemini / Custom) */
 async function callProvider(setting: any, messages: { role: string; content: string }[], maxTokens = 300, temperature?: number): Promise<string> {
   if (setting.provider === 'ollama') {
     const prompt = messages.map(m => m.content).join('\n\n')
     return callOllama(setting.model_name, prompt)
   }
-  const apiKey = await getProviderApiKey(setting.provider)
+  const { apiKey, baseUrl } = await getProviderConfig(setting.provider)
   if (!apiKey) throw new Error(`Kein API-Key für ${setting.provider}`)
   if (setting.provider === 'mistral') return callMistral(apiKey, setting.model_name, messages, maxTokens, temperature)
   if (setting.provider === 'claude') {
@@ -242,6 +316,9 @@ async function callProvider(setting: any, messages: { role: string; content: str
     const user = messages.find(m => m.role === 'user')?.content ?? ''
     return callClaude(apiKey, setting.model_name, system, user)
   }
+  if (setting.provider === 'openai') return callOpenAI(apiKey, setting.model_name, messages, maxTokens)
+  if (setting.provider === 'gemini') return callGemini(apiKey, setting.model_name, messages, maxTokens)
+  if (setting.provider === 'custom') return callOpenAI(apiKey, setting.model_name, messages, maxTokens, baseUrl ?? undefined)
   throw new Error(`Unbekannter Provider: ${setting.provider}`)
 }
 

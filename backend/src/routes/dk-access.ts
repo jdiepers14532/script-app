@@ -88,8 +88,8 @@ router.get('/:productionId/glossar',
       const pid = req.params.productionId
       // Fehlende Defaults immer nachsynchronisieren (neue Defaults landen automatisch in allen Produktionen)
       await pool.query(`
-        INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, term_en, kategorie, sort_order)
-        SELECT $1, d.kuerzel, d.name, d.erklaerung, d.term_en, d.kategorie, d.sort_order
+        INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, erklaerung_lang, quellen, term_en, kategorie, sort_order)
+        SELECT $1, d.kuerzel, d.name, d.erklaerung, d.erklaerung_lang, d.quellen, d.term_en, d.kategorie, d.sort_order
         FROM dk_glossar_defaults d
         WHERE NOT EXISTS (
           SELECT 1 FROM dk_glossar g
@@ -97,7 +97,7 @@ router.get('/:productionId/glossar',
         )
       `, [pid])
       const { rows } = await pool.query(
-        'SELECT id, kuerzel, name, erklaerung, term_en, kategorie, sort_order FROM dk_glossar WHERE production_id = $1 ORDER BY sort_order, name',
+        'SELECT id, kuerzel, name, erklaerung, erklaerung_lang, quellen, term_en, kategorie, sort_order FROM dk_glossar WHERE production_id = $1 ORDER BY sort_order, name',
         [pid]
       )
       res.json(rows)
@@ -115,13 +115,13 @@ router.post('/:productionId/glossar',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { kuerzel, name, erklaerung, term_en, kategorie } = req.body
+      const { kuerzel, name, erklaerung, erklaerung_lang, quellen, term_en, kategorie } = req.body
       const kat = VALID_KATEGORIEN.includes(kategorie) ? kategorie : 'kuerzel'
       const { rows } = await pool.query(
-        `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, term_en, kategorie, sort_order)
-         VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM dk_glossar WHERE production_id = $1))
-         RETURNING id, kuerzel, name, erklaerung, term_en, kategorie, sort_order`,
-        [req.params.productionId, (kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), (term_en ?? '').trim(), kat]
+        `INSERT INTO dk_glossar (production_id, kuerzel, name, erklaerung, erklaerung_lang, quellen, term_en, kategorie, sort_order)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM dk_glossar WHERE production_id = $1))
+         RETURNING id, kuerzel, name, erklaerung, erklaerung_lang, quellen, term_en, kategorie, sort_order`,
+        [req.params.productionId, (kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), (erklaerung_lang ?? '').trim(), (quellen ?? '').trim(), (term_en ?? '').trim(), kat]
       )
       res.json(rows[0])
     } catch (err) {
@@ -135,13 +135,13 @@ router.put('/:productionId/glossar/:id',
   requireDkAccess(req => req.params.productionId),
   async (req, res) => {
     try {
-      const { kuerzel, name, erklaerung, term_en, kategorie } = req.body
+      const { kuerzel, name, erklaerung, erklaerung_lang, quellen, term_en, kategorie } = req.body
       const kat = VALID_KATEGORIEN.includes(kategorie) ? kategorie : 'kuerzel'
       const { rows } = await pool.query(
-        `UPDATE dk_glossar SET kuerzel = $1, name = $2, erklaerung = $3, term_en = $4, kategorie = $5, updated_at = NOW()
-         WHERE id = $6 AND production_id = $7
-         RETURNING id, kuerzel, name, erklaerung, term_en, kategorie, sort_order`,
-        [(kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), (term_en ?? '').trim(), kat, req.params.id, req.params.productionId]
+        `UPDATE dk_glossar SET kuerzel = $1, name = $2, erklaerung = $3, erklaerung_lang = $4, quellen = $5, term_en = $6, kategorie = $7, updated_at = NOW()
+         WHERE id = $8 AND production_id = $9
+         RETURNING id, kuerzel, name, erklaerung, erklaerung_lang, quellen, term_en, kategorie, sort_order`,
+        [(kuerzel ?? '').trim(), (name ?? '').trim(), (erklaerung ?? '').trim(), (erklaerung_lang ?? '').trim(), (quellen ?? '').trim(), (term_en ?? '').trim(), kat, req.params.id, req.params.productionId]
       )
       if (!rows[0]) return res.status(404).json({ error: 'Not found' })
       res.json(rows[0])

@@ -1100,6 +1100,15 @@ export const api = {
   runNtVerweisFix: (szeneId: string) =>
     request<{ ok: boolean; changed: boolean; notiz: string | null }>('POST', `/checks/szene/${szeneId}/nt-verweis-fix`),
 
+  // ── Import-Jobs (3-Tier PDF-Import) ───────────────────────────────────────
+  getImportJobs: (produktionId: string) =>
+    request<any[]>('GET', `/import-jobs?produktion_id=${encodeURIComponent(produktionId)}`),
+  getImportJob: (id: string) =>
+    request<any>('GET', `/import-jobs/${id}`),
+  deleteImportJob: (id: string) =>
+    request<void>('DELETE', `/import-jobs/${id}`),
+  // Datei-Download via direkter URL: /api/import-jobs/:id/file
+
   // ── Generic helpers ───────────────────────────────────────────────────────
   get: (path: string) => request<any>('GET', path),
   post: (path: string, body?: any) => request<any>('POST', path, body),
