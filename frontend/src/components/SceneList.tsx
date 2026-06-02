@@ -1065,7 +1065,6 @@ export default function SceneList({
                         </button>
                       ))}
                       <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Dokument</button>
-                      <button className="scene-ctx-item" onClick={e => { e.stopPropagation(); window.location.href = `/nt-liste?szene_id=${scene.id}` }}>NT-Liste</button>
                       <CategoryDivider label="Verwalten" />
                       <button className="scene-ctx-item" onClick={async e => {
                         e.stopPropagation()
