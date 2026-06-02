@@ -473,6 +473,10 @@ async function runMigrations() {
     'v182_glossar_im_unterbruch_ca.sql',
     // Handoff 2 Option C: Cleanup verwaiste werkstufen.label-Einträge (generisch, idempotent)
     'v183_cleanup_orphan_labels.sql',
+    // PR 13: ki_settings für import_detect + import_extract (Tier-2/3)
+    'v184_ki_import_settings.sql',
+    // PR 13: extracted_text-Spalte in import_jobs (PDF-Text-Cache für Tier-2/3)
+    'v185_import_jobs_text_cache.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
